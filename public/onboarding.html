@@ -28,6 +28,7 @@
   @media (max-width:640px){.wrap{padding:0 14px 40px}.nav{margin-left:0;width:100%}}
 </style>
 <link rel="stylesheet" href="theme.css?v=76">
+<link rel="stylesheet" href="venues.css?v=2">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -43,6 +44,8 @@
       <div id="obLive" class="sr-only" role="status" aria-live="polite"></div>
       <div id="obRoot"></div>
     </div>
+    <!-- Venues step reuses Control Center's venues manager (venues-admin.js); parked here between visits -->
+    <div id="obPark" aria-hidden="true"><button type="button" id="tab-venues" hidden>Venues</button><div id="pane-venues" hidden><div id="vn_root"></div></div></div>
   </main>
 </div>
 <script src="/trusted-types.js?v=2"></script>
@@ -52,6 +55,9 @@
 <script src="store-api.js?v=160"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="onboarding-core.js?v=3"></script>
-<script src="onboarding.js?v=5"></script>
+<script src="venues-core.js?v=2"></script>
+<script src="venues-admin.js?v=1"></script>
+<script src="onboarding-wizard.js?v=1"></script>
+<script src="onboarding.js?v=6"></script>
 </body>
 </html>

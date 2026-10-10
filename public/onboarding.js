@@ -13,9 +13,22 @@
   const O = window.HelmOnboarding;
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const KEYS = ["menu", "pricing", "inventory", "vendors", "staff"];
-  const OPTIONAL = { vendors: true, staff: true };
+  const W = window.HelmOnbWizard;
+  // whole flow (onboarding-wizard.js): billing (BILL) → settings + import steps (KEYS) → finish (KEYS.length)
+  const KEYS = W.FLOW.filter((k) => k !== "billing" && k !== "finish");
+  const OPTIONAL = {}; KEYS.forEach((k) => { if (!W.REQUIRED[k]) OPTIONAL[k] = true; });
+  const isSet = (k) => !!W.SETTINGS[k];
+  const lbl = (k) => W.LABELS[k] || (O.KINDS[k] && O.KINDS[k].label) || k;
+  const keyOf = (i) => (i === BILL ? "billing" : i >= KEYS.length ? "finish" : KEYS[i]);
+  const idxOf = (k) => (k === "billing" ? BILL : k === "finish" ? KEYS.length : Math.max(0, KEYS.indexOf(k)));
+  let setVals = {}, setErr = {}, pricingCfg = null, invites = [], venuesOpened = false, tplCounts = null, serverProg = null, progT = null;
   const INTRO = {
+    studio: "How your studio appears to clients and in Helm. Currency and timezone follow the country you picked in Business details; change them if needed.",
+    brand: "Optional. Your logo and accent colour on quotations, booklets and client links.",
+    team: "Optional. Invite the people who will sign in to Helm and pick each person's role. They get a join link (valid 7 days). Crew who don't sign in can be added in the Staff step.",
+    venues: "Optional. The halls and venues you work with. Pick one on a quote to fill in the hall details. Venues are never deleted, only deactivated.",
+    payment: "Optional. Your default advance and when the balance is due. Shown as your standard terms; you can still change them per event.",
+    templates: "Optional. Menu packages and checklist templates speed up every quote. Review them now or later in Control Center.",
     menu: "Add the dishes you serve. They appear in the menu picker on every quote. Dishes with the same name as an existing one are skipped by default.",
     pricing: "Your per-chair and per-plate rates. These feed live quote pricing. Existing rates are never changed here; duplicates are skipped by default.",
     inventory: "Your stock: item, quantity and (optionally) unit cost. If an item already exists you can add the quantity to it instead of skipping.",
@@ -57,6 +70,11 @@
     ".ob-bf input{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--line,#e8e3db);border-radius:8px;font:inherit;background:var(--panel,#fff);color:inherit}",
     ".ob-bf input[aria-invalid=true]{border-color:#c43c3c}.ob-bf .ob-err{margin-top:3px}@media (max-width:640px){.ob-bf{grid-template-columns:1fr}}",
     ".ob-bar{height:8px;border-radius:99px;background:var(--line-2,#f1ede7);overflow:hidden}.ob-bar i{display:block;height:100%;background:var(--accent,#6d28d9);width:0}",
+    ".ob-bf select,.ob-bf textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--line,#e8e3db);border-radius:8px;font:inherit;background:var(--panel,#fff);color:inherit;min-height:0}",
+    ".ob-bf input[type=color]{padding:2px;height:40px}.ob-req{font:600 10.5px var(--font,system-ui);color:#9a5a08;background:#fff1de;border-radius:99px;padding:1px 7px;margin-left:4px}",
+    ".ob-prog{display:flex;align-items:center;gap:10px;margin:0 0 8px}.ob-prog progress{flex:1 1 auto;height:8px;accent-color:var(--accent,#6d28d9)}",
+    ".ob-inv{list-style:none;padding:0;margin:8px 0}.ob-inv li{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-2,#f1ede7)}.ob-inv input{flex:1 1 220px;min-width:0;padding:7px 8px;border:1px solid var(--line,#e8e3db);border-radius:8px;font:12px var(--mono,monospace)}",
+    "#obPark{display:none}",
     "@media (max-width:640px){.ob-card{padding:12px}.ob-map{grid-template-columns:1fr}.ob-row .btn{flex:1 1 100%}}",
   ].join("\n");
 
@@ -65,12 +83,15 @@
   function freshState() { const s = { step: 0, steps: {} }; KEYS.forEach((k) => { s.steps[k] = blankStep(); }); return s; }
   function loadDraft() {
     const d = O.parseDraft(lsGet(LS_DRAFT + uid)); const s = freshState(); if (!d) return { s, resumed: false };
-    s.step = Math.max(0, Math.min(KEYS.length, d.step | 0));
+    // v1 drafts stored only an index into the old import-only list; newer ones carry stepKey
+    const sk = typeof d.stepKey === "string" ? d.stepKey : ((d.step | 0) >= W.LEGACY_KEYS.length ? "finish" : W.LEGACY_KEYS[Math.max(0, d.step | 0)]);
+    s.step = W.FLOW.indexOf(sk) >= 0 ? idxOf(sk) : 0;
     KEYS.forEach((k) => { if (d.steps[k]) Object.assign(s.steps[k], d.steps[k]); if (!Array.isArray(s.steps[k].manual) || !s.steps[k].manual.length) s.steps[k].manual = [{}, {}, {}]; });
     return { s, resumed: true };
   }
   let saveT = null, saveWarned = false;
-  function saveDraft() { clearTimeout(saveT); saveT = setTimeout(() => { if (!lsSet(LS_DRAFT + uid, O.serializeDraft(S)) && !saveWarned) { saveWarned = true; BPUI.toast("Could not autosave your progress in this browser (storage full or blocked).", { type: "info" }); } }, 300); }
+  function saveDraft() { clearTimeout(saveT); saveT = setTimeout(() => { if (!lsSet(LS_DRAFT + uid, draftJson()) && !saveWarned) { saveWarned = true; BPUI.toast("Could not autosave your progress in this browser (storage full or blocked).", { type: "info" }); } }, 300); }
+  function draftJson() { let j = {}; try { j = JSON.parse(O.serializeDraft(S)); } catch (e) {} j.stepKey = keyOf(S.step); return JSON.stringify(j); }
   function loadLedger() { try { const l = JSON.parse(lsGet(LS_LEDGER + uid) || "null"); if (l && l.entries) ledger = l; } catch (e) {} }
   function saveLedger() { lsSet(LS_LEDGER + uid, JSON.stringify(ledger)); }
 
@@ -79,6 +100,9 @@
     const sb = BPStore.mode() === "supabase"; const role = sb ? await BPStore.auth.role() : "admin";
     for (const k of KEYS) {
       if (!sb || role === "admin") { perms[k] = true; continue; }
+      if (k === "templates") { perms[k] = true; continue; }                     // review-only step (links out)
+      if (k === "venues") { perms[k] = await BPStore.auth.canEditArea("venues"); continue; }
+      if (isSet(k)) { perms[k] = false; continue; }                             // studio row, invites, pricing config: admin only
       if (k === "menu" || k === "pricing") { perms[k] = false; continue; }       // company-wide config: admin only (matches Control Center)
       perms[k] = await BPStore.auth.canEditArea(O.KINDS[k].area);
     }
@@ -140,18 +164,25 @@
   function counts(kind) { const st = S.steps[kind]; return st.batchKey ? O.ledgerCounts(ledger, st.batchKey, kind) : { ok: 0, merged: 0, error: 0 }; }
 
   /* ---------- rendering ---------- */
+  function doneKeys() { const d = billingOk() ? ["billing"] : []; KEYS.forEach((k) => { if (S.steps[k].done) d.push(k); }); return d; }
+  function skippedKeys() { return KEYS.filter((k) => S.steps[k].skipped && !S.steps[k].done); }
   function render() {
     const root = $("#obRoot"); if (!root) return;
-    const stepsNav = `<ol class="ob-steps" aria-label="Setup steps"><li class="${billingOk() ? "done" : ""}"><button type="button" data-act="goto" data-i="${BILL}"${S.step === BILL ? ' aria-current="step"' : ""}><span class="n">${billingOk() ? "✓" : "0"}</span>Business details</button></li>` + KEYS.map((k, i) => {
+    parkVenues();
+    const req = (k) => (W.REQUIRED[k] ? ' <span class="ob-req">required</span>' : "");
+    const pos = S.step === BILL ? 1 : Math.min(KEYS.length + 2, S.step + 2), total = KEYS.length + 2, pct = W.percent(doneKeys(), skippedKeys());
+    const prog = `<div class="ob-prog"><span class="ob-note">Step ${Number(pos)} of ${Number(total)} · ${Number(pct)}% done</span><progress max="100" value="${Number(pct)}" aria-label="Setup progress">${Number(pct)}%</progress></div>`;
+    const stepsNav = prog + `<ol class="ob-steps" aria-label="Setup steps"><li class="${billingOk() ? "done" : ""}"><button type="button" data-act="goto" data-i="${BILL}"${S.step === BILL ? ' aria-current="step"' : ""}><span class="n">${billingOk() ? "✓" : "0"}</span>Business details${req("billing")}</button></li>` + KEYS.map((k, i) => {
       const st = S.steps[k]; const cls = st.done || st.skipped ? "done" : "";
-      return `<li class="${esc(cls)}"><button type="button" data-act="goto" data-i="${Number(i)}"${S.step === i ? ' aria-current="step"' : ""}><span class="n">${st.done ? "✓" : Number(i) + 1}</span>${esc(O.KINDS[k].label)}${OPTIONAL[k] ? " (optional)" : ""}</button></li>`;
+      return `<li class="${esc(cls)}"><button type="button" data-act="goto" data-i="${Number(i)}"${S.step === i ? ' aria-current="step"' : ""}><span class="n">${st.done ? "✓" : Number(i) + 1}</span>${esc(lbl(k))}${req(k)}</button></li>`;
     }).join("") + `<li class="${S.step === KEYS.length ? "" : ""}"><button type="button" data-act="goto" data-i="${KEYS.length}"${S.step === KEYS.length ? ' aria-current="step"' : ""}><span class="n">★</span>Finish</button></li></ol>`;
     let body = "";
     if (S.step === BILL) body = renderBilling();
     else if (S.step >= KEYS.length) body = renderFinish();
     else {
       const kind = KEYS[S.step], st = S.steps[kind];
-      if (!perms[kind]) body = `<div class="ob-lock"><b>${esc(O.KINDS[kind].label)}</b> can only be set up by ${kind === "menu" || kind === "pricing" ? "an admin" : "a role that can edit this area"}. Ask your admin, or skip this step.</div><div class="ob-row"><button type="button" class="btn" data-act="skip">Skip this step</button></div>`;
+      if (!perms[kind]) body = `<div class="ob-card"><h2>${esc(lbl(kind))}</h2><div class="ob-lock"><b>${esc(lbl(kind))}</b> can only be set up by ${kind === "menu" || kind === "pricing" || isSet(kind) ? "an admin" : "a role that can edit this area"}. Ask your admin, or skip this step.</div><div class="ob-row">${navBack()}<span class="ob-grow"></span><button type="button" class="btn" data-act="skip">Skip for now</button></div></div>`;
+      else if (isSet(kind)) body = renderSetting(kind);
       else if (st.stage === "map") body = renderMap(kind);
       else if (st.stage === "preview") body = renderPreview(kind);
       else if (st.stage === "result") body = renderResult(kind);
@@ -159,10 +190,128 @@
     }
     root.innerHTML = `${stepsNav}${body}`;
     const live = $("#obLive"); if (live) live.textContent = "";
+    mountVenues();
+  }
+  const navBack = () => (S.step > BILL ? '<button type="button" class="btn" data-act="prev">Back</button>' : "");
+
+  /* ---------- settings steps (studio, brand, team, venues, payment, templates) ---------- */
+  function sfld(kind, key, label, v, o) {
+    o = o || {}; const id = "ob_s_" + key, eid = id + "_err", e = (setErr[kind] || {})[key] || "";
+    const attrs = `id="${esc(id)}" data-set="${esc(key)}" aria-invalid="${!!e}" aria-describedby="${esc(eid)}${o.hint ? " " + esc(id) + "_hint" : ""}"${o.req ? ' aria-required="true"' : ""}${o.max ? ` maxlength="${Number(o.max)}"` : ""}${o.ac ? ` autocomplete="${esc(o.ac)}"` : ""}${o.list ? ` list="${esc(o.list)}"` : ""}${o.im ? ` inputmode="${esc(o.im)}"` : ""}`;
+    const ctl = o.area ? `<textarea ${attrs} rows="3">${esc(v)}</textarea>` : `<input type="${esc(o.type || "text")}" ${attrs} value="${esc(v)}"${o.type === "number" ? ` min="${Number(o.min || 0)}" max="${Number(o.maxN || 100)}" step="${esc(o.step || "1")}"` : ""}>`;
+    return `<div class="${o.full ? "full" : ""}"><label for="${esc(id)}">${esc(label)}${o.req ? " *" : ""}</label>${ctl}`
+      + (o.hint ? `<div class="ob-note" id="${esc(id)}_hint">${esc(o.hint)}</div>` : "") + `<div class="ob-err" id="${esc(eid)}">${esc(e)}</div></div>`;
+  }
+  function setFooter(kind, saveLabel) {
+    return `<div id="obErr" class="ob-err" role="alert"></div><div class="ob-row">${navBack()}<span class="ob-grow"></span>`
+      + (OPTIONAL[kind] ? '<button type="button" class="btn" data-act="skip">Skip for now</button>' : "")
+      + `<button type="submit" class="btn primary" data-act="setsave">${esc(saveLabel || "Save & continue")}</button></div>`;
+  }
+  const TZS = ["Asia/Kolkata", "Asia/Dubai", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Asia/Singapore"];
+  function renderSetting(kind) {
+    const v = setVals[kind] || {}; const head = `<h2>${esc(lbl(kind))}${W.REQUIRED[kind] ? ' <span class="ob-req">required</span>' : ""}</h2><p class="sub">${esc(INTRO[kind])}</p>`;
+    const form = (inner, save) => `<div class="ob-card">${head}<form id="obSet" data-kind="${esc(kind)}" novalidate>${inner}${setFooter(kind, save)}</form></div>`;
+    if (kind === "studio") {
+      const d = Object.assign(W.studioFromOrg(org), v), cd = W.countryDefaults(O.billingFromOrg(org).country, BPStore);
+      if (!d.currency) d.currency = cd.currency; if (!d.timezone) d.timezone = cd.timezone;
+      const def = (cd.currency || cd.timezone) && (cd.currency !== d.currency || cd.timezone !== d.timezone)
+        ? `<div class="ob-warn">Your country suggests ${esc(cd.currency)} · ${esc(cd.timezone)}. <button type="button" class="btn" data-act="setdefaults">Use these</button></div>` : "";
+      return form(`${def}<div class="ob-bf">${sfld(kind, "name", "Studio / brand name", d.name, { req: 1, max: 80, ac: "organization", full: 1 })}`
+        + sfld(kind, "email", "Business email", d.email, { type: "email", max: 254, ac: "email", hint: "Shown to clients as your contact." })
+        + sfld(kind, "website", "Website", d.website, { type: "url", max: 200, ac: "url", hint: "Optional, e.g. https://studio.com" })
+        + sfld(kind, "currency", "Currency", d.currency, { req: 1, max: 3, hint: cd.taxName ? "Tax: " + cd.taxName + (cd.taxRate != null ? " " + cd.taxRate + "%" : "") : "" })
+        + sfld(kind, "timezone", "Timezone", d.timezone, { req: 1, max: 40, list: "obTzList" })
+        + `<datalist id="obTzList">${TZS.map((z) => `<option value="${esc(z)}"></option>`).join("")}</datalist></div>`);
+    }
+    if (kind === "brand") {
+      const d = Object.assign(W.brandFromOrg(org), v);
+      return form(`<div class="ob-bf">${sfld(kind, "logo", "Logo link (https)", d.logo, { type: "url", max: 500, full: 1, hint: "A public https:// link to your logo image (PNG, JPG or SVG)." })}`
+        + sfld(kind, "accent", "Accent colour", d.accent, { max: 7, hint: "Hex colour, e.g. #6d28d9" })
+        + `<div><label for="ob_s_accent_pick">Pick a colour</label><input type="color" id="ob_s_accent_pick" data-pick="accent" value="${esc(/^#[0-9a-f]{6}$/i.test(d.accent) ? d.accent : "#6d28d9")}"></div></div>`);
+    }
+    if (kind === "payment") {
+      const d = Object.assign(W.paymentFromCfg(pricingCfg), v);
+      return form(`<div class="ob-bf">${sfld(kind, "advancePct", "Advance to confirm a booking (%)", d.advancePct, { type: "number", req: 1, maxN: 100, step: "0.5", im: "decimal" })}`
+        + sfld(kind, "balanceDueDays", "Balance due (days before the event)", d.balanceDueDays, { type: "number", req: 1, maxN: 365, im: "numeric", hint: "0 = on the event day." })
+        + sfld(kind, "paymentTermsNote", "Payment terms note", d.paymentTermsNote, { area: 1, max: 500, full: 1, hint: "Optional, e.g. cancellation or refund terms." }) + `</div>`);
+    }
+    if (kind === "team") {
+      const roles = (BPStore.auth.admin && BPStore.auth.admin.roles && BPStore.auth.admin.roles()) || ["coordinator"];
+      const rl = (r) => (BPStore.auth.admin && BPStore.auth.admin.roleLabel ? BPStore.auth.admin.roleLabel(r) : r);
+      const list = invites.length ? `<ul class="ob-inv">${invites.map((x, i) => `<li><b>${esc(x.email)}</b> · ${esc(rl(x.role))}<input readonly aria-label="Join link for ${esc(x.email)}" value="${esc(x.link)}"><button type="button" class="btn" data-act="invcopy" data-i="${Number(i)}">Copy link</button></li>`).join("")}</ul>` : "";
+      return form(`<div class="ob-bf">${sfld(kind, "email", "Teammate email", v.email || "", { type: "email", max: 254, ac: "off" })}`
+        + `<div><label for="ob_s_role">Role</label><select id="ob_s_role" data-set="role">${roles.map((r) => `<option value="${esc(r)}"${r === (v.role || "coordinator") ? " selected" : ""}>${esc(rl(r))}</option>`).join("")}</select><div class="ob-err" id="ob_s_role_err"></div></div></div>`
+        + `<div class="ob-row"><button type="button" class="btn" data-act="invite">Create invite link</button><a class="btn" href="control.html#users">Manage roles &amp; access</a></div>${list}`,
+        invites.length ? "Save & continue" : "Continue");
+    }
+    if (kind === "venues") return form(`<div id="obVenuesSlot"></div>`);
+    // templates
+    const c = tplCounts;
+    const line = c ? `<ul><li><b>${Number(c.pkgs)}</b> menu package(s)</li><li><b>${Number(c.lists)}</b> checklist template(s)</li></ul>` : `<p class="ob-note">Loading…</p>`;
+    return form(`${line}<div class="ob-row"><a class="btn" href="control.html#pricing">Edit menu packages</a><a class="btn" href="templates.html">Open checklist templates</a></div>`, "Looks good — continue");
+  }
+  // reuse Control Center's venues manager (venues-admin.js): its pane is parked off-screen and moved in/out
+  function parkVenues() { const pane = $("#pane-venues"), park = $("#obPark"); if (pane && park && pane.parentNode !== park) { park.appendChild(pane); pane.hidden = true; } }
+  function mountVenues() {
+    const slot = $("#obVenuesSlot"), pane = $("#pane-venues"); if (!slot) return;
+    if (!pane || !window.HelmVenuesAdmin) { slot.innerHTML = '<div class="ob-lock">Venues can be added in <a href="control.html#venues">Control Center → Venues</a>.</div>'; return; }
+    slot.appendChild(pane); pane.hidden = false;
+    if (!venuesOpened) { venuesOpened = true; try { window.HelmVenuesAdmin.reload(); } catch (e) {} }
+  }
+  async function loadTplCounts() {
+    if (tplCounts) return; const n = async (f) => { try { return ((await f()) || []).length; } catch (e) { return 0; } };
+    tplCounts = { pkgs: await n(() => BPStore.menuTemplates.list(false)), lists: await n(() => BPStore.templates.list()) };
+    if (KEYS[S.step] === "templates") render();
+  }
+  function readSet() { const vals = {}; document.querySelectorAll("#obSet [data-set]").forEach((el) => { vals[el.dataset.set] = el.value; }); return vals; }
+  function setFail(kind, r) {
+    setVals[kind] = readSet(); setErr[kind] = r.errors; render();
+    const k = Object.keys(r.errors)[0]; const el = k && $("#ob_s_" + k); if (el) el.focus();
+    const live = $("#obLive"); if (live) live.textContent = "Please fix " + Object.keys(r.errors).length + " field(s).";
+  }
+  async function saveSetting(kind) {
+    const vals = readSet(); const st = S.steps[kind];
+    try {
+      if (kind === "studio" || kind === "brand") {
+        const r = kind === "studio" ? W.validateStudio(vals) : W.validateBrand(vals); if (!r.ok) return setFail(kind, r);
+        const fresh = await BPStore.org.current(); if (!fresh) throw new Error("Studio settings aren't available.");
+        await BPStore.org.save(kind === "studio" ? W.studioPatch(fresh, r.data) : W.brandPatch(fresh, r.data));
+        org = await BPStore.org.current();
+      } else if (kind === "payment") {
+        const r = W.validatePayment(vals); if (!r.ok) return setFail(kind, r);
+        const cfg = (await BPStore.config.getPricing()) || {}; const next = W.paymentPatch(cfg, r.data);
+        await BPStore.config.setPricing(next); pricingCfg = next;
+      }
+      setVals[kind] = {}; setErr[kind] = {}; st.done = true; st.skipped = false;
+      if (kind !== "templates" && kind !== "venues" && kind !== "team") BPUI.toast(lbl(kind) + " saved.", { type: "ok" });
+      go(S.step + 1);
+    } catch (err) { const x = $("#obErr"); if (x) x.textContent = BPUI.friendlyError(err, { action: "save " + lbl(kind).toLowerCase() }); }
+  }
+  async function createInvite() {
+    const vals = readSet(); setVals.team = { role: vals.role };
+    const email = String(vals.email || "").trim().toLowerCase(), x = $("#obErr");
+    if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) { setErr.team = { email: "Enter the teammate's email." }; setVals.team.email = vals.email; render(); const el = $("#ob_s_email"); if (el) el.focus(); return; }
+    try {
+      const r = await BPStore.invitations.create(email, vals.role);
+      invites.push({ email, role: vals.role, link: location.origin + "/login?invite=" + encodeURIComponent(r.token) });
+      setErr.team = {}; render(); BPUI.toast((r.reused ? "Existing invite link ready for " : "Invite link created for ") + email + ".", { type: "ok" });
+    } catch (err) { if (x) x.textContent = BPUI.friendlyError(err, { action: "create the invite" }); }
+  }
+  // server-side progress on organizations.brand.onboarding (admins only; merged into the fresh row)
+  function persistProgress(complete) {
+    if (!canBill || !org || BPStore.mode() !== "supabase") return;
+    clearTimeout(progT);
+    progT = setTimeout(async () => {
+      try { const fresh = await BPStore.org.current(); if (!fresh) return;
+        const prev = W.progressFromOrg(fresh);
+        await BPStore.org.save(W.progressPatch(fresh, { step: keyOf(S.step), done: doneKeys(), skipped: skippedKeys(), completed_at: complete ? new Date().toISOString() : prev.completed_at }));
+        org = (await BPStore.org.current()) || org;
+      } catch (e) { /* progress is a convenience; the local draft still resumes */ }
+    }, complete ? 0 : 400);
   }
 
   function renderBilling() {
-    if (orgErr) return `<div class="ob-card"><h2>Business details</h2><div class="ob-warn">Could not load your studio details. Reload the page to try again.</div><div class="ob-row"><span class="ob-grow"></span><button type="button" class="btn" data-act="goto" data-i="0">Continue to menu</button></div></div>`;
+    if (orgErr) return `<div class="ob-card"><h2>Business details</h2><div class="ob-warn">Could not load your studio details. Reload the page to try again.</div><div class="ob-row"><span class="ob-grow"></span><button type="button" class="btn" data-act="goto" data-i="0">Continue</button></div></div>`;
     if (!org) return `<div class="ob-card"><h2>Business details</h2><p class="ob-note">Studio details aren't available for this workspace.</p><div class="ob-row"><span class="ob-grow"></span><button type="button" class="btn primary" data-act="goto" data-i="0">Continue</button></div></div>`;
     const v = Object.assign(O.billingFromOrg(org), bill.values); const e = bill.errors || {};
     if (!canBill) return `<div class="ob-card"><h2>Business details</h2><div class="ob-lock">Only an admin can enter the studio's billing details${billingOk() ? " (already complete)." : ". Ask your admin to complete them in Control Center → Studio details."}</div><div class="ob-row"><span class="ob-grow"></span><button type="button" class="btn primary" data-act="goto" data-i="0">Continue</button></div></div>`;
@@ -187,7 +336,7 @@
     }).join("");
     return `<div class="ob-card"><h2>Business details</h2><p class="sub">Used on your quotations and invoices. Fields marked * are required to finish setup; ${esc(tid.label)} is optional. You can edit these later in Control Center → Studio details.</p>`
       + `<form id="obBill" novalidate><div class="ob-bf">${fields}</div><div id="obErr" class="ob-err" role="alert"></div>`
-      + `<div class="ob-row"><span class="ob-grow"></span><button type="submit" class="btn primary" data-act="billsave">Save and continue</button></div></form></div>`;
+      + `<div class="ob-row"><span class="ob-grow"></span><button type="submit" class="btn primary" data-act="billsave">Save &amp; continue</button></div></form></div>`;
   }
   async function saveBilling() {
     const form = $("#obBill"); if (!form) return;
@@ -203,7 +352,7 @@
       await BPStore.org.save(O.billingPatch(fresh, r.data));
       await syncTaxCountry(r.data.country);
       org = await BPStore.org.current(); bill = { values: {}, errors: {} };
-      BPUI.toast("Business details saved.", { type: "ok" }); go(0);
+      BPUI.toast("Business details saved.", { type: "ok" }); const cd = W.countryDefaults(r.data.country, BPStore); setVals.studio = Object.assign({}, setVals.studio || {}, cd.currency ? { currency: cd.currency } : {}, cd.timezone ? { timezone: cd.timezone } : {}); go(0);
     } catch (err) { const x = $("#obErr"); if (x) x.textContent = BPUI.friendlyError(err, { action: "save your business details" }); }
   }
 
@@ -224,7 +373,10 @@
 
   function renderInput(kind) {
     const st = S.steps[kind], def = O.KINDS[kind];
-    const tabs = `<div class="ob-tabs" role="group" aria-label="How do you want to add them?"><button type="button" data-act="mode" data-m="manual" aria-pressed="${st.mode === "manual"}">Type them in</button><button type="button" data-act="mode" data-m="csv" aria-pressed="${st.mode === "csv"}">Import from Excel / CSV</button></div>`;
+    // smart column-mapping importer (smart-import.js) when it is on the page; the built-in CSV path stays as the fallback
+    const smart = window.HelmImport && typeof window.HelmImport.open === "function" && W.IMPORT_ENTITY[kind]
+      ? `<button type="button" class="btn" data-act="smartimport">Smart import from Excel / CSV</button>` : "";
+    const tabs = `<div class="ob-tabs" role="group" aria-label="How do you want to add them?"><button type="button" data-act="mode" data-m="manual" aria-pressed="${st.mode === "manual"}">Type them in</button><button type="button" data-act="mode" data-m="csv" aria-pressed="${st.mode === "csv"}">Import from Excel / CSV</button>${smart}</div>`;
     let inner;
     if (st.mode === "csv") {
       inner = `<div class="ob-row"><button type="button" class="btn" data-act="template" data-fmt="xlsx">Download Excel template</button><button type="button" class="btn" data-act="template" data-fmt="csv">CSV template</button>`
@@ -240,8 +392,8 @@
     }
     const ready = st.mode === "csv" ? st.text.trim().length > 0 : st.manual.some((r) => Object.values(r).some((v) => String(v || "").trim()));
     return `<div class="ob-card">${header(kind)}${tabs}${inner}<div id="obErr" class="ob-err" role="alert"></div>`
-      + `<div class="ob-row">${S.step > 0 ? '<button type="button" class="btn" data-act="prev">Back</button>' : ""}<span class="ob-grow"></span>`
-      + (OPTIONAL[kind] ? '<button type="button" class="btn" data-act="skip">Skip this step</button>' : "")
+      + `<div class="ob-row">${navBack()}<span class="ob-grow"></span>`
+      + (OPTIONAL[kind] ? '<button type="button" class="btn" data-act="skip">Skip for now</button>' : "")
       + `<button type="button" class="btn primary" data-act="review"${ready ? "" : ' data-empty="1"'}>Review before importing</button></div></div>`;
   }
   function manualCell(kind, f, r, ri) {
@@ -307,26 +459,29 @@
       + `<div id="obErr" class="ob-err" role="alert"></div><div class="ob-row">`
       + (errs.length ? '<button type="button" class="btn primary" data-act="retry">Retry failed rows</button>' : "")
       + (c.ok - undone > 0 ? '<button type="button" class="btn" data-act="undo">Undo this import</button>' : "")
-      + `<span class="ob-grow"></span><button type="button" class="btn" data-act="stage" data-s="input">Add more</button><button type="button" class="btn primary" data-act="next">${S.step === KEYS.length - 1 ? "Finish" : "Next step"}</button></div>`
+      + `<span class="ob-grow"></span><button type="button" class="btn" data-act="stage" data-s="input">Add more</button><button type="button" class="btn primary" data-act="next">${S.step === KEYS.length - 1 ? "Finish" : "Continue"}</button></div>`
       + (c.merged ? '<p class="ob-note">Undo removes the rows this import added. Quantities that were added to existing items are not reversed; adjust them in Inventory if needed.</p>' : "")
       + (pv ? "" : "") + `</div>`;
   }
 
   function renderFinish() {
     if (org && !billingOk()) return `<div class="ob-card"><h2>Almost there</h2><div class="ob-warn" role="alert">Your business details are incomplete (missing: ${esc(O.billingMissing(org).join(", "))}). They are required to finish setup.</div><div class="ob-row"><span class="ob-grow"></span><button type="button" class="btn primary" data-act="goto" data-i="${BILL}">${canBill ? "Complete business details" : "View business details"}</button></div></div>`;
-    const lines = KEYS.map((k) => { const c = counts(k); const st = S.steps[k]; const st2 = st.skipped ? "skipped" : (st.done ? `${Number(c.ok)} added${undoneCount(st, k) ? " (" + undoneCount(st, k) + " undone)" : ""}, ${Number(c.merged)} merged` : "not done");
-      return `<li><b>${esc(O.KINDS[k].label)}</b> — ${esc(st2)}</li>`; }).join("");
-    return `<div class="ob-card"><h2>You're set up</h2><p class="sub">Here is what this session added.</p><ul>${lines}</ul>`
+    if (org && !studioOk()) return `<div class="ob-card"><h2>Almost there</h2><div class="ob-warn" role="alert">Your studio details (name, currency, timezone) are required to finish setup.</div><div class="ob-row"><span class="ob-grow"></span><button type="button" class="btn primary" data-act="goto" data-i="${idxOf("studio")}">${canBill ? "Complete studio details" : "View studio details"}</button></div></div>`;
+    const lines = KEYS.map((k) => { const c = counts(k); const st = S.steps[k]; const st2 = st.skipped && !st.done ? "skipped" : (st.done ? (isSet(k) ? "saved" : !st.batchKey ? "imported" : `${Number(c.ok)} added${undoneCount(st, k) ? " (" + undoneCount(st, k) + " undone)" : ""}, ${Number(c.merged)} merged`) : "not done");
+      return `<li><b>${esc(lbl(k))}</b> — ${esc(st2)}</li>`; }).join("");
+    return `<div class="ob-card"><h2>🎉 You're set up</h2><p class="sub">Here is what you set up. Skipped steps can be finished any time from Control Center.</p><ul>${lines}</ul>`
       + `<div class="ob-row"><a class="btn" href="inventory.html">Open Inventory</a><a class="btn" href="vendors.html">Open Vendors</a><a class="btn" href="staff.html">Open Staff</a><a class="btn" href="control.html#pricing">Open Control Center</a>`
       + `<span class="ob-grow"></span><button type="button" class="btn" data-act="reset">Clear saved draft</button><a class="btn primary" href="dashboard.html">Go to dashboard</a></div></div>`;
   }
 
   /* ---------- navigation + history ---------- */
+  function studioOk() { return !org || S.steps.studio.done || W.validateStudio(W.studioFromOrg(org)).ok; }
   function go(step, stage, push) {
     S.step = Math.max(BILL, Math.min(KEYS.length, step));
     if (stage && S.step >= 0 && S.step < KEYS.length) S.steps[KEYS[S.step]].stage = stage;
-    if (push !== false) { try { history.pushState({ onb: 1, step: S.step, stage: S.step >= 0 && S.step < KEYS.length ? S.steps[KEYS[S.step]].stage : "finish" }, "", "#s" + S.step); } catch (e) {} }
-    saveDraft(); render(); const h = $("#obRoot h2"); if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: false }); }
+    if (push !== false) { try { history.pushState({ onb: 1, step: S.step, stage: S.step >= 0 && S.step < KEYS.length ? S.steps[KEYS[S.step]].stage : "finish" }, "", "#step-" + keyOf(S.step)); } catch (e) {} }
+    if (KEYS[S.step] === "templates") loadTplCounts();
+    saveDraft(); render(); persistProgress(S.step === KEYS.length && billingOk() && studioOk()); const h = $("#obRoot h2"); if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: false }); }
   }
   window.addEventListener("popstate", (e) => {
     const s = e.state; if (!S || !s || !s.onb) return;
@@ -401,7 +556,16 @@
     if (a === "prev") return go(S.step - 1);
     if (a === "billsave") { ev.preventDefault(); return BPUI.guard(b, () => saveBilling(), { busyLabel: "Saving…" }); }
     if (a === "next") { if (st) st.skipped = false; return go(S.step + 1); }
-    if (a === "skip") { st.skipped = true; return go(S.step + 1); }
+    if (a === "skip") { if (st) st.skipped = true; return go(S.step + 1); }
+    if (a === "setsave") { ev.preventDefault(); return BPUI.guard(b, () => saveSetting(kind), { busyLabel: "Saving…" }); }
+    if (a === "invite") return BPUI.guard(b, () => createInvite(), { busyLabel: "Creating…" });
+    if (a === "invcopy") { const x = invites[Number(b.dataset.i)]; if (x) { try { navigator.clipboard.writeText(x.link).then(() => BPUI.toast("Link copied.", { type: "ok" }), () => {}); } catch (e) {} } return; }
+    if (a === "setdefaults") { const cd = W.countryDefaults(O.billingFromOrg(org).country, BPStore); setVals.studio = Object.assign(readSet(), { currency: cd.currency, timezone: cd.timezone }); return render(); }
+    if (a === "smartimport") {
+      try { window.HelmImport.open({ entity: W.IMPORT_ENTITY[kind], onDone: (res) => { st.done = true; st.skipped = false; saveDraft(); BPUI.toast("Import finished.", { type: "ok" }); go(S.step + 1); } }); }
+      catch (e) { BPUI.toast("Smart import isn't available right now — use “Import from Excel / CSV”.", { type: "err" }); st.mode = "csv"; render(); }
+      return;
+    }
     if (a === "mode") { st.mode = b.dataset.m === "csv" ? "csv" : "manual"; saveDraft(); return render(); }
     if (a === "stage") { st.stage = b.dataset.s; if (st.stage === "map" || st.stage === "input") return go(S.step, st.stage); return go(S.step, st.stage); }
     if (a === "addrow") { if (st.manual.length >= O.MAX_ROWS) return BPUI.toast("Row limit reached; use CSV import for more.", { type: "info" }); st.manual.push({}); saveDraft(); return render(); }
@@ -423,6 +587,7 @@
       const form = $("#obBill"); const vals = {}; if (form) form.querySelectorAll("[data-bill]").forEach((el) => { vals[el.dataset.bill] = el.value; });
       bill = { values: vals, errors: {} }; render(); const again = $("#ob_b_country"); if (again) again.focus(); return;
     }
+    if (ev.target && ev.target.dataset && ev.target.dataset.pick) { const tx = $("#ob_s_" + ev.target.dataset.pick); if (tx) tx.value = ev.target.value; return; }
     const kind = KEYS[S.step]; if (!kind) return; const st = S.steps[kind], t = ev.target;
     if (t.id === "obText") { st.text = t.value.slice(0, O.MAX_FILE_BYTES); st.fileName = ""; st.mapping = null; saveDraft(); }
     else if (t.dataset && t.dataset.r !== undefined && t.dataset.f) { const r = st.manual[Number(t.dataset.r)]; if (r) { r[t.dataset.f] = t.value; saveDraft(); } }
@@ -481,10 +646,17 @@
     await computePerms();
     try { org = await BPStore.org.current(); } catch (e) { org = null; orgErr = e; }
     canBill = BPStore.mode() !== "supabase" || (await BPStore.auth.role()) === "admin";
-    if (!KEYS.some((k) => perms[k]) && (billingOk() || !canBill)) { $("#obRoot").innerHTML = '<div class="ob-lock">Your role cannot add menu, pricing, inventory, vendors or staff. Ask an admin to run this setup.</div>'; $("#app").hidden = false; return; }
+    if (!KEYS.some((k) => k !== "templates" && perms[k]) && (billingOk() || !canBill)) { $("#obRoot").innerHTML = '<div class="ob-lock">Your role cannot add menu, pricing, inventory, vendors or staff. Ask an admin to run this setup.</div>'; $("#app").hidden = false; return; }
     loadLedger();
     const d = loadDraft(); S = d.s;
-    const hm = /^#s(\d)$/.exec(location.hash || ""); if (hm && Number(hm[1]) < KEYS.length && perms[KEYS[Number(hm[1])]]) { S.step = Number(hm[1]); S.steps[KEYS[S.step]].mode = "csv"; S.steps[KEYS[S.step]].stage = "input"; }
+    // resume: server progress (any device) when there is no local draft; done/skipped always merged
+    serverProg = W.progressFromOrg(org);
+    KEYS.forEach((k) => { if (serverProg.done.indexOf(k) >= 0) S.steps[k].done = true; else if (serverProg.skipped.indexOf(k) >= 0) S.steps[k].skipped = true; });
+    if (!d.resumed && serverProg.step) S.step = idxOf(serverProg.step);
+    if (canBill && BPStore.mode() === "supabase") { try { pricingCfg = (await BPStore.config.getPricing()) || {}; } catch (e) { pricingCfg = {}; } }
+    const hk = W.stepFromHash(location.hash || "");
+    if (hk && hk !== "billing" && hk !== "finish" && perms[hk]) { S.step = idxOf(hk); if (/^#s\d$/.test(location.hash) && !isSet(hk)) { S.steps[hk].mode = "csv"; S.steps[hk].stage = "input"; } }
+    else if (hk) S.step = idxOf(hk);
     if (org && canBill && !billingOk()) S.step = BILL;
     else if (S.step >= 0 && !perms[KEYS[S.step]] && S.step < KEYS.length) S.step = Math.max(0, KEYS.findIndex((k) => perms[k]));
     // after a refresh in the middle of preview/result, rebuild what the screen needs
@@ -492,9 +664,13 @@
     if (cur && S.steps[cur].stage === "preview") { try { await prepare(cur); } catch (e) { S.steps[cur].stage = "input"; } }
     if (cur && S.steps[cur].stage === "map" && S.steps[cur].mode !== "csv") S.steps[cur].stage = "input";
     if (cur && S.steps[cur].stage === "result" && !S.steps[cur].batchKey) S.steps[cur].stage = "input";
-    document.addEventListener("submit", (ev) => { if (ev.target && ev.target.id === "obBill") { ev.preventDefault(); const b = $('[data-act="billsave"]'); BPUI.guard(b, () => saveBilling(), { busyLabel: "Saving…" }); } });
+    document.addEventListener("submit", (ev) => {
+      if (ev.target && ev.target.id === "obBill") { ev.preventDefault(); const b = $('[data-act="billsave"]'); BPUI.guard(b, () => saveBilling(), { busyLabel: "Saving…" }); }
+      if (ev.target && ev.target.id === "obSet") { ev.preventDefault(); const b = $('[data-act="setsave"]'); BPUI.guard(b, () => saveSetting(KEYS[S.step]), { busyLabel: "Saving…" }); }
+    });
     document.addEventListener("click", onClick); document.addEventListener("input", onInput); document.addEventListener("change", onChange);
-    try { history.replaceState({ onb: 1, step: S.step, stage: cur ? S.steps[cur].stage : "finish" }, "", "#s" + S.step); } catch (e) {}
+    try { history.replaceState({ onb: 1, step: S.step, stage: cur ? S.steps[cur].stage : "finish" }, "", "#step-" + keyOf(S.step)); } catch (e) {}
+    if (KEYS[S.step] === "templates") loadTplCounts();
     $("#app").hidden = false; render();
     if (d.resumed) BPUI.toast("Welcome back — your draft was restored.", { type: "info" });
   });
