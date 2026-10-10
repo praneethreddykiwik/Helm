@@ -249,7 +249,7 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=161"></script>
+<script src="country-profile.js?v=1"></script><script src="store-api.js?v=161"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=1"></script>
 <script src="smart-import.js?v=1"></script>
@@ -322,7 +322,7 @@
         <td class="num">${num(a.committed)}</td>
         <td class="num avail ${availClass(a.available,Number(i.total_qty))}">${num(a.available)}</td>
         <td>${esc(i.unit||"")}</td>
-        <td class="num">${Number(i.unit_cost||0)?("₹"+num(i.unit_cost)):'<span style="color:var(--ink-3)">—</span>'}</td>
+        <td class="num">${Number(i.unit_cost||0)?BPStore.studioMoney(i.unit_cost):'<span style="color:var(--ink-3)">—</span>'}</td>
         <td>${canEdit?(inactive
             ?`<button type="button" class="rm" data-react="${esc(i.id)}" aria-label="Reactivate ${esc(i.name)}">Reactivate</button>`
             :`<button type="button" class="rm" data-edit="${esc(i.id)}" aria-label="Edit ${esc(i.name)}">Edit</button>`):""}</td>
@@ -541,12 +541,12 @@
         <td class="num">${num(c.qty_out)}</td>
         <td class="num">${num(c.qty_in)}</td>
         <td class="num"><span class="miss">${num(missing)}</span></td>
-        <td class="num">${val?("₹"+num(val)):"—"}</td>
+        <td class="num">${val?BPStore.studioMoney(val):"—"}</td>
         <td>${esc(c.confirmed_by||c.returned_by||"—")}</td>
         <td style="font-size:12px;color:var(--ink-3)">${c.checked_in_at?new Date(c.checked_in_at).toLocaleDateString():""}</td>
       </tr>`; }).join("");
     $("#lossRows").innerHTML = lossRows || '<tr><td colspan="8" class="empty">No missing items — everything came back. 🎉</td></tr>';
-    $("#lossTotal").innerHTML = lostUnits? `<span class="miss">${num(lostUnits)} units missing · ₹${num(lostVal)} lost</span>` : '<span class="backok">All returned</span>';
+    $("#lossTotal").innerHTML = lostUnits? `<span class="miss">${num(lostUnits)} units missing · ${esc(BPStore.studioMoney(lostVal))} lost</span>` : '<span class="backok">All returned</span>';
     $("#loanRows").querySelectorAll("[data-in]").forEach(b=>b.addEventListener("click",()=>checkInFlow(b.dataset.in)));
     $("#loanRows").querySelectorAll("[data-cxl]").forEach(b=>b.addEventListener("click",()=>cancelCheckout(b)));
   }
@@ -568,7 +568,7 @@
     let qtyIn=Number($("#ci_in").value); if(isNaN(qtyIn)) qtyIn=0;
     const missing=Math.max(out-qtyIn,0);
     if(missing>0){
-      $("#ci_warn").innerHTML=`<b>${num(missing)}</b> ${esc(it.unit||"unit(s)")} short of ${num(out)} — the missing ${num(missing)} will be written off as loss (stock reduced by ${num(missing)}, ₹${num(missing*Number(it.unit_cost||0))}).`;
+      $("#ci_warn").innerHTML=`<b>${num(missing)}</b> ${esc(it.unit||"unit(s)")} short of ${num(out)} — the missing ${num(missing)} will be written off as loss (stock reduced by ${num(missing)}, ${esc(BPStore.studioMoney(missing*Number(it.unit_cost||0)))}).`;
       $("#ci_warn").hidden=false;
     } else { $("#ci_warn").hidden=true; }
   }

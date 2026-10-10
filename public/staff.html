@@ -154,7 +154,7 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=161"></script>
+<script src="country-profile.js?v=1"></script><script src="store-api.js?v=161"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=1"></script>
 <script src="smart-import.js?v=1"></script>
@@ -191,7 +191,7 @@
       </div>
       ${skills.length?`<div class="tags">${skills.map(k=>`<span class="tag">${esc(k)}</span>`).join("")}</div>`:""}
       ${(()=>{ const al=typeof HelmImportCore!=="undefined"?HelmImportCore.attrList("staff",s.attributes,attrDefs):[]; return al.length?`<div class="tags attrs">${al.slice(0,6).map(a=>`<span class="tag" title="${esc(a.label)}: ${esc(a.value)}"><b>${esc(a.label)}:</b> ${esc(a.value.slice(0,40))}</span>`).join("")}${al.length>6?`<span class="tag">+${al.length-6} more</span>`:""}</div>`:""; })()}
-      <div class="meta">${[s.phone,s.email].filter(Boolean).map(esc).join(" · ")}${s.day_rate?`<br>₹${Number(s.day_rate).toLocaleString("en-IN")}/day`:""}</div>
+      <div class="meta">${[s.phone,s.email].filter(Boolean).map(esc).join(" · ")}${s.day_rate?`<br>${BPStore.studioMoney(s.day_rate)}/day`:""}</div>
       ${canEdit?`<div class="acts">
         <button class="ic" data-act="edit">Edit</button>
         <button class="ic" data-act="toggle">${s.active===false?"Reactivate":"Deactivate"}</button>

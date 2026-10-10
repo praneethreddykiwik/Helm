@@ -104,12 +104,12 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=161"></script>
+<script src="country-profile.js?v=1"></script><script src="store-api.js?v=161"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $=(s,r=document)=>r.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const fmt=(n)=> n==null||n===""?"":"₹"+Number(n).toLocaleString("en-IN");
+  const fmt=(n)=> n==null||n===""?"":BPStore.studioMoney(n);
   const when=(t)=>{ if(!t) return ""; const d=new Date(t); return d.toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}); };
   // Perf (Oct 2026): the archive is server-paged newest-first without the snapshot JSON;
   // filters + search run on the server (debounced). "Latest per lead" keeps only each

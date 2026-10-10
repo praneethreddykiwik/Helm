@@ -292,7 +292,7 @@ await t('booklet stays a private document: no links into the app, noindex', () =
   assert.match(h, /noindex/); assert.match(h, /bp-theme-toggle" content="off"/);
   const hrefs = [...h.replace(/<base href="\/">/, "").matchAll(/href="([^"]+)"/g)].map((m) => m[1]).filter((u) => !/^(#|https:\/\/fonts\.|https:\/\/[a-z0-9]+\.supabase\.co$|\/booklet[\w-]*\.css|\/vendor\/)/.test(u));
   assert.deepEqual(hrefs, [], 'only in-page anchors / assets');
-  assert.doesNotMatch(h, /<nav[^>]*aria-label="Main"|dashboard\.html|studio-search|profile/i);
+  assert.doesNotMatch(h, /<nav[^>]*aria-label="Main"|dashboard\.html|studio-search|(?<!country-)profile/i);
 });
 await t('store-api: role-matrix areas, bell labels, deep links for pkg_* (pkgflow namespace untouched)', () => {
   const s = read('public/store-api.js');

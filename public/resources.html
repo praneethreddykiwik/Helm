@@ -163,7 +163,7 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=161"></script>
+<script src="country-profile.js?v=1"></script><script src="store-api.js?v=161"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -223,8 +223,8 @@
       return `<tr>
         <td><b>${esc(v?v.name:(b.label||"Partner"))}</b>${v?`<div class="muted">${esc(KIND[v.kind]||v.kind||"")}</div>`:""}</td>
         <td>${esc(need?need.label:(b.label||""))}</td>
-        <td class="num">${b.cost!=null?"₹"+num(b.cost):""}</td>
-        <td class="num">${b.advance!=null?"₹"+num(b.advance):""}</td>
+        <td class="num">${b.cost!=null?esc(BPStore.studioMoney(b.cost)):""}</td>
+        <td class="num">${b.advance!=null?esc(BPStore.studioMoney(b.advance)):""}</td>
         <td>${b.contract?'<span class="cov ok">✓ Signed</span>':'<span class="muted">—</span>'}</td>
         <td>${canEdit?`<select class="rm" data-bkstatus="${esc(b.id)}" aria-label="Status for ${esc(v?v.name:(b.label||"partner"))}">${opts}</select>`:esc(BK[b.status]||b.status)}</td>
         <td>${canEdit?`<button type="button" class="rm" data-bkedit="${esc(b.id)}" aria-label="Edit cost and advance for ${esc(v?v.name:(b.label||"partner"))}">Edit</button> `:""}${canDelete?`<button type="button" class="rm" data-bkdel="${esc(b.id)}" aria-label="Remove booking for ${esc(v?v.name:(b.label||"partner"))}">Remove</button>`:""}</td>
