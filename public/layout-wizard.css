@@ -98,6 +98,8 @@ body.fs-on .viewport .ptoggle,body.fs-on .viewport .navpad,body.fs-on .viewport 
 body.fs-on .viewport .wt-fab,body.fs-on .viewport .emptystate,body.fs-on .htour-fab{display:none!important}
 body.fs-on header,body.fs-on #leftPanel,body.fs-on #rightPanel{visibility:hidden}
 body.fs-on .viewport{visibility:visible}
+/* 3D fullscreen: rulers are hidden in 3D, so the stage must not keep their 26px gutters (left strip) */
+body.fs-on .viewport.is3d .stage3d,.viewport.is3d:fullscreen .stage3d{left:0;top:0}
 @media (max-width:640px){
   .fs-btn{display:none}
   .fs-bar{top:max(8px,env(safe-area-inset-top));max-width:calc(100% - 16px)}

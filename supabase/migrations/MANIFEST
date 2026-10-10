@@ -121,3 +121,5 @@ forward  supabase/migrations/0086_item_specs.sql
 forward  supabase/migrations/0088_smart_import.sql
 # 0089 (country tax India/UAE/USA: org country/region/rate override columns, per-quote currency + tax_snapshot, helm_quote_total honours taxExempt) goes after 0079 (0086 optional).
 forward  supabase/migrations/0089_country_tax.sql
+# 0090 (client portal returns the quote's own currency + tax_snapshot; keeps the 0082 billing strip; create or replace only) goes after 0089 (needs 0082).
+forward  supabase/migrations/0090_portal_quote_currency.sql

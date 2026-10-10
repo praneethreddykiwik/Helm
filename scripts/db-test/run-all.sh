@@ -59,6 +59,7 @@ run "worker-evidence"    "WORKER-EVIDENCE: ALL PASS \(38/38\)" psql -q -f tests/
 run "client-booklet"     "CLIENT-BOOKLET: ALL PASS \(44/44\)" psql -q -f tests/db/client-booklet.sql
 run "booklet-tax"        "BOOKLET-TAX: ALL PASS \(14/14\)" psql -q -f tests/db/booklet-tax.sql
 run "country-tax-0089"   "COUNTRY-TAX-0089: ALL PASS \(16/16\)" psql -q -f tests/db/country-tax-0089.sql
+run "portal-currency-0090" "PORTAL-CURRENCY-0090: ALL PASS \(7/7\)" psql -q -f tests/db/portal-currency-0090.sql
 run "booklet-images"     "BOOKLET-IMAGES: ALL PASS \(25/25\)" psql -q -f tests/db/booklet-images.sql
 run "r7-polish"          "R7-POLISH: ALL PASS \(18/18\)" psql -q -f tests/db/r7-polish.sql
 run "venues"            "VENUES: ALL PASS \(27/27\)" psql -q -f tests/db/venues.sql

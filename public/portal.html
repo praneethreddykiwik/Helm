@@ -102,11 +102,13 @@
 <script src="/telemetry.js?v=3"></script>
 <script src="/config.js?v=98"></script>
 <script src="/event-name.js?v=2"></script>
-<script src="/country-profile.js?v=1"></script><script src="/store-api.js?v=162"></script>
+<script src="/country-profile.js?v=2"></script><script src="/store-api.js?v=162"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  const inr=(n)=>BPStore.studioMoney(n,{round:true});
+  // 0090: the quote's OWN currency/tax snapshot (a signed-out client can't read the studio config)
+  let qTax=null;
+  const inr=(n)=> (qTax&&qTax.country!=="IN") ? BPStore.tax.money(Math.round(Number(n||0)), qTax) : BPStore.studioMoney(n,{round:true});
   const LINK=BPStore.links.parse("portal");   // branded /<studio>/portal/<token> (server-verified below)
   const token=LINK?LINK.ref:new URLSearchParams(location.search).get("token");
   const fmtWhen=(d,t)=>{ if(!d) return ""; try{ const dt=new Date(d+"T00:00:00"); return dt.toLocaleDateString([], {weekday:'long',day:'numeric',month:'long',year:'numeric'})+(t?(" · "+t):""); }catch{ return d+(t?" · "+t:""); } };
@@ -127,6 +129,8 @@
   }
   function render(d){
     const e=d.event||{};
+    try{ const t=d.tax&&typeof d.tax==="object"?d.tax:null;
+      qTax=t&&t.country?BPStore.tax.resolve({ taxCountry:t.country, taxName:t.taxName, currency:t.currency||d.currency, taxRegion:t.region, gstPct:t.rate, taxExempt:t.exempt, taxInclusive:t.inclusive }):null; }catch(_){ qTax=null; }
     // studio branding (multi-tenant): show the studio's name/accent to the client
     if(d.studio){ if(d.studio.name) $("#brandName").textContent=d.studio.name;
       const ac=d.studio.brand&&d.studio.brand.accent; if(typeof ac==="string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(ac.trim())){ try{ document.documentElement.style.setProperty("--accent",ac.trim()); }catch{} } }

@@ -217,7 +217,7 @@ window.HelmUrl = HelmUrl;
   const PW_OK_KEY = "bp_pw_ok";                 // per tab: "<uid>" once password_change_required() said no
   // Per-USER browser state that must not carry over to the next person who signs in
   // on a shared computer (audit Phase 4). Device prefs (theme, tours) are kept.
-  const USER_LOCAL_KEYS = ["bps.clip", "wa_pin", "wa_mute", "wa_fav", "bp_chat_ping", "helm_org_country", "helm_ev_showall"];
+  const USER_LOCAL_KEYS = ["bps.clip", "wa_pin", "wa_mute", "wa_fav", "bp_chat_ping", "helm_org_country", "helm_ev_showall", "helm.studioTax"];
   function userLocalClear() { USER_LOCAL_KEYS.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} }); }
   let authRequired = false;     // true when Supabase enforces login (RLS) and nobody is signed in
 
@@ -8823,7 +8823,7 @@ window.HelmUrl = HelmUrl;
       IN: { name: "India", currency: "INR", symbol: "₹", locale: "en-IN", tax: "GST", idLabel: "GSTIN", idRe: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, idEg: "36ABCDE1234F1Z5", rate: 18, rates: [18, 5, 12, 28, 0], split: true, regionLabel: "State" },
       AE: { name: "United Arab Emirates", currency: "AED", symbol: "AED ", locale: "en-AE", tax: "VAT", idLabel: "TRN", idRe: /^[0-9]{15}$/, idEg: "100123456700003", rate: 5, rates: [5, 0], regionLabel: "Emirate" },
       GB: { name: "United Kingdom", currency: "GBP", symbol: "£", locale: "en-GB", tax: "VAT", idLabel: "VAT number", idRe: /^(GB)?([0-9]{9}|[0-9]{12})$/, idEg: "GB123456789", rate: 20, rates: [20, 5, 0], regionLabel: "County" },
-      US: { name: "United States", currency: "USD", symbol: "$", locale: "en-US", tax: "Sales tax", idLabel: "Sales tax permit / EIN", idRe: /^[A-Z0-9-]{4,20}$/, idEg: "12-3456789", rate: null, rates: [], regionLabel: "State" },
+      US: { name: "United States", currency: "USD", symbol: "$", locale: "en-US", tax: "Sales tax", idLabel: "EIN", idRe: /^[0-9]{2}-?[0-9]{7}$/, idEg: "12-3456789", rate: null, rates: [], regionLabel: "State" },
       SG: { name: "Singapore", currency: "SGD", symbol: "S$", locale: "en-SG", tax: "GST", idLabel: "GST reg. no.", idRe: /^([0-9]{8,9}[A-Z]|[TSR][0-9]{2}[A-Z]{2}[0-9]{4}[A-Z]|M[0-9A-Z][0-9]{7}[A-Z])$/, idEg: "200312345A", rate: 9, rates: [9, 0], regionLabel: "Region" },
       AU: { name: "Australia", currency: "AUD", symbol: "A$", locale: "en-AU", tax: "GST", idLabel: "ABN", idRe: /^[0-9]{11}$/, idEg: "51824753556", rate: 10, rates: [10, 0], regionLabel: "State" },
       CA: { name: "Canada", currency: "CAD", symbol: "C$", locale: "en-CA", tax: "GST/HST", idLabel: "GST/HST number", idRe: /^[0-9]{9}(RT[0-9]{4})?$/, idEg: "123456789RT0001", rate: null, rates: [5, 13, 15], regionLabel: "Province" },
@@ -8909,6 +8909,9 @@ window.HelmUrl = HelmUrl;
   BPStore.rememberStudioTax = function (cfg) {
     cfg = cfg || {}; var o = { taxCountry: cfg.taxCountry || "IN", taxRegion: cfg.taxRegion || "", currency: cfg.currency || "" };
     try { sessionStorage.setItem(STUDIO_TAX_KEY, JSON.stringify(o)); } catch (e) {}
+    // also kept across tabs/reloads (cleared on sign-out via USER_LOCAL_KEYS) so a UAE/US
+    // studio never sees a "\u20b9" flash before the pricing config loads on the next page
+    try { localStorage.setItem(STUDIO_TAX_KEY, JSON.stringify(o)); } catch (e) {}
     BPStore._studioTax = BPStore.tax.resolve(o);
     try { if (typeof document !== "undefined") BPStore.localizeCurrency(document); } catch (e) {}
     return BPStore._studioTax;
@@ -8916,12 +8919,54 @@ window.HelmUrl = HelmUrl;
   BPStore.studioTax = function () {
     if (BPStore._studioTax) return BPStore._studioTax;
     var o = null; try { o = JSON.parse(sessionStorage.getItem(STUDIO_TAX_KEY) || "null"); } catch (e) {}
+    if (!o) { try { o = JSON.parse(localStorage.getItem(STUDIO_TAX_KEY) || "null"); } catch (e) {} }
+    if (!o || typeof o !== "object") o = null;
     return (BPStore._studioTax = BPStore.tax.resolve(o || {}));
   };
   BPStore.studioMoney = function (n, opts) {
     var r = BPStore.studioTax(), x = Number(n || 0); if (opts && opts.round) x = Math.round(x);
     if (r.country === "IN") return "\u20b9" + x.toLocaleString("en-IN");
     return BPStore.tax.money(x, r);
+  };
+  // ---- payment terms from onboarding (pricing config: advancePct / balanceDueDays / paymentTermsNote) ----
+  // {advancePct (0-100, default 50 only when set), balanceDueDays, note, balanceDue: "YYYY-MM-DD"|null}
+  BPStore.paymentTerms = function (cfg, eventDate) {
+    cfg = cfg && typeof cfg === "object" ? cfg : {};
+    var a = Number(cfg.advancePct), d = Number(cfg.balanceDueDays);
+    var adv = cfg.advancePct != null && cfg.advancePct !== "" && isFinite(a) && a >= 0 && a <= 100 ? Math.round(a * 100) / 100 : null;
+    var days = cfg.balanceDueDays != null && cfg.balanceDueDays !== "" && Number.isInteger(d) && d >= 0 && d <= 365 ? d : null;
+    var note = typeof cfg.paymentTermsNote === "string" ? cfg.paymentTermsNote.replace(/[<>\u0000-\u0008\u000b-\u001f]/g, "").trim().slice(0, 500) : "";
+    var due = null;
+    if (days != null && /^\d{4}-\d{2}-\d{2}$/.test(String(eventDate || ""))) {
+      var t = Date.UTC(+eventDate.slice(0, 4), +eventDate.slice(5, 7) - 1, +eventDate.slice(8, 10)) - days * 86400000;
+      if (isFinite(t)) due = new Date(t).toISOString().slice(0, 10);
+    }
+    return { advancePct: adv, balanceDueDays: days, note: note, balanceDue: due };
+  };
+  // ---- supplier block for printed quotes / invoices (UAE Art. 59: name, address, TRN) ----
+  BPStore.studioHeader = function (org) {
+    org = org && typeof org === "object" ? org : {};
+    var b = org.brand && typeof org.brand === "object" ? org.brand : {}, bl = b.billing && typeof b.billing === "object" ? b.billing : {};
+    var str = function (v) { return typeof v === "string" ? v.replace(/[<>\u0000-\u001f]/g, " ").trim() : ""; };
+    var cc = /^[A-Z]{2}$/.test(String(bl.country || "")) ? bl.country : "IN";
+    var prof = BPStore.tax.profile(cc);
+    var addr = [str(bl.line1), str(bl.line2), [str(bl.city), str(bl.state), str(bl.pin)].filter(Boolean).join(", "), prof.name].filter(Boolean).join(", ");
+    return { name: str(bl.legal_name) || str(org.name) || "", tradeName: str(org.name), address: addr, country: cc,
+      taxIdLabel: prof.idLabel || "Tax ID", taxId: str(org.gst_number).toUpperCase(), phone: str(b.phone) };
+  };
+  // Custom-field edits (0088): re-read the row's CURRENT attributes and apply only the changed
+  // keys, so a save never wipes keys another tab / an import added since the form opened.
+  BPStore.mergeAttributes = async function (table, id, ch) {
+    if (["crew_members", "inventory_items"].indexOf(table) < 0) throw new Error("Unknown list.");
+    var base = {};
+    if (mode === "supabase" && supa && id) {
+      var r = await supa.from(table).select("attributes").eq("id", id).maybeSingle(); if (r.error) throw r.error;
+      base = (r.data && r.data.attributes) || {};
+    } else if (ch && ch.base) base = ch.base;
+    var out = Object.assign({}, base && typeof base === "object" && !Array.isArray(base) ? base : {});
+    if (ch && ch.set) Object.keys(ch.set).forEach(function (k) { out[k] = ch.set[k]; });
+    if (ch && Array.isArray(ch.unset)) ch.unset.forEach(function (k) { delete out[k]; });
+    return out;
   };
   BPStore.studioSymbol = function () { var r = BPStore.studioTax(); return r.country === "IN" ? "\u20b9" : String(r.symbol || r.currency || "").trim(); };
   // Static labels ("Amount ₹", "Unit cost (₹)") follow the studio currency: text nodes only, never HTML.

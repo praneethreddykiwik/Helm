@@ -348,9 +348,19 @@
     return {
       el,
       read() { const out = Object.assign({}, a); inputs.forEach(([k, inp]) => { const v = String(inp.value || "").trim().slice(0, 500); if (v) out[k] = v; else delete out[k]; }); return out; },
+      // only what the user changed: { set: {key: value}, unset: [key] } (a cleared box unsets ONLY that key)
+      changes() { const set = {}, unset = []; inputs.forEach(([k, inp]) => { const v = String(inp.value || "").trim().slice(0, 500), was = a[k] == null ? "" : String(a[k]);
+        if (v === was) return; if (v) set[k] = v; else unset.push(k); }); return { set, unset, any: Object.keys(set).length + unset.length > 0 }; },
     };
   }
 
+  // apply {set, unset} onto a base attributes object (never touches other keys)
+  function mergeAttrs(base, ch) {
+    const out = Object.assign({}, base && typeof base === "object" && !Array.isArray(base) ? base : {});
+    if (ch && ch.set) Object.keys(ch.set).forEach((k) => { out[k] = ch.set[k]; });
+    if (ch && Array.isArray(ch.unset)) ch.unset.forEach((k) => { delete out[k]; });
+    return out;
+  }
   if (typeof document !== "undefined" && document.head) ensureCss();
-  root.HelmImport = { open, attrChips, attrEditor, version: 1 };
+  root.HelmImport = { open, attrChips, attrEditor, mergeAttrs, version: 2 };
 })(typeof window !== "undefined" ? window : this);

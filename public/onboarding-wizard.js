@@ -51,8 +51,8 @@
         if (typeof p.currency === "string" && /^[A-Z]{3}$/.test(p.currency)) out.currency = p.currency;
         const tz = p.timezone || p.tz; if (typeof tz === "string" && validTz(tz)) out.timezone = tz;
         const tn = p.taxName || p.tax; if (typeof tn === "string") out.taxName = tn.slice(0, 24);
-        const tr = p.taxRate != null ? p.taxRate : p.rate; if (tr != null && isFinite(Number(tr))) out.taxRate = Number(tr);
-        if (typeof p.idLabel === "string") out.idLabel = p.idLabel.slice(0, 24);
+        const tr = p.defaultRate != null ? p.defaultRate : (p.taxRate != null ? p.taxRate : p.rate); if (tr != null && isFinite(Number(tr))) out.taxRate = Number(tr);
+        const il = p.taxIdLabel || p.idLabel; if (typeof il === "string") out.idLabel = il.slice(0, 24);
       }
     } catch (e) {}
     return out;

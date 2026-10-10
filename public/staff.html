@@ -154,10 +154,10 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="country-profile.js?v=1"></script><script src="store-api.js?v=162"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=1"></script>
-<script src="smart-import.js?v=1"></script>
+<script src="smart-import.js?v=2"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -294,7 +294,8 @@
     const rec={ name, phone:phoneV.value, role:$("#s_role").value.trim()||null, department:$("#s_dept").value.trim()||null,
       emp_type:$("#s_emp").value||null, email,
       day_rate, skills, notes:$("#s_notes").value.trim()||null };
-    if(attrEd){ const at=attrEd.read(); if(Object.keys(at).length||(editingRow&&"attributes" in editingRow)) rec.attributes=at; }
+    let attrCh=null;
+    if(attrEd){ if(editingRow&&editingRow.id){ const ch=attrEd.changes(); if(ch.any) attrCh=ch; } else { const at=attrEd.read(); if(Object.keys(at).length) rec.attributes=at; } }
     if(linked) BPStore.staff.LINKED_FIELDS.forEach(k=>{ delete rec[k]; });   // follow the profile; the DB refuses changes here
     await BPUI.guard($("#sm_save"),async()=>{
       if(!linked){
@@ -309,7 +310,8 @@
         const owner=await BPStore.staff.linkedOwnerOfPhone(rec.phone, editingId);
         if(owner){ fail(`This number belongs to ${owner.name}, who already has a staff record linked to their Helm account. Find them in the directory instead of adding a second record.`); $("#s_phone").focus(); return; }
       }
-      try{ if(editingId) await BPStore.staff.update(editingId,rec); else await BPStore.staff.add(rec); closeForm(); BPUI.toast("Staff saved.",{type:"ok"}); await load(); }
+      try{ if(editingId && attrCh) rec.attributes=await BPStore.mergeAttributes("crew_members", editingId, Object.assign({ base:editingRow&&editingRow.attributes }, attrCh));
+           if(editingId) await BPStore.staff.update(editingId,rec); else await BPStore.staff.add(rec); closeForm(); BPUI.toast("Staff saved.",{type:"ok"}); await load(); }
       catch(e){ fail(BPStore.staff.linkErrorText(e)||BPUI.friendlyError(e,{action:"save the staff member",setupHint:"phase6-staff.sql"})); }
     },{busyLabel:"Saving…"});
   }
