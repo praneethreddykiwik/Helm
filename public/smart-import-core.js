@@ -255,8 +255,10 @@
         F("unit", "Unit", "text", ["unit", "uom", "unit of measure", "units of measure", "measure", "per"], { std: true }),
         F("condition", "Condition", "text", ["condition", "state", "quality", "grade", "health"]),
         F("location", "Location / warehouse", "text", ["location", "warehouse", "godown", "store", "storage", "storage location", "rack", "shelf", "bin", "site", "kept at", "where"]),
-        F("unit_cost", "Purchase price (per unit)", "money", ["purchase price", "cost", "unit cost", "cost price", "buying price", "purchase cost", "cp", "rate", "price", "unit price", "value", "mrp", "cost per unit", "landing cost"], { std: true }),
-        F("rental_price", "Rental price", "money", ["rental price", "rent", "rental", "hire price", "rental rate", "rent per day", "hire charge", "rental charges", "selling price", "sp", "charge"]),
+        F("unit_cost", "Purchase price (per unit)", "money", ["purchase price", "cost", "unit cost", "cost price", "buying price", "purchase cost", "cp", "rate", "price", "unit price", "value", "mrp", "cost per unit", "landing cost", "buying cost", "purchase rate", "purchase value", "purchase", "buying"], { std: true,
+          anti: /\b(day|days|daily|hire|hiring|rent|rental|rentals|event|events|night|shift|per use|lease)\b/ }),   // C1: "Rate/day" is a rental rate, never a purchase price
+        F("rental_price", "Rental price", "money", ["rental price", "rent", "rental", "hire price", "rental rate", "rent per day", "hire charge", "rental charges", "selling price", "sp", "charge", "rate per day", "rate day", "day rate", "per day", "per day rate", "daily rate", "hire", "hire rate", "hire per day", "rate per event", "per event", "event rate", "rent rate", "rental per day"],
+          { cue: /\b(day|daily|hire|rent|rental|event|night|lease)\b/, anti: /\b(purchase|purchased|buying|bought|mrp|landing|cost price)\b/ }),
         F("replacement_cost", "Replacement cost", "money", ["replacement cost", "replacement value", "damage charge", "loss charge", "replacement", "damage cost"]),
         F("vendor", "Vendor / supplier", "text", ["vendor", "supplier", "bought from", "purchased from", "source", "manufacturer", "brand", "make"]),
         F("purchase_date", "Purchase date", "date", ["purchase date", "bought on", "date of purchase", "acquired on", "invoice date"]),
@@ -275,8 +277,9 @@
         F("category", "Course / category", "text", ["category", "course", "section", "menu section", "type", "meal course", "group", "head", "course type", "menu category", "station"], { std: true }),
         F("diet", "Diet", "diet", ["diet", "veg non veg", "veg nonveg", "veg or non veg", "veg", "non veg", "food type", "dietary", "v nv", "veg nv", "kind", "classification", "preference", "jain", "type of food", "dietary type"]),
         F("cuisine", "Cuisine", "text", ["cuisine", "cuisine type", "region", "style", "origin"]),
-        F("price_per_plate", "Price per plate", "money", ["price per plate", "per plate", "plate price", "price", "rate", "selling price", "cost per plate", "rate per plate", "pp", "per head", "price per head", "per pax", "mrp", "amount"]),
-        F("cost", "Food cost", "money", ["food cost", "cost", "cost price", "making cost", "raw material cost", "cp", "costing", "production cost"]),
+        F("price_per_plate", "Price per plate", "money", ["price per plate", "per plate", "plate price", "price", "rate", "selling price", "cost per plate", "rate per plate", "pp", "per head", "price per head", "per pax", "mrp", "amount", "rate plate", "plate rate", "rate per head", "rate per pax"],
+          { anti: /\b(food cost|making|raw|production|costing)\b/ }),
+        F("cost", "Food cost", "money", ["food cost", "cost", "cost price", "making cost", "raw material cost", "cp", "costing", "production cost"], { anti: /\b(selling|sale|price per plate|plate price|rate)\b/ }),
         F("description", "Description", "text", ["description", "desc", "details", "about", "ingredients", "contents", "notes", "remarks"]),
         F("allergens", "Allergens", "list", ["allergens", "allergen", "allergy", "contains", "allergy info", "allergen info"]),
         F("spice_level", "Spice level", "spice", ["spice level", "spice", "spicy", "heat", "chilli level", "spiciness"]),
@@ -419,6 +422,9 @@
     cols.forEach((col) => {
       def.fields.forEach((f, fi) => {
         let s = nameScore(col.hn, f);
+        // C1: intent cues - "Rate/day", "Hire rate" lean to the rental price; "Purchase", "MRP" to the cost
+        if (s > 0 && s < 1 && f.cue && f.cue.test(col.hn)) s = Math.min(0.97, s + 0.15);
+        if (s > 0 && f.anti && f.anti.test(col.hn)) s = Math.max(0, s - 0.45);
         if (s > 0) { let b = sniffBoost(f, col.sn); if (s >= 0.75 && b < 0 && f.type === "text") b = Math.max(b, -0.2); s = Math.min(1, s + b * (s >= 1 ? 0.3 : 1)); }
         else s = sniffOnly(f, col.sn);
         if (s >= 0.5) pairs.push({ c: col.c, f, s, fi });
@@ -634,13 +640,30 @@
 
   /* ---------------- display helpers (for list / detail UIs) ---------------- */
   // [{key,label,value}] for a row's attributes, labelled by defs (custom_field_defs) then built-ins
-  function attrList(entity, attrs, defs) {
+  // C5: money-type attributes (rental price, replacement cost, purchase price, rates, salaries) are
+  // shown in the studio's currency ("AED 15.00", "\u20b915") instead of a bare number
+  const MONEY_KEY = /(price|cost|rate|salary|wage|fee|charge|amount|value|mrp|deposit|allowance)/i;
+  function defaultMoney(n) {
+    const B = (typeof window !== "undefined" && window.BPStore) || (root && root.BPStore);
+    if (B && typeof B.studioMoney === "function") { try { return B.studioMoney(n); } catch (e) {} }
+    return null;
+  }
+  function attrList(entity, attrs, defs, opts) {
     const a = attrs && typeof attrs === "object" ? attrs : {};
-    const lab = new Map(); (ENTITIES[entity] ? ENTITIES[entity].fields : []).forEach((f) => lab.set(f.key, f.label));
+    const money = (opts && opts.money) || defaultMoney;
+    const lab = new Map(), mType = new Map(); (ENTITIES[entity] ? ENTITIES[entity].fields : []).forEach((f) => { lab.set(f.key, f.label); mType.set(f.key, f.type === "money"); });
+    (defs || []).forEach((d) => { if (d && d.type) mType.set(d.key, d.type === "money"); });
+    const isMoney = (k) => (mType.has(k) ? mType.get(k) : MONEY_KEY.test(k) || MONEY_KEY.test(String(lab.get(k) || "")));
+    const fmt = (k, v) => {
+      if (typeof v === "boolean") return v ? "Yes" : "No";
+      if (isMoney(k)) { const n = typeof v === "number" ? v : (/^\s*-?\d+(\.\d+)?\s*$/.test(String(v)) ? Number(v) : NaN);
+        if (isFinite(n)) { const m = money(n); if (m) return m; } }
+      return String(v);
+    };
     const order = new Map(); (defs || []).forEach((d, i) => { if (d.active !== false) lab.set(d.key, d.label); order.set(d.key, d.active === false ? -1 : i); });
     return Object.keys(a).filter((k) => a[k] != null && a[k] !== "" && order.get(k) !== -1)
       .sort((x, y) => (order.has(x) ? order.get(x) : 1e6) - (order.has(y) ? order.get(y) : 1e6) || x.localeCompare(y))
-      .map((k) => ({ key: k, label: lab.get(k) || k.replace(/_/g, " ").replace(/^\w/, (m) => m.toUpperCase()), value: typeof a[k] === "boolean" ? (a[k] ? "Yes" : "No") : String(a[k]) }));
+      .map((k) => ({ key: k, label: lab.get(k) || k.replace(/_/g, " ").replace(/^\w/, (m) => m.toUpperCase()), value: fmt(k, a[k]), raw: a[k] }));
   }
 
   const api = {

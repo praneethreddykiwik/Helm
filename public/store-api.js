@@ -8899,8 +8899,21 @@ window.HelmUrl = HelmUrl;
       if (res.region && res.country !== "IN") o.taxRegion = res.region;
       return o;
     }
+    // live-round2 C3: every pricing WRITE keeps the quote's existing tax identity. A priced quote
+    // (gstPct/total present) keeps its taxCountry/taxRegion/currency/taxName/taxInclusive exactly as
+    // stored (absent stays absent) unless the user explicitly switched (opts.switch). taxExempt /
+    // placeOfSupply / supplier are kept when the writer doesn't mention them at all.
+    var IDENT = ["taxCountry", "taxRegion", "currency", "taxName", "taxInclusive"], SOFT = ["taxExempt", "placeOfSupply", "supplier"];
+    function preserveSnapshot(prev, next, opts) {
+      var out = Object.assign({}, next || {}); prev = prev && typeof prev === "object" ? prev : {};
+      if (opts && opts.switch) return out;
+      var priced = ("gstPct" in prev) || ("total" in prev);
+      if (priced) IDENT.forEach(function (k) { if (prev[k] !== undefined && prev[k] !== null) out[k] = prev[k]; else delete out[k]; });
+      SOFT.forEach(function (k) { if (!(k in out) && prev[k] !== undefined) out[k] = prev[k]; });
+      return out;
+    }
     function countries() { return Object.keys(C).map(function (k) { return { iso: k, name: C[k].name }; }); }
-    return { COUNTRIES: C, profile: profile, resolve: resolve, money: money, validateId: validateId, placeOfSupply: placeOfSupply, rows: rows, snapshot: snapshot, countries: countries, code: code };
+    return { COUNTRIES: C, profile: profile, resolve: resolve, money: money, validateId: validateId, placeOfSupply: placeOfSupply, rows: rows, snapshot: snapshot, preserveSnapshot: preserveSnapshot, SNAPSHOT_KEYS: IDENT.concat(SOFT), countries: countries, code: code };
   })();
 
   // ---- studio money (0089) -------------------------------------------------------
