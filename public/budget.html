@@ -152,11 +152,11 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=1"></script><script src="store-api.js?v=161"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const inr=(n)=>"₹"+Number(n||0).toLocaleString("en-IN");
+  const inr=(n)=>BPStore.studioMoney(n);
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   const KIND={internal:"Internal",vendor:"Vendor",other:"Other"};
   const ST={requested:"Requested",approved:"Approved",rejected:"Rejected"};

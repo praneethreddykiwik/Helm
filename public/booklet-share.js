@@ -13,7 +13,7 @@
   function el(tag, cls, text) { const n = doc.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); return n; }
   function when(t) { const d = new Date(t); if (isNaN(d.getTime())) return ""; try { return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }); } catch (e) { return d.toISOString().slice(0, 10); } }
-  function money(n) { const v = Number(n); if (!isFinite(v)) return ""; try { return "₹" + v.toLocaleString("en-IN", { maximumFractionDigits: 0 }); } catch (e) { return "₹" + Math.round(v); } }
+  function money(n) { const v = Number(n); if (!isFinite(v)) return ""; if ((typeof window!=="undefined"&&window.BPStore&&window.BPStore.studioTax&&window.BPStore.studioTax().country!=="IN")) return window.BPStore.studioMoney(v, { round: true }); try { return "₹" + v.toLocaleString("en-IN", { maximumFractionDigits: 0 }); } catch (e) { return "₹" + Math.round(v); } }
   function quoteIdFor(btn) {
     const q = btn && btn.getAttribute("data-quote");
     if (q && UUID_RE.test(q)) return q;

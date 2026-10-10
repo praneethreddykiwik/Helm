@@ -102,11 +102,11 @@
 <script src="/telemetry.js?v=3"></script>
 <script src="/config.js?v=98"></script>
 <script src="/event-name.js?v=2"></script>
-<script src="/store-api.js?v=160"></script>
+<script src="/country-profile.js?v=1"></script><script src="/store-api.js?v=161"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  const inr=(n)=>"₹"+Math.round(Number(n||0)).toLocaleString("en-IN");
+  const inr=(n)=>BPStore.studioMoney(n,{round:true});
   const LINK=BPStore.links.parse("portal");   // branded /<studio>/portal/<token> (server-verified below)
   const token=LINK?LINK.ref:new URLSearchParams(location.search).get("token");
   const fmtWhen=(d,t)=>{ if(!d) return ""; try{ const dt=new Date(d+"T00:00:00"); return dt.toLocaleDateString([], {weekday:'long',day:'numeric',month:'long',year:'numeric'})+(t?(" · "+t):""); }catch{ return d+(t?" · "+t:""); } };

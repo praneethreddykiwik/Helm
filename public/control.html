@@ -266,7 +266,7 @@
         <div class="fld"><label for="o_line1">Billing address *</label><input id="o_line1" maxlength="160" autocomplete="address-line1"></div>
         <div class="fld"><label for="o_line2">Address line 2</label><input id="o_line2" maxlength="160" autocomplete="address-line2"></div>
         <div class="fld"><label for="o_city">City *</label><input id="o_city" maxlength="60" autocomplete="address-level2"></div>
-        <div class="fld"><label for="o_state" id="o_state_lbl">State *</label><input id="o_state" maxlength="60" autocomplete="address-level1"></div>
+        <div class="fld"><label for="o_state" id="o_state_lbl">State *</label><input id="o_state" maxlength="60" autocomplete="address-level1" list="o_state_list"><datalist id="o_state_list"></datalist></div>
         <div class="fld"><label for="o_pin" id="o_pin_lbl">PIN code *</label><input id="o_pin" maxlength="10" inputmode="numeric" autocomplete="postal-code"></div>
       </div>
       <div class="actions"><button type="button" class="btn primary" id="o_save">Save studio settings</button></div>
@@ -686,13 +686,13 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=1"></script><script src="store-api.js?v=161"></script>
 <script src="hq-invoice.js?v=1"></script>
 <script src="tour.js?v=9"></script>
 <script src="pkg-review.js?v=4"></script>
 <script src="onboarding-core.js?v=3"></script>
 <script src="comms-settings.js?v=2"></script>
-<script src="venues-core.js?v=2"></script>
+<script src="venues-core.js?v=3"></script>
 <script src="venues-admin.js?v=1"></script>
 <script src="item-pricing.js?v=1"></script>
 <script>
@@ -820,7 +820,7 @@
   function renderItemPrices(){
     const ap = pricingCfg.assetPrices || (pricingCfg.assetPrices={});
     $("#itemPriceList").innerHTML = ITEM_CATALOG.map(([type,label,def])=>
-      `<div class="fld"><label for="ip_${esc(type)}">${esc(label)} <span style="color:var(--ink-3);font-weight:400">(default ₹${def.toLocaleString('en-IN')})</span></label>`+
+      `<div class="fld"><label for="ip_${esc(type)}">${esc(label)} <span style="color:var(--ink-3);font-weight:400">(default ${esc(BPStore.studioMoney(def))})</span></label>`+
       `<input id="ip_${esc(type)}" type="number" min="0" step="1" data-type="${esc(type)}" placeholder="${def}" value="${ap[type]!=null&&Number.isFinite(Number(ap[type]))?Number(ap[type]):''}"></div>`
     ).join("");
   }
@@ -972,7 +972,7 @@
 
   async function renderChairs(){
     let c=[]; try{ c=(await BPStore.chairTypes.list())||[]; }catch(e){ BPUI.loadError($("#chairList"), e, renderChairs, {what:"chair types"}); return; }
-    $("#chairList").innerHTML = c.length? c.map(x=>`<div class="row"><span class="g">${esc(x.name)}</span><span class="mono">₹${Number(x.price||0).toLocaleString("en-IN")}/chair</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove chair type ${esc(x.name)}">Remove</button></div>`).join("") : '<div class="row" style="color:var(--ink-3)">No chair types yet — add plastic, cushioned, Chiavari…</div>';
+    $("#chairList").innerHTML = c.length? c.map(x=>`<div class="row"><span class="g">${esc(x.name)}</span><span class="mono">${esc(BPStore.studioMoney(x.price))}/chair</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove chair type ${esc(x.name)}">Remove</button></div>`).join("") : '<div class="row" style="color:var(--ink-3)">No chair types yet — add plastic, cushioned, Chiavari…</div>';
     $("#chairList").querySelectorAll(".rm").forEach(b=>b.addEventListener("click",()=>removeRow(b,`chair type ${b.dataset.name}`,()=>BPStore.chairTypes.remove(b.dataset.id),renderChairs)));
   }
   $("#ch_add").addEventListener("click",()=>BPUI.guard($("#ch_add"),async()=>{
@@ -985,7 +985,7 @@
 
   async function renderPlates(){
     let c=[]; try{ c=(await BPStore.plateTypes.list())||[]; }catch(e){ BPUI.loadError($("#plateList"), e, renderPlates, {what:"plate types"}); return; }
-    $("#plateList").innerHTML = c.length? c.map(x=>`<div class="row"><span class="g">${esc(x.name)}</span><span class="mono">₹${Number(x.price||0).toLocaleString("en-IN")}/plate</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove plate type ${esc(x.name)}">Remove</button></div>`).join("") : '<div class="row" style="color:var(--ink-3)">No plate types yet — add Veg, Non-veg, Special…</div>';
+    $("#plateList").innerHTML = c.length? c.map(x=>`<div class="row"><span class="g">${esc(x.name)}</span><span class="mono">${esc(BPStore.studioMoney(x.price))}/plate</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove plate type ${esc(x.name)}">Remove</button></div>`).join("") : '<div class="row" style="color:var(--ink-3)">No plate types yet — add Veg, Non-veg, Special…</div>';
     $("#plateList").querySelectorAll(".rm").forEach(b=>b.addEventListener("click",()=>removeRow(b,`plate type ${b.dataset.name}`,()=>BPStore.plateTypes.remove(b.dataset.id),renderPlates)));
   }
   $("#pl_add").addEventListener("click",()=>BPUI.guard($("#pl_add"),async()=>{
@@ -1031,6 +1031,9 @@
     const cc=BPStore.tax.code($("#o_country").value), p=BPStore.tax.profile(cc), india=cc==="IN";
     $("#o_gst_lbl").textContent=p.idLabel+" (optional)"; $("#o_gst").placeholder=p.idEg||"";
     $("#o_pin_lbl").textContent=india?"PIN code *":"Postal code *"; $("#o_state_lbl").textContent=india?"State *":(p.regionLabel||"State / region")+" *";
+    // 0089: suggest the country's states / emirates (US options show the state base sales-tax rate)
+    const dl=$("#o_state_list"); if(dl){ dl.textContent=""; const hc=window.HelmCountry;
+      if(hc && ["IN","AE","US"].includes(cc)) hc.get(cc).regions.forEach(r=>{ const o=document.createElement("option"); o.value=r.name; if(r.rate!=null) o.label=r.name+" - "+r.rate+"% state sales tax"; dl.appendChild(o); }); }
   }
   $("#o_country").addEventListener("change",()=>{ paintCountryLabels(); const p=BPStore.tax.profile($("#o_country").value); if(p.known) $("#o_currency").value=p.currency; });
   function paintBilling(o){
@@ -1071,6 +1074,10 @@
       if(anyBill) billing=r.data; }
     const newCountry=BPStore.tax.code($("#o_country").value);
     { const r=BPStore.tax.validateId(newCountry, gstRaw); if(!r.ok){ orgMsg("err", newCountry==="IN"?"Enter a valid 15-character GSTIN, e.g. 36ABCDE1234F1Z5 (or leave it blank).":r.error); $("#o_gst").focus(); return; } }
+    // 0089: switching country re-labels tax/currency for NEW quotes only - ask first
+    const prevTaxCountry=BPStore.tax.code(pricingCfg.taxCountry||"IN");
+    if(newCountry!==prevTaxCountry && pricingLoaded){ const tp=BPStore.tax.profile(newCountry);
+      if(!(await BPUI.confirm(`Switch your studio to ${tp.name}? New quotes will use ${tp.tax} and ${tp.known?tp.currency:"your currency"}. Quotes you already saved, sent or got paid keep their price, tax and currency exactly as they are.`,{title:"Change country",okLabel:"Switch country"}))) return; }
     // #16: an email saved HERE is the studio's public contact (business_email_confirmed); the booklet
     // never shows an unconfirmed (e.g. signup) email. Brand keys we don't edit here are kept.
     const patch={ name:$("#o_name").value.trim()||null, business_email:email?email.toLowerCase():null, business_email_confirmed:!!email,
@@ -1085,9 +1092,19 @@
       if(newCountry!==BPStore.tax.code(pricingCfg.taxCountry||"IN") && pricingLoaded){
         // 0079: a new country re-labels the tax and suggests its default rate for NEW quotes (saved quotes keep their price)
         const tp=BPStore.tax.profile(newCountry);
+        const region=$("#o_state").value.trim().slice(0,60);
         const next=Object.assign({}, pricingCfg, { taxCountry:newCountry, currency:tp.known?tp.currency:(patch.currency||"INR") });
-        if(tp.rate!=null) next.gstPct=tp.rate;
+        if(region && newCountry!=="IN") next.taxRegion=region; else delete next.taxRegion;
+        if(window.HelmCountry && ["IN","AE","US"].includes(newCountry)) next.gstPct=window.HelmCountry.defaultRate(newCountry, region);
+        else if(tp.rate!=null) next.gstPct=tp.rate;
         try{ await BPStore.config.setPricing(next); pricingCfg=next; $("#p_gst").value=next.gstPct??""; paintTaxFields(); }catch(e){ orgMsg("err",errMsg(e,"update the tax for the new country")); return; }
+      }
+      else if(pricingLoaded && newCountry!=="IN" && ($("#o_state").value.trim().slice(0,60))!==(pricingCfg.taxRegion||"")){
+        // 0089: same country, new state/emirate -> store the region; a US studio still on the old
+        // state's default rate moves to the new state's base rate (a custom rate is kept)
+        const region=$("#o_state").value.trim().slice(0,60), next=Object.assign({}, pricingCfg, { taxRegion:region });
+        if(window.HelmCountry && newCountry==="US" && Number(pricingCfg.gstPct)===window.HelmCountry.defaultRate("US", pricingCfg.taxRegion||"")) next.gstPct=window.HelmCountry.defaultRate("US", region);
+        try{ await BPStore.config.setPricing(next); pricingCfg=next; $("#p_gst").value=next.gstPct??""; paintTaxFields(); }catch(e){ orgMsg("err",errMsg(e,"update the tax region")); return; }
       }
       orgCountry=newCountry;
       orgMsg("ok","Studio settings saved."); setTimeout(()=>orgMsg("",""),2500); }

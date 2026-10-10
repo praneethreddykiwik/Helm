@@ -192,6 +192,7 @@
       <div class="fld"><label for="p_guests">Guests / plates</label><input id="p_guests" type="number" min="0" step="1"></div>
       <div class="fld" id="posFld"><label for="p_pos">Place of supply</label>
         <select id="p_pos"><option value="intra">Intra-state (CGST + SGST)</option><option value="inter">Inter-state (IGST)</option></select></div>
+      <div class="fld"><label for="p_taxExempt"><input type="checkbox" id="p_taxExempt"> Tax-exempt client (no tax charged)</label></div>
     </div>
     <div class="grid three s-d2c171b">
       <div class="fld"><label for="p_cmode">Catering source</label>
@@ -279,7 +280,7 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=1"></script><script src="store-api.js?v=161"></script>
 <script src="event-sizing.js?v=5"></script>
 <script src="tour.js?v=9"></script>
 <script>
@@ -582,6 +583,7 @@
     $("#p_cmode").value = (pr.catering&&pr.catering.mode)||"inhouse";
     $("#p_camount").value = (pr.catering&&pr.catering.amount)||0;
     $("#p_discount").value = pr.discount||0; $("#p_discountPct").value = pr.discountPct||0;
+    $("#p_taxExempt").checked = String(pr.taxExempt)==="true";
     $("#p_pos").value = pr.placeOfSupply||BPStore.tax.placeOfSupply(studioState, cl.state)||"intra";
     platesEdited = pr.guests!=null && pr.chairs!=null && pr.guests!==pr.chairs;
     recalc();
@@ -599,7 +601,7 @@
       gstPct:+$("#p_gst").value||0, other:+$("#p_other").value||0,
       serviceChargePct:+$("#p_svc").value||0, discount:+$("#p_discount").value||0, discountPct:+$("#p_discountPct").value||0,
       couponCode: cp?couponCode:"", coupon: cp?{kind:cp.kind,value:cp.value}:null,
-      placeOfSupply:$("#p_pos").value, currency:"INR", ...BPStore.tax.snapshot(curTax),
+      placeOfSupply:$("#p_pos").value, currency:"INR", ...BPStore.tax.snapshot(curTax), taxExempt: $("#p_taxExempt").checked ? true : undefined,
       catering:{ mode:$("#p_cmode").value, vendor: vsel==="__new"?"":vsel, amount:+$("#p_camount").value||0, gstPct:+$("#p_cgst").value||0 } };
   }
   function gatherClient(){
@@ -722,7 +724,7 @@
     td,th{padding:8px;border-bottom:1px solid #e6ebf3;text-align:left} .tot td{border:0} .grand td{font-weight:700;font-size:16px;border-top:2px solid #141b2e}
     .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #141b2e;padding-bottom:14px}
     .badge{background:#eef2ff;color:#4457c8;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}</style>
-    <div class=head><div><h1>Helm Events</h1><div class=muted>Event ${isInv?"Invoice":"Quotation"}</div></div>
+    <div class=head><div><h1>Helm Events</h1><div class=muted>${isInv?(qTax.country==="AE"?"Tax Invoice":"Event Invoice"):"Event Quotation"}</div></div>
       <div style="text-align:right"><div style="font-family:monospace;font-weight:700;font-size:16px">${esc(full.code)}</div>
       <div class=muted>${isInv?"Confirmed "+fmtDate(full.confirmedAt):"Quote v"+full.currentVersion}${ver&&String(ver)!==String(full.currentVersion)?" · layout v"+esc(String(ver)):""} · ${fmtDate(full.updatedAt)}</div>
       <span class=badge>${isInv?"CONFIRMED":"QUOTE"}</span></div></div>
@@ -741,7 +743,7 @@
       ${t.discount?`<tr class=tot><td>Discount</td><td style="text-align:right">− ${inr(t.discount)}</td></tr>`:""}`:""}
       <tr class=grand><td>Grand total</td><td style="text-align:right">${inr(grand)}</td></tr>
       <tr><td colspan=2 style="padding-top:6px;font-style:italic;color:#555;font-size:12px;border:0">${qTax.country!=="IN"?"":BPStore.amountInWords(grand)}</td></tr></table>
-    <p class=muted>${qTax.country==="IN"?"Taxes per Indian GST (event management SAC 998596).":esc(qTax.name)+(qTax.inclusive?" included in the prices above.":" as applicable in "+esc(qTax.countryName)+".")} ${p.catering&&p.catering.vendor?"Caterer: "+esc(p.catering.vendor)+". ":""}This is a computer-generated document.</p>`;
+    <p class=muted>${qTax.exempt?"Tax-exempt client: no "+esc(qTax.name)+" charged. ":""}${qTax.country==="IN"?"Taxes per Indian GST (event management SAC 998596).":esc(qTax.name)+(qTax.inclusive?" included in the prices above.":" as applicable in "+esc(qTax.countryName)+".")} ${p.catering&&p.catering.vendor?"Caterer: "+esc(p.catering.vendor)+". ":""}This is a computer-generated document.</p>`;
     // No inline <script> in the popup (it inherits this page's CSP) — print from the opener instead.
     const w=window.open("","_blank"); if(w){ w.opener=null; w.document.write(html); w.document.close(); setTimeout(()=>{ try{ w.focus(); w.print(); }catch(_){} },250); }
     else BPUI.toast("Popup blocked — allow popups to download/print.",{type:"err"});

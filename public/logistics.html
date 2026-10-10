@@ -116,7 +116,7 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=1"></script><script src="store-api.js?v=161"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -128,7 +128,7 @@
     const custom=(selected&&!PEOPLE_OPTS.some(p=>p.name===selected))?`<option value="${esc(selected)}" selected>${esc(selected)}</option>`:"";
     return `<select id="${elId}" aria-label="Assign person" style="min-width:0"><option value="">Select person…</option>${custom}${grp("Staff","staff")}${grp("Vendors","vendor")}</select>`;
   }
-  const inr=(n)=>"₹"+Number(n||0).toLocaleString("en-IN");
+  const inr=(n)=>BPStore.studioMoney(n);
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   const CHK_ST={open:"Open",done:"Done",na:"N/A"}, PAY_ST={due:"Due",invoiced:"Invoiced",paid:"Paid",waived:"Waived"};
   let canEdit=false, canDelete=false, tab="compliance", ev=null;

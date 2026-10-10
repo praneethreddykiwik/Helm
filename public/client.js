@@ -27,6 +27,7 @@
   function money(n) {
     const v = Number(n);
     if (!isFinite(v)) return "—";
+    if ((typeof window!=="undefined"&&window.BPStore&&window.BPStore.studioTax&&window.BPStore.studioTax().country!=="IN")) return window.BPStore.studioMoney(v);   // 0089
     try { return "₹" + v.toLocaleString("en-IN", { maximumFractionDigits: 2 }); } catch (e) { return "₹" + v.toFixed(2); }
   }
   function when(t) {

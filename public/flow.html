@@ -345,7 +345,7 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=1"></script><script src="store-api.js?v=161"></script>
 <script src="tour.js?v=9"></script>
 <script src="booklet.js?v=13"></script>
 <script src="share-checklist.js?v=8"></script>
@@ -353,7 +353,7 @@
 <script src="event-sizing.js?v=5"></script>
 <script src="flow-autosave.js?v=1"></script>
 <script src="flow-dish-editor.js?v=1"></script>
-<script src="venues-core.js?v=2"></script>
+<script src="venues-core.js?v=3"></script>
 <script src="venue-picker.js?v=3"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -451,7 +451,7 @@
     if(!code){ appliedCoupon=null; if(msg){msg.textContent="";} renderPrice(); return; }
     const c=(COUPONS||[]).find(x=>String(x.code||"").toLowerCase()===code.toLowerCase());
     if(c){ appliedCoupon={kind:c.kind,value:c.value};
-      if(msg){ msg.style.color="var(--safe-text,#0f7a43)"; msg.textContent="Applied: "+(c.kind==="percent"?(c.value+"% off"):("₹"+c.value+" off"))+(c.note?(" · "+c.note):""); } }
+      if(msg){ msg.style.color="var(--safe-text,#0f7a43)"; msg.textContent="Applied: "+(c.kind==="percent"?(c.value+"% off"):(BPStore.tax.money(c.value, fTax())+" off"))+(c.note?(" · "+c.note):""); } }
     else { appliedCoupon=null; if(msg){ msg.style.color="var(--warn-text,#8f5f00)"; msg.textContent="No such coupon code."; } }
     renderPrice();
   }
