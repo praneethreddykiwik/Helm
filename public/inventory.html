@@ -87,6 +87,7 @@
   .err{background:#fdecec;color:#b42318;border-radius:8px;padding:8px 12px;font-size:12px;margin-top:10px}
   .lsheet{width:min(400px,96vw)}
   .sub2{font-size:12px;color:var(--ink-3)}
+  .attrbox{margin-top:12px}.attrbox summary{cursor:pointer;font-weight:600;font-size:13px;padding:4px 0}.attrline{font-size:12px;color:var(--ink-3);margin-top:2px}
 </style>
 <link rel="stylesheet" href="theme.css?v=76">
 </head>
@@ -138,6 +139,7 @@
       <span class="spacer"></span>
       <span class="s-bbce15d" id="seedStatus" role="status"></span>
       <button type="button" id="seedBtn" class="btn" hidden>Load starter items</button>
+      <button type="button" id="importBtn" class="btn" hidden>Import from Excel / CSV</button>
       <button type="button" id="newBtn" class="btn primary" hidden>＋ Add item</button>
     </div>
     <div class="card table-scroll s-8d8d59e">
@@ -201,6 +203,7 @@
       <div class="fld"><label for="i_cost">Unit cost (₹)</label><input id="i_cost" type="number" min="0" step="1" value="0"></div>
       <div class="fld s-068a8dd"><label for="i_notes">Notes</label><input id="i_notes" placeholder="optional"></div>
     </div>
+    <details id="i_attrs_box" class="attrbox"><summary>Custom fields</summary><div id="i_attrs"></div></details>
     <datalist id="catList"></datalist>
     <div id="im_err" class="err" hidden role="alert" aria-live="assertive"></div>
     <div class="foot">
@@ -246,7 +249,10 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="store-api.js?v=161"></script>
+<script src="xlsx-lite.js?v=2"></script>
+<script src="smart-import-core.js?v=1"></script>
+<script src="smart-import.js?v=1"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -255,7 +261,7 @@
   const fmtDate=(d)=>{ if(!d) return ""; const s=String(d); const dt=new Date(s.length===10?s+"T00:00:00":s); if(isNaN(dt)) return esc(s); return dt.toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}); };
   const quoteId=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   const ST={reserved:"Reserved",allocated:"Allocated",returned:"Returned",cancelled:"Cancelled"};
-  let canEdit=false, canDelete=false, avail={}, items=[], reservations=[], checkouts=[], quotesById={}, editingId=null, filter="", catF="", priF="", showInactive=false, showCancelled=false;
+  let attrDefs=[], attrEd=null, editingItem=null, canEdit=false, canDelete=false, avail={}, items=[], reservations=[], checkouts=[], quotesById={}, editingId=null, filter="", catF="", priF="", showInactive=false, showCancelled=false;
   const PRI={A:"A",B:"B",C:"C"};
   const INV_CATEGORIES=["Seating","Tables","Linens","Lighting","Sound & AV","Staging & Structures","Decor & Florals","Catering Equipment","Tableware","Power & Cabling","Tents & Canopies","Signage","Office & Misc"];
   const STARTER_ITEMS=[
@@ -299,7 +305,7 @@
     const datalistCats=[...new Set([...INV_CATEGORIES,...presentCats])];
     $("#catList").innerHTML=datalistCats.map(c=>`<option value="${esc(c)}">`).join("");
     // show/hide the starter-items button (idempotent, so always available when editable)
-    $("#seedBtn").hidden=!canEdit;
+    $("#seedBtn").hidden=!canEdit; $("#importBtn").hidden=!canEdit||!window.HelmImport;
 
     const q=filter.trim().toLowerCase();
     const shown=items.filter(i=>(!catF||i.category===catF)&&(!priF||(i.priority||"C")===priF)&&(!q||[i.name,i.category].join(" ").toLowerCase().includes(q))&&(!window.HelmSavedFilters||HelmSavedFilters.match("inventory",{item:i,avail:avail[i.id]})));
@@ -309,7 +315,7 @@
       const p=i.priority||"C";
       const inactive=i.active===false;
       return `<tr data-item="${esc(i.id)}"${inactive?' style="opacity:.55"':''}>
-        <td><b>${esc(i.name)}</b>${inactive?' <span class="cat" style="background:var(--line);color:var(--ink-3)">Inactive</span>':''}</td>
+        <td><b>${esc(i.name)}</b>${(()=>{ const al=typeof HelmImportCore!=="undefined"?HelmImportCore.attrList("inventory",i.attributes,attrDefs):[]; return al.length?`<div class="attrline">${al.slice(0,4).map(a=>`<span title="${esc(a.label)}: ${esc(a.value)}">${esc(a.label)}: ${esc(a.value.slice(0,30))}</span>`).join(" · ")}${al.length>4?` · +${al.length-4} more`:""}</div>`:""; })()}${inactive?' <span class="cat" style="background:var(--line);color:var(--ink-3)">Inactive</span>':''}</td>
         <td><span class="pri ${p}" title="Priority ${p}">${p}</span></td>
         <td>${i.category?`<span class="cat">${esc(i.category)}</span>`:""}</td>
         <td class="num">${num(i.total_qty)}</td>
@@ -416,6 +422,8 @@
     $("#i_name").value=it?it.name||"":""; $("#i_cat").value=it?it.category||"":"";
     $("#i_qty").value=it?it.total_qty||0:0; $("#i_unit").value=it?it.unit||"":""; $("#i_notes").value=it?it.notes||"":"";
     $("#i_pri").value=it?(it.priority||"C"):"C"; $("#i_cost").value=it?(it.unit_cost||0):0;
+    editingItem=it||null; attrEd=window.HelmImport?HelmImport.attrEditor("inventory",it&&it.attributes,attrDefs):null;
+    $("#i_attrs").replaceChildren(...(attrEd?[attrEd.el]:[])); $("#i_attrs_box").hidden=!attrEd;
     $("#im_deact").hidden=!(it&&canEdit); $("#im_err").hidden=true; itemDirty.clean(); $("#itemModal").hidden=false; setTimeout(()=>$("#i_name").focus(),50);
   }
   const itemDirty=BPUI.trackDirty($("#itemModal"));
@@ -427,6 +435,7 @@
     const qr=V.count($("#i_qty").value,{allowZero:true,field:"Total quantity"}); if(!qr.ok){ $("#im_err").textContent=qr.error; $("#im_err").hidden=false; return; }
     const cr=V.money($("#i_cost").value,{field:"Unit cost"}); if(!cr.ok){ $("#im_err").textContent=cr.error; $("#im_err").hidden=false; return; }
     const rec={ name, category:$("#i_cat").value.trim()||null, total_qty:qr.value, unit:$("#i_unit").value.trim()||null, notes:$("#i_notes").value.trim()||null, priority:$("#i_pri").value||"C", unit_cost:cr.value };
+    if(attrEd){ const at=attrEd.read(); if(Object.keys(at).length||(editingItem&&"attributes" in editingItem)) rec.attributes=at; }
     $("#im_err").hidden=true;
     // duplicate guard: same name ignoring case, spacing, punctuation, accents and "&" vs "and" (inactive items count too)
     try{
@@ -602,6 +611,7 @@
   $("#ci_save").addEventListener("click",()=>BPUI.guard($("#ci_save"),confirmCheckIn,{busyLabel:"Saving…"}));
   $("#ciModal").addEventListener("click",e=>{ if(e.target.id==="ciModal") requestCloseCheckIn(); });
   $("#seedBtn").addEventListener("click",()=>loadStarterItems($("#seedBtn")));
+  $("#importBtn").addEventListener("click",()=>HelmImport.open({ entity:"inventory", onDone:async(sum)=>{ if(sum){ try{ attrDefs=await BPStore.smartImport.fieldDefs("inventory"); }catch(e){} await load(); } } }));
 
   $("#co_add").addEventListener("click",async()=>{
     const itemId=$("#co_item").value;
@@ -680,6 +690,7 @@
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("inventory"))) return;
     canEdit=await BPStore.auth.canEditArea("inventory"); canDelete=await BPStore.auth.can("delete");
+    try{ attrDefs=await BPStore.smartImport.fieldDefs("inventory"); }catch(e){ attrDefs=[]; }
     $("#app").hidden=false; $("#newBtn").hidden=!canEdit;
     if(!canEdit) $("#coCard").querySelectorAll("input,select,button").forEach(el=>el.disabled=true);
     if(quoteId){

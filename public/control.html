@@ -200,6 +200,7 @@
     --cx-crimson:#f87171; --cx-crimson-soft:rgba(248,113,113,.12); --cx-crimson-border:rgba(248,113,113,.32);
     box-shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 30px -16px rgba(0,0,0,.7);
   }
+  .cfline{display:block;font-size:12px;color:var(--ink-3)}.cfname{flex:1;min-width:0}.cfmeta{font-size:12px;color:var(--ink-3)}.cfoff{opacity:.6}
 </style>
 <link rel="stylesheet" href="pkg-review.css?v=1">
 <link rel="stylesheet" href="comms-settings.css?v=1">
@@ -390,8 +391,20 @@
 
     <div class="card">
       <h3>Import from Excel</h3>
-      <p class="mnote">Bring in your price list (chair / plate rates), dishes and inventory from an Excel (.xlsx / .xls) or CSV file. Download a template, check the preview (errors are shown per row), then confirm. New rows are added; rows with the exact same name are only updated if you choose to. Nothing is ever deleted.</p>
-      <div class="actions"><a class="btn" href="onboarding.html#s1">Import price list</a>&nbsp;<a class="btn" href="onboarding.html#s2">Import inventory</a>&nbsp;<a class="btn" href="onboarding.html#s0">Import dishes</a></div>
+      <p class="mnote">Bring in staff, dishes, inventory and vendors from your own Excel (.xlsx) or CSV sheet — any column names, any order. Helm matches the columns for you, keeps extra columns as custom fields, shows a preview (errors per row) and only then imports. Rows already in Helm are skipped unless you choose to update them. Nothing is ever deleted.</p>
+      <div class="actions"><button type="button" class="btn" id="imp_staff">Import staff</button>&nbsp;<button type="button" class="btn" id="imp_menu">Import dishes</button>&nbsp;<button type="button" class="btn" id="imp_inventory">Import inventory</button>&nbsp;<button type="button" class="btn" id="imp_vendors">Import vendors</button>&nbsp;<a class="btn" href="onboarding.html#s1">Import price list</a></div>
+    </div>
+
+    <div class="card" id="cfCard">
+      <h3>Custom fields</h3>
+      <p class="mnote">Extra details you keep on staff, dishes, inventory and vendors (for example IFSC code, joining date, allergens, warehouse). Imports add them automatically; here you can add, rename or hide them. Hiding a field keeps the saved values.</p>
+      <div class="addrow"><label for="cf_entity" class="sr-only">Custom fields for</label><select id="cf_entity" aria-label="Custom fields for"><option value="staff">Staff</option><option value="menu">Dishes</option><option value="inventory">Inventory</option><option value="vendors">Vendors</option></select></div>
+      <div id="cfList"></div>
+      <div class="addrow">
+        <input id="cf_label" maxlength="80" placeholder="New field name e.g. Blood group" aria-label="New custom field name">
+        <select id="cf_type" aria-label="New custom field type"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="bool">Yes / No</option></select>
+        <button type="button" class="btn" id="cf_add">+ Add field</button>
+      </div>
     </div>
 
     <div class="card">
@@ -686,7 +699,10 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="store-api.js?v=161"></script>
+<script src="xlsx-lite.js?v=2"></script>
+<script src="smart-import-core.js?v=1"></script>
+<script src="smart-import.js?v=1"></script>
 <script src="hq-invoice.js?v=1"></script>
 <script src="tour.js?v=9"></script>
 <script src="pkg-review.js?v=4"></script>
@@ -709,6 +725,50 @@
       $("#logoutBtn").addEventListener("click",async()=>{await BPStore.auth.signOut();location.href="dashboard.html";});
     } else { el.innerHTML=`<button type="button" id="loginBtn">Sign in</button>`; $("#loginBtn").addEventListener("click",()=>location.replace("login.html?next="+encodeURIComponent(HelmUrl.here()))); } }
 
+  // 0088 smart import + custom fields (DOM built with textContent; no HTML strings)
+  const IMP=window.HelmImport;
+  ["staff","menu","inventory","vendors"].forEach(en=>{ const b=$("#imp_"+en); if(b) b.addEventListener("click",()=>{
+    if(!IMP){ setMsg("err","Import is not available — reload the page."); return; }
+    HelmImport.open({ entity:en, onDone:async(sum)=>{ if(!sum) return; setMsg("ok",`Import finished: ${sum.created} added, ${sum.updated} updated, ${sum.skipped} skipped, ${sum.errors} with problems.`); if(en==="menu") await renderDishes(); await drawCustomFields(); } });
+  }); });
+  let cfCanEdit=false;
+  async function initCustomFields(){
+    try{ cfCanEdit=isAdmin||await BPStore.auth.canEditArea("controls"); }catch(e){ cfCanEdit=false; }
+    $("#cf_add").hidden=!cfCanEdit; $("#cf_label").hidden=!cfCanEdit; $("#cf_type").hidden=!cfCanEdit;
+    await drawCustomFields();
+  }
+  async function drawCustomFields(){
+    const en=$("#cf_entity").value, box=$("#cfList");
+    let defs=[]; try{ defs=await BPStore.smartImport.fieldDefs(en); }catch(e){ box.replaceChildren(Object.assign(document.createElement("div"),{className:"row",textContent:"Custom fields aren't available yet (database update 0088 pending)."})); return; }
+    if(!defs.length){ box.replaceChildren(Object.assign(document.createElement("div"),{className:"row cfnone",textContent:"No custom fields yet. Import a sheet or add one below."})); return; }
+    box.replaceChildren(...defs.map((d,i)=>{
+      const row=document.createElement("div"); row.className="row"+(d.active===false?" cfoff":"");
+      const inp=document.createElement("input"); inp.value=d.label; inp.maxLength=80; inp.readOnly=!cfCanEdit; inp.setAttribute("aria-label","Name of custom field "+d.key); inp.className="cfname";
+      const meta=document.createElement("span"); meta.className="mono cfmeta"; meta.textContent=d.type+(d.active===false?" · hidden":"");
+      row.append(inp,meta);
+      if(cfCanEdit){
+        const save=document.createElement("button"); save.type="button"; save.className="btn"; save.textContent="Rename";
+        save.addEventListener("click",()=>BPUI.guard(save,async()=>{ const l=inp.value.trim(); if(!l){ setMsg("err","A field needs a name."); return; }
+          try{ await BPStore.smartImport.saveFieldDef({entity:en,key:d.key,label:l,type:d.type,active:d.active!==false}); setMsg("ok","Field renamed."); await drawCustomFields(); }catch(e){ setMsg("err",errMsg(e,"rename the field")); } }));
+        const tog=document.createElement("button"); tog.type="button"; tog.className="rm"; tog.textContent=d.active===false?"Show":"Hide";
+        tog.addEventListener("click",()=>BPUI.guard(tog,async()=>{ try{ await BPStore.smartImport.saveFieldDef({entity:en,key:d.key,label:d.label,type:d.type,active:d.active===false}); await drawCustomFields(); }catch(e){ setMsg("err",errMsg(e,"update the field")); } }));
+        row.append(save,tog);
+      }
+      return row;
+    }));
+  }
+  $("#cf_entity").addEventListener("change",drawCustomFields);
+  $("#cf_add").addEventListener("click",()=>BPUI.guard($("#cf_add"),async()=>{
+    const en=$("#cf_entity").value, label=$("#cf_label").value.trim();
+    if(label.length<1){ setMsg("err","Enter a name for the new field."); return; }
+    let defs=[]; try{ defs=await BPStore.smartImport.fieldDefs(en); }catch(e){}
+    const taken=new Set(defs.map(d=>d.key).concat((HelmImportCore.ENTITIES[en]||{fields:[]}).fields.filter(f=>f.std).map(f=>f.key)));
+    const builtIn=(HelmImportCore.ENTITIES[en]||{fields:[]}).fields.find(f=>!f.std&&HelmImportCore.normHeader(f.label)===HelmImportCore.normHeader(label)&&!defs.some(d=>d.key===f.key));
+    const key=builtIn?builtIn.key:HelmImportCore.slugKey(label,taken);
+    try{ await BPStore.smartImport.saveFieldDef({entity:en,key,label,type:$("#cf_type").value,isNew:true,position:defs.length}); $("#cf_label").value=""; setMsg("ok","Field added."); await drawCustomFields(); }
+    catch(e){ setMsg("err",errMsg(e,"add the field")); }
+  }));
+
   let isAdmin=false;
   async function load(){
     await BPStore.init(); await renderAccount();
@@ -719,7 +779,7 @@
     if(!canControls && !isAdmin){ $("#gate").hidden=false; $("#gate").innerHTML='<p style="color:var(--ink-3)">Your role can\'t open the Control Center.</p>'; return; }
     $("#app").hidden=false;
     await loadPricing();
-    await renderCoupons(); await renderChairs(); await renderPlates(); await renderDishes(); await renderMenuTemplates(); await renderLayoutRules(); await renderOrg();
+    await renderCoupons(); await renderChairs(); await renderPlates(); await renderDishes(); await initCustomFields(); await renderMenuTemplates(); await renderLayoutRules(); await renderOrg();
     // Only admins get the User-control tab (add/remove users + access matrix).
     if(isAdmin){
       $("#tab-users").hidden=false;
@@ -1175,16 +1235,19 @@
     }catch(e){ lxMsg("err",errMsg(e,"save link expiry")); }
   }));
 
+  let dishDefs=[];
   let dishCache=[];
+  const dishAttrText=(x)=>{ const al=typeof HelmImportCore!=="undefined"?HelmImportCore.attrList("menu",x.attributes,dishDefs):[]; return al.slice(0,4).map(a=>a.label+": "+a.value.slice(0,30)).join(" · ")+(al.length>4?" · +"+(al.length-4)+" more":""); };
   const KINDLBL={veg:'<span style="color:#0f7a43">veg</span>',nonveg:'<span style="color:#b42318">non-veg</span>',special:'<span style="color:#7c3aed">special</span>'};
   async function renderDishes(){
+    try{ dishDefs=await BPStore.smartImport.fieldDefs("menu"); }catch(e){ dishDefs=[]; }
     try{ dishCache=(await BPStore.dishCatalog.list())||[]; }catch(e){ dishCache=[]; BPUI.loadError($("#dishList"), e, renderDishes, {what:"dishes"}); return; }
     drawDishes();
   }
   function drawDishes(){
     const term=($("#dishFilter").value||"").trim().toLowerCase();
     const list=dishCache.filter(d=>!term || (d.name+" "+d.category).toLowerCase().includes(term));
-    $("#dishList").innerHTML = list.length ? list.map(x=>`<div class="row"><span class="g">${esc(x.name)} <span style="font-size:12px">· ${KINDLBL[x.kind]||""}</span></span><span class="mono" style="font-size:12px">${esc(x.category)}</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove dish ${esc(x.name)}">Remove</button></div>`).join("")
+    $("#dishList").innerHTML = list.length ? list.map(x=>`<div class="row"><span class="g">${esc(x.name)} <span style="font-size:12px">· ${KINDLBL[x.kind]||""}</span><span class="cfline">${esc(dishAttrText(x))}</span></span><span class="mono" style="font-size:12px">${esc(x.category)}</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove dish ${esc(x.name)}">Remove</button></div>`).join("")
       : `<div class="row" style="color:var(--ink-3)">${dishCache.length?"No dishes match this filter.":"No dishes yet — add your first below."}</div>`;
     $("#dishList").querySelectorAll(".rm").forEach(b=>b.addEventListener("click",()=>removeRow(b,`dish ${b.dataset.name}`,()=>BPStore.dishCatalog.remove(b.dataset.id),renderDishes)));
   }
