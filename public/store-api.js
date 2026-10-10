@@ -7620,6 +7620,45 @@ window.HelmUrl = HelmUrl;
       },
       setDefault: (id, on) => rpc("saved_view_set_default", { p_id: id, p_on: on !== false }),
     },
+    // 0088 - smart import (public/smart-import.js): custom fields, remembered column mappings and the
+    // batch import RPC. Before 0088 is applied the reads return [] / null and writes reject.
+    smartImport: {
+      ENTITIES: ["staff", "inventory", "menu", "vendors"],
+      existing: (entity) => entity === "staff" ? BPStore.staff.list(true) : entity === "inventory" ? BPStore.inventory.items(true)
+        : entity === "menu" ? BPStore.dishCatalog.list(true) : entity === "vendors" ? BPStore.vendors.listAll(true) : Promise.resolve([]),
+      fieldDefs: (entity) => {
+        if (!supa) return Promise.resolve([]);
+        let q = supa.from("custom_field_defs").select("entity,key,label,type,position,active").order("position").order("key").limit(500);
+        if (entity) q = q.eq("entity", entity);
+        return Promise.resolve(q).then(({ data, error }) => {
+          if (error) { if (rpcMissing(error) || error.code === "42P01" || error.code === "PGRST205") return []; throw error; }
+          return Array.isArray(data) ? data : [];
+        });
+      },
+      saveFieldDef: (d) => {
+        if (!supa) return Promise.reject(new Error("Custom fields need a signed-in studio."));
+        const row = { entity: String(d.entity), key: String(d.key), label: String(d.label || "").trim().slice(0, 80),
+          type: ["text", "number", "date", "bool"].includes(d.type) ? d.type : "text", active: d.active !== false };
+        if (d.position != null) row.position = Math.max(0, Math.min(10000, Math.round(Number(d.position) || 0)));
+        const q = d.isNew ? supa.from("custom_field_defs").insert(row)
+          : supa.from("custom_field_defs").update({ label: row.label, type: row.type, active: row.active }).eq("entity", row.entity).eq("key", row.key);
+        return Promise.resolve(q).then(({ error }) => { if (error) throw error; return true; });
+      },
+      getMapping: (entity) => {
+        if (!supa) return Promise.resolve(null);
+        return Promise.resolve(supa.from("import_mappings").select("mapping").eq("entity", entity).maybeSingle()).then(({ data, error }) => {
+          if (error) return null; return data && data.mapping ? data.mapping : null; });
+      },
+      saveMapping: (entity, mapping) => {
+        if (!supa) return Promise.resolve(false);
+        return Promise.resolve(supa.from("import_mappings").upsert({ entity, mapping: mapping || {} }, { onConflict: "org_id,entity" }))
+          .then(({ error }) => !error, () => false);
+      },
+      importBatch: (entity, rows, defs) => {
+        if (!supa) return Promise.reject(new Error("Importing needs a signed-in studio."));
+        return rpc("smart_import_batch", { p_entity: entity, p_rows: rows || [], p_defs: defs || [] });
+      },
+    },
     gettingStarted: {
       get: () => (supa ? rpc("my_getting_started").catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
       dismiss: (on) => rpc("my_getting_started_dismiss", { p_dismissed: on !== false }),

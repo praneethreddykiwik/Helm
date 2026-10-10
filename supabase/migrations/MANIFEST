@@ -117,3 +117,5 @@ forward  supabase/migrations/0084_r7_polish.sql
 forward  supabase/migrations/0085_venues.sql
 # 0086 (item specifications: per-studio item rate cards, get/set RPCs gated by the new item_pricing area, defaults seeded without overwriting) goes after 0084 (0085 optional).
 forward  supabase/migrations/0086_item_specs.sql
+# 0088 (smart import: attributes jsonb on staff/inventory/dishes/vendors, custom_field_defs + import_mappings with tenant RLS, smart_import_batch RPC gated by has_area edit; additive, no deletes) goes after 0086.
+forward  supabase/migrations/0088_smart_import.sql
