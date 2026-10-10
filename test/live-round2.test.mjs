@@ -145,9 +145,22 @@ t('C4 fill-only migration note documented', () => {
 });
 t('versions bumped', () => {
   assert.match(read('public/flow.html'), /store-api\.js\?v=164/);
-  assert.match(read('public/inventory.html'), /smart-import-core\.js\?v=3/);
+  assert.match(read('public/inventory.html'), /smart-import-core\.js\?v=4/);
   assert.match(read('public/builder.html'), /layout-wizard\.js\?v=3/); assert.match(read('public/builder.html'), /builder\.js\?v=38/);
 });
 let pass = 0;
 for (const [n, f] of tests) { try { f(); pass++; console.log('ok  - ' + n); } catch (e) { console.error('FAIL - ' + n + '\n', e); process.exitCode = 1; } }
 console.log(`live-round2: ${pass}/${tests.length} passed`);
+
+// C5b: a built-in money attribute whose def was saved as "number" by an earlier import still shows currency
+{
+  const { readFileSync } = await import('node:fs'); const vm = (await import('node:vm')).default;
+  const cx = { window: { BPStore: { studioMoney: (n) => 'AED ' + n } } }; cx.globalThis = cx; vm.createContext(cx);
+  vm.runInContext(readFileSync(new URL('../public/smart-import-core.js', import.meta.url), 'utf8'), cx);
+  const C = cx.window.HelmImportCore || cx.HelmImportCore;
+  const defs = [{ key: 'rental_price', label: 'Rental price', type: 'number', active: true }, { key: 'colour', label: 'Colour', type: 'text', active: true }, { key: 'pax', label: 'Pax', type: 'number', active: true }];
+  const out = C.attrList('inventory', { rental_price: '15', colour: 'Gold', pax: '8' }, defs);
+  const v = Object.fromEntries(out.map((x) => [x.key, x.value]));
+  if (v.rental_price !== 'AED 15' || v.colour !== 'Gold' || v.pax !== '8') throw new Error('C5b ' + JSON.stringify(v));
+  console.log('ok - C5b money attr with number def');
+}
