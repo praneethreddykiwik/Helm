@@ -3849,6 +3849,8 @@ $('#projName').addEventListener('keydown',e=>{ if(e.key==='Enter') e.target.blur
 $('#projName').addEventListener('input',()=>markDirty());
 $('#capInput').addEventListener('input',e=>{ const v=parseInt(e.target.value,10); store.venue.capacity = (isFinite(v)&&v>0)?Math.min(v,MAX_CAPACITY):null; if(store.venue.capacity!==v && isFinite(v) && v>0) e.target.value=store.venue.capacity; updateCapacityUI(); markDirty(); });
 $('#capInput').addEventListener('change',()=>{ if(currentLayoutId) scheduleAutosave(); });
+// R11: layout-wizard.js takes #customBtn / #es_custom first (requirements wizard); this classic dialog stays
+// reachable from the wizard's "Classic templates…" button and the ?gen=1 flow arrival.
 $('#customBtn').addEventListener('click',openCustomModal);
 $('#customClose').addEventListener('click',closeCustomModal);
 $('#customModal').addEventListener('click',e=>{ if(e.target.id==='customModal') closeCustomModal(); });

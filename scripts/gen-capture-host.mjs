@@ -24,6 +24,10 @@ export function captureHtml(builder) {
   s = s.replace(/<script src="tour\.js\?v=\d+"><\/script>\n/, '');   // no product tour in the headless host
   s = s.replace(/<link rel="stylesheet" href="walkthrough\.css\?v=\d+">\n/, '');   // no walkthrough UI in the headless host
   s = s.replace(/<script src="walkthrough\.js\?v=\d+"><\/script>\n/, '');
+  // R11: no layout wizard / fullscreen controls in the headless host either
+  s = s.replace(/<link rel="stylesheet" href="layout-wizard\.css\?v=\d+">\n/, '');
+  s = s.replace(/<script src="layout-wizard\.js\?v=\d+"><\/script>\n/, '');
+  s = s.replace(/<script src="fullscreen\.js\?v=\d+"><\/script>\n/, '');
   return s;
 }
 const out = join(PUB, 'capture.html');
