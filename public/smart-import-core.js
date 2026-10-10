@@ -652,7 +652,8 @@
     const a = attrs && typeof attrs === "object" ? attrs : {};
     const money = (opts && opts.money) || defaultMoney;
     const lab = new Map(), mType = new Map(); (ENTITIES[entity] ? ENTITIES[entity].fields : []).forEach((f) => { lab.set(f.key, f.label); mType.set(f.key, f.type === "money"); });
-    (defs || []).forEach((d) => { if (d && d.type) mType.set(d.key, d.type === "money"); });
+    // a built-in money field stays money even if an older import saved its def as "number"
+    (defs || []).forEach((d) => { if (d && d.type && !(mType.get(d.key) === true && d.type === "number")) mType.set(d.key, d.type === "money" || (d.type === "number" && (MONEY_KEY.test(d.key) || MONEY_KEY.test(String(d.label || ""))))); });
     const isMoney = (k) => (mType.has(k) ? mType.get(k) : MONEY_KEY.test(k) || MONEY_KEY.test(String(lab.get(k) || "")));
     const fmt = (k, v) => {
       if (typeof v === "boolean") return v ? "Yes" : "No";
