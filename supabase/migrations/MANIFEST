@@ -123,3 +123,5 @@ forward  supabase/migrations/0088_smart_import.sql
 forward  supabase/migrations/0089_country_tax.sql
 # 0090 (client portal returns the quote's own currency + tax_snapshot; keeps the 0082 billing strip; create or replace only) goes after 0089 (needs 0082).
 forward  supabase/migrations/0090_portal_quote_currency.sql
+# 0091 (fill-only backfill: quotes with no currency get currency INR (or their pricing's own country) + a tax_snapshot from their own pricing; never changes pricing/totals) goes after 0089.
+forward  supabase/migrations/0091_quote_currency_backfill.sql

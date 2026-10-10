@@ -158,7 +158,7 @@ assert.match(flow, /HelmSizing\.quoteChairs\(cl, pr, null\)/);
 assert.match(flow, /chairsManual=HelmSizing\.isChairsManual\(cl,pr\)/);
 assert.match(quotes, /event-sizing\.js\?v=5/);
 assert.match(quotes, /HelmSizing\.quoteChairs\(cl,pr,seats\)/);
-assert.match(quotes, /pricing = \{ \.\.\.p, computed:t, total:t\.total, client, chairsManual, otherAuto: prevPr\.otherAuto \}/);
+assert.match(quotes, /pricing = \{ \.\.\.p, computed:t, total:t\.total, client, chairsManual, otherAuto: prevPr\.otherAuto, supplier: prevPr\.supplier \}/);
 // builder: Custom Event dialog re-reads the quote on every open; writes chairs back; ?gen never beats saved guests
 assert.match(bjs, /if\(!wasOpen\) _ceFresh=true;/);
 assert.match(bjs, /if\(currentQuoteId\) fill\('c_chairs', quoteChairsNow\(\)\)/);

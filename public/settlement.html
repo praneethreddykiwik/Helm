@@ -160,12 +160,14 @@
 <script src="/trusted-types.js?v=2"></script>
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
-<script src="event-name.js?v=2"></script>
-<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
+<script src="event-name.js?v=3"></script>
+<script src="country-profile.js?v=3"></script><script src="store-api.js?v=163"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const inr=(n)=>BPStore.studioMoney(n);
+  // B11: this event's OWN currency (India/INR without a snapshot), never the studio's current country
+  let evTax=null;
+  const inr=(n)=>evTax?BPStore.quoteMoney(n,evTax):BPStore.studioMoney(n);
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   const EXP={pending:"Pending",approved:"Approved",paid:"Paid",rejected:"Rejected"};
   let canEdit=false, canDelete=false, s=null, summaryFailed=false;
@@ -328,6 +330,7 @@
     if(!(await BPStore.auth.requireView("finance"))) return;
     canEdit=await BPStore.auth.canEditArea("settlement"); canDelete=await BPStore.auth.can("delete");
     let ev; try{ ev=await BPStore.quotes.get(id); }catch(e){ if(BPUI.isNotFound(e)){ $("#notfound").hidden=false; return; } throw e; }
+    try{ evTax=BPStore.quoteTax(ev); }catch(_){ evTax=null; }
     if(!ev){ $("#notfound").hidden=false; return; }
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"");
     $("#app").hidden=false; $("#payLine").hidden=!canEdit; $("#expAdd").hidden=!canEdit; $("#refAdd").hidden=!canEdit;

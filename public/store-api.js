@@ -1992,17 +1992,20 @@ window.HelmUrl = HelmUrl;
   // What a quotes LIST shows — never the full pricing JSON (line items, computed
   // breakdown, catering…), only its total and client; layouts live in quote_versions.
   const QUOTE_LIST_COLS = "id,code,title,event_type,status,lifecycle_stage,approval_status,approval_token,current_version," +
-    "event_date,event_time,updated_at,created_at,confirmed_at,client,total:pricing->total,pricing_client:pricing->client";
+    "event_date,event_time,updated_at,created_at,confirmed_at,client,total:pricing->total,pricing_client:pricing->client," +
+    "tax_country:pricing->>taxCountry,tax_region:pricing->>taxRegion,tax_name:pricing->>taxName,tax_currency:pricing->>currency";   // B11: each quote's OWN currency
   // A list VIEW (page) needs even less: the client's name + phone, not the whole client JSON.
   const QUOTE_PAGE_COLS = "id,code,title,event_type,status,lifecycle_stage,approval_status,current_version,event_date,event_time," +
     "updated_at,created_at,confirmed_at,client_name:client->>name,client_phone:client->>phone,total:pricing->total," +
-    "pricing_client_name:pricing->client->>name,pricing_client_phone:pricing->client->>phone";
+    "pricing_client_name:pricing->client->>name,pricing_client_phone:pricing->client->>phone," +
+    "tax_country:pricing->>taxCountry,tax_region:pricing->>taxRegion,tax_name:pricing->>taxName,tax_currency:pricing->>currency";
   const nameOnly = (n, p) => { const o = {}; if (n != null) o.name = n; if (p != null) o.phone = p; return o; };
   function mapQuoteSummary(q) {
     let pricing = q.pricing;
     if (!pricing) { pricing = {}; if (q.total != null) pricing.total = q.total;
       if (q.pricing_client != null) pricing.client = q.pricing_client;
-      else if (q.pricing_client_name != null || q.pricing_client_phone != null) pricing.client = nameOnly(q.pricing_client_name, q.pricing_client_phone); }
+      else if (q.pricing_client_name != null || q.pricing_client_phone != null) pricing.client = nameOnly(q.pricing_client_name, q.pricing_client_phone);
+      if (q.tax_country) { pricing.taxCountry = q.tax_country; if (q.tax_region) pricing.taxRegion = q.tax_region; if (q.tax_name) pricing.taxName = q.tax_name; if (q.tax_currency) pricing.currency = q.tax_currency; } }
     if (!q.client && (q.client_name != null || q.client_phone != null)) q = Object.assign({}, q, { client: nameOnly(q.client_name, q.client_phone) });
     return { id: q.id, code: q.code, title: q.title, eventType: q.event_type, status: q.status,
       lifecycleStage: q.lifecycle_stage || "quote",
@@ -2126,7 +2129,7 @@ window.HelmUrl = HelmUrl;
       return { id: q.id, code: q.code, title: q.title, eventType: q.event_type, status: q.status, lifecycleStage: q.lifecycle_stage || "quote",
         approvalStatus: q.approval_status || "none", approvalToken: q.approval_token, client: q.client || {},
         pricing: q.pricing || {}, currentVersion: q.current_version, createdAt: q.created_at, updatedAt: q.updated_at,
-        eventDate: q.event_date || null, eventTime: q.event_time || null,
+        eventDate: q.event_date || null, eventTime: q.event_time || null, tax_snapshot: q.tax_snapshot || null, currency: q.currency || null,
         confirmedAt: q.confirmed_at, versions: vs.map((v) => ({ id: v.id, versionNo: v.version_no, label: v.label,
           objectCount: v.object_count, createdAt: v.created_at })) };
     },
@@ -8923,13 +8926,33 @@ window.HelmUrl = HelmUrl;
     if (!o || typeof o !== "object") o = null;
     return (BPStore._studioTax = BPStore.tax.resolve(o || {}));
   };
+  // ---- per-QUOTE money (live-round1 B11) ------------------------------------------
+  // A quote is priced in ITS OWN tax country/currency: pricing.taxCountry (snapshot keys) >
+  // quotes.tax_snapshot.country > India. A quote with no snapshot is an India/INR quote (every
+  // pre-0089 quote is) - NEVER the studio's current country.
+  BPStore.quoteTaxCfg = function (q) {
+    q = q && typeof q === "object" ? q : {};
+    var p = q.pricing && typeof q.pricing === "object" ? q.pricing : (q.taxCountry !== undefined || q.gstPct !== undefined ? q : {});
+    var cfg = Object.assign({}, p), ts = q.tax_snapshot && typeof q.tax_snapshot === "object" ? q.tax_snapshot : null;
+    if (!cfg.taxCountry && ts && ts.country) { cfg.taxCountry = ts.country; if (!cfg.taxRegion && ts.region) cfg.taxRegion = ts.region; if (!cfg.taxName && ts.taxName) cfg.taxName = ts.taxName; }
+    if (!cfg.taxCountry) { cfg.taxCountry = "IN"; cfg.currency = "INR"; }
+    return cfg;
+  };
+  BPStore.quoteTax = function (q) { return BPStore.tax.resolve(BPStore.quoteTaxCfg(q)); };
+  BPStore.quoteMoney = function (n, q, opts) {
+    var r = q && q.country && q.symbol ? q : BPStore.quoteTax(q), x = Number(n || 0); if (opts && opts.round) x = Math.round(x);
+    if (r.country === "IN") return "\u20b9" + x.toLocaleString("en-IN");
+    return BPStore.tax.money(x, r);
+  };
   BPStore.studioMoney = function (n, opts) {
     var r = BPStore.studioTax(), x = Number(n || 0); if (opts && opts.round) x = Math.round(x);
     if (r.country === "IN") return "\u20b9" + x.toLocaleString("en-IN");
     return BPStore.tax.money(x, r);
   };
   // ---- payment terms from onboarding (pricing config: advancePct / balanceDueDays / paymentTermsNote) ----
-  // {advancePct (0-100, default 50 only when set), balanceDueDays, note, balanceDue: "YYYY-MM-DD"|null}
+  // {advancePct (0-100, null when the studio never set one), balanceDueDays, note, balanceDue: "YYYY-MM-DD"|null}
+  // B6: ONE default advance % for every screen when the studio has not set its own (flow, onboarding)
+  BPStore.DEFAULT_ADVANCE_PCT = 10;
   BPStore.paymentTerms = function (cfg, eventDate) {
     cfg = cfg && typeof cfg === "object" ? cfg : {};
     var a = Number(cfg.advancePct), d = Number(cfg.balanceDueDays);
@@ -8954,6 +8977,30 @@ window.HelmUrl = HelmUrl;
     return { name: str(bl.legal_name) || str(org.name) || "", tradeName: str(org.name), address: addr, country: cc,
       taxIdLabel: prof.idLabel || "Tax ID", taxId: str(org.gst_number).toUpperCase(), phone: str(b.phone) };
   };
+  // B15: supplier block for a printed quote. The header frozen on the quote at confirmation
+  // (pricing.supplier) wins; an older quote only gets the CURRENT studio header when the studio's
+  // country is the quote's tax country - otherwise just the studio name (no mismatched tax ID / address).
+  BPStore.quoteSupplier = function (q, org) {
+    var r = BPStore.quoteTax(q), p = (q && q.pricing) || {}, sp = p.supplier && typeof p.supplier === "object" ? p.supplier : null;
+    var str = function (v) { return typeof v === "string" ? v.replace(/[<>\u0000-\u001f]/g, " ").trim().slice(0, 300) : ""; };
+    if (sp && (!sp.country || BPStore.tax.code(sp.country) === r.country))
+      return { name: str(sp.name), tradeName: str(sp.tradeName), address: str(sp.address), country: r.country, taxIdLabel: str(sp.taxIdLabel) || BPStore.tax.profile(r.country).idLabel, taxId: str(sp.taxId), phone: str(sp.phone), frozen: true };
+    var cur = BPStore.studioHeader(org);
+    if (BPStore.tax.code(cur.country) === r.country) return cur;
+    return { name: cur.tradeName || cur.name, tradeName: "", address: "", country: r.country, taxIdLabel: "", taxId: "", phone: cur.phone, mismatch: true };
+  };
+  // the snapshot stored on a quote when it is confirmed (fill-only: an existing one is kept)
+  BPStore.supplierSnapshot = function (org, quoteCountry) {
+    var h = BPStore.studioHeader(org); if (BPStore.tax.code(h.country) !== BPStore.tax.code(quoteCountry || "IN")) return null;
+    return { name: h.name, tradeName: h.tradeName, address: h.address, country: h.country, taxIdLabel: h.taxIdLabel, taxId: h.taxId, phone: h.phone };
+  };
+  // B16: a date for print/display in the quote's locale; "" for missing / epoch / invalid values
+  BPStore.quoteDate = function (iso, r) {
+    if (iso == null || iso === "" || iso === 0) return "";
+    var d = new Date(iso), t = d.getTime(); if (!isFinite(t) || t < Date.UTC(2000, 0, 1)) return "";
+    var loc = r && r.country === "US" ? "en-US" : "en-GB";
+    try { return d.toLocaleDateString(loc, { day: "2-digit", month: "2-digit", year: "numeric" }); } catch (e) { return d.toISOString().slice(0, 10); }
+  };
   // Custom-field edits (0088): re-read the row's CURRENT attributes and apply only the changed
   // keys, so a save never wipes keys another tab / an import added since the form opened.
   BPStore.mergeAttributes = async function (table, id, ch) {
@@ -8975,7 +9022,9 @@ window.HelmUrl = HelmUrl;
     var els = root.querySelectorAll("label, th, .totbar, [data-cur]");
     for (var i = 0; i < els.length; i++) {
       var w = document.createTreeWalker(els[i], 4), t;
-      while ((t = w.nextNode())) if (t.nodeValue.indexOf("\u20b9") >= 0) t.nodeValue = t.nodeValue.split("\u20b9").join(sym + (sym.length > 1 ? " " : ""));
+      // B14: "(\u20b9)" -> "(AED)" (no space inside the brackets); "\u20b9 500" -> "AED 500"
+      while ((t = w.nextNode())) if (t.nodeValue.indexOf("\u20b9") >= 0) { var sy = String(sym).trim();
+        t.nodeValue = t.nodeValue.split("(\u20b9)").join("(" + sy + ")").split("\u20b9").join(sy + (sy.length > 1 ? " " : "")); }
     }
   };
   if (typeof document !== "undefined") {

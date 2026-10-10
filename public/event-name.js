@@ -52,7 +52,11 @@
   function format(p) {
     p = p || {};
     const loc = cityCode(p.city) || cityFromText(p.venue) || cityFromText(p.address);
-    return [typeCode(p.eventType), loc, guestsCode(p.guests), dateCode(p.eventDate)].filter(Boolean).join("_");
+    const t = typeCode(p.eventType), d = dateCode(p.eventDate);
+    // B13: a guest count alone is not a name - "1000" (layout wizard: guests set, nothing else) replaced
+    // "Untitled event". A name needs the event type, place or date.
+    if (!t && !loc && !d) return "";
+    return [t, loc, guestsCode(p.guests), d].filter(Boolean).join("_");
   }
   // from a quote row / summary (supabase or local shape)
   function fromQuote(q) {
@@ -65,6 +69,7 @@
   function isAuto(title, code) {
     const t = String(title == null ? "" : title).trim();
     if (!t || t === "Untitled event" || (code && t === code)) return true;
+    if (/^\d{1,7}$/.test(t)) return true;   // B13: a bare guest count written by the old guests-only auto name
     // r9: a quote-code-shaped title (MMDDYYYY-NN) is the creation placeholder even when it no
     // longer equals the code (the client guessed -01, the server issued -02) - still automatic
     if (/^\d{8}-\d{2,}$/.test(t)) return true;

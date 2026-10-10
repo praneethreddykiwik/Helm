@@ -18,7 +18,7 @@ const tctx = { BPStore: { countries: () => [] } }; vm.runInNewContext(src.slice(
 const flow = read('public/flow.html');
 const a = flow.indexOf('const nOrNull=v=>'), b = flow.indexOf('async function applyReprice');
 assert.ok(a > 0 && b > a, 'reprice block found');
-const fTaxSrc = flow.slice(flow.indexOf('const fTax=()=>'), flow.indexOf('\n', flow.indexOf('const inr=(n)=>')));
+const fTaxSrc = flow.slice(flow.indexOf('let quoteKeep=false;'), flow.indexOf('\n', flow.indexOf('const inr=(n)=>')));
 
 function harness({ pricing, rates, status = 'draft', eventDate = '2099-01-01' }) {
   const els = {};
@@ -73,6 +73,6 @@ t('past / closed events never show the banner', () => {
   assert.equal(h.ctx.repriceDiff(), null);
 });
 t('re-save clears stale tax snapshot keys (currentInputs sets them undefined before the snapshot)', () => {
-  assert.match(flow, /taxCountry:undefined, taxName:undefined, taxInclusive:undefined, \.\.\.BPStore\.tax\.snapshot\(fTax\(\)\)/);
+  assert.match(flow, /taxCountry:undefined, taxName:undefined, taxInclusive:undefined, taxRegion:undefined, \.\.\.BPStore\.tax\.snapshot\(fTax\(\)\)/);
 });
 console.log(`reprice-banner: ${n} passed`);

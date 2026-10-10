@@ -76,7 +76,11 @@
       if (st.busy) { toast("Import is still running \u2014 wait for it to finish.", "info"); return; }
       try { root.BPUI.modal.close(overlay); } catch (e) { /* noop */ }
       overlay.remove();
-      if (typeof opts.onDone === "function") { try { opts.onDone(st.summary); } catch (e) { /* caller error */ } }
+      // B5: every page refreshes its list after an import - the callback AND a window event (pages
+      // that did not pass onDone, e.g. a list opened from elsewhere, still repaint)
+      const sum = st.summary;
+      if (typeof opts.onDone === "function") { try { const r = opts.onDone(sum); if (r && typeof r.catch === "function") r.catch(() => {}); } catch (e) { /* caller error */ } }
+      if (sum) { try { root.dispatchEvent(new CustomEvent("helm:import-done", { detail: { entity, summary: sum } })); } catch (e) { /* old browser */ } }
     }
     function setFoot(btns) { foot.replaceChildren(...btns.filter(Boolean)); }
     function say(m) { live.textContent = m; }

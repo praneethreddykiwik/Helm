@@ -40,6 +40,23 @@ function check(spec, out, tag) {
   // seats reported == seats on the floor
   assert.equal(out.seats, B.sumSeats(its), tag + ' seat count');
 }
+// live-round1 B7: main seating balanced around the centre aisle (stage / walkway centre line)
+globalThis.__symStats = [];
+function symmetric(spec, out, tag) {
+  const cx = spec.hall.w / 2; let L = 0, R = 0, mainN = 0;
+  for (const it of out.items) {
+    const main = it.type === 'seatblock' || it.type === 'chairrow' && /^Seating block/.test(it.label || '') || (it.type === 'table' && /^T\d/.test(it.label || '')) || it.type === 'longtable';
+    if (!main) continue; const r = rectOf(it), k = B.genSeats(it); mainN++;
+    const c = r.x + r.w / 2; if (Math.abs(c - cx) < 0.5) continue; if (c < cx) L += k; else R += k;
+    if (it.type === 'seatblock' || it.type === 'chairrow') assert.ok(r.x + r.w <= cx + 1e-6 || r.x >= cx - 1e-6, tag + ' block crosses the centre aisle');
+  }
+  globalThis.__symStats.push([tag, L, R]);
+  const tol = Math.max(1, Math.ceil((L + R) * 0.02));
+  assert.ok(Math.abs(L - R) <= tol, `${tag}: unbalanced seating L=${L} R=${R}`);
+  // theatre blocks: mirrored x around the centre
+  const blocks = out.items.filter((i) => i.type === 'seatblock').map(rectOf);
+  for (const b of blocks) assert.ok(blocks.some((o) => Math.abs((o.x + o.w / 2 - cx) + (b.x + b.w / 2 - cx)) < 0.6 && Math.abs(o.y - b.y) < 0.6) || Math.abs(b.x + b.w / 2 - cx) < 0.6, `${tag}: block at x=${b.x.toFixed(1)} has no mirror`);
+}
 const SEATINGS = [
   { style: null },                                  // the type's default style
   { style: 'rounds', spt: 10 },
@@ -71,6 +88,7 @@ for (const type of Object.keys(HW.TYPES)) for (const [W, H] of HALLS) for (const
   } else {
     assert.ok(out.warnings.length > 0, tag + ' warns when it does not fit');
   }
+  if (out.fits) symmetric(spec, out, tag);
   if (W >= 200 && spec.seating.style !== 'mixed') assert.ok(out.fits, tag + ' big halls fit: ' + out.warnings.join(' | '));
   n++;
 }
@@ -125,7 +143,7 @@ for (const t of Object.keys(HW.TYPES)) for (const k of Object.keys(HW.defaults(t
 
 // ---- wiring ----
 const bh = rd('public/builder.html');
-assert.match(bh, /<script src="layout-wizard\.js\?v=1"><\/script>/); assert.match(bh, /<link rel="stylesheet" href="layout-wizard\.css\?v=2">/);
+assert.match(bh, /<script src="layout-wizard\.js\?v=2"><\/script>/); assert.match(bh, /<link rel="stylesheet" href="layout-wizard\.css\?v=3">/);
 assert.match(bh, /builder\.js\?v=37/);
 const lw = rd('public/layout-wizard.js');
 assert.ok(!/\beval\s*\(|new Function|\.style\.|innerHTML|on[a-z]+=\s*["']/.test(lw), 'CSP-safe: no eval / inline style / innerHTML');

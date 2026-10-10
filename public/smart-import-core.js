@@ -515,6 +515,9 @@
     for (let i = 0; i < body.length; i++) {
       const r = body[i] || [];
       if (isBlankRow(r)) { skippedBlank++; continue; }
+      // B4: a row whose MAPPED cells are all empty (e.g. "3,,,,,," - only a serial number or an
+      // ignored column filled) is a blank row: dropped silently, never shown as "Fix needed"
+      if (!(mapping || []).some((m, c) => m && m.target !== "ignore" && clean(r[c]) !== "")) { skippedBlank++; continue; }
       if (header.length && r.map(normHeader).join("|") === header.join("|")) { skippedBlank++; continue; }   // repeated header (multi-page export)
       if (out.length >= MAX_ROWS) { truncated = true; break; }
       const fields = {}, attributes = {}, errors = [], warnings = [];

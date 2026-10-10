@@ -329,16 +329,17 @@
       <h3>Default pricing (applies to every new quote)</h3>
       <div id="pricingErr"></div>
       <div class="grid">
-        <div class="fld"><label for="p_chair">Price / chair (₹)</label><input id="p_chair" type="number" min="0" step="1"></div>
-        <div class="fld"><label for="p_plate">Price / plate (₹)</label><input id="p_plate" type="number" min="0" step="1"></div>
+        <div class="fld"><label for="p_chair" id="p_chair_lbl">Price / chair (₹)</label><input id="p_chair" type="number" min="0" step="1"></div>
+        <div class="fld"><label for="p_plate" id="p_plate_lbl">Price / plate (₹)</label><input id="p_plate" type="number" min="0" step="1"></div>
         <div class="fld"><label for="p_gst" id="p_gst_lbl">Chair/rental GST %</label><input id="p_gst" type="number" min="0" step="0.01" list="p_gst_rates"><datalist id="p_gst_rates"></datalist></div>
         <div class="fld"><label for="p_cgst" id="p_cgst_lbl">Catering GST %</label><input id="p_cgst" type="number" min="0" step="0.5"></div>
         <div class="fld" id="p_taxName_fld" hidden><label for="p_taxName">Tax name</label><input id="p_taxName" maxlength="24" placeholder="e.g. VAT"></div>
         <div class="fld"><label class="mpchk" for="p_taxIncl"><input type="checkbox" id="p_taxIncl"> My prices already include tax</label><p class="mnote" id="p_taxNote"></p></div>
         <div class="fld"><label for="p_svc">Service charge % (optional)</label><input id="p_svc" type="number" min="0" step="0.5"></div>
-        <div class="fld"><label for="p_layout">Layout &amp; setup fee (₹)</label><input id="p_layout" type="number" min="0" step="1" placeholder="0"></div>
+        <div class="fld"><label for="p_layout" id="p_layout_lbl">Layout &amp; setup fee (₹)</label><input id="p_layout" type="number" min="0" step="1" placeholder="0"></div>
         <div class="fld"><label for="p_buffer">Venue booking gap (hours)</label><input id="p_buffer" type="number" min="0" step="0.5" placeholder="3" title="Two events at the same venue on the same day that start closer together than this many hours are flagged as a clash on the calendar. A bigger gap (e.g. one ends 3pm, next starts 6pm) is fine."></div>
-        <div class="fld"><label for="p_country">Default country</label><select id="p_country" title="Default country for new phone numbers (and, later, tax & currency)."></select></div>
+        <div class="fld"><label for="p_country">Country (tax, currency &amp; phone codes)</label><select id="p_country" title="Same setting as Country in Studio details: sets the tax name, default rate, currency and phone country code for NEW quotes."></select><p class="mnote" id="p_countryNote" role="status" aria-live="polite"></p></div>
+        <div class="fld" id="p_region_fld" hidden><label for="p_region" id="p_region_lbl">State</label><input id="p_region" maxlength="60" list="p_region_list" autocomplete="off"><datalist id="p_region_list"></datalist></div>
       </div>
       <div class="actions"><button type="button" class="btn primary" id="savePricing">Save pricing</button></div>
     </div>
@@ -698,11 +699,11 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
-<script src="event-name.js?v=2"></script>
-<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
+<script src="event-name.js?v=3"></script>
+<script src="country-profile.js?v=3"></script><script src="store-api.js?v=163"></script>
 <script src="xlsx-lite.js?v=2"></script>
-<script src="smart-import-core.js?v=1"></script>
-<script src="smart-import.js?v=2"></script>
+<script src="smart-import-core.js?v=2"></script>
+<script src="smart-import.js?v=3"></script>
 <script src="hq-invoice.js?v=1"></script>
 <script src="tour.js?v=9"></script>
 <script src="pkg-review.js?v=4"></script>
@@ -818,14 +819,41 @@
   let pricingCfg = { assetPrices:{} };
   // 0079: labels/defaults for the studio's tax country (Studio details → Country)
   function paintTaxFields(){
-    const T=BPStore.tax, r=T.resolve(Object.assign({},pricingCfg,{taxName:$("#p_taxName").value||pricingCfg.taxName}));
+    const T=BPStore.tax, r=T.resolve(Object.assign({},pricingDraftTax(),{taxName:$("#p_taxName").value||pricingCfg.taxName}));
     const known=T.profile(r.country).known;
     $("#p_gst_lbl").textContent=(r.split?"Chair/rental ":"")+r.name+" %"+(r.country==="IN"?"":" ("+r.countryName+")");
     $("#p_cgst_lbl").textContent=r.split?"Catering GST %":"Catering "+r.name+" % (not used — one rate applies)";
     $("#p_taxName_fld").hidden=known;
     $("#p_gst_rates").innerHTML=r.rates.map(x=>`<option value="${Number(x)}"></option>`).join("");
     const p=T.profile(r.country);
+    // B3: currency + region follow the (draft) country
+    ["p_chair:Price / chair","p_plate:Price / plate","p_layout:Layout & setup fee"].forEach(x=>{ const [id,t]=x.split(":"); const l=$("#"+id+"_lbl"); if(l) l.textContent=t+" ("+String(r.symbol).trim()+")"; });
+    const HC=window.HelmCountry, rf=$("#p_region_fld"), showRegion=!!HC && (r.country==="AE"||r.country==="US");
+    if(rf){ rf.hidden=!showRegion; if(showRegion){ const m=HC.formMeta(r.country); $("#p_region_lbl").textContent=m.regionLabel+(r.country==="US"?" (sets the default sales-tax rate)":"");
+      const dl=$("#p_region_list"); if(dl.dataset.cc!==r.country){ dl.dataset.cc=r.country; dl.textContent=""; m.regions.forEach(x=>{ const o=document.createElement("option"); o.value=x.name; if(x.rate!=null) o.label=x.name+" - "+x.rate+"%"; dl.appendChild(o); }); } } }
     $("#p_taxNote").textContent=(r.split?"India: CGST + SGST within your state, IGST for other states. Common rates 18% / 5%.":p.rate==null?"Set the "+r.name.toLowerCase()+" rate that applies to you (no default).":"Default "+r.name+" rate "+p.rate+"%.")+" Prices in "+r.currency+".";
+  }
+  // B3: the country / region currently picked in the pricing form (falls back to the saved config)
+  function pricingDraftTax(){
+    const T=BPStore.tax, sel=$("#p_country"), reg=$("#p_region");
+    const cc=sel&&sel.value?T.code(sel.value):T.code(pricingCfg.taxCountry||"IN");
+    return Object.assign({},pricingCfg,{ taxCountry:cc, taxRegion:reg?reg.value.trim().slice(0,60):(pricingCfg.taxRegion||""), currency:cc===T.code(pricingCfg.taxCountry||"IN")?pricingCfg.currency:"" });
+  }
+  function defaultRateFor(cc,region){ const HC=window.HelmCountry, T=BPStore.tax; cc=T.code(cc);
+    if(HC && ["IN","AE","US"].includes(cc)) return HC.defaultRate(cc,region); const p=T.profile(cc); return p.rate; }
+  function fillCountrySelect(sel){
+    if(!sel || sel.options.length) return; const T=BPStore.tax, top=T.countries(); let rest=[]; try{ rest=(BPStore.countries()||[]).filter(c=>!top.some(k=>k.iso===c.iso)); }catch(e){}
+    sel.innerHTML=top.map(c=>`<option value="${esc(c.iso)}">${esc(c.name)}</option>`).join("")+(rest.length?`<optgroup label="Other countries (custom tax)">${rest.map(c=>`<option value="${esc(c.iso)}">${esc(c.name)}</option>`).join("")}</optgroup>`:"");
+  }
+  // B3: changing the pricing country proposes that country's default rate (+ region rate for US)
+  let pLastDefault=null;
+  function onPricingCountry(regionOnly){
+    const d=pricingDraftTax(), cc=d.taxCountry, rate=defaultRateFor(cc,d.taxRegion), T=BPStore.tax, p=T.profile(cc), g=$("#p_gst");
+    const custom=pLastDefault!=null && String(g.value).trim()!=="" && Number(g.value)!==Number(pLastDefault);
+    if(rate!=null && !(regionOnly && custom)){ g.value=rate; if(!p.split) $("#p_cgst").value=rate; else if(!regionOnly) $("#p_cgst").value=rate; }
+    pLastDefault=rate; paintTaxFields();
+    const saved=T.code(pricingCfg.taxCountry||"IN"), note=$("#p_countryNote");
+    if(note) note.textContent=cc!==saved?("Proposed: "+p.tax+(rate!=null?" "+rate+"%":"")+", prices in "+(p.known?p.currency:"your currency")+". You can change the rate before saving; you'll be asked to confirm. Saved, sent and paid quotes keep their totals."):"";
   }
   // If the pricing config didn't load, the form holds placeholders — saving it would
   // overwrite the studio's real rates. Block both pricing saves until a retry succeeds.
@@ -842,7 +870,9 @@
       $("#p_taxIncl").checked=String(p.taxInclusive).toLowerCase()==="true"; $("#p_taxName").value=p.taxName||""; paintTaxFields();
       $("#p_layout").value=p.layoutBase??0;
       $("#p_buffer").value=p.conflictBufferHours??3;
-      try{ const cc=$("#p_country"); if(cc && !cc.options.length){ cc.innerHTML=(BPStore.countries()||[]).map(c=>`<option value="${esc(c.iso)}">${esc(c.name)} (+${esc(c.dial)})</option>`).join(""); } if(cc) cc.value=p.country||"IN"; }catch(e){}
+      // B3: ONE country - the tax country (same as Studio details); the old phone-only "country" key follows it
+      try{ const cc=$("#p_country"); fillCountrySelect(cc); if(cc) cc.value=BPStore.tax.code(p.taxCountry||"IN"); if($("#p_region")) $("#p_region").value=p.taxRegion||""; $("#p_countryNote").textContent=""; }catch(e){}
+      paintTaxFields(); pLastDefault=defaultRateFor(p.taxCountry||"IN",p.taxRegion||"");
       $("#cap_guests").value=p.maxGuests??20000; $("#cap_chairs").value=p.maxChairs??20000; $("#cap_plates").value=p.maxPlates??20000;
       $("#cap_tables").value=p.maxRoundTables??2000; $("#cap_bars").value=p.maxBars??200; $("#cap_trucks").value=p.maxFoodTrucks??200;
       $("#cap_booths").value=p.maxExpoBooths??1000; $("#cap_rest").value=p.maxRestrooms??200; $("#cap_exits").value=p.maxExits??200; $("#cap_hall").value=p.maxHallFt??1000;
@@ -884,6 +914,8 @@
       `<input id="ip_${esc(type)}" type="number" min="0" step="1" data-type="${esc(type)}" placeholder="${def}" value="${ap[type]!=null&&Number.isFinite(Number(ap[type]))?Number(ap[type]):''}"></div>`
     ).join("");
   }
+  $("#p_country").addEventListener("change",()=>{ if($("#p_region")) $("#p_region").value=""; onPricingCountry(false); });
+  $("#p_region").addEventListener("change",()=>onPricingCountry(true));
   $("#savePricing").addEventListener("click",()=>BPUI.guard($("#savePricing"),async()=>{
     if(!pricingLoaded){ setMsg("err","Pricing didn't load, so it can't be saved yet — use Retry first."); return; }
     const V=BPStore.validate; const fail=(m)=>{ setMsg("err",m); };
@@ -896,16 +928,24 @@
     let serviceChargePct=0; if($("#p_svc").value!==""){ const r=V.pct($("#p_svc").value,{field:"Service charge %"}); if(!r.ok){ fail(r.error); return; } serviceChargePct=r.value; }
     let layoutBase=0; if($("#p_layout").value!==""){ const r=V.money($("#p_layout").value,{field:"Layout & setup fee"}); if(!r.ok){ fail(r.error); return; } layoutBase=r.value; }
     let conflictBufferHours=3; if($("#p_buffer").value!==""){ const r=V.num($("#p_buffer").value,{field:"Venue booking gap",min:0,max:48}); if(!r.ok){ fail(r.error); return; } conflictBufferHours=r.value; }
-    const country=($("#p_country")&&$("#p_country").value)||"IN";
-    // 0079: tax country follows Studio details; India/exclusive keep the old blob shape
-    const taxRes=BPStore.tax.resolve(pricingCfg), taxIncl=$("#p_taxIncl").checked;
+    // B3: the pricing country IS the studio's tax country (kept in sync with Studio details)
+    const draft=pricingDraftTax(), country=draft.taxCountry, prevCountry=BPStore.tax.code(pricingCfg.taxCountry||"IN");
+    const region=country==="AE"||country==="US"?draft.taxRegion:"";
+    const taxRes=BPStore.tax.resolve(draft), taxIncl=$("#p_taxIncl").checked;
+    if(country!==prevCountry){ const tp=BPStore.tax.profile(country);
+      if(!(await BPUI.confirm(`Switch your studio to ${tp.name}? New quotes will use ${tp.tax} ${gstPct}% and ${tp.known?tp.currency:"your currency"}. Quotes you already saved, sent or got paid keep their price, tax and currency exactly as they are.`,{title:"Change country",okLabel:"Switch country"}))) return; }
     const taxName=String($("#p_taxName").value||"").replace(/[<>"'`]/g,"").trim().slice(0,24);
     // build a copy: a failed save must not leave the in-memory config ahead of the server
-    const nextCfg=Object.assign({}, pricingCfg, { chairPrice, platePrice, gstPct, cateringGstPct, serviceChargePct, layoutBase, currency:taxRes.currency, conflictBufferHours, country });
+    const nextCfg=Object.assign({}, pricingCfg, { chairPrice, platePrice, gstPct, cateringGstPct, serviceChargePct, layoutBase, currency:taxRes.currency, conflictBufferHours, country, taxCountry:country });
+    if(country==="IN" && prevCountry==="IN" && pricingCfg.taxCountry==null) delete nextCfg.taxCountry;
+    if(region) nextCfg.taxRegion=region; else delete nextCfg.taxRegion;
     if(taxIncl) nextCfg.taxInclusive=true; else delete nextCfg.taxInclusive;
     if(taxName && !BPStore.tax.profile(taxRes.country).known) nextCfg.taxName=taxName; else delete nextCfg.taxName;
     try{ localStorage.setItem("helm_org_country", country); }catch(e){}
-    try{ await BPStore.config.setPricing(nextCfg); pricingCfg=nextCfg; setMsg("ok","Pricing saved — new quotes use these rates."); }
+    try{ await BPStore.config.setPricing(nextCfg); pricingCfg=nextCfg; try{ BPStore.rememberStudioTax && BPStore.rememberStudioTax(nextCfg); }catch(e){}
+      if(country!==prevCountry) await syncOrgCountry(country, region);
+      $("#p_countryNote").textContent=""; pLastDefault=defaultRateFor(country,region); paintTaxFields();
+      setMsg("ok","Pricing saved — new quotes use these rates."); }
     catch(e){ setMsg("err",errMsg(e,"save pricing")); }
   }));
   $("#saveCaps").addEventListener("click",()=>BPUI.guard($("#saveCaps"),async()=>{
@@ -1095,7 +1135,23 @@
     const dl=$("#o_state_list"); if(dl){ dl.textContent=""; const hc=window.HelmCountry;
       if(hc && ["IN","AE","US"].includes(cc)) hc.get(cc).regions.forEach(r=>{ const o=document.createElement("option"); o.value=r.name; if(r.rate!=null) o.label=r.name+" - "+r.rate+"% state sales tax"; dl.appendChild(o); }); }
   }
-  $("#o_country").addEventListener("change",()=>{ paintCountryLabels(); const p=BPStore.tax.profile($("#o_country").value); if(p.known) $("#o_currency").value=p.currency; });
+  // B2: timezone follows the country / state unless the studio typed its own
+  function followTz(){ const HC=window.HelmCountry, tz=$("#o_tz"); if(!HC||!tz) return; const s=HC.timezone(BPStore.tax.code($("#o_country").value), $("#o_state").value);
+    if(s && HC.isAutoTimezone(tz.value) && tz.value!==s){ tz.value=s; } }
+  $("#o_country").addEventListener("change",()=>{ paintCountryLabels(); const p=BPStore.tax.profile($("#o_country").value); if(p.known) $("#o_currency").value=p.currency; followTz();
+    const ph=$("#o_phone"); if(ph && ph.helmPhone && !ph.helmPhone.national()) ph.helmPhone.setCountry(BPStore.tax.code($("#o_country").value)); });
+  $("#o_state").addEventListener("change",followTz);
+  // B3: a country switched from the PRICING card is written to Studio details too (one setting, two places)
+  async function syncOrgCountry(cc, region){
+    try{ const o=await BPStore.org.current(); if(!o) return; const b=(o.brand&&typeof o.brand==="object"&&!Array.isArray(o.brand))?o.brand:{};
+      const bl=(b.billing&&typeof b.billing==="object"&&!Array.isArray(b.billing))?b.billing:{}; const tp=BPStore.tax.profile(cc);
+      const nb=Object.assign({}, bl, { country:cc }); if(region && !bl.state) nb.state=region;
+      const patch={ brand:Object.assign({}, b, { billing:nb }) }; if(tp.known) patch.currency=tp.currency;
+      const HC=window.HelmCountry, tz=HC&&HC.timezone(cc, region||bl.state); if(tz && HC.isAutoTimezone(o.timezone)) patch.timezone=tz;
+      await BPStore.org.save(patch); orgBrand=patch.brand; orgCountry=cc; paintCountry(cc);
+      if(patch.currency) $("#o_currency").value=patch.currency; if(patch.timezone) $("#o_tz").value=patch.timezone; }
+    catch(e){ setMsg("err",errMsg(e,"update the country in Studio details")); }
+  }
   function paintBilling(o){
     if(!OB) return; const v=OB.billingFromOrg(o);
     ["legal_name","line1","line2","city","state","pin"].forEach(k=>{ $("#"+BILL_IDS[k]).value=v[k]||""; });
@@ -1153,18 +1209,18 @@
         // 0079: a new country re-labels the tax and suggests its default rate for NEW quotes (saved quotes keep their price)
         const tp=BPStore.tax.profile(newCountry);
         const region=$("#o_state").value.trim().slice(0,60);
-        const next=Object.assign({}, pricingCfg, { taxCountry:newCountry, currency:tp.known?tp.currency:(patch.currency||"INR") });
+        const next=Object.assign({}, pricingCfg, { taxCountry:newCountry, country:newCountry, currency:tp.known?tp.currency:(patch.currency||"INR") });
         if(region && newCountry!=="IN") next.taxRegion=region; else delete next.taxRegion;
         if(window.HelmCountry && ["IN","AE","US"].includes(newCountry)) next.gstPct=window.HelmCountry.defaultRate(newCountry, region);
         else if(tp.rate!=null) next.gstPct=tp.rate;
-        try{ await BPStore.config.setPricing(next); pricingCfg=next; $("#p_gst").value=next.gstPct??""; paintTaxFields(); }catch(e){ orgMsg("err",errMsg(e,"update the tax for the new country")); return; }
+        try{ await BPStore.config.setPricing(next); pricingCfg=next; $("#p_gst").value=next.gstPct??""; $("#p_country").value=newCountry; $("#p_region").value=next.taxRegion||""; pLastDefault=next.gstPct; paintTaxFields(); }catch(e){ orgMsg("err",errMsg(e,"update the tax for the new country")); return; }
       }
       else if(pricingLoaded && newCountry!=="IN" && ($("#o_state").value.trim().slice(0,60))!==(pricingCfg.taxRegion||"")){
         // 0089: same country, new state/emirate -> store the region; a US studio still on the old
         // state's default rate moves to the new state's base rate (a custom rate is kept)
         const region=$("#o_state").value.trim().slice(0,60), next=Object.assign({}, pricingCfg, { taxRegion:region });
         if(window.HelmCountry && newCountry==="US" && Number(pricingCfg.gstPct)===window.HelmCountry.defaultRate("US", pricingCfg.taxRegion||"")) next.gstPct=window.HelmCountry.defaultRate("US", region);
-        try{ await BPStore.config.setPricing(next); pricingCfg=next; $("#p_gst").value=next.gstPct??""; paintTaxFields(); }catch(e){ orgMsg("err",errMsg(e,"update the tax region")); return; }
+        try{ await BPStore.config.setPricing(next); pricingCfg=next; $("#p_gst").value=next.gstPct??""; $("#p_region").value=region; paintTaxFields(); }catch(e){ orgMsg("err",errMsg(e,"update the tax region")); return; }
       }
       orgCountry=newCountry;
       orgMsg("ok","Studio settings saved."); setTimeout(()=>orgMsg("",""),2500); }

@@ -255,7 +255,9 @@
             <div class="fld"><label for="q_discount">Discount (₹)</label><input id="q_discount" type="number" min="0"></div>
             <div class="fld"><label for="q_coupon">Coupon code</label><input id="q_coupon" list="couponList" placeholder="optional"><datalist id="couponList"></datalist>
               <div class="s-40d0688" id="q_couponMsg" role="status" aria-live="polite"></div></div>
+            <div class="fld"><label for="q_taxExempt"><input type="checkbox" id="q_taxExempt"> Tax-exempt client (no tax charged)</label></div>
           </div>
+          <div class="msg warn" id="q_curBanner" role="status" hidden><span id="q_curBannerTxt"></span> <button type="button" class="btn" id="q_curSwitch">Switch</button></div>
           <div class="s-7ffa8ad">
             <button type="button" class="btn" id="q_pdf">⬇ Download quote PDF</button>
             <button type="button" class="btn primary" id="q_save">Save quotation (new version)</button>
@@ -345,8 +347,8 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
-<script src="event-name.js?v=2"></script>
-<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
+<script src="event-name.js?v=3"></script>
+<script src="country-profile.js?v=3"></script><script src="store-api.js?v=163"></script>
 <script src="tour.js?v=9"></script>
 <script src="booklet.js?v=13"></script>
 <script src="share-checklist.js?v=8"></script>
@@ -379,7 +381,11 @@
     const th=document.getElementById("themeList");      if(th) th.innerHTML=vocabAll("themes").map(v=>`<option value="${esc(v)}"></option>`).join("");
   }
   fillVocab();
-  const fTax=()=>BPStore.tax.resolve(rates||{});   // 0079: studio tax country (India unless set)
+  // B11: an already-priced quote keeps ITS OWN country/currency (India/INR when it has no snapshot) until the
+  // user explicitly switches it to the studio's country; B10: the tax-exempt tick prices tax at 0
+  let quoteKeep=false;
+  const exemptOn=()=>{ const x=document.getElementById&&document.getElementById("q_taxExempt"); return !!(x&&x.checked); };
+  const fTax=()=>BPStore.tax.resolve(Object.assign({}, quoteKeep&&ev ? BPStore.quoteTaxCfg(ev) : (rates||{}), { taxExempt: exemptOn() }));
   const inr=(n)=>{ const r=fTax(); return r.country!=="IN" ? BPStore.tax.money(Math.round(n||0), r) : "₹"+Math.round(n||0).toLocaleString("en-IN"); };
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   let ev=null, rates={chairPrice:200,platePrice:500,gstPct:18,layoutBase:0,serviceChargePct:0,assetPrices:null};
@@ -463,12 +469,14 @@
     const platePrice = nn($("#q_platePrice").value!==""?(+$("#q_platePrice").value||0):(appliedPkg?appliedPkg.price_per_plate:rates.platePrice));
     const other = nn($("#q_other").value!==""?(+$("#q_other").value||0):(oi.objectsCost+(+rates.layoutBase||0)));
     // a configured 0% GST must stay 0 (same as quotes.html / builder breakdown); default 18 only when unset/invalid
-    const gstPct = (rates.gstPct==null||rates.gstPct===""||!isFinite(+rates.gstPct)) ? 18 : +rates.gstPct;
+    const kp=quoteKeep&&ev&&ev.pricing?ev.pricing:null, rg=kp&&kp.gstPct!=null?kp.gstPct:rates.gstPct;
+    const gstPct = (rg==null||rg===""||!isFinite(+rg)) ? 18 : +rg;
     return { chairs, guests, chairPrice:nn(+$("#q_chairPrice").value||rates.chairPrice), platePrice,
       other, gstPct, serviceChargePct:+rates.serviceChargePct||0,
       discount:nn($("#q_discount").value||0), catering:{mode:"inhouse",gstPct},
       couponCode:($("#q_coupon")?$("#q_coupon").value.trim():""), coupon:appliedCoupon,
-      placeOfSupply:"intra", currency:"INR", taxCountry:undefined, taxName:undefined, taxInclusive:undefined, ...BPStore.tax.snapshot(fTax()),   // R4: undefined clears a stale snapshot key on re-save
+      placeOfSupply:"intra", currency:"INR", taxCountry:undefined, taxName:undefined, taxInclusive:undefined, taxRegion:undefined, ...BPStore.tax.snapshot(fTax()),   // R4: undefined clears a stale snapshot key on re-save
+      taxExempt: exemptOn() ? true : undefined,
       chairsManual,
       // R9: remember the auto Décor / setup value beside `other` so every screen can tell a hand edit apart
       otherAuto:(ev.pricing&&ev.pricing.otherAuto!=null)?+ev.pricing.otherAuto:(oi.objectsCost+(+rates.layoutBase||0)),
@@ -482,7 +490,7 @@
     if(p.other>0) rows+=`<div class="prow"><span>Décor / setup</span><span class="amt">${inr(p.other)}</span></div>`;
     rows+=`<div class="prow sub"><span>Subtotal</span><span class="amt">${inr(t.subtotal)}</span></div>`;
     if(t.discount>0) rows+=`<div class="prow"><span>Discount</span><span class="amt">− ${inr(t.discount)}</span></div>`;
-    rows+=`<div class="prow"><span>${esc(fTax().name)}${t.taxInclusive?" (included)":""}</span><span class="amt">${inr(t.totalGst)}</span></div>`;
+    rows+=`<div class="prow"><span>${esc(fTax().name)}${t.taxExempt?" (exempt)":t.taxInclusive?" (included)":""}</span><span class="amt">${inr(t.totalGst)}</span></div>`;
     rows+=`<div class="prow total"><span>Total</span><span class="amt">${inr(t.total)}</span></div>`;
     rows+=`<div class="prow" style="font-style:italic;color:var(--ink-3);font-size:11px;justify-content:flex-end">${fTax().country!=="IN"?"":esc(BPStore.amountInWords(t.total))}</div>`;
     $("#priceRows").innerHTML=rows;
@@ -941,7 +949,8 @@
   async function loadRates(){
     let pc=null;
     try{ pc=await BPStore.config.getPricing(); }catch(e){ if(!noPricingBackend(e)) throw e; }
-    if(pc) rates=Object.assign(rates,pc); $("#q_chairPrice").value=rates.chairPrice; applyPayTerms(); }
+    if(pc) rates=Object.assign(rates,pc); $("#q_chairPrice").value=rates.chairPrice; applyPayTerms();
+    if(ev){ paintCurBanner(); if(quoteKeep && ev.pricing && ev.pricing.chairPrice!=null) $("#q_chairPrice").value=ev.pricing.chairPrice; } }
   // onboarding payment terms: default advance % (until the user types one) + balance due + note
   function applyPayTerms(){
     const t=BPStore.paymentTerms(rates, $("#c_date").value);
@@ -994,6 +1003,16 @@
     $("#q_discount").value=pr.discount||0;
     if($("#q_coupon") && pr.couponCode){ $("#q_coupon").value=pr.couponCode; applyCoupon(); }
     if(pr.chairPrice!=null) $("#q_chairPrice").value=pr.chairPrice;
+    $("#q_taxExempt").checked=String(pr.taxExempt)==="true";
+    paintCurBanner();
+  }
+  // B11: "This quote is in INR - switch to AED?" instead of silently re-labelling an existing quote
+  function paintCurBanner(){
+    const pr=(ev&&ev.pricing)||{}, priced=("gstPct" in pr)||("total" in pr);
+    const qT=BPStore.quoteTax(ev||{}), sT=BPStore.tax.resolve(rates||{});
+    quoteKeep = priced && qT.country!==sT.country;
+    const b=$("#q_curBanner"); if(!b) return; b.hidden=!quoteKeep;
+    if(quoteKeep){ $("#q_curBannerTxt").textContent=`This quote is in ${qT.currency} (${qT.name}). Your studio now prices in ${sT.currency} (${sT.name} ${sT.rate}%).`; $("#q_curSwitch").textContent=`Switch to ${sT.currency}`; }
   }
   async function retrySection(k){
     const wasLoading=loading, wasDirty=dirty; loading=true;
@@ -1124,6 +1143,9 @@
     loadCoupons();                                           // populate coupon suggestions
     $("#q_save").addEventListener("click",()=>{ BPUI.guard($("#q_save"),saveQuotation,{busyLabel:"Saving…"}).catch(()=>{}); });
     $("#q_pdf").addEventListener("click",downloadQuotePDF);
+    $("#q_taxExempt").addEventListener("change",()=>{ dirty=true; renderPrice(); });
+    $("#q_curSwitch").addEventListener("click",()=>{ quoteKeep=false; $("#q_curBanner").hidden=true; $("#q_chairPrice").value=rates.chairPrice; dirty=true; renderPrice();
+      BPUI.toast("Re-priced in "+BPStore.tax.resolve(rates||{}).currency+" - save the quotation to keep it.",{type:"info"}); });
     const addReq=()=>{ const t=$("#rq_title").value.trim(); if(!t){ $("#rq_title").focus(); return; }
       BPUI.guard($("#rq_add"), async()=>{
         try{ await BPStore.discovery.addReq(id,{ service:t, priority:$("#rq_pri").value }); vocabAdd("reqs",t); fillVocab(); $("#rq_title").value=""; await renderReqs(); }

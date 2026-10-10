@@ -96,6 +96,8 @@ body.fs-on .fs-fab{display:none}
 body.fs-on{overflow:hidden}
 body.fs-on .viewport .ptoggle,body.fs-on .viewport .navpad,body.fs-on .viewport .tools3d,body.fs-on .viewport .hint3d,
 body.fs-on .viewport .wt-fab,body.fs-on .viewport .emptystate,body.fs-on .htour-fab{display:none!important}
+/* B8: trial / subscription notices and tour rings never cover the fullscreen canvas */
+body.fs-on .hau-notes,body.fs-on .hau-note,body.fs-on .hau-note.dock-left,body.fs-on .hau-notes-pad,body.fs-on .gs-ring,body.fs-on .htour{display:none!important}
 body.fs-on header,body.fs-on #leftPanel,body.fs-on #rightPanel{visibility:hidden}
 body.fs-on .viewport{visibility:visible}
 /* 3D fullscreen: rulers are hidden in 3D, so the stage must not keep their 26px gutters (left strip) */
