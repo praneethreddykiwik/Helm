@@ -1487,8 +1487,18 @@
     ["billing_contact_email", "Billing e-mail"], ["team_size_band", "Team size (1, 2-5, 6-15, 16-50, 51+)"], ["signup_source", "How did you hear about Helm?"],
     ["business_type", "Business type (wedding, corporate, decor, catering, other)"], ["events_per_month_band", "Events per month (0-2, 3-5, 6-10, 11-20, 21+)"],
     ["preferred_contact_method", "Preferred contact (whatsapp, phone, email)"], ["preferred_language", "Preferred language (e.g. en, hi)"],
-    ["is_business", "Registered business? (true / false)"], ["tax_id_type", "Tax ID type (IN_GSTIN, IN_PAN, EU_VAT, UK_VAT, AU_ABN, CA_GST, SG_GST, AE_TRN, US_EIN, OTHER)"],
+    ["is_business", "Registered business? (true / false)"], ["tax_id_type", "Tax ID type"],
     ["tax_id", "Tax ID"], ["pan", "PAN (India only)"], ["billing_currency", "Billing currency (e.g. INR, USD)"], ["referred_by", "Referred by"]];
+  // B12: human labels for the tax-ID type (stored values unchanged)
+  var TAX_ID_TYPES = [["", "-"], ["IN_GSTIN", "India - GSTIN"], ["IN_PAN", "India - PAN"], ["AE_TRN", "UAE - TRN (VAT)"], ["US_EIN", "USA - EIN"],
+    ["UK_VAT", "UK - VAT number"], ["EU_VAT", "EU - VAT number"], ["AU_ABN", "Australia - ABN"], ["CA_GST", "Canada - GST/HST number"], ["SG_GST", "Singapore - GST reg. no."], ["OTHER", "Other"]];
+  // B12: the "gstin" account field is the studio's tax ID - name it for the studio's country
+  function accLabel(f, a, st) {
+    if (f[0] !== "gstin") return f[1];
+    var cc = String((a && a.country) || "").toUpperCase();
+    try { if (!/^[A-Z]{2}$/.test(cc) && st.studioTax) cc = st.studioTax().country; } catch (e) {}
+    try { return (st.tax ? st.tax.profile(cc || "IN").idLabel : "GSTIN") + " (optional)"; } catch (e) { return f[1]; }
+  }
   function accountCard(st) {
     var box = doc.getElementById("accCard"), body = doc.getElementById("accBody");
     if (!box || !body || !st.subscription || !st.subscription.account) return;
@@ -1498,8 +1508,12 @@
       var grid = el("div", { class: "hpf-grid" }), inputs = {};
       ACC_FIELDS.forEach(function (f) {
         var w = el("div", { class: "hpf-f" }), id = "acc_" + f[0];
-        w.appendChild(el("label", { for: id, class: "hpf-l" }, f[1]));
-        var i = el("input", { id: id, class: "hpf-i", type: /_phone$/.test(f[0]) ? "tel" : (/_email$/.test(f[0]) ? "email" : "text") }); i.value = a[f[0]] == null ? "" : String(a[f[0]]); inputs[f[0]] = i;
+        w.appendChild(el("label", { for: id, class: "hpf-l", id: id + "_lbl" }, accLabel(f, a, st)));
+        var i, cur = a[f[0]] == null ? "" : String(a[f[0]]);
+        if (f[0] === "tax_id_type") { i = el("select", { id: id, class: "hpf-i" });
+          TAX_ID_TYPES.concat(cur && !TAX_ID_TYPES.some(function (t) { return t[0] === cur; }) ? [[cur, cur]] : []).forEach(function (t) { var o = el("option", { value: t[0] }, t[1]); i.appendChild(o); }); }
+        else i = el("input", { id: id, class: "hpf-i", type: /_phone$/.test(f[0]) ? "tel" : (/_email$/.test(f[0]) ? "email" : "text") });
+        i.value = cur; inputs[f[0]] = i;
         w.appendChild(i); grid.appendChild(w);
       });
       var wrap = el("div", { class: "hpf" }); wrap.appendChild(grid); body.appendChild(wrap);

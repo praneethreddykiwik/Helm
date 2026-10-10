@@ -94,7 +94,7 @@
   /* ---- Payment terms (stored in the pricing config blob, admin only) ------ */
   function paymentFromCfg(c) {
     c = obj(c);
-    return { advancePct: c.advancePct == null ? "50" : s(c.advancePct), balanceDueDays: c.balanceDueDays == null ? "0" : s(c.balanceDueDays), paymentTermsNote: s(c.paymentTermsNote) };
+    return { advancePct: c.advancePct == null || c.advancePct === "" ? String(DEFAULT_ADVANCE_PCT) : s(c.advancePct), balanceDueDays: c.balanceDueDays == null ? "0" : s(c.balanceDueDays), paymentTermsNote: s(c.paymentTermsNote) };
   }
   function validatePayment(v) {
     v = obj(v); const errors = {};
@@ -166,7 +166,19 @@
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
   }
 
-  const api = { FLOW, SETTINGS, REQUIRED, LABELS, LEGACY_KEYS, IMPORT_ENTITY, countryDefaults, validTz,
+  // B2: studio currency/timezone follow the business country unless the user customised them.
+  // d = values shown (org + typed), typed = what the user typed this session, cd = countryDefaults(+state tz)
+  // B6: same default as BPStore.DEFAULT_ADVANCE_PCT / flow.html (10%) when the studio never set one
+  const DEFAULT_ADVANCE_PCT = (global.BPStore && Number.isFinite(global.BPStore.DEFAULT_ADVANCE_PCT)) ? global.BPStore.DEFAULT_ADVANCE_PCT : 10;
+  const AUTO_CUR = ["INR", "AED", "USD", "GBP", "SGD", "AUD", "CAD"];
+  function followCountry(d, typed, cd) {
+    const out = Object.assign({}, d); typed = obj(typed); cd = obj(cd);
+    const H = global.HelmCountry; const autoTz = (tz) => (H && H.isAutoTimezone ? H.isAutoTimezone(tz) : !tz || Object.values(TZ).indexOf(tz) >= 0);
+    if (cd.timezone && typed.timezone === undefined && autoTz(out.timezone)) out.timezone = cd.timezone;
+    if (cd.currency && typed.currency === undefined && (!out.currency || AUTO_CUR.indexOf(String(out.currency).toUpperCase()) >= 0)) out.currency = cd.currency;
+    return out;
+  }
+  const api = { FLOW, followCountry, DEFAULT_ADVANCE_PCT, SETTINGS, REQUIRED, LABELS, LEGACY_KEYS, IMPORT_ENTITY, countryDefaults, validTz,
     studioFromOrg, validateStudio, studioPatch, brandFromOrg, validateBrand, brandPatch,
     paymentFromCfg, validatePayment, paymentPatch, progressFromOrg, progressPatch, percent, requiredMissing, stepFromHash, nudgeFor, mountNudge };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

@@ -248,11 +248,11 @@
 <script src="/trusted-types.js?v=2"></script>
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
-<script src="event-name.js?v=2"></script>
-<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
+<script src="event-name.js?v=3"></script>
+<script src="country-profile.js?v=3"></script><script src="store-api.js?v=163"></script>
 <script src="xlsx-lite.js?v=2"></script>
-<script src="smart-import-core.js?v=1"></script>
-<script src="smart-import.js?v=2"></script>
+<script src="smart-import-core.js?v=2"></script>
+<script src="smart-import.js?v=3"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -613,7 +613,13 @@
   $("#ci_save").addEventListener("click",()=>BPUI.guard($("#ci_save"),confirmCheckIn,{busyLabel:"Saving…"}));
   $("#ciModal").addEventListener("click",e=>{ if(e.target.id==="ciModal") requestCloseCheckIn(); });
   $("#seedBtn").addEventListener("click",()=>loadStarterItems($("#seedBtn")));
-  $("#importBtn").addEventListener("click",()=>HelmImport.open({ entity:"inventory", onDone:async(sum)=>{ if(sum){ try{ attrDefs=await BPStore.smartImport.fieldDefs("inventory"); }catch(e){} await load(); } } }));
+  // B5: refresh the list as soon as the import dialog closes after an import (no reload needed)
+  let importRefreshing=null;
+  async function refreshAfterImport(){ if(importRefreshing) return importRefreshing;
+    importRefreshing=(async()=>{ try{ attrDefs=await BPStore.smartImport.fieldDefs("inventory"); }catch(e){} try{ await load(); }catch(e){ BPUI.toast("Imported - reload the page to see the new rows.",{type:"info"}); } })();
+    try{ await importRefreshing; } finally { importRefreshing=null; } }
+  $("#importBtn").addEventListener("click",()=>HelmImport.open({ entity:"inventory", onDone:(sum)=>{ if(sum) return refreshAfterImport(); } }));
+  window.addEventListener("helm:import-done",(e)=>{ if(e.detail&&e.detail.entity==="inventory") refreshAfterImport(); });
 
   $("#co_add").addEventListener("click",async()=>{
     const itemId=$("#co_item").value;

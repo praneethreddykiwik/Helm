@@ -38,7 +38,7 @@ t('payment terms: bounds + merged into pricing config without dropping keys', ()
   assert.equal(r.ok, true); assert.doesNotMatch(r.data.paymentTermsNote, /</);
   const n = W.paymentPatch({ chairPrice: 200, assetPrices: { a: 1 } }, r.data);
   assert.equal(n.chairPrice, 200); assert.deepEqual(n.assetPrices, { a: 1 }); assert.equal(n.advancePct, 30); assert.equal(n.balanceDueDays, 7);
-  assert.deepEqual(W.paymentFromCfg({}), { advancePct: '50', balanceDueDays: '0', paymentTermsNote: '' });
+  assert.deepEqual(W.paymentFromCfg({}), { advancePct: '10', balanceDueDays: '0', paymentTermsNote: '' });
 });
 t('progress record: resumable, sanitised, merge-safe', () => {
   const o = { brand: { logo: 'L', onboarding: { step: 'venues', done: ['billing', 'studio', 'evil'], skipped: ['brand'] } } };
@@ -81,7 +81,7 @@ t('UI wiring: steps, Save & continue / Back / Skip for now, smart import feature
   assert.doesNotMatch(js + w, /\.delete\(|hardDelete/);
   assert.doesNotMatch(w, /style=|innerHTML/);
   assert.match(d, /<section id="obNudge" class="ob-nudge" hidden aria-label="Studio setup"><\/section>/);
-  assert.match(d, /<script src="onboarding-wizard\.js\?v=2"><\/script>/);
+  assert.match(d, /<script src="onboarding-wizard\.js\?v=3"><\/script>/);
   assert.match(w, /global\.HelmCountry/);
 });
 let n = 0;

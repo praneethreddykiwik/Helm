@@ -150,8 +150,8 @@
 <script src="/trusted-types.js?v=2"></script>
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
-<script src="event-name.js?v=2"></script>
-<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
+<script src="event-name.js?v=3"></script>
+<script src="country-profile.js?v=3"></script><script src="store-api.js?v=163"></script>
 <script src="tour.js?v=9"></script>
 <script src="booklet.js?v=13"></script>
 <script src="share-checklist.js?v=8"></script>
@@ -160,7 +160,9 @@
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  const inr=(n)=>BPStore.studioMoney(n);
+  // B11: this event's OWN currency (India/INR without a snapshot), never the studio's current country
+  let evTax=null;
+  const inr=(n)=>evTax?BPStore.quoteMoney(n,evTax):BPStore.studioMoney(n);
   let id=new URLSearchParams(location.search).get("id");
 
   // the lifecycle — a calm, guided path. Each stage carries the "next action" hint.
@@ -204,6 +206,7 @@
     $("#loadErr").innerHTML=""; $("#notfound").hidden=true;
     try{ ev=await BPStore.quotes.get(id); }
     catch(e){ if(BPUI.isNotFound(e)) $("#notfound").hidden=false; else BPUI.loadError($("#loadErr"), e, load, {what:"this event"}); return; }
+    try{ evTax=BPStore.quoteTax(ev); }catch(_){ evTax=null; }
     // Pretty URLs (/studio/events/<code>) carry no ?id=, so hand the resolved quote id to the
     // Share booklet button (it could not open, so links could not be revoked from here).
     { const bk=document.getElementById("bkShare"); if(bk && ev && ev.id){ bk.setAttribute("data-quote", ev.id); if(window.HelmBookletShare) HelmBookletShare.reveal(bk); } }

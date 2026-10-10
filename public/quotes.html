@@ -279,8 +279,8 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
-<script src="event-name.js?v=2"></script>
-<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
+<script src="event-name.js?v=3"></script>
+<script src="country-profile.js?v=3"></script><script src="store-api.js?v=163"></script>
 <script src="event-sizing.js?v=5"></script>
 <script src="tour.js?v=9"></script>
 <script>
@@ -473,7 +473,7 @@
         <td>${esc(client)||'<span class="muted">—</span>'}</td>
         <td><select class="vsel" data-role="vsel" aria-label="Version of ${esc(x.code)}"><option>v${esc(x.currentVersion)}</option></select></td>
         <td>${sh(x)?(sh(x).shelf==="deleted"?'<span class="stat no">Deleted</span> ':'<span class="stat done">Archived</span> '):''}${needsAttention(x)?'<span class="stat warn" title="Event date has passed but this event isn\'t wrapped up — settle, return equipment and close it">⚠ Overdue</span> ':''}${isArchived(x)&&x.lifecycleStage==="closed"?'<span class="stat done">Closed · Archived</span>':statBadge(x.status)} ${apprBadge(x.approvalStatus)}${staleSet.has(x.id)?`<div class="stat warn" role="status" style="margin-top:4px">⚠ Price changed after approval — client must approve again${canEdit?` <button type="button" class="ic" data-act="relink" aria-label="Send a new approval link for ${esc(x.code)}">Send new approval link</button>`:""}</div>`:""}${sh(x)?`<div class="shelfnote">${esc(shelfNote(sh(x)))}</div>`:""}</td>
-        <td style="text-align:right" class="amt">${x.total?inr(x.total):'<span class="muted">—</span>'}</td>
+        <td style="text-align:right" class="amt">${x.total?esc(BPStore.quoteMoney(x.total,x)):'<span class="muted">—</span>'}</td>
         <td class="muted">${fmtDate(x.updatedAt)}</td>
         <td><div class="row-actions" style="justify-content:flex-end">
           ${sh(x)
@@ -550,7 +550,10 @@
     try{ cmConfig=(await BPStore.config.getPricing())||cmConfig; }catch{}
     try{ cmVendors=await BPStore.vendors.list(); }catch{ cmVendors=[]; }
     try{ cmCoupons=await BPStore.coupons.list(); }catch{ cmCoupons=[]; }
-    const cfg=cmConfig; curTax=BPStore.tax.resolve(cfg);
+    const cfg=cmConfig; const sT=BPStore.tax.resolve(cfg), qT=BPStore.quoteTax(full);
+    // B11: an already-priced quote stays in ITS currency/tax; switching to the studio's country is an explicit choice
+    const priced=("gstPct" in pr)||("total" in pr); cmKeep = priced && qT.country!==sT.country;
+    curTax = cmKeep ? qT : sT; paintCurBanner(cmKeep, qT, sT, pr, cfg);
     $("#rateNote").textContent = `· ${inr(cfg.chairPrice)}/chair · ${inr(cfg.platePrice)}/plate · ${curTax.name} ${curTax.rate}%${curTax.inclusive?" (included in prices)":""}  (edit in Control Center)`;
     // seat counts + object cost from current version (same engine as the builder)
     let seats=0, objectsCost=0; try{ const v=await BPStore.quotes.getVersion(id, full.currentVersion);
@@ -568,8 +571,10 @@
     // rates from the Control Center, but plate price follows the applied menu package when there is one
     $("#p_chairPrice").value = cfg.chairPrice;
     $("#p_platePrice").value = menuPlate!=null ? menuPlate : cfg.platePrice;
-    $("#p_gst").value = cfg.gstPct;
-    $("#p_cgst").value = cfg.cateringGstPct;
+    $("#p_gst").value = cmKeep && pr.gstPct!=null ? pr.gstPct : cfg.gstPct;
+    $("#p_cgst").value = cmKeep && pr.catering && pr.catering.gstPct!=null ? pr.catering.gstPct : cfg.cateringGstPct;
+    if(cmKeep && pr.chairPrice!=null) $("#p_chairPrice").value = pr.chairPrice;
+    if(cmKeep && pr.platePrice!=null && menuPlate==null) $("#p_platePrice").value = pr.platePrice;
     $("#p_svc").value = cfg.serviceChargePct||0;
     // fold the layout's décor/equipment + setup fee into "other" (first time only, so manual edits stick)
     $("#p_other").value = (pr.other!=null && pr.other!=="") ? pr.other : (objectsCost + (+cfg.layoutBase||0));
@@ -593,6 +598,17 @@
   const cmDirty=BPUI.trackDirty($("#confirmModal"));
   function closeConfirm(){ $("#confirmModal").hidden=true; cmDirty.clean(); }
   async function requestCloseConfirm(){ if($("#confirmModal").hidden) return; if(!(await BPUI.confirmDiscard(cmDirty))) return; closeConfirm(); }
+  let cmKeep=false;
+  function paintCurBanner(show, qT, sT, pr, cfg){
+    let b=document.getElementById("cmCurBanner");
+    if(!b){ b=document.createElement("div"); b.id="cmCurBanner"; b.className="msg warn"; b.setAttribute("role","status"); const rn=$("#rateNote"); (rn&&rn.parentNode?rn.parentNode:$("#confirmModal")).insertBefore(b, rn?rn.nextSibling:null); }
+    b.textContent=""; b.hidden=!show; if(!show) return;
+    b.append(document.createTextNode(`This quote is in ${qT.currency} (${qT.name}). Your studio now prices in ${sT.currency} (${sT.name} ${sT.rate}%). `));
+    const btn=document.createElement("button"); btn.type="button"; btn.className="btn"; btn.textContent=`Switch to ${sT.currency}`;
+    btn.addEventListener("click",()=>{ cmKeep=false; curTax=sT; $("#p_gst").value=cfg.gstPct; $("#p_cgst").value=cfg.cateringGstPct; $("#p_chairPrice").value=cfg.chairPrice;
+      b.hidden=true; recalc(); BPUI.toast(`Re-priced in ${sT.currency} - check the rates, then save.`,{type:"info"}); });
+    b.append(btn);
+  }
   function gatherPricing(){
     const couponCode=$("#p_coupon").value; const cp=cmCoupons.find(c=>c.code===couponCode)||null;
     const vsel=$("#p_vendor").value;
@@ -665,7 +681,7 @@
     const prevPr=(detailCache[cmId]&&detailCache[cmId].pricing)||{};
     const chairsManual = String($("#p_chairs").value)!==cmChairsSeed ? true : HelmSizing.isChairsManual(client, prevPr);
     client=HelmSizing.merge(client, chairsManual ? { chairs:p.chairs, chairsManual:true } : { chairsManual:false });
-    const pricing = { ...p, computed:t, total:t.total, client, chairsManual, otherAuto: prevPr.otherAuto };
+    const pricing = { ...p, computed:t, total:t.total, client, chairsManual, otherAuto: prevPr.otherAuto, supplier: prevPr.supplier };
     // B6 — optimistic lock: the updated_at captured when this modal loaded. If another
     // user/tab changed the quote since, updateMeta throws {code:"CONFLICT"} instead of
     // silently overwriting their edit.
@@ -675,6 +691,8 @@
       if(confirmIt){
         // confirm() has no lock parameter: check the quote hasn't changed since the modal opened
         if(expUpd){ const cur=await BPStore.quotes.get(cmId); if(cur && cur.updatedAt && String(cur.updatedAt)!==String(expUpd)) throw Object.assign(new Error("conflict"),{code:"CONFLICT"}); }
+        // B15: freeze the supplier header on the quote at confirmation (kept if one is already there)
+        if(!pricing.supplier){ try{ const sp=BPStore.supplierSnapshot(studioOrg, curTax&&curTax.country); if(sp) pricing.supplier=sp; }catch(_){} }
         await BPStore.quotes.confirm(cmId, client, pricing); confirmedId=cmId;
         // 0052: Confirmed needs the client's approval (or an admin override); the client's OTP
         // approval moves the event to Confirmed by itself, so a refusal here is informational
@@ -716,9 +734,9 @@
     // pricing is jsonb the server doesn't type-check for every shape — only numbers reach the popup HTML
     const num=(v)=>{ const x=Number(v); return Number.isFinite(x)?x:0; };
     const line=(l,a)=>`<tr><td>${l}</td><td style="text-align:right">${inr(a)}</td></tr>`;
-    const qTax=BPStore.tax.resolve(p); curTax=qTax;   // this quote's own snapshot (India when absent)
+    const qTax=BPStore.quoteTax(full); curTax=qTax;   // B11: this quote's own snapshot (India/INR when absent), never the studio's current country
     const tax = !t ? "" : BPStore.tax.rows(t, p, qTax).map(r=>line(esc(r.label)+(r.pct?" ("+Number(r.pct)+"%)":""), r.amount||0)).join("");
-    let sup={}; try{ sup=BPStore.studioHeader(studioOrg); }catch(_){ sup={}; }
+    let sup={}; try{ sup=BPStore.quoteSupplier(full, studioOrg); }catch(_){ sup={}; }   // B15
     const terms=BPStore.paymentTerms(studioCfg, cl.eventDate);
     const termsHtml=(terms.advancePct!=null||terms.balanceDue||terms.note)?`<h3 style="font-size:13px;margin:18px 0 4px">Payment terms</h3><p class=muted style="margin:0">${terms.advancePct!=null?"Advance "+esc(String(terms.advancePct))+"% ("+inr(Math.round(grand*terms.advancePct/100))+") to confirm the booking. ":""}${terms.balanceDue?"Balance due by "+esc(terms.balanceDue)+(terms.balanceDueDays?" ("+terms.balanceDueDays+" days before the event)":" (event day)")+". ":""}${terms.note?esc(terms.note):""}</p>`:"";
     const html=`<!doctype html><meta charset=utf8><title>${isInv?"Invoice":"Quotation"} ${esc(full.code)}</title>
@@ -729,7 +747,7 @@
     .badge{background:#eef2ff;color:#4457c8;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}</style>
     <div class=head><div><h1>${esc(sup.name||"Helm Events")}</h1>${sup.tradeName&&sup.tradeName!==sup.name?`<div class=muted>${esc(sup.tradeName)}</div>`:""}${sup.address?`<div class=muted>${esc(sup.address)}</div>`:""}${sup.taxId?`<div class=muted>${esc(sup.taxIdLabel)}: ${esc(sup.taxId)}</div>`:""}<div class=muted style="font-weight:700;margin-top:4px">${isInv?(qTax.country==="AE"||qTax.country==="IN"?"Tax Invoice":"Invoice"):"Event Quotation"}</div></div>
       <div style="text-align:right"><div style="font-family:monospace;font-weight:700;font-size:16px">${esc(full.code)}</div>
-      <div class=muted>${isInv?"Confirmed "+fmtDate(full.confirmedAt):"Quote v"+full.currentVersion}${ver&&String(ver)!==String(full.currentVersion)?" · layout v"+esc(String(ver)):""} · ${fmtDate(full.updatedAt)}</div>
+      <div class=muted>${[isInv?(BPStore.quoteDate(full.confirmedAt,qTax)?"Confirmed "+BPStore.quoteDate(full.confirmedAt,qTax):"Confirmed"):"Quote v"+full.currentVersion, ver&&String(ver)!==String(full.currentVersion)?"layout v"+esc(String(ver)):"", BPStore.quoteDate(full.updatedAt,qTax)].filter(Boolean).join(" · ")}</div>
       <span class=badge>${isInv?"CONFIRMED":"QUOTE"}</span></div></div>
     <table><tr><td class=muted>Client</td><td>${esc(cl.name||"—")}${cl.company?" · "+esc(cl.company):""}</td></tr>
       ${cl.email?`<tr><td class=muted>Email</td><td>${esc(cl.email)}</td></tr>`:""}

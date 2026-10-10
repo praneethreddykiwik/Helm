@@ -321,10 +321,11 @@
     function gridCells(cw, ch, px, py, y0, y1) {
       // cells either side of the centre aisle, rows top-down, nearest the aisle first
       const out = [], maxC = Math.floor((W / 2 - aisle / 2 - 1) / px) + 1;
-      for (let yy = y0; yy + ch <= y1 + 1e-6; yy += py) for (let c = 0; c < maxC; c++) for (const sd of [-1, 1]) {
-        const x = sd < 0 ? cx - aisle / 2 - cw - c * px : cx + aisle / 2 + c * px, r = { x, y: yy, w: cw, h: ch };
-        if (r.x < 1 || r.x + r.w > W - 1) continue;
-        if (free(r, seatGap)) out.push(r); }
+      // B7: only mirrored pairs (left + right both free) so the room stays balanced around the aisle
+      for (let yy = y0; yy + ch <= y1 + 1e-6; yy += py) for (let c = 0; c < maxC; c++) {
+        const l = { x: cx - aisle / 2 - cw - c * px, y: yy, w: cw, h: ch }, r = { x: cx + aisle / 2 + c * px, y: yy, w: cw, h: ch };
+        if (l.x < 1 || r.x + r.w > W - 1) continue;
+        if (free(l, seatGap) && free(r, seatGap)) out.push(l, r); }
       return out;
     }
     function tablesIn(n, cw, ch, gapX, gapY, y0, y1) {
@@ -339,7 +340,7 @@
     let tableNo = 0, lastTables = 0, longNo = 0;
     function roundTables(nT, spt, seats, y0, y1) {
       const d = spt <= 6 ? 5 : spt <= 10 ? 6 : spt <= 12 ? 7 : 8;
-      const cells = tablesIn(nT, d, d, 4, 4, y0, y1);
+      const cells = tablesIn(nT > 1 && nT % 2 ? nT + 1 : nT, d, d, 4, 4, y0, y1);   // B7: even count = mirrored pairs
       const n = cells.length, give = Math.min(seats, n * spt);
       const base = n ? Math.floor(give / n) : 0, extra = n ? give % n : 0;
       let lastY = y0;
@@ -350,32 +351,55 @@
     function theatre(B, Rw, C, seats, y0, y1) {
       const P = 2.4, RP = 3, bw = C * P;
       let left = seats, yy = y0, made = 0;
-      const perBand = Math.max(1, Math.min(B, Math.floor((W - 4 + aisle) / (bw + aisle))));
+      let perBand = Math.max(1, Math.min(B, Math.floor((W - 4 + aisle) / (bw + aisle))));
+      // B7: blocks come in mirrored pairs around the centre aisle (= stage / walkway centre line)
+      if (perBand > 1 && perBand % 2) perBand--;
       const rowsPerBlock = Math.max(1, Rw);
-      // the configured blocks first; if obstacles cost rows, extra bands of the same pattern take the rest
+      let bandNo = 0;
+      const xOf = (j, m) => { if (m === 1) return bandNo % 2 ? cx + aisle / 2 : cx - aisle / 2 - bw;   // one block per band: alternate sides
+        const nl = Math.ceil(m / 2), isL = j < nl, k = isL ? nl - 1 - j : j - nl;
+        return isL ? cx - aisle / 2 - (k + 1) * bw - k * aisle : cx + aisle / 2 + k * (bw + aisle); };
       while (left > 0 && made < B * 3 && yy + RP <= y1 + 1e-6) {
-        const m = Math.min(perBand, made < B ? B - made : perBand), nl = Math.ceil(m / 2);
-        let bandBottom = yy;
-        for (let j = 0; j < m && left > 0; j++) {
-          const isL = j < nl, k = isL ? j : j - nl;
-          const x = isL ? cx - aisle / 2 - (k + 1) * bw - k * aisle : cx + aisle / 2 + k * (bw + aisle);
-          // most rows first; slide down past anything in the way (press riser, bars…)
-          let got = null;
-          for (let rows = Math.min(rowsPerBlock, Math.ceil(left / C)); rows >= 1 && !got; rows--)
-            for (let ty = yy; ty + rows * RP <= y1 + 1e-6; ty += 1) { const r = { x, y: ty, w: bw, h: rows * RP }; if (free(r, seatGap)) { got = { r, rows }; break; } }
-          made++;
-          if (!got) continue;
-          const n = Math.min(left, got.rows * C), fullRows = Math.floor(n / C), rem = n % C, ty = got.r.y;
+        let m = Math.min(perBand, made < B ? B - made : perBand);
+        if (m > 1 && m % 2) m--;
+        // seats per block: even split, mirrored pairs get the same count (remainder goes to the pairs nearest the aisle)
+        const share = (mm, rowsCap) => { const tot = Math.min(left, mm * rowsCap * C), out = new Array(mm).fill(Math.floor(tot / mm)); let r = tot - out[0] * mm;
+          const nl = Math.ceil(mm / 2), order = []; for (let k = 0; k < nl; k++) { order.push(nl - 1 - k); if (nl + k < mm) order.push(nl + k); }
+          for (let i = 0; r > 0; i = (i + 1) % order.length) { if (out[order[i]] < rowsCap * C) { out[order[i]]++; r--; } }
+          return out; };
+        // one common top edge for the whole band so the halves line up; most rows first
+        let band = null;
+        for (let rows = Math.min(rowsPerBlock, Math.ceil(left / (m * C))); rows >= 1 && !band; rows--)
+          for (let ty = yy; ty + rows * RP <= y1 + 1e-6 && !band; ty += 1) {
+            let ok = true; for (let j = 0; j < m && ok; j++) ok = free({ x: xOf(j, m), y: ty, w: bw, h: rows * RP }, seatGap);
+            if (ok) band = { ty, rows }; }
+        // no common edge: each mirrored block may slide down on its own (still the same seats each side)
+        if (!band && m > 1) for (let rows = Math.min(rowsPerBlock, Math.ceil(left / (m * C))); rows >= 1 && !band; rows--) {
+          const per = Math.ceil(Math.min(left, m * rows * C) / m), uw = Math.min(bw, Math.ceil(per / rows) * P);
+          const tys = []; for (let j = 0; j < m; j++) { let got = null; const bx = xOf(j, m) + (bw - uw) / 2;
+            for (let ty = yy; ty + rows * RP <= y1 + 1e-6; ty += 1) if (free({ x: bx, y: ty, w: uw, h: rows * RP }, seatGap)) { got = ty; break; }
+            if (got == null) break; tys.push(got); }
+          if (tys.length === m) band = { ty: tys[0], tys, rows };
+        }
+        if (!band) {
+          if (m > 1) { perBand = Math.max(1, perBand - 2); if (perBand < 1) break; continue; }
+          made++; yy += RP; continue;
+        }
+        const counts = share(m, band.rows); let bandBottom = yy;
+        for (let j = 0; j < m; j++) {
+          const n = counts[j]; made++; if (n <= 0) continue;
+          const x = xOf(j, m), ty = band.tys ? band.tys[j] : band.ty, fullRows = Math.floor(n / C), rem = n % C;
           if (fullRows) mk('seatblock', { x, y: ty, w: bw, h: fullRows * RP }, 0, 'Seating block ' + made, { rows: fullRows, cols: C });
-          if (rem) mk('chairrow', { x, y: ty + fullRows * RP + 0.2, w: rem * P, h: 2 }, 0, 'Seating block ' + made + ' · last row', { rows: 1, cols: rem });
+          // partial last row: centred under its block
+          if (rem) mk('chairrow', { x: x + (bw - rem * P) / 2, y: ty + fullRows * RP + 0.2, w: rem * P, h: 2 }, 0, 'Seating block ' + made + ' · last row', { rows: 1, cols: rem });
           left -= n; mainPlaced += n; bandBottom = Math.max(bandBottom, ty + fullRows * RP + (rem ? 2.2 : 0));
         }
-        yy = bandBottom > yy ? bandBottom + aisle : yy + RP;
+        yy = bandBottom > yy ? bandBottom + aisle : yy + RP; bandNo++;
       }
       return yy;
     }
     function banquet(nL, per, seats, y0, y1) {
-      const len = Math.max(8, Math.min(30, Math.ceil(per / 2) * 2.2 + 1.5)), cells = tablesIn(nL, len, 4, 4, 6, y0, y1);
+      const len = Math.max(8, Math.min(30, Math.ceil(per / 2) * 2.2 + 1.5)), cells = tablesIn(nL > 1 && nL % 2 ? nL + 1 : nL, len, 4, 4, 6, y0, y1);
       const n = cells.length, give = Math.min(seats, n * per), base = n ? Math.floor(give / n) : 0, extra = n ? give % n : 0;
       cells.forEach((r, i) => { const k = base + (i < extra ? 1 : 0); if (k > 0) mk('longtable', r, 0, 'Banquet ' + (++longNo), { seats: k }); });
       mainPlaced += give; lastTables = n;
@@ -415,7 +439,13 @@
     return { items, warnings, missing, seats, expected, mainPlaced, main: plan.main, extras: plan.extras, fits };
   }
 
-  const API = { OBJECTS, TYPES, SEATING_STYLES, M2FT, typeKey, defaults, defaultSize, extraSeats, mainCapacity, seatPlan, fitSeating, layout };
+  // B7: what the theatre placement really draws: even split per block, last row partial
+  function theatreText(s, main) {
+    const B = posInt(s.blocks) || 2, C = posInt(s.cols) || 14, per = Math.floor(main / B), extra = main - per * B;
+    const full = Math.floor(per / C), rem = per % C;
+    return `${B} blocks × ${full} row${full === 1 ? '' : 's'} × ${C}` + (rem ? ` + ${rem}${extra ? '–' + (rem + 1) : ''} in a last row` : extra ? ` (+1 seat in ${extra} blocks)` : '') + ` = ${main} seats`;
+  }
+  const API = { theatreText, OBJECTS, TYPES, SEATING_STYLES, M2FT, typeKey, defaults, defaultSize, extraSeats, mainCapacity, seatPlan, fitSeating, layout };
   G.HelmWizard = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (typeof document === 'undefined' || !G.document) return;
@@ -494,7 +524,7 @@
     stepper.replaceChildren(...STEPS.map((t, i) => { const li = el('li', 'lw-step' + (i === step ? ' on' : '') + (i < step ? ' done' : ''));
       const b = el('button', null, null, { type: 'button', 'aria-current': i === step ? 'step' : null }); b.append(el('span', 'lw-n', String(i + 1)), el('span', 'lw-t', t));
       b.addEventListener('click', () => go(i)); li.append(b); return li; }));
-    bBack.disabled = step === 0; bNext.textContent = step === 3 ? 'Generate layout' : 'Next →';
+    bBack.disabled = step === 0; bNext.textContent = step === 3 ? 'Place on floor' : 'Next →';
     bNext.classList.toggle('lw-go', step === 3);
   }
   function renderLive() {
@@ -582,7 +612,7 @@
     add('Event', TYPES[spec.type].label);
     add('Hall', `${toU(spec.hall.w)} × ${toU(spec.hall.h)} ${U()}`);
     add('Guests', spec.guests ? spec.guests.toLocaleString('en-IN') : '—');
-    add('Seating', SEATING_STYLES[s.style] + (s.style === 'rounds' ? ` · ${s.tables} × ${s.spt}` : s.style === 'theatre' ? ` · ${s.blocks} blocks × ${s.rows} rows × ${s.cols}` : s.style === 'banquet' ? ` · ${s.longTables} × ${s.perLong}` : s.style === 'mixed' ? ` · ${s.mixRounds} rounds + ${s.blocks}×${s.rows}×${s.cols}` : ''));
+    add('Seating', SEATING_STYLES[s.style] + (s.style === 'rounds' ? ` · ${s.tables} × ${s.spt}` : s.style === 'theatre' ? ' · ' + theatreText(s, pl.main) : s.style === 'banquet' ? ` · ${s.longTables} × ${s.perLong}` : s.style === 'mixed' ? ` · ${s.mixRounds} rounds + ` + theatreText(s, Math.max(0, pl.main - Math.min(pl.main, s.mixRounds * s.spt))) : ''));
     add('Seats', `${pl.total} (${pl.main} main + ${pl.extras} VIP/stage)`);
     add('Objects', Object.entries(spec.objects).filter(([, o]) => o.on).map(([k, o]) => OBJECTS[k].label + (OBJECTS[k].multi && o.qty > 1 ? ' ×' + o.qty : '')).join(', '));
     add('Aisle carpet', spec.carpet ? 'Yes (entrance → front)' : 'No');
@@ -612,9 +642,6 @@
     head2.append(el('b', null, out.fits ? '✓ Everything fits' : '⚠ Hall is tight'), el('span', null, ` · ${out.seats} seats · ${out.items.length} objects`));
     res.append(head2, preview(out.items, W, H));
     out.warnings.forEach((w) => res.append(el('p', 'lw-warn', w)));
-    const use = el('button', 'tbtn primary lw-use', 'Place on floor →', { type: 'button', id: 'wizUse' });
-    use.addEventListener('click', () => apply(out));
-    res.append(use); use.focus();
   }
   function apply(out) {
     const WORLD = g('WORLD'), store = g('store');
@@ -635,7 +662,8 @@
       call('toast', `${TYPES[spec.type].label} layout · ${out.seats} seats, ${out.items.length} objects`);
     } catch (e) { try { G.BPUI && G.BPUI.toast('Could not place the layout', { type: 'err' }); } catch (_) {} }
   }
-  function go(i) { step = clamp(i, 0, 3); renderBody(); const f = body.querySelector('input,select,button'); if (f) try { f.focus({ preventScroll: true }); } catch (_) {} }
+  // B9: the Review step draws its preview on open; ONE primary action ("Place on floor") below
+  function go(i) { step = clamp(i, 0, 3); renderBody(); if (step === 3) generate(); const f = body.querySelector('input,select,button'); if (f) try { f.focus({ preventScroll: true }); } catch (_) {} }
   function prefillSpec() {
     const saved = recall(); if (saved) return saved;
     const PR = g('PRICING') || {}, cl = g('currentClient') || {}, W = g('WORLD') || { w: 200, h: 140 };
@@ -654,7 +682,7 @@
   function close() { modal.hidden = true; if (opener && opener.focus) try { opener.focus(); } catch (_) {} }
   bClose.addEventListener('click', close);
   bBack.addEventListener('click', () => go(step - 1));
-  bNext.addEventListener('click', () => { if (step < 3) { remember(); go(step + 1); } else generate(); });
+  bNext.addEventListener('click', () => { if (step < 3) { remember(); go(step + 1); } else { generate(); if (lastResult) apply(lastResult); } });
   bClassic.addEventListener('click', () => { close(); const f = g('openCustomModal'); if (typeof f === 'function') f(); });
   modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
   modal.addEventListener('keydown', (e) => {

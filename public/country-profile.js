@@ -120,7 +120,34 @@
       rate: opts.exempt ? 0 : defaultRate(p.code, opts.region, opts.rate), exempt: !!opts.exempt, inclusive: !!opts.inclusive,
       placeOfSupply: opts.placeOfSupply || null, invoiceTitle: p.invoiceTitle };
   }
-  return { VERSION: "0089", DEFAULT: DEFAULT, get: get, list: list, code: code, findRegion: findRegion, defaultRate: defaultRate,
+  // ---- shared form metadata (live-round1 B1/B2): onboarding + Control Center read the SAME
+  // labels / placeholders / region list / phone code / timezone for a country.
+  var POSTAL_PH = { IN: "500001", AE: "12345", US: "10001" };
+  var CC_TZ = { IN: "Asia/Kolkata", AE: "Asia/Dubai", US: "America/New_York", GB: "Europe/London", SG: "Asia/Singapore", AU: "Australia/Sydney", CA: "America/Toronto" };
+  var US_TZ = { Chicago: "AL AR IL IA KS LA MN MS MO NE ND OK SD TN TX WI", Denver: "CO ID MT NM UT WY", Phoenix: "AZ", Los_Angeles: "CA NV OR WA", Anchorage: "AK" };
+  var COUNTRY_TZS = ["Asia/Kolkata", "Asia/Dubai", "America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles",
+    "America/Anchorage", "Pacific/Honolulu", "Europe/London", "Asia/Singapore", "Australia/Sydney", "America/Toronto"];
+  // best-guess IANA timezone for a country (+ US state); "" when unknown
+  function timezone(cc, region) {
+    var c = String(cc || "").trim().toUpperCase();
+    if (c === "US") { var r = findRegion("US", region); if (r) { if (r.code === "HI") return "Pacific/Honolulu";
+      for (var k in US_TZ) if ((" " + US_TZ[k] + " ").indexOf(" " + r.code + " ") >= 0) return "America/" + k; } return "America/New_York"; }
+    return CC_TZ[c] || "";
+  }
+  // true when tz is blank or one of the automatic per-country defaults (= the user never customised it)
+  function isAutoTimezone(tz) { tz = String(tz || "").trim(); return !tz || COUNTRY_TZS.indexOf(tz) >= 0; }
+  // labels for an address / tax-ID form. Countries outside the table get neutral labels;
+  // pass idLabel (from BPStore.tax.profile) to name their tax ID.
+  function formMeta(cc, idLabel) {
+    var c = String(cc || "").trim().toUpperCase(), p = P[c];
+    if (!p) return { code: c, known: false, taxIdLabel: idLabel || "Tax ID", taxIdExample: "", regionLabel: "State / region", regions: [],
+      postalLabel: "Postal code", postalPlaceholder: "", postalMax: 10, postalNumeric: false, phoneIso: c, timezone: timezone(c) };
+    return { code: c, known: true, taxIdLabel: p.taxIdLabel, taxIdExample: p.taxIdExample, regionLabel: p.regionLabel,
+      regions: p.regions.map(function (r) { return { name: r.name, code: r.code, rate: r.rate }; }),
+      postalLabel: p.postalLabel, postalPlaceholder: POSTAL_PH[c] || "", postalMax: c === "IN" ? 6 : 10, postalNumeric: true,
+      phoneIso: c, phoneCode: p.phoneCode, currency: p.currency, timezone: timezone(c) };
+  }
+  return { VERSION: "0089", formMeta: formMeta, timezone: timezone, isAutoTimezone: isAutoTimezone, COUNTRY_TZS: COUNTRY_TZS, DEFAULT: DEFAULT, get: get, list: list, code: code, findRegion: findRegion, defaultRate: defaultRate,
     validateTaxId: validateTaxId, validatePostal: validatePostal, formatMoney: formatMoney, placeOfSupply: placeOfSupply,
     computeTax: computeTax, snapshot: snapshot };
 });
