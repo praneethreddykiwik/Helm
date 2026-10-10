@@ -44,7 +44,7 @@
       "dependencies": [
         "npm:@axe-core/playwright@4.13.0",
         "npm:@playwright/test@1.63.0",
-        "npm:@supabase/supabase-js@2.117.2"
+        "npm:@supabase/supabase-js@2.117.3"
       ]
     }
   }

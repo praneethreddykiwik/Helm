@@ -280,14 +280,14 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=3"></script>
-<script src="country-profile.js?v=3"></script><script src="store-api.js?v=163"></script>
+<script src="country-profile.js?v=3"></script><script src="store-api.js?v=164"></script>
 <script src="event-sizing.js?v=5"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $ = (s)=>document.querySelector(s);
   const esc = (s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   // 0079: studio tax country (India unless set) — money symbol + tax labels follow it
-  let curTax=null, studioTax=null, studioState="", studioOrg=null, studioCfg={};
+  let cmTaxSwitched=false, curTax=null, studioTax=null, studioState="", studioOrg=null, studioCfg={};
   const inr = (n)=> (curTax && curTax.country!=="IN") ? BPStore.tax.money(Number(n||0), curTax) : "₹"+Number(n||0).toLocaleString("en-IN");
   const fmtDate=(iso)=>{try{return new Date(iso).toLocaleDateString();}catch{return "—";}};
   const statBadge=(s)=> s==="confirmed"?'<span class="stat ok">Confirmed</span>':s==="cancelled"?'<span class="stat no">Cancelled</span>':'<span class="stat q">Quote</span>';
@@ -553,7 +553,7 @@
     const cfg=cmConfig; const sT=BPStore.tax.resolve(cfg), qT=BPStore.quoteTax(full);
     // B11: an already-priced quote stays in ITS currency/tax; switching to the studio's country is an explicit choice
     const priced=("gstPct" in pr)||("total" in pr); cmKeep = priced && qT.country!==sT.country;
-    curTax = cmKeep ? qT : sT; paintCurBanner(cmKeep, qT, sT, pr, cfg);
+    cmTaxSwitched=false; curTax = cmKeep ? qT : sT; paintCurBanner(cmKeep, qT, sT, pr, cfg);
     $("#rateNote").textContent = `· ${inr(cfg.chairPrice)}/chair · ${inr(cfg.platePrice)}/plate · ${curTax.name} ${curTax.rate}%${curTax.inclusive?" (included in prices)":""}  (edit in Control Center)`;
     // seat counts + object cost from current version (same engine as the builder)
     let seats=0, objectsCost=0; try{ const v=await BPStore.quotes.getVersion(id, full.currentVersion);
@@ -605,7 +605,7 @@
     b.textContent=""; b.hidden=!show; if(!show) return;
     b.append(document.createTextNode(`This quote is in ${qT.currency} (${qT.name}). Your studio now prices in ${sT.currency} (${sT.name} ${sT.rate}%). `));
     const btn=document.createElement("button"); btn.type="button"; btn.className="btn"; btn.textContent=`Switch to ${sT.currency}`;
-    btn.addEventListener("click",()=>{ cmKeep=false; curTax=sT; $("#p_gst").value=cfg.gstPct; $("#p_cgst").value=cfg.cateringGstPct; $("#p_chairPrice").value=cfg.chairPrice;
+    btn.addEventListener("click",()=>{ cmKeep=false; cmTaxSwitched=true; curTax=sT; $("#p_gst").value=cfg.gstPct; $("#p_cgst").value=cfg.cateringGstPct; $("#p_chairPrice").value=cfg.chairPrice;
       b.hidden=true; recalc(); BPUI.toast(`Re-priced in ${sT.currency} - check the rates, then save.`,{type:"info"}); });
     b.append(btn);
   }
@@ -681,7 +681,10 @@
     const prevPr=(detailCache[cmId]&&detailCache[cmId].pricing)||{};
     const chairsManual = String($("#p_chairs").value)!==cmChairsSeed ? true : HelmSizing.isChairsManual(client, prevPr);
     client=HelmSizing.merge(client, chairsManual ? { chairs:p.chairs, chairsManual:true } : { chairsManual:false });
+    // C3: keep the quote's own tax snapshot unless "Switch" was clicked in this modal
     const pricing = { ...p, computed:t, total:t.total, client, chairsManual, otherAuto: prevPr.otherAuto, supplier: prevPr.supplier };
+    { const keep = BPStore.tax.preserveSnapshot(prevPr, pricing, { switch: cmTaxSwitched });
+      Object.keys(pricing).forEach((k) => { if (!(k in keep)) delete pricing[k]; }); Object.assign(pricing, keep); }
     // B6 — optimistic lock: the updated_at captured when this modal loaded. If another
     // user/tab changed the quote since, updateMeta throws {code:"CONFLICT"} instead of
     // silently overwriting their edit.

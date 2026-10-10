@@ -328,8 +328,42 @@
         if (free(l, seatGap) && free(r, seatGap)) out.push(l, r); }
       return out;
     }
+    // live-round2 C2: a balanced grid shaped to the seating zone. cols-per-side x rows is chosen so the
+    // grid's aspect matches the zone's (not "as many columns as the width allows" = 2 long rows with
+    // empty bands), at a comfortable pitch (table + gap, then tighter), stretched up to 1.6x to fill
+    // the zone, mirrored about the centre aisle and centred in the zone.
+    function balancedCells(n, cw, ch, gapX, gapY, y0, y1) {
+      const Wa = W / 2 - aisle / 2 - 1, Dz = y1 - y0, pairs = Math.ceil(n / 2);
+      if (Wa < cw || Dz < ch || pairs < 1) return [];
+      for (const k of [1, 0.75, 0.5]) {
+        const px0 = cw + gapX * k, py0 = ch + gapY * k;
+        const Cmax = Math.floor((Wa - cw) / px0) + 1, Rmax = Math.floor((Dz - ch) / py0) + 1;
+        if (Cmax < 1 || Rmax < 1 || Cmax * Rmax < pairs) continue;
+        const zoneAsp = (2 * Wa + aisle) / Dz;
+        let pick = null;
+        for (let c = 1; c <= Cmax; c++) { const R = Math.ceil(pairs / c); if (R > Rmax) continue;
+          const px = c > 1 ? Math.min(px0 * 1.6, Math.max(px0, (Wa - cw) / (c - 1))) : px0, py = R > 1 ? Math.min(py0 * 1.6, Math.max(py0, (Dz - ch) / (R - 1))) : py0;
+          const gw = 2 * ((c - 1) * px + cw) + aisle, gd = (R - 1) * py + ch;
+          const sc = Math.abs(Math.log((gw / gd) / zoneAsp)) + 0.04 * (c * R - pairs) + 0.5 * Math.max(0, 1 - gd / Dz) + 0.5 * Math.max(0, 1 - gw / (2 * Wa + aisle));
+          if (!pick || sc < pick.sc) pick = { c, R, px, py, gd, sc }; }
+        if (!pick) continue;
+        const bw = (pick.c - 1) * pick.px + cw, off = Math.max(0, Math.min(pick.px, (Wa - bw) / 2));
+        const ys = y0 + Math.max(0, (Dz - pick.gd) / 2), out = [];
+        for (let r = 0; r < pick.R; r++) for (let c = 0; c < pick.c; c++) {
+          const yy = ys + r * pick.py;
+          const l = { x: cx - aisle / 2 - off - cw - c * pick.px, y: yy, w: cw, h: ch }, rr = { x: cx + aisle / 2 + off + c * pick.px, y: yy, w: cw, h: ch };
+          if (l.x < 1 || rr.x + rr.w > W - 1) continue;
+          if (free(l, seatGap) && free(rr, seatGap)) out.push(l, rr); }
+        if (out.length >= n) {
+          // the last (partial) row keeps its tables nearest the aisle, mirrored
+          return out.slice(0, n);
+        }
+      }
+      return [];
+    }
     function tablesIn(n, cw, ch, gapX, gapY, y0, y1) {
-      // try comfortable spacing, centred in the zone; then tighter; then from the top
+      const bal = balancedCells(n, cw, ch, gapX, gapY, y0, y1); if (bal.length >= n) return bal;
+      // fallback (busy zone): try comfortable spacing, centred in the zone; then tighter; then from the top
       let best = [];
       for (const k of [1, 0.75, 0.5]) { const px = cw + gapX * k, py = ch + gapY * k;
         const rowsNeed = Math.ceil(n / Math.max(1, 2 * (Math.floor((W / 2 - aisle / 2 - 1) / px) + 1)));
@@ -351,6 +385,7 @@
     function theatre(B, Rw, C, seats, y0, y1) {
       const P = 2.4, RP = 3, bw = C * P;
       let left = seats, yy = y0, made = 0;
+      const i0 = items.length, p0 = placed.length, bandOf = [];   // C2: for the spread/centre pass below
       let perBand = Math.max(1, Math.min(B, Math.floor((W - 4 + aisle) / (bw + aisle))));
       // B7: blocks come in mirrored pairs around the centre aisle (= stage / walkway centre line)
       if (perBand > 1 && perBand % 2) perBand--;
@@ -389,14 +424,37 @@
         for (let j = 0; j < m; j++) {
           const n = counts[j]; made++; if (n <= 0) continue;
           const x = xOf(j, m), ty = band.tys ? band.tys[j] : band.ty, fullRows = Math.floor(n / C), rem = n % C;
-          if (fullRows) mk('seatblock', { x, y: ty, w: bw, h: fullRows * RP }, 0, 'Seating block ' + made, { rows: fullRows, cols: C });
+          if (fullRows) { mk('seatblock', { x, y: ty, w: bw, h: fullRows * RP }, 0, 'Seating block ' + made, { rows: fullRows, cols: C }); bandOf.push(bandNo); }
           // partial last row: centred under its block
+          if (rem) bandOf.push(bandNo);
           if (rem) mk('chairrow', { x: x + (bw - rem * P) / 2, y: ty + fullRows * RP + 0.2, w: rem * P, h: 2 }, 0, 'Seating block ' + made + ' · last row', { rows: 1, cols: rem });
           left -= n; mainPlaced += n; bandBottom = Math.max(bandBottom, ty + fullRows * RP + (rem ? 2.2 : 0));
         }
         yy = bandBottom > yy ? bandBottom + aisle : yy + RP; bandNo++;
       }
+      spreadBands(i0, p0, bandOf, y0, y1);
       return yy;
+    }
+    // live-round2 C2: theatre bands were stacked from the top of the zone, leaving the back half empty.
+    // Open the cross-aisles between bands (up to +8 ft each) and centre the whole group in the zone -
+    // only when every moved block stays inside the zone and collision-free (else nothing moves).
+    function spreadBands(i0, p0, bandOf, y0, y1) {
+      const mine = items.slice(i0), rects = placed.slice(p0);
+      if (!mine.length || rects.length !== mine.length || bandOf.length !== mine.length) return;
+      const top = Math.min(...rects.map((r) => r.y)), bot = Math.max(...rects.map((r) => r.y + r.h));
+      const nb = Math.max(...bandOf) + 1, slack = y1 - bot;
+      if (slack <= 1) return;
+      const others = placed.slice(0, p0);
+      const okAt = (extra, base) => rects.every((r, i) => { const q = { x: r.x, y: r.y + base + bandOf[i] * extra, w: r.w, h: r.h };
+        return q.y >= y0 - 1e-6 && q.y + q.h <= y1 + 1e-6 && inside(q) && !others.some((o) => hit(q, o, seatGap)); });
+      const tries = [];
+      const ex0 = nb > 1 ? Math.min(8, slack * 0.6 / (nb - 1)) : 0;
+      for (const ex of [ex0, ex0 / 2, 0]) { const used = bot - top + ex * (nb - 1); tries.push([ex, Math.max(0, (y0 + (y1 - y0 - used) / 2) - top)]); }
+      for (const [ex, base] of tries) {
+        if (!(ex > 0 || base > 0.5) || !okAt(ex, base)) continue;
+        mine.forEach((it, i) => { const dy = base + bandOf[i] * ex; it.y += dy; rects[i].y += dy; });
+        return;
+      }
     }
     function banquet(nL, per, seats, y0, y1) {
       const len = Math.max(8, Math.min(30, Math.ceil(per / 2) * 2.2 + 1.5)), cells = tablesIn(nL > 1 && nL % 2 ? nL + 1 : nL, len, 4, 4, 6, y0, y1);
@@ -436,7 +494,7 @@
         (on('dancefloor') || on('standing') ? ', a smaller dance floor / standing zone' : '') + `, or ${Math.max(0, mainPlaced + plan.extras).toLocaleString('en-IN')} seats.`);
     }
     if (missing.length) warnings.push('Could not fit: ' + missing.join(', ') + ' — enlarge the hall or untick them.');
-    return { items, warnings, missing, seats, expected, mainPlaced, main: plan.main, extras: plan.extras, fits };
+    return { items, warnings, missing, seats, expected, mainPlaced, main: plan.main, extras: plan.extras, fits, zone: { top: zTop, bottom: zBot } };
   }
 
   // B7: what the theatre placement really draws: even split per block, last row partial

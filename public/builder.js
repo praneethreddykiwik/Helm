@@ -374,7 +374,8 @@ async function syncQuotePricingNow(){
         if(latest){ currentPricing = latest.pricing || currentPricing; expectedUpdatedAt = latest.updatedAt || null; } }catch(_){}
       const p = quotePricingNow();
       const t = BPStore.pricing.quoteTotal(p);
-      const pricing = Object.assign({}, p, { computed:t, total:t.total, client: currentClient });
+      // C3: never drop / change the quote's own tax snapshot (country, currency, ...) from the builder
+      const pricing = BPStore.tax.preserveSnapshot(currentPricing, Object.assign({}, p, { computed:t, total:t.total, client: currentClient }));
       await BPStore.quotes.updateMeta(currentQuoteId, { pricing }, expectedUpdatedAt);
       currentPricing = pricing; _lastAutoOther = pricing.otherAuto;
       updateQuoteBadge && updateQuoteBadge();

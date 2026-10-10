@@ -348,7 +348,7 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=3"></script>
-<script src="country-profile.js?v=3"></script><script src="store-api.js?v=163"></script>
+<script src="country-profile.js?v=3"></script><script src="store-api.js?v=164"></script>
 <script src="tour.js?v=9"></script>
 <script src="booklet.js?v=13"></script>
 <script src="share-checklist.js?v=8"></script>
@@ -384,6 +384,7 @@
   // B11: an already-priced quote keeps ITS OWN country/currency (India/INR when it has no snapshot) until the
   // user explicitly switches it to the studio's country; B10: the tax-exempt tick prices tax at 0
   let quoteKeep=false;
+  let taxSwitched=false;   // C3: the user clicked "Switch to <studio currency>" (sticky until saved)
   const exemptOn=()=>{ const x=document.getElementById&&document.getElementById("q_taxExempt"); return !!(x&&x.checked); };
   const fTax=()=>BPStore.tax.resolve(Object.assign({}, quoteKeep&&ev ? BPStore.quoteTaxCfg(ev) : (rates||{}), { taxExempt: exemptOn() }));
   const inr=(n)=>{ const r=fTax(); return r.country!=="IN" ? BPStore.tax.money(Math.round(n||0), r) : "₹"+Math.round(n||0).toLocaleString("en-IN"); };
@@ -642,10 +643,12 @@
       return;
     }
     if($("#q_msg")) $("#q_msg").style.color="";
-    const pricing=Object.assign({}, ev.pricing||{}, p, { computed:t, total:t.total, client:ev.client||{}, _ratesAt:ratesSnapshot() });
+    // C3: keep the quote's own tax snapshot unless the user explicitly switched it
+    let pricing=Object.assign({}, ev.pricing||{}, p, { computed:t, total:t.total, client:ev.client||{}, _ratesAt:ratesSnapshot() });
+    pricing=BPStore.tax.preserveSnapshot(ev.pricing||{}, pricing, { switch: taxSwitched });
     try{
       const r=await BPStore.quotationVersions.save(id, pricing);   // keeps every Q-version; also updates current pricing
-      ev.pricing=pricing; saved("quote"); updateProgress(); await renderQuoteVersions(); renderActivity(); renderReprice();
+      ev.pricing=pricing; taxSwitched=false; saved("quote"); updateProgress(); await renderQuoteVersions(); renderActivity(); renderReprice();
       $("#q_msg") && ($("#q_msg").textContent="Saved "+(r&&r.label||""));
     }catch(e){
       // REL-01: ONLY fall back when the versioning RPC is genuinely ABSENT
@@ -665,7 +668,7 @@
         throw e;   // do NOT swallow; do NOT claim success
       }
       // legacy / pre-phase77 environment: persist current pricing only.
-      await BPStore.quotes.updateMeta(id,{ pricing }); ev.pricing=pricing; saved("quote"); updateProgress();
+      await BPStore.quotes.updateMeta(id,{ pricing }); ev.pricing=pricing; taxSwitched=false; saved("quote"); updateProgress();
       if($("#q_msg")) $("#q_msg").textContent="Saved (legacy mode — versioning not enabled)";
     }
   }
@@ -1006,11 +1009,23 @@
     $("#q_taxExempt").checked=String(pr.taxExempt)==="true";
     paintCurBanner();
   }
+  // C3: a brand-new (never priced) quote in a non-India studio is stamped with the studio's tax
+  // snapshot straight away, so lists / tax_snapshot show AED/USD before the first quotation save.
+  // Unpriced (no gstPct/total) so it stays "untouched"; India studios write nothing (snapshot is {}).
+  async function stampNewQuoteTax(){
+    try{
+      const pr=(ev&&ev.pricing)||{}; if(!canEdit || quoteBlocked() || ("gstPct" in pr) || ("total" in pr)) return;
+      const snap=BPStore.tax.snapshot(BPStore.tax.resolve(rates||{})); if(!snap.taxCountry) return;
+      if(Object.keys(snap).every(k=>pr[k]===snap[k])) return;
+      const next=Object.assign({}, pr, snap);
+      await BPStore.quotes.updateMeta(id,{ pricing: next }); ev.pricing=next;
+    }catch(_){ /* best effort: the first quotation save stamps it anyway */ }
+  }
   // B11: "This quote is in INR - switch to AED?" instead of silently re-labelling an existing quote
   function paintCurBanner(){
     const pr=(ev&&ev.pricing)||{}, priced=("gstPct" in pr)||("total" in pr);
     const qT=BPStore.quoteTax(ev||{}), sT=BPStore.tax.resolve(rates||{});
-    quoteKeep = priced && qT.country!==sT.country;
+    quoteKeep = !taxSwitched && priced && qT.country!==sT.country;   // C3: a re-render/reload of rates never undoes an explicit Switch
     const b=$("#q_curBanner"); if(!b) return; b.hidden=!quoteKeep;
     if(quoteKeep){ $("#q_curBannerTxt").textContent=`This quote is in ${qT.currency} (${qT.name}). Your studio now prices in ${sT.currency} (${sT.name} ${sT.rate}%).`; $("#q_curSwitch").textContent=`Switch to ${sT.currency}`; }
   }
@@ -1044,6 +1059,7 @@
     { const sz=HelmSizing.resolve(cl, ev.pricing, layoutRoom); $("#g_len").value=sz.len||""; $("#g_wid").value=sz.wid||""; }
     seedQuote();
     renderPrice(); updateProgress();
+    stampNewQuoteTax();
     // advance payment + activity
     updateAdvance();
     if(ev.status==='confirmed' || ((ev.approvalStatus||ev.approval_status)==='paid')) $("#bookingBadge").hidden=false;
@@ -1144,8 +1160,11 @@
     $("#q_save").addEventListener("click",()=>{ BPUI.guard($("#q_save"),saveQuotation,{busyLabel:"Saving…"}).catch(()=>{}); });
     $("#q_pdf").addEventListener("click",downloadQuotePDF);
     $("#q_taxExempt").addEventListener("change",()=>{ dirty=true; renderPrice(); });
-    $("#q_curSwitch").addEventListener("click",()=>{ quoteKeep=false; $("#q_curBanner").hidden=true; $("#q_chairPrice").value=rates.chairPrice; dirty=true; renderPrice();
-      BPUI.toast("Re-priced in "+BPStore.tax.resolve(rates||{}).currency+" - save the quotation to keep it.",{type:"info"}); });
+    $("#q_curSwitch").addEventListener("click",()=>{ quoteKeep=false; taxSwitched=true; $("#q_curBanner").hidden=true; $("#q_chairPrice").value=rates.chairPrice; dirty=true; renderPrice();
+      // C3: an explicit switch is persisted right away (a new Q-version in the studio's currency) so a later
+      // builder / layout sync can't silently put the quote back to its old currency
+      const cur=BPStore.tax.resolve(rates||{}).currency;
+      BPUI.guard($("#q_curSwitch"), async()=>{ await saveQuotation(); if(taxSwitched) BPUI.toast("Re-priced in "+cur+" - save the quotation to keep it.",{type:"info"}); else BPUI.toast("Quote switched to "+cur+".",{type:"ok"}); }); });
     const addReq=()=>{ const t=$("#rq_title").value.trim(); if(!t){ $("#rq_title").focus(); return; }
       BPUI.guard($("#rq_add"), async()=>{
         try{ await BPStore.discovery.addReq(id,{ service:t, priority:$("#rq_pri").value }); vocabAdd("reqs",t); fillVocab(); $("#rq_title").value=""; await renderReqs(); }
