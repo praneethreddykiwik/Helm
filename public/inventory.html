@@ -87,6 +87,7 @@
   .err{background:#fdecec;color:#b42318;border-radius:8px;padding:8px 12px;font-size:12px;margin-top:10px}
   .lsheet{width:min(400px,96vw)}
   .sub2{font-size:12px;color:var(--ink-3)}
+  .attrbox{margin-top:12px}.attrbox summary{cursor:pointer;font-weight:600;font-size:13px;padding:4px 0}.attrline{font-size:12px;color:var(--ink-3);margin-top:2px}
 </style>
 <link rel="stylesheet" href="theme.css?v=76">
 </head>
@@ -138,6 +139,7 @@
       <span class="spacer"></span>
       <span class="s-bbce15d" id="seedStatus" role="status"></span>
       <button type="button" id="seedBtn" class="btn" hidden>Load starter items</button>
+      <button type="button" id="importBtn" class="btn" hidden>Import from Excel / CSV</button>
       <button type="button" id="newBtn" class="btn primary" hidden>＋ Add item</button>
     </div>
     <div class="card table-scroll s-8d8d59e">
@@ -201,6 +203,7 @@
       <div class="fld"><label for="i_cost">Unit cost (₹)</label><input id="i_cost" type="number" min="0" step="1" value="0"></div>
       <div class="fld s-068a8dd"><label for="i_notes">Notes</label><input id="i_notes" placeholder="optional"></div>
     </div>
+    <details id="i_attrs_box" class="attrbox"><summary>Custom fields</summary><div id="i_attrs"></div></details>
     <datalist id="catList"></datalist>
     <div id="im_err" class="err" hidden role="alert" aria-live="assertive"></div>
     <div class="foot">
@@ -246,7 +249,10 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
+<script src="xlsx-lite.js?v=2"></script>
+<script src="smart-import-core.js?v=1"></script>
+<script src="smart-import.js?v=2"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -255,7 +261,7 @@
   const fmtDate=(d)=>{ if(!d) return ""; const s=String(d); const dt=new Date(s.length===10?s+"T00:00:00":s); if(isNaN(dt)) return esc(s); return dt.toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}); };
   const quoteId=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   const ST={reserved:"Reserved",allocated:"Allocated",returned:"Returned",cancelled:"Cancelled"};
-  let canEdit=false, canDelete=false, avail={}, items=[], reservations=[], checkouts=[], quotesById={}, editingId=null, filter="", catF="", priF="", showInactive=false, showCancelled=false;
+  let attrDefs=[], attrEd=null, editingItem=null, canEdit=false, canDelete=false, avail={}, items=[], reservations=[], checkouts=[], quotesById={}, editingId=null, filter="", catF="", priF="", showInactive=false, showCancelled=false;
   const PRI={A:"A",B:"B",C:"C"};
   const INV_CATEGORIES=["Seating","Tables","Linens","Lighting","Sound & AV","Staging & Structures","Decor & Florals","Catering Equipment","Tableware","Power & Cabling","Tents & Canopies","Signage","Office & Misc"];
   const STARTER_ITEMS=[
@@ -299,7 +305,7 @@
     const datalistCats=[...new Set([...INV_CATEGORIES,...presentCats])];
     $("#catList").innerHTML=datalistCats.map(c=>`<option value="${esc(c)}">`).join("");
     // show/hide the starter-items button (idempotent, so always available when editable)
-    $("#seedBtn").hidden=!canEdit;
+    $("#seedBtn").hidden=!canEdit; $("#importBtn").hidden=!canEdit||!window.HelmImport;
 
     const q=filter.trim().toLowerCase();
     const shown=items.filter(i=>(!catF||i.category===catF)&&(!priF||(i.priority||"C")===priF)&&(!q||[i.name,i.category].join(" ").toLowerCase().includes(q))&&(!window.HelmSavedFilters||HelmSavedFilters.match("inventory",{item:i,avail:avail[i.id]})));
@@ -309,14 +315,14 @@
       const p=i.priority||"C";
       const inactive=i.active===false;
       return `<tr data-item="${esc(i.id)}"${inactive?' style="opacity:.55"':''}>
-        <td><b>${esc(i.name)}</b>${inactive?' <span class="cat" style="background:var(--line);color:var(--ink-3)">Inactive</span>':''}</td>
+        <td><b>${esc(i.name)}</b>${(()=>{ const al=typeof HelmImportCore!=="undefined"?HelmImportCore.attrList("inventory",i.attributes,attrDefs):[]; return al.length?`<div class="attrline">${al.slice(0,4).map(a=>`<span title="${esc(a.label)}: ${esc(a.value)}">${esc(a.label)}: ${esc(a.value.slice(0,30))}</span>`).join(" · ")}${al.length>4?` · +${al.length-4} more`:""}</div>`:""; })()}${inactive?' <span class="cat" style="background:var(--line);color:var(--ink-3)">Inactive</span>':''}</td>
         <td><span class="pri ${p}" title="Priority ${p}">${p}</span></td>
         <td>${i.category?`<span class="cat">${esc(i.category)}</span>`:""}</td>
         <td class="num">${num(i.total_qty)}</td>
         <td class="num">${num(a.committed)}</td>
         <td class="num avail ${availClass(a.available,Number(i.total_qty))}">${num(a.available)}</td>
         <td>${esc(i.unit||"")}</td>
-        <td class="num">${Number(i.unit_cost||0)?("₹"+num(i.unit_cost)):'<span style="color:var(--ink-3)">—</span>'}</td>
+        <td class="num">${Number(i.unit_cost||0)?BPStore.studioMoney(i.unit_cost):'<span style="color:var(--ink-3)">—</span>'}</td>
         <td>${canEdit?(inactive
             ?`<button type="button" class="rm" data-react="${esc(i.id)}" aria-label="Reactivate ${esc(i.name)}">Reactivate</button>`
             :`<button type="button" class="rm" data-edit="${esc(i.id)}" aria-label="Edit ${esc(i.name)}">Edit</button>`):""}</td>
@@ -416,6 +422,8 @@
     $("#i_name").value=it?it.name||"":""; $("#i_cat").value=it?it.category||"":"";
     $("#i_qty").value=it?it.total_qty||0:0; $("#i_unit").value=it?it.unit||"":""; $("#i_notes").value=it?it.notes||"":"";
     $("#i_pri").value=it?(it.priority||"C"):"C"; $("#i_cost").value=it?(it.unit_cost||0):0;
+    editingItem=it||null; attrEd=window.HelmImport?HelmImport.attrEditor("inventory",it&&it.attributes,attrDefs):null;
+    $("#i_attrs").replaceChildren(...(attrEd?[attrEd.el]:[])); $("#i_attrs_box").hidden=!attrEd;
     $("#im_deact").hidden=!(it&&canEdit); $("#im_err").hidden=true; itemDirty.clean(); $("#itemModal").hidden=false; setTimeout(()=>$("#i_name").focus(),50);
   }
   const itemDirty=BPUI.trackDirty($("#itemModal"));
@@ -427,6 +435,8 @@
     const qr=V.count($("#i_qty").value,{allowZero:true,field:"Total quantity"}); if(!qr.ok){ $("#im_err").textContent=qr.error; $("#im_err").hidden=false; return; }
     const cr=V.money($("#i_cost").value,{field:"Unit cost"}); if(!cr.ok){ $("#im_err").textContent=cr.error; $("#im_err").hidden=false; return; }
     const rec={ name, category:$("#i_cat").value.trim()||null, total_qty:qr.value, unit:$("#i_unit").value.trim()||null, notes:$("#i_notes").value.trim()||null, priority:$("#i_pri").value||"C", unit_cost:cr.value };
+    let attrCh=null;
+    if(attrEd){ if(editingItem&&editingItem.id){ const ch=attrEd.changes(); if(ch.any) attrCh=ch; } else { const at=attrEd.read(); if(Object.keys(at).length) rec.attributes=at; } }
     $("#im_err").hidden=true;
     // duplicate guard: same name ignoring case, spacing, punctuation, accents and "&" vs "and" (inactive items count too)
     try{
@@ -434,7 +444,8 @@
       const key=norm(name), dup=(await BPStore.inventory.items(true)).find(x=>x.id!==editingId && norm(x.name)===key);
       if(dup){ $("#im_err").textContent="You already have \u201c"+dup.name+"\u201d"+(dup.active===false?" (inactive \u2014 tick \u201cShow inactive\u201d and reactivate it)":" \u2014 edit that item's quantity instead of adding it again.")+""; $("#im_err").hidden=false; return; }
     }catch(e){ /* if the check itself can't run, fall through to the normal save */ }
-    try{ if(editingId) await BPStore.inventory.updateItem(editingId,rec); else await BPStore.inventory.addItem(rec); }
+    try{ if(editingId && attrCh) rec.attributes=await BPStore.mergeAttributes("inventory_items", editingId, Object.assign({ base:editingItem&&editingItem.attributes }, attrCh));
+         if(editingId) await BPStore.inventory.updateItem(editingId,rec); else await BPStore.inventory.addItem(rec); }
     catch(e){ $("#im_err").textContent=BPUI.friendlyError(e,{action:"save the item"}); $("#im_err").hidden=false; return; }
     const wasEdit=!!editingId; closeItem(); BPUI.toast(wasEdit?"Item saved.":"Item added.",{type:"ok"}); await load();
   }
@@ -532,12 +543,12 @@
         <td class="num">${num(c.qty_out)}</td>
         <td class="num">${num(c.qty_in)}</td>
         <td class="num"><span class="miss">${num(missing)}</span></td>
-        <td class="num">${val?("₹"+num(val)):"—"}</td>
+        <td class="num">${val?BPStore.studioMoney(val):"—"}</td>
         <td>${esc(c.confirmed_by||c.returned_by||"—")}</td>
         <td style="font-size:12px;color:var(--ink-3)">${c.checked_in_at?new Date(c.checked_in_at).toLocaleDateString():""}</td>
       </tr>`; }).join("");
     $("#lossRows").innerHTML = lossRows || '<tr><td colspan="8" class="empty">No missing items — everything came back. 🎉</td></tr>';
-    $("#lossTotal").innerHTML = lostUnits? `<span class="miss">${num(lostUnits)} units missing · ₹${num(lostVal)} lost</span>` : '<span class="backok">All returned</span>';
+    $("#lossTotal").innerHTML = lostUnits? `<span class="miss">${num(lostUnits)} units missing · ${esc(BPStore.studioMoney(lostVal))} lost</span>` : '<span class="backok">All returned</span>';
     $("#loanRows").querySelectorAll("[data-in]").forEach(b=>b.addEventListener("click",()=>checkInFlow(b.dataset.in)));
     $("#loanRows").querySelectorAll("[data-cxl]").forEach(b=>b.addEventListener("click",()=>cancelCheckout(b)));
   }
@@ -559,7 +570,7 @@
     let qtyIn=Number($("#ci_in").value); if(isNaN(qtyIn)) qtyIn=0;
     const missing=Math.max(out-qtyIn,0);
     if(missing>0){
-      $("#ci_warn").innerHTML=`<b>${num(missing)}</b> ${esc(it.unit||"unit(s)")} short of ${num(out)} — the missing ${num(missing)} will be written off as loss (stock reduced by ${num(missing)}, ₹${num(missing*Number(it.unit_cost||0))}).`;
+      $("#ci_warn").innerHTML=`<b>${num(missing)}</b> ${esc(it.unit||"unit(s)")} short of ${num(out)} — the missing ${num(missing)} will be written off as loss (stock reduced by ${num(missing)}, ${esc(BPStore.studioMoney(missing*Number(it.unit_cost||0)))}).`;
       $("#ci_warn").hidden=false;
     } else { $("#ci_warn").hidden=true; }
   }
@@ -602,6 +613,7 @@
   $("#ci_save").addEventListener("click",()=>BPUI.guard($("#ci_save"),confirmCheckIn,{busyLabel:"Saving…"}));
   $("#ciModal").addEventListener("click",e=>{ if(e.target.id==="ciModal") requestCloseCheckIn(); });
   $("#seedBtn").addEventListener("click",()=>loadStarterItems($("#seedBtn")));
+  $("#importBtn").addEventListener("click",()=>HelmImport.open({ entity:"inventory", onDone:async(sum)=>{ if(sum){ try{ attrDefs=await BPStore.smartImport.fieldDefs("inventory"); }catch(e){} await load(); } } }));
 
   $("#co_add").addEventListener("click",async()=>{
     const itemId=$("#co_item").value;
@@ -680,6 +692,7 @@
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("inventory"))) return;
     canEdit=await BPStore.auth.canEditArea("inventory"); canDelete=await BPStore.auth.can("delete");
+    try{ attrDefs=await BPStore.smartImport.fieldDefs("inventory"); }catch(e){ attrDefs=[]; }
     $("#app").hidden=false; $("#newBtn").hidden=!canEdit;
     if(!canEdit) $("#coCard").querySelectorAll("input,select,button").forEach(el=>el.disabled=true);
     if(quoteId){

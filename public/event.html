@@ -151,16 +151,16 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
 <script src="tour.js?v=9"></script>
 <script src="booklet.js?v=13"></script>
 <script src="share-checklist.js?v=8"></script>
-<script src="booklet-share.js?v=4"></script>
+<script src="booklet-share.js?v=5"></script>
 <script src="pkg-review.js?v=4"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  const inr=(n)=>"₹"+Number(n||0).toLocaleString("en-IN");
+  const inr=(n)=>BPStore.studioMoney(n);
   let id=new URLSearchParams(location.search).get("id");
 
   // the lifecycle — a calm, guided path. Each stage carries the "next action" hint.

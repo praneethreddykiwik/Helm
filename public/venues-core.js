@@ -36,6 +36,7 @@
   // Rupees in Indian short form: 350000 -> "3.5 L", 12000000 -> "1.2 Cr"
   function inrShort(v) {
     var n = num(v); if (n === null || isNaN(n)) return "";
+    if ((typeof window!=="undefined"&&window.BPStore&&window.BPStore.studioTax&&window.BPStore.studioTax().country!=="IN")) return window.BPStore.studioMoney(n, { round: true });   // 0089: lakh/crore only for India
     if (n >= 1e7) return "₹" + round2(n / 1e7).toString() + " Cr";
     if (n >= 1e5) return "₹" + round2(n / 1e5).toString() + " L";
     return "₹" + Math.round(n).toLocaleString("en-IN");

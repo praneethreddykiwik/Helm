@@ -214,12 +214,12 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $=(s,r=document)=>r.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const fmt=(n)=> n==null||n===""?"":"₹"+Number(n).toLocaleString("en-IN");
+  const fmt=(n)=> n==null||n===""?"":BPStore.studioMoney(n);
   const STAGES=[
     {k:"new",label:"New",c:"#8a95ad"},
     {k:"qualified",label:"Qualified",c:"#2f6fed"},

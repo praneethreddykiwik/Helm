@@ -200,6 +200,7 @@
     --cx-crimson:#f87171; --cx-crimson-soft:rgba(248,113,113,.12); --cx-crimson-border:rgba(248,113,113,.32);
     box-shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 30px -16px rgba(0,0,0,.7);
   }
+  .cfline{display:block;font-size:12px;color:var(--ink-3)}.cfname{flex:1;min-width:0}.cfmeta{font-size:12px;color:var(--ink-3)}.cfoff{opacity:.6}
 </style>
 <link rel="stylesheet" href="pkg-review.css?v=1">
 <link rel="stylesheet" href="comms-settings.css?v=1">
@@ -266,7 +267,7 @@
         <div class="fld"><label for="o_line1">Billing address *</label><input id="o_line1" maxlength="160" autocomplete="address-line1"></div>
         <div class="fld"><label for="o_line2">Address line 2</label><input id="o_line2" maxlength="160" autocomplete="address-line2"></div>
         <div class="fld"><label for="o_city">City *</label><input id="o_city" maxlength="60" autocomplete="address-level2"></div>
-        <div class="fld"><label for="o_state" id="o_state_lbl">State *</label><input id="o_state" maxlength="60" autocomplete="address-level1"></div>
+        <div class="fld"><label for="o_state" id="o_state_lbl">State *</label><input id="o_state" maxlength="60" autocomplete="address-level1" list="o_state_list"><datalist id="o_state_list"></datalist></div>
         <div class="fld"><label for="o_pin" id="o_pin_lbl">PIN code *</label><input id="o_pin" maxlength="10" inputmode="numeric" autocomplete="postal-code"></div>
       </div>
       <div class="actions"><button type="button" class="btn primary" id="o_save">Save studio settings</button></div>
@@ -390,8 +391,20 @@
 
     <div class="card">
       <h3>Import from Excel</h3>
-      <p class="mnote">Bring in your price list (chair / plate rates), dishes and inventory from an Excel (.xlsx / .xls) or CSV file. Download a template, check the preview (errors are shown per row), then confirm. New rows are added; rows with the exact same name are only updated if you choose to. Nothing is ever deleted.</p>
-      <div class="actions"><a class="btn" href="onboarding.html#s1">Import price list</a>&nbsp;<a class="btn" href="onboarding.html#s2">Import inventory</a>&nbsp;<a class="btn" href="onboarding.html#s0">Import dishes</a></div>
+      <p class="mnote">Bring in staff, dishes, inventory and vendors from your own Excel (.xlsx) or CSV sheet — any column names, any order. Helm matches the columns for you, keeps extra columns as custom fields, shows a preview (errors per row) and only then imports. Rows already in Helm are skipped unless you choose to update them. Nothing is ever deleted.</p>
+      <div class="actions"><button type="button" class="btn" id="imp_staff">Import staff</button>&nbsp;<button type="button" class="btn" id="imp_menu">Import dishes</button>&nbsp;<button type="button" class="btn" id="imp_inventory">Import inventory</button>&nbsp;<button type="button" class="btn" id="imp_vendors">Import vendors</button>&nbsp;<a class="btn" href="onboarding.html#s1">Import price list</a></div>
+    </div>
+
+    <div class="card" id="cfCard">
+      <h3>Custom fields</h3>
+      <p class="mnote">Extra details you keep on staff, dishes, inventory and vendors (for example IFSC code, joining date, allergens, warehouse). Imports add them automatically; here you can add, rename or hide them. Hiding a field keeps the saved values.</p>
+      <div class="addrow"><label for="cf_entity" class="sr-only">Custom fields for</label><select id="cf_entity" aria-label="Custom fields for"><option value="staff">Staff</option><option value="menu">Dishes</option><option value="inventory">Inventory</option><option value="vendors">Vendors</option></select></div>
+      <div id="cfList"></div>
+      <div class="addrow">
+        <input id="cf_label" maxlength="80" placeholder="New field name e.g. Blood group" aria-label="New custom field name">
+        <select id="cf_type" aria-label="New custom field type"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="bool">Yes / No</option></select>
+        <button type="button" class="btn" id="cf_add">+ Add field</button>
+      </div>
     </div>
 
     <div class="card">
@@ -686,13 +699,16 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
+<script src="xlsx-lite.js?v=2"></script>
+<script src="smart-import-core.js?v=1"></script>
+<script src="smart-import.js?v=2"></script>
 <script src="hq-invoice.js?v=1"></script>
 <script src="tour.js?v=9"></script>
 <script src="pkg-review.js?v=4"></script>
 <script src="onboarding-core.js?v=3"></script>
 <script src="comms-settings.js?v=2"></script>
-<script src="venues-core.js?v=2"></script>
+<script src="venues-core.js?v=3"></script>
 <script src="venues-admin.js?v=1"></script>
 <script src="item-pricing.js?v=1"></script>
 <script>
@@ -709,6 +725,50 @@
       $("#logoutBtn").addEventListener("click",async()=>{await BPStore.auth.signOut();location.href="dashboard.html";});
     } else { el.innerHTML=`<button type="button" id="loginBtn">Sign in</button>`; $("#loginBtn").addEventListener("click",()=>location.replace("login.html?next="+encodeURIComponent(HelmUrl.here()))); } }
 
+  // 0088 smart import + custom fields (DOM built with textContent; no HTML strings)
+  const IMP=window.HelmImport;
+  ["staff","menu","inventory","vendors"].forEach(en=>{ const b=$("#imp_"+en); if(b) b.addEventListener("click",()=>{
+    if(!IMP){ setMsg("err","Import is not available — reload the page."); return; }
+    HelmImport.open({ entity:en, onDone:async(sum)=>{ if(!sum) return; setMsg("ok",`Import finished: ${sum.created} added, ${sum.updated} updated, ${sum.skipped} skipped, ${sum.errors} with problems.`); if(en==="menu") await renderDishes(); await drawCustomFields(); } });
+  }); });
+  let cfCanEdit=false;
+  async function initCustomFields(){
+    try{ cfCanEdit=isAdmin||await BPStore.auth.canEditArea("controls"); }catch(e){ cfCanEdit=false; }
+    $("#cf_add").hidden=!cfCanEdit; $("#cf_label").hidden=!cfCanEdit; $("#cf_type").hidden=!cfCanEdit;
+    await drawCustomFields();
+  }
+  async function drawCustomFields(){
+    const en=$("#cf_entity").value, box=$("#cfList");
+    let defs=[]; try{ defs=await BPStore.smartImport.fieldDefs(en); }catch(e){ box.replaceChildren(Object.assign(document.createElement("div"),{className:"row",textContent:"Custom fields aren't available yet (database update 0088 pending)."})); return; }
+    if(!defs.length){ box.replaceChildren(Object.assign(document.createElement("div"),{className:"row cfnone",textContent:"No custom fields yet. Import a sheet or add one below."})); return; }
+    box.replaceChildren(...defs.map((d,i)=>{
+      const row=document.createElement("div"); row.className="row"+(d.active===false?" cfoff":"");
+      const inp=document.createElement("input"); inp.value=d.label; inp.maxLength=80; inp.readOnly=!cfCanEdit; inp.setAttribute("aria-label","Name of custom field "+d.key); inp.className="cfname";
+      const meta=document.createElement("span"); meta.className="mono cfmeta"; meta.textContent=d.type+(d.active===false?" · hidden":"");
+      row.append(inp,meta);
+      if(cfCanEdit){
+        const save=document.createElement("button"); save.type="button"; save.className="btn"; save.textContent="Rename";
+        save.addEventListener("click",()=>BPUI.guard(save,async()=>{ const l=inp.value.trim(); if(!l){ setMsg("err","A field needs a name."); return; }
+          try{ await BPStore.smartImport.saveFieldDef({entity:en,key:d.key,label:l,type:d.type,active:d.active!==false}); setMsg("ok","Field renamed."); await drawCustomFields(); }catch(e){ setMsg("err",errMsg(e,"rename the field")); } }));
+        const tog=document.createElement("button"); tog.type="button"; tog.className="rm"; tog.textContent=d.active===false?"Show":"Hide";
+        tog.addEventListener("click",()=>BPUI.guard(tog,async()=>{ try{ await BPStore.smartImport.saveFieldDef({entity:en,key:d.key,label:d.label,type:d.type,active:d.active===false}); await drawCustomFields(); }catch(e){ setMsg("err",errMsg(e,"update the field")); } }));
+        row.append(save,tog);
+      }
+      return row;
+    }));
+  }
+  $("#cf_entity").addEventListener("change",drawCustomFields);
+  $("#cf_add").addEventListener("click",()=>BPUI.guard($("#cf_add"),async()=>{
+    const en=$("#cf_entity").value, label=$("#cf_label").value.trim();
+    if(label.length<1){ setMsg("err","Enter a name for the new field."); return; }
+    let defs=[]; try{ defs=await BPStore.smartImport.fieldDefs(en); }catch(e){}
+    const taken=new Set(defs.map(d=>d.key).concat((HelmImportCore.ENTITIES[en]||{fields:[]}).fields.filter(f=>f.std).map(f=>f.key)));
+    const builtIn=(HelmImportCore.ENTITIES[en]||{fields:[]}).fields.find(f=>!f.std&&HelmImportCore.normHeader(f.label)===HelmImportCore.normHeader(label)&&!defs.some(d=>d.key===f.key));
+    const key=builtIn?builtIn.key:HelmImportCore.slugKey(label,taken);
+    try{ await BPStore.smartImport.saveFieldDef({entity:en,key,label,type:$("#cf_type").value,isNew:true,position:defs.length}); $("#cf_label").value=""; setMsg("ok","Field added."); await drawCustomFields(); }
+    catch(e){ setMsg("err",errMsg(e,"add the field")); }
+  }));
+
   let isAdmin=false;
   async function load(){
     await BPStore.init(); await renderAccount();
@@ -719,7 +779,7 @@
     if(!canControls && !isAdmin){ $("#gate").hidden=false; $("#gate").innerHTML='<p style="color:var(--ink-3)">Your role can\'t open the Control Center.</p>'; return; }
     $("#app").hidden=false;
     await loadPricing();
-    await renderCoupons(); await renderChairs(); await renderPlates(); await renderDishes(); await renderMenuTemplates(); await renderLayoutRules(); await renderOrg();
+    await renderCoupons(); await renderChairs(); await renderPlates(); await renderDishes(); await initCustomFields(); await renderMenuTemplates(); await renderLayoutRules(); await renderOrg();
     // Only admins get the User-control tab (add/remove users + access matrix).
     if(isAdmin){
       $("#tab-users").hidden=false;
@@ -820,7 +880,7 @@
   function renderItemPrices(){
     const ap = pricingCfg.assetPrices || (pricingCfg.assetPrices={});
     $("#itemPriceList").innerHTML = ITEM_CATALOG.map(([type,label,def])=>
-      `<div class="fld"><label for="ip_${esc(type)}">${esc(label)} <span style="color:var(--ink-3);font-weight:400">(default ₹${def.toLocaleString('en-IN')})</span></label>`+
+      `<div class="fld"><label for="ip_${esc(type)}">${esc(label)} <span style="color:var(--ink-3);font-weight:400">(default ${esc(BPStore.studioMoney(def))})</span></label>`+
       `<input id="ip_${esc(type)}" type="number" min="0" step="1" data-type="${esc(type)}" placeholder="${def}" value="${ap[type]!=null&&Number.isFinite(Number(ap[type]))?Number(ap[type]):''}"></div>`
     ).join("");
   }
@@ -972,7 +1032,7 @@
 
   async function renderChairs(){
     let c=[]; try{ c=(await BPStore.chairTypes.list())||[]; }catch(e){ BPUI.loadError($("#chairList"), e, renderChairs, {what:"chair types"}); return; }
-    $("#chairList").innerHTML = c.length? c.map(x=>`<div class="row"><span class="g">${esc(x.name)}</span><span class="mono">₹${Number(x.price||0).toLocaleString("en-IN")}/chair</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove chair type ${esc(x.name)}">Remove</button></div>`).join("") : '<div class="row" style="color:var(--ink-3)">No chair types yet — add plastic, cushioned, Chiavari…</div>';
+    $("#chairList").innerHTML = c.length? c.map(x=>`<div class="row"><span class="g">${esc(x.name)}</span><span class="mono">${esc(BPStore.studioMoney(x.price))}/chair</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove chair type ${esc(x.name)}">Remove</button></div>`).join("") : '<div class="row" style="color:var(--ink-3)">No chair types yet — add plastic, cushioned, Chiavari…</div>';
     $("#chairList").querySelectorAll(".rm").forEach(b=>b.addEventListener("click",()=>removeRow(b,`chair type ${b.dataset.name}`,()=>BPStore.chairTypes.remove(b.dataset.id),renderChairs)));
   }
   $("#ch_add").addEventListener("click",()=>BPUI.guard($("#ch_add"),async()=>{
@@ -985,7 +1045,7 @@
 
   async function renderPlates(){
     let c=[]; try{ c=(await BPStore.plateTypes.list())||[]; }catch(e){ BPUI.loadError($("#plateList"), e, renderPlates, {what:"plate types"}); return; }
-    $("#plateList").innerHTML = c.length? c.map(x=>`<div class="row"><span class="g">${esc(x.name)}</span><span class="mono">₹${Number(x.price||0).toLocaleString("en-IN")}/plate</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove plate type ${esc(x.name)}">Remove</button></div>`).join("") : '<div class="row" style="color:var(--ink-3)">No plate types yet — add Veg, Non-veg, Special…</div>';
+    $("#plateList").innerHTML = c.length? c.map(x=>`<div class="row"><span class="g">${esc(x.name)}</span><span class="mono">${esc(BPStore.studioMoney(x.price))}/plate</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove plate type ${esc(x.name)}">Remove</button></div>`).join("") : '<div class="row" style="color:var(--ink-3)">No plate types yet — add Veg, Non-veg, Special…</div>';
     $("#plateList").querySelectorAll(".rm").forEach(b=>b.addEventListener("click",()=>removeRow(b,`plate type ${b.dataset.name}`,()=>BPStore.plateTypes.remove(b.dataset.id),renderPlates)));
   }
   $("#pl_add").addEventListener("click",()=>BPUI.guard($("#pl_add"),async()=>{
@@ -1031,6 +1091,9 @@
     const cc=BPStore.tax.code($("#o_country").value), p=BPStore.tax.profile(cc), india=cc==="IN";
     $("#o_gst_lbl").textContent=p.idLabel+" (optional)"; $("#o_gst").placeholder=p.idEg||"";
     $("#o_pin_lbl").textContent=india?"PIN code *":"Postal code *"; $("#o_state_lbl").textContent=india?"State *":(p.regionLabel||"State / region")+" *";
+    // 0089: suggest the country's states / emirates (US options show the state base sales-tax rate)
+    const dl=$("#o_state_list"); if(dl){ dl.textContent=""; const hc=window.HelmCountry;
+      if(hc && ["IN","AE","US"].includes(cc)) hc.get(cc).regions.forEach(r=>{ const o=document.createElement("option"); o.value=r.name; if(r.rate!=null) o.label=r.name+" - "+r.rate+"% state sales tax"; dl.appendChild(o); }); }
   }
   $("#o_country").addEventListener("change",()=>{ paintCountryLabels(); const p=BPStore.tax.profile($("#o_country").value); if(p.known) $("#o_currency").value=p.currency; });
   function paintBilling(o){
@@ -1071,6 +1134,10 @@
       if(anyBill) billing=r.data; }
     const newCountry=BPStore.tax.code($("#o_country").value);
     { const r=BPStore.tax.validateId(newCountry, gstRaw); if(!r.ok){ orgMsg("err", newCountry==="IN"?"Enter a valid 15-character GSTIN, e.g. 36ABCDE1234F1Z5 (or leave it blank).":r.error); $("#o_gst").focus(); return; } }
+    // 0089: switching country re-labels tax/currency for NEW quotes only - ask first
+    const prevTaxCountry=BPStore.tax.code(pricingCfg.taxCountry||"IN");
+    if(newCountry!==prevTaxCountry && pricingLoaded){ const tp=BPStore.tax.profile(newCountry);
+      if(!(await BPUI.confirm(`Switch your studio to ${tp.name}? New quotes will use ${tp.tax} and ${tp.known?tp.currency:"your currency"}. Quotes you already saved, sent or got paid keep their price, tax and currency exactly as they are.`,{title:"Change country",okLabel:"Switch country"}))) return; }
     // #16: an email saved HERE is the studio's public contact (business_email_confirmed); the booklet
     // never shows an unconfirmed (e.g. signup) email. Brand keys we don't edit here are kept.
     const patch={ name:$("#o_name").value.trim()||null, business_email:email?email.toLowerCase():null, business_email_confirmed:!!email,
@@ -1085,9 +1152,19 @@
       if(newCountry!==BPStore.tax.code(pricingCfg.taxCountry||"IN") && pricingLoaded){
         // 0079: a new country re-labels the tax and suggests its default rate for NEW quotes (saved quotes keep their price)
         const tp=BPStore.tax.profile(newCountry);
+        const region=$("#o_state").value.trim().slice(0,60);
         const next=Object.assign({}, pricingCfg, { taxCountry:newCountry, currency:tp.known?tp.currency:(patch.currency||"INR") });
-        if(tp.rate!=null) next.gstPct=tp.rate;
+        if(region && newCountry!=="IN") next.taxRegion=region; else delete next.taxRegion;
+        if(window.HelmCountry && ["IN","AE","US"].includes(newCountry)) next.gstPct=window.HelmCountry.defaultRate(newCountry, region);
+        else if(tp.rate!=null) next.gstPct=tp.rate;
         try{ await BPStore.config.setPricing(next); pricingCfg=next; $("#p_gst").value=next.gstPct??""; paintTaxFields(); }catch(e){ orgMsg("err",errMsg(e,"update the tax for the new country")); return; }
+      }
+      else if(pricingLoaded && newCountry!=="IN" && ($("#o_state").value.trim().slice(0,60))!==(pricingCfg.taxRegion||"")){
+        // 0089: same country, new state/emirate -> store the region; a US studio still on the old
+        // state's default rate moves to the new state's base rate (a custom rate is kept)
+        const region=$("#o_state").value.trim().slice(0,60), next=Object.assign({}, pricingCfg, { taxRegion:region });
+        if(window.HelmCountry && newCountry==="US" && Number(pricingCfg.gstPct)===window.HelmCountry.defaultRate("US", pricingCfg.taxRegion||"")) next.gstPct=window.HelmCountry.defaultRate("US", region);
+        try{ await BPStore.config.setPricing(next); pricingCfg=next; $("#p_gst").value=next.gstPct??""; paintTaxFields(); }catch(e){ orgMsg("err",errMsg(e,"update the tax region")); return; }
       }
       orgCountry=newCountry;
       orgMsg("ok","Studio settings saved."); setTimeout(()=>orgMsg("",""),2500); }
@@ -1175,16 +1252,19 @@
     }catch(e){ lxMsg("err",errMsg(e,"save link expiry")); }
   }));
 
+  let dishDefs=[];
   let dishCache=[];
+  const dishAttrText=(x)=>{ const al=typeof HelmImportCore!=="undefined"?HelmImportCore.attrList("menu",x.attributes,dishDefs):[]; return al.slice(0,4).map(a=>a.label+": "+a.value.slice(0,30)).join(" · ")+(al.length>4?" · +"+(al.length-4)+" more":""); };
   const KINDLBL={veg:'<span style="color:#0f7a43">veg</span>',nonveg:'<span style="color:#b42318">non-veg</span>',special:'<span style="color:#7c3aed">special</span>'};
   async function renderDishes(){
+    try{ dishDefs=await BPStore.smartImport.fieldDefs("menu"); }catch(e){ dishDefs=[]; }
     try{ dishCache=(await BPStore.dishCatalog.list())||[]; }catch(e){ dishCache=[]; BPUI.loadError($("#dishList"), e, renderDishes, {what:"dishes"}); return; }
     drawDishes();
   }
   function drawDishes(){
     const term=($("#dishFilter").value||"").trim().toLowerCase();
     const list=dishCache.filter(d=>!term || (d.name+" "+d.category).toLowerCase().includes(term));
-    $("#dishList").innerHTML = list.length ? list.map(x=>`<div class="row"><span class="g">${esc(x.name)} <span style="font-size:12px">· ${KINDLBL[x.kind]||""}</span></span><span class="mono" style="font-size:12px">${esc(x.category)}</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove dish ${esc(x.name)}">Remove</button></div>`).join("")
+    $("#dishList").innerHTML = list.length ? list.map(x=>`<div class="row"><span class="g">${esc(x.name)} <span style="font-size:12px">· ${KINDLBL[x.kind]||""}</span><span class="cfline">${esc(dishAttrText(x))}</span></span><span class="mono" style="font-size:12px">${esc(x.category)}</span><button type="button" class="rm" data-id="${esc(x.id)}" data-name="${esc(x.name)}" aria-label="Remove dish ${esc(x.name)}">Remove</button></div>`).join("")
       : `<div class="row" style="color:var(--ink-3)">${dishCache.length?"No dishes match this filter.":"No dishes yet — add your first below."}</div>`;
     $("#dishList").querySelectorAll(".rm").forEach(b=>b.addEventListener("click",()=>removeRow(b,`dish ${b.dataset.name}`,()=>BPStore.dishCatalog.remove(b.dataset.id),renderDishes)));
   }

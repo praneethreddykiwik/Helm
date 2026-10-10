@@ -140,12 +140,12 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const inr=(n)=>"₹"+Number(n||0).toLocaleString("en-IN");
+  const inr=(n)=>BPStore.studioMoney(n);
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   let canEdit=false, canDelete=false, ev=null, rating=0, closedAt=null, closureFailed=false;
   const clampStars=(n)=>Math.max(0,Math.min(5,Math.round(Number(n)||0)));
@@ -236,7 +236,7 @@
     try{
       const b=await BPStore.closure.blockers(id);
       if(b && b.blocked){
-        const money=n=>"₹"+Math.round(Number(n)||0).toLocaleString("en-IN");
+        const money=n=>BPStore.studioMoney(n,{round:true});
         const lines=[];
         if(Number(b.balance_owed)>0) lines.push("• Client balance still owed (payment ledger): "+money(b.balance_owed));
         if(Number(b.open_checkouts)>0) lines.push("• "+b.open_checkouts+" equipment checkout"+(b.open_checkouts>1?"s":"")+" still out: "
@@ -266,7 +266,7 @@
     if(!overrideReason) try{
       const s=await BPStore.settlement.summary(id);
       const bal=Math.max(0, Number((s&&s.balance)||0)), vo=Math.max(0, Number((s&&s.vendorOutstanding)||0));
-      const money=n=>"₹"+Math.round(n).toLocaleString("en-IN");
+      const money=n=>BPStore.studioMoney(n,{round:true});
       if(bal>0 || vo>0){
         const lines=[]; if(bal>0) lines.push("• Client balance still due: "+money(bal));
         if(vo>0) lines.push("• Vendor amount unsettled: "+money(vo));

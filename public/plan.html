@@ -154,7 +154,7 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -188,7 +188,7 @@
   const dishEditable=()=>canEdit && !locked && !planFailed && !menuFailed;
   let templates=[];
   const DIET_LABEL={veg:"Veg",nonveg:"Non-veg"};
-  function inr(n){ return "₹"+Math.round(n||0).toLocaleString("en-IN"); }
+  function inr(n){ return BPStore.studioMoney(n,{round:true}); }
   function renderPackages(){
     const host=$("#pkgCards"); if(!host) return;
     if(!templates.length){ $("#pkgBlock").style.display="none"; return; }

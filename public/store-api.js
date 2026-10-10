@@ -217,7 +217,7 @@ window.HelmUrl = HelmUrl;
   const PW_OK_KEY = "bp_pw_ok";                 // per tab: "<uid>" once password_change_required() said no
   // Per-USER browser state that must not carry over to the next person who signs in
   // on a shared computer (audit Phase 4). Device prefs (theme, tours) are kept.
-  const USER_LOCAL_KEYS = ["bps.clip", "wa_pin", "wa_mute", "wa_fav", "bp_chat_ping", "helm_org_country", "helm_ev_showall"];
+  const USER_LOCAL_KEYS = ["bps.clip", "wa_pin", "wa_mute", "wa_fav", "bp_chat_ping", "helm_org_country", "helm_ev_showall", "helm.studioTax"];
   function userLocalClear() { USER_LOCAL_KEYS.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} }); }
   let authRequired = false;     // true when Supabase enforces login (RLS) and nobody is signed in
 
@@ -2600,7 +2600,7 @@ window.HelmUrl = HelmUrl;
     getPricing: () => Promise.all([mode === "supabase"
       ? rpc("get_pricing_config")
       : Promise.resolve(Object.assign({}, PRICING_DEFAULTS, (() => { try { return JSON.parse(localStorage.getItem("bp_pricing_cfg") || "{}"); } catch (e) { return {}; } })())),
-      config.loadItemRates().catch(() => null)]).then((r) => r[0]),
+      config.loadItemRates().catch(() => null)]).then((r) => { try { BPStore.rememberStudioTax && BPStore.rememberStudioTax(r[0]); } catch (e) {} return r[0]; }),
     // 0086 item rate cards: { rates:{type:{...}}, canEdit, custom:[types the studio changed] }.
     // Every reader gets the merged card (studio edits over the shipped defaults).
     _itemRatesP: null,
@@ -2875,9 +2875,13 @@ window.HelmUrl = HelmUrl;
       // tax, so the total is the taxed value itself and the tax is extracted from
       // it. Mirrors helm_quote_total (server) which prices it as gstPct 0.
       const incl = String(a.taxInclusive).toLowerCase()==="true";
-      const gst = incl ? taxed - taxed/(1+gstPct/100) : taxed * gstPct/100;   // D5 single rate
+      // 0089: a tax-exempt client (e.g. US resale/nonprofit certificate) is priced at 0%
+      // on both sides (helm_quote_total prices taxExempt as gstPct 0).
+      const exempt = String(a.taxExempt).toLowerCase()==="true";
+      const rate = exempt ? 0 : gstPct;
+      const gst = incl ? taxed - taxed/(1+rate/100) : taxed * rate/100;   // D5 single rate
       const total = Math.round(incl ? taxed : taxed + gst);         // D7 round final only
-      return { serviceCharge, subtotal, discount, taxed, gst, total, taxInclusive:incl };
+      return { serviceCharge, subtotal, discount, taxed, gst, total, taxInclusive:incl, taxExempt:exempt };
     },
     // Quote-total (confirm-modal / write-back input shape). Now routes through
     // _canon so it agrees with breakdown() to the rupee for equivalent inputs.
@@ -2889,7 +2893,7 @@ window.HelmUrl = HelmUrl;
       const cateringAmt = clientCater?0:(+((p.catering&&p.catering.amount))||0);
       const cateringBucket = plateSub + cateringAmt;
       const c = this._canon({ preSvc: rental+cateringBucket, svcPct:+p.serviceChargePct||0,
-        discountFixed:+p.discount||0, discountPct:+p.discountPct||0, coupon:p.coupon, gstPct:+p.gstPct||0, taxInclusive:p.taxInclusive });
+        discountFixed:+p.discount||0, discountPct:+p.discountPct||0, coupon:p.coupon, gstPct:+p.gstPct||0, taxInclusive:p.taxInclusive, taxExempt:p.taxExempt });
       // Single-rate GST; CGST/SGST split kept for invoice display (intra-state
       // default; IGST only when place of supply is inter-state).
       const interstate = p.placeOfSupply==="inter";
@@ -2897,7 +2901,7 @@ window.HelmUrl = HelmUrl;
         serviceCharge:c.serviceCharge, subtotal:c.subtotal,
         gstRental:c.gst, gstCatering:0, totalGst:c.gst,
         cgst: interstate?0:c.gst/2, sgst: interstate?0:c.gst/2, igst: interstate?c.gst:0,
-        discount:c.discount, total:c.total, taxInclusive:c.taxInclusive };
+        discount:c.discount, total:c.total, taxInclusive:c.taxInclusive, taxExempt:c.taxExempt };
     },
     // THE unified breakdown. rates = getPricing() result.
     breakdown(inp, rates){
@@ -2920,11 +2924,11 @@ window.HelmUrl = HelmUrl;
       // D3: percent discount + coupon now honoured here too (were previously
       // dropped by the builder path). D1/D5/D7 via the shared core.
       const c = this._canon({ preSvc, svcPct, discountFixed:+inp.discount||0,
-        discountPct:+inp.discountPct||0, coupon:inp.coupon, gstPct, taxInclusive:rates.taxInclusive });
+        discountPct:+inp.discountPct||0, coupon:inp.coupon, gstPct, taxInclusive:rates.taxInclusive, taxExempt:inp.taxExempt });
       return { chairs, guests, chairPrice, platePrice, chairsCost, cateringCost,
         objectLines:oi.objectLines, objectsCost, layoutBase,
         serviceCharge:Math.round(c.serviceCharge), svcPct,
-        subtotal:c.subtotal, discount:c.discount, gstPct, gst:Math.round(c.gst), total:c.total, taxInclusive:c.taxInclusive };
+        subtotal:c.subtotal, discount:c.discount, gstPct, gst:Math.round(c.gst), total:c.total, taxInclusive:c.taxInclusive, taxExempt:c.taxExempt };
     },
   };
   const vendors = {
@@ -7620,6 +7624,45 @@ window.HelmUrl = HelmUrl;
       },
       setDefault: (id, on) => rpc("saved_view_set_default", { p_id: id, p_on: on !== false }),
     },
+    // 0088 - smart import (public/smart-import.js): custom fields, remembered column mappings and the
+    // batch import RPC. Before 0088 is applied the reads return [] / null and writes reject.
+    smartImport: {
+      ENTITIES: ["staff", "inventory", "menu", "vendors"],
+      existing: (entity) => entity === "staff" ? BPStore.staff.list(true) : entity === "inventory" ? BPStore.inventory.items(true)
+        : entity === "menu" ? BPStore.dishCatalog.list(true) : entity === "vendors" ? BPStore.vendors.listAll(true) : Promise.resolve([]),
+      fieldDefs: (entity) => {
+        if (!supa) return Promise.resolve([]);
+        let q = supa.from("custom_field_defs").select("entity,key,label,type,position,active").order("position").order("key").limit(500);
+        if (entity) q = q.eq("entity", entity);
+        return Promise.resolve(q).then(({ data, error }) => {
+          if (error) { if (rpcMissing(error) || error.code === "42P01" || error.code === "PGRST205") return []; throw error; }
+          return Array.isArray(data) ? data : [];
+        });
+      },
+      saveFieldDef: (d) => {
+        if (!supa) return Promise.reject(new Error("Custom fields need a signed-in studio."));
+        const row = { entity: String(d.entity), key: String(d.key), label: String(d.label || "").trim().slice(0, 80),
+          type: ["text", "number", "date", "bool"].includes(d.type) ? d.type : "text", active: d.active !== false };
+        if (d.position != null) row.position = Math.max(0, Math.min(10000, Math.round(Number(d.position) || 0)));
+        const q = d.isNew ? supa.from("custom_field_defs").insert(row)
+          : supa.from("custom_field_defs").update({ label: row.label, type: row.type, active: row.active }).eq("entity", row.entity).eq("key", row.key);
+        return Promise.resolve(q).then(({ error }) => { if (error) throw error; return true; });
+      },
+      getMapping: (entity) => {
+        if (!supa) return Promise.resolve(null);
+        return Promise.resolve(supa.from("import_mappings").select("mapping").eq("entity", entity).maybeSingle()).then(({ data, error }) => {
+          if (error) return null; return data && data.mapping ? data.mapping : null; });
+      },
+      saveMapping: (entity, mapping) => {
+        if (!supa) return Promise.resolve(false);
+        return Promise.resolve(supa.from("import_mappings").upsert({ entity, mapping: mapping || {} }, { onConflict: "org_id,entity" }))
+          .then(({ error }) => !error, () => false);
+      },
+      importBatch: (entity, rows, defs) => {
+        if (!supa) return Promise.reject(new Error("Importing needs a signed-in studio."));
+        return rpc("smart_import_batch", { p_entity: entity, p_rows: rows || [], p_defs: defs || [] });
+      },
+    },
     gettingStarted: {
       get: () => (supa ? rpc("my_getting_started").catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
       dismiss: (on) => rpc("my_getting_started_dismiss", { p_dismissed: on !== false }),
@@ -8780,7 +8823,7 @@ window.HelmUrl = HelmUrl;
       IN: { name: "India", currency: "INR", symbol: "₹", locale: "en-IN", tax: "GST", idLabel: "GSTIN", idRe: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, idEg: "36ABCDE1234F1Z5", rate: 18, rates: [18, 5, 12, 28, 0], split: true, regionLabel: "State" },
       AE: { name: "United Arab Emirates", currency: "AED", symbol: "AED ", locale: "en-AE", tax: "VAT", idLabel: "TRN", idRe: /^[0-9]{15}$/, idEg: "100123456700003", rate: 5, rates: [5, 0], regionLabel: "Emirate" },
       GB: { name: "United Kingdom", currency: "GBP", symbol: "£", locale: "en-GB", tax: "VAT", idLabel: "VAT number", idRe: /^(GB)?([0-9]{9}|[0-9]{12})$/, idEg: "GB123456789", rate: 20, rates: [20, 5, 0], regionLabel: "County" },
-      US: { name: "United States", currency: "USD", symbol: "$", locale: "en-US", tax: "Sales tax", idLabel: "Sales tax permit / EIN", idRe: /^[A-Z0-9-]{4,20}$/, idEg: "12-3456789", rate: null, rates: [], regionLabel: "State" },
+      US: { name: "United States", currency: "USD", symbol: "$", locale: "en-US", tax: "Sales tax", idLabel: "EIN", idRe: /^[0-9]{2}-?[0-9]{7}$/, idEg: "12-3456789", rate: null, rates: [], regionLabel: "State" },
       SG: { name: "Singapore", currency: "SGD", symbol: "S$", locale: "en-SG", tax: "GST", idLabel: "GST reg. no.", idRe: /^([0-9]{8,9}[A-Z]|[TSR][0-9]{2}[A-Z]{2}[0-9]{4}[A-Z]|M[0-9A-Z][0-9]{7}[A-Z])$/, idEg: "200312345A", rate: 9, rates: [9, 0], regionLabel: "Region" },
       AU: { name: "Australia", currency: "AUD", symbol: "A$", locale: "en-AU", tax: "GST", idLabel: "ABN", idRe: /^[0-9]{11}$/, idEg: "51824753556", rate: 10, rates: [10, 0], regionLabel: "State" },
       CA: { name: "Canada", currency: "CAD", symbol: "C$", locale: "en-CA", tax: "GST/HST", idLabel: "GST/HST number", idRe: /^[0-9]{9}(RT[0-9]{4})?$/, idEg: "123456789RT0001", rate: null, rates: [5, 13, 15], regionLabel: "Province" },
@@ -8798,13 +8841,19 @@ window.HelmUrl = HelmUrl;
     // cfg = pricing config OR a quote's pricing snapshot ({taxCountry,taxName,gstPct,taxInclusive,currency})
     function resolve(cfg) {
       cfg = cfg || {}; var p = profile(cfg.taxCountry || "IN");
-      var r = Number(cfg.gstPct); var rate = (cfg.gstPct == null || cfg.gstPct === "" || !isFinite(r)) ? (p.rate == null ? 0 : p.rate) : r;
+      var HC = (typeof window !== "undefined" && window.HelmCountry) || (typeof globalThis !== "undefined" && globalThis.HelmCountry) || null;
+      var region = String(cfg.taxRegion || "").replace(/[<>"'`\u0000-\u001f]/g, "").trim().slice(0, 60);
+      // 0089: default rate = studio override > US state base rate (HelmCountry) > country default
+      var dflt = (HC && (p.code === "US" || p.code === "AE" || p.code === "IN")) ? HC.defaultRate(p.code, region, cfg.taxRateOverride) : (p.rate == null ? 0 : p.rate);
+      var r = Number(cfg.gstPct); var rate = (cfg.gstPct == null || cfg.gstPct === "" || !isFinite(r)) ? dflt : r;
+      var exempt = isTrue(cfg.taxExempt); if (exempt) rate = 0;
       var cur = String(cfg.currency || "").trim().toUpperCase();
       var currency = p.known ? p.currency : (/^[A-Z]{3}$/.test(cur) ? cur : "INR");
       var name = (!p.known && cleanName(cfg.taxName)) || p.tax;
       return { country: p.code, countryName: p.name, name: name, rate: rate, inclusive: isTrue(cfg.taxInclusive), currency: currency,
         symbol: p.known ? p.symbol : (currency === "INR" ? "₹" : currency + " "), locale: p.locale, split: !!p.split,
-        idLabel: p.idLabel, idEg: p.idEg, rates: p.rates.slice(), regionLabel: p.regionLabel };
+        idLabel: p.idLabel, idEg: p.idEg, rates: p.rates.slice(), regionLabel: p.regionLabel,
+        region: region, exempt: exempt, invoiceTitle: p.code === "IN" || p.code === "AE" ? "Tax Invoice" : "Invoice" };
     }
     function money(n, res) {
       res = res || resolve({}); var x = Number(n); if (!isFinite(x)) x = 0;
@@ -8829,11 +8878,13 @@ window.HelmUrl = HelmUrl;
       res = res || resolve(pricing); t = t || {}; pricing = pricing || {};
       var gst = Number(t.totalGst != null ? t.totalGst : t.gst) || 0, pct = res.rate;
       var inc = res.inclusive ? " (included)" : "";
+      if (res.exempt || String(pricing.taxExempt).toLowerCase() === "true") return [{ label: res.name + " (exempt)", pct: 0, amount: 0 }];
       if (res.split) {
         if (pricing.placeOfSupply === "inter") return [{ label: "IGST" + inc, pct: pct, amount: gst }];
         return [{ label: "CGST" + inc, pct: pct / 2, amount: gst / 2 }, { label: "SGST" + inc, pct: pct / 2, amount: gst / 2 }];
       }
-      return [{ label: res.name + inc, pct: pct, amount: gst }];
+      var st = ""; if (res.country === "US" && res.region) { var HC = (typeof window !== "undefined" && window.HelmCountry) || null, f = HC && HC.findRegion("US", res.region); st = " (" + (f ? f.code : res.region) + ")"; }
+      return [{ label: res.name + st + inc, pct: pct, amount: gst }];
     }
     // keys a quote's pricing snapshot carries so client pages (which can't read the
     // studio config) label it right. India/exclusive adds nothing -> payload unchanged.
@@ -8841,11 +8892,96 @@ window.HelmUrl = HelmUrl;
       var o = {}; if (!res) return o;
       if (res.country !== "IN") { o.taxCountry = res.country; o.taxName = res.name; o.currency = res.currency; }
       if (res.inclusive) o.taxInclusive = true;
+      if (res.exempt) o.taxExempt = true;
+      if (res.region && res.country !== "IN") o.taxRegion = res.region;
       return o;
     }
     function countries() { return Object.keys(C).map(function (k) { return { iso: k, name: C[k].name }; }); }
     return { COUNTRIES: C, profile: profile, resolve: resolve, money: money, validateId: validateId, placeOfSupply: placeOfSupply, rows: rows, snapshot: snapshot, countries: countries, code: code };
   })();
+
+  // ---- studio money (0089) -------------------------------------------------------
+  // Pages that only know "the studio" (settlement, budget, inventory, closure, ...) format
+  // money through here. The studio's tax country is remembered for the tab session when
+  // the pricing config loads; until then (and for every Indian studio) the output is
+  // byte-identical to the old "₹" + toLocaleString("en-IN").
+  var STUDIO_TAX_KEY = "helm.studioTax";
+  BPStore.rememberStudioTax = function (cfg) {
+    cfg = cfg || {}; var o = { taxCountry: cfg.taxCountry || "IN", taxRegion: cfg.taxRegion || "", currency: cfg.currency || "" };
+    try { sessionStorage.setItem(STUDIO_TAX_KEY, JSON.stringify(o)); } catch (e) {}
+    // also kept across tabs/reloads (cleared on sign-out via USER_LOCAL_KEYS) so a UAE/US
+    // studio never sees a "\u20b9" flash before the pricing config loads on the next page
+    try { localStorage.setItem(STUDIO_TAX_KEY, JSON.stringify(o)); } catch (e) {}
+    BPStore._studioTax = BPStore.tax.resolve(o);
+    try { if (typeof document !== "undefined") BPStore.localizeCurrency(document); } catch (e) {}
+    return BPStore._studioTax;
+  };
+  BPStore.studioTax = function () {
+    if (BPStore._studioTax) return BPStore._studioTax;
+    var o = null; try { o = JSON.parse(sessionStorage.getItem(STUDIO_TAX_KEY) || "null"); } catch (e) {}
+    if (!o) { try { o = JSON.parse(localStorage.getItem(STUDIO_TAX_KEY) || "null"); } catch (e) {} }
+    if (!o || typeof o !== "object") o = null;
+    return (BPStore._studioTax = BPStore.tax.resolve(o || {}));
+  };
+  BPStore.studioMoney = function (n, opts) {
+    var r = BPStore.studioTax(), x = Number(n || 0); if (opts && opts.round) x = Math.round(x);
+    if (r.country === "IN") return "\u20b9" + x.toLocaleString("en-IN");
+    return BPStore.tax.money(x, r);
+  };
+  // ---- payment terms from onboarding (pricing config: advancePct / balanceDueDays / paymentTermsNote) ----
+  // {advancePct (0-100, default 50 only when set), balanceDueDays, note, balanceDue: "YYYY-MM-DD"|null}
+  BPStore.paymentTerms = function (cfg, eventDate) {
+    cfg = cfg && typeof cfg === "object" ? cfg : {};
+    var a = Number(cfg.advancePct), d = Number(cfg.balanceDueDays);
+    var adv = cfg.advancePct != null && cfg.advancePct !== "" && isFinite(a) && a >= 0 && a <= 100 ? Math.round(a * 100) / 100 : null;
+    var days = cfg.balanceDueDays != null && cfg.balanceDueDays !== "" && Number.isInteger(d) && d >= 0 && d <= 365 ? d : null;
+    var note = typeof cfg.paymentTermsNote === "string" ? cfg.paymentTermsNote.replace(/[<>\u0000-\u0008\u000b-\u001f]/g, "").trim().slice(0, 500) : "";
+    var due = null;
+    if (days != null && /^\d{4}-\d{2}-\d{2}$/.test(String(eventDate || ""))) {
+      var t = Date.UTC(+eventDate.slice(0, 4), +eventDate.slice(5, 7) - 1, +eventDate.slice(8, 10)) - days * 86400000;
+      if (isFinite(t)) due = new Date(t).toISOString().slice(0, 10);
+    }
+    return { advancePct: adv, balanceDueDays: days, note: note, balanceDue: due };
+  };
+  // ---- supplier block for printed quotes / invoices (UAE Art. 59: name, address, TRN) ----
+  BPStore.studioHeader = function (org) {
+    org = org && typeof org === "object" ? org : {};
+    var b = org.brand && typeof org.brand === "object" ? org.brand : {}, bl = b.billing && typeof b.billing === "object" ? b.billing : {};
+    var str = function (v) { return typeof v === "string" ? v.replace(/[<>\u0000-\u001f]/g, " ").trim() : ""; };
+    var cc = /^[A-Z]{2}$/.test(String(bl.country || "")) ? bl.country : "IN";
+    var prof = BPStore.tax.profile(cc);
+    var addr = [str(bl.line1), str(bl.line2), [str(bl.city), str(bl.state), str(bl.pin)].filter(Boolean).join(", "), prof.name].filter(Boolean).join(", ");
+    return { name: str(bl.legal_name) || str(org.name) || "", tradeName: str(org.name), address: addr, country: cc,
+      taxIdLabel: prof.idLabel || "Tax ID", taxId: str(org.gst_number).toUpperCase(), phone: str(b.phone) };
+  };
+  // Custom-field edits (0088): re-read the row's CURRENT attributes and apply only the changed
+  // keys, so a save never wipes keys another tab / an import added since the form opened.
+  BPStore.mergeAttributes = async function (table, id, ch) {
+    if (["crew_members", "inventory_items"].indexOf(table) < 0) throw new Error("Unknown list.");
+    var base = {};
+    if (mode === "supabase" && supa && id) {
+      var r = await supa.from(table).select("attributes").eq("id", id).maybeSingle(); if (r.error) throw r.error;
+      base = (r.data && r.data.attributes) || {};
+    } else if (ch && ch.base) base = ch.base;
+    var out = Object.assign({}, base && typeof base === "object" && !Array.isArray(base) ? base : {});
+    if (ch && ch.set) Object.keys(ch.set).forEach(function (k) { out[k] = ch.set[k]; });
+    if (ch && Array.isArray(ch.unset)) ch.unset.forEach(function (k) { delete out[k]; });
+    return out;
+  };
+  BPStore.studioSymbol = function () { var r = BPStore.studioTax(); return r.country === "IN" ? "\u20b9" : String(r.symbol || r.currency || "").trim(); };
+  // Static labels ("Amount ₹", "Unit cost (₹)") follow the studio currency: text nodes only, never HTML.
+  BPStore.localizeCurrency = function (root) {
+    var sym = BPStore.studioSymbol(); if (!root || sym === "\u20b9" || !root.querySelectorAll) return;
+    var els = root.querySelectorAll("label, th, .totbar, [data-cur]");
+    for (var i = 0; i < els.length; i++) {
+      var w = document.createTreeWalker(els[i], 4), t;
+      while ((t = w.nextNode())) if (t.nodeValue.indexOf("\u20b9") >= 0) t.nodeValue = t.nodeValue.split("\u20b9").join(sym + (sym.length > 1 ? " " : ""));
+    }
+  };
+  if (typeof document !== "undefined") {
+    var __lc = function () { try { BPStore.localizeCurrency(document); } catch (e) {} };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", __lc); else setTimeout(__lc, 0);
+  }
 
   // ---- amount in words (Indian numbering: crore/lakh/thousand) — QA M-07 -----
   // Used on quotes/invoices so a large manually-influenced total is unambiguous

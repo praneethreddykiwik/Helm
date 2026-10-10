@@ -368,7 +368,7 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
 <script>
 (function(){
   const $=(s,r)=>(r||document).querySelector(s);
@@ -460,7 +460,7 @@
     return r?'<span class="tick dbl read">✓✓</span>':'<span class="tick dbl">✓✓</span>'; }
 
   /* ---------- attachment cards (quote / layout) ---------- */
-  const inr=(n)=>{ const v=Number(n||0); try{ return "₹"+v.toLocaleString("en-IN"); }catch(e){ return "₹"+v; } };
+  const inr=(n)=>{ const v=Number(n||0); try{ return BPStore.studioMoney(v); }catch(e){ return "₹"+v; } };
   function cardLabel(m){ const mt=(m&&m.meta)||{}; if(mt.kind==="event") return "📋 Event details"+(mt.code?": "+mt.code:""); if(mt.kind==="layout") return "📐 Layout"+(mt.name?": "+mt.name:""); return "📄 Quote"+(mt.code?": "+mt.code:(mt.title?": "+mt.title:"")); }
   /* event group card (0035): built by the server from a whitelist (no money); every value escaped here */
   function isEventCard(m){ return !!(m&&m.kind==="card"&&m.sender_id==null&&m.meta&&m.meta.kind==="event"); }

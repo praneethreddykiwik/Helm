@@ -192,6 +192,7 @@
       <div class="fld"><label for="p_guests">Guests / plates</label><input id="p_guests" type="number" min="0" step="1"></div>
       <div class="fld" id="posFld"><label for="p_pos">Place of supply</label>
         <select id="p_pos"><option value="intra">Intra-state (CGST + SGST)</option><option value="inter">Inter-state (IGST)</option></select></div>
+      <div class="fld"><label for="p_taxExempt"><input type="checkbox" id="p_taxExempt"> Tax-exempt client (no tax charged)</label></div>
     </div>
     <div class="grid three s-d2c171b">
       <div class="fld"><label for="p_cmode">Catering source</label>
@@ -279,14 +280,14 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
 <script src="event-sizing.js?v=5"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $ = (s)=>document.querySelector(s);
   const esc = (s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   // 0079: studio tax country (India unless set) — money symbol + tax labels follow it
-  let curTax=null, studioTax=null, studioState="";
+  let curTax=null, studioTax=null, studioState="", studioOrg=null, studioCfg={};
   const inr = (n)=> (curTax && curTax.country!=="IN") ? BPStore.tax.money(Number(n||0), curTax) : "₹"+Number(n||0).toLocaleString("en-IN");
   const fmtDate=(iso)=>{try{return new Date(iso).toLocaleDateString();}catch{return "—";}};
   const statBadge=(s)=> s==="confirmed"?'<span class="stat ok">Confirmed</span>':s==="cancelled"?'<span class="stat no">Cancelled</span>':'<span class="stat q">Quote</span>';
@@ -406,8 +407,8 @@
     // mark_paid is admin/manager only server-side (SEC-05 F11); offline mode has no roles
     canMarkPaid = !BPStore.auth.enabled() || await BPStore.auth.canEditArea("finance");   // server: mark_paid needs has_area(finance,edit)
     $("#newBtn").hidden = !canCreate;
-    try{ studioTax=curTax=BPStore.tax.resolve((await BPStore.config.getPricing())||{}); paintTaxCopy(studioTax); }catch{}
-    try{ const o=await BPStore.org.current(); const bl=o&&o.brand&&o.brand.billing; studioState=(bl&&typeof bl.state==="string")?bl.state:""; }catch{}
+    try{ studioCfg=(await BPStore.config.getPricing())||{}; studioTax=curTax=BPStore.tax.resolve(studioCfg); paintTaxCopy(studioTax); }catch{}
+    try{ const o=await BPStore.org.current(); studioOrg=o||null; const bl=o&&o.brand&&o.brand.billing; studioState=(bl&&typeof bl.state==="string")?bl.state:""; }catch{}
     runShelfTick();   // 0040: client link expired → Archive / Deleted (rate-limited server-side; never awaited)
     // opened from an event workspace? focus that quote by pre-filling the search
     const focus=focusPending ? new URLSearchParams(location.search).get("focus") : null;
@@ -582,6 +583,7 @@
     $("#p_cmode").value = (pr.catering&&pr.catering.mode)||"inhouse";
     $("#p_camount").value = (pr.catering&&pr.catering.amount)||0;
     $("#p_discount").value = pr.discount||0; $("#p_discountPct").value = pr.discountPct||0;
+    $("#p_taxExempt").checked = String(pr.taxExempt)==="true";
     $("#p_pos").value = pr.placeOfSupply||BPStore.tax.placeOfSupply(studioState, cl.state)||"intra";
     platesEdited = pr.guests!=null && pr.chairs!=null && pr.guests!==pr.chairs;
     recalc();
@@ -599,7 +601,7 @@
       gstPct:+$("#p_gst").value||0, other:+$("#p_other").value||0,
       serviceChargePct:+$("#p_svc").value||0, discount:+$("#p_discount").value||0, discountPct:+$("#p_discountPct").value||0,
       couponCode: cp?couponCode:"", coupon: cp?{kind:cp.kind,value:cp.value}:null,
-      placeOfSupply:$("#p_pos").value, currency:"INR", ...BPStore.tax.snapshot(curTax),
+      placeOfSupply:$("#p_pos").value, currency:"INR", ...BPStore.tax.snapshot(curTax), taxExempt: $("#p_taxExempt").checked ? true : undefined,
       catering:{ mode:$("#p_cmode").value, vendor: vsel==="__new"?"":vsel, amount:+$("#p_camount").value||0, gstPct:+$("#p_cgst").value||0 } };
   }
   function gatherClient(){
@@ -716,13 +718,16 @@
     const line=(l,a)=>`<tr><td>${l}</td><td style="text-align:right">${inr(a)}</td></tr>`;
     const qTax=BPStore.tax.resolve(p); curTax=qTax;   // this quote's own snapshot (India when absent)
     const tax = !t ? "" : BPStore.tax.rows(t, p, qTax).map(r=>line(esc(r.label)+(r.pct?" ("+Number(r.pct)+"%)":""), r.amount||0)).join("");
+    let sup={}; try{ sup=BPStore.studioHeader(studioOrg); }catch(_){ sup={}; }
+    const terms=BPStore.paymentTerms(studioCfg, cl.eventDate);
+    const termsHtml=(terms.advancePct!=null||terms.balanceDue||terms.note)?`<h3 style="font-size:13px;margin:18px 0 4px">Payment terms</h3><p class=muted style="margin:0">${terms.advancePct!=null?"Advance "+esc(String(terms.advancePct))+"% ("+inr(Math.round(grand*terms.advancePct/100))+") to confirm the booking. ":""}${terms.balanceDue?"Balance due by "+esc(terms.balanceDue)+(terms.balanceDueDays?" ("+terms.balanceDueDays+" days before the event)":" (event day)")+". ":""}${terms.note?esc(terms.note):""}</p>`:"";
     const html=`<!doctype html><meta charset=utf8><title>${isInv?"Invoice":"Quotation"} ${esc(full.code)}</title>
     <style>body{font-family:system-ui,sans-serif;max-width:720px;margin:32px auto;color:#141b2e;padding:0 20px}
     h1{font-size:20px;margin:0} .muted{color:#5b6475;font-size:12px} table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}
     td,th{padding:8px;border-bottom:1px solid #e6ebf3;text-align:left} .tot td{border:0} .grand td{font-weight:700;font-size:16px;border-top:2px solid #141b2e}
     .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #141b2e;padding-bottom:14px}
     .badge{background:#eef2ff;color:#4457c8;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}</style>
-    <div class=head><div><h1>Helm Events</h1><div class=muted>Event ${isInv?"Invoice":"Quotation"}</div></div>
+    <div class=head><div><h1>${esc(sup.name||"Helm Events")}</h1>${sup.tradeName&&sup.tradeName!==sup.name?`<div class=muted>${esc(sup.tradeName)}</div>`:""}${sup.address?`<div class=muted>${esc(sup.address)}</div>`:""}${sup.taxId?`<div class=muted>${esc(sup.taxIdLabel)}: ${esc(sup.taxId)}</div>`:""}<div class=muted style="font-weight:700;margin-top:4px">${isInv?(qTax.country==="AE"||qTax.country==="IN"?"Tax Invoice":"Invoice"):"Event Quotation"}</div></div>
       <div style="text-align:right"><div style="font-family:monospace;font-weight:700;font-size:16px">${esc(full.code)}</div>
       <div class=muted>${isInv?"Confirmed "+fmtDate(full.confirmedAt):"Quote v"+full.currentVersion}${ver&&String(ver)!==String(full.currentVersion)?" · layout v"+esc(String(ver)):""} · ${fmtDate(full.updatedAt)}</div>
       <span class=badge>${isInv?"CONFIRMED":"QUOTE"}</span></div></div>
@@ -741,7 +746,7 @@
       ${t.discount?`<tr class=tot><td>Discount</td><td style="text-align:right">− ${inr(t.discount)}</td></tr>`:""}`:""}
       <tr class=grand><td>Grand total</td><td style="text-align:right">${inr(grand)}</td></tr>
       <tr><td colspan=2 style="padding-top:6px;font-style:italic;color:#555;font-size:12px;border:0">${qTax.country!=="IN"?"":BPStore.amountInWords(grand)}</td></tr></table>
-    <p class=muted>${qTax.country==="IN"?"Taxes per Indian GST (event management SAC 998596).":esc(qTax.name)+(qTax.inclusive?" included in the prices above.":" as applicable in "+esc(qTax.countryName)+".")} ${p.catering&&p.catering.vendor?"Caterer: "+esc(p.catering.vendor)+". ":""}This is a computer-generated document.</p>`;
+    <p class=muted>${qTax.exempt?"Tax-exempt client: no "+esc(qTax.name)+" charged. ":""}${qTax.country==="IN"?"Taxes per Indian GST (event management SAC 998596).":esc(qTax.name)+(qTax.inclusive?" included in the prices above.":" as applicable in "+esc(qTax.countryName)+".")} ${p.catering&&p.catering.vendor?"Caterer: "+esc(p.catering.vendor)+". ":""}This is a computer-generated document.</p>${termsHtml}`;
     // No inline <script> in the popup (it inherits this page's CSP) — print from the opener instead.
     const w=window.open("","_blank"); if(w){ w.opener=null; w.document.write(html); w.document.close(); setTimeout(()=>{ try{ w.focus(); w.print(); }catch(_){} },250); }
     else BPUI.toast("Popup blocked — allow popups to download/print.",{type:"err"});

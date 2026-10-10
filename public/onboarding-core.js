@@ -513,7 +513,7 @@
     IN: { label: "GSTIN", re: GSTIN_RE, eg: "36ABCDE1234F1Z5" },
     AE: { label: "TRN", re: /^[0-9]{15}$/, eg: "100123456700003" },
     GB: { label: "VAT number", re: /^(GB)?([0-9]{9}|[0-9]{12})$/, eg: "GB123456789" },
-    US: { label: "Sales tax permit / EIN", re: /^[A-Z0-9-]{4,20}$/, eg: "12-3456789" },
+    US: { label: "EIN", re: /^[0-9]{2}-?[0-9]{7}$/, eg: "12-3456789" },   // = HelmCountry US (EIN, 9 digits; blank OK)
     SG: { label: "GST reg. no.", re: /^([0-9]{8,9}[A-Z]|[TSR][0-9]{2}[A-Z]{2}[0-9]{4}[A-Z]|M[0-9A-Z][0-9]{7}[A-Z])$/, eg: "200312345A" },
     AU: { label: "ABN", re: /^[0-9]{11}$/, eg: "51824753556" },
     CA: { label: "GST/HST number", re: /^[0-9]{9}(RT[0-9]{4})?$/, eg: "123456789RT0001" },

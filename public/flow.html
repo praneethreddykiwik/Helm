@@ -274,6 +274,7 @@
             <div class="fld s-1169661"><label for="pay_method">Method</label><select id="pay_method"><option value="cash">Cash / offline</option><option value="online">Online link</option></select></div>
             <button type="button" class="btn primary" id="pay_record">Record payment</button>
           </div>
+          <p class="hint" id="pay_terms" hidden></p>
           <div class="fld" id="pay_receiptWrap"><label for="pay_receipt">Receipt no. (offline — blank to auto‑generate)</label><input id="pay_receipt" placeholder="e.g. RCP‑001 / cash memo no."></div>
           <div class="s-4856645" id="pay_online" hidden></div>
           <div class="s-56f4356" id="pay_receipts"><div class="meta"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></div></div>
@@ -345,7 +346,7 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
 <script src="tour.js?v=9"></script>
 <script src="booklet.js?v=13"></script>
 <script src="share-checklist.js?v=8"></script>
@@ -353,7 +354,7 @@
 <script src="event-sizing.js?v=5"></script>
 <script src="flow-autosave.js?v=1"></script>
 <script src="flow-dish-editor.js?v=1"></script>
-<script src="venues-core.js?v=2"></script>
+<script src="venues-core.js?v=3"></script>
 <script src="venue-picker.js?v=3"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -451,7 +452,7 @@
     if(!code){ appliedCoupon=null; if(msg){msg.textContent="";} renderPrice(); return; }
     const c=(COUPONS||[]).find(x=>String(x.code||"").toLowerCase()===code.toLowerCase());
     if(c){ appliedCoupon={kind:c.kind,value:c.value};
-      if(msg){ msg.style.color="var(--safe-text,#0f7a43)"; msg.textContent="Applied: "+(c.kind==="percent"?(c.value+"% off"):("₹"+c.value+" off"))+(c.note?(" · "+c.note):""); } }
+      if(msg){ msg.style.color="var(--safe-text,#0f7a43)"; msg.textContent="Applied: "+(c.kind==="percent"?(c.value+"% off"):(BPStore.tax.money(c.value, fTax())+" off"))+(c.note?(" · "+c.note):""); } }
     else { appliedCoupon=null; if(msg){ msg.style.color="var(--warn-text,#8f5f00)"; msg.textContent="No such coupon code."; } }
     renderPrice();
   }
@@ -940,7 +941,16 @@
   async function loadRates(){
     let pc=null;
     try{ pc=await BPStore.config.getPricing(); }catch(e){ if(!noPricingBackend(e)) throw e; }
-    if(pc) rates=Object.assign(rates,pc); $("#q_chairPrice").value=rates.chairPrice; }
+    if(pc) rates=Object.assign(rates,pc); $("#q_chairPrice").value=rates.chairPrice; applyPayTerms(); }
+  // onboarding payment terms: default advance % (until the user types one) + balance due + note
+  function applyPayTerms(){
+    const t=BPStore.paymentTerms(rates, $("#c_date").value);
+    if(t.advancePct!=null && !$("#pay_pct").dataset.touched){ $("#pay_pct").value=t.advancePct; updateAdvance(); }
+    const bits=[]; if(t.balanceDue) bits.push("Balance due by "+t.balanceDue+(t.balanceDueDays?" ("+t.balanceDueDays+" days before the event)":" (event day)")+".");
+    else if(t.balanceDueDays!=null) bits.push("Balance due "+(t.balanceDueDays?t.balanceDueDays+" days before the event":"on the event day")+".");
+    if(t.note) bits.push(t.note);
+    const el=$("#pay_terms"); el.textContent=bits.join(" "); el.hidden=!bits.length;
+  }
   async function loadDiscovery(){ const cl=ev.client||{};
     const d=await BPStore.discovery.get(id);
     if(d){ $("#d_date").value=d.meet_date||""; $("#d_mode").value=d.mode||"";
@@ -1121,7 +1131,8 @@
     $("#rq_add").addEventListener("click",addReq);
     $("#rq_title").addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); addReq(); } });
     $("#sendApproval").addEventListener("click",()=>{ sendApproval().catch(()=>{}); });
-    $("#pay_pct").addEventListener("input",updateAdvance);
+    $("#pay_pct").addEventListener("input",()=>{ $("#pay_pct").dataset.touched="1"; updateAdvance(); });
+    $("#c_date").addEventListener("change",applyPayTerms);
     ["q_chairs","q_guests","q_chairPrice","q_platePrice","q_other","q_discount"].forEach(f=>$("#"+f).addEventListener("input",updateAdvance));
     // Production without live Razorpay: manual recording only (no simulated link option)
     if(!BPStore.approval.onlinePayAvailable()){ const o=$("#pay_method").querySelector('option[value="online"]'); if(o) o.remove(); }

@@ -58,10 +58,13 @@ run "worker-evidence"    "WORKER-EVIDENCE: ALL PASS \(38/38\)" psql -q -f tests/
 # before rescore2 too: its 0032 re-apply resets the anon allowlist (public_get_booklet is a 0065 link RPC)
 run "client-booklet"     "CLIENT-BOOKLET: ALL PASS \(44/44\)" psql -q -f tests/db/client-booklet.sql
 run "booklet-tax"        "BOOKLET-TAX: ALL PASS \(14/14\)" psql -q -f tests/db/booklet-tax.sql
+run "country-tax-0089"   "COUNTRY-TAX-0089: ALL PASS \(16/16\)" psql -q -f tests/db/country-tax-0089.sql
+run "portal-currency-0090" "PORTAL-CURRENCY-0090: ALL PASS \(7/7\)" psql -q -f tests/db/portal-currency-0090.sql
 run "booklet-images"     "BOOKLET-IMAGES: ALL PASS \(25/25\)" psql -q -f tests/db/booklet-images.sql
 run "r7-polish"          "R7-POLISH: ALL PASS \(18/18\)" psql -q -f tests/db/r7-polish.sql
 run "venues"            "VENUES: ALL PASS \(27/27\)" psql -q -f tests/db/venues.sql
 run "item-specs"         "ITEM-SPECS: ALL PASS \(30/30\)" psql -q -f tests/db/item-specs.sql
+run "smart-import"       "SMART-IMPORT: ALL PASS \(30/30\)" psql -q -f tests/db/smart-import.sql
 run "item-spec-parity"   "item-spec-parity: 9 parity case\(s\) passed, 0 failed" node tests/db/item-spec-parity.mjs
 # right after client-booklet: later suites re-apply 0036/0048/0054/0058 over the 0069 wrappers
 run "pkg-flow"           "PKG-FLOW: ALL PASS \(103/103\)" psql -q -f tests/db/pkg-flow.sql

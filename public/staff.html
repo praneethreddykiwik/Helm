@@ -46,6 +46,7 @@
   .person .nm{font-weight:700;font-size:15px} .person .rl{font-size:12px;color:var(--ink-3)}
   .tags{display:flex;gap:6px;flex-wrap:wrap}
   .tag{font-size:12px;font-weight:600;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:3px 9px;color:var(--ink-2)}
+  .attrbox{margin-top:12px}.attrbox summary{cursor:pointer;font-weight:600;font-size:13px;padding:4px 0}.tags.attrs .tag{font-weight:500}
   .tag.dept{background:var(--accent-soft);color:var(--accent);border-color:transparent}
   .tag.emp{background:#e7f6ee;color:#0f7a43;border-color:transparent}
   .tag.badphone{background:#fdecec;color:#b42318;border-color:transparent}
@@ -102,6 +103,7 @@
     <label class="chkbox" title="Also show team members you've deactivated (hidden by default). Nothing changes if you haven't deactivated any."><input type="checkbox" id="showInactive"> Show inactive</label>
     <span class="count" id="count"></span>
     <span class="spacer"></span>
+    <button id="importBtn" class="btn" type="button" hidden>Import from Excel / CSV</button>
     <button id="newBtn" class="btn primary" hidden>＋ Add staff</button>
   </div>
 
@@ -127,6 +129,7 @@
       <div class="fld"><label for="s_skills">Skills (comma separated)</label><input id="s_skills" placeholder="e.g. lighting, sound, forklift"></div>
       <div class="fld full"><label for="s_notes">Notes</label><input id="s_notes" placeholder="optional"></div>
     </div>
+    <details id="s_attrs_box" class="attrbox"><summary>Custom fields</summary><div id="s_attrs"></div></details>
     <datalist id="deptList"></datalist>
     <div id="sm_err" class="err" role="alert" aria-live="assertive" hidden></div>
     <div class="foot">
@@ -151,14 +154,17 @@
 <script src="config.js?v=98"></script>
 <script src="phone-input.js?v=1"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
+<script src="xlsx-lite.js?v=2"></script>
+<script src="smart-import-core.js?v=1"></script>
+<script src="smart-import.js?v=2"></script>
 <script src="tour.js?v=9"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const EMP={full_time:"Full-time",part_time:"Part-time",on_call:"On-call"};
   const initials=(n)=>String(n||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase()||"?";
-  let team=[], canEdit=false, canDelete=false, editingId=null, filter="", deptF="", skillF="", showInactive=false;
+  let attrDefs=[], attrEd=null, team=[], canEdit=false, canDelete=false, editingId=null, filter="", deptF="", skillF="", showInactive=false;
   const quoteId=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   let eventCrew=new Set(), eventOnly=!!quoteId, eventCode="";
 
@@ -184,7 +190,8 @@
         ${BPStore.staff.phoneInvalid(s)?`<span class="tag badphone" title="The saved phone number isn't valid. Edit this person to correct it.">Invalid phone — please fix</span>`:""}
       </div>
       ${skills.length?`<div class="tags">${skills.map(k=>`<span class="tag">${esc(k)}</span>`).join("")}</div>`:""}
-      <div class="meta">${[s.phone,s.email].filter(Boolean).map(esc).join(" · ")}${s.day_rate?`<br>₹${Number(s.day_rate).toLocaleString("en-IN")}/day`:""}</div>
+      ${(()=>{ const al=typeof HelmImportCore!=="undefined"?HelmImportCore.attrList("staff",s.attributes,attrDefs):[]; return al.length?`<div class="tags attrs">${al.slice(0,6).map(a=>`<span class="tag" title="${esc(a.label)}: ${esc(a.value)}"><b>${esc(a.label)}:</b> ${esc(a.value.slice(0,40))}</span>`).join("")}${al.length>6?`<span class="tag">+${al.length-6} more</span>`:""}</div>`:""; })()}
+      <div class="meta">${[s.phone,s.email].filter(Boolean).map(esc).join(" · ")}${s.day_rate?`<br>${BPStore.studioMoney(s.day_rate)}/day`:""}</div>
       ${canEdit?`<div class="acts">
         <button class="ic" data-act="edit">Edit</button>
         <button class="ic" data-act="toggle">${s.active===false?"Reactivate":"Deactivate"}</button>
@@ -244,6 +251,8 @@
     $("#s_emp").value=s?s.emp_type||"":""; $("#s_phone").value=s?s.phone||"":""; $("#s_email").value=s?s.email||"":"";
     $("#s_rate").value=s&&s.day_rate!=null?s.day_rate:""; $("#s_skills").value=s&&Array.isArray(s.skills)?s.skills.join(", "):""; $("#s_notes").value=s?s.notes||"":"";
     editingRow=s||null; setLinkedLock(s);
+    attrEd=window.HelmImport?HelmImport.attrEditor("staff",s&&s.attributes,attrDefs):null;
+    $("#s_attrs").replaceChildren(...(attrEd?[attrEd.el]:[])); $("#s_attrs_box").hidden=!attrEd;
     $("#sm_err").hidden=true;
     if(s && !BPStore.staff.isLinked(s) && BPStore.staff.phoneInvalid(s)){ $("#sm_err").textContent=`Invalid phone — please fix. The saved number "${String(s.phone).slice(0,60)}" isn't a valid phone (7–15 digits, optional leading +).`; $("#sm_err").hidden=false; }
     $("#staffModal").hidden=false; formDirty.clean(); setTimeout(()=>(BPStore.staff.isLinked(s)?$("#s_emp"):$("#s_name")).focus(),50);
@@ -285,6 +294,8 @@
     const rec={ name, phone:phoneV.value, role:$("#s_role").value.trim()||null, department:$("#s_dept").value.trim()||null,
       emp_type:$("#s_emp").value||null, email,
       day_rate, skills, notes:$("#s_notes").value.trim()||null };
+    let attrCh=null;
+    if(attrEd){ if(editingRow&&editingRow.id){ const ch=attrEd.changes(); if(ch.any) attrCh=ch; } else { const at=attrEd.read(); if(Object.keys(at).length) rec.attributes=at; } }
     if(linked) BPStore.staff.LINKED_FIELDS.forEach(k=>{ delete rec[k]; });   // follow the profile; the DB refuses changes here
     await BPUI.guard($("#sm_save"),async()=>{
       if(!linked){
@@ -299,7 +310,8 @@
         const owner=await BPStore.staff.linkedOwnerOfPhone(rec.phone, editingId);
         if(owner){ fail(`This number belongs to ${owner.name}, who already has a staff record linked to their Helm account. Find them in the directory instead of adding a second record.`); $("#s_phone").focus(); return; }
       }
-      try{ if(editingId) await BPStore.staff.update(editingId,rec); else await BPStore.staff.add(rec); closeForm(); BPUI.toast("Staff saved.",{type:"ok"}); await load(); }
+      try{ if(editingId && attrCh) rec.attributes=await BPStore.mergeAttributes("crew_members", editingId, Object.assign({ base:editingRow&&editingRow.attributes }, attrCh));
+           if(editingId) await BPStore.staff.update(editingId,rec); else await BPStore.staff.add(rec); closeForm(); BPUI.toast("Staff saved.",{type:"ok"}); await load(); }
       catch(e){ fail(BPStore.staff.linkErrorText(e)||BPUI.friendlyError(e,{action:"save the staff member",setupHint:"phase6-staff.sql"})); }
     },{busyLabel:"Saving…"});
   }
@@ -325,6 +337,7 @@
   });
 
   $("#newBtn").addEventListener("click",()=>openForm(null));
+  $("#importBtn").addEventListener("click",()=>HelmImport.open({ entity:"staff", onDone:async(sum)=>{ if(sum){ try{ attrDefs=await BPStore.smartImport.fieldDefs("staff"); }catch(e){} await load(); } } }));
   $("#sm_close").addEventListener("click",requestCloseForm);
   $("#sm_cancel").addEventListener("click",requestCloseForm);
   $("#sm_save").addEventListener("click",saveStaff);
@@ -366,7 +379,8 @@
     if(!(await BPStore.auth.requireView("ops"))) return;
     canEdit=await BPStore.auth.canEditArea("staff"); canDelete=await BPStore.auth.can("delete");
     isAdminUser=(await BPStore.auth.role())==="admin";
-    $("#newBtn").hidden=!canEdit;
+    $("#newBtn").hidden=!canEdit; $("#importBtn").hidden=!canEdit||!window.HelmImport;
+    try{ attrDefs=await BPStore.smartImport.fieldDefs("staff"); }catch(e){ attrDefs=[]; }
     // photos for linked members (one chat_directory read; the directory never waits for it)
     BPStore.chat.directory().then(d=>{ memberDir=d||{}; if(team.some(x=>BPStore.staff.isLinked(x))) render(); }).catch(()=>{});
     await load();

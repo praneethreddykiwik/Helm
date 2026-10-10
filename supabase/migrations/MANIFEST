@@ -117,3 +117,9 @@ forward  supabase/migrations/0084_r7_polish.sql
 forward  supabase/migrations/0085_venues.sql
 # 0086 (item specifications: per-studio item rate cards, get/set RPCs gated by the new item_pricing area, defaults seeded without overwriting) goes after 0084 (0085 optional).
 forward  supabase/migrations/0086_item_specs.sql
+# 0088 (smart import: attributes jsonb on staff/inventory/dishes/vendors, custom_field_defs + import_mappings with tenant RLS, smart_import_batch RPC gated by has_area edit; additive, no deletes) goes after 0086.
+forward  supabase/migrations/0088_smart_import.sql
+# 0089 (country tax India/UAE/USA: org country/region/rate override columns, per-quote currency + tax_snapshot, helm_quote_total honours taxExempt) goes after 0079 (0086 optional).
+forward  supabase/migrations/0089_country_tax.sql
+# 0090 (client portal returns the quote's own currency + tax_snapshot; keeps the 0082 billing strip; create or replace only) goes after 0089 (needs 0082).
+forward  supabase/migrations/0090_portal_quote_currency.sql

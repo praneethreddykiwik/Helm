@@ -1,0 +1,107 @@
+/* layout-wizard.css — Create-layout wizard (layout-wizard.js) + fullscreen mode (fullscreen.js).
+   Uses builder.css tokens (--panel, --accent, --line …) so light/dark themes follow automatically. */
+
+/* ---------- wizard ---------- */
+.lw-modal .lw-sheet{width:min(860px,100%);max-height:min(92vh,900px);display:flex;flex-direction:column;overflow:hidden}
+.lw-head{gap:10px}
+.lw-head b{font-size:15px}
+.lw-steps{list-style:none;margin:0;padding:10px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+.lw-step button{width:100%;display:flex;align-items:center;gap:8px;min-height:40px;padding:6px 8px;border:1px solid transparent;border-radius:9px;background:none;color:var(--ink-3);font:600 12px var(--font);cursor:pointer;text-align:left}
+.lw-step button:hover{background:var(--accent-soft);color:var(--ink)}
+.lw-step button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.lw-n{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;border:1.5px solid currentColor;font-size:11px}
+.lw-step.on button{color:var(--accent);border-color:var(--accent);background:var(--panel)}
+.lw-step.on .lw-n{background:var(--accent);border-color:var(--accent);color:#fff}
+.lw-step.done button{color:var(--ink-2)}
+.lw-step.done .lw-n{background:var(--c-safety);border-color:var(--c-safety);color:#fff}
+.lw-body{flex:1 1 auto;padding:14px 16px}
+.lw-panel{animation:lwIn .18s ease-out}
+@keyframes lwIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.lw-panel{animation:none}}
+.lw-note{margin:0 0 12px;font-size:12.5px;color:var(--ink-2);line-height:1.5}
+.lw-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.lw-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lw-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3)}
+.lw-hint{font-size:11px;color:var(--ink-3);line-height:1.35}
+.lw-in{height:36px;border:1px solid var(--line);background:var(--panel-2);border-radius:8px;padding:0 10px;font:500 14px var(--font);color:var(--ink);width:100%;min-width:0}
+.lw-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.lw-seg{display:flex;flex-wrap:wrap;gap:4px}
+.lw-seg button{min-height:36px;padding:0 12px;border-radius:8px}
+.lw-objs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.lw-obj{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--panel-2);display:flex;flex-direction:column;gap:6px;transition:border-color .12s,background .12s}
+.lw-obj.on{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent-soft) 60%,var(--panel))}
+.lw-oname{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;min-height:28px}
+.lw-oname input{width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto}
+.lw-req{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 7px}
+.lw-octl{display:flex;flex-wrap:wrap;gap:8px}
+.lw-octl:empty{display:none}
+.lw-octl .lw-field{flex:1 1 80px;max-width:120px}
+.lw-octl .lw-in{height:32px;font-size:13px}
+.lw-obj:not(.on) .lw-octl{opacity:.55}
+.lw-carpet{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:13px;color:var(--ink);cursor:pointer}
+.lw-carpet input{width:18px;height:18px;accent-color:var(--accent);margin-top:1px}
+.lw-sum{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:0 0 12px;font-size:13px}
+.lw-sum dt{color:var(--ink-3);font-weight:600}
+.lw-sum dd{margin:0;color:var(--ink)}
+.lw-warn{margin:8px 0;padding:9px 11px;border-radius:9px;font-size:12.5px;line-height:1.45;color:var(--ink);
+  background:color-mix(in srgb,var(--c-logistics) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--c-logistics) 45%,var(--line))}
+.lw-result{margin-top:10px}
+.lw-rhead{font-size:13px;margin-bottom:8px;color:var(--ink-2)}
+.lw-rhead b{color:var(--ink)}
+.lw-prev{display:block;width:100%;max-height:340px;border-radius:10px;border:1px solid var(--line);background:var(--canvas)}
+.lw-p-hall{fill:var(--canvas);stroke:var(--grid-strong);stroke-width:.6}
+.lw-p-structure{fill:var(--c-structure);opacity:.75}.lw-p-seating{fill:var(--c-seating);opacity:.8}.lw-p-av{fill:var(--c-av);opacity:.8}
+.lw-p-security{fill:var(--c-security);opacity:.8}.lw-p-logistics{fill:var(--c-logistics);opacity:.8}.lw-p-safety{fill:var(--c-safety);opacity:.85}.lw-p-decor{fill:var(--c-decor);opacity:.8}
+.lw-use{margin-top:10px;min-height:40px}
+.lw-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line);background:var(--panel)}
+.lw-live{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);min-width:0}
+.lw-total{display:inline-flex;align-items:baseline;gap:3px;padding:4px 10px;border-radius:999px;font-size:12px}
+.lw-total b{font-size:16px;font-family:var(--mono)}
+.lw-total.ok{background:color-mix(in srgb,var(--c-safety) 14%,var(--panel));color:var(--ink)}
+.lw-total.warn{background:color-mix(in srgb,var(--c-logistics) 18%,var(--panel));color:var(--ink)}
+.lw-nav{display:flex;gap:8px;margin-left:auto}
+.lw-nav .tbtn{min-height:38px}
+.lw-classic{background:none;border-color:transparent;color:var(--ink-3)}
+.lw-go{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+@media (max-width:640px){
+  .lw-modal{padding:0;align-items:stretch}
+  .lw-modal .lw-sheet{max-height:100vh;height:100%;border-radius:0}
+  .lw-steps{grid-template-columns:repeat(4,1fr);padding:8px}
+  .lw-t{display:none}
+  .lw-step button{justify-content:center}
+  .lw-grid{grid-template-columns:1fr 1fr}
+  .lw-objs{grid-template-columns:1fr}
+  .lw-nav{width:100%;flex-wrap:wrap}
+  .lw-nav .tbtn{flex:1 1 auto}
+  .lw-classic{flex:0 0 100%!important;order:3}
+}
+@media (max-width:400px){ .lw-grid{grid-template-columns:1fr} }
+
+/* ---------- fullscreen ---------- */
+.fs-fab{position:absolute;right:14px;top:14px;z-index:9;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:18px;cursor:pointer;box-shadow:var(--shadow)}
+.fs-fab:hover{border-color:var(--accent);color:var(--accent)}
+.fs-fab:focus-visible,.fs-b:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fs-bar{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:45;display:flex;gap:4px;padding:5px;border-radius:12px;
+  background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(8px)}
+.fs-bar[hidden]{display:none}
+.fs-b{min-height:40px;min-width:44px;padding:0 12px;border-radius:8px;border:1px solid transparent;background:none;color:var(--ink);font:600 13px var(--font);cursor:pointer}
+.fs-b:hover{background:var(--accent-soft)}
+.fs-b.on{background:var(--accent);color:#fff}
+.fs-x{color:var(--danger-text-b)}
+body.fs-on .fs-fab{display:none}
+.viewport.is3d .fs-fab{top:auto;bottom:14px;right:106px}
+/* native fullscreen element / CSS pseudo-fullscreen (iOS Safari): the viewport fills the screen */
+.viewport:fullscreen{width:100vw;height:100vh;background:var(--canvas)}
+.viewport.fs-pseudo{position:fixed;inset:0;z-index:55;width:100vw;height:100vh;height:100dvh}
+body.fs-on{overflow:hidden}
+body.fs-on .viewport .ptoggle,body.fs-on .viewport .navpad,body.fs-on .viewport .tools3d,body.fs-on .viewport .hint3d,
+body.fs-on .viewport .wt-fab,body.fs-on .viewport .emptystate,body.fs-on .htour-fab{display:none!important}
+body.fs-on header,body.fs-on #leftPanel,body.fs-on #rightPanel{visibility:hidden}
+body.fs-on .viewport{visibility:visible}
+/* 3D fullscreen: rulers are hidden in 3D, so the stage must not keep their 26px gutters (left strip) */
+body.fs-on .viewport.is3d .stage3d,.viewport.is3d:fullscreen .stage3d{left:0;top:0}
+@media (max-width:640px){
+  .fs-btn{display:none}
+  .fs-bar{top:max(8px,env(safe-area-inset-top));max-width:calc(100% - 16px)}
+  .fs-b{padding:0 9px;font-size:12px}
+}

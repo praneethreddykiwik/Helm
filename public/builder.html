@@ -26,6 +26,7 @@
 <link rel="stylesheet" href="builder.css?v=10">
 <link rel="stylesheet" href="venues.css?v=2">
 <link rel="stylesheet" href="walkthrough.css?v=2">
+<link rel="stylesheet" href="layout-wizard.css?v=2">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -85,7 +86,7 @@
         <option value="">Reference a past layout…</option>
       </select>
     </div>
-    <button class="tbtn primary" id="customBtn" title="Build a layout from your numbers">✨ Custom Event</button>
+    <button class="tbtn primary" id="customBtn" title="Create a layout from your requirements: hall, guests, seating and objects">✨ Create layout</button>
   </div>
 
   <div class="hsep"></div>
@@ -347,7 +348,7 @@
         <p>Start it your way — everything is editable afterwards.</p>
         <div class="es-btns">
           <button class="tbtn primary" id="es_template">📋 Load a template</button>
-          <button class="tbtn" id="es_custom">✨ Custom Event</button>
+          <button class="tbtn" id="es_custom">✨ Create layout</button>
           <button class="tbtn" id="es_blank">Start blank</button>
         </div>
         <small>…or drag any asset from the toolbox on the left onto the floor.</small>
@@ -407,17 +408,19 @@
 <script src="telemetry.js?v=3"></script>
 <script src="config.js?v=98"></script>
 <script src="event-name.js?v=2"></script>
-<script src="store-api.js?v=160"></script>
+<script src="country-profile.js?v=2"></script><script src="store-api.js?v=162"></script>
 <script src="tour.js?v=9"></script>
 <script src="flow-layout-sync.js?v=4"></script>
 <script src="event-sizing.js?v=5"></script>
-<script src="builder.js?v=36"></script>
-<script src="venues-core.js?v=2"></script>
+<script src="builder.js?v=37"></script>
+<script src="venues-core.js?v=3"></script>
 <script src="venue-picker.js?v=3"></script>
 
 <!-- ================= 3D RENDERED VIEW (Three.js, lazy-loaded on first use) ================= -->
 <script src="capture-frame.js?v=12"></script>
 <script src="builder-3d.js?v=13"></script>
 <script src="walkthrough.js?v=3"></script>
+<script src="layout-wizard.js?v=1"></script>
+<script src="fullscreen.js?v=1"></script>
 </body>
 </html>
