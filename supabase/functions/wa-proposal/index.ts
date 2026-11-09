@@ -1,10 +1,10 @@
 // wa-proposal - "Send on WhatsApp" from the studio's proposal share area (0151).
-// Model 1: ONE Helm Events WhatsApp number (Meta Cloud API). SIMULATED until the owner sets
-// WHATSAPP_TOKEN + WHATSAPP_PHONE_ID: the request is checked and logged exactly the same way,
-// nothing is sent, and the answer says { simulated: true }.
+// R129 (0337): sent from the STUDIO's own connected WhatsApp Business number (_shared/wa-sender.ts), never from Helm's
+// number. A studio without a connected number gets 409 { not_connected: true } (nothing recorded, nothing sent).
+// A free-trial studio runs the SIMULATED path: checked and logged the same way, nothing sent, { simulated: true }.
 //
 // Secrets / env: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (injected),
-//   WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_API_VERSION (default v21.0), WHATSAPP_TPL_LANG (default en)
+//   WHATSAPP_API_VERSION (default v21.0). The studio's number + token come from its connected account (0117 / 0337).
 //
 // Request (signed-in staff JWT): { quote_id, kind, phone, opt_in, consent_text }
 //   kind: proposal_sent | proposal_reminder | proposal_approved_pay | payment_received
@@ -19,11 +19,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import { bearer, errTag, responders, UUID_RE } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
-import { isLive, KINDS, templateMessage } from "./logic.mjs";
+import { KINDS, templateMessage } from "./logic.mjs";
+import { NOT_CONNECTED_MSG, studioSender, waPost } from "../_shared/wa-sender.ts";
+import { STUDIO_LANG } from "../_shared/wa-studio.mjs";
 import { isTrialNoSend, TRIAL_NO_SEND_MSG, trialSendBlocked } from "../_shared/trial-guard.ts";
 
-const VER = Deno.env.get("WHATSAPP_API_VERSION") || "v21.0";
-const LANG = Deno.env.get("WHATSAPP_TPL_LANG") || "en";
 
 function prepFailure(code: string): [number, string] {
   if (code === "HL429") return [429, "WhatsApp limit reached for your studio - try again later"];
@@ -58,13 +58,16 @@ Deno.serve(async (req) => {
     const kind = String(body.kind || "proposal_sent");
     if (!UUID_RE.test(quoteId)) return json({ error: "quote_id is required" }, 400);
     if (!KINDS.includes(kind)) return json({ error: "unknown message" }, 400);
-    let live = isLive({ WHATSAPP_TOKEN: Deno.env.get("WHATSAPP_TOKEN"), WHATSAPP_PHONE_ID: Deno.env.get("WHATSAPP_PHONE_ID") });
-    let trial = false;
-    if (live) {   // 0179: a free-trial studio never sends for real -> the simulated path
-      const admin0 = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
-      trial = await trialSendBlocked(admin0, { quote: quoteId });
-      if (trial) live = false;
-    }
+    // R129: the caller's studio must own the quote (RLS) - its OWN connected number sends it
+    const { data: q, error: qErr } = await asCaller.from("quotes").select("id, org_id").eq("id", quoteId).maybeSingle();
+    if (qErr) { console.error("wa-proposal: quote lookup failed", errTag(qErr)); return json({ error: "could not check the event" }, 500); }
+    if (!q) return json({ error: "you can't send WhatsApp messages for this event" }, 403);
+    const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+    // 0179: a free-trial studio never sends for real -> the simulated path
+    const trial = await trialSendBlocked(admin, { quote: quoteId });
+    const sender = trial ? null : await studioSender(admin, String((q as { org_id?: string }).org_id || ""));
+    if (!trial && !sender) return json({ error: NOT_CONNECTED_MSG, not_connected: true, status: "not_connected" }, 409);
+    const live = !trial && !!sender;
 
     const { data: prep, error: pErr } = await asCaller.rpc("wa_proposal_prepare", {
       p_quote: quoteId, p_kind: kind, p_phone: String(body.phone || "").slice(0, 32),
@@ -78,26 +81,20 @@ Deno.serve(async (req) => {
     }
     if (!live) { console.log("wa-proposal: simulated", kind); return json({ simulated: true, status: "simulated", ...(trial ? { trial: true } : {}) }); }
 
-    let msg: unknown;
-    try { msg = templateMessage(prep.to, kind, prep.vars, prep.token, LANG); }
+    // deno-lint-ignore no-explicit-any
+    let msg: any;
+    try { msg = templateMessage(prep.to, kind, prep.vars, prep.token, STUDIO_LANG); }
     catch (_) { return json({ error: "could not build the message" }, 400); }
-    const r = await fetch(`https://graph.facebook.com/${VER}/${encodeURIComponent(Deno.env.get("WHATSAPP_PHONE_ID")!)}/messages`, { redirect: "error",
-      method: "POST",
-      headers: { "Authorization": "Bearer " + Deno.env.get("WHATSAPP_TOKEN"), "Content-Type": "application/json" },
-      body: JSON.stringify(msg),
-    });
-    const out = await r.text();
-    let wamid: string | null = null;
-    try { wamid = JSON.parse(out)?.messages?.[0]?.id ?? null; } catch (_) { /* keep null */ }
-    if (!r.ok) console.error("wa-proposal: meta status", r.status);
-    const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+    const { messaging_product: _mp, ...payload } = msg;
+    const r = await waPost(admin, sender!, payload);
+    const wamid = r.wamid;
     const { error: mErr } = await admin.rpc("wa_proposal_mark", { p_audit_id: prep.audit_id, p_status: r.ok ? "sent" : "failed", p_wamid: wamid });
     if (mErr) console.error("wa-proposal: mark failed", errTag(mErr));
     const { error: lErr } = await admin.from("notifications").insert({
       quote_id: quoteId, channel: "whatsapp", recipient: String(prep.to), kind, status: r.ok ? "sent" : "failed",
     });
     if (lErr) console.error("wa-proposal: log failed", errTag(lErr));
-    if (!r.ok) return json({ error: "whatsapp send failed", status: "failed" }, 502);
+    if (!r.ok) return json({ error: "WhatsApp send failed: " + r.text, status: "failed", reason: r.kind }, 502);
     return json({ sent: true, status: "sent", id: wamid });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);

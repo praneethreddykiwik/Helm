@@ -28,11 +28,12 @@ await t('e-mail + sender-name validation (client and server agree)', () => {
   assert.ok(L.EMAIL_RE.test('bookings@rao.in') && !L.EMAIL_RE.test('a,b@c.com'));
 });
 await t('status words: Not connected / Simulated / Live', () => {
+  // R129 (0337): WhatsApp follows the studio's OWN connected number, not a saved contact number or Helm's secrets
   const num = { studio_whatsapp: '919876543210' };
   assert.equal(H.whatsappStatus({}, null).label, 'Not connected');
-  assert.equal(H.whatsappStatus(num, null).label, 'Simulated');
-  assert.equal(H.whatsappStatus(num, { whatsapp: { live: false } }).label, 'Simulated');
-  assert.equal(H.whatsappStatus(num, { whatsapp: { live: true } }).label, 'Live');
+  assert.equal(H.whatsappStatus(num, { whatsapp: { live: true } }).label, 'Not connected');
+  assert.equal(H.whatsappStatus({ whatsapp: { status: 'pending' } }, null).state, 'wait');
+  assert.equal(H.whatsappStatus({ whatsapp: { status: 'connected' } }, null).label, 'Live');
   assert.equal(H.emailStatus(null, null).label, 'Not connected');
   assert.equal(H.emailStatus({}, { email: { live: false } }).label, 'Simulated');
   assert.equal(H.emailStatus({}, { email: { live: true } }).label, 'Live');

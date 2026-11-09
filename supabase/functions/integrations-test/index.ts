@@ -23,9 +23,9 @@
 // Secrets / env (same names as comms-dispatch / invite-mailer - nothing new to set):
 //   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (injected)
 //   RESEND_API_KEY, RESEND_FROM
-//   WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_API_VERSION, COMMS_WHATSAPP_TEMPLATE,
-//   WHATSAPP_TPL_LANG, WHATSAPP_ALLOW_TEXT, WHATSAPP_APP_SECRET + WHATSAPP_WEBHOOK_VERIFY_TOKEN
-//   (status only: reports whether the webhook is configured)
+//   R129 (0337): WhatsApp = the studio's OWN connected number (Integrations page -> Connect WhatsApp), the helm_notice
+//   template Helm creates in the studio's account. Helm's own WHATSAPP_TOKEN / WHATSAPP_PHONE_ID are never used here.
+//   WHATSAPP_API_VERSION; WHATSAPP_APP_SECRET + WHATSAPP_WEBHOOK_VERIFY_TOKEN (status only: is the webhook configured)
 //   HELM_INTEGRATIONS_TEST_ENABLED="false"  kill switch -> every test is "simulated"
 //
 // Limits: 20 status / 5 tests per user per 10 minutes, 60 per IP per minute, WhatsApp tests 5 per studio per day.
@@ -35,7 +35,9 @@ import { bearer, errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { postalAddress, txFooter, withFooter } from "../_shared/email-compliance.mjs";
 import { TRIAL_NO_SEND_MSG, trialSendBlocked } from "../_shared/trial-guard.ts";
-import { channelStatus, fromHeader, maskEmail, maskPhone, PHONE_RE, EMAIL_RE, replyToOf, testEmail, waTargetRefusal, waTestContent, optOutTableMissing, waTestPerDay } from "./logic.mjs";
+import { channelStatus, fromHeader, maskEmail, maskPhone, PHONE_RE, EMAIL_RE, replyToOf, testEmail, waTargetRefusal, optOutTableMissing, waTestPerDay, TEST_TEXT } from "./logic.mjs";
+import { studioSender, waPost } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
+import { noticeContent } from "../_shared/wa-studio.mjs";
 
 const DAY_MS = 86_400_000;
 
@@ -71,9 +73,11 @@ Deno.serve(async (req) => {
     if (action === "status") {
       const w = await checkLimits([["itest:status:" + user.id, 20, 600_000]]);
       if (w) return tooMany(json, w);
-      const { error } = await asCaller.rpc("integrations_overview", {});
+      const { data: ov, error } = await asCaller.rpc("integrations_overview", {});
       if (error) return json({ error: "only people who can open Settings can see this" }, 403);
-      return json({ email: st.email, whatsapp: st.whatsapp });
+      // R129: WhatsApp is live for THIS studio when its own number is connected
+      const connected = !!(ov && ov.whatsapp && ov.whatsapp.status === "connected");
+      return json({ email: st.email, whatsapp: { live: connected, credentials: connected, template: connected, webhook: st.whatsapp.webhook, studio_number: true } });
     }
     if (action !== "test") return json({ error: "unknown action" }, 400);
     const channel = String(body.channel || "");
@@ -121,15 +125,17 @@ Deno.serve(async (req) => {
     if (!PHONE_RE.test(to)) return json({ error: "save your studio WhatsApp number first" }, 400);
     const orgId = String(wt.org_id || t.org_id || "");
     const shown = { to: maskPhone(to) };
-    const content = waTestContent(env);
-    if (!st.whatsapp.live || off || !content) {
-      const reason = off ? "test sending is switched off" : !st.whatsapp.credentials ? "WHATSAPP_TOKEN / WHATSAPP_PHONE_ID are not set yet" : "no approved template set (COMMS_WHATSAPP_TEMPLATE)";
-      return json({ mode: "simulated", sent: false, reason, ...shown });
-    }
-    // a real send from Helm's shared number: free trial, STOP list and a daily cap first (service role)
+    const content = noticeContent("general", TEST_TEXT);
     const svcKey = env("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!svcKey || !/^[0-9a-f-]{36}$/i.test(orgId)) return json({ error: "could not check the studio" }, 500);
     const admin = createClient(url, svcKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    // R129: the test goes out from the studio's OWN connected number
+    const sender = off ? null : await studioSender(admin, orgId);
+    if (!sender || !content) {
+      const reason = off ? "test sending is switched off" : "connect your studio's WhatsApp number first (Connect WhatsApp, then Check connection)";
+      return json({ mode: "simulated", sent: false, reason, ...shown });
+    }
+    // a real send: free trial, STOP list and a daily cap first (service role)
     if (await trialSendBlocked(admin, { org: orgId })) return json({ error: TRIAL_NO_SEND_MSG, trial: true }, 403);
     const { data: optOut, error: ooErr } = await admin.from("whatsapp_opt_outs").select("id")
       .eq("phone", to).eq("opted_out", true).or("org_id.is.null,org_id.eq." + orgId).limit(1).maybeSingle();
@@ -141,14 +147,8 @@ Deno.serve(async (req) => {
       r.headers.set("Retry-After", String(dayWait));
       return r;
     }
-    const ver = /^v[0-9]{1,2}\.[0-9]$/.test(env("WHATSAPP_API_VERSION") || "") ? env("WHATSAPP_API_VERSION")! : "v21.0";
-    const r = await safeFetch(`https://graph.facebook.com/${ver}/${encodeURIComponent(env("WHATSAPP_PHONE_ID") || "")}/messages`, {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + (env("WHATSAPP_TOKEN") || ""), "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp", to, ...content }),
-    });
-    await r.text();
-    if (!r.ok) { console.error("integrations-test: whatsapp status", r.status); return json({ mode: "live", sent: false, error: "Meta refused it (status " + r.status + ") - check the token, phone number ID and that the template is approved", ...shown }); }
+    const r = await waPost(admin, sender, { to, ...content });
+    if (!r.ok) return json({ mode: "live", sent: false, error: r.text + (r.kind === "template" ? " (helm_notice - press Set up message templates and wait for Meta)" : ""), ...shown });
     return json({ mode: "live", sent: true, ...shown });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);

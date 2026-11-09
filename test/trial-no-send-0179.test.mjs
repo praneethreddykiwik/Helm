@@ -38,11 +38,13 @@ t('edge functions ask before any real send', () => {
   const cm = read('supabase/functions/client-mailer/index.ts');
   assert.ok(cm.indexOf('trialSendBlocked(admin') > 0 && cm.indexOf('trialSendBlocked(admin') < cm.indexOf('await sendMail('));
   const wa = read('supabase/functions/send-whatsapp/index.ts');
-  assert.ok(wa.indexOf('trialSendBlocked(admin') > 0 && wa.indexOf('trialSendBlocked(admin') < wa.indexOf('/messages`'));
+  assert.ok(wa.indexOf('trialSendBlocked(admin') > 0 && wa.indexOf('trialSendBlocked(admin') < wa.indexOf('await waPost(admin, sender'));
   assert.match(wa, /hint === TRIAL_NO_SEND_HINT/);
   const wp = read('supabase/functions/wa-proposal/index.ts');
-  assert.match(wp, /trial = await trialSendBlocked\(admin0, \{ quote: quoteId \}\);\s*if \(trial\) live = false;/);
-  assert.ok(wp.indexOf('trialSendBlocked(admin0') < wp.indexOf('rpc("wa_proposal_prepare"'), 'decided before prepare (p_simulate)');
+  // R129: a trial studio gets no sender at all -> the simulated path
+  assert.match(wp, /const trial = await trialSendBlocked\(admin, \{ quote: quoteId \}\);\s*const sender = trial \? null :/);
+  assert.match(wp, /const live = !trial && !!sender;/);
+  assert.ok(wp.indexOf('trialSendBlocked(admin') < wp.indexOf('rpc("wa_proposal_prepare"'), 'decided before prepare (p_simulate)');
 });
 if (fail) { console.log('trial-no-send-0179: ' + fail + ' FAILED'); process.exit(1); }
 console.log('trial-no-send-0179: ok');

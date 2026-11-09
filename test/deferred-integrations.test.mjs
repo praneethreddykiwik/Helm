@@ -70,22 +70,21 @@ t('razorpay-webhook does not loop: bad/unknown ids return 200, not 5xx', () => {
 });
 
 // ---- WhatsApp: fail closed, staff-only, token never echoed ----
-t('send-whatsapp fails closed when TOKEN/PHONE_ID unset', () => {
-  assert.match(whatsapp, /if\s*\(\s*!TOKEN\s*\|\|\s*!PHONE_ID\s*\)/);
-  assert.match(whatsapp, /not configured/i);
+t('send-whatsapp fails closed when the studio has no connected number (R129: never Helm\'s number)', () => {
+  assert.match(whatsapp, /const sender = await studioSender\(admin, orgId\);\s*if \(!sender\) return json\(\{ error: NOT_CONNECTED_MSG, not_connected: true \}, 409\)/);
+  assert.match(read('supabase/functions/_shared/wa-sender.ts'), /isn't connected yet/);
 });
 t('send-whatsapp requires a signed-in staff user (not the anon key)', () => {
   assert.match(whatsapp, /rpc\(\s*["']whatsapp_authorize["']/);
   assert.match(whatsapp, /sign in as a staff user/i);
 });
-t('send-whatsapp reads the token from Deno.env and only uses it in the Authorization header', () => {
-  assert.match(whatsapp, /Deno\.env\.get\(\s*["']WHATSAPP_TOKEN/);
-  // Every reference to the TOKEN identifier must be the env read or the
-  // "Bearer " + TOKEN auth header — never a json() response or a console log.
-  const refs = whatsapp.match(/\bTOKEN\b/g) || [];
-  assert.ok(refs.length >= 2, 'expected the TOKEN constant to be defined and used');
-  assert.doesNotMatch(whatsapp, /return\s+json\([^;]*\bTOKEN\b/); // not echoed in a response
-  assert.doesNotMatch(whatsapp, /console\.\w+\([^;]*\bTOKEN\b/);  // not written to logs
+t('the studio token is read server-side only and used only in the Authorization header (R129: _shared/wa-sender.ts)', () => {
+  const ws = read('supabase/functions/_shared/wa-sender.ts');
+  assert.match(ws, /admin\.rpc\("org_whatsapp_creds"/);
+  assert.match(ws, /"Authorization": "Bearer " \+ sender\.token/);
+  assert.doesNotMatch(ws, /return\s+json\([^;]*\btoken\b/);       // not echoed in a response
+  assert.doesNotMatch(ws, /console\.\w+\([^;]*\.token\b/);        // not written to logs
+  assert.doesNotMatch(whatsapp, /return\s+json\([^;]*sender\.token/);
 });
 
 // ---- OTP/SMS: simulated code is NEVER a production consent bypass ----

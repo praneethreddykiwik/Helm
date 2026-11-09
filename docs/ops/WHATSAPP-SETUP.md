@@ -1,5 +1,58 @@
 # Switching on WhatsApp in Helm (owner guide)
 
+## R129 (0337) - each studio sends from ITS OWN number (read this first)
+
+Since R129 a studio's WhatsApp messages (proposal links, approval codes, payment / event reminders, crew assignments,
+package notices) go out from **that studio's own WhatsApp Business number**. Helm's own number (`WHATSAPP_TOKEN` /
+`WHATSAPP_PHONE_ID` secrets) is used **only** for Helm's own staff phone "Verify" code, and that stays off until
+`liveChannels.whatsappHelm` is set to true. The sections further down describe the older "one Helm number" setup; the
+template table and webhook steps still apply, but a studio no longer needs Helm support to switch anything on.
+
+What the studio admin does (Integrations page -> WhatsApp card -> **Your WhatsApp number**):
+1. Meta steps 1-4 below in the **studio's own** Meta Business account (number, WABA ID, phone number ID, permanent token).
+2. Paste the WhatsApp Business Account ID, the Phone number ID and the token, press **Connect WhatsApp**. The token goes
+   into Supabase Vault; it is never shown again and never logged. Helm checks the number with Meta straight away.
+3. Press **Set up message templates**. Helm creates its 8 templates in the studio's account
+   (`supabase/functions/_shared/wa-studio.mjs`): proposal_sent, proposal_reminder, proposal_approved_pay, payment_received,
+   proposal_approval_otp (authentication), helm_notice, helm_task_assigned, helm_event_reminder. Meta reviews each one.
+4. Save the studio WhatsApp number and press **Send test WhatsApp** (it goes to a team member's own mobile only).
+5. **Disconnect** removes the token from Vault and frees the number.
+
+Until a studio has connected a number it sends **no** WhatsApp: the "Send on WhatsApp" box says so with a Connect link,
+the client approval page offers the code by e-mail only, background WhatsApp rows are skipped. E-mail keeps working.
+
+Delivery ticks + STOP replies: they reach Helm's `wa-webhook` only for accounts subscribed to **Helm's** Meta app and signed
+with `WHATSAPP_APP_SECRET`. Check connection subscribes the account when the token belongs to Helm's app (e.g. your own
+test number in Helm's app). A studio that uses its OWN Meta app sends without ticks / STOP until Helm becomes a Meta Tech
+Provider (Embedded Signup - a later step).
+
+### Owner steps (staging first, then production)
+1. Run `supabase/APPLY-0337.sql` in the SQL editor. Every VERIFY row must say `ok = true` (row 06 needs Supabase Vault,
+   which every Supabase project has).
+2. Deploy the edge functions (config.toml sets the JWT check for each - no flags needed):
+   ```bash
+   supabase functions deploy wa-connect --project-ref <ref>
+   supabase functions deploy wa-proposal --project-ref <ref>
+   supabase functions deploy send-otp --project-ref <ref>
+   supabase functions deploy send-whatsapp --project-ref <ref>
+   supabase functions deploy integrations-test --project-ref <ref>
+   supabase functions deploy comms-dispatch --project-ref <ref>
+   supabase functions deploy pkg-client-notify --project-ref <ref>
+   supabase functions deploy wa-webhook --project-ref <ref>
+   ```
+   `APP_URL` must be the site of that project (`https://www.helm.events` on production) - the template buttons use it.
+3. Deploy the site (the push). Integrations is then on the live site for studio admins.
+
+### Testing with your own number on one studio (e.g. Sparkly)
+- Use staging first. Sign in as that studio's admin, open Integrations, connect your test number with a **permanent**
+  token. Paste the token only into Helm's form - never into chat or e-mail.
+- Press Set up message templates and wait for Approved, then Send test WhatsApp to your own mobile.
+- Use a paid (non-trial) studio: free-trial studios never send WhatsApp.
+- When done, press **Disconnect** - the number is freed for the next studio.
+
+---
+
+
 Plain-English, step by step. The same guide is in the app: **/<studio>/integrations → WhatsApp** (also linked
 from the dashboard "Getting started" checklist and the Studio setup wizard step "WhatsApp & email"). The WhatsApp code is **already built** and ships **switched off**
 (it fails closed: nothing is sent until every step below is done). You do the Meta and

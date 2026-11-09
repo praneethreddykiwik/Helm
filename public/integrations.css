@@ -69,3 +69,32 @@ html[data-theme="dark"] .itg-err{color:#f5a39c}
 
 /* brand kit symbol (as-is) replaces the old gradient tile */
 .mark{background:url(/brand/helm-symbol-emerald.svg?v=1) center/contain no-repeat !important;border-radius:0 !important;box-shadow:none !important}
+/* R129 (0337): "Your WhatsApp number" card (wa-connect-ui.js) - theme tokens only */
+.wac{margin-top:14px;border-top:1px solid var(--line-2);padding-top:12px;min-width:0}
+.wac-h{margin:0 0 4px;font-size:14px;color:var(--ink)}
+.wac-status{margin:8px 0 0;font-size:13.5px;font-weight:600;color:var(--ink-2);overflow-wrap:anywhere}
+.wac-status[data-state="connected"]{color:#0f7a43}
+.wac-status[data-state="error"]{color:#b42318}
+.wac-status[data-state="pending"]{color:#8a5a00}
+html[data-theme="dark"] .wac-status[data-state="connected"]{color:#7ee2a8}
+html[data-theme="dark"] .wac-status[data-state="error"]{color:#f4a39a}
+html[data-theme="dark"] .wac-status[data-state="pending"]{color:#f5c27a}
+.wac-form{margin-top:12px}
+.wac-form summary{cursor:pointer;font-weight:600;font-size:13.5px;color:var(--accent);min-height:32px;display:flex;align-items:center}
+.wac-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin:8px 0}
+.wac-f{display:grid;gap:4px;min-width:0;align-content:start}
+.wac-f label{font-size:13px;font-weight:600;color:var(--ink)}
+.wac-f input{min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:400 14px var(--font);min-width:0;width:100%;box-sizing:border-box}
+.wac-f input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.wac-tpl h4{font-size:13px;margin:16px 0 4px;color:var(--ink)}
+.wac-tbl{min-width:420px}
+.wac-chip{display:inline-block;font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 8px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-3);white-space:nowrap}
+.wac-chip[data-state="on"]{background:#e7f6ee;border-color:#b6e3ca;color:#0f7a43}
+.wac-chip[data-state="wait"]{background:#fff6e6;border-color:#f3d9a6;color:#8a5a00}
+.wac-chip[data-state="off"]{background:#fdecea;border-color:#f5c2bd;color:#8a1c12}
+html[data-theme="dark"] .wac-chip[data-state="on"]{background:rgba(24,165,88,.15);border-color:rgba(24,165,88,.4);color:#7ee2a8}
+html[data-theme="dark"] .wac-chip[data-state="wait"]{background:rgba(232,145,45,.15);border-color:rgba(232,145,45,.4);color:#f5c27a}
+html[data-theme="dark"] .wac-chip[data-state="off"]{background:rgba(192,57,43,.15);border-color:rgba(192,57,43,.4);color:#f4a39a}
+.btn.wac-danger{color:#b42318;border-color:#f5c2bd}
+html[data-theme="dark"] .btn.wac-danger{color:#f4a39a;border-color:rgba(192,57,43,.5)}
+.wac .itg-result{margin-top:10px}

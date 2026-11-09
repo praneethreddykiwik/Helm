@@ -12,9 +12,9 @@
 //   HELM_PKG_NOTIFY_SECRET            shared secret in the `x-helm-cron-secret` header; unset -> 401
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (injected)
 //   RESEND_API_KEY, RESEND_FROM       unset key -> e-mail rows are marked "skipped"
-//   WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_API_VERSION (default v21.0)
-//   PKG_WHATSAPP_TEMPLATE             approved template name (one body parameter = the text);
-//                                     unset -> free text only when WHATSAPP_ALLOW_TEXT=1, else skipped
+//   WHATSAPP_API_VERSION (default v21.0). R129 (0337): WhatsApp rows go out from the row's STUDIO's own connected
+//                                     number (helm_notice template Helm creates in the studio's account); a studio
+//                                     without one -> skipped. Helm's own number is never used.
 //   PKG_NOTIFY_BATCH                  rows per run, 1..100 (default 25)
 //
 // Idempotent: the database hands each row out once (claim + mark, unique dedupe key) and
@@ -28,6 +28,8 @@ import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/
 import { render } from "./templates.ts";
 import { postalAddress, txFooter, withFooter } from "../_shared/email-compliance.mjs";
 import { brandMode, cleanName, HELM_BRAND } from "../_shared/mailer.ts";
+import { orgOfRow, senderCache, waPost, type WaSender } from "../_shared/wa-sender.ts";   // R129 (0337)
+import { noticeContent } from "../_shared/wa-studio.mjs";
 import { rowReplyTo } from "../_shared/reply-to.mjs";   // R107: Reply-To = business e-mail, else the studio owner's
 
 const enc = new TextEncoder();
@@ -77,27 +79,16 @@ async function sendEmail(id: string, to: string, subject: string, html: string, 
   } catch (e) { console.error("pkg-client-notify: email error", errTag(e)); return "failed"; }
 }
 
-async function sendWhatsApp(to: string, text: string): Promise<Res> {
-  const token = Deno.env.get("WHATSAPP_TOKEN") || "", phoneId = Deno.env.get("WHATSAPP_PHONE_ID") || "";
-  if (!token || !/^[0-9]{5,20}$/.test(phoneId) || !PHONE.test(to) || !text) return "skipped";
-  const ver = /^v[0-9]{1,2}\.[0-9]$/.test(Deno.env.get("WHATSAPP_API_VERSION") || "") ? Deno.env.get("WHATSAPP_API_VERSION")! : "v21.0";
-  const tpl = (Deno.env.get("PKG_WHATSAPP_TEMPLATE") || "").trim();
-  let content: Record<string, unknown>;
-  if (/^[a-z0-9_]{1,64}$/.test(tpl)) {
-    content = { type: "template", template: { name: tpl, language: { code: "en" }, components: [{ type: "body", parameters: [{ type: "text", text: text.slice(0, 1000) }] }] } };
-  } else if (Deno.env.get("WHATSAPP_ALLOW_TEXT") === "1") {
-    content = { type: "text", text: { body: text.slice(0, 1000) } };
-  } else return "skipped";
-  try {
-    const r = await safeFetch(`https://graph.facebook.com/${ver}/${encodeURIComponent(phoneId)}/messages`, {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp", to, ...content }),
-    });
-    await r.text();
-    if (!r.ok) console.error("pkg-client-notify: whatsapp status", r.status);
-    return r.ok ? "sent" : "failed";
-  } catch (e) { console.error("pkg-client-notify: whatsapp error", errTag(e)); return "failed"; }
+// R129 (0337): from the row's STUDIO's own connected number (helm_notice template in the studio's account, one body
+// parameter = the text). No connected number -> skipped. Helm's own number is never used for a studio's client.
+// deno-lint-ignore no-explicit-any
+async function sendWhatsApp(to: string, text: string, sender: WaSender | null, admin: any): Promise<Res> {
+  if (!sender || !PHONE.test(to) || !text) return "skipped";
+  const content = noticeContent("general", text);
+  if (!content) return "skipped";
+  const r = await waPost(admin, sender, { to, ...content });
+  if (r.ok) return "sent";
+  return r.kind === "recipient" || r.kind === "token" || r.kind === "permission" ? "skipped" : "failed";
 }
 
 // 0155: last STOP check right before a WhatsApp send (the claim already skipped STOP numbers).
@@ -130,6 +121,7 @@ Deno.serve(async (req) => {
 
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
     const rtCache = new Map<string, string>();
+    const waSenderOf = senderCache(admin);   // R129: one studio-number lookup per studio per run
     for (const r of (Array.isArray(rows) ? rows : [])) {
       const id = String(r?.id ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
@@ -141,7 +133,7 @@ Deno.serve(async (req) => {
         const replyTo = await rowReplyTo(admin, "pkg", id, null, { env: (k: string) => Deno.env.get(k), cache: rtCache });
         res = await sendEmail(id, to, msg.subject, msg.html, msg.text, String(p.studio ?? ""), replyTo);
       }
-      else if (msg && channel === "whatsapp") res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text);
+      else if (msg && channel === "whatsapp") res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text, await waSenderOf(await orgOfRow(admin, "pkg_outbox", id)), admin);
       const { error: mErr } = await admin.rpc("pkg_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
       if (mErr) { console.error("pkg-client-notify: mark failed", errTag(mErr)); counts.failed++; continue; }
       counts[res]++;

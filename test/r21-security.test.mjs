@@ -154,7 +154,7 @@ await t("3b config.toml: every function declared exactly once; verify_jwt=false 
   const map = new Map(sections);
   assert.equal(map.size, sections.length, "no duplicates");
   assert.deepEqual([...map.keys()].sort(), fns.sort(), "config.toml lists exactly the functions in supabase/functions");
-  assert.equal(fns.length, 24);
+  assert.equal(fns.length, 25);   // R129: + wa-connect (verify_jwt = true)
   const AUTH = {
     jwt: /auth\.getUser\(jwt\)/, cron: /secretMatches\(req\.headers\.get\("x-helm-cron-secret"\)/,
     rzp: /x-razorpay-signature/, meta: /x-hub-signature-256/, token: /admin\.rpc\("(booklet_snapshot_path|email_unsub_status|invite_account_state)"/,

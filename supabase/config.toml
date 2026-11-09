@@ -23,6 +23,8 @@ verify_jwt = true
 verify_jwt = true
 [functions.integrations-test]   # signed-in admin (getUser in code too)
 verify_jwt = true
+[functions.wa-connect]   # R129 (0337): signed-in studio admin (getUser + wa_connect_org in code too)
+verify_jwt = true
 [functions.render-photo]   # signed-in staff (getUser in code too); owner-only feature
 verify_jwt = true
 [functions.send-otp]   # public approval page (anon JWT) + approval token checked in the DB

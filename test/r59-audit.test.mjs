@@ -110,7 +110,7 @@ await t('SQL 0300: registered, APPLY verbatim + VERIFY, ASCII, STOP guard, nothi
 await t('edge functions: WhatsApp test admin-only + STOP list + trial + daily cap; ping gated; record-only 200; billing e-mail rule', () => {
   const it = rd('supabase/functions/integrations-test/index.ts');
   for (const s of ['integrations_wa_test_target', 'trialSendBlocked', 'whatsapp_opt_outs', 'optOutTableMissing', 'itest:wa:day:']) assert.ok(it.includes(s), s);
-  assert.ok(it.indexOf('trialSendBlocked(admin') < it.indexOf('graph.facebook.com/${ver}'), 'checks before the Meta call');
+  assert.ok(it.indexOf('trialSendBlocked(admin') < it.indexOf('await waPost(admin, sender'), 'checks before the Meta call');   // R129: studio number
   assert.match(rd('supabase/functions/send-whatsapp/index.ts'), /rpc\("has_area", \{ p_area: "controls", p_need: "view" \}\)/);
   const wh = rd('supabase/functions/razorpay-webhook/index.ts');
   assert.match(wh, /isMissingRpc\(recErr\)/); assert.match(wh, /ignored: true/); assert.match(wh, /studioBillingEmail\(admin/);

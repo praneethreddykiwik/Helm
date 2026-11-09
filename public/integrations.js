@@ -51,14 +51,16 @@
     if (ov && ov.has_invite_mailer && sent > 0) return { state: "on", label: "Live", meta: "Teammate invites are e-mailed by Helm." + counts };
     return { state: "off", label: "Not connected", meta: "Helm's e-mail service is not switched on yet. Invites still work: copy the Join link and share it." };
   }
+  // R129 (0337): the studio's OWN WhatsApp number sends its messages - the badge follows that account
+  // (connected = Live, saved / checking = Simulated, error / none = Not connected). srv is no longer needed here.
   function whatsappStatus(ov, srv) {
-    var num = ov && showPhone(ov.studio_whatsapp);
-    var acct = ov && ov.whatsapp && ov.whatsapp.status;
-    var own = acct === "connected" ? " Your own WhatsApp Business account is connected." : acct === "pending" ? " Your own WhatsApp Business account is saved and waiting for Helm to verify it." : acct === "error" ? " Your own WhatsApp Business account needs attention – contact Helm support." : "";
-    var live = !!(srv && srv.whatsapp && srv.whatsapp.live);
-    if (num && live) return { state: "on", label: "Live", meta: "Messages go out from Helm's WhatsApp number on behalf of your studio. Your studio number: " + num + "." + own };
-    if (num) return { state: "wait", label: "Simulated", meta: "Your studio number " + num + " is saved. Messages are simulated – nothing is sent on WhatsApp until Helm switches it on." + own };
-    return { state: "off", label: "Not connected", meta: "Add your studio WhatsApp number below to start." + own };
+    var w = (ov && ov.whatsapp) || null, acct = w && w.status;
+    var num = w && w.display_phone ? String(w.display_phone) : "";
+    if (acct === "connected") return { state: "on", label: "Live", meta: "Messages go out from your studio's own WhatsApp number" + (num ? " " + num : "") + "." };
+    if (acct === "pending") return { state: "wait", label: "Not checked", meta: "Your WhatsApp details are saved. Press Check connection below." };
+    if (acct === "error") return { state: "off", label: "Needs attention", meta: "The last connection check failed - see below, fix it and press Check connection." };
+    if (acct === "disabled" && w && w.phone_number_id) return { state: "off", label: "Paused", meta: "Nothing is sent on WhatsApp from your studio while it is paused." };
+    return { state: "off", label: "Not connected", meta: "Connect your studio's WhatsApp Business number below. Until then your studio sends no WhatsApp messages (e-mail keeps working)." };
   }
   function razorpayStatus(ov, live) {
     var r = ov && ov.razorpay;
@@ -142,6 +144,15 @@
     repaint();
     wireEmail(doc, S, state, repaint);
     wireWhatsapp(doc, S, state, repaint);
+    // R129: the studio's own WhatsApp number (admin only; members see the status line above)
+    var wac = doc.getElementById("itgWaConnect");
+    if (wac && global.HelmWaConnect) global.HelmWaConnect.mount(wac, { store: S, onChange: function (x) {
+      var w = x && x.w;
+      state.ov.whatsapp = w ? { status: w.status, display_phone: w.display_phone, phone_number_id: w.phone_number_id, connected_at: w.connected_at } : null;
+      repaint();
+    } }).catch(function () {});
+    // online payments are not offered yet (liveChannels.pay off) - no card that cannot be used
+    var pay = doc.getElementById("itgPay"); if (pay && !liveFlags().pay) pay.hidden = true;
     doc.getElementById("app").hidden = false;
     // open the guide the user came for (#whatsapp / #email / #payments)
     var h = String(global.location.hash || "").slice(1);
