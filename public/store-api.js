@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=65"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=66"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -3881,6 +3881,10 @@ window.HelmUrl = HelmUrl;
     // ---- Phase 38: special-task recurring reminder ----
     setSpecial: (taskId, on, everyMin) => rpc("set_task_special", { p_id: taskId, p_on: !!on, p_every_min: everyMin || 5 }),
     runReminders: (quoteId) => rpc("run_task_reminders", quoteId ? { p_quote: quoteId } : {}),
+    // ---- R130 (0338): WhatsApp task reminders. setReminders(id, null) = the studio default; [] = none for this task ----
+    setReminders: (taskId, mins) => rpc("set_task_reminders", { p_task: taskId, p_before: Array.isArray(mins) ? mins : null }),
+    // { wa_ready, settings, tasks: [{ task_id, what, status, reason, at }] } or null (server without 0338)
+    waStatus: (quoteId) => (supa && quoteId ? rpc("task_wa_status", { p_quote: quoteId }).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
     async setEventManager(quoteId, managerId) { const { error } = await supa.from("quotes").update({ manager_id: managerId }).eq("id", quoteId); if (error) throw error; return true; },
     // ---- 0038: crew evidence (reject reason / voice note, proof photos) — staff read ----
     // Rows are RLS-gated (Staff view, own studio). Before 0038 is applied the table is
@@ -9222,6 +9226,7 @@ window.HelmUrl = HelmUrl;
       crew_late: ["⏰", (d.worker || "A crew member") + " checked in late" + (d.late_min ? " (" + d.late_min + " min)" : "")],
       crew_unavailable: ["📅", (d.worker || "A crew member") + " marked a booked day unavailable" + (d.day ? " (" + d.day + ")" : "")],
       task_reminder: ["🔔", "Task reminder" + (d.task ? ": " + d.task : "")],
+      task_overdue: ["⏰", (d.task ? d.task : "A task") + " hasn't started" + (d.worker ? " (" + d.worker + ")" : "") + (d.start ? " - was due " + d.start : "")],   // R130 (0338)
       otp: ["🔐", "Approval OTP sent"],
       approval_link: ["✉️", trialPreview ? "Approval link ready (trial preview — not sent)" : "Approval link sent"],
       payment: ["💳", "Payment update"],
@@ -10760,6 +10765,12 @@ window.HelmUrl = HelmUrl;
     waReady: () => (supa ? rpc("studio_whatsapp_ready", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
   };
 
+  // R130 (0338): studio settings for WhatsApp task reminders (Settings -> Notifications). null = server without 0338.
+  const taskReminders = {
+    settings: () => (supa ? rpc("task_reminder_settings_get", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+    saveSettings: (patch) => (supa ? rpc("task_reminder_settings_set", { p: patch || {} }) : Promise.reject(new Error("Needs a signed-in studio."))),
+  };
+
   // R125 (0334): the free-trial preview pop-up (trial-preview.js). Signed-in staff of the studio only; no token is ever made.
   const trialPreview = {
     bundle: (kind, quoteId, opts) => rpc("trial_preview_bundle", { p_kind: kind, p_quote: quoteId || null, p_opts: opts || {} }),
@@ -10771,6 +10782,7 @@ window.HelmUrl = HelmUrl;
   const BPStore = {
     reservedEmailDomain, RESERVED_EMAIL_MESSAGE, preauthorisedHqEmail,
     isStaffEmail, STAFF_GOOGLE_MESSAGE, staffGoogleOnlyFor, staffGoogleSessionCheck,
+    taskReminders,   // R130 (0338)
     activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
     // User manual (migration 0031): lives in the PRIVATE storage bucket "helm-manual",
     // readable only by signed-in users. Returns { html, files: { "screenshots/x.webp": signedUrl } }

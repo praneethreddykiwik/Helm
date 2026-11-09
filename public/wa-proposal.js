@@ -10,7 +10,7 @@
 (function () {
   "use strict";
   var OPT_TEXT = "Client agreed to receive WhatsApp updates about this event from the studio's WhatsApp number.";
-  var NOT_CONNECTED = "Your studio's WhatsApp number isn't connected yet, so nothing can be sent from here. Use Copy link or e-mail meanwhile.";
+  var NOT_CONNECTED = "WhatsApp isn't set up for your studio yet, so this can't go out on WhatsApp. Connect your studio's own WhatsApp number on the Integrations page (use Copy link or e-mail meanwhile).";
   // qa-quote-flow B21: same test-mode wording + label as the booklet / invitation send boxes (invite-site-share.js)
   var TRIAL_NOTE = "Test mode \u2014 in the free trial nothing is sent. Use the preview to see what your client would get.";
   var TRIAL_SENT = "Test mode: nothing was sent (free trial).";
@@ -55,7 +55,7 @@
     // R129: not connected -> a plain note + a link to connect (admins), and the button stays off
     var conn = el("p", "wap-note muted"); conn.hidden = true; conn.setAttribute("role", "note");
     var connTxt = el("span", null, NOT_CONNECTED); conn.appendChild(connTxt);
-    var connA = el("a", null, " Connect WhatsApp"); connA.href = "integrations.html#whatsapp"; conn.appendChild(connA);
+    var connA = el("a", "btn sm primary wap-setup", "Set up WhatsApp \u2192"); connA.href = "integrations.html#whatsapp"; conn.appendChild(connA);
     box.appendChild(conn);
     var btn = el("button", "btn sm primary", "Send on WhatsApp"); btn.type = "button"; btn.id = "wapSend"; box.appendChild(btn);
     var msg = el("div", "wap-msg"); msg.setAttribute("role", "status"); box.appendChild(msg);

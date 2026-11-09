@@ -1,0 +1,30 @@
+/* R130 (0338): WhatsApp task reminders - Live Status chips, Schedule popup tick boxes, Settings card, "not set up" note */
+.wachip{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 8px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-3);white-space:nowrap}
+.wachip[data-state="on"]{background:#e7f6ee;border-color:#b6e3ca;color:#0f7a43}
+.wachip[data-state="wait"]{background:#fff6e6;border-color:#f3d9a6;color:#8a5a00}
+.wachip[data-state="off"]{background:#fdecea;border-color:#f5c2bd;color:#8a1c12}
+.wa-setup-note{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 0;padding:10px 12px;border:1px solid #f3d9a6;border-radius:10px;background:#fff6e6;color:#6e4800}
+.wa-setup-note .wsn-t{margin:0;flex:1 1 260px;font-size:13px;line-height:1.45}
+.wa-setup-note .wsn-s{font-size:12px}
+.trm-line{margin:6px 0 0;font-size:12.5px}
+.trm-line:empty{display:none}
+.trm-set{border:1px solid var(--line);border-radius:10px;padding:8px 12px 10px;margin:12px 0 0;min-width:0}
+.trm-set legend{font-weight:600;font-size:13px;padding:0 6px}
+.trm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px;margin:8px 0}
+.trm-cb{display:flex;align-items:center;gap:8px;font-size:13px;min-height:32px;cursor:pointer}
+.trm-cb input{width:18px;height:18px;margin:0;flex:0 0 auto}
+.trm-custom{display:grid;gap:4px;max-width:260px;margin:4px 0}
+.trm-custom label{font-size:12.5px;font-weight:600}
+.trm-custom input,.trm-row input{min-height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;box-sizing:border-box}
+.trm-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;margin:6px 0}
+.trm-row input{width:76px}
+.trm-card h3{margin:0 0 6px;font-size:15px}
+.trm-card h4{margin:14px 0 4px;font-size:13px}
+.trm-explain{margin:0 0 8px;font-size:13px;line-height:1.5;color:var(--ink-2)}
+.trm-foot{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px}
+.trm-msg{margin:0;font-size:12.5px;color:var(--ink-2)}
+html[data-theme="dark"] .wachip[data-state="on"]{background:rgba(24,165,88,.15);border-color:rgba(24,165,88,.4);color:#7ee2a8}
+html[data-theme="dark"] .wachip[data-state="wait"],html[data-theme="dark"] .wa-setup-note{background:rgba(232,145,45,.15);border-color:rgba(232,145,45,.4);color:#f5c27a}
+html[data-theme="dark"] .wachip[data-state="off"]{background:rgba(192,57,43,.15);border-color:rgba(192,57,43,.4);color:#f4a39a}
+.wa-setup-note .wsn-btn{text-decoration:none;white-space:nowrap}
+.trm-card .hint,.trm-set .hint{font-size:12px;margin:6px 0 0}

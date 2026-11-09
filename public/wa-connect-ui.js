@@ -5,7 +5,7 @@
         -> save_org_whatsapp_account (the token goes into the secure key store; never shown again, never logged)
         -> Check connection runs straight away.
      2  Check connection: the wa-connect edge function asks Meta and records Connected (name + number + quality) or the reason.
-     3  Set up message templates: Helm creates its 8 templates in the studio's account; Meta approves each (minutes to hours).
+     3  Set up message templates: Helm creates its templates in the studio's account; Meta approves each (minutes to hours).
      4  Disconnect: removes the token, frees the number (another studio may connect it).
    Only the studio admin sees the card (my_integration_accounts.is_admin). Members see the status line on the page.
    CSP-safe: DOM via createElement / textContent only, no inline styles or handlers. Pure helpers exported for tests. */
@@ -17,7 +17,14 @@
     ["proposal_sent", "Proposal shared with the client"], ["proposal_reminder", "Proposal reminder"],
     ["proposal_approved_pay", "Approved - pay now"], ["payment_received", "Payment received"],
     ["proposal_approval_otp", "Approval code (6 digits)"], ["helm_notice", "Payment reminders, follow-ups, updates"],
-    ["helm_task_assigned", "Crew task assignments"], ["helm_event_reminder", "Event reminders"]];
+    ["helm_task_assigned", "Crew messages (older one-line form)"], ["helm_event_reminder", "Event reminders"],
+    // R130 (U-31): one fixed template per staff / vendor / office message, each with its own fields
+    ["staff_task_assigned", "Task assigned"], ["staff_task_reminder", "Task reminder"], ["staff_task_overdue", "Task overdue"],
+    ["staff_task_changed", "Task changed or removed (ready, not sent yet)"], ["staff_open_shift", "Open shift available"],
+    ["staff_shift_result", "Shift confirmed or not given (ready, not sent yet)"], ["staff_leave_result", "Leave approved or declined (ready, not sent yet)"],
+    ["office_staff_alert", "Staff alert to the office"], ["vendor_request", "Vendor request (ready, not sent yet)"],
+    ["vendor_follow_up", "Vendor follow-up (ready, not sent yet)"], ["vendor_delivery_reminder", "Vendor delivery reminder (ready, not sent yet)"],
+    ["vendor_invoice_update", "Vendor invoice update (ready, not sent yet)"], ["crew_runsheet_reminder", "Run-sheet reminder"]];
   var TPL_STATE = { APPROVED: "Approved", PENDING: "Waiting for Meta", IN_APPEAL: "Waiting for Meta", PENDING_DELETION: "Being removed",
     REJECTED: "Rejected", DISABLED: "Turned off by Meta", PAUSED: "Paused by Meta", LIMIT_EXCEEDED: "Limit reached" };
 
@@ -145,7 +152,7 @@
       var setup = btn(anyMissing ? "Set up message templates" : "Refresh template states", anyMissing ? "btn-pri" : ""); setup.id = "wacTpl";
       row2.appendChild(setup); box.appendChild(row2);
       setup.addEventListener("click", function () {
-        setup.disabled = true; say(m, anyMissing ? "Creating the templates in your WhatsApp account..." : "Asking Meta...", "wait");
+        setup.disabled = true; say(m, anyMissing ? "Creating the templates in your WhatsApp account (this can take a minute)..." : "Asking Meta...", "wait");
         I.waConnect(anyMissing ? "templates" : "status").then(function (r) {
           var f = r && Array.isArray(r.failed) ? r.failed.length : 0;
           say(m, (r && r.ok ? (anyMissing ? (Number(r.created) || 0) + " template(s) sent to Meta for review." + (f ? " " + f + " could not be created - try again later." : "") + " Approval usually takes minutes to a few hours." : "Template states updated.") : friendly({ message: r && r.error })), r && r.ok && !f ? "on" : "off");
