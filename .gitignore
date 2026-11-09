@@ -1,5 +1,7 @@
 .DS_Store
 node_modules/
+# R131: minified build output (scripts/build-dist.mjs) - built by Vercel, never committed
+dist/
 data/
 
 # public/config.staging.js IS committed: it holds only the PUBLIC staging url +

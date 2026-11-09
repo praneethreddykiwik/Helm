@@ -31,7 +31,8 @@ const PORT = (() => {
   return n;
 })();
 const ROOT = __dirname;
-const PUBLIC_DIR = path.join(ROOT, 'public');
+// R131: HELM_PUBLIC_DIR=dist serves the minified build locally (Vercel serves dist/ itself)
+const PUBLIC_DIR = process.env.HELM_PUBLIC_DIR ? path.resolve(ROOT, process.env.HELM_PUBLIC_DIR) : path.join(ROOT, 'public');
 const DATA_DIR = path.join(ROOT, 'data');
 const DB_FILE = path.join(DATA_DIR, 'layouts.json');
 
