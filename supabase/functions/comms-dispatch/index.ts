@@ -99,7 +99,7 @@ import { brandMode, sendMail, type SmtpSend } from "../_shared/mailer.ts";
 import { rowReplyTo } from "../_shared/reply-to.mjs";   // R107: Reply-To fallback (business e-mail -> owner)
 import { runWelcomeBatch } from "../welcome-mailer/send.ts";   // R119 (0327): welcome e-mails (database switch, 48 h)
 import { orgOfRow, senderCache, waPost, type WaSender } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
-import { noticeContent } from "../_shared/wa-studio.mjs";
+import { fieldContent, noticeContent } from "../_shared/wa-studio.mjs";
 
 const enc = new TextEncoder();
 const ALLOWED_HOSTS = new Set(["api.resend.com", "graph.facebook.com"]);
@@ -249,6 +249,20 @@ async function waStopped(admin: any, to: string): Promise<Res | null> {
   } catch (e) { console.error("comms-dispatch: stop check error", errTag(e)); return "failed"; }
 }
 
+// R130 (0338): an assign row's studio + template + fields (service role reads; null when the row / columns are missing)
+// deno-lint-ignore no-explicit-any
+async function assignMeta(admin: any, id: string): Promise<{ org_id: string; template: string | null; params: unknown } | null> {
+  try {
+    const { data, error } = await admin.from("assign_notify_outbox").select("org_id, template, params").eq("id", id).maybeSingle();
+    return error || !data ? null : { org_id: String(data.org_id || ""), template: data.template || null, params: data.params };
+  } catch (_) { return null; }
+}
+// deno-lint-ignore no-explicit-any
+async function assignWa(admin: any, id: string, wamid: string | null, status: "sent" | "failed" | "not_set_up"): Promise<void> {
+  try { const { error } = await admin.rpc("assign_notify_wamid", { p_id: id, p_wamid: wamid, p_status: status }); if (error && !/PGRST202|42883/.test(String(error.code || ""))) console.error("comms-dispatch: wamid not saved", errTag(error)); }
+  catch (e) { console.error("comms-dispatch: wamid error", errTag(e)); }
+}
+
 // 0132: assignment text from the database + the person's own task link (path is validated
 // against the one shape the database writes; the host is always APP_URL, never the database)
 const ASSIGN_LINK = /^work\.html\?token=[0-9a-f-]{36}$/;
@@ -385,10 +399,52 @@ Deno.serve(async (req) => {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const text = assignMessage(String(r?.text ?? ""), String(r?.link_path ?? ""), origin);
-      const res: Res = text ? ((await waStopped(admin, to)) ?? await sendWhatsApp(to, text, "task_assigned", await waSenderOf(await orgOfRow(admin, "assign_notify_outbox", id)))) : "skipped";
+      // R130 (0338): the row's own template + fields (task assigned / open shift / run-sheet reminder); older rows or a
+      // failed lookup -> the one-box notice as before. The WhatsApp id is kept so Meta's ticks show Delivered / Read.
+      const meta = await assignMeta(admin, id);
+      const sender = await waSenderOf(meta?.org_id ?? await orgOfRow(admin, "assign_notify_outbox", id));
+      const linkPath = String(r?.link_path ?? "");
+      const link = ASSIGN_LINK.test(linkPath) ? origin + "/" + linkPath : "";
+      let res: Res = "skipped";
+      if (!text) res = "skipped";
+      else if (!sender) { res = "skipped"; await assignWa(admin, id, null, "not_set_up"); }
+      else if (meta && meta.template && fieldContent(meta.template, meta.params, link)) {
+        const stop = await waStopped(admin, to);
+        if (stop) res = stop;
+        else {
+          const w = await waPost(admin, sender, { to, ...fieldContent(meta.template, meta.params, link)! });
+          res = w.ok ? "sent" : (w.kind === "recipient" || w.kind === "token" || w.kind === "permission" || w.kind === "template") ? "skipped" : "failed";
+          if (w.ok || res === "skipped") await assignWa(admin, id, w.wamid, w.ok ? "sent" : "failed");
+        }
+      }
+      else res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, text, "task_assigned", sender);
       const { error: mErr } = await admin.rpc("assign_notify_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
       if (mErr) { console.error("comms-dispatch: assign mark failed", errTag(mErr)); counts.failed++; continue; }
       counts[res]++;
+    }
+    // R130 (0338): task reminders, late reminders and office alerts (task_reminder_tick queues them every minute).
+    // From the studio's own number only; not connected -> "not_set_up" (the Live Status line says so). A database
+    // without 0338 just has nothing to claim.
+    const { data: rmRows, error: trErr } = await admin.rpc("task_wa_claim", { p_limit: batch });
+    if (trErr && !/PGRST202|42883/.test(String(trErr.code || ""))) console.error("comms-dispatch: reminder claim skipped", errTag(trErr));
+    for (const r of (Array.isArray(rmRows) ? rmRows : [])) {
+      const id = String(r?.id ?? ""), to = String(r?.to ?? "");
+      if (!UUIDISH.test(id)) { counts.invalid++; continue; }
+      const sender = await waSenderOf(String(r?.org_id ?? ""));
+      const lp = String(r?.link_path ?? "");
+      const content = fieldContent(String(r?.template ?? ""), r?.params, /^(work\.html\?token=|ops\.html\?quote=)[0-9a-f-]{36}$/.test(lp) ? origin + "/" + lp : "");
+      let st = "skipped", wamid: string | null = null, reason: string | null = null;
+      if (!sender) { st = "not_set_up"; reason = "whatsapp_not_connected"; }
+      else if (!content || !PHONE.test(to)) { st = "skipped"; reason = "bad_fields"; }
+      else {
+        const w = await waPost(admin, sender, { to, ...content });
+        if (w.ok) { st = "sent"; wamid = w.wamid; }
+        else if (w.kind === "recipient" || w.kind === "token" || w.kind === "permission" || w.kind === "template") { st = "failed"; reason = w.kind; }
+        else { st = "retry"; reason = w.kind; }
+      }
+      const { error: tmErr } = await admin.rpc("task_wa_mark", { p_id: id, p_status: st, p_wamid: wamid, p_reason: reason });
+      if (tmErr) { console.error("comms-dispatch: reminder mark failed", errTag(tmErr)); counts.failed++; continue; }
+      counts[st === "sent" ? "sent" : st === "retry" || st === "failed" ? "failed" : "skipped"]++;
     }
     // 0241: delivery / arrival reminders (a database without 0241 just has nothing to claim). E-mail only.
     const { data: drows, error: dErr } = await admin.rpc("delivery_reminder_claim", { p_limit: batch });

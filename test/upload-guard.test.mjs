@@ -83,7 +83,10 @@ function makeEnv(o = {}) {
       const size = o.blobSize ? o.blobSize(c.width, c.height, q) : 4096;
       if (type === 'image/webp' && o.noWebp) return cb(new Blob([pad(PNG, 64)], { type: 'image/png' }));
       const head = type === 'image/webp' ? WEBP : [0xFF, 0xD8, 0xFF, 0xDB];
-      cb(new Blob([pad(head, Math.max(16, size))], { type }));
+      // CI: a fake "huge" image reports its size without allocating it (a real 9 GB buffer ran the 7 GB runner out of memory)
+      const blob = new Blob([pad(head, Math.max(16, Math.min(size, 1 << 16)))], { type });
+      if (size > (1 << 16)) Object.defineProperty(blob, 'size', { value: size });
+      cb(blob);
     } }); return c; };
   const doc = {
     readyState: 'complete', addEventListener() {}, removeEventListener() {}, currentScript: { src: 'https://www.helm.events/store-api.js?v=247' },

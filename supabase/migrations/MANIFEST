@@ -556,3 +556,5 @@ forward  supabase/migrations/0335_r126_hq_fixes.sql
 forward  supabase/migrations/0336_r128_security_fixes.sql
 # 0337 (R129, owner: "implement whatsapp and enable whatsapp integration on the website"): each studio sends from its OWN WhatsApp number - connect check result, template states, real Disconnect (token removed, number freed), member "is our WhatsApp connected?", public_quote_ready + wa, my_integration_accounts + verified name / templates. Two functions re-issued (old bodies kept once as *__pre0337 with no app privilege). Nothing dropped; the only delete is the disconnecting studio's own token in the key store. Safe to run twice.
 forward  supabase/migrations/0337_r129_studio_whatsapp.sql
+# 0338 (R130, owner: "work on templates and their working"): task reminders on WhatsApp from the studio's own number - studio settings (10 + 5 min before, late every 15 min up to 3, then office), per-task times, every-minute job (pg_cron), reminder queue with status, task assigned / open shift / run-sheet fields + delivery status, Live Status summary. Nothing dropped or deleted. Safe to run twice.
+forward  supabase/migrations/0338_r130_task_reminders.sql

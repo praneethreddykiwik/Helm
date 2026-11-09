@@ -42,8 +42,8 @@ await t('a late check result cannot reconnect a disconnected / paused studio', (
 });
 
 await t('template catalogue: the 8 names the senders use, English, examples given', () => {
-  assert.deepEqual(W.CATALOGUE_NAMES, ['proposal_sent', 'proposal_reminder', 'proposal_approved_pay', 'payment_received',
-    'proposal_approval_otp', 'helm_notice', 'helm_task_assigned', 'helm_event_reminder']);
+  assert.deepEqual(W.CATALOGUE_NAMES.slice(0, 8), ['proposal_sent', 'proposal_reminder', 'proposal_approved_pay', 'payment_received',
+    'proposal_approval_otp', 'helm_notice', 'helm_task_assigned', 'helm_event_reminder']);   // R130 adds the field templates after these
   for (const k of P.KINDS) assert.ok(W.CATALOGUE_NAMES.includes(k), k);
   assert.ok(W.CATALOGUE_NAMES.includes(P.OTP_TEMPLATE));
   for (const tpl of W.templateCatalogue('https://www.helm.events')) {
@@ -51,7 +51,7 @@ await t('template catalogue: the 8 names the senders use, English, examples give
     const body = tpl.components.find((c) => c.type === 'BODY');
     if (tpl.category === 'AUTHENTICATION') { assert.equal(body.add_security_recommendation, true); continue; }
     assert.equal(tpl.category, 'UTILITY');
-    const vars = (body.text.match(/\{\{\d\}\}/g) || []).length;
+    const vars = (body.text.match(/\{\{\d+\}\}/g) || []).length;
     assert.equal(body.example.body_text[0].length, vars, tpl.name);
     assert.doesNotMatch(body.text, /^\{\{|\}\}$/, tpl.name + ': Meta refuses a body that starts or ends with a variable');
   }
@@ -75,7 +75,7 @@ await t('template states: Helm\'s English templates only; what is left to create
     { name: 'somebody_else', language: 'en', status: 'APPROVED' }, { name: 'helm_notice', language: 'en', status: 'PENDING' }]);
   assert.deepEqual(st, { proposal_sent: 'APPROVED', helm_notice: 'PENDING' });
   assert.deepEqual(W.templatesToCreate(st).map((x) => x.name), W.CATALOGUE_NAMES.filter((x) => !['proposal_sent', 'helm_notice'].includes(x)));
-  const s = W.templateSummary(st); assert.equal(s.approved, 1); assert.equal(s.waiting, 1); assert.equal(s.missing, 6); assert.equal(s.ready, false);
+  const s = W.templateSummary(st); assert.equal(s.approved, 1); assert.equal(s.waiting, 1); assert.equal(s.missing, W.CATALOGUE_NAMES.length - 2); assert.equal(s.ready, false);
 });
 await t('Meta errors: token / permission / exists / template / recipient / limit', () => {
   assert.equal(W.graphError(401, {}).kind, 'token');

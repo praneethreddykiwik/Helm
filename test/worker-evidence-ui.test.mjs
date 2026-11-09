@@ -175,7 +175,7 @@ await t('ops.html: evidence button + modal render reason / voice / photos, all e
   assert.match(els.ev_body.innerHTML, /<a href="[^"]+" target="_blank" rel="noopener noreferrer" aria-label="Open proof photo 1"><img src="[^"]+" alt="Proof photo 1" loading="lazy"><\/a>/);
   assert.deepEqual(signed.map((s) => s[1]), [300, 300]);
   // the Live status row carries the button and the dashboard poll refreshes evidence
-  assert.match(ops, /\$\{verifyChip\(t\)\}\s*\n\s*\$\{evidenceBtn\(t\)\}/);
+  assert.match(ops, /\$\{verifyChip\(t\)\}\s*\n(\s*\$\{typeof waChip[^\n]*\n)?\s*\$\{evidenceBtn\(t\)\}/);
   assert.match(ops, /BPStore\.ops\.listEvidence\(quoteId\)\.catch\(\(\)=>evidence\)/);
   assert.match(ops, /<div class="lmodal" id="evModal" hidden role="dialog" aria-modal="true" aria-labelledby="ev_title">/);
 });

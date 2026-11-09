@@ -90,9 +90,8 @@ t("5 client-mailer: canonical www default, APP_URL honoured", () => {
   assert.match(CM, /: "https:\/\/www\.helm\.events";/);
   assert.doesNotMatch(CM, /: "https:\/\/helm\.events";/);
 });
-t("6 Operations reminders say 'Logged', not 'Sent' / 'assignees notified'", () => {
-  assert.match(OPS, /"Logged "\+n\+" reminder"/);
-  assert.match(OPS, /"Marked "\+n\+" task"/);
+t("6 Operations reminders: R130 removed the manual buttons (they only logged); WhatsApp reminders run on their own", () => {
+  assert.doesNotMatch(OPS, /id="remindDue"|id="fireDue"/);
   assert.doesNotMatch(OPS, /"Sent "\+n\+" reminder"/);
   assert.doesNotMatch(OPS, /assignees notified/);
 });
