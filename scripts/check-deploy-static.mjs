@@ -31,7 +31,7 @@ const cfg = JSON.parse(readFileSync(join(ROOT, "vercel.json"), "utf8"));
 // R131: the site is still static - the only build step minifies public/ into dist/ (scripts/build-dist.mjs), nothing runs on the server
 cfg.outputDirectory === "dist" ? ok('outputDirectory = "dist" (minified copy of public/)') : bad(`outputDirectory must be "dist" (got ${JSON.stringify(cfg.outputDirectory)})`);
 cfg.buildCommand === "node scripts/build-dist.mjs" ? ok("buildCommand = node scripts/build-dist.mjs (minify only)") : bad(`buildCommand must be exactly "node scripts/build-dist.mjs" (got ${JSON.stringify(cfg.buildCommand)})`);
-/^npm ci --ignore-scripts( |$)/.test(String(cfg.installCommand || "")) ? ok("installCommand = npm ci --ignore-scripts (lockfile, no install scripts)") : bad(`installCommand must start with "npm ci --ignore-scripts" (got ${JSON.stringify(cfg.installCommand)})`);
+/^npm ci --prefix tools\/build --ignore-scripts( |$)/.test(String(cfg.installCommand || "")) ? ok("installCommand = npm ci --prefix tools/build --ignore-scripts (pinned minifiers only, no install scripts)") : bad(`installCommand must start with "npm ci --prefix tools/build --ignore-scripts" (got ${JSON.stringify(cfg.installCommand)})`);
 cfg.framework === null ? ok("framework = null (no framework build)") : bad(`framework must be null (got ${JSON.stringify(cfg.framework)})`);
 !("builds" in cfg) ? ok("no legacy 'builds' key") : bad("'builds' present — may build a function");
 !("functions" in cfg) ? ok("no 'functions' key") : bad("'functions' present — declares a serverless function");

@@ -8,7 +8,7 @@ const V = JSON.parse(r('vercel.json'));
 const B = r('scripts/build-dist.mjs');
 t('Vercel builds dist/ with the minify script only (still a static site)', () => {
   assert.equal(V.outputDirectory, 'dist'); assert.equal(V.buildCommand, 'node scripts/build-dist.mjs');
-  assert.match(V.installCommand, /^npm ci --ignore-scripts/); assert.equal(V.framework, null);
+  assert.match(V.installCommand, /^npm ci --prefix tools\/build --ignore-scripts/); assert.equal(V.framework, null);
   assert.ok(!('functions' in V) && !('builds' in V));
 });
 t('terser: comments removed, local names shortened, globals kept, no source map', () => {
@@ -19,13 +19,14 @@ t('HTML is copied unchanged (CSP hashes stay valid); vendor files untouched', ()
   assert.doesNotMatch(B, /\.html'\)/); assert.match(B, /SKIP_DIR = \/\(\^\|\[\\\\\/\]\)vendor/);
 });
 t('pinned exact build tools', () => {
-  const p = JSON.parse(r('package.json'));
-  assert.equal(p.devDependencies.terser, '5.51.2'); assert.equal(p.devDependencies['clean-css'], '5.3.3');
+  const p = JSON.parse(r('tools/build/package.json'));
+  assert.equal(p.dependencies.terser, '5.51.2'); assert.equal(p.dependencies['clean-css'], '5.3.3');
+  assert.ok(!('terser' in (JSON.parse(r('package.json')).devDependencies || {})), 'not in the app packages');
 });
 t('dist/ never committed; CI builds it on every PR', () => {
   assert.match(r('.gitignore'), /^dist\/$/m);
   const ci = r('.github/workflows/ci.yml');
-  assert.match(ci, /npm ci --ignore-scripts --no-audit --no-fund/); assert.match(ci, /node scripts\/build-dist\.mjs --check/);
+  assert.match(ci, /npm ci --prefix tools\/build --ignore-scripts --no-audit --no-fund/); assert.match(ci, /node scripts\/build-dist\.mjs --check/);
 });
 t('no source map file in public/', () => {
   const walk = (d) => readdirSync(new URL('../' + d, import.meta.url), { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(d + '/' + e.name) : [d + '/' + e.name]);

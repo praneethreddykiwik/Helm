@@ -19,10 +19,13 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, sta
 import { join, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { minify } from 'terser';
-import CleanCSS from 'clean-css';
+import { createRequire } from 'node:module';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+// the pinned minifiers live in tools/build (npm ci --prefix tools/build --ignore-scripts), not in the app's packages
+const toolRequire = createRequire(join(ROOT, 'tools', 'build', 'package.json'));
+const { minify } = toolRequire('terser');
+const CleanCSS = toolRequire('clean-css');
 const SRC = join(ROOT, 'public');
 const CHECK = process.argv.includes('--check');
 const OUT = CHECK ? mkdtempSync(join(tmpdir(), 'helm-dist-')) : join(ROOT, 'dist');
