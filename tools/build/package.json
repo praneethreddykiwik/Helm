@@ -1,0 +1,9 @@
+{
+  "name": "helm-build-tools",
+  "private": true,
+  "description": "R131: pinned minifiers for scripts/build-dist.mjs (installed with npm ci --prefix tools/build --ignore-scripts).",
+  "dependencies": {
+    "clean-css": "5.3.3",
+    "terser": "5.51.2"
+  }
+}

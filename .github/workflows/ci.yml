@@ -39,6 +39,10 @@ jobs:
         run: node scripts/gen-capture-host.mjs --check
       - name: Deployment containment (static-only) assertions
         run: node scripts/check-deploy-static.mjs
+      - name: Install pinned build tools (tools/build lockfile, no install scripts)
+        run: npm ci --prefix tools/build --ignore-scripts --no-audit --no-fund
+      - name: Minified build (R131) - every file parses, no source maps
+        run: node scripts/build-dist.mjs --check
       - name: Migration-canon consistency guard (repo-only, no DB)
         run: node scripts/check-migration-canon.mjs
       - name: OTP-safety guard (no hardcoded PIN, repo-only)
