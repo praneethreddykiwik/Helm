@@ -360,6 +360,8 @@ run "trial-seed-0174-r125-gate" "TRIAL-SEED-0174: ALL PASS \(12/12\)" env PGOPTI
 run "r126-hq-fixes-0335" "R126-HQ-FIXES-0335: ALL PASS \(39/39\)" psql -q -f tests/db/r126-hq-fixes-0335.sql
 # r128 (0336): the open security list - crew limit address, counter purge, contact change cancels an unapproved link, shown-total check, trial preview + snapshot
 run "r128-security-fixes-0336" "R128-SECURITY-FIXES-0336: ALL PASS \(43/43\)" psql -q -f tests/db/r128-security-fixes-0336.sql
+# r129 (0337): each studio sends from its own WhatsApp number - admin-only connect, check result, template states, member "ready", approval page wa, Disconnect frees the number + removes the token; re-applies itself twice, rolled back
+run "r129-studio-whatsapp-0337" "R129-STUDIO-WHATSAPP-0337: ALL PASS \(42/42\)" psql -q -f tests/db/r129-studio-whatsapp-0337.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

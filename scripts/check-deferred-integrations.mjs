@@ -8,7 +8,8 @@
  * secure server-side implementation described in docs/DEFERRED-INTEGRATIONS.md.
  *
  * READ-ONLY, no network. Fails (exit 1) when:
- *   1. public/config.js liveChannels.pay or .whatsapp is `true`.
+ *   1. public/config.js liveChannels.pay is `true` (R129: .whatsapp may be true - studio numbers - but only while
+ *      every studio sender uses _shared/wa-sender.ts and none reads Helm's own WHATSAPP_TOKEN, see 1b).
  *   2. The app_config `channels` seed defaults pay_live to true.
  *   3. A provider secret looks committed in client code (razorpay key_secret,
  *      Evolution API key value, WhatsApp token).
@@ -42,12 +43,30 @@ else {
   const cfg = readFileSync(cfgPath, 'utf8');
   // isolate the liveChannels {...} block to avoid matching comments elsewhere
   const block = (cfg.match(/liveChannels\s*:\s*\{[\s\S]*?\}/) || [''])[0];
-  for (const ch of ['pay', 'whatsapp']) {
+  for (const ch of ['pay']) {
     const m = block.match(new RegExp('\\b' + ch + '\\s*:\\s*(true|false)'));
     if (!m) fail(`config.js liveChannels.${ch} not found (expected an explicit false)`);
     else if (m[1] === 'true') fail(`config.js liveChannels.${ch} = true — ${ch} is DEFERRED and must stay false (see docs/DEFERRED-INTEGRATIONS.md)`);
     else ok(`config.js liveChannels.${ch} = false`);
   }
+  // R129 (0337): whatsapp = the studio's OWN number; whatsappHelm = Helm's number (phone Verify) must be an explicit boolean
+  const wa = block.match(/\bwhatsapp\s*:\s*(true|false)/), waH = block.match(/\bwhatsappHelm\s*:\s*(true|false)/);
+  if (!wa) fail('config.js liveChannels.whatsapp not found (expected an explicit true / false)');
+  else ok(`config.js liveChannels.whatsapp = ${wa[1]} (studio numbers)`);
+  if (!waH) fail('config.js liveChannels.whatsappHelm not found (expected an explicit false until Helm\'s own number is set up)');
+  else ok(`config.js liveChannels.whatsappHelm = ${waH[1]} (Helm's own number: phone Verify only)`);
+}
+
+// 1b) R129: a studio's messages never go out from Helm's number -------------
+console.log('Deferred integrations: studio WhatsApp senders use the studio number only:');
+for (const fn of ['wa-proposal', 'send-otp', 'comms-dispatch', 'pkg-client-notify', 'send-whatsapp', 'integrations-test']) {
+  const f = join(ROOT, 'supabase', 'functions', fn, 'index.ts');
+  if (!existsSync(f)) { fail(`supabase/functions/${fn}/index.ts missing`); continue; }
+  const src = readFileSync(f, 'utf8');
+  const code = src.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+  if (/Deno\.env\.get\(\s*["']WHATSAPP_(TOKEN|PHONE_ID)["']\s*\)|env\(\s*["']WHATSAPP_(TOKEN|PHONE_ID)["']\s*\)/.test(code)) fail(`${fn} reads Helm's own WHATSAPP_TOKEN / WHATSAPP_PHONE_ID - studio messages must use _shared/wa-sender.ts studioSender`);
+  else if (!/wa-sender\.ts/.test(code)) fail(`${fn} does not use _shared/wa-sender.ts`);
+  else ok(`${fn}: studio number only`);
 }
 
 // 2) SQL app_config channels seed must not default pay_live true ------------

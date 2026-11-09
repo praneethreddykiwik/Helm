@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=64"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=65"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1501,7 +1501,7 @@ window.HelmUrl = HelmUrl;
     loadAuthUi();
   }
   // Account menu / two-step banner live in auth-ui.js (loaded on signed-in staff pages only).
-  const AUTH_UI_VERSION = "60";
+  const AUTH_UI_VERSION = "61";
   let authUiLoading = null;
   function loadAuthUi() {
     if (authUiLoading || typeof document === "undefined") return authUiLoading;
@@ -6688,9 +6688,10 @@ window.HelmUrl = HelmUrl;
     // The code is minted + sent server-side (send-phone-code edge function); it is never
     // returned to the browser, in any mode.
     phoneVerify: {
-      available: () => mode === "supabase" && !!LIVE.whatsapp,
+      // R129: Helm's OWN number sends this code -> liveChannels.whatsappHelm (studio numbers are liveChannels.whatsapp)
+      available: () => mode === "supabase" && !!LIVE.whatsappHelm,
       async send(e164) {
-        if (!(mode === "supabase" && LIVE.whatsapp)) { const e = new Error("Phone verification will be available shortly — you can continue."); e.code = "verify_unavailable"; throw e; }
+        if (!(mode === "supabase" && LIVE.whatsappHelm)) { const e = new Error("Phone verification will be available shortly — you can continue."); e.code = "verify_unavailable"; throw e; }
         if (!/^\+[1-9][0-9]{6,14}$/.test(String(e164 || ""))) { const e = new Error("Enter a valid mobile number first."); e.code = "profile_invalid"; throw e; }
         return callFn("send-phone-code", { phone: e164 });
       },
@@ -10752,6 +10753,11 @@ window.HelmUrl = HelmUrl;
       : Promise.resolve(null)),
     // { mode: "live" | "simulated", sent, to, from?, reply_to?, reason?, error? }; throws when not deployed / refused
     sendTest: (channel) => (supa && fnUrl("integrations-test") ? callFn("integrations-test", { action: "test", channel: channel }) : Promise.reject(new Error("Needs a signed-in studio."))),
+    // R129 (0337): the studio's OWN WhatsApp number. waConnect("verify" | "templates" | "status") -> the wa-connect edge
+    // function (admin only); waDisconnect() frees the number; waReady() -> { connected, display_phone, verified_name } (members)
+    waConnect: (action) => (supa && fnUrl("wa-connect") ? callFn("wa-connect", { action: action }) : Promise.reject(new Error("Needs a signed-in studio."))),
+    waDisconnect: () => (supa ? rpc("disconnect_org_whatsapp_account", {}) : Promise.reject(new Error("Needs a signed-in studio."))),
+    waReady: () => (supa ? rpc("studio_whatsapp_ready", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
   };
 
   // R125 (0334): the free-trial preview pop-up (trial-preview.js). Signed-in staff of the studio only; no token is ever made.

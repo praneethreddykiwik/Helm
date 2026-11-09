@@ -43,7 +43,7 @@
 //   (any WhatsApp row, any other purpose) is marked skipped and never sent (trial-row.mjs).
 // AUTO-ON: runs whenever it is called with the shared secret; each channel switches itself on
 // when its secrets exist (e-mail: SMTP_HOST + SMTP_USER + SMTP_PASS, or RESEND_API_KEY;
-// WhatsApp: WHATSAPP_TOKEN + WHATSAPP_PHONE_ID).
+// WhatsApp, R129 / 0337: the row's studio has connected its OWN WhatsApp number on the Integrations page).
 // E-MAIL TRANSPORT (release 1018): SMTP first - the same shared mailer (_shared/mailer.ts + smtp.ts)
 // as client-mailer / invite-mailer / welcome-mailer, e.g. Gmail smtp.gmail.com:465 + an App Password.
 // Resend only when SMTP is NOT set and RESEND_API_KEY is. Neither -> e-mail rows are "skipped".
@@ -68,13 +68,10 @@
 //   Neither set -> e-mail rows are marked "skipped". Reply-To = the studio's reply-to (0150), else (R107) the
 //                                     studio's business e-mail, else the studio owner's e-mail - never Helm's
 //                                     own sending address (a client reply there is lost); both transports.
-//   WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_API_VERSION (default v21.0)
-//   WHATSAPP_TPL_TASK_ASSIGNED        approved template for "you've been assigned" (e.g. helm_task_assigned)
-//   WHATSAPP_TPL_EVENT_REMINDER       approved template for event reminders  (e.g. helm_event_reminder)
-//   COMMS_WHATSAPP_TEMPLATE           approved template for everything else; each template has ONE
-//                                     body parameter {{1}} (the text). WHATSAPP_TPL_LANG (default en).
-//                                     No template for a kind -> session text when WHATSAPP_ALLOW_TEXT=1,
-//                                     else skipped
+//   WHATSAPP_API_VERSION (default v21.0). R129 (0337): WhatsApp rows go out from the row's STUDIO's own connected
+//                                     number with the templates Helm creates in the studio's account (helm_task_assigned,
+//                                     helm_event_reminder, helm_notice; ONE body parameter {{1}} = the text, language en).
+//                                     A studio without a connected number -> skipped. Helm's own number is never used.
 //   APP_URL                           site origin for deep links (default https://www.helm.events)
 //   COMMS_BATCH                       rows per run, 1..100 (default 25)
 //
@@ -101,6 +98,8 @@ import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks, withF
 import { brandMode, sendMail, type SmtpSend } from "../_shared/mailer.ts";
 import { rowReplyTo } from "../_shared/reply-to.mjs";   // R107: Reply-To fallback (business e-mail -> owner)
 import { runWelcomeBatch } from "../welcome-mailer/send.ts";   // R119 (0327): welcome e-mails (database switch, 48 h)
+import { orgOfRow, senderCache, waPost, type WaSender } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
+import { noticeContent } from "../_shared/wa-studio.mjs";
 
 const enc = new TextEncoder();
 const ALLOWED_HOSTS = new Set(["api.resend.com", "graph.facebook.com"]);
@@ -225,22 +224,18 @@ export function waContent(kind: WaKind, text: string, env: (k: string) => string
   return null;
 }
 
-async function sendWhatsApp(to: string, text: string, kind: WaKind = "general"): Promise<Res> {
-  const token = Deno.env.get("WHATSAPP_TOKEN") || "", phoneId = Deno.env.get("WHATSAPP_PHONE_ID") || "";
-  if (!token || !/^[0-9]{5,20}$/.test(phoneId) || !PHONE.test(to) || !text) return "skipped";
-  const ver = /^v[0-9]{1,2}\.[0-9]$/.test(Deno.env.get("WHATSAPP_API_VERSION") || "") ? Deno.env.get("WHATSAPP_API_VERSION")! : "v21.0";
-  const content = waContent(kind, text, (k) => Deno.env.get(k));
+// R129 (0337): from the row's STUDIO's own connected number (Helm's helm_notice / helm_task_assigned / helm_event_reminder
+// templates in the studio's account). No connected number -> "skipped" (as before when WhatsApp was not configured).
+// A refused token marks the studio's account "error" (waPost); other refusals are retried ("failed" -> retry).
+// deno-lint-ignore no-explicit-any
+let waAdmin: any = null;
+async function sendWhatsApp(to: string, text: string, kind: WaKind = "general", sender: WaSender | null = null): Promise<Res> {
+  if (!sender || !PHONE.test(to) || !text) return "skipped";
+  const content = noticeContent(kind, text);
   if (!content) return "skipped";
-  try {
-    const r = await safeFetch(`https://graph.facebook.com/${ver}/${encodeURIComponent(phoneId)}/messages`, {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp", to, ...content }),
-    });
-    await r.text();
-    if (!r.ok) console.error("comms-dispatch: whatsapp status", r.status);
-    return r.ok ? "sent" : "failed";
-  } catch (e) { console.error("comms-dispatch: whatsapp error", errTag(e)); return "failed"; }
+  const r = await waPost(waAdmin, sender, { to, ...content });
+  if (r.ok) return "sent";
+  return r.kind === "recipient" || r.kind === "token" || r.kind === "permission" ? "skipped" : "failed";
 }
 
 // 0155: last STOP check right before a WhatsApp send. "skipped" = the number replied STOP,
@@ -290,6 +285,8 @@ Deno.serve(async (req) => {
 
     const batch = Math.min(100, Math.max(1, Number(Deno.env.get("COMMS_BATCH")) || 25));
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+    waAdmin = admin;
+    const waSenderOf = senderCache(admin);   // R129: one studio-number lookup per studio per run
     const { data: rows, error } = await admin.rpc("comms_outbox_claim", { p_limit: batch });
     if (error) { console.error("comms-dispatch: claim failed", errTag(error)); return json({ error: "internal error" }, 500); }
 
@@ -321,7 +318,8 @@ Deno.serve(async (req) => {
         }
         res = extra ? await sendEmail(id, to, msg.subject, msg.text, String(payload.studio ?? ""), ident, extra) : "skipped";
       }
-      else if (channel === "whatsapp") res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text, purpose === "wa_forward" && String(payload.type ?? "") === "event_reminder" ? "event_reminder" : "general");
+      else if (channel === "whatsapp") res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text, purpose === "wa_forward" && String(payload.type ?? "") === "event_reminder" ? "event_reminder" : "general",
+        await waSenderOf(await orgOfRow(admin, "comms_outbox", id)));
       const { error: mErr } = await admin.rpc("comms_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
       if (mErr) { console.error("comms-dispatch: mark failed", errTag(mErr)); counts.failed++; continue; }
       counts[res]++;
@@ -387,7 +385,7 @@ Deno.serve(async (req) => {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const text = assignMessage(String(r?.text ?? ""), String(r?.link_path ?? ""), origin);
-      const res: Res = text ? ((await waStopped(admin, to)) ?? await sendWhatsApp(to, text, "task_assigned")) : "skipped";
+      const res: Res = text ? ((await waStopped(admin, to)) ?? await sendWhatsApp(to, text, "task_assigned", await waSenderOf(await orgOfRow(admin, "assign_notify_outbox", id)))) : "skipped";
       const { error: mErr } = await admin.rpc("assign_notify_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
       if (mErr) { console.error("comms-dispatch: assign mark failed", errTag(mErr)); counts.failed++; continue; }
       counts[res]++;

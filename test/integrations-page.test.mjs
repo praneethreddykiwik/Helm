@@ -13,11 +13,13 @@ t('page: CSP-safe (no inline script, no style attrs, no on* handlers)', () => {
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), 'no inline <script>');
   assert.ok(!/\sstyle=/i.test(html)); assert.ok(!/\son[a-z]+=/i.test(html));
   assert.ok(!/innerHTML|insertAdjacentHTML|outerHTML/.test(js), 'status painted with textContent only');
-  assert.match(html, /class="auth-pending"/); assert.match(html, /integrations\.js\?v=6/);
+  assert.match(html, /class="auth-pending"/); assert.match(html, /integrations\.js\?v=7/);
 });
 t('page: three cards + WhatsApp guide names both templates and Settings number field', () => {
   for (const id of ['itgEmail', 'itgWa', 'itgPay']) assert.match(html, new RegExp('id="' + id + '"'));
-  assert.match(html, /helm_task_assigned/); assert.match(html, /helm_event_reminder/); assert.match(html, /\{\{1\}\}/);
+  // R129 (0337): Helm creates the templates in the studio's own account - the card lists them, the guide says how
+  const wac = r('public/wa-connect-ui.js');
+  assert.match(wac, /helm_task_assigned/); assert.match(wac, /helm_event_reminder/); assert.match(html, /Set up message templates/);
   // r59 (audit F-6): the Helm-owner secret names left the studio page; they live in docs/ops/WHATSAPP-SETUP.md
   assert.match(html, /control\.html#notify/); assert.doesNotMatch(html, /WHATSAPP_TPL_TASK_ASSIGNED/);
   assert.match(readFileSync(new URL('../docs/ops/WHATSAPP-SETUP.md', import.meta.url), 'utf8'), /WHATSAPP_TPL_TASK_ASSIGNED=helm_task_assigned/);
@@ -28,8 +30,10 @@ t('pure status helpers', () => {
   assert.equal(H.emailStatus(null).state, 'off');
   assert.equal(H.emailStatus({ has_invite_mailer: true, email: { sent_30d: 3 } }).state, 'on');
   assert.equal(H.emailStatus({ has_invite_mailer: true, email: { skipped_30d: 1 } }, { email: { live: false } }).state, 'wait');
-  assert.equal(H.whatsappStatus({ studio_whatsapp: '919876543210' }, { whatsapp: { live: true } }).state, 'on');
-  assert.equal(H.whatsappStatus({ studio_whatsapp: '919876543210' }, null).state, 'wait');
+  // R129 (0337): the studio's own connected number decides (a saved contact number alone is not a connection)
+  assert.equal(H.whatsappStatus({ whatsapp: { status: 'connected' } }, null).state, 'on');
+  assert.equal(H.whatsappStatus({ whatsapp: { status: 'pending' } }, null).state, 'wait');
+  assert.equal(H.whatsappStatus({ studio_whatsapp: '919876543210' }, { whatsapp: { live: true } }).state, 'off');
   assert.equal(H.whatsappStatus({}, false).label, 'Not connected');
   assert.equal(H.razorpayStatus(null, false).label, 'Not connected');
   assert.equal(H.showPhone('919876543210'), '+91 98765 43210');
@@ -58,7 +62,8 @@ t('setup checklist + wizard link to the Integrations page', () => {
   assert.match(r('public/onboarding.js'), /kind === "connect"/);
 });
 t('MVP flag: HELM_FEATURES.integrationsPage=false hides sidebar entry, checklist step, wizard step; page redirects', () => {
-  assert.match(r('public/config.js'), /HELM_FEATURES = Object\.assign\(\{ integrationsPage: \/\^\(localhost\|127\\\.0\\\.0\\\.1\)\$\/\.test\(location\.hostname\) \}/, 'page on for localhost only, hidden on live hosts');
+  // R129 (0337): on everywhere - studios connect their own WhatsApp number there (the flag still switches it all off)
+  assert.match(r('public/config.js'), /HELM_FEATURES = Object\.assign\(\{ integrationsPage: true \}/, 'page on for every host');
   assert.match(r('public/shell-b.js'), /HELM_FEATURES\.integrationsPage === true\), "integrations", "Integrations"/);
   assert.match(js, /\/integrations\\\/\?\$\/[\s\S]*\/dashboard"[\s\S]*"\/dashboard\.html"/);
   const gs = require('../public/getting-started.js');

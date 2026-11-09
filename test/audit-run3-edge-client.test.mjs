@@ -143,7 +143,7 @@ t('send-phone-code: global / per-country / per-studio daily caps + confirmed acc
 t('send-whatsapp: opt-out, unpaid opt-in, distinct-recipient caps, plain-text params', () => {
   const s = r('supabase/functions/send-whatsapp/index.ts');
   for (const k of ['from("whatsapp_opt_outs")', 'from("wa_proposal_optins")', 'from("studio_subscriptions")', '"wa:rcpt:" + orgId', '"wa:unpaid:" + orgId', 'paramProblem(p)', 'SCHEME_URL', 'DOMAIN_RUN', 'TLDS.has(labels[k - 1])', 'from("subscription_payments")']) assert.ok(s.includes(k), k);
-  const iAuthz = s.indexOf('asCaller.rpc("whatsapp_authorize"'), iSend = s.indexOf('/messages`');
+  const iAuthz = s.indexOf('asCaller.rpc("whatsapp_authorize"'), iSend = s.indexOf('await waPost(admin, sender');
   for (const k of ['from("whatsapp_opt_outs")', '"wa:rcpt:" + orgId']) { const i = s.indexOf(k); assert.ok(i > iAuthz && i < iSend, k + ' between authorize and send'); }
   assert.doesNotMatch(s, /slice\(0, 300\)/, 'params are validated, not silently truncated');
   // R32 (Strix vuln-0004): free text (WHATSAPP_ALLOW_TEXT=1) gets the same Helm-site-only link rule

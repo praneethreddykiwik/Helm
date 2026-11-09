@@ -11,7 +11,8 @@
 // "Connect WhatsApp" getting-started step and the "WhatsApp & email" onboarding step —
 // Helm's own e-mail and WhatsApp are used. Flip to true to bring all of it back.
 // Local preview (owner 2026-10-17): the WhatsApp number + e-mail setup is ON on localhost only, still off on live sites.
-window.HELM_FEATURES = Object.assign({ integrationsPage: /^(localhost|127\.0\.0\.1)$/.test(location.hostname) }, window.HELM_FEATURES || {});
+// R129: ON everywhere - studios connect their own WhatsApp number there (the Payments card stays hidden while liveChannels.pay is off)
+window.HELM_FEATURES = Object.assign({ integrationsPage: true }, window.HELM_FEATURES || {});
 // manual (owner 2026-10-18, r20 coord; r23 2026-10-19: back on for everyone): ONE flag for the user manual.
 // true = every signed-in studio role sees "User manual" (profile menu, Settings Help, search) and /manual shows
 // the chapters for their role (manual.js data-areas filter). "admin" = only the studio admin; false = nobody
@@ -86,7 +87,14 @@ window.SUPABASE_CONFIG = {
   liveChannels: {
     sms: false,       // send-otp        → MSG91
     pay: false,       // create-payment-link → Razorpay Payment Links (enable only after deploy+secrets — see docs/INTEGRATIONS-WHATSAPP-RAZORPAY.md)
-    whatsapp: false,  // send-whatsapp   → Meta WhatsApp Cloud API   (enable only after deploy+secrets — see docs/INTEGRATIONS-WHATSAPP-RAZORPAY.md)
+    // R129 (0337): ON. Each studio sends its client / crew messages from ITS OWN WhatsApp Business number, connected on
+    // the Integrations page (Connect WhatsApp -> Check connection -> Set up message templates). A studio that has not
+    // connected a number sends no WhatsApp: the "Send on WhatsApp" box says how to connect, and the client approval page
+    // offers the code by e-mail only (public_quote_ready "wa"). Nothing is ever sent from Helm's number for a studio.
+    whatsapp: true,   // wa-proposal / send-otp / comms-dispatch / pkg-client-notify -> the studio's own number
+    // Helm's OWN WhatsApp number (WHATSAPP_TOKEN + WHATSAPP_PHONE_ID secrets): only the staff phone "Verify" code
+    // (send-phone-code). Keep false until those secrets and the phone_verification template exist on that project.
+    whatsappHelm: false,
     email: true       // client-mailer + send-otp e-mail → Resend or SMTP (SMTP_* secrets). false = "Send by email" + e-mail code switched off
   },
   // Bot protection on sign-in / sign-up / password reset (Cloudflare Turnstile).

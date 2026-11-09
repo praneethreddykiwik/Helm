@@ -14,6 +14,7 @@
 //        * messages[]  text "STOP"/"UNSUBSCRIBE" -> opt-out, "START" -> opt back in
 //                      (wa_set_opt_out); message bodies are NEVER stored
 //        * message_template_status_update / phone_number_quality_update -> wa_record_event
+//          (R129 / 0337: a template's new state also -> wa_template_status, for the studio with that WABA id)
 //      Always 200 after a valid signature (Meta retries non-2xx for days); DB errors -> 500.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import { errTag } from "../_shared/cors.ts";
@@ -37,7 +38,7 @@ const START = /^\s*(start|unstop|subscribe|opt in|optin)\s*[.!]?\s*$/i;
 const ID = (v: unknown, re = /^[A-Za-z0-9_.:=+\/-]{1,160}$/) => re.test(String(v ?? "")) ? String(v) : null;
 
 // deno-lint-ignore no-explicit-any
-export type Action = { kind: "event"; args: Record<string, unknown> } | { kind: "optout"; args: Record<string, unknown> };
+export type Action = { kind: "event" | "optout" | "template"; args: Record<string, unknown> };
 // Pure: Meta payload -> list of RPC calls (exported for tests).
 // deno-lint-ignore no-explicit-any
 export function planActions(evt: any): Action[] {
@@ -70,6 +71,11 @@ export function planActions(evt: any): Action[] {
         const status = ID(v.event || v.current_limit || v.new_quality_score, /^[A-Za-z0-9_]{1,40}$/) || "unknown";
         out.push({ kind: "event", args: { p_event_id: `${field}:${ID(entry?.id) || "x"}:${ref}:${status}:${Number(entry?.time) || 0}`,
           p_phone_number_id: phoneId, p_type: field, p_ref: ref, p_status: status, p_recipient: "", p_detail: {} } });
+        // R129 (0337): a studio's template approved / rejected -> its Integrations page shows the new state
+        const waba = ID(entry?.id, /^[0-9]{5,30}$/), tname = ID(v.message_template_name, /^[a-z0-9_]{1,64}$/);
+        if (field === "message_template_status_update" && waba && tname && status !== "unknown") {
+          out.push({ kind: "template", args: { p_waba_id: waba, p_name: tname, p_status: status } });
+        }
       }
     }
   }
@@ -105,7 +111,8 @@ Deno.serve(async (req) => {
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     for (const a of actions) {
-      const { error } = await admin.rpc(a.kind === "optout" ? "wa_set_opt_out" : "wa_record_event", a.args);
+      const { error } = await admin.rpc(a.kind === "optout" ? "wa_set_opt_out" : a.kind === "template" ? "wa_template_status" : "wa_record_event", a.args);
+      if (error && a.kind === "template") { console.error("wa-webhook template state not saved", errTag(error)); continue; }   // cosmetic: no retry storm
       if (error) { console.error("wa-webhook record failed", errTag(error)); return new Response("error", { status: 500 }); }
     }
     return new Response("ok", { status: 200 });

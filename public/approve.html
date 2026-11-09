@@ -170,10 +170,10 @@
 <script src="/trusted-types.js?v=6"></script>
 <script src="/console-warning.js?v=1"></script>
 <script src="/telemetry.js?v=9"></script>
-<script src="/config.js?v=112"></script>
+<script src="/config.js?v=113"></script>
 <script src="/phone-input.js?v=9"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=337"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/quote-validity.js?v=5"></script><script src="/approve-test-mode.js?v=2"></script>
+<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=338"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/quote-validity.js?v=5"></script><script src="/approve-test-mode.js?v=2"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s||"").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -355,7 +355,9 @@
     const apOpen=quote.approval_status!=="approved" && quote.approval_status!=="paid";
     if(apOpen && !isPriced(quote.pricing)) showNotPriced();
     if(BPStore.approval.quoteReady){ BPStore.approval.quoteReady(token).then((r)=>{ if(!r || typeof r!=="object") return;
-      apStudio=String(r.studio||"").slice(0,120); if(apOpen && r.priced===false) showNotPriced(); }).catch(()=>{}); }
+      apStudio=String(r.studio||"").slice(0,120); if(apOpen && r.priced===false) showNotPriced();
+      // R129 (0337): the WhatsApp code comes from the studio's own number - no button when the studio has not connected one
+      if(r.wa===false){ const w=$("#sendWa"); if(w){ w.hidden=true; w.style.display="none"; } const n=$("#waNote"); if(n) n.textContent="We send a one-time code to the e-mail address your planner has on file for you."; } }).catch(()=>{}); }
     // resume state
     if(quote.reapproval_required===true){ $("#approvedNote").textContent=""; setMsg("dev", "The price changed after your earlier approval — please review the updated total and approve again."); }
     else if(quote.approval_status==='paid'){ showStep('stepPaid'); await showPaid(); }

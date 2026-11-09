@@ -15,7 +15,9 @@
 // 0151: { token, channel: "whatsapp" | "email" } sends the code by the WhatsApp AUTHENTICATION
 // template proposal_approval_otp (copy-code) or by e-mail (Resend) - ALWAYS to the phone /
 // e-mail ON THE QUOTE (wa_otp_begin; a typed number is ignored), 30 s cooldown, 3 resends.
-// Simulated (nothing sent) while WHATSAPP_TOKEN+WHATSAPP_PHONE_ID / RESEND_API_KEY are unset.
+// Simulated (nothing sent) while RESEND_API_KEY is unset (e-mail).
+// R129 (0337): the WhatsApp code goes out from the STUDIO's own connected WhatsApp number (_shared/wa-sender.ts), never from
+// Helm's number. A studio without one: 409 { not_connected: true, fallback: "email" } BEFORE any code is stored or a resend used.
 // Extra env: WHATSAPP_API_VERSION, WHATSAPP_TPL_LANG, RESEND_API_KEY, RESEND_FROM,
 // or SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM (e-mail via _shared/mailer.ts).
 // The OTP value is never logged or stored in plain text (hash only, via admin_store_otp).
@@ -41,7 +43,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import { errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
-import { isLive, otpEmail, otpMessage } from "../wa-proposal/logic.mjs";
+import { otpEmail, otpMessage } from "../wa-proposal/logic.mjs";
+import { orgOfApprovalToken, studioSender, waPost, type WaSender } from "../_shared/wa-sender.ts";
+import { STUDIO_LANG } from "../_shared/wa-studio.mjs";
 import { brandMode, sendMail } from "../_shared/mailer.ts";
 import { postalAddress } from "../_shared/email-compliance.mjs";
 import { studioReplyTo } from "../_shared/reply-to.mjs";
@@ -84,6 +88,12 @@ async function sendByChannel(req: Request, json: any, admin: any, token: string,
   if (np) return json({ error: np, not_priced: true }, 409);
   // 0179 / R113 (0322): a free-trial studio (active or ended) gets no code on any channel - test mode instead
   if (await trialSendBlocked(admin, { token })) return json({ error: TRIAL_OTP_MSG, trial: true, test_mode: true }, 403);
+  // R129: WhatsApp only from the studio's own connected number - checked before a code is stored or a resend is used
+  let sender: WaSender | null = null;
+  if (channel === "whatsapp") {
+    sender = await studioSender(admin, await orgOfApprovalToken(admin, token));
+    if (!sender) return json({ error: "Your planner hasn't connected WhatsApp yet - please use e-mail instead.", not_connected: true, fallback: "email" }, 409);
+  }
   {
     const { data: pDest, error: bErr } = await admin.rpc("wa_otp_begin", { p_token: token, p_channel: channel, p_user_agent: ua });
     if (isTrialNoSend(bErr)) return json({ error: TRIAL_OTP_MSG, trial: true, test_mode: true }, 403);
@@ -103,15 +113,10 @@ async function sendByChannel(req: Request, json: any, admin: any, token: string,
   if (error) { console.error("admin_store_otp failed", errTag(error)); return json({ error: "too many requests — please try again later" }, 429); }
   let live = false;
   if (channel === "whatsapp") {
-    live = isLive({ WHATSAPP_TOKEN: Deno.env.get("WHATSAPP_TOKEN"), WHATSAPP_PHONE_ID: Deno.env.get("WHATSAPP_PHONE_ID") });
-    if (live) {
-      const r = await fetch(`https://graph.facebook.com/${Deno.env.get("WHATSAPP_API_VERSION") || "v21.0"}/${encodeURIComponent(Deno.env.get("WHATSAPP_PHONE_ID")!)}/messages`, { redirect: "error",
-        method: "POST", headers: { "Authorization": "Bearer " + Deno.env.get("WHATSAPP_TOKEN"), "Content-Type": "application/json" },
-        body: JSON.stringify(otpMessage(String(dest.to), code, Deno.env.get("WHATSAPP_TPL_LANG") || "en")),
-      });
-      await r.text();
-      if (!r.ok) { console.error("whatsapp otp status", r.status); return json({ error: "WhatsApp message could not be sent", fallback: "email" }, 502); }
-    }
+    const { messaging_product: _mp, ...payload } = otpMessage(String(dest.to), code, STUDIO_LANG);
+    const r = await waPost(admin, sender!, payload);
+    if (!r.ok) return json({ error: "WhatsApp message could not be sent", fallback: "email" }, 502);
+    live = true;
   } else {
     // e-mail: shared mailer (Resend, else SMTP_* e.g. Gmail); sender per EMAIL_BRAND_MODE (default "Helm Events"),
     // R107: Reply-To = the studio's business e-mail, else the studio owner's (never Helm's sender, never in the answer)

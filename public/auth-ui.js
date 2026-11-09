@@ -1241,6 +1241,8 @@
     // WhatsApp is parked for launch (owner, Oct 2026): while config.liveChannels.whatsapp is off,
     // the WhatsApp checkboxes, number and the WhatsApp-code "Verify" button are not shown at all.
     var waLive = !!(global.SUPABASE_CONFIG && global.SUPABASE_CONFIG.liveChannels && global.SUPABASE_CONFIG.liveChannels.whatsapp);
+    // R129: the "Verify" code comes from HELM's own number (send-phone-code) - its own switch, off until Helm's secrets exist
+    var helmWaLive = !!(global.SUPABASE_CONFIG && global.SUPABASE_CONFIG.liveChannels && global.SUPABASE_CONFIG.liveChannels.whatsappHelm);
     // verify (0055)
     var vBtn = el("button", { type: "button", class: "hau-btn hpf-vbtn", "aria-describedby": idp + "_vstate" }, "Verify");
     var vState = el("span", { class: "hpf-vstate", id: idp + "_vstate", role: "status", "aria-live": "polite" });
@@ -1254,6 +1256,7 @@
     cbRow.appendChild(same); cbRow.appendChild(el("label", { for: idp + "_wa_same" }, "WhatsApp is on this number"));
     sA.appendChild(cbRow);
     if (!waLive) { vBtn.hidden = true; cbRow.hidden = true; }
+    if (!helmWaLive) vBtn.hidden = true;
     var wa = field(sA, "whatsapp", "WhatsApp number", { type: "tel", ac: "off", max: 24, mobile: true, wide: true,
       value: P.whatsapp_same === false && P.whatsapp ? P.whatsapp : "" });
     function syncWa() { wa.wrap.hidden = same.checked || !waLive; if (same.checked && binds.whatsapp) binds.whatsapp.reset(); }

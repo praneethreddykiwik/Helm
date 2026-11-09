@@ -53,7 +53,7 @@ t('cors: no origin PATTERN for vercel.app (attacker-registrable) — exact allow
 // ---- send-whatsapp ------------------------------------------------------------
 t('send-whatsapp: every send names an event (quote_id) — no open relay', () => {
   assert.match(wa, /if \(!UUID_RE\.test\(quoteId\)\) return json\(\{ error: "quote_id is required" \}, 400\)/);
-  const iSend = wa.indexOf('/messages`');
+  const iSend = wa.indexOf('await waPost(admin, sender');   // R129: the send goes through _shared/wa-sender.ts
   assert.ok(iSend > 0 && wa.indexOf('UUID_RE.test(quoteId)') < iSend, 'quote check must precede the send');
 });
 t('send-whatsapp: authorization runs as the CALLER (anon key + user JWT), not the service role', () => {

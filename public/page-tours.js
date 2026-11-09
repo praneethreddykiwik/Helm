@@ -370,8 +370,8 @@
     "integrations.html": [
       { sel: "#itgEmail", title: "E-mail invites", desc: "The sender name and reply-to address on e-mails Helm sends for you." },
       { sel: "#itgEmailTest", title: "Test it", desc: "Send yourself a test e-mail to see how it looks." },
-      { sel: "#itgWa", title: "WhatsApp", desc: "The number Helm uses to send WhatsApp messages for your studio." },
-      { sel: "#itgPay", title: "Online payments", desc: "Take card and UPI payments through Razorpay payment links." },
+      { sel: "#itgWa", title: "WhatsApp", desc: "Your studio's own WhatsApp Business number. Proposals, approval codes, reminders and crew tasks go out from it." },
+      { sel: "#itgWaConnect", title: "Connect your number", desc: "Paste your WhatsApp IDs and token, check the connection, then set up the message templates for Meta to approve." },
     ],
     "client.html": [
       { sel: "#c_name", title: "One client, everything", desc: "This client's name, contact details and status." },

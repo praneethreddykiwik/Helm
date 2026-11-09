@@ -88,7 +88,7 @@ t('send-whatsapp: STOP / trial answers + clean template values', () => {
   assert.ok(!/cleanParam/.test(wa), 'no second (cleaning) rule set');
   assert.match(wa, /WHATSAPP_DISTINCT_PER_DAY_UNPAID", 3\)/);
   assert.match(wa, /from\("subscription_payments"\)/, 'unpaid = _trial_paid aware');
-  assert.ok(wa.indexOf('paramProblem(p)') < wa.indexOf('/messages`'));
+  assert.ok(wa.indexOf('paramProblem(p)') < wa.indexOf('await waPost(admin, sender'));
 });
 t('dispatchers: last STOP check right before each WhatsApp send; comment fixed', () => {
   for (const [src, tag] of [[disp, 'comms-dispatch'], [pkg, 'pkg-client-notify']]) {

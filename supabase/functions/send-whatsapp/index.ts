@@ -5,8 +5,8 @@
 // Secrets / env (supabase secrets set …):
 //   SUPABASE_URL, SUPABASE_ANON_KEY            (provided automatically)
 //   SUPABASE_SERVICE_ROLE_KEY                  (provided automatically; used ONLY to log)
-//   WHATSAPP_TOKEN            — permanent access token of the Meta system user
-//   WHATSAPP_PHONE_ID         — the WhatsApp Business phone number ID (numeric)
+//   R129 (0337): sent from the STUDIO's own connected WhatsApp number (Integrations page), never from Helm's number
+//   (WHATSAPP_TOKEN / WHATSAPP_PHONE_ID are Helm's own and are not used here). Not connected -> 409 { not_connected }.
 //   WHATSAPP_API_VERSION      — optional, defaults to "v21.0"
 //   WHATSAPP_TEMPLATES        — comma-separated allowlist of approved template names
 //                               (default: the names in DEFAULT_TEMPLATES below)
@@ -55,11 +55,8 @@ import { bearer, errTag, responders, UUID_RE } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, durableHit, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { TRIAL_NO_SEND_HINT, TRIAL_NO_SEND_MSG, trialSendBlocked } from "../_shared/trial-guard.ts";
 import { TLDS } from "./tlds.ts";
+import { NOT_CONNECTED_MSG, studioSender, waPost } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
 
-const TOKEN = Deno.env.get("WHATSAPP_TOKEN") || "";
-const PHONE_ID = Deno.env.get("WHATSAPP_PHONE_ID") || "";
-const VER = Deno.env.get("WHATSAPP_API_VERSION") || "v21.0";
-const GRAPH = "https://graph.facebook.com";
 const DEFAULT_TEMPLATES = ["event_update", "payment_reminder", "event_reminder", "crew_assignment"];
 const TEMPLATE_NAME = /^[a-z0-9_]{1,512}$/;
 const LANG = /^[a-z]{2,3}(_[A-Z]{2})?$/;
@@ -164,10 +161,6 @@ function templateAllowlist(): string[] {
   return list.filter((n) => TEMPLATE_NAME.test(n));
 }
 
-function authHeaders() {
-  return { "Authorization": "Bearer " + TOKEN, "Content-Type": "application/json" };
-}
-
 // DB error → [http status, generic message] (never the raw message)
 function authzFailure(code: string, hint = ""): [number, string] {
   if (code === "HL429") return [429, "WhatsApp limit reached for your studio — try again later"];
@@ -187,9 +180,6 @@ Deno.serve(async (req) => {
     if (ipWait) return tooMany(json, ipWait);
     // size cap BEFORE any auth round-trip or parsing (413)
     const body: any = await readJsonCapped(req);
-    if (!TOKEN || !PHONE_ID) {
-      return json({ error: "WhatsApp Cloud API not configured (set WHATSAPP_TOKEN / WHATSAPP_PHONE_ID)" }, 500);
-    }
     const url = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const jwt = bearer(req);
@@ -210,11 +200,9 @@ Deno.serve(async (req) => {
       // r59 (audit F-8): only people who can open Settings may run the Meta connection check (it costs Meta quota)
       const { data: canSee, error: csErr } = await asCaller.rpc("has_area", { p_area: "controls", p_need: "view" });
       if (csErr || canSee !== true) return json({ error: "only people who can open Settings can check the WhatsApp connection" }, 403);
-      const r = await fetch(`${GRAPH}/${VER}/${encodeURIComponent(PHONE_ID)}?fields=verified_name,display_phone_number,quality_rating`, { redirect: "error",
-        headers: authHeaders(),
-      });
-      await r.text();
-      if (!r.ok) { console.error("meta ping failed", r.status); return json({ error: "whatsapp connection check failed" }, 502); }
+      // R129: is the caller's studio's OWN number connected (the Integrations page's Check connection talks to Meta)
+      const { data: rd, error: rdErr } = await asCaller.rpc("studio_whatsapp_ready", {});
+      if (rdErr || !rd || rd.connected !== true) return json({ error: NOT_CONNECTED_MSG, not_connected: true }, 409);
       return json({ ok: true });
     }
 
@@ -269,6 +257,9 @@ Deno.serve(async (req) => {
     if (!UUID_RE.test(orgId)) return json({ error: "could not check the event" }, 500);
     // 0179: no WhatsApp from a free-trial studio (service-role check, independent of the caller's RPC)
     if (await trialSendBlocked(admin, { org: orgId, quote: quoteId })) return json({ error: TRIAL_NO_SEND_MSG, trial: true }, 403);
+    // R129: only from the studio's OWN connected number
+    const sender = await studioSender(admin, orgId);
+    if (!sender) return json({ error: NOT_CONNECTED_MSG, not_connected: true }, 409);
     const digits = to.replace(/\D/g, "");
     const { data: optOut, error: ooErr } = await admin.from("whatsapp_opt_outs").select("id")
       .eq("phone", digits).eq("opted_out", true).or("org_id.is.null,org_id.eq." + orgId).limit(1).maybeSingle();
@@ -303,14 +294,8 @@ Deno.serve(async (req) => {
       return r;
     }
 
-    const r = await fetch(`${GRAPH}/${VER}/${encodeURIComponent(PHONE_ID)}/messages`, { redirect: "error",
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify({ messaging_product: "whatsapp", to, ...content }),
-    });
-    const out = await r.text();
+    const r = await waPost(admin, sender, { to, ...content });
     const sent = r.ok;
-    if (!sent) console.error("whatsapp send failed", r.status);
 
     // log with the right channel (org_id is taken from the quote by the org_from_quote trigger)
     const kind = String(body.kind || (body.template ? "template" : "message")).slice(0, 40);
@@ -319,10 +304,8 @@ Deno.serve(async (req) => {
     });
     if (logErr) console.error("whatsapp log insert failed", errTag(logErr));
 
-    if (!sent) return json({ error: "whatsapp send failed" }, 502);
-    let id: string | null = null;
-    try { id = JSON.parse(out)?.messages?.[0]?.id ?? null; } catch (_) { /* keep null */ }
-    return json({ sent: true, id });
+    if (!sent) return json({ error: "WhatsApp send failed: " + r.text, reason: r.kind }, 502);
+    return json({ sent: true, id: r.wamid });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
     return serverError(e);
