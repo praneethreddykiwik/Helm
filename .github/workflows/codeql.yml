@@ -11,7 +11,6 @@ on:
     - cron: '27 4 * * 1'   # Mondays 04:27 UTC — weekly baseline scan
 permissions:
   contents: read
-  security-events: write   # required to upload results to the Security tab
   actions: read             # private repo: CodeQL reads the workflow run (403 without this)
   pull-requests: read
 jobs:
@@ -26,7 +25,19 @@ jobs:
         with:
           languages: javascript-typescript
 
-      - name: Perform CodeQL Analysis
+      - name: Perform CodeQL Analysis (no upload - free mode)
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           category: '/language:javascript-typescript'
+          upload: never
+          output: sarif-results
+      - name: Findings - print them, fail on errors
+        run: node scripts/codeql-findings.mjs sarif-results
+      - name: Keep the findings (30 days)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: codeql-results
+          path: sarif-results
+          retention-days: 30
+          if-no-files-found: ignore
