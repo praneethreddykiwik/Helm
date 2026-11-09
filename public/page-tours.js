@@ -429,7 +429,7 @@
       { sel: "#catTabs", title: "Task categories", desc: "Tasks grouped by department: stage, lighting, catering and more." },
       { sel: "#taskList", title: "Tasks", desc: "Tick tasks to select them. Each one shows who has it and when it is due." },
       { sel: "#assignBtn", title: "Assign", desc: "Give the selected tasks to a crew member or a vendor." },
-      { sel: "#remindDue", title: "Reminders", desc: "Remind people of tasks due now." },
+      { sel: "#trmLine", title: "WhatsApp reminders", desc: "Reminders go out on their own from your studio's WhatsApp number. Each task shows its last message: Queued, Sent, Delivered, Read or Failed." },
       { sel: "#opsFilter", title: "Find a task", desc: "Search task names, or show only one person, section or status (QC pending too). Your filter is remembered for this event." },
       { sel: "#dashboard", title: "Progress", desc: "How far each person and category has got. Once someone accepts a task, Reassign is locked - use Cancel (a reason is required) to take a task back; it stays greyed out with the reason and an open-shift place is freed." },
     ],

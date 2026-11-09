@@ -124,10 +124,10 @@
     .titem input,input[type=checkbox]{min-height:0;width:22px;height:22px}
   }
 </style>
-<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="task-reminders.css?v=1"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=4">
-<script src="/shell-proto.js?v=65" id="shellProto"></script>
+<script src="/shell-proto.js?v=66" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -196,9 +196,10 @@
         <h3 class="s-1169661">Live status</h3>
         <div class="tabs s-1169661" id="groupToggle" role="group" aria-label="Group tasks"><button type="button" data-g="section" class="on" aria-pressed="true">By section</button><button type="button" data-g="crew" aria-pressed="false">By staff</button></div>
         <span class="spacer s-97445a8"></span>
-        <button type="button" class="btn sm" id="remindDue" title="Send reminders for special tasks that aren't done yet">🔔 Remind due</button>
-        <button type="button" class="btn sm" id="fireDue" title="Notify assignees of scheduled tasks whose time has come and whose prerequisite is done">▶ Fire due tasks</button>
       </div>
+      <!-- R130 (0338): reminders go out on their own every minute (WhatsApp, the studio's own number) - no Remind / Fire buttons -->
+      <div id="waSetupNote" hidden></div>
+      <p class="muted trm-line" id="trmLine"></p>
       <div class="opsfilter" id="opsFilter" role="search" aria-label="Filter tasks">
         <input type="search" id="of_q" maxlength="80" placeholder="Search tasks" aria-label="Search task titles">
         <select id="of_person" aria-label="Filter by person"></select>
@@ -246,6 +247,8 @@
     <p class="muted hint">Leave blank for no start time.</p>
     <label for="sc_dep">Depends on (prerequisite task)</label>
     <select id="sc_dep"></select>
+    <fieldset class="trm-set" id="sc_rem"></fieldset>
+    <div id="sc_waNote" hidden></div>
     <div class="lerr" id="sc_err" role="alert" hidden></div>
     <div class="foot"><button type="button" class="btn" id="sc_cancel" data-close>Cancel</button><button type="submit" class="btn primary" id="sc_save">Save schedule</button></div>
   </form>
@@ -277,13 +280,20 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=338"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=339"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   let quoteId=new URLSearchParams(location.search).get("quote");
   let CATS=["Stage setup","Carpets","Backdrops","Flower decoration","Mandapam","Lighting","Catering","Labour","Transport","AV & sound"];
   let quote=null, crew=[], vendors=[], tasks=[], tokens=[], evidence=[], activeCat=CATS[0], canVerify=false, canEditOps=false, groupMode="section";
+  // R130 (0338): the latest WhatsApp per task + the studio's reminder settings (null before 0338)
+  let waRows={}, trmSettings=null, scRem=null;
+  async function loadWa(){ try{ const r=await BPStore.ops.waStatus(quoteId); if(!r) return; trmSettings=r.settings||null; waRows={};
+      (r.tasks||[]).forEach(x=>{ if(x&&x.task_id) waRows[x.task_id]=x; });
+      const ln=$("#trmLine"); if(ln && window.HelmTaskReminders && trmSettings) ln.textContent=trmSettings.enabled===false?"WhatsApp task reminders are switched off for your studio (Settings → Notifications).":HelmTaskReminders.explain(trmSettings);
+    }catch{} }
+  function waChip(t){ const c=window.HelmTaskReminders && HelmTaskReminders.chip(waRows[t.id]); return c?`<span class="wachip" data-state="${esc(c.state)}"${c.title?` title="${esc(c.title)}"`:""}>💬 ${esc(c.text)}</span>`:""; }
 
   function setMsg(kind,t){ const m=$("#msg"); if(!t){m.innerHTML="";return;} m.innerHTML=`<div class="msg ${kind}"${kind==="err"?' role="alert"':""}>${esc(t)}</div>`; }
   function openLogin(){ $("#loginModal").hidden=false; setTimeout(()=>$("#li_email").focus(),50); }
@@ -332,11 +342,14 @@
     $("#catTabs").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{ activeCat=b.dataset.c;
       $("#catTabs").querySelectorAll("button").forEach(x=>{ x.classList.toggle("on",x===b); x.setAttribute("aria-pressed",String(x===b)); }); $("#selAll").checked=false; renderTasks(); renderSuggestions(); }));
     $("#tpl_cat").value=activeCat||"";
-    if(!canEdit){ ["cr_add","assignBtn","tpl_add"].forEach(id=>{const e=$("#"+id); if(e)e.disabled=true;}); ["remindDue","fireDue"].forEach(id=>{const e=$("#"+id); if(e)e.hidden=true;});  /* planner-1023: server needs staff edit */ setMsg("err","Your role is view-only for operations."); }
+    if(!canEdit){ ["cr_add","assignBtn","tpl_add"].forEach(id=>{const e=$("#"+id); if(e)e.disabled=true;}); /* planner-1023: server needs staff edit */ setMsg("err","Your role is view-only for operations."); }
     try{ await refresh(pOps); }
     catch(e){ BPUI.loadError($("#dashboard"), e, async()=>{ await refresh(); }, {what:"staff and tasks"}); }
     renderTasks();
     renderSuggestions();
+    // R130: WhatsApp line per task + "not set up" note (never blocks the page)
+    loadWa().then(()=>renderDashboard()).catch(()=>{});
+    if(window.HelmWaSetupNote) HelmWaSetupNote.mount($("#waSetupNote"), { what: "task messages and reminders" });
   }
   function fetchOps(){
     return Promise.all([BPStore.ops.listCrew(), BPStore.ops.listTasks(quoteId), BPStore.ops.listTokens(quoteId),
@@ -459,6 +472,7 @@
       ${t.is_special?'<span class="gate special" title="Special task — recurring reminder">🔔 special</span>':''}
       ${gateChip(t,byId)}
       ${verifyChip(t)}
+      ${typeof waChip==="function"?waChip(t):""}
       ${evidenceBtn(t)}
       ${canEditOps?`<button type="button" class="btn sm sched" title="Set start time & prerequisite" aria-label="Schedule ${tn}">⏱</button>`:""}
       ${canEditOps?`<button type="button" class="btn sm spc" title="Toggle recurring reminder" aria-label="${t.is_special?"Turn off recurring reminder for":"Turn on recurring reminder for"} ${tn}">${t.is_special?'🔕':'🔔'}</button>`:""}
@@ -475,7 +489,7 @@
       const name=t.assignee_name||ph;
       rows.push(`<div class="linkline"><b>${esc(name)}</b><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" aria-label="Copy worker link for ${esc(name)}">Copy link</button></div>`); });
     if(!rows.length) return "";
-    return `<div class="grp" id="workerLinks"><div class="gh"><b>🔗 Worker links</b><span class="muted">one per person - in simulation the link is shown here; when SMS is live it's texted to them</span></div>${rows.join("")}</div>`;
+    return `<div class="grp" id="workerLinks"><div class="gh"><b>🔗 Worker links</b><span class="muted">one per person - sent to them on WhatsApp from your studio's number; if a message isn't delivered, copy the link and share it</span></div>${rows.join("")}</div>`;
   }
   function renderDashboard(){
     if(!renderDashboard._s){ renderDashboard._s=1; BPStore.links.studio().then(s=>{ if(s) renderDashboard(); }).catch(()=>{}); }   // re-render once the branded studio link name is known
@@ -508,7 +522,7 @@
         return `<div class="grp"><div class="gh"><b>${esc(name)}</b><span class="ph">${esc(phone)}</span>
           <span class="muted">${done}/${ts.length} done</span></div>${rows}
           ${link?`<div class="linkline"><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" aria-label="Copy worker link for ${esc(name)}">Copy link</button></div>
-            <div class="muted" style="margin-top:4px">In simulation the worker link is shown here; when SMS is live it's texted to ${esc(phone)}.</div>`:""}</div>`;
+            <div class="muted" style="margin-top:4px">Sent on WhatsApp from your studio's number to ${esc(phone)}. If it shows Not sent or Failed, copy the link and share it.</div>`:""}</div>`;
       }).join("");
     }
     host.querySelectorAll(".copy").forEach(b=>b.addEventListener("click",async()=>{ try{await navigator.clipboard.writeText(b.dataset.l); b.textContent="Copied ✓"; BPUI.toast("Worker link copied.",{type:"ok",timeout:2000}); setTimeout(()=>b.textContent="Copy link",1400);}catch{ BPUI.toast("Couldn't copy — select the link and copy it manually.",{type:"err"}); } }));
@@ -537,7 +551,7 @@
     host.querySelectorAll(".spc").forEach(b=>b.addEventListener("click",()=>rowGuard(b,async()=>{
       const id=b.closest(".trow").dataset.id, t=tasks.find(x=>x.id===id);
       try{ await BPStore.ops.setSpecial(id, !(t&&t.is_special), 5);
-        BPUI.toast((t&&t.is_special)?"Reminder turned off.":"Marked special — will remind every 5 min until done.",{type:"ok"}); await refreshDashboard(); }
+        BPUI.toast((t&&t.is_special)?"No longer marked special.":"Marked special. Its WhatsApp reminders follow the times on the task and Settings → Notifications.",{type:"ok"}); await refreshDashboard(); }
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the reminder"}),{type:"err"}); }
     })));
     applyOpsFilter();
@@ -723,6 +737,10 @@
     const others=tasks.filter(x=>x.id!==id && !wouldCycle(id,x.id));   // no self / any-length cycle prerequisites
     $("#sc_dep").innerHTML=`<option value="">— none —</option>`+others.map(x=>`<option value="${esc(x.id)}">${esc(x.category||"")} — ${esc(x.title||"task")}${x.assignee_name?" ("+esc(x.assignee_name)+")":""}</option>`).join("");
     $("#sc_dep").value=t.depends_on && others.some(x=>x.id===t.depends_on) ? t.depends_on : "";
+    // R130: WhatsApp reminder times for this task (studio default unless changed)
+    $("#sc_rem").hidden = !(window.HelmTaskReminders && trmSettings);   // before 0338: no reminder fields
+    scRem = window.HelmTaskReminders && trmSettings ? HelmTaskReminders.schedFields($("#sc_rem"), t, trmSettings) : null;
+    if(window.HelmWaSetupNote) HelmWaSetupNote.mount($("#sc_waNote"), { what: "reminders" });
     $("#sc_err").hidden=true; scDirty.clean(); $("#schedModal").hidden=false;
   }
   async function closeSched(force){ if(!force && !(await BPUI.confirmDiscard(scDirty))) return; $("#schedModal").hidden=true; scTaskId=null; scDirty.clean(); }
@@ -741,8 +759,12 @@
       const dep=tasks.find(x=>x.id===depId);
       if(startISO && dep && dep.planned_start && Date.parse(startISO) < Date.parse(dep.planned_start)){ $("#sc_err").textContent="This task can't start before its prerequisite does ("+fmtTime(dep.planned_start)+"). Pick a later start or a different prerequisite."; $("#sc_err").hidden=false; return; }
     }
+    let remMins;
+    try{ remMins = scRem ? scRem.value() : undefined; }catch(err){ return; }   // the field shows its own error
     BPUI.guard($("#schedForm"),async()=>{
-      try{ await BPStore.ops.setSchedule(scTaskId, startISO, null, depId); await closeSched(true); BPUI.toast("Schedule updated.",{type:"ok"}); await refreshDashboard(); }
+      try{ await BPStore.ops.setSchedule(scTaskId, startISO, null, depId);
+        if(remMins!==undefined && trmSettings) await BPStore.ops.setReminders(scTaskId, remMins);
+        await closeSched(true); BPUI.toast("Schedule updated.",{type:"ok"}); await refreshDashboard(); }
       catch(err){ $("#sc_err").textContent=BPUI.friendlyError(err,{action:"save the schedule"}); $("#sc_err").hidden=false; }
     });
   });
@@ -750,15 +772,7 @@
   $("#groupToggle") && $("#groupToggle").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
     groupMode=b.dataset.g; $("#groupToggle").querySelectorAll("button").forEach(x=>{ x.classList.toggle("on",x===b); x.setAttribute("aria-pressed",String(x===b)); }); renderDashboard();
   }));
-  $("#remindDue") && $("#remindDue").addEventListener("click",()=>BPUI.guard($("#remindDue"),async()=>{
-    // r21 email audit: run_task_reminders only LOGS the reminder on the event (SMS to staff is not switched on) - say so
-    try{ const n=await BPStore.ops.runReminders(quoteId); BPUI.toast(n?("Logged "+n+" reminder"+(n===1?"":"s")+" on the event. Text messages to staff aren't switched on yet, so remind them in chat or by phone."):"No special tasks are due for a reminder.",{type:n?"ok":"info"}); await refreshDashboard(); }
-    catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"send reminders"}),{type:"err"}); }
-  }));
-  $("#fireDue") && $("#fireDue").addEventListener("click",()=>BPUI.guard($("#fireDue"),async()=>{
-    try{ const n=await BPStore.ops.runTriggers(quoteId); BPUI.toast(n?("Marked "+n+" task"+(n===1?"":"s")+" as due and logged it on the event. Text messages to staff aren't switched on yet, so tell the assignees in chat or by phone."):"No tasks due right now.",{type:n?"ok":"info"}); await refreshDashboard(); }
-    catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"fire due tasks"}),{type:"err"}); }
-  }));
+  // R130 (0338): Remind due / Fire due are gone - task_reminder_tick runs every minute (pg_cron) and comms-dispatch sends.
 
   $("#loginForm").addEventListener("submit",async e=>{ e.preventDefault();
     const btn=$("#li_submit"); if(btn.disabled) return;
@@ -771,11 +785,12 @@
   $("#loginModal").addEventListener("click",e=>{ if(e.target.id==="loginModal"&&BPStore.auth.user()) closeLogin(); });
   // live dashboard — poll tasks/statuses so accepts/starts/completes appear without reloading
   async function refreshDashboard(){ if(!quoteId) return;
-    try{ [tasks,tokens,evidence]=await Promise.all([BPStore.ops.listTasks(quoteId), BPStore.ops.listTokens(quoteId), BPStore.ops.listEvidence(quoteId).catch(()=>evidence)]); renderDashboard(); }catch{} }
+    try{ [tasks,tokens,evidence]=await Promise.all([BPStore.ops.listTasks(quoteId), BPStore.ops.listTokens(quoteId), BPStore.ops.listEvidence(quoteId).catch(()=>evidence)]); await loadWa(); renderDashboard(); }catch{} }
   // skip the poll while a modal is open or a row action is in flight, so the list doesn't re-render under the user
   setInterval(()=>{ if(document.hidden || $("#app").hidden) return; if(!$("#reassignModal").hidden || !$("#cancelTaskModal").hidden || !$("#schedModal").hidden || !$("#evModal").hidden) return; if(document.querySelector("#dashboard [data-busy]")) return; refreshDashboard(); }, 7000);
   BPUI.boot(load);
 </script>
-<script src="crew-shifts.js?v=6"></script>
+<script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=1"></script>
+<script src="crew-shifts.js?v=7"></script>
 </body>
 </html>

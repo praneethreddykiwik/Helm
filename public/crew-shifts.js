@@ -100,6 +100,9 @@
       var wrap = h("div");
       var toggle = h("button", { type: "button", cls: "btn", "aria-expanded": "false", text: "＋ Post an open shift" });
       var f = h("form", { cls: "cs-form", hidden: true, novalidate: true });
+      // R130: staff hear about a shift on WhatsApp from the studio's own number - say so when it isn't set up
+      var waNote = h("div"); waNote.hidden = true; f.appendChild(waNote);
+      if (global.HelmWaSetupNote) global.HelmWaSetupNote.mount(waNote, { store: B, what: "open shift messages" });
       var title = h("input", { id: "cs_title", maxlength: "80", placeholder: "e.g. Waiter", required: true, autocomplete: "off" });
       var date = h("input", { id: "cs_date", type: "date", min: today(), value: (ev && ev.eventDate && ev.eventDate >= today()) ? ev.eventDate : today() });
       var start = h("input", { id: "cs_start", type: "time" }), end = h("input", { id: "cs_end", type: "time" });

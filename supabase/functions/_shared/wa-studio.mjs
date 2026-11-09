@@ -60,7 +60,77 @@ export function templateCatalogue(appUrl) {
       ["Stage setup at 4 PM for Rao Wedding. Open your link: " + o + "/work"]),
     utility("helm_event_reminder", "Event reminder from your studio: {{1}}. See you there.",
       ["Rao Wedding is on 12 Dec 2026 at Grand Convention Centre"]),
+  ].concat(fieldTemplates(o));
+}
+
+// R130 (U-31): one fixed template per staff / vendor / office message, each with its OWN fields (only the fields change).
+// Every link is a full Helm address in the text (the sender fills "@link"). Order of fields = FIELDS[name].
+export const FIELDS = {
+  staff_task_assigned: ["name", "task", "event", "date", "time", "venue", "link"],
+  staff_task_reminder: ["name", "task", "event", "time", "minutes left", "link"],
+  staff_task_overdue: ["name", "task", "event", "time", "link"],
+  staff_task_changed: ["name", "task", "event", "what changed"],
+  staff_open_shift: ["name", "role", "event", "date", "start", "end", "venue", "link"],
+  staff_shift_result: ["name", "role", "event", "date", "result", "link"],
+  staff_leave_result: ["name", "date", "result", "reason"],
+  office_staff_alert: ["staff name", "what happened", "task", "event", "date", "reason", "link"],
+  vendor_request: ["vendor", "studio", "work", "event", "date", "time", "venue", "amount", "reply by", "link"],
+  vendor_follow_up: ["vendor", "work", "event", "reply by", "link"],
+  vendor_delivery_reminder: ["vendor", "work", "event", "date", "time", "venue", "link"],
+  vendor_invoice_update: ["vendor", "invoice no", "amount", "result", "note", "link"],
+  crew_runsheet_reminder: ["name", "time", "event", "item", "link"],
+};
+// what each one is for (the Integrations card) and whether Helm sends it today
+export const FIELD_TEMPLATE_INFO = {
+  staff_task_assigned: ["Task assigned", "Staff", true], staff_task_reminder: ["Task reminder", "Staff", true],
+  staff_task_overdue: ["Task overdue", "Staff", true], staff_task_changed: ["Task changed or removed", "Staff", false],
+  staff_open_shift: ["Open shift available", "Staff", true], staff_shift_result: ["Shift confirmed or not given", "Staff", false],
+  staff_leave_result: ["Leave approved or declined", "Staff", false], office_staff_alert: ["Staff alert", "Office", true],
+  vendor_request: ["Vendor request", "Vendor", false], vendor_follow_up: ["Vendor follow-up", "Vendor", false],
+  vendor_delivery_reminder: ["Delivery reminder", "Vendor", false], vendor_invoice_update: ["Invoice update", "Vendor", false],
+  crew_runsheet_reminder: ["Run-sheet reminder", "Crew", true],
+};
+function fieldTemplates(o) {
+  const L = o + "/work.html?token=" + SAMPLE_TOKEN;
+  return [
+    utility("staff_task_assigned", "Hi {{1}}, you have a new task: {{2}} for {{3}} on {{4}} at {{5}}, {{6}}. Open your task link to accept or decline it: {{7}} Thank you.",
+      ["Ravi", "Stage lights", "Rao Wedding", "12 Dec 2026", "12:30 PM", "Grand Convention Centre", L]),
+    utility("staff_task_reminder", "Hi {{1}}, reminder: {{2}} for {{3}} starts at {{4}}, in {{5}} minutes. Your task link: {{6}} Please be on time.",
+      ["Ravi", "Stage lights", "Rao Wedding", "12:30 PM", "10", L]),
+    utility("staff_task_overdue", "Hi {{1}}, {{2}} for {{3}} was due at {{4}} and has not started yet. Please start it or tell the office from your link: {{5}} Thank you.",
+      ["Ravi", "Stage lights", "Rao Wedding", "12:30 PM", L]),
+    utility("staff_task_changed", "Hi {{1}}, your task {{2}} for {{3}} has changed: {{4}}. Please check your task link for the details.",
+      ["Ravi", "Stage lights", "Rao Wedding", "the start time moved to 1:00 PM"]),
+    utility("staff_open_shift", "Hi {{1}}, an open shift is available: {{2}} for {{3}} on {{4}}, {{5}} to {{6}}, at {{7}}. Take it from your link: {{8}} First come, first served.",
+      ["Ravi", "Decoration", "Rao Wedding", "12 Dec 2026", "10:00 AM", "6:00 PM", "Grand Convention Centre", L]),
+    utility("staff_shift_result", "Hi {{1}}, your request for the {{2}} shift at {{3}} on {{4}}: {{5}}. Details: {{6}} Thank you.",
+      ["Ravi", "Decoration", "Rao Wedding", "12 Dec 2026", "confirmed", L]),
+    utility("staff_leave_result", "Hi {{1}}, your request to be off on {{2}} was {{3}}. Note from the office: {{4}}. Thank you.",
+      ["Ravi", "12 Dec 2026", "approved", "enjoy the family function"]),
+    utility("office_staff_alert", "Staff alert: {{1}}, {{2}}. Task: {{3}} for {{4}} on {{5}}. Reason: {{6}}. Open the event to act on it: {{7}} Thank you.",
+      ["Ravi Kumar", "task not started", "Stage lights", "Rao Wedding", "12 Dec 2026 12:30 PM", "no start after 3 reminders", o + "/ops.html?quote=" + SAMPLE_TOKEN]),
+    utility("vendor_request", "Hello {{1}}, {{2}} would like to book you for {{3}} at {{4}} on {{5}}, {{6}}, at {{7}}. Amount: {{8}}. Please reply by {{9}} here: {{10}} Thank you.",
+      ["Sri Flowers", "Aurora Events", "stage flowers", "Rao Wedding", "12 Dec 2026", "10:00 AM", "Grand Convention Centre", "INR 25,000", "8 Dec 2026", o + "/vendor-request.html?token=" + SAMPLE_TOKEN]),
+    utility("vendor_follow_up", "Hello {{1}}, a reminder about {{2}} for {{3}}. Please reply by {{4}} here: {{5}} Thank you.",
+      ["Sri Flowers", "stage flowers", "Rao Wedding", "8 Dec 2026", o + "/vendor-request.html?token=" + SAMPLE_TOKEN]),
+    utility("vendor_delivery_reminder", "Hello {{1}}, reminder: {{2}} for {{3}} on {{4}} at {{5}}, {{6}}. Details: {{7}} Thank you.",
+      ["Sri Flowers", "stage flowers", "Rao Wedding", "12 Dec 2026", "10:00 AM", "Grand Convention Centre", o + "/vendor-request.html?token=" + SAMPLE_TOKEN]),
+    utility("vendor_invoice_update", "Hello {{1}}, your invoice {{2}} for {{3}} was {{4}}. Note: {{5}}. Details: {{6}} Thank you.",
+      ["Sri Flowers", "INV-102", "INR 25,000", "approved", "paid on 15 Dec", o + "/vendor-request.html?token=" + SAMPLE_TOKEN]),
+    utility("crew_runsheet_reminder", "Hi {{1}}, coming up at {{2}} for {{3}}: {{4}}. Your link: {{5}} Thank you.",
+      ["Ravi", "6:30 PM", "Rao Wedding", "Couple entry", L]),
   ];
+}
+
+// a field template message: "@link" becomes the full Helm link (or a plain note when the person has no link)
+export function fieldContent(name, params, linkUrl) {
+  const want = FIELDS[name];
+  if (!want || !Array.isArray(params) || params.length !== want.length) return null;
+  const text = params.map((p) => {
+    const v = String(p == null ? "" : p) === "@link" ? (linkUrl || "ask the office for your link") : String(p == null ? "" : p);
+    return { type: "text", text: v.replace(/[\r\n\t]+/g, " ").replace(/ {4,}/g, "   ").trim().slice(0, 300) || "-" };
+  });
+  return { type: "template", template: { name, language: { code: STUDIO_LANG }, components: [{ type: "body", parameters: text }] } };
 }
 export const CATALOGUE_NAMES = templateCatalogue().map((t) => t.name);
 
