@@ -12,6 +12,8 @@ on:
 permissions:
   contents: read
   security-events: write   # required to upload results to the Security tab
+  actions: read             # private repo: CodeQL reads the workflow run (403 without this)
+  pull-requests: read
 jobs:
   analyze:
     name: Analyze (javascript-typescript)
