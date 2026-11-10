@@ -2,7 +2,7 @@
    capture, booklet, approve, portal, proposal-view, checkout, sim-pay, refund-policy) to the Shell-B design.
    Re-maps each page's existing CSS variables to the Shell-B palette; theme from public-theme.js (html[data-pt] + data-theme).
    Loaded LAST in <head> so html[data-pt=...] tokens beat the inline :root and theme.css dark tokens. No layout/behaviour change. */
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
+@import url("/fonts/g/plus-jakarta-sans-b85c7548.css");
 
 /* ---------- TOKENS: light ---------- */
 html[data-pt] { --acc-ink:#ffffff; --acc-text:var(--accent); --yes:#0d7a3c; --part:#9a5b00;

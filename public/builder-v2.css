@@ -3,7 +3,7 @@
    Tokens are scoped to chrome containers only, so the 2D canvas, rulers and 3D scene keep their own colours.
    The template-edit bar (.st-editbar) and the free-trial strip / reminder (.htr / .htrm / .htb) are chrome too: without
    them here they fell back to builder.css's legacy violet :root accent. */
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
+@import url("/fonts/g/plus-jakarta-sans-b85c7548.css");
 
 html[data-hb-theme="cobalt"] :is(header,aside,.statusbar,.zoombar,.toast,.tools3d,.modal,.capbanner,.verbanner,.ptoggle,.emptystate,.layoutloading,.hmenu-pop,.htour,.htour-fab,.st-editbar,.htr,.htrm,.htb) { --bg:#f5f7fc; --panel:#ffffff; --panel-2:#f8f9fd; --line:#e3e8f2; --line-2:#edf0f7; --ink:#0b1b3f; --ink-2:#34405c; --ink-3:#5f6b88; --accent:#2450f0; --accent-2:#1d44d8; --accent-soft:#eaeffe; --acc-text:#1d44d8; }
 html[data-hb-theme="cobalt"] body { --b2-bg:#f5f7fc; }
