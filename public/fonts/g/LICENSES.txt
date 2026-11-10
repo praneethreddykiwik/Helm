@@ -1,0 +1,10 @@
+Self-hosted web fonts (R133). Downloaded unmodified from Google Fonts, which
+publishes them under open licences that allow self-hosting and redistribution:
+
+SIL Open Font License 1.1 (https://openfontlicense.org):
+  IBM Plex Sans, IBM Plex Mono, Plus Jakarta Sans, Instrument Serif, Inter,
+  Inter Tight, Fraunces, Cormorant Garamond, Poppins, Space Grotesk,
+  Playfair Display, Marcellus, Great Vibes, Bodoni Moda, Josefin Sans,
+  Fredoka, Cinzel, DM Serif Display
+
+Refresh: node scripts/self-host-fonts.mjs (only finds Google URLs still in public/).

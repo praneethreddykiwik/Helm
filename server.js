@@ -129,10 +129,10 @@ const CSP_BASE = [
   ['form-action', "'self'"],
   ['img-src', "'self' data: blob: https://nqltzgiwznphugcfhmbm.supabase.co https://xizehqgeyjcfpzrdymly.supabase.co"],
   ['media-src', "'self' blob: https://nqltzgiwznphugcfhmbm.supabase.co https://xizehqgeyjcfpzrdymly.supabase.co"],
-  ['font-src', "'self' https://fonts.gstatic.com"],
+  ['font-src', "'self'"],
   // style-src / style-src-elem: 'self' + fonts + <style> hashes; style-src-attr 'unsafe-inline'
   // (see withHashes in scripts/csp-hashes.cjs — added per request)
-  ['style-src', "'self' https://fonts.googleapis.com"],
+  ['style-src', "'self'"],
   // 'self' + the pinned Sentry bundle directory only (no whole-CDN hosts)
   ['script-src', SCRIPT_SRC_BASE.join(' ')],
   ['connect-src', "'self' https://nqltzgiwznphugcfhmbm.supabase.co https://xizehqgeyjcfpzrdymly.supabase.co wss://nqltzgiwznphugcfhmbm.supabase.co wss://xizehqgeyjcfpzrdymly.supabase.co"],

@@ -9,11 +9,13 @@ const css = readFileSync("public/shell-b-dash.css", "utf8");
 const noComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'\\])\/\/[^\n]*/g, "$1");
 const code = noComments(js);
 
-const fontLink = html.match(/<link[^>]+href="https:\/\/fonts\.googleapis\.com\/css2\?[^"]+"/);
-assert.ok(fontLink, "dashboard has a Google Fonts stylesheet link");
-assert.match(fontLink[0], /family=Fraunces:opsz,wght@9\.\.144,400;9\.\.144,500;9\.\.144,600/, "loads Fraunces 400/500/600 with opsz axis");
-assert.match(fontLink[0], /display=swap/, "font-display swap");
-assert.equal((html.match(/fonts\.googleapis\.com\/css2/g) || []).length, 1, "single font request");
+// R133: fonts are self-hosted - the dashboard links one local stylesheet that carries Fraunces.
+const fontLink = html.match(/<link[^>]+href="\/fonts\/g\/fraunces-[0-9a-f]{8}\.css"/);
+assert.ok(fontLink, "dashboard has the self-hosted Fraunces stylesheet link");
+const fontCss = readFileSync("public" + fontLink[0].match(/href="([^"]+)"/)[1], "utf8");
+assert.match(fontCss, /font-family: 'Fraunces'/, "local stylesheet carries Fraunces");
+assert.match(fontCss, /font-display: swap/, "font-display swap");
+assert.ok(!/fonts\.(googleapis|gstatic)\.com/.test(html), "no Google Fonts request");
 
 for (const id of ["createBtn", "gsCard", "mytasksSection", "myworkSection", "elist", "roleboard", "loginBtn", "nextName"])
   assert.ok(new RegExp("[\"'#]" + id + "\\b").test(code), "shell-b-dash.js still handles #" + id);
