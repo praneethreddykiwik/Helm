@@ -1,6 +1,6 @@
 // comms-dispatch r33 (0283): studio team-safety notices (helm_notice_outbox kind team_safety) - an admin change waiting
 // 24 hours, a done change, an ownership hand-over, Helm support recovering the owner - are e-mailed over SMTP to the
-// recipients the database resolved (never from the row), in plain words, with the Control Center -> Team link on
+// recipients the database resolved (never from the row), in plain words, with the Settings -> Team link on
 // APP_URL and a transactional footer; an unknown event is skipped; every row is marked. Mock-only: no network, no real e-mail.
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { setEnv, installFetch, loadHandler, resetSupaMock, captureConsoleError } from "./harness.ts";
@@ -97,9 +97,9 @@ Deno.test("team-safety notices over SMTP: every resolved recipient, plain words,
     assertEquals(to1, ["<owner@aurora.test>", "<priya@aurora.test>", "<ravi@aurora.test>"]);
     const a = partsOf(smtp.sent.find((s) => s.rcpt === "<ravi@aurora.test>")!.data);
     assert(a.text.includes("Priya asked to deactivate Ravi in Aurora Events. It happens on 28 Oct 2026, 14:00 (Asia/Kolkata) unless the studio owner cancels it."), a.text);
-    assert(a.text.includes("https://www.helm.events/control#users"), "Team link on APP_URL");
+    assert(a.text.includes("Settings -> Team: https://www.helm.events/control#users"), "Team link on APP_URL (R73: Control Center is now Settings)");
     assert(a.text.includes("you are an admin of a Helm studio, or this change is about your access to it"), "transactional footer");
-    assertEquals(smtp.sent.filter((s) => partsOf(s.data).text.includes("Anil started handing the ownership of Aurora Events to Meera. Meera must accept it in Control Center -> Team within 7 days.")).map((s) => s.rcpt).sort(),
+    assertEquals(smtp.sent.filter((s) => partsOf(s.data).text.includes("Anil started handing the ownership of Aurora Events to Meera. Meera must accept it in Settings -> Team within 7 days.")).map((s) => s.rcpt).sort(),
       ["<meera@aurora.test>", "<owner@aurora.test>"]);
     assert(smtp.sent.some((s) => partsOf(s.data).text.includes("Helm support made Meera the owner of Aurora Events")), "recovery notice");
     assert(!smtp.sent.some((s) => s.rcpt === "<x@aurora.test>"), "unknown event never sent");

@@ -1,9 +1,12 @@
 // send-whatsapp — runtime-verified with mocked Meta Graph API + mocked Supabase.
 // Audit Phase 8: no open relay — the caller's JWT (not the service role) proves the
 // event + number; templates are allowlisted; sends are logged with channel 'whatsapp'.
+// R129 (0337): every message goes out from the STUDIO's own connected number (org_whatsapp_creds,
+// service role); a studio without one gets 409 { not_connected } and Helm's own number
+// (WHATSAPP_TOKEN / WHATSAPP_PHONE_ID) is never a fallback.
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
-  setEnv, installFetch, jsonResponse, loadHandler, post, resetSupaMock, supaLog, captureConsoleError,
+  setEnv, installFetch, jsonResponse, loadHandler, post, resetSupaMock, supaLog, captureConsoleError, fetchLog,
 } from "./harness.ts";
 
 const FN = "../../supabase/functions/send-whatsapp/index.ts";
@@ -21,8 +24,17 @@ const CONFIGURED = {
 };
 
 const ORG = "b0000000-0000-4000-8000-00000000da02";
-// signed-in user; quote visible under RLS; whatsapp_authorize says yes; PAID studio,
-// number not opted out (audit run-3 recipient binding - see the dedicated tests below)
+// R129 (0337): the studio's OWN connected WhatsApp number - handed out only to the service role, only for ORG
+const STUDIO_TOKEN = "studio-wa-token-0123456789abcdef";
+const STUDIO_PHONE_ID = "1098765432";
+const META_MESSAGES = `https://graph.facebook.com/v21.0/${STUDIO_PHONE_ID}/messages`;
+function studioCreds(args: any, key: string) {
+  return key === "service-role-secret" && args?.p_org === ORG
+    ? { data: { token: STUDIO_TOKEN, phone_number_id: STUDIO_PHONE_ID, waba_id: "5550001" }, error: null }
+    : { data: null, error: null };
+}
+// signed-in user; quote visible under RLS; whatsapp_authorize says yes; PAID studio with its own
+// connected number, number not opted out (audit run-3 recipient binding - see the dedicated tests below)
 function allowAll(to = "919800000001", opts: { paid?: boolean; optIn?: boolean; optedOut?: boolean } = {}) {
   const { paid = true, optIn = false, optedOut = false } = opts;
   g.__supaGetUser = (jwt: string) => jwt === "user-jwt" ? ({ data: { user: { id: "u1" } } }) : ({ data: { user: null } });
@@ -33,20 +45,38 @@ function allowAll(to = "919800000001", opts: { paid?: boolean; optIn?: boolean; 
     if (table === "wa_proposal_optins") return { data: optIn ? { id: 7 } : null, error: null };
     return { data: null, error: null };
   };
-  g.__supaRpc = (name: string) => name === "whatsapp_authorize" ? ({ data: { ok: true, to }, error: null }) : ({ data: null, error: null });
+  g.__supaRpc = (name: string, args: any, key: string) => name === "whatsapp_authorize" ? ({ data: { ok: true, to }, error: null })
+    : name === "org_whatsapp_creds" ? studioCreds(args, key) : ({ data: null, error: null });
 }
-const metaOk = () => installFetch((url) => {
-  assert(url.startsWith("https://graph.facebook.com/"), "only Meta Graph may be called");
+const metaOk = () => installFetch((url, init) => {
+  assertEquals(url, META_MESSAGES, "only Meta Graph, on the studio's own phone number id");
+  assertEquals((init?.headers as Record<string, string>)["Authorization"], "Bearer " + STUDIO_TOKEN, "the studio's own token, never Helm's");
   return jsonResponse({ messages: [{ id: "wamid.abc" }] });
 });
 
-Deno.test("send-whatsapp: not configured (no TOKEN) -> 500", async () => {
+// R129 (0337) replaced "not configured (no WHATSAPP_TOKEN) -> 500": Helm's own number is no longer used here at all.
+Deno.test("send-whatsapp: studio number not connected -> 409 not_connected, Helm's own number never used", async () => {
   resetSupaMock();
-  const rEnv = setEnv({ SUPABASE_URL: "x", SUPABASE_ANON_KEY: "a", SUPABASE_SERVICE_ROLE_KEY: "y" });
+  allowAll();
+  const rEnv = setEnv(CONFIGURED);   // Helm's WHATSAPP_TOKEN / WHATSAPP_PHONE_ID ARE set: still no fallback
   const rF = installFetch(() => { throw new Error("no fetch expected"); });
   try {
     const h = await loadHandler(FN);
-    assertEquals((await h(post({ ping: true }, AUTH))).status, 500);
+    const send = () => h(post({ quote_id: QUOTE, number: "919800000001", template: "event_update" }, AUTH));
+    for (const creds of [null, { token: "short", phone_number_id: STUDIO_PHONE_ID }, { token: STUDIO_TOKEN, phone_number_id: "not-digits" }]) {
+      g.__supaRpc = (name: string) => name === "whatsapp_authorize" ? ({ data: { ok: true, to: "919800000001" }, error: null })
+        : name === "org_whatsapp_creds" ? { data: creds, error: null } : ({ data: null, error: null });
+      const res = await send();
+      assertEquals(res.status, 409, JSON.stringify(creds));
+      assertEquals((await res.json()).not_connected, true);
+    }
+    g.__supaRpc = (name: string) => name === "whatsapp_authorize" ? ({ data: { ok: true, to: "919800000001" }, error: null })
+      : name === "org_whatsapp_creds" ? { data: null, error: { code: "42501", message: "x" } } : ({ data: null, error: null });
+    assertEquals((await send()).status, 409, "a creds lookup error is 'not connected' (fails closed)");
+    assertEquals(fetchLog().length, 0, "Meta never called");
+    assert(!supaLog().some((e) => e.table === "notifications"), "nothing logged as sent");
+    assert(supaLog().filter((e) => e.rpc === "org_whatsapp_creds").every((e) => e.key === "service-role-secret" && e.args.p_org === ORG),
+      "the studio's creds are read with the service role, for the quote's own studio");
   } finally { rF(); rEnv(); }
 });
 
@@ -151,9 +181,10 @@ Deno.test("send-whatsapp: sends to the server-approved number; logged with chann
   resetSupaMock();
   allowAll("919800000001");
   const rEnv = setEnv(CONFIGURED);
-  let to = "";
+  let to = "", auth = "";
   const rF = installFetch((url, init) => {
-    assert(url.endsWith("/messages"));
+    assertEquals(url, META_MESSAGES);
+    auth = (init?.headers as Record<string, string>)["Authorization"];
     to = JSON.parse(String(init?.body)).to;
     return jsonResponse({ messages: [{ id: "wamid.abc" }] });
   });
@@ -162,6 +193,7 @@ Deno.test("send-whatsapp: sends to the server-approved number; logged with chann
     const res = await h(post({ quote_id: QUOTE, number: "098000 00001", template: "event_update" }, AUTH));
     assertEquals(res.status, 200);
     assertEquals(to, "919800000001");
+    assertEquals(auth, "Bearer " + STUDIO_TOKEN, "sent from the studio's own number");
     const ins = supaLog().find((e) => e.table === "notifications");
     const row = ins.calls.find((c: any) => c[0] === "insert")[1][0];
     assertEquals(row.channel, "whatsapp");
@@ -174,14 +206,15 @@ Deno.test("send-whatsapp: token never echoed or logged; Meta failure -> 502 gene
   resetSupaMock();
   allowAll();
   const rEnv = setEnv(CONFIGURED);
-  const rF = installFetch(() => jsonResponse({ error: { message: "meta-secret-token invalid for 919800000001" } }, 400));
+  const rF = installFetch(() => jsonResponse({ error: { message: STUDIO_TOKEN + " / meta-secret-token invalid for 919800000001" } }, 400));
   try {
     const h = await loadHandler(FN);
     const { result: res, logs } = await captureConsoleError(() =>
       Promise.resolve(h(post({ quote_id: QUOTE, number: "919800000001", template: "event_update" }, AUTH))));
     assertEquals(res.status, 502);
     const txt = JSON.stringify(await res.json()) + logs.join(" ");
-    assert(!txt.includes("meta-secret-token") && !txt.includes("919800000001"));
+    assert(!txt.includes(STUDIO_TOKEN) && !txt.includes("meta-secret-token") && !txt.includes("919800000001"));
+    assert(!txt.includes("invalid for"), "Meta's own error text is never passed through");
   } finally { rF(); rEnv(); }
 });
 

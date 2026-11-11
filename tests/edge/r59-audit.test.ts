@@ -2,6 +2,8 @@
 //   F-1  integrations-test WhatsApp: admins only (DB), a team member's own mobile only, STOP list (when the table
 //        exists), free-trial guard, per-studio daily cap - Meta is never called when any of them says no
 //   F-8  send-whatsapp {ping:true}: Settings view needed
+//   R129 (0337): WhatsApp goes out from the STUDIO's own connected number (org_whatsapp_creds, service role) - the
+//        mocks below connect one; Helm's own WHATSAPP_TOKEN / WHATSAPP_PHONE_ID are set but never used
 //   E-01 razorpay-webhook: a record-only event while razorpay_record_event is missing (0117) -> 200 {ignored:true}
 //   E-03 razorpay-webhook / billing-reminder: never an UNCONFIRMED studio e-mail
 //   E-05 verify-upload: vendor-invoices bucket is checked by its first bytes
@@ -19,13 +21,17 @@ const ITEST_ENV = {
   SUPABASE_URL: "https://proj.supabase.co", SUPABASE_ANON_KEY: "anon-key", SUPABASE_SERVICE_ROLE_KEY: "service-role-secret",
   WHATSAPP_TOKEN: "meta-secret-token", WHATSAPP_PHONE_ID: "123456", COMMS_WHATSAPP_TEMPLATE: "helm_notice",
 };
-type WaOpts = { target?: any; targetErr?: any; trial?: boolean; optedOut?: boolean; optTableMissing?: boolean };
+const STUDIO_TOKEN = "studio-wa-token-0123456789abcdef", STUDIO_PHONE_ID = "1098765432";
+type WaOpts = { target?: any; targetErr?: any; trial?: boolean; optedOut?: boolean; optTableMissing?: boolean; connected?: boolean };
 function waDb(o: WaOpts = {}) {
   g.__supaGetUser = (jwt: string) => jwt === "user-jwt" ? ({ data: { user: { id: "u1" } } }) : ({ data: { user: null } });
-  g.__supaRpc = (name: string) => {
+  g.__supaRpc = (name: string, args: any, key: string) => {
     if (name === "integrations_test_target") return { data: { org_id: ORG, email: "a@a.test", studio_name: "Studio A", studio_whatsapp: "919800000001" }, error: null };
     if (name === "integrations_wa_test_target") return o.targetErr ? { data: null, error: o.targetErr } : { data: o.target ?? { ok: true, studio_whatsapp: "919800000001", org_id: ORG }, error: null };
     if (name === "trial_send_blocked") return { data: o.trial === true, error: null };
+    // R129: the studio's own connected number (service role, this studio only)
+    if (name === "org_whatsapp_creds") return o.connected !== false && key === "service-role-secret" && args?.p_org === ORG
+      ? { data: { token: STUDIO_TOKEN, phone_number_id: STUDIO_PHONE_ID }, error: null } : { data: null, error: null };
     return { data: null, error: null };
   };
   g.__supaResolver = (table: string) => {
@@ -37,7 +43,13 @@ async function waTest(o: WaOpts) {
   resetSupaMock(); waDb(o);
   let meta = 0;
   const rEnv = setEnv(ITEST_ENV);
-  const rF = installFetch((url) => { if (url.startsWith("https://graph.facebook.com/")) { meta++; return jsonResponse({ messages: [{ id: "w1" }] }); } throw new Error("unexpected " + url); });
+  const rF = installFetch((url, init) => {
+    if (url === `https://graph.facebook.com/v21.0/${STUDIO_PHONE_ID}/messages`) {
+      assertEquals((init?.headers as Record<string, string>)["Authorization"], "Bearer " + STUDIO_TOKEN, "the studio's own token, never Helm's");
+      meta++; return jsonResponse({ messages: [{ id: "w1" }] });
+    }
+    throw new Error("unexpected " + url);
+  });
   try {
     const h = await loadHandler(ITEST);
     const res = await h(post({ action: "test", channel: "whatsapp" }, AUTH));
@@ -56,6 +68,11 @@ Deno.test("r59 F-1: before APPLY-0300 (function missing) -> 503, Meta never call
 Deno.test("r59 F-1: the studio number is not a team member's mobile -> 400, Meta never called", async () => {
   const r = await waTest({ target: { ok: false, reason: "not_team_number" } });
   assertEquals(r.status, 400); assertEquals(r.meta, 0); assert(/team member/.test(r.body.error));
+});
+Deno.test("r59 F-1 + R129: studio number not connected -> simulated (nothing sent), Helm's own number never used", async () => {
+  const r = await waTest({ connected: false });
+  assertEquals(r.status, 200); assertEquals(r.body.mode, "simulated"); assertEquals(r.body.sent, false); assertEquals(r.meta, 0);
+  assert(/connect/i.test(r.body.reason));
 });
 Deno.test("r59 F-1: free-trial studio -> 403 trial, Meta never called", async () => {
   const r = await waTest({ trial: true });
@@ -88,7 +105,10 @@ Deno.test("r59 F-1: the recipient comes from the DB, never from the request", as
   resetSupaMock(); waDb({});
   let sentTo = "";
   const rEnv = setEnv(ITEST_ENV);
-  const rF = installFetch((_url, init) => { sentTo = JSON.parse(String(init?.body || "{}")).to; return jsonResponse({ messages: [{ id: "w1" }] }); });
+  const rF = installFetch((url, init) => {
+    assertEquals(url, `https://graph.facebook.com/v21.0/${STUDIO_PHONE_ID}/messages`, "from the studio's own number");
+    sentTo = JSON.parse(String(init?.body || "{}")).to; return jsonResponse({ messages: [{ id: "w1" }] });
+  });
   try {
     const h = await loadHandler(ITEST);
     await h(post({ action: "test", channel: "whatsapp", to: "15550000000", number: "15550000000" }, AUTH));
@@ -97,11 +117,14 @@ Deno.test("r59 F-1: the recipient comes from the DB, never from the request", as
 });
 
 // ---------------------------------------------------------------- send-whatsapp ping (F-8)
+// R129 (0337): the ping no longer calls Meta with Helm's number - it answers whether the caller's studio's OWN
+// number is connected (studio_whatsapp_ready, as the caller); the Integrations page's Check connection talks to Meta.
 const SWA = "../../supabase/functions/send-whatsapp/index.ts";
-async function ping(canSee: boolean | "err") {
+async function ping(canSee: boolean | "err", ready: unknown = { connected: true }) {
   resetSupaMock();
   g.__supaGetUser = (jwt: string) => jwt === "user-jwt" ? ({ data: { user: { id: "u1" } } }) : ({ data: { user: null } });
-  g.__supaRpc = (name: string) => name === "has_area" ? (canSee === "err" ? { data: null, error: { code: "42501" } } : { data: canSee, error: null }) : { data: null, error: null };
+  g.__supaRpc = (name: string) => name === "has_area" ? (canSee === "err" ? { data: null, error: { code: "42501" } } : { data: canSee, error: null })
+    : name === "studio_whatsapp_ready" ? (ready === "err" ? { data: null, error: { code: "PGRST202" } } : { data: ready, error: null }) : { data: null, error: null };
   let meta = 0;
   const rEnv = setEnv(ITEST_ENV);
   const rF = installFetch(() => { meta++; return jsonResponse({ verified_name: "x" }); });
@@ -109,17 +132,28 @@ async function ping(canSee: boolean | "err") {
     const h = await loadHandler(SWA);
     const res = await h(post({ ping: true }, AUTH));
     const call = supaLog().find((e: any) => e.rpc === "has_area");
-    return { status: res.status, meta, call };
+    const readyCall = supaLog().find((e: any) => e.rpc === "studio_whatsapp_ready");
+    return { status: res.status, body: await res.json(), meta, call, readyCall };
   } finally { rF(); rEnv(); }
 }
 Deno.test("r59 F-8: ping without Settings view -> 403, Meta never called", async () => {
-  for (const v of [false, "err"] as const) { const r = await ping(v); assertEquals(r.status, 403); assertEquals(r.meta, 0); }
+  for (const v of [false, "err"] as const) {
+    const r = await ping(v); assertEquals(r.status, 403); assertEquals(r.meta, 0);
+    assertEquals(r.readyCall, undefined, "nothing else is asked once the area check says no");
+  }
 });
-Deno.test("r59 F-8: ping with Settings view -> asked as the caller (controls / view), then the Meta check", async () => {
+Deno.test("r59 F-8: ping with Settings view -> asked as the caller (controls / view), then the studio's own connection state", async () => {
   const r = await ping(true);
-  assertEquals(r.status, 200); assertEquals(r.meta, 1);
+  assertEquals(r.status, 200); assertEquals(r.body.ok, true); assertEquals(r.meta, 0, "R129: no Meta call from send-whatsapp's ping");
   assertEquals(r.call.args, { p_area: "controls", p_need: "view" });
   assertEquals(r.call.key, "anon-key", "the area check runs with the caller's JWT client, not the service role");
+  assertEquals(r.readyCall.key, "anon-key", "the connection state is read as the caller");
+});
+Deno.test("r59 F-8 + R129: ping when the studio number is not connected (or the check fails) -> 409 not_connected", async () => {
+  for (const ready of [{ connected: false }, null, "err"]) {
+    const r = await ping(true, ready);
+    assertEquals(r.status, 409, JSON.stringify(ready)); assertEquals(r.body.not_connected, true); assertEquals(r.meta, 0);
+  }
 });
 
 // ---------------------------------------------------------------- razorpay-webhook (E-01, E-03)

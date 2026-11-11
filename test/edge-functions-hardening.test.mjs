@@ -173,12 +173,32 @@ t('milestones: "paid" goes through settle_milestone, never a direct table write'
   assert.match(mig, /create trigger aa_milestone_paid_guard before insert or update or delete on public\.payment_milestones/);
 });
 
+// ---- R145: CI runs the Deno harness on every push / PR (offline, no secrets, frozen lock) ----------
+t('CI edge-tests job: pinned runner + setup-deno SHA, contents: read, no secrets, tests/edge without --allow-net', () => {
+  const ci = read('.github/workflows/ci.yml');
+  const job = ci.slice(ci.indexOf('\n  edge-tests:'));
+  assert.ok(job.length > 20, 'edge-tests job exists');
+  assert.match(job, /\n    runs-on: ubuntu-24\.04 /);
+  assert.match(job, /\n    permissions:\n      contents: read\n    env:/);
+  assert.match(job, /uses: denoland\/setup-deno@[0-9a-f]{40} # v\d/);
+  assert.doesNotMatch(job, /secrets\./, 'no secrets in the edge job');
+  const edge = job.match(/working-directory: tests\/edge\n\s+run: (deno test [^\n]+)/);
+  assert.ok(edge, 'tests/edge step');
+  assert.doesNotMatch(edge[1], /--allow-net|--allow-all|-A\b|--allow-run|--allow-write/, 'no network (or other extra) permission');
+  assert.match(edge[1], /--lock=\.\.\/\.\.\/deno\.lock --frozen --cached-only/);
+  assert.match(job, /--allow-net=127\.0\.0\.1 [^\n]*smtp_test\.ts/, 'the SMTP test may reach loopback only');
+  const lock = JSON.parse(read('deno.lock'));
+  assert.ok(!lock.workspace && !lock.redirects, 'deno.lock is independent of package.json and has no stale esm.sh entries');
+});
+
 // ---- behavioural: Deno harness (mocked providers + DB, no network) -----------------
 const deno = spawnSync('deno', ['--version'], { encoding: 'utf8' });
 if (deno.status === 0) {
   t('Deno edge harness (tests/edge): all runtime cases pass with no network permission', () => {
-    const r = spawnSync('deno', ['test', '--allow-env', '--allow-read', '--no-check', '--import-map=import_map.json'],
-      { cwd: join(ROOT, 'tests/edge'), encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
+    // R145: same command as the CI edge-tests job - the root deno.lock, frozen; package.json ignored (npm packages are
+    // never resolved here: supabase-js is the local mock), so a run never rewrites deno.lock
+    const r = spawnSync('deno', ['test', '--lock=../../deno.lock', '--frozen', '--allow-env', '--allow-read', '--no-check', '--import-map=import_map.json'],
+      { cwd: join(ROOT, 'tests/edge'), encoding: 'utf8', env: { ...process.env, NO_COLOR: '1', DENO_NO_PACKAGE_JSON: '1' } });
     const out = (r.stdout || '') + (r.stderr || '');
     assert.equal(r.status, 0, out.split('\n').filter((l) => /FAILED|error/i.test(l)).slice(0, 20).join('\n'));
     assert.match(out, /ok \| \d+ passed \| 0 failed/);
