@@ -91,13 +91,13 @@
     bar: 'bar', barstool: 'bar', booth: 'expo', stall: 'expo', kiosk: 'expo',
     restroom: 'service', coatcheck: 'service', firstaid: 'service', gifttable: 'service', desk: 'service', shoerack: 'service', ticketbooth: 'service',
     foh: 'production', dj: 'production', generator: 'production', towerlight: 'production', interpreter: 'production',
-    ledscreen: 'screen', videowall: 'screen', led: 'screen', projector: 'screen', tvstand: 'screen',
+    ledscreen: 'screen', videowall: 'screen', led: 'screen', sidescreen: 'screen', projector: 'screen', tvstand: 'screen',
     photobooth: 'photo', selfieframe: 'photo', backdrop: 'photo', flowerwall: 'photo', neonsign: 'photo', balloonarch: 'photo',
   });
   const MERGE_GAP = map({ seating: 40, food: 30, bar: 20, expo: 20, service: 15, production: 15, lounge: 25, cocktail: 25, screen: 30, photo: 80, bleacher: 12, headtable: 0, stage: 0, dancefloor: 0, aisle: 0 });
   const MAXSPAN = 64, MAXSPAN_SEAT = 100, MAXSPAN_FAM = map({ seating: MAXSPAN_SEAT, photo: 100, screen: 100 });
   // R62: what rides with something else instead of getting a stop of its own
-  const SCREEN = bag('ledscreen videowall led projector tvstand');                     // beside the stage -> the stage stop
+  const SCREEN = bag('ledscreen videowall led projector tvstand sidescreen');                     // beside the stage -> the stage stop
   const COMPANION = map({ dj: bag('dancefloor stage') });                             // a DJ booth -> its dance floor
   const ENTRY_KIT = bag('desk kiosk ticketbooth shoerack stanchion welcomeboard signage coatcheck');   // at an entry -> the entry
   const ENTRY_ITEM = bag('checkpoint arch floralarch entrancegate floralentrance');
@@ -115,7 +115,8 @@
     walkway: ['walkway'], selfieframe: ['selfie frame'], jhoola: ['jhoola'], entrancegate: ['entrance gate'], backdrop: ['backdrop'], brandwall: ['branding wall'],
     dais: ['dais', 'daises'], varmala: ['varmala stage'], viprisers: ['VIP riser'], greenroom: ['green room'], press: ['press area'], trophytable: ['trophy table'],
     chariot: ['chariot'], stagebackdrop: ['stage backdrop'], haldi: ['haldi corner'], mehendi: ['mehendi corner'], doli: ['doli'], altar: ['altar'], towerlight: ['tower light'],
-    shoerack: ['shoe rack'], ticketbooth: ['ticket booth'], interpreter: ['interpreter booth'], watchtower: ['watch tower'], ambulance: ['ambulance'], plinth: ['plinth'], counter: ['counter'] });
+    shoerack: ['shoe rack'], ticketbooth: ['ticket booth'], interpreter: ['interpreter booth'], watchtower: ['watch tower'], ambulance: ['ambulance'], plinth: ['plinth'], counter: ['counter'],
+    sidescreen: ['side screen'], stagestairs: ['stage stairs', 'stage stairs'], stagedeck: ['stage extension'], installation: ['decor installation'] });
   function noun(t, n) { const e = NOUN[t]; const one = e ? e[0] : String(t); return n === 1 ? one : (e && e[1]) || (/(s|x|ch|sh)$/.test(one) ? one + 'es' : one + 's'); }
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
   const famOf = (t) => FAMILY[t] || 'solo:' + t;

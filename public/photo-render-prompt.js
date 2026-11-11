@@ -231,6 +231,14 @@
     watchtower: 'a scaffold watch tower with CCTV cameras',
     extinguisher: 'a red fire extinguisher point',
     ambulance: 'an ambulance parked in a marked bay',
+    // R135 visual-asset-catalogue pack
+    lawnfloor: 'outdoor lawn flooring of lush green artificial grass laid flat over the ground',
+    stagelight: 'a stage lighting fixture on a black floor stand',
+    pathlights: 'a run of low pathway stake lights glowing warm white',
+    sidescreen: 'a tall portrait LED side screen on a black ground-stack frame beside the stage',
+    stagedeck: 'a stage extension deck at the same height as the stage, with matching skirting',
+    stagestairs: 'a set of stage stairs with dark risers and wooden treads leading up to the stage',
+    installation: 'an outdoor decorative light installation',
   };
   var NAMES = {
     stage: 'stage', dancefloor: 'dance floor', podium: 'podium', press: 'press riser', dj: 'DJ booth', chairrow: 'chair row',
@@ -256,6 +264,8 @@
     balloonbunch: 'balloon bouquet', lectern: 'lectern', dais: 'dais', flagstand: 'flag stand', hoarding: 'banner hoarding',
     patower: 'PA tower', lightingtree: 'lighting tree', diyastand: 'deepam stand', trophytable: 'trophy display',
     havankund: 'havan kund', rangoli: 'rangoli', lanterns: 'lantern cluster', hangingfloral: 'hanging floral ceiling', neonsign: 'neon sign wall',
+    lawnfloor: 'lawn flooring', stagelight: 'stage light', pathlights: 'pathway lights', sidescreen: 'LED side screen', stagedeck: 'stage extension',
+    stagestairs: 'stage stairs', installation: 'decor installation',
     backdrop: 'backdrop', floralstand: 'floral stand', decorbox: 'decor prop', signage: 'standee sign', recttable: 'rectangular table', stageroof: 'stage roof truss', varmala: 'varmala platform', micstand: 'mic stand', teleprompter: 'confidence monitor', projector: 'projection screen', tvstand: 'TV screen', interpreter: 'interpreter booth', pyro: 'cold pyro', towerlight: 'light tower', gaddi: 'floor seating', urli: 'flower urli', umbrellas: 'decor umbrellas', doli: 'doli', kalash: 'kalash', altar: 'pooja altar', shoerack: 'shoe rack', dessert: 'dessert table', coffee: 'coffee station', stall: 'canopy stall', counter: 'display counter', plinth: 'display plinth', kiosk: 'check-in kiosk', ticketbooth: 'ticket booth', stanchion: 'stanchion line', watchtower: 'watch tower', extinguisher: 'fire point', ambulance: 'ambulance',
   };
   // what "front" is measured from: the first of these found on the plan
@@ -276,18 +286,61 @@
       wood: 'as a wooden panel wall', balloon: 'covered in balloons', urn: 'in a tall urn', pedestal: 'on a pedestal bowl', hoop: 'on a floral hoop',
       cylinder: 'as a cylinder plinth', sphere: 'as a sphere', cutout: 'as a flat cut-out panel (no readable text)', standee: 'as a foam-board standee (no readable text)',
       aframe: 'as an A-frame sign (no readable text)', direction: 'as a directional signpost (no readable text)', digital: 'as a digital screen standee',
-      co2: 'as a CO2 jet', confetti: 'as a confetti cannon', kiosk: 'as a hard-top kiosk' },
+      co2: 'as a CO2 jet', confetti: 'as a confetti cannon', kiosk: 'as a hard-top kiosk',
+      // R135 visual-asset-catalogue looks
+      curved: 'laid as a gently curved run', triangle: 'built from triangle truss', squareframe: 'as a square box-truss frame', circular: 'as a circular truss ring flown overhead',
+      trussarch: 'as an arch-shaped truss', flown: 'flown (hanging) from above with no towers', adjustable: 'as an adjustable-height crank-up tower',
+      groundsupport: 'as an open ground-support truss frame with no roof', festoon: 'as festoon strings of big round bulbs', tree: 'aimed up into a tree canopy',
+      vip: 'as a VIP wingback chair', throne: 'as an ornate gold maharaja throne chair', curvedled: 'as a curved LED screen', djtable: 'as an open DJ table',
+      ledfacade: 'with a glowing LED facade', trussdj: 'on a riser inside a truss frame', outdoorbuffet: 'outdoors under its own canopy',
+      pagoda: 'as a pointed pagoda tent', stretch: 'as a flowing stretch (Bedouin) tent', bell: 'as a round canvas bell tent', shamiana: 'as a colourful Indian shamiana',
+      shellscheme: 'as white shell-scheme booth partition panels', beam: 'as a narrow beam light', spot: 'as a spotlight', flood: 'as a wide floodlight',
+      rope: 'as a glowing LED rope light outline', letters: 'as giant marquee light-up letters (no readable text)', lighttunnel: 'as a walk-through light tunnel' },
+    // R135 extra looks (properties.carpet / properties.edge)
+    carpet: { white: 'in white', ivory: 'in ivory', gold: 'in gold' },
+    edge: { none: 'as a single continuous carpet with no stanchions or barricades' },
     flower: { rose: 'roses', marigold: 'marigolds', orchid: 'orchids', hydrangea: 'hydrangeas', jasmine: 'jasmine', carnation: 'carnations', lily: 'lilies', mixed: 'mixed garden flowers' },
     palette: { blush: 'blush and ivory', ivory: 'all-white / ivory', marigold: 'marigold yellow and orange', redgold: 'red and gold', pastel: 'soft pastel',
       jewel: 'jewel-tone magenta and purple', whitegreen: 'white with greenery', rainbow: 'multicolour', goldchrome: 'gold and chrome' }
   };
   function variantPhrase(it) {
     var p = (it && it.properties) || {}, out = [];
-    var st = VARIANT_WORDS.style[p.style], fl = VARIANT_WORDS.flower[p.flower], pa = VARIANT_WORDS.palette[p.palette];
+    var own = Object.prototype.hasOwnProperty, pick = function (m, k) { return typeof k === 'string' && own.call(m, k) ? m[k] : ''; };
+    var st = pick(VARIANT_WORDS.style, p.style), fl = pick(VARIANT_WORDS.flower, p.flower), pa = pick(VARIANT_WORDS.palette, p.palette);
+    var ca = pick(VARIANT_WORDS.carpet, p.carpet), ed = pick(VARIANT_WORDS.edge, p.edge);
     if (st) out.push(st);
+    if (ca) out.push(ca);
+    if (ed) out.push(ed);
+    var sp = screenPhrase(it); if (sp) out.push(sp);
     if (fl || pa) out.push('using ' + [pa, fl || 'flowers'].filter(Boolean).join(' '));
     return out.length ? ' (' + out.join(', ') + ')' : '';
   }
+  /* R135: what a stage / LED screen shows (properties.screenTheme + title / brand / tagline / subtitle / dateLine,
+     or the main stage screen when screenMirror). Plain text only, cleaned and capped; never placeholder text. */
+  var SCREEN_TYPES = { stage: 1, ledscreen: 1, videowall: 1, led: 1, sidescreen: 1, brandwall: 1, backdrop: 1 };
+  var SCREEN_THEMES = { corporate: 'a corporate navy and blue theme with flowing wave graphics', royal: 'a royal maroon and gold theme with a gold border',
+    floral: 'a soft white and blush floral theme with flowers in the corners', minimal: 'a clean minimal white theme with black type',
+    neon: 'a dark concert theme with a pink-to-cyan neon glow' };
+  var MAIN_SCREEN = null;   // set by build(): the stage whose screen mirrored screens copy
+  function screenProps(it) {
+    var p = (it && it.properties) || {};
+    if (p.screenMirror === true && it.type !== 'stage' && MAIN_SCREEN) return MAIN_SCREEN.properties || {};
+    return p;
+  }
+  function screenWords(p) {
+    var parts = [];
+    ['brand', 'title', 'tagline', 'subtitle', 'dateLine'].forEach(function (k) { var v = clean(p[k], 60).replace(/"/g, "'"); if (v) parts.push('"' + v + '"'); });
+    return parts;
+  }
+  function screenPhrase(it) {
+    if (!it || !Object.prototype.hasOwnProperty.call(SCREEN_TYPES, it.type)) return '';
+    var p = screenProps(it), th = typeof p.screenTheme === 'string' && Object.prototype.hasOwnProperty.call(SCREEN_THEMES, p.screenTheme) ? SCREEN_THEMES[p.screenTheme] : '';
+    var words = screenWords(p);
+    if (!th && !words.length) return '';
+    var what = it.type === 'stage' ? 'the backdrop screen' : 'the screen';
+    return what + (th ? ' in ' + th : '') + (words.length ? ' showing exactly the words ' + words.join(', ') : '');
+  }
+  function anyScreenWords(items) { return (items || []).some(function (it) { return it && SCREEN_TYPES[it.type] && screenWords(screenProps(it)).length; }); }
   /* a group may mix variants (e.g. 2 hexagon arches + 1 ring arch): describe every distinct variant, not just the first item's */
   function groupVariantPhrase(list) {
     var seen = {}, order = [];
@@ -720,6 +773,10 @@
     input = input || {};
     var W = Math.max(10, num(input.world && input.world.w, 200)), H = Math.max(10, num(input.world && input.world.h, 140));
     var items = (Array.isArray(input.items) ? input.items : []).filter(function (it) { return it && typeof it.type === 'string'; });
+    MAIN_SCREEN = null;   // R135: the main stage screen that "Same as main screen" copies
+    items.forEach(function (it) { if (it.type !== 'stage') return; var p = it.properties || {};
+      if (!MAIN_SCREEN || (!(MAIN_SCREEN.properties || {}).screenTheme && !screenWords(MAIN_SCREEN.properties || {}).length && (p.screenTheme || screenWords(p).length))) MAIN_SCREEN = it; });
+    var screenText = anyScreenWords(items);
     var setting = inferSetting(input.setting, items);
     var style = STYLES[input.style] ? input.style : defaultStyle(setting, !!input.evening);
     var env = envFor(style, setting);
@@ -978,8 +1035,8 @@
 
     var s9 = [
       '9. TEXT AND SCREEN CONTENT',
-      '- No text, letters, numbers, labels, captions, badges, legends, logos, watermarks, measurement lines, dimension arrows, grid lines, colour-coded patches, plan symbols or UI elements anywhere in the photo.',
-      '- LED screens may show tasteful visuals that match the theme, without readable or misleading text.',
+      '- No text, letters, numbers, labels, captions, badges, legends, logos, watermarks, measurement lines, dimension arrows, grid lines, colour-coded patches, plan symbols or UI elements anywhere in the photo' + (screenText ? ', EXCEPT the exact screen words listed below.' : '.'),
+      screenText ? '- SCREEN WORDS: a stage backdrop screen or LED screen described above as "showing exactly the words ..." shows ONLY those words, spelled exactly as given, large and centred, in its stated theme colours. No other words, logos or numbers on any screen.' : '- LED screens may show tasteful visuals that match the theme, without readable or misleading text.',
     ].join('\n');
 
     var totals = 'TOTALS BY TYPE: ' + order.map(function (t) { var n = counts[t], nm = NAMES[t] || clean(t, 30), x = '';
