@@ -183,13 +183,13 @@
 
   // When a DSN is configured but no reporter SDK is present yet, lazy-load the Sentry
   // browser SDK and init it (redaction-aware via beforeSend). Completely NO-OP when no
-  // DSN is set. The CSP already allows the script (https://browser.sentry-cdn.com/8.55.2/,
-  // pinned to this version's directory - change both together, see scripts/csp-hashes.cjs).
+  // DSN is set. The script is served from our own origin (/vendor/, covered by script-src 'self';
+  // R138 - see public/vendor/README.md for how the file was made and verified).
   // connect-src allows ONLY the DSN's exact ingest host (audit run-3 client/csp: a
   // *.ingest.sentry.io wildcard lets any Sentry org receive data). scripts/gen-csp.mjs reads
   // the DSN from config.js and writes that one host into vercel.json + public/_headers.
-  var SENTRY_SRC = 'https://browser.sentry-cdn.com/8.55.2/bundle.min.js';
-  var SENTRY_SRI = 'sha384-lNMClDekFF9oPvouGJqnUSKioEadbe8byR7uGUA0sPP+g9r2x3eiErEJmm/Em+wB';
+  var SENTRY_SRC = '/vendor/sentry-8.55.2.bundle.min.js';   // R138: self-hosted copy (no outside CDN)
+  var SENTRY_SRI = 'sha384-2pQ5FCOlRmRkz8BBZIW/Yf2pGbnZHHaCCriaUbTwegcr+6Jh0tJKqvi31rfm39XF';
   var sentryArmed = false, sentryReady = false;
   function loadSentry() {
     refresh();
@@ -197,13 +197,13 @@
     sentryArmed = true;
     try {
       var sc = document.createElement('script');
-      // Pinned CDN bundle WITH Subresource Integrity (audit run-3
+      // Pinned, self-hosted bundle WITH Subresource Integrity (audit run-3
       // supply-chain/telemetry/sentry-cdn-script-no-sri): the browser refuses to run
       // the file unless its bytes hash to this value. The sha384 is Sentry's own
-      // published checksum for 8.55.2 bundle.min.js (release-registry.services.sentry.io
-      // sdks/sentry.javascript.browser/8.55.2) and was re-computed from the CDN bytes
-      // on 2026-10-26 - both match (r30: 8.35.0 -> 8.55.2, latest 8.x patch). Changing the version means changing src, this
-      // hash and the CSP script-src directory (scripts/csp-hashes.cjs) together.
+      // R138: the CDN file was downloaded 2026-11-11 and matched Sentry's published sha384
+      // (lNMClDek...); only its last line ("//# sourceMappingURL=bundle.min.js.map") was removed so
+      // DevTools stops asking for a map we do not ship. This hash is of that self-hosted file.
+      // Changing the version means a new vendor file + this hash (public/vendor/README.md).
       sc.src = SENTRY_SRC;
       sc.integrity = SENTRY_SRI;
       sc.crossOrigin = 'anonymous';
