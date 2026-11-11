@@ -366,6 +366,8 @@ run "r129-studio-whatsapp-0337" "R129-STUDIO-WHATSAPP-0337: ALL PASS \(42/42\)" 
 run "r130-task-reminders-0338" "R130-TASK-REMINDERS-0338: ALL PASS \(40/40\)" psql -q -f tests/db/r130-task-reminders-0338.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
 run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f tests/db/r136-audit-via-0340.sql
+# r148 (0343): RLS speed-up - per-query helpers (has_area / current_org_id / auth.uid / is_admin ...) in 265 policies written as (select ...); same rows + same UPDATE / DELETE / INSERT outcome + same per-row answer pre vs 0343 for admin / manager / sales / coordinator / crew / client / outsider / other studio / anon, nothing left bare, InitPlan in EXPLAIN, faster; re-applies itself (pre -> 0343, second run no change, drift left alone), rolled back
+run "r148-rls-initplan-0343" "R148-RLS-INITPLAN-0343: ALL PASS \(21/21\)" psql -q -f tests/db/r148-rls-initplan-0343.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
