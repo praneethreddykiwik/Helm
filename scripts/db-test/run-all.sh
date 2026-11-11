@@ -371,6 +371,8 @@ run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f t
 run "r139-token-limits-0341" "R139-TOKEN-LIMITS-0341: ALL PASS \(25/25\)" psql -q -f tests/db/r139-token-limits-0341.sql
 # r143 (0342): a failed send waits 1/2/4/8/16/30/60 min before the next try (claim skips it meanwhile, send window still holds it), 8 tries on every message queue (package codes 5), expiry + 10 min lease unchanged, task / run-sheet / delivery reminders + codes unchanged; WhatsApp STOP / START newest wins, replay ignored, old 3-argument call works; re-applies itself twice, rolled back
 run "r143-outbox-backoff-0342" "R143-OUTBOX-BACKOFF-0342: ALL PASS \(55/55\)" psql -q -f tests/db/r143-outbox-backoff-0342.sql
+# r148 (0343): RLS speed-up - per-query helpers (has_area / current_org_id / auth.uid / is_admin ...) in 265 policies written as (select ...); same rows + same UPDATE / DELETE / INSERT outcome + same per-row answer pre vs 0343 for admin / manager / sales / coordinator / crew / client / outsider / other studio / anon, nothing left bare, InitPlan in EXPLAIN, faster; re-applies itself (pre -> 0343, second run no change, drift left alone), rolled back
+run "r148-rls-initplan-0343" "R148-RLS-INITPLAN-0343: ALL PASS \(21/21\)" psql -q -f tests/db/r148-rls-initplan-0343.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
