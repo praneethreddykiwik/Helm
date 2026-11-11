@@ -366,6 +366,8 @@ run "r129-studio-whatsapp-0337" "R129-STUDIO-WHATSAPP-0337: ALL PASS \(42/42\)" 
 run "r130-task-reminders-0338" "R130-TASK-REMINDERS-0338: ALL PASS \(40/40\)" psql -q -f tests/db/r130-task-reminders-0338.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
 run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f tests/db/r136-audit-via-0340.sql
+# r149 (0344): 34 missing indexes (row-security org_id tables, quote -> lead sync, Live Status, every-minute task reminders, outboxes, booking links) all there + valid + used by the planner; comms_outbox_unsub back with the 0165 body, service role only, ok / opted_out / token as comms-dispatch reads them; a prod-like database without it is fixed by 0344 alone; re-applies itself 3x (no index, function or row count changed), rolled back
+run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests/db/r149-indexes-0344.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
