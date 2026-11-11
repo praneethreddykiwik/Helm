@@ -82,14 +82,14 @@ t('secret-bearing PR jobs are bound to the staging-tests Environment', () => {
 });
 
 // ---- supply-chain/telemetry/sentry-cdn-script-no-sri -----------------------------------
-t('Sentry bundle carries SRI (Sentry-published sha384 for 8.55.2)', () => {
+t('Sentry bundle carries SRI (R138: self-hosted copy of the Sentry-published 8.55.2 bundle)', () => {
   const s = r('public/telemetry.js');
-  assert.match(s, /var SENTRY_SRI = 'sha384-lNMClDekFF9oPvouGJqnUSKioEadbe8byR7uGUA0sPP\+g9r2x3eiErEJmm\/Em\+wB';/);
+  assert.match(s, /var SENTRY_SRI = 'sha384-2pQ5FCOlRmRkz8BBZIW\/Yf2pGbnZHHaCCriaUbTwegcr\+6Jh0tJKqvi31rfm39XF';/);
   assert.match(s, /sc\.integrity = SENTRY_SRI;/);
   assert.match(s, /sc\.crossOrigin = 'anonymous';/);
-  assert.match(s, /SENTRY_SRC = 'https:\/\/browser\.sentry-cdn\.com\/8\.55\.2\/bundle\.min\.js'/);
+  assert.match(s, /SENTRY_SRC = '\/vendor\/sentry-8\.55\.2\.bundle\.min\.js'/);
   const { SCRIPT_SRC_BASE } = require('../scripts/csp-hashes.cjs');
-  assert.ok(SCRIPT_SRC_BASE.includes('https://browser.sentry-cdn.com/8.55.2/'), 'version in CSP and loader agree');
+  assert.deepEqual(SCRIPT_SRC_BASE, ["'self'"], 'no outside script host once Sentry is self-hosted');
 });
 
 // ---- client/csp/exfil-channels-and-trusted-types-off -----------------------------------
