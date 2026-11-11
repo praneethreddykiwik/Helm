@@ -110,8 +110,9 @@ t('stage stairs snap to the front edge of a stage at left / centre / right, foll
 
 /* ---- the screen model ---- */
 t('5 themes + the current look; screen text is sanitised, length-capped and theme-whitelisted', () => {
-  assert.deepEqual(HS.THEME_ORDER, ['', 'corporate', 'royal', 'floral', 'minimal', 'neon']);
-  assert.equal(Object.keys(HS.THEMES).filter(Boolean).length, 5);
+  // R137 added three themes after these (test/r137-stage-screen-logo-dancers.test.mjs); the R135 six keep their order
+  assert.deepEqual(HS.THEME_ORDER.slice(0, 6), ['', 'corporate', 'royal', 'floral', 'minimal', 'neon']);
+  assert.equal(Object.keys(HS.THEMES).filter(Boolean).length, 8);
   for (const k of HS.THEME_ORDER) { const T = HS.THEMES[k]; assert.ok(T.name && /^#[0-9a-f]{6}$/.test(T.bg) && /^#[0-9a-f]{6}$/.test(T.ink), k); }
   assert.equal(HS.THEMES[''].bg, '#2f6fed', 'blank theme = the blue screen the builder always drew');
   const p = { title: '  Annual   Day <script>alert(1)</script> ' + 'x'.repeat(80), brand: 42, tagline: '\u0000\u0007 ok', subtitle: '   ', screenTheme: '__proto__', screenMirror: 'yes', seats: 8 };

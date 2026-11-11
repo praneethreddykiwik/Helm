@@ -299,6 +299,9 @@
     // R135 extra looks (properties.carpet / properties.edge)
     carpet: { white: 'in white', ivory: 'in ivory', gold: 'in gold' },
     edge: { none: 'as a single continuous carpet with no stanchions or barricades' },
+    // R137: dancers' costume style (properties.danceStyle; '' = Bollywood)
+    danceStyle: { classical: 'performing Indian classical dance (Bharatanatyam / Kathak) in silk costumes with pleated fan skirts and gold jewellery',
+      western: 'performing western contemporary dance in modern stage outfits' },
     flower: { rose: 'roses', marigold: 'marigolds', orchid: 'orchids', hydrangea: 'hydrangeas', jasmine: 'jasmine', carnation: 'carnations', lily: 'lilies', mixed: 'mixed garden flowers' },
     palette: { blush: 'blush and ivory', ivory: 'all-white / ivory', marigold: 'marigold yellow and orange', redgold: 'red and gold', pastel: 'soft pastel',
       jewel: 'jewel-tone magenta and purple', whitegreen: 'white with greenery', rainbow: 'multicolour', goldchrome: 'gold and chrome' }
@@ -308,7 +311,9 @@
     var own = Object.prototype.hasOwnProperty, pick = function (m, k) { return typeof k === 'string' && own.call(m, k) ? m[k] : ''; };
     var st = pick(VARIANT_WORDS.style, p.style), fl = pick(VARIANT_WORDS.flower, p.flower), pa = pick(VARIANT_WORDS.palette, p.palette);
     var ca = pick(VARIANT_WORDS.carpet, p.carpet), ed = pick(VARIANT_WORDS.edge, p.edge);
+    var ds = it && it.type === 'dancers' ? (pick(VARIANT_WORDS.danceStyle, p.danceStyle) || (p.danceStyle == null || p.danceStyle === '' ? 'performing Bollywood dance in colourful lehengas and kurtas' : '')) : '';
     if (st) out.push(st);
+    if (ds) out.push(ds);
     if (ca) out.push(ca);
     if (ed) out.push(ed);
     var sp = screenPhrase(it); if (sp) out.push(sp);
@@ -320,7 +325,25 @@
   var SCREEN_TYPES = { stage: 1, ledscreen: 1, videowall: 1, led: 1, sidescreen: 1, brandwall: 1, backdrop: 1 };
   var SCREEN_THEMES = { corporate: 'a corporate navy and blue theme with flowing wave graphics', royal: 'a royal maroon and gold theme with a gold border',
     floral: 'a soft white and blush floral theme with flowers in the corners', minimal: 'a clean minimal white theme with black type',
-    neon: 'a dark concert theme with a pink-to-cyan neon glow' };
+    neon: 'a dark concert theme with a pink-to-cyan neon glow',
+    // R137 themes
+    marigold: 'a festive saffron-yellow theme framed by marigold flower garlands and mango leaves',
+    blackgold: 'an elegant black and gold art-deco theme with thin gold borders',
+    tech: 'a purple-to-blue tech gradient theme with a glowing grid and circuit lines' };
+  // R137: stage screen layout, custom background colour and logo (whitelisted words; the colour is a validated #rrggbb)
+  var SCREEN_LAYOUTS = { single: 'one wide centre LED screen on the backdrop', triple: 'a centre LED screen with a tall portrait LED panel on each side',
+    wide: 'one full-width LED wall across the whole backdrop', none: 'a plain backdrop with no screen' };
+  function screenExtras(p, it) {
+    var out = [], own = Object.prototype.hasOwnProperty;
+    var bg = typeof p.screenBg === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.screenBg) ? p.screenBg.toLowerCase() : '';
+    if (bg) out.push('on a ' + bg + ' background colour');
+    if (typeof p.screenLogo === 'string' && p.screenLogo) out.push("with the client's custom logo shown in place of a letter monogram");
+    return out.join(' ');
+  }
+  function stageLayoutPhrase(it) {
+    var p = (it && it.properties) || {}, l = p.screenLayout;
+    return it && it.type === 'stage' && typeof l === 'string' && Object.prototype.hasOwnProperty.call(SCREEN_LAYOUTS, l) ? SCREEN_LAYOUTS[l] : '';
+  }
   var MAIN_SCREEN = null;   // set by build(): the stage whose screen mirrored screens copy
   function screenProps(it) {
     var p = (it && it.properties) || {};
@@ -335,10 +358,11 @@
   function screenPhrase(it) {
     if (!it || !Object.prototype.hasOwnProperty.call(SCREEN_TYPES, it.type)) return '';
     var p = screenProps(it), th = typeof p.screenTheme === 'string' && Object.prototype.hasOwnProperty.call(SCREEN_THEMES, p.screenTheme) ? SCREEN_THEMES[p.screenTheme] : '';
-    var words = screenWords(p);
-    if (!th && !words.length) return '';
+    var words = screenWords(p), ex = screenExtras(p, it), lay = stageLayoutPhrase(it);
+    if (lay === SCREEN_LAYOUTS.none) return 'with ' + lay;
+    if (!th && !words.length && !ex && !lay) return '';
     var what = it.type === 'stage' ? 'the backdrop screen' : 'the screen';
-    return what + (th ? ' in ' + th : '') + (words.length ? ' showing exactly the words ' + words.join(', ') : '');
+    return (lay ? 'with ' + lay + ', ' : '') + what + (th ? ' in ' + th : '') + (ex ? ' ' + ex : '') + (words.length ? ' showing exactly the words ' + words.join(', ') : '');
   }
   function anyScreenWords(items) { return (items || []).some(function (it) { return it && SCREEN_TYPES[it.type] && screenWords(screenProps(it)).length; }); }
   /* a group may mix variants (e.g. 2 hexagon arches + 1 ring arch): describe every distinct variant, not just the first item's */
