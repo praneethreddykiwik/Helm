@@ -9,7 +9,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const { inlineScripts, withHashes } = require('../scripts/csp-hashes.cjs');
+const { inlineScripts, withHashes, TRUSTED_TYPES_ENFORCE, TT_DIRECTIVES } = require('../scripts/csp-hashes.cjs');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log('  ✓ ' + name); };
@@ -28,7 +28,9 @@ t('external, JSON-LD and template scripts are not hashed; module scripts are', (
 
 t("withHashes drops 'unsafe-inline' + stale hashes and keeps host sources", () => {
   const out = withHashes("default-src 'self'; script-src 'self' 'unsafe-inline' 'sha256-old=' https://cdnjs.cloudflare.com; img-src 'self'", ["'sha256-new='"]);
-  assert.equal(out, "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com 'sha256-new='; img-src 'self'");
+  // R139: Trusted Types is enforced, so every policy also ends with its two directives
+  const tt = TRUSTED_TYPES_ENFORCE ? '; ' + TT_DIRECTIVES.join('; ') : '';
+  assert.equal(out, "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com 'sha256-new='; img-src 'self'" + tt);
 });
 
 t('gen-csp --check fails on an inline event handler', () => {

@@ -107,10 +107,17 @@ t('Trusted Types: report-only on the staging site; trusted-types.js mode follows
   const v = JSON.parse(r('vercel.json'));
   const rule = v.headers.find((x) => x.has && x.has.some((c) => c.value === 'helm-v01.vercel.app') && x.headers[0].key === 'Content-Security-Policy');
   const ro = rule.headers.find((h) => h.key === 'Content-Security-Policy-Report-Only');
-  if (!TRUSTED_TYPES_ENFORCE) assert.equal(ro && ro.value, TT_DIRECTIVES.join('; '));
-  // production hosts / the catch-all never carry Trusted Types yet
-  for (const x of v.headers) if (!(x.has && x.has.some((c) => c.value === 'helm-v01.vercel.app')))
-    for (const h of x.headers) assert.doesNotMatch(h.value, /require-trusted-types-for/, x.source);
+  if (!TRUSTED_TYPES_ENFORCE) {
+    assert.equal(ro && ro.value, TT_DIRECTIVES.join('; '));
+    // production hosts / the catch-all never carry Trusted Types before enforcement
+    for (const x of v.headers) if (!(x.has && x.has.some((c) => c.value === 'helm-v01.vercel.app')))
+      for (const h of x.headers) assert.doesNotMatch(h.value, /require-trusted-types-for/, x.source);
+  } else {
+    // R139: enforced everywhere - every CSP carries it, and the staging report-only header is gone
+    assert.equal(ro, undefined, 'no report-only Trusted Types header once enforced');
+    for (const x of v.headers) for (const h of x.headers)
+      if (h.key === 'Content-Security-Policy') assert.match(h.value, /require-trusted-types-for 'script'/, x.source);
+  }
 });
 
 // ---- deploy/vercel/helm-v01-union-csp-overrides-per-page -------------------------------

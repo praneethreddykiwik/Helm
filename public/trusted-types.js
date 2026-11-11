@@ -14,24 +14,29 @@
  *   - `helm` policy: private to this file (used to parse into an inert
  *     <template>); never exposed on window.
  *
- * Enforcement is OFF by default. The browser only consults these policies once
- * the CSP carries  require-trusted-types-for 'script'; trusted-types helm default
- * which scripts/csp-hashes.cjs adds when TRUSTED_TYPES_ENFORCE = true (or, for
- * the local server only, HELM_TRUSTED_TYPES=1 node server.js). Turn it on only
- * after a logged-in pass over every page shows zero violations.
- * Known item to handle before enforcing: the print preview in quotes.html /
- * flow.html calls w.document.write() on a new about:blank window, whose realm has
- * no default policy — route it through this window's policy first.
+ * Enforcement is ON (R139). The browser consults these policies because the CSP
+ * carries  require-trusted-types-for 'script'; trusted-types helm default
+ * which scripts/csp-hashes.cjs adds while TRUSTED_TYPES_ENFORCE = true (turned on
+ * after a logged-in pass over every page showed zero violations). This file must
+ * stay the FIRST script on every page: a script that runs before it and writes to
+ * a sink (script.src, innerHTML, document.write) is refused.
+ * Print views (quotes.html / flow.html) open a new about:blank window, which
+ * inherits this page's CSP but has no policy of its own, so they must not call
+ * w.document.write(): they call window.HelmPrintDoc below, which builds
+ * the pop-up from THIS window (title as text, CSS via a constructable sheet,
+ * body markup through the same allowlist sanitizer, imported as nodes).
  * ========================================================================== */
 (function () {
   'use strict';
   var TT = window.trustedTypes;
-  if (!TT || !TT.createPolicy) return;            // browsers without Trusted Types: nothing to do
+  // Browsers without Trusted Types: the print pop-up is written the old way.
+  window.HelmPrintDoc = function (w, html) { w.document.write(html); w.document.close(); };
+  if (!TT || !TT.createPolicy) return;            // browsers without Trusted Types: nothing else to do
 
   var TAGS = ('a abbr article aside audio b blockquote br button caption code col colgroup dd del details dfn div dl dt em ' +
     'fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 header hr i img input ins kbd label legend li main mark meter nav ' +
     'ol optgroup option output p picture pre progress q s samp section select small source span strong sub summary sup ' +
-    'table tbody td textarea tfoot th thead time tr track u ul var video wbr ' +
+    'table tbody td textarea tfoot th thead time tr track u ul var video wbr datalist ' +
     // SVG (lower-cased by the HTML parser's tagName for our purposes)
     'svg g path rect circle ellipse line polyline polygon text tspan defs lineargradient radialgradient stop clippath title desc'
   ).split(' ');
@@ -40,7 +45,7 @@
   var ATTRS = ('id class style title role tabindex hidden lang dir name type value placeholder for checked selected disabled ' +
     'readonly required min max step minlength maxlength pattern autocomplete multiple rows cols colspan rowspan scope headers ' +
     'alt width height loading decoding href src srcset sizes target rel download datetime open draggable controls muted loop ' +
-    'preload playsinline poster accept inputmode spellcheck autofocus novalidate label kind srclang start reversed ' +
+    'preload playsinline poster accept inputmode spellcheck autofocus novalidate label kind srclang start reversed list passwordrules version ' +
     'viewbox fill stroke stroke-width stroke-linecap stroke-linejoin stroke-dasharray stroke-dashoffset stroke-opacity d x y ' +
     'x1 y1 x2 y2 cx cy r rx ry points transform focusable opacity fill-opacity fill-rule clip-rule font-size font-weight ' +
     'text-anchor dominant-baseline xmlns offset stop-color stop-opacity gradientunits gradienttransform preserveaspectratio clip-path'
@@ -99,7 +104,7 @@
   // original markup unchanged - no page behaves differently. Flip to 'enforce' in the
   // same change that sets TRUSTED_TYPES_ENFORCE = true in scripts/csp-hashes.cjs
   // (test/audit-run3-edge-client.test.mjs keeps the two in step).
-  var MODE = 'report';
+  var MODE = 'enforce';
   var reported = 0;
   function note(kind, detail) {
     if (reported >= 50) return;                                       // bounded console noise
@@ -138,6 +143,33 @@
       createScript: function () { return null; }                     // no string → code
     });
   } catch (e) { /* a default policy already exists (should not happen) */ }
+
+  // Print pop-up (see header): about:blank inherits the CSP but not our policies, so never write a string into it.
+  // The markup is parsed into an inert <template> here; <title> becomes text, <style> becomes a constructable
+  // stylesheet (CSSOM, not an inline <style>), the rest goes through the same allowlist sanitizer (enforce mode)
+  // and is imported into the pop-up as nodes.
+  window.HelmPrintDoc = function (w, html) {
+    var d = w.document;
+    var t = document.createElement('template');
+    t.innerHTML = raw.createHTML(String(html));
+    var title = '', css = '';
+    Array.prototype.slice.call(t.content.querySelectorAll('title, style')).forEach(function (n) {
+      if (n.localName === 'title') title = title || n.textContent; else css += n.textContent + '\n';
+      n.parentNode.removeChild(n);
+    });
+    if (MODE === 'enforce') clean(t.content);
+    else { var seen = []; clean(t.content.cloneNode(true), seen); if (seen.length) note('would remove', seen.slice(0, 8).join(' ')); }
+    if (!d.body) { d.open(); d.close(); }
+    d.title = title;
+    if (css) {
+      try {
+        var sh = new w.CSSStyleSheet(); sh.replaceSync(css);
+        d.adoptedStyleSheets = Array.prototype.slice.call(d.adoptedStyleSheets).concat([sh]);
+      } catch (e) { var st = d.createElement('style'); st.textContent = css; d.head.appendChild(st); }
+    }
+    while (d.body.firstChild) d.body.removeChild(d.body.firstChild);
+    d.body.appendChild(d.importNode(t.content, true));
+  };
 
   // Exposed for tests / tooling only: the sanitizer itself (returns a plain string).
   window.HelmSanitize = function (html) { return sanitize(html); };

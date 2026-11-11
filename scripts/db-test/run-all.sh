@@ -366,6 +366,8 @@ run "r129-studio-whatsapp-0337" "R129-STUDIO-WHATSAPP-0337: ALL PASS \(42/42\)" 
 run "r130-task-reminders-0338" "R130-TASK-REMINDERS-0338: ALL PASS \(40/40\)" psql -q -f tests/db/r130-task-reminders-0338.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
 run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f tests/db/r136-audit-via-0340.sql
+# r139 (0341): per-network limits on the approval link (240), client portal (240) and invitation (600) per 10 minutes - same answers as before, call N+1 from one network refused with a clean 22023 sentence, other networks / no address / read-only calls never blocked, kept __pre0341 copies with no app privilege, crew links untouched (0154), _tl173_trial_locked closed to anon; re-applies itself twice, rolled back
+run "r139-token-limits-0341" "R139-TOKEN-LIMITS-0341: ALL PASS \(25/25\)" psql -q -f tests/db/r139-token-limits-0341.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
