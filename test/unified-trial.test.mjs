@@ -59,16 +59,18 @@ t('APPLY = migration + verify; VERIFY read-only', () => {
   assert.ok(!/\b(insert|update|delete|alter|create|drop|truncate|grant|revoke)\b/i.test(code(VERIFY)));
   assert.match(read('supabase/migrations/MANIFEST'), /forward\s+supabase\/migrations\/0119_unified_trial\.sql/);
 });
-t('front end: every sign-up = the trial; choice first; optional name; old copy gone', () => {
-  assert.match(API, /rpc\("start_self_serve_trial", \{ p_name: name, p_timezone: o\.timezone \|\| null, p_currency: o\.currency \|\| null, p_mode: mode \}\)/);
+// Trial 0180 (3c6acc72) dropped the 0119 "demo data or own data" choice: every free trial starts with the sample
+// studio on INR / Asia/Kolkata (0177 India only), whatever the page or browser passes; the name stays optional.
+t('front end: every sign-up = the trial; sample data + India always (0180); optional name; old copy gone', () => {
+  assert.match(API, /const name = String\(o\.name \|\| ""\)\.trim\(\) \|\| null, mode = "demo";/);
+  assert.match(API, /rpc\("start_self_serve_trial", \{ p_name: name, p_timezone: "Asia\/Kolkata", p_currency: "INR", p_mode: mode \}\)/);
   assert.match(LOGIN, /BPTrialSignup\.start\(name,opts\|\|\{\}\)/);
   assert.match(LOGIN, /if\(!n && TRIAL\(\)\) return null;/);
-  assert.match(TSU, /How would you like to start\?/);
-  assert.match(TSU, /Try with demo data/); assert.match(TSU, /Start with my own data/);
-  assert.ok(TSU.indexOf('await chooseStart()') < TSU.indexOf('startSelfServe('), 'choice before the studio is created');
+  assert.ok(!/How would you like to start\?|Try with demo data|Start with my own data|chooseStart\(/.test(TSU), 'no demo / own choice any more');
+  assert.match(TSU, /startSelfServe\(\{\s+name: String\(name \|\| ""\)\.trim\(\), mode: "demo",/);
   assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|\.style\.|setAttribute\("style"|eval\(|new Function/.test(TSU));
   for (const f of ['public/checkout.js', 'public/checkout.html', 'public/trial-demo.js', 'public/hq.html']) assert.ok(!/14-day/.test(read(f)), f);
-  assert.equal(signup.localeFor('Asia/Kolkata'), 'INR'); assert.equal(signup.localeFor('Nowhere/X'), 'USD');
+  assert.equal(signup.localeFor('Asia/Kolkata'), 'INR'); assert.equal(signup.localeFor('Nowhere/X'), 'INR');
 });
 t('pre-dashboard pages are the light emerald sign-in look', () => {
   for (const f of ['profile-setup.html', 'onboarding.html', 'checkout.html']) {
@@ -77,9 +79,11 @@ t('pre-dashboard pages are the light emerald sign-in look', () => {
     assert.ok(!/public-theme\.js/.test(h), f);
   }
 });
-t('emergency contact hidden for the studio owner / admin on first setup only', () => {
+// owner decision 2026-10-17 (9187eac6): the emergency contact is hidden EVERYWHERE now, not only for the owner /
+// admin on first setup (profile-setup.html still passes hideEmergency; auth-ui ignores it and always hides)
+t('emergency contact hidden everywhere (owner decision 2026-10-17)', () => {
   assert.match(read('public/profile-setup.html'), /hideEmergency=\/\^\(admin\|owner\)\$\/i\.test\(role\)/);
-  assert.match(AUI, /var noEmerg = !!o\.hideEmergency && !eFilled;/);
+  assert.match(AUI, /var noEmerg = true; sE\.hidden = true;/);
 });
 t('another studio\'s link silently opens your own dashboard', () => {
   const ns = API.slice(API.indexOf('function notYourStudio'), API.indexOf('async function refToId'));
@@ -88,6 +92,9 @@ t('another studio\'s link silently opens your own dashboard', () => {
 t('account menu: opaque, above the floating notes, and a press inside it never closes it first', () => {
   assert.match(AUI, /\(menu\.pop && menu\.pop\.contains\(t\)\) \|\| \(menu\.btn && menu\.btn\.contains\(t\)\)/);
   assert.match(AUI, /classList\.add\("hau-menu-open"\)/); assert.match(AUI, /classList\.remove\("hau-menu-open"\)/);
-  assert.match(SHELL, /html\[data-shell="b"\]\.hau-menu-open \.hb-rail, html\[data-shell="b"\] \.hb-rail:has\(\.hau-menu:not\(\[hidden\]\)\) \{ z-index: 2000 !important; \}/);
+  // r20 safari/profile (9d4686fd): the combined selector was split into two rules so older Safari (no :has()) keeps
+  // the .hau-menu-open rule - same z-index for both
+  assert.match(SHELL, /html\[data-shell="b"\]\.hau-menu-open \.hb-rail \{ z-index: 2000 !important; \}/);
+  assert.match(SHELL, /html\[data-shell="b"\] \.hb-rail:has\(\.hau-menu:not\(\[hidden\]\)\) \{ z-index: 2000 !important; \}/);
 });
 console.log(`\n${n} passed`);

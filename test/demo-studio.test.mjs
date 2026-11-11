@@ -17,7 +17,9 @@ t('demo.html: public page, no auth gate, no Supabase/config/telemetry, no inline
   assert.ok(!/auth-pending/.test(html));
   assert.ok(!/supabase/i.test(html));
   assert.ok(!/config\.js|store-api\.js|telemetry\.js|photo-render/.test(html));
-  assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/.test(html), 'no inline scripts (CSP)');
+  // JSON-LD structured data (<script type="application/ld+json">, added by the SEO/GEO pass) is a data block the
+  // browser never executes, so CSP script-src does not apply to it; every EXECUTABLE script must still be external.
+  assert.ok(!/<script(?![^>]*\bsrc=)(?![^>]*\btype="application\/ld\+json")[^>]*>/.test(html), 'no inline scripts (CSP)');
   assert.ok(!/<style/.test(html), 'no inline <style>');
   assert.ok(!/\sstyle="/.test(html), 'no style attributes');
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.helm\.events\/demo">/);
@@ -30,7 +32,11 @@ t('banner says read-only + trial CTA + planner link', () => {
 t('demo.js: no innerHTML / insertAdjacentHTML / eval, no Supabase host, no style attributes', () => {
   assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/.test(js));
   assert.ok(!/supabase\.co/.test(js));
-  assert.ok(!/setAttribute\(\s*['"]style/.test(js) && !/\.style\./.test(js));
+  // the theme pass (green light default, dark mode OFF) hides the dark-mode toggle with one CSSOM write
+  // (mode.style.display = 'none'); CSSOM property writes are not style attributes and CSP does not block them.
+  // Any other .style. use, or a setAttribute('style', ...), is still refused.
+  const jsNoThemeHide = js.replace(/\bmode\.style\.display = 'none';/g, '');
+  assert.ok(!/setAttribute\(\s*['"]style/.test(js) && !/\.style\./.test(jsNoThemeHide));
 });
 t('demo.css stays scoped (html.helm-demo / .dm-*)', () => {
   const sels = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@keyframes[^{]*\{(?:[^{}]*\{[^}]*\})*[^}]*\}/g, '')

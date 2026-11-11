@@ -1,7 +1,7 @@
 // @coverage — settlement.html (event-scoped; previously uncovered screen).
 import { test, expect } from '@playwright/test';
 import { requireStagingEnv } from '../helpers/env.mjs';
-import { openScreen, assertNotRedirectedToLogin, assertScreenRendered, assertNoConsoleErrors, gotoWithEvent, assertEmptyAlertRejected } from './_coverage-utils.mjs';
+import { openScreen, assertNotRedirectedToLogin, assertScreenRendered, assertNoConsoleErrors, gotoWithEvent, assertEmptyToastRejected } from './_coverage-utils.mjs';
 
 test.beforeAll(() => requireStagingEnv());
 
@@ -19,8 +19,10 @@ test('@coverage settlement loads authenticated, clean console, add-expense valid
     // Item 3 — the expense "＋ Add" control renders for the event.
     await expect(page.locator('#e_add'), 'the add-expense control must be present').toBeVisible();
 
-    // Item 4 — empty expense (no payee) is rejected client-side via a blocking alert.
-    await assertEmptyAlertRejected(page, '#e_add');
+    // Item 4 — empty expense (no payee) is rejected client-side. settlement.html addExpense() now uses
+    // BPUI.toast("Enter who the expense is paid to.", {type:"err"}) instead of a blocking alert().
+    await page.locator('#e_who').fill('');
+    await assertEmptyToastRejected(page, '#e_add', /enter who the expense is paid to/i);
 
     assertNoConsoleErrors(consoleErrors);
   } finally { await context.close(); }

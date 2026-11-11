@@ -18,7 +18,10 @@ t('slug routes for workspace tool pages + /<slug>/events → quotes (server, ver
   const priv = v.headers.find((h) => /^\/\(\[a-z0-9-\]\+\)\/\(dashboard\|/.test(h.source));
   TOOLS.concat(['events']).forEach((p) => assert.ok(priv.source.includes('|' + p + '|'), 'private headers ' + p));
   const api = r('public/store-api.js');
-  assert.match(api, /integrations\|settlement\|budget\|closure\|runsheet\|resources\|logistics\|teardown\|command\|ready"\.split/);
+  // the HelmUrl page-kind list has grown since (…|discovery|proposal|…|flow): check every tool page is in it
+  const kinds = /"([a-z|]+)"\.split\("\|"\)\.forEach\(function \(p\) \{ KINDS\[p\]/.exec(api);
+  assert.ok(kinds, 'HelmUrl KINDS page list');
+  TOOLS.concat(['integrations']).forEach((p) => assert.ok(kinds[1].split('|').includes(p), 'HelmUrl page kind ' + p));
   assert.match(api, /: "quotes";\s+\/\/ \/<studio>\/events/);
   assert.match(api, /async function toolQuoteRef\(\)/); assert.match(api, /if \(await toolQuoteRef\(\)\) await HANG\(\);/);
   TOOLS.forEach((p) => assert.match(r('public/' + p + '.html'), /<head>\n<base href="\/">/, p + ' base href'));
@@ -34,8 +37,11 @@ t('demo staff rows never show the invalid-phone warning; 0138 touches demo rows 
 });
 t('invite create reports the e-mail status; #account opens the Pricing tab account card', () => {
   const c = r('public/control.html');
-  assert.match(c, /Invitation email sent to \$\{email\}\. The link below also works/);
-  assert.match(c, /Invitation email queued for \$\{email\}\. The link below also works/);
+  // r21 email audit (a9c06e41): only a real send says "sent" (+ the link tail); a queued mail now says plainly that
+  // nothing has gone out yet instead of "Invitation email queued for ..."
+  assert.match(c, /tail=resend\?"":" The link below also works\."/);
+  assert.match(c, /Invitation email sent to \$\{email\}\.`\+tail/);
+  assert.match(c, /Invitation email for \$\{email\} is queued but not sent yet\./);
   assert.match(c, /switchTab\("pricing"\);\s+\/\/ these cards live on the Pricing tab/);
   assert.match(c, /window\.addEventListener\("hashchange", focusHashCard\)/);
 });
@@ -51,11 +57,13 @@ t('confirm dialog: effective rates, "—" when invalid, total-change warning, aw
   assert.match(q, /Total changes from \$\{esc\(inr\(saved\)\)\} to/); assert.match(q, /Total changes from \$\{inr\(sv\)\} to/);
   // qts-1018: one label everywhere (BPStore.quoteStatus) - a locked quote with the link out is not "Confirmed"
   assert.match(r('public/store-api.js'), /Sent · awaiting client approval/); assert.match(q, /statusPill\(x\)/); assert.match(r('public/event.html'), /statusBadge\(\)/);
-  assert.match(q, /<option>V\$\{esc\(x\.currentVersion\)\}<\/option>/); assert.match(q, /\/v\(\\d\+\)\/i\.exec/);
+  // recheck-1029 (2a345ca2): the row's version picker is labelled "Layout v<n>" (floor-plan versions, not Q1/Q2)
+  assert.match(q, /<option>Layout v\$\{esc\(x\.currentVersion\)\}<\/option>/); assert.match(q, /\/v\(\\d\+\)\/i\.exec/);
 });
 t('workspace: one Next-step CTA, vendors not double counted, event group stays on page', () => {
   const e = r('public/event.html');
-  assert.match(e, /if\(canEdit && !hasNext && cur<STAGES\.length-1\)/); assert.doesNotMatch(e, /booked · \$\{vendorSummary\.confirmed\} confirmed/);
+  // event stages + closure (0198, 2b346193) added "&& !evLocked()" (a locked event never offers Advance) - same one-CTA rule
+  assert.match(e, /if\(canEdit && !hasNext && !evLocked\(\) && cur<STAGES\.length-1\)/); assert.doesNotMatch(e, /booked · \$\{vendorSummary\.confirmed\} confirmed/);
   assert.match(e, /stay:true/); assert.match(r('public/event-group-picker.js'), /if \(stay && onDone\)/);
 });
 console.log(`helm-v01-e2e-fixes-2: ${n} passed`);

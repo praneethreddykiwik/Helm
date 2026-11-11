@@ -20,8 +20,9 @@ t('Recently viewed is flagged OFF by default; empty rail slots are not rendered'
 });
 t('per-tab SWR cache: keyed by user + org, cleared by sessClear and by writes', () => {
   assert.match(API, /o\.uid === uid && o\.oid === oid/);
-  assert.match(API, /function sessClear\(\) \{[^\n]*swrClear\(\); \}/);
-  assert.match(API, /if \(!isRead\) \{ readCache\.clear\(\); if \(!SWR_KEEP_RPCS\.test\(u\)\) swrClear\(\);/);
+  // la-fetch-security (0203, 91592c28) added a per-tab memo cache, cleared right after the SWR cache
+  assert.match(API, /function sessClear\(\) \{[^\n]*swrClear\(\); memoClear\(\); \}/);
+  assert.match(API, /if \(!isRead\) \{\s+readCache\.clear\(\); memoClear\(\); if \(!SWR_KEEP_RPCS\.test\(u\)\) swrClear\(\);/);
   ['pricing', 'rates', 'trial', 'demo', 'trialorg'].forEach((k) => assert.ok(API.includes('swr("' + k + '"'), k));
 });
 t('bell feed + chat bootstrap no longer block bell.mount (except on chat)', () => {
