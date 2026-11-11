@@ -97,7 +97,7 @@ t('per-page steps follow each toolbar left to right, then the content below', ()
   // r20: the builder's first-run tour walks the one-row header left to right (the r19 two-row header was reverted), then the panels
   assert.deepEqual(sels('builder.html'), ['header .brand', '#preset', '#refField', '#customBtn', '#unitSel', '.seg:has(#snapBtn)', '#viewSeg',
     '.wt-field', '#wtStart', '#measureBtn', '.hg-edit', '#projName', '#verSel', '#designChip', '#backToFlowBtn', '#saveBtn', '#loadBtn', '#clientImgBtn',
-    '#moreMenu', '.hg-cap', '.bp-priv-slot .hbp-btn', '#toolbox', '#fabStack', '#rightPanel']);
+    '#moreMenu', '.hg-cap', '.bp-priv-slot .hbp-btn', '#toolbox', '#fabStack', '#rightPanel', '#inspector .isec.screen']);
   // and that is the DOM order of those elements on the page
   for (const [pg, ids] of [['quotes.html', ['tabs', 'search', 'typeFilter', 'newBtn', 'rows']], ['leads.html', ['search', 'archBtn', 'enqBtn', 'newBtn', 'board']],
     ['staff.html', ['search', 'deptFilter', 'importBtn', 'newBtn', 'grid']], ['inventory.html', ['eventPanel', 'search', 'seedBtn', 'newBtn', 'pane-loans', 'lossRows']], ['builder.html', ['preset', 'refField', 'customBtn', 'unitSel', 'snapBtn', 'viewSeg', 'measureBtn', 'undoBtn',

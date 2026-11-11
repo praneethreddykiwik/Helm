@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=67"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=68"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -4054,6 +4054,7 @@ window.HelmUrl = HelmUrl;
     diyastand:2500, trophytable:3000,
     havankund:3500, rangoli:2500, lanterns:1200, hangingfloral:18000, neonsign:4000,
     backdrop:6000, floralstand:1500, decorbox:2000, signage:1200, stageroof:60000, varmala:25000, micstand:500, teleprompter:6000, projector:8000, tvstand:4000, interpreter:15000, pyro:3000, towerlight:4000, gaddi:3000, urli:2500, umbrellas:5000, doli:12000, kalash:800, altar:8000, shoerack:1000, dessert:3500, coffee:3000, stall:6000, counter:2500, plinth:1000, kiosk:3000, ticketbooth:5000, stanchion:1200, watchtower:8000, extinguisher:300, ambulance:6000,
+    lawnfloor:9000, stagelight:1500, pathlights:2500, sidescreen:30000, stagedeck:6000, stagestairs:2500, installation:15000,
   };
   /* ITEM-SPEC-ENGINE:BEGIN (0086 item specifications + spec-based pricing) ---------------
      An item placed on the floor (item.properties.spec) can carry a SPEC — e.g. a stage's

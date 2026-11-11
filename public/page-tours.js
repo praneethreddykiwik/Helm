@@ -71,6 +71,8 @@
       { sel: "#toolbox", side: "right", title: "Drag any asset", desc: "Drag stages, chairs, tables, bars, exits - anything - onto the floor. Every object can be moved, resized and rotated." },
       { sel: "#fabStack", title: "Zoom & move around", desc: "Zoom out / in, FIT the whole floor, the arrows to pan and fullscreen. These sit under the floor so they never cover it. To hide them, press the down arrow (⌄); the small “⊕ View” button brings them back." },
       { sel: "#rightPanel", side: "left", title: "Price & inspector", desc: "The menu package, guests and live price for this floor. Select an object to edit its size, position, rotation and colour here." },
+      // R135: the stage screen + stairs (shown in the inspector once a stage or a screen is selected)
+      { sel: ["#inspector .isec.screen", "#rightPanel"], side: "left", title: "Stage screen, steps & stairs", desc: "Select the stage or a screen: Screen has 5 themes plus title, brand, tagline and date (2D + 3D). Stages also get Built-in steps; drag Stage Stairs for a separate staircase." },
     ],
     "quotes.html": [
       { sel: "#tabs", title: "Find confirmed fast", desc: "Active · Quotes · Confirmed · Archive · Deleted. Confirmed events rise to the top and are highlighted so you never scroll to find them." },
