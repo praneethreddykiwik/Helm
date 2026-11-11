@@ -93,10 +93,10 @@ html[data-theme="dark"] .mf-acc-t{fill:var(--mf-acc-t)}
 .mf-page{max-width:1160px;margin:0 auto;padding:0 16px}
 .mf-block{padding:56px 0}
 .mf-hero{padding:72px 0 24px}
-.mf-hero h1{font-size:clamp(2rem,5vw,3.4rem);line-height:1.08;letter-spacing:-.03em;margin:0 0 1rem;font-weight:800;color:var(--mf-ink)}
+.mf-hero h1{font-size:clamp(2rem,5vw,3.4rem);line-height:1.08;letter-spacing:-.03em;margin:0 0 1rem;font-weight:800;color:var(--mf-ink);overflow-wrap:anywhere}
 .mf-hero h1 em{font-style:normal;color:var(--mf-acc-t)}
 .mf-ctabox{background:var(--mf-soft);border:1px solid var(--mf-line);border-radius:22px;padding:36px 28px;text-align:center}
-.mf-ctabox h2{margin:0 0 .5rem;font-size:clamp(1.4rem,3vw,2rem);color:var(--mf-ink)}
+.mf-ctabox h2{margin:0 0 .5rem;font-size:clamp(1.4rem,3vw,2rem);color:var(--mf-ink);overflow-wrap:anywhere}
 .mf-ctabox p{margin:0 auto 1.2rem;max-width:56ch;color:var(--mf-ink2)}
 .mf-btns{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
 .mf-btn{display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border-radius:999px;font-weight:700;text-decoration:none;border:1px solid var(--mf-line);color:var(--mf-ink);background:var(--mf-panel)}

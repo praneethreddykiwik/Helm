@@ -27,7 +27,7 @@ a{color:var(--acc)}
 .cs-form input:focus,.cs-form select:focus,.cs-form textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-s)}
 .cs-form [aria-invalid="true"]{border-color:var(--bad)}
 .cs-consent{display:flex!important;align-items:flex-start;gap:10px;font-weight:500!important;font-size:15px!important;cursor:pointer;margin:2px 0 0}
-.cs-consent input{width:20px;height:20px;min-height:0;margin:3px 0 0;flex:0 0 auto;accent-color:var(--acc);padding:0}
+.cs-consent input{width:24px;height:24px;min-height:0;margin:1px 0 -2px;flex:0 0 auto;accent-color:var(--acc);padding:0}
 .cs-trap{position:absolute!important;left:-10000px!important;width:1px;height:1px;overflow:hidden}
 .cs-btn{align-self:flex-start;min-height:50px;padding:12px 28px;border-radius:99px;border:0;background:var(--ink);color:#fff;font:700 16px/1 inherit;font-family:inherit;cursor:pointer;margin-top:4px}
 .cs-btn:hover{background:var(--acc-d)}

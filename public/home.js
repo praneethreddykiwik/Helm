@@ -75,13 +75,16 @@
   var snapMq = window.matchMedia('(max-width: 767px)');
   function snapA11y() {
     $$('.snap').forEach(function (el) {
+      if (el.dataset.snapTab == null) el.dataset.snapTab = el.hasAttribute('tabindex') ? '1' : '';   // R151: tab stop written in the HTML
       if (snapMq.matches) {
         el.setAttribute('tabindex', '0');
         if (!el.getAttribute('role')) { el.setAttribute('role', 'region'); el.dataset.snapRole = '1'; }
         if (el.getAttribute('aria-label') && !/swipe/.test(el.getAttribute('aria-label'))) el.setAttribute('aria-label', el.getAttribute('aria-label') + ' (swipe or use arrow keys)');
         $$('.rv', el).forEach(function (c) { c.classList.add('in'); });
       } else {
-        el.removeAttribute('tabindex');
+        // R151: the modules row also scrolls sideways on wide screens (.mods:focus-visible) - keep its HTML tab stop
+        // so keyboard users can scroll it (axe scrollable-region-focusable); JS-added stops still go
+        if (!el.dataset.snapTab) el.removeAttribute('tabindex');
         if (el.dataset.snapRole) { el.removeAttribute('role'); delete el.dataset.snapRole; }
         if (el.getAttribute('aria-label')) el.setAttribute('aria-label', el.getAttribute('aria-label').replace(' (swipe or use arrow keys)', ''));
       }
@@ -384,7 +387,7 @@
     var errEl = $('#cfErr');
     var consentL = document.createElement('label'); consentL.className = 'fr-consent';
     consentL.style.display = 'flex'; consentL.style.gap = '10px'; consentL.style.alignItems = 'flex-start'; consentL.style.fontSize = '14px';
-    var consent = inp('cf-c', 'checkbox', { name: 'consent' }); consent.style.width = '18px'; consent.style.height = '18px'; consent.style.marginTop = '3px'; consent.style.flex = '0 0 auto';
+    var consent = inp('cf-c', 'checkbox', { name: 'consent' }); consent.style.width = '24px'; consent.style.height = '24px'; consent.style.marginTop = '0'; consent.style.marginBottom = '0'; consent.style.flex = '0 0 auto';   // R151: 24px tap target (WCAG 2.5.8); same centre line and row height (was 3+18+3)
     var consentT = document.createElement('span'); consentT.textContent = 'Helm may contact me about this message.';
     consentL.appendChild(consent); consentL.appendChild(consentT);
     if (errEl) form.insertBefore(consentL, errEl); else form.appendChild(consentL);
@@ -875,19 +878,20 @@
   var flipsBox = $('#flips'), cards = [];
   if (flipsBox) {
     TOOLS.forEach(function (t, idx) {
+      /* R151 (WCAG 2.5.3 label in name): no aria-label - the card is named by the words it shows
+         ("Paper diary <problem> Helm instead <feature> <how>"); decorative bits stay aria-hidden */
       var c = el('div', 'flip'); c.tabIndex = 0; c.setAttribute('role', 'button'); c.setAttribute('aria-pressed', 'false'); c.dataset.g = t.g;
-      c.setAttribute('aria-label', t.n + ': ' + t.p + ' Helm instead: ' + t.f + '. ' + t.s);
-      var inner = el('div', 'flip-in'); inner.setAttribute('aria-hidden', 'true');
-      var f = el('div', 'face face-f'), tag = el('div', 'f-tag'); tag.appendChild(el('span', null, AREAS[t.g])); tag.appendChild(el('span', null, String(idx + 1).padStart(2, '0')));
+      var inner = el('div', 'flip-in');
+      var f = el('div', 'face face-f'), tag = el('div', 'f-tag'); tag.setAttribute('aria-hidden', 'true'); tag.appendChild(el('span', null, AREAS[t.g])); tag.appendChild(el('span', null, String(idx + 1).padStart(2, '0')));
       f.appendChild(tag); f.appendChild(buildIll(t.a));
       var h = el('h3'); h.appendChild(icon(t.i)); h.appendChild(document.createTextNode(t.n)); f.appendChild(h);
       f.appendChild(el('p', null, t.p));
-      var hint = el('span', 'f-hint', 'See the Helm way'); hint.appendChild(icon('i-chev')); f.appendChild(hint);
-      var b = el('div', 'face face-b'), tag2 = el('div', 'f-tag'); tag2.appendChild(el('span', null, 'Helm instead')); tag2.appendChild(el('span', null, t.n));
+      var hint = el('span', 'f-hint', 'See the Helm way'); hint.setAttribute('aria-hidden', 'true'); hint.appendChild(icon('i-chev')); f.appendChild(hint);
+      var b = el('div', 'face face-b'), tag2 = el('div', 'f-tag'), tagN = el('span', null, t.n); tagN.setAttribute('aria-hidden', 'true'); tag2.appendChild(el('span', null, 'Helm instead')); tag2.appendChild(tagN);
       b.appendChild(tag2); var big = icon(t.i); big.setAttribute('class', 'f-big'); b.appendChild(big);
       if (t.sv) b.appendChild(buildSol(t.sv));
       b.appendChild(el('h3', null, t.f)); b.appendChild(el('p', null, t.s));
-      var ok = el('span', 'f-ok', 'Built into Helm'); ok.insertBefore(icon('i-check'), ok.firstChild); b.appendChild(ok);
+      var ok = el('span', 'f-ok', 'Built into Helm'); ok.setAttribute('aria-hidden', 'true'); ok.insertBefore(icon('i-check'), ok.firstChild); b.appendChild(ok);
       inner.appendChild(f); inner.appendChild(b); c.appendChild(inner); flipsBox.appendChild(c); cards.push(c);
       var toggle = function () { var on = !c.classList.contains('on'); c.classList.toggle('on', on); c.setAttribute('aria-pressed', String(on)); if (on) tick(c); };
       c.addEventListener('mouseenter', function () { tick(c); });
@@ -1403,7 +1407,8 @@
   function frame(it, i) {
     var fig = el('figure', 'reel-frame'); fig.setAttribute('role', 'listitem');
     var btn = el('button', 'ev-open'); btn.type = 'button'; btn.setAttribute('data-i', String(i));
-    btn.setAttribute('aria-label', 'Open image: ' + (it.caption || it.alt));
+    // R151 (WCAG 2.5.3): the name starts with the words on the frame (tag, caption), then the action
+    btn.setAttribute('aria-label', [it.type, it.caption || it.alt].filter(Boolean).join(': ') + ', open image');
     var pic = el('picture');
     if (it.avif && !lite) { var so = el('source'); so.type = 'image/avif'; so.srcset = it.avif; pic.appendChild(so); }
     var img = el('img'); img.alt = it.alt; img.loading = 'lazy'; img.decoding = 'async'; img.draggable = false;
@@ -1415,6 +1420,7 @@
     img.width = it.w || 1600; img.height = it.h || 1067;
     pic.appendChild(img); btn.appendChild(pic);
     if (it.type) btn.appendChild(el('span', 'ev-tag', it.type));
+    if (it.type && it.caption) btn.appendChild(document.createTextNode(' '));   // R151: "Wedding Sunset…", not "WeddingSunset…"
     if (it.caption) btn.appendChild(el('span', 'reel-cap', it.caption));
     fig.appendChild(btn);
     return { fig: fig, btn: btn, img: img };
