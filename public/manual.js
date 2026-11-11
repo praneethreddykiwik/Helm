@@ -42,8 +42,10 @@
       }
       return;
     }
+    // Trusted Types: DOMParser runs through the default policy, whose sanitizer drops <style>, so the manual's CSS is
+    // read from the raw text first (only ever applied as CSS, through a constructable stylesheet).
+    var css = (String(res.html).match(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi) || []).map(function (s) { return s.replace(/^<style\b[^>]*>/i, "").replace(/<\/style\s*>$/i, ""); }).join("\n");
     var doc = new DOMParser().parseFromString(res.html, "text/html");
-    var css = Array.prototype.map.call(doc.querySelectorAll("style"), function (s) { return s.textContent; }).join("\n");
     sanitize(doc);
     doc.querySelectorAll("img").forEach(function (img) {
       var src = (img.getAttribute("src") || "").replace(/^\.?\//, "").replace(/^docs\//, "");

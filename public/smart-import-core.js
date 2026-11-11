@@ -25,7 +25,7 @@
   // formula-injection guard for text that may be exported again
   function safeText(v) {
     const s = clean(v).replace(/<[^>]*>/g, " ").replace(/[<>]/g, "").replace(/\s+/g, " ").trim();
-    return /^[=+\-@\t\r]/.test(s) && !/^[+-]?\d/.test(s) ? "'" + s : s;
+    return /^[\s\u00a0\u3000]*[=+\-@\t\r\uff1d\uff0b\uff0d\uff20]/.test(s) && !/^[+-]?\d/.test(s) ? "'" + s : s;
   }
   // India: Hindi (Devanagari) / Hinglish sheet headers -> English words the matcher knows.
   const HI_HDR = [[/नाम/g, " name "], [/मोबाइल|मोबाईल/g, " mobile "], [/फ़ोन|फोन/g, " phone "], [/दर|रेट/g, " rate "],
@@ -628,7 +628,7 @@
   /* ---------------- results CSV ---------------- */
   function csvCell(v) {
     let s = v == null ? "" : String(v);
-    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    if (/^[\s\u00a0\u3000]*[=+\-@\t\r\uff1d\uff0b\uff0d\uff20]/.test(s)) s = "'" + s; // R139: also leading spaces + full-width signs
     return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
   function resultsCSV(headers, rows, results) {

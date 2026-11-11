@@ -57,7 +57,7 @@
   }
   function csvCell(v) {
     var s = v == null ? "" : String(v);
-    if (/^\s*[=+\-@]/.test(s) || /^[\t\r]/.test(s)) s = "'" + s;          // spreadsheet formula injection guard
+    if (/^[\s\u00a0\u3000]*[=+\-@\t\r\uff1d\uff0b\uff0d\uff20]/.test(s)) s = "'" + s;          // spreadsheet formula injection guard
     return '"' + s.replace(/"/g, '""') + '"';
   }
   function toCsv(rows) { return (rows || []).map(function (r) { return r.map(csvCell).join(","); }).join("\r\n") + "\r\n"; }
