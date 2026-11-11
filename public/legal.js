@@ -15,6 +15,20 @@
       navUpd();
     }
 
+    // R151: a table that scrolls sideways (phones) gets a tab stop + region name so keyboard users can scroll it
+    // (WCAG 2.1.1, axe scrollable-region-focusable); tables that fit (desktop) add no extra tab stop
+    var wraps = document.querySelectorAll('.lg-table-wrap');
+    var tabWraps = function () {
+      Array.prototype.forEach.call(wraps, function (w) {
+        var h = w.closest('section') && w.closest('section').querySelector('h2[id]');
+        if (w.scrollWidth > w.clientWidth + 1) {
+          w.setAttribute('tabindex', '0'); w.setAttribute('role', 'region');
+          w.setAttribute('aria-label', 'Table: ' + (h ? h.textContent.replace(/\s+/g, ' ').trim() : 'details'));   // unique vs the section's own name
+        } else { w.removeAttribute('tabindex'); w.removeAttribute('role'); w.removeAttribute('aria-label'); }
+      });
+    };
+    if (wraps.length) { tabWraps(); window.addEventListener('resize', tabWraps, { passive: true }); }
+
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var sections = Array.prototype.slice.call(document.querySelectorAll('.lg-doc section[id]'));
     var links = {};

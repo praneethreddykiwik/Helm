@@ -97,7 +97,7 @@ main{outline:none}
 .foot{padding:90px 0 30px}
 .fgr{display:grid;grid-template-columns:1.6fr repeat(4,1fr);gap:30px}
 .fb p{color:var(--mute);max-width:290px}
-.foot h4{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin:6px 0 14px}
+.foot h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin:6px 0 14px}
 .foot .fgr>*>a:not(.brand){display:block;text-decoration:none;padding:5px 0;font-weight:500;overflow-wrap:anywhere}
 .foot .fgr a:hover{color:var(--acc)}
 .foot .fgr a[aria-current=page]{color:var(--acc-d);font-weight:700}
