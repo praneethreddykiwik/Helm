@@ -45,6 +45,9 @@ jobs:
         run: node scripts/build-dist.mjs --check
       - name: Migration-canon consistency guard (repo-only, no DB)
         run: node scripts/check-migration-canon.mjs
+      # R150: the owner's prod checker is generated from MANIFEST - every new migration must appear in it
+      - name: Prod migration checker current (CHECK-PROD-MIGRATIONS.sql vs MANIFEST)
+        run: node scripts/gen-check-prod.mjs --check && node test/r150-check-prod.test.mjs
       - name: OTP-safety guard (no hardcoded PIN, repo-only)
         run: node scripts/check-otp-safety.mjs
       - name: Deferred integrations stay disabled (Razorpay/WhatsApp)
