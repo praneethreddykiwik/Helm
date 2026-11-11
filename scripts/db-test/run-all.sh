@@ -373,6 +373,8 @@ run "r139-token-limits-0341" "R139-TOKEN-LIMITS-0341: ALL PASS \(25/25\)" psql -
 run "r143-outbox-backoff-0342" "R143-OUTBOX-BACKOFF-0342: ALL PASS \(55/55\)" psql -q -f tests/db/r143-outbox-backoff-0342.sql
 # r148 (0343): RLS speed-up - per-query helpers (has_area / current_org_id / auth.uid / is_admin ...) in 265 policies written as (select ...); same rows + same UPDATE / DELETE / INSERT outcome + same per-row answer pre vs 0343 for admin / manager / sales / coordinator / crew / client / outsider / other studio / anon, nothing left bare, InitPlan in EXPLAIN, faster; re-applies itself (pre -> 0343, second run no change, drift left alone), rolled back
 run "r148-rls-initplan-0343" "R148-RLS-INITPLAN-0343: ALL PASS \(21/21\)" psql -q -f tests/db/r148-rls-initplan-0343.sql
+# r149 (0344): 34 missing indexes (row-security org_id tables, quote -> lead sync, Live Status, every-minute task reminders, outboxes, booking links) all there + valid + used by the planner; comms_outbox_unsub back with the 0165 body, service role only, ok / opted_out / token as comms-dispatch reads them; a prod-like database without it is fixed by 0344 alone; re-applies itself 3x (no index, function or row count changed), rolled back
+run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests/db/r149-indexes-0344.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
