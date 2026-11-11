@@ -82,12 +82,12 @@ t('secret-bearing PR jobs are bound to the staging-tests Environment', () => {
 });
 
 // ---- supply-chain/telemetry/sentry-cdn-script-no-sri -----------------------------------
-t('Sentry bundle carries SRI (R138: self-hosted copy of the Sentry-published 8.55.2 bundle)', () => {
+t('Sentry bundle carries SRI (R138: self-hosted copy of the Sentry-published bundle, 10.78.0 since R140)', () => {
   const s = r('public/telemetry.js');
-  assert.match(s, /var SENTRY_SRI = 'sha384-2pQ5FCOlRmRkz8BBZIW\/Yf2pGbnZHHaCCriaUbTwegcr\+6Jh0tJKqvi31rfm39XF';/);
+  assert.match(s, /var SENTRY_SRI = 'sha384-0hZhlJ3au\+QHKyEFlFRSWB9AzzkYTyqT\+obBPo2Sjxy\/us6VDdbKsJ8v2\+3DAqoh';/);
   assert.match(s, /sc\.integrity = SENTRY_SRI;/);
   assert.match(s, /sc\.crossOrigin = 'anonymous';/);
-  assert.match(s, /SENTRY_SRC = '\/vendor\/sentry-8\.55\.2\.bundle\.min\.js'/);
+  assert.match(s, /SENTRY_SRC = '\/vendor\/sentry-10\.78\.0\.bundle\.min\.js'/);
   const { SCRIPT_SRC_BASE } = require('../scripts/csp-hashes.cjs');
   assert.deepEqual(SCRIPT_SRC_BASE, ["'self'"], 'no outside script host once Sentry is self-hosted');
 });

@@ -62,7 +62,7 @@ t("2a telemetry: armed on production + staging, never on localhost", () => {
 });
 t("2b telemetry: errors only - no tracing, no replay, no profiling (free plan)", () => {
   const o = loadTel(cfgFor("www.helm.events"), { hostname: "www.helm.events" }).opts();
-  assert.equal(o.sampleRate, 1); assert.equal(o.tracesSampleRate, 0); assert.equal(o.sendDefaultPii, false);
+  assert.equal(o.sampleRate, 1); assert.equal(o.tracesSampleRate, undefined, "R140: v10 treats a defined 0 as tracing on"); assert.equal(o.sendDefaultPii, false);
   for (const k of ["integrations", "replaysSessionSampleRate", "replaysOnErrorSampleRate", "profilesSampleRate", "tracePropagationTargets"]) assert.equal(o[k], undefined, k);
   assert.doesNotMatch(TEL, /replayIntegration|browserTracingIntegration|browserProfilingIntegration|bundle\.tracing|bundle\.replay/i);
   assert.equal(o.beforeSend.name, "redactEvent"); assert.equal(o.beforeBreadcrumb.name, "redactBreadcrumb");

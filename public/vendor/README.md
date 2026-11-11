@@ -38,18 +38,25 @@ Loaded only by `public/three-boot.js` (dynamic `import()` from `public/builder-3
 | `three-0.186.1/addons/utils/SkeletonUtils.js` | `sha384-YDk7ED8kkTj8Sr8O8624JO3W2l6TmabXBy5IR8qNsqRjUWbSygeJTo2C0gAz0aA6` |
 | `three-0.186.1/three.module.min.js` | `sha384-eZH+Pcr30iKKjwjbpwrnDAgDtIdAPelzi9C6s/tx+5fiQS1SgwamixZGtfLHPjHN` |
 
-## Sentry 8.55.2 (self-hosted since R138)
+## Sentry 10.78.0 (self-hosted since R138, upgraded in R140)
 
-File: `sentry-8.55.2.bundle.min.js`, loaded by `public/telemetry.js` (`SENTRY_SRC`) only
+File: `sentry-10.78.0.bundle.min.js`, loaded by `public/telemetry.js` (`SENTRY_SRC`) only
 when a DSN is configured, with `sc.integrity` =
-`sha384-2pQ5FCOlRmRkz8BBZIW/Yf2pGbnZHHaCCriaUbTwegcr+6Jh0tJKqvi31rfm39XF`.
+`sha384-0hZhlJ3au+QHKyEFlFRSWB9AzzkYTyqT+obBPo2Sjxy/us6VDdbKsJ8v2+3DAqoh`.
+Variant: the plain `bundle.min.js` (errors only - no tracing, replay, feedback, logs or profiling).
+R138 shipped 8.55.2; R140 moved to the newest 10.x (10.78.0, published 2026-10-28).
 
-How it was made (2026-11-11): downloaded `https://browser.sentry-cdn.com/8.55.2/bundle.min.js`;
-its sha384 matched Sentry's published release-registry checksum
-`sha384-lNMClDekFF9oPvouGJqnUSKioEadbe8byR7uGUA0sPP+g9r2x3eiErEJmm/Em+wB`. The ONLY change is
-removing the last line `//# sourceMappingURL=bundle.min.js.map` (we do not ship the map, and
-DevTools otherwise tries to fetch it). Re-make: download, check the published hash, drop the
-last line, recompute sha384 and update `SENTRY_SRI`. The CSP no longer names any Sentry script
+How it was made (2026-11-11): downloaded `https://browser.sentry-cdn.com/10.78.0/bundle.min.js`
+(91,977 bytes); its sha384 matched Sentry's published release-registry checksum
+(`https://release-registry.services.sentry.io/sdks/sentry.javascript.browser/10.78.0`, file
+`bundle.min.js`) `sha384-5/nIGpuat0ibsfxpyjRqSdTH87b7gz39FKNgRmCjSBU1CZ4e0MjlG40zWTQEYtXw`.
+(The npm `@sentry/browser` tarball no longer ships the CDN bundles, so the registry checksum is
+the published reference.) The ONLY change is removing the last line
+`//# sourceMappingURL=bundle.min.js.map` (we do not ship the map, and DevTools otherwise tries
+to fetch it); the newline before it is kept. Re-make: download, check the published hash, drop
+the last line, recompute sha384, update `SENTRY_SRI` + `SENTRY_SRC`, delete the old file, and
+update the version in `test/r138-sentry-self-host.test.mjs` and
+`test/audit-run3-edge-client.test.mjs`. The CSP no longer names any Sentry script
 host (`script-src 'self'`); `connect-src` still allows only the DSN's ingest host.
 
 ## Updating supabase-js
