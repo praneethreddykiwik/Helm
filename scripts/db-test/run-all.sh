@@ -23,9 +23,10 @@ export PGDATABASE=helm_runall
 # direct (system) change and keeps quiet. Suites expect normal sends, so pin the override off;
 # system-quiet-0164.sql clears it to test the real detection.
 # 0290: the older suites run as if every message were inside the studio send window; r41-send-window-0290.sql turns it on
+# 0342: the older suites expect a failed send to be retried at once and to give up after 5 tries; r143-outbox-backoff-0342.sql turns the backoff on
 # 0296: fixtures / cleanups delete events and vendors as the superuser; the older suites run with the purge mark on
 # (it never helps a delete made AS anon / authenticated). r55-no-hard-delete-0296.sql + the 0184 re-run below turn it off.
-export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
+export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off -c helm.retry_backoff=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
 dropdb --if-exists helm_runall >/dev/null 2>&1; createdb helm_runall
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/00-supabase-shim.sql >/dev/null 2>&1
 
@@ -366,6 +367,8 @@ run "r129-studio-whatsapp-0337" "R129-STUDIO-WHATSAPP-0337: ALL PASS \(42/42\)" 
 run "r130-task-reminders-0338" "R130-TASK-REMINDERS-0338: ALL PASS \(40/40\)" psql -q -f tests/db/r130-task-reminders-0338.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
 run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f tests/db/r136-audit-via-0340.sql
+# r143 (0342): a failed send waits 1/2/4/8/16/30/60 min before the next try (claim skips it meanwhile, send window still holds it), 8 tries on every message queue (package codes 5), expiry + 10 min lease unchanged, task / run-sheet / delivery reminders + codes unchanged; WhatsApp STOP / START newest wins, replay ignored, old 3-argument call works; re-applies itself twice, rolled back
+run "r143-outbox-backoff-0342" "R143-OUTBOX-BACKOFF-0342: ALL PASS \(55/55\)" psql -q -f tests/db/r143-outbox-backoff-0342.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

@@ -221,11 +221,74 @@ Deno.test("wa-webhook: statuses recorded, STOP -> opt-out, ordinary reply text n
     assertEquals((await (await loadHandler(WAW))(await waPost(WA_BODY))).status, 200);
     const rpcs = supaLog().filter((e) => e.rpc);
     const ev = rpcs.filter((e) => e.rpc === "wa_record_event").map((e) => e.args as any);
-    assertEquals(ev.map((a) => a.p_event_id), ["status:wamid.AAA:delivered", "status:wamid.BBB:failed", "optout:wamid.IN1"]);
+    // R143 (0342): the optout:<id> event is recorded by wa_set_opt_out itself (same transaction), not by a second call
+    assertEquals(ev.map((a) => a.p_event_id), ["status:wamid.AAA:delivered", "status:wamid.BBB:failed"]);
     assertEquals(ev[1].p_detail, { error_code: 131026 });
     const oo = rpcs.filter((e) => e.rpc === "wa_set_opt_out").map((e) => e.args as any);
-    assertEquals(oo, [{ p_phone_number_id: "1098765432", p_phone: "919800000003", p_opted_out: true }]);
+    assertEquals(oo, [{ p_phone_number_id: "1098765432", p_phone: "919800000003", p_opted_out: true, p_event_at: null, p_message_id: "wamid.IN1" }]);
     assert(!JSON.stringify(rpcs).includes("my private reply"));
+  } finally { rEnv(); }
+});
+
+// ---- R143 (0342): STOP / START ordering + duplicate events ------------------------------------------------------------
+const WA_STOP_START = { object: "whatsapp_business_account", entry: [{ id: "1234567", changes: [{ field: "messages", value: {
+  metadata: { phone_number_id: "1098765432" },
+  messages: [
+    { id: "wamid.S1", from: "919800000005", timestamp: "1762850000", type: "text", text: { body: "STOP" } },
+    { id: "wamid.S2", from: "919800000005", timestamp: "1762840000", type: "button", button: { text: "Start" } },
+    { id: "wamid.S3", from: "919800000006", timestamp: "not-a-time", type: "text", text: { body: "unsubscribe" } },
+  ],
+} }] }] };
+
+Deno.test("wa-webhook R143: each STOP / START = ONE wa_set_opt_out call with the Meta message time + id (no separate event call)", async () => {
+  resetSupaMock(); g.__supaRpc = () => ({ data: { result: "recorded" }, error: null });
+  const rEnv = setEnv(WA_ENV);
+  try {
+    assertEquals((await (await loadHandler(WAW))(await waPost(WA_STOP_START))).status, 200);
+    const rpcs = supaLog().filter((e) => e.rpc);
+    assertEquals(rpcs.map((e) => e.rpc), ["wa_set_opt_out", "wa_set_opt_out", "wa_set_opt_out"]);
+    assertEquals(rpcs.map((e) => e.args as any), [
+      { p_phone_number_id: "1098765432", p_phone: "919800000005", p_opted_out: true, p_event_at: "2025-11-11T08:33:20.000Z", p_message_id: "wamid.S1" },
+      { p_phone_number_id: "1098765432", p_phone: "919800000005", p_opted_out: false, p_event_at: "2025-11-11T05:46:40.000Z", p_message_id: "wamid.S2" },
+      { p_phone_number_id: "1098765432", p_phone: "919800000006", p_opted_out: true, p_event_at: null, p_message_id: "wamid.S3" },
+    ]);
+  } finally { rEnv(); }
+});
+
+Deno.test("wa-webhook R143: a duplicate / older event answered replay / stale by the database -> 200, nothing else called", async () => {
+  resetSupaMock();
+  g.__supaRpc = (_n: string, a: any) => ({ data: { result: a.p_message_id === "wamid.S1" ? "replay" : "stale" }, error: null });
+  const rEnv = setEnv(WA_ENV);
+  try {
+    assertEquals((await (await loadHandler(WAW))(await waPost(WA_STOP_START))).status, 200);
+    const rpcs = supaLog().filter((e) => e.rpc);
+    assertEquals(rpcs.length, 3);
+    assert(rpcs.every((e) => e.rpc === "wa_set_opt_out"));
+  } finally { rEnv(); }
+});
+
+Deno.test("wa-webhook R143: a database without 0342 (PGRST202) -> the 0117 pair exactly as before", async () => {
+  resetSupaMock();
+  g.__supaRpc = (n: string, a: any) => n === "wa_set_opt_out" && "p_event_at" in a ? { data: null, error: { code: "PGRST202" } } : { data: { result: "recorded" }, error: null };
+  const rEnv = setEnv(WA_ENV);
+  try {
+    const body = { ...WA_STOP_START, entry: [{ ...WA_STOP_START.entry[0], changes: [{ field: "messages", value: {
+      metadata: { phone_number_id: "1098765432" }, messages: [WA_STOP_START.entry[0].changes[0].value.messages[0]] } }] }] };
+    assertEquals((await (await loadHandler(WAW))(await waPost(body))).status, 200);
+    const rpcs = supaLog().filter((e) => e.rpc);
+    assertEquals(rpcs.map((e) => e.rpc), ["wa_set_opt_out", "wa_set_opt_out", "wa_record_event"]);
+    assertEquals(rpcs[1].args, { p_phone_number_id: "1098765432", p_phone: "919800000005", p_opted_out: true });
+    assertEquals(rpcs[2].args, { p_event_id: "optout:wamid.S1", p_phone_number_id: "1098765432", p_type: "opt_out", p_ref: "wamid.S1",
+      p_status: "opted_out", p_recipient: "919800000005", p_detail: {} });
+  } finally { rEnv(); }
+});
+
+Deno.test("wa-webhook R143: an opt-out the database could not save -> 500 so Meta retries (the event rolled back with it)", async () => {
+  resetSupaMock(); g.__supaRpc = (n: string) => n === "wa_set_opt_out" ? { data: null, error: { code: "40001" } } : { data: { result: "recorded" }, error: null };
+  const rEnv = setEnv(WA_ENV);
+  try {
+    assertEquals((await (await loadHandler(WAW))(await waPost(WA_STOP_START))).status, 500);
+    assertEquals(supaLog().filter((e) => e.rpc).length, 1);
   } finally { rEnv(); }
 });
 
