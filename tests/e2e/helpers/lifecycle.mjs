@@ -13,12 +13,39 @@ export function newRunId() {
   return 'W15-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
 }
 
-// RPC as an authenticated role.
+// RPC as an authenticated role. A PostgREST error (any non-2xx: a denied role, a gate such as the close gate,
+// a missing function or a bad argument) THROWS with the server's code/message - it is never handed back as a
+// "result", so a refused step can not silently pass. Callers that probe an expected denial catch it themselves.
 export async function rpcAs(role, fn, args) {
   const tok = await signIn(role);
-  return jj(await fetch(STAGING_URL + '/rest/v1/rpc/' + fn, {
+  if (!tok) throw new Error(`rpcAs(${role}, ${fn}): sign-in returned no access token`);
+  const r = await fetch(STAGING_URL + '/rest/v1/rpc/' + fn, {
     method: 'POST', headers: anonH(tok), body: JSON.stringify(args),
-  }));
+  });
+  const body = await jj(r);
+  if (!r.ok) {
+    const b = body && typeof body === 'object' ? body : { message: String(body) };
+    const e = new Error(`rpcAs(${role}, ${fn}) failed: HTTP ${r.status} ${b.code || ''} ${b.message || ''}`.trim()
+      + (b.details ? ' | ' + b.details : '') + (b.hint ? ' | hint: ' + b.hint : ''));
+    e.status = r.status; e.code = b.code; e.body = b;
+    throw e;
+  }
+  return body;
+}
+
+// PATCH a table row as an authenticated role, exactly like store-api.js updateMeta does (column-level UPDATE grant,
+// RLS applies). Throws on a PostgREST error AND on a 0-row result (fail closed, as updateMeta does: a refused write
+// must never look like a save). Returns the updated row.
+export async function patchAs(role, path, patch) {
+  const tok = await signIn(role);
+  if (!tok) throw new Error(`patchAs(${role}, ${path}): sign-in returned no access token`);
+  const r = await fetch(STAGING_URL + '/rest/v1/' + path, {
+    method: 'PATCH', headers: { ...anonH(tok), Prefer: 'return=representation' }, body: JSON.stringify(patch),
+  });
+  const body = await jj(r);
+  if (!r.ok) throw new Error(`patchAs(${role}, ${path}) failed: HTTP ${r.status} ${JSON.stringify(body)}`);
+  if (!Array.isArray(body) || body.length === 0) throw new Error(`patchAs(${role}, ${path}): 0 rows updated (refused by RLS/grants)`);
+  return body[0];
 }
 
 // Read server truth with service_role (assertions only).

@@ -72,7 +72,13 @@ test('@approval OTPUI-09 a consumed OTP cannot be replayed (server-enforced)', a
     body: JSON.stringify({ p_token: fx.token, p_phone: fx.phone, p_code: fx.code, p_agreed: true, p_terms_version: 'v', p_consent_text: 'x', p_client_name: 'c', p_user_agent: 't' }),
   });
   const body = await r.json().catch(() => ({}));
-  expect(body.approved, 'replayed consumed OTP must not approve').not.toBe(true);
+  // R84 / 0307_r84_otp_single_use.sql: a replay on an already-approved quote is answered idempotently with
+  // {approved: true, already_approved: true} (the page already handles it) and must record NO second consent.
+  expect(body.already_approved, 'replay is answered as already approved (0307), not a fresh approval').toBe(true);
+  const consents = await svcGet('quote_consents?quote_id=eq.' + fx.quoteId + '&select=id');
+  expect(consents.length, 'replayed consumed OTP must not record a second consent').toBe(1);
+  const q2 = await svcGet('quotes?id=eq.' + fx.quoteId + '&select=approval_status');
+  expect(q2[0].approval_status, 'status unchanged by the replay').toBe('approved');
 });
 
 test('@approval OTPUI-11 double-click confirm approves at most once', async ({ page }) => {

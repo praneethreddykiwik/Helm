@@ -65,7 +65,9 @@ t('nav: chat always shown, gated items start hidden; ops/issues slug routes', ()
   assert.match(s, /if \(!ALWAYS_NAV\[x\[0\]\]\) it\.hidden = true/);
   assert.match(r('vercel.json'), /"source": "\/\(\[a-z0-9-\]\+\)\/ops"/);
   assert.match(r('vercel.json'), /"source": "\/\(\[a-z0-9-\]\+\)\/issues"/);
-  assert.match(r('server.js'), /command\|ready\|ops\|issues\)/);
+  // the local server's slug route group has grown since (…|ops|issues|flow|event|builder): check membership, not the tail
+  const g = /\((dashboard\|[a-z|-]+)\)/.exec(r('server.js')); assert.ok(g, 'server.js slug route group');
+  for (const k of ['command', 'ready', 'ops', 'issues']) assert.ok(g[1].split('|').includes(k), 'server.js slug route: ' + k);
 });
 
 t('calendar lists crew events; worker tokens validated before the RPC', () => {

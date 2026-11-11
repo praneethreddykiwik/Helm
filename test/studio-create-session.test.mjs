@@ -23,9 +23,13 @@ assert.equal(f('{bad', 'a', now), false);
 assert.equal(f(JSON.stringify({ uid: 'a', ts: now + 9000 }), 'a', now), false, 'future ts ignored');
 
 // wiring in store-api.js
-assert.match(SRC, /async signOut\(\) \{ explicitSignOut = true; reauthClear\(\); if \(currentUser && currentUser\.id\) lsSet\(SIGNOUT_KEY/, 'signOut stamps the marker');
+// R91 (48161127) stops the signed-in pollers first (stopSignedInPollers()) before the marker is stamped
+assert.match(SRC, /async signOut\(\) \{ explicitSignOut = true; reauthClear\(\); stopSignedInPollers\(\); if \(currentUser && currentUser\.id\) lsSet\(SIGNOUT_KEY/, 'signOut stamps the marker');
 assert.match(SRC, /byLogout \? "&reason=signout" : "&expired=1"/, 'expireSession uses reason=signout after a deliberate logout');
-assert.match(SRC, /data\.session\.user\.id !== currentUser\.id\)[\s\S]{0,300}location\.reload\(\)/, 'refresh that returns a different user reloads instead of adopting it');
+// session-1017 (f8281fa5): every refreshed / re-read session goes through one adopt(sess) helper - a different
+// person's session reloads the page instead of being adopted; refreshSession() feeds adopt()
+assert.match(SRC, /const adopt = \(sess\) => \{[\s\S]{0,400}sess\.user\.id !== currentUser\.id\)[\s\S]{0,300}location\.reload\(\)/, 'refresh that returns a different user reloads instead of adopting it');
+assert.match(SRC, /await supa\.auth\.refreshSession\(\);\s+if \(!error && data && data\.session\) return adopt\(data\.session\);/, 'refreshSession result goes through adopt()');
 assert.match(SRC, /signedOutElsewhere: signedOutElsewhere/, 'exported for tests');
 
 // login.html wiring

@@ -41,12 +41,14 @@ t('0111 migration: additive, ASCII, change orders in _bk_payments, no grants to 
   assert.match(a, /^begin;$/m); assert.match(a, /^commit;$/m); assert.match(a, /VERIFY/);
   assert.match(read('supabase/migrations/MANIFEST'), /forward  supabase\/migrations\/0111_booklet_invoice_total\.sql/);
 });
-t('lead form: budget / guests keep the minus so the validator rejects it with a message', () => {
+// manager QA 1019 (0152, d55b1d3d) reversed the "keep the minus" idea: budget / guests are min="0" inputs that no
+// longer accept a minus at all (test/manager-1019.test.mjs); the validator still checks both with a named message.
+t('lead form: budget / guests refuse negatives and the validator still names the field', () => {
   const h = read('public/leads.html');
-  assert.match(h, /id="f_budget" type="number" data-allow-negative/);
-  assert.match(h, /id="f_guests" type="number" data-allow-negative/);
-  assert.match(h, /V\.money\(\$\("#f_budget"\)\.value,\{field:"Budget"\}\)/);
-  assert.match(h, /V\.count\(\$\("#f_guests"\)\.value,\{field:"Guest count"\}\)/);
+  assert.match(h, /id="f_budget" type="number" min="0"/); assert.doesNotMatch(h, /id="f_budget"[^>]*data-allow-negative/);
+  assert.match(h, /id="f_guests" type="number" min="0"/); assert.doesNotMatch(h, /id="f_guests"[^>]*data-allow-negative/);
+  assert.match(h, /V\.money\(\$\("#f_budget"\)\.value,\{field:"Budget"[,}]/);
+  assert.match(h, /V\.count\(\$\("#f_guests"\)\.value,\{field:"Guest count"[,}]/);
   assert.doesNotMatch(h, /await renderAccount\(\); try\{await BPStore\.bell\.mount/);
 });
 t('invite studio: Plan venue prefills only empty fields', () => {
