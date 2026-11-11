@@ -33,6 +33,12 @@ psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/00-supabase-shim.sql >/dev/n
 fail=0
 echo "== clean install =="; bash scripts/db-migrate.sh --apply 2>&1 | grep -oE "applied=[0-9]+ skipped=[0-9]+" || fail=1
 echo "== idempotent 2nd run =="; R2="$(bash scripts/db-migrate.sh --apply 2>&1 | grep -oE 'applied=[0-9]+')"; echo "$R2"; [ "$R2" = "applied=0" ] || { echo "NOT idempotent"; fail=1; }
+# R150: the owner's prod checker (CHECK-PROD-MIGRATIONS.sql, generated from MANIFEST) on this fully migrated DB must find
+# every migration: no "missing" / "partial" row. A new migration that fails here makes something conditionally / with dynamic
+# SQL the parser misreads -> fix it in supabase/check-prod-overrides.json ("ignore" / "add"), then node scripts/gen-check-prod.mjs
+echo "== prod migration checker (fresh DB) =="; CHK="$(psql -X -q -A -t -F '|' -v ON_ERROR_STOP=1 -f supabase/CHECK-PROD-MIGRATIONS.sql 2>&1)" || { echo "$CHK" | tail -3; fail=1; }
+echo "$CHK" | awk -F'|' '{c[$2]++} END {for (s in c) printf "%s=%d ", s, c[s]; print ""}'
+if echo "$CHK" | grep -qE '^[^|]+\|(missing|partial)\|'; then echo "  ✗ prod checker:"; echo "$CHK" | grep -E '^[^|]+\|(missing|partial)\|' | head -5; fail=1; else echo "  ✓ prod checker: no missing / partial"; fi
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1
 
 reseed() { psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1; }

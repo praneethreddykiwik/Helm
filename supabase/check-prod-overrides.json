@@ -1,0 +1,29 @@
+{
+  "_readme": [
+    "Overrides for scripts/gen-check-prod.mjs (it writes supabase/CHECK-PROD-MIGRATIONS.sql). Key = migration number or file name.",
+    "status: 'optional' = intentionally not applied everywhere (still checked, shown as optional) | 'skip' = nothing to check.",
+    "note: shown in the checker's note column. ignore: object labels (exactly as the checker prints them) not to check.",
+    "add: extra objects to check, same labels: 'fn public.f(uuid,text)', 'table public.t', 'column public.t.c', 'index public.i',",
+    "  'policy NAME on public.t', 'trigger NAME on public.t', 'constraint NAME on public.t', 'cron NAME', 'bucket ID',",
+    "  'publication NAME has public.t', 'marker public.f(args) TEXT' (the function body contains TEXT).",
+    "A migration that makes nothing the parser can see MUST have an entry here (the generator fails otherwise)."
+  ],
+  "0002": { "status": "skip", "note": "privilege lock-down only (grants on create_helm_user) - nothing to look up by name" },
+  "0005": { "status": "skip", "note": "grants only (EXECUTE revoked from PUBLIC / anon on every public function)" },
+  "0014": { "status": "skip", "note": "settings only (RLS on the runner ledger, search_path of set_updated_at)" },
+  "0080": { "status": "skip", "note": "speed fix written into existing notification_catalog bodies (offset 0) - no new object" },
+  "0091": { "status": "skip", "note": "data only: old quotes keep their rupees (backfill)" },
+  "0107": { "status": "skip", "note": "data only: fills blank greeting templates" },
+  "0117": { "status": "optional", "note": "optional, Razorpay dormant - per-studio Razorpay / WhatsApp accounts; not applied on prod / staging on purpose" },
+  "0135": { "note": "audit trigger put on 4 tables with dynamic SQL", "add": ["trigger audit_trg on public.vendor_bills", "trigger audit_trg on public.vendor_payouts", "trigger audit_trg on public.inventory_reservations", "trigger audit_trg on public.run_sheet_items"] },
+  "0136": { "note": "tenant guard triggers put on tables with dynamic SQL", "add": ["trigger zz_quote_org_match on public.vendor_bills", "trigger zz_quote_org_match on public.event_reminders", "trigger zz_quote_org_match on public.assign_notify_outbox", "trigger zzz_studio_read_only on public.event_reminders", "trigger zzz_studio_read_only on public.assign_notify_outbox"] },
+  "0138": { "status": "skip", "note": "data only: sample staff phone numbers" },
+  "0162": { "status": "skip", "note": "data only, PRODUCTION ONLY: switches the checkout 'Skip payment' bypass off (staging keeps it on)" },
+  "0170": { "status": "skip", "note": "data only: free-trial sample data v4" },
+  "0171": { "status": "skip", "note": "data only: free-trial sample data v5" },
+  "0172": { "note": "tenant guard trigger put on the 2 WhatsApp proposal tables with dynamic SQL", "add": ["trigger zz_quote_org_match on public.wa_proposal_optins", "trigger zz_quote_org_match on public.wa_proposal_audit"] },
+  "0175": { "status": "skip", "note": "data only: free-trial sample layout templates" },
+  "0204": { "status": "skip", "note": "grants / policy tidy only" },
+  "0251": { "status": "skip", "note": "data only: political rally sample layout" },
+  "0270": { "note": "speed fix written into the existing _r23_visible body", "add": ["marker public._r23_visible(uuid,uuid) r24-ci-0270"] }
+}
