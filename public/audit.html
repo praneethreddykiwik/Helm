@@ -3,6 +3,7 @@
 <head>
 <style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}</style>
 <link rel="stylesheet" href="/audit-polish.css?v=1">
+<link rel="stylesheet" href="/audit-clarity.css?v=1">
 <meta charset="utf-8">
 <base href="/"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Audit log — Helm Events</title>
@@ -56,7 +57,7 @@
 </style>
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
-<script src="/shell-proto.js?v=67" id="shellProto"></script>
+<script src="/shell-proto.js?v=68" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -111,8 +112,9 @@
 <script src="telemetry.js?v=10"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=340"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=341"></script>
 <script src="audit-format.js?v=6"></script>
+<script src="audit-clarity.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -165,6 +167,9 @@
     const list=all;
     $("#empty").textContent = term||$("#fEntity").value ? "No audit entries match." : "No audit entries yet.";
     $("#empty").hidden = list.length>0;
+    // R136: plain words, "Helm (automatic)", one line per editing session (audit-clarity.js builds the DOM, no innerHTML)
+    if(window.AuditClarity){ AuditClarity.render($("#rows"), list, { names, events, fmt, areaLabel,
+      who:(r)=>BPStore.audit.who(r,names), describe:(r)=>BPStore.audit.describe(r,events), actionLabel:(a)=>BPStore.audit.actionLabel(a) }); return; }
     $("#rows").innerHTML=list.map(r=>`<tr>
       <td class="when">${esc(fmt(r.at))}</td>
       ${whoCell(r)}
@@ -190,7 +195,7 @@
         actorIds: BPStore.audit.actorIdsMatching(names, $("#fSearch").value) }),
       render:async(rows,info)=>{ all=info.all;
         const need=[...new Set(all.map(r=>r.quote_id).filter(id=>id&&!events[id]))];
-        if(need.length){ try{ Object.assign(events, await BPStore.audit.eventLabels(need)); }catch{} }
+        if(need.length){ try{ Object.assign(events, window.AuditClarity ? await AuditClarity.loadEvents(need) : await BPStore.audit.eventLabels(need)); }catch{} }
         draw(); } });
     try{ await pager.reset(); }
     catch(e){ all=[]; BPUI.loadError($("#rows"), e, loadData, {what:"the audit log"}); return; }
