@@ -126,7 +126,7 @@ function withHashes(csp, hashes, styleHashes) {
 // lets an attacker who finds any HTML injection load an old gadget library from
 // the same CDN and run script despite the hash-based policy. So:
 //   • every page: 'self' only - R138 moved the Sentry bundle to /vendor/ (self-hosted, SRI-pinned;
-//     telemetry.js loads /vendor/sentry-8.55.2.bundle.min.js, dormant until a DSN is set);
+//     telemetry.js loads /vendor/sentry-10.78.0.bundle.min.js (R140), dormant until a DSN is set);
 //   • the 3D builder: nothing extra any more - three.js r186 is self-hosted under
 //     public/vendor/three-0.186.1/ and loaded as same-origin ES modules (public/three-boot.js),
 //     so 'self' covers it. SCRIPT_SRC_BUILDER is kept (= base) so a future builder-only

@@ -66,7 +66,7 @@ await t('CLI-02 telemetry: stack frames lose ?token= and link refs; booklet link
   assert.equal(f[1].abs_path, 'https://www.helm.events/store-api.js?v=286', 'asset version kept');
   assert.match(T.redact('/login?invite=abc&k=' + 'cd'.repeat(24)), /k=\[REDACTED\]/);
   for (const p of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = rd('public/' + p).match(/telemetry\.js\?v=(\d+)/); if (m) assert.equal(m[1], '10', p);
+    const m = rd('public/' + p).match(/telemetry\.js\?v=(\d+)/); if (m) assert.equal(m[1], '11', p);   // R140: telemetry.js changed (Sentry 10.78.0)
   }
 });
 
