@@ -50,6 +50,9 @@ import { brandMode, sendMail } from "../_shared/mailer.ts";
 import { postalAddress } from "../_shared/email-compliance.mjs";
 import { studioReplyTo } from "../_shared/reply-to.mjs";
 import { isTrialNoSend, trialSendBlocked } from "../_shared/trial-guard.ts";
+import { logger } from "../_shared/log.ts";
+import { fetchWithTimeout, isTimeout } from "../_shared/http.ts";   // R142: the MSG91 call has a deadline
+const L = logger("send-otp");
 
 // R113 (0322): a free trial never sends a code - the client page offers the test code 000000 instead
 const TRIAL_OTP_MSG = "Test mode: your planner's studio is on a Helm free trial, so no code is sent. Use the test code 000000 on this page.";
@@ -110,7 +113,7 @@ async function sendByChannel(req: Request, json: any, admin: any, token: string,
   const storeArgs = { p_token: token, p_phone: dest.phone_key, p_code: code };
   const { error } = await admin.rpc("admin_store_otp", storeArgs);
   if (isTrialNoSend(error)) return json({ error: TRIAL_OTP_MSG, trial: true, test_mode: true }, 403);   // R113 (0322)
-  if (error) { console.error("admin_store_otp failed", errTag(error)); return json({ error: "too many requests — please try again later" }, 429); }
+  if (error) { L.error("admin_store_otp failed", errTag(error)); return json({ error: "too many requests — please try again later" }, 429); }
   let live = false;
   if (channel === "whatsapp") {
     const { messaging_product: _mp, ...payload } = otpMessage(String(dest.to), code, STUDIO_LANG);
@@ -132,14 +135,14 @@ async function sendByChannel(req: Request, json: any, admin: any, token: string,
     } catch (_) { /* studio name / reply-to are cosmetic */ }
     const m = otpEmail(code, studio || "your planner", { address: postalAddress(envGet), brand: brandMode(envGet) });
     const res = await sendMail({ to: String(dest.email), subject: m.subject, html: m.html, text: m.text, studio, replyTo, txReason: "otp" });
-    if (res.status === "failed") { console.error("email otp failed", res.provider || ""); return json({ error: "e-mail could not be sent", status: "failed" }, 502); }
+    if (res.status === "failed") { L.error("email otp failed", undefined, { provider: res.provider || "none" }); return json({ error: "e-mail could not be sent", status: "failed" }, 502); }
     live = res.status === "sent";
   }
   const { error: logErr } = await admin.from("notifications").insert({
     quote_id: dest.quote_id, channel: channel === "email" ? "email" : "whatsapp",
     recipient: channel === "email" ? String(dest.email) : String(dest.to), kind: "otp", status: live ? "sent" : "simulated",
   });
-  if (logErr) console.error("otp log insert failed", errTag(logErr));
+  if (logErr) L.error("otp log insert failed", errTag(logErr));
   return json({ sent: true, live, simulated: !live, status: live ? "sent" : "not_configured", channel, masked: dest.masked, resends_left: dest.resends_left });
 }
 
@@ -156,6 +159,7 @@ function otpFailure(code: string, channel: "sms" | "whatsapp" | "email" = "sms")
 }
 
 Deno.serve(async (req) => {
+  const log = logger("send-otp", req);   // R142: JSON log lines with the request id
   const { cors, json, serverError } = responders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -206,7 +210,7 @@ Deno.serve(async (req) => {
     const { error } = await admin.rpc("admin_store_otp", { p_token: token, p_phone: phone, p_code: code });
     if (isTrialNoSend(error)) return json({ error: TRIAL_OTP_MSG, trial: true, test_mode: true }, 403);   // R113 (0322)
     if (error) {
-      console.error("admin_store_otp failed", errTag(error));
+      log.error("admin_store_otp failed", errTag(error));
       const tooMany = /too many/i.test(String(error.message || ""));
       return json({ error: tooMany ? "too many requests — please try again later" : "could not send the SMS — please try again later" }, tooMany ? 429 : 400);
     }
@@ -221,14 +225,22 @@ Deno.serve(async (req) => {
         mobiles: String(dest.mobile),
         OTP: code,
       };
-      const r = await fetch("https://control.msg91.com/api/v5/flow/", { redirect: "error",
-        method: "POST",
-        headers: { "authkey": authkey, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      await r.text();
+      // R142: an MSG91 call that passes its 10 s deadline is answered like MSG91 refusing it (502, try again)
+      let r: Response;
+      try {
+        r = await fetchWithTimeout("https://control.msg91.com/api/v5/flow/", { redirect: "error",
+          method: "POST",
+          headers: { "authkey": authkey, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        await r.text();
+      } catch (e) {
+        if (!isTimeout(e)) throw e;
+        log.error("msg91 timed out", errTag(e));
+        return json({ error: "could not send the SMS, please try again" }, 502);
+      }
       if (!r.ok) {
-        console.error("msg91 error", r.status);
+        log.error("msg91 error", r.status);
         return json({ error: "could not send the SMS, please try again" }, 502);
       }
     }
@@ -236,7 +248,7 @@ Deno.serve(async (req) => {
     const { error: logErr } = await admin.from("notifications").insert({
       quote_id: dest.quote_id, channel: "sms", recipient: String(dest.mobile), kind: "otp", status: authkey ? "sent" : "simulated",
     });
-    if (logErr) console.error("otp log insert failed", errTag(logErr));
+    if (logErr) log.error("otp log insert failed", errTag(logErr));
     return json({ sent: true, live: !!authkey });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);

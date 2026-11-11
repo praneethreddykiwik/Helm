@@ -40,6 +40,7 @@ import { studioReplyTo } from "../_shared/reply-to.mjs";
 import { outboundBlocked, TEST_MODE_TEXT } from "../_shared/trial-outbound.ts";
 import { linkEmail, maskEmail } from "./logic.mjs";
 import { TRIAL_DEMO_MSG, TRIAL_EMAIL_CAP_MSG, trialEmailGate, trialSendBlocked } from "../_shared/trial-guard.ts";
+import { logger } from "../_shared/log.ts";
 
 export const KINDS = ["approval", "booklet"];
 // R114 (0323): the line the studio sees next to the preview in a free trial
@@ -55,6 +56,7 @@ function appOrigin(req: Request): string {
 }
 
 Deno.serve(async (req) => {
+  const log = logger("client-mailer", req);   // R142: JSON log lines with the request id
   const { cors, json, serverError } = responders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -135,7 +137,7 @@ Deno.serve(async (req) => {
       const { error: sErr } = await admin.from("notifications").insert({
         quote_id: quoteId, channel: "email", recipient: to, kind: logKind, status: "simulated", detail: { suppressed_by: "trial_simulation" },
       });
-      if (sErr) console.error("client-mailer: log insert failed", errTag(sErr));
+      if (sErr) log.error("log insert failed", errTag(sErr));
       return json({ status: "test_mode", trial: true, simulated: true, masked, reason: TRIAL_SIM_TEXT, preview, ...extra });
     };
 
@@ -147,7 +149,7 @@ Deno.serve(async (req) => {
       const { error: sErr } = await admin.from("notifications").insert({
         quote_id: quoteId, channel: "email", recipient: to, kind: logKind, status: "suppressed", detail: { suppressed_by: why },
       });
-      if (sErr) console.error("client-mailer: log insert failed", errTag(sErr));
+      if (sErr) log.error("log insert failed", errTag(sErr));
       if (why === "trial_cap") return json({ status: "limit", trial: true, masked, reason: TRIAL_EMAIL_CAP_MSG, error: TRIAL_EMAIL_CAP_MSG }, 429);
       if (why === "demo") return json({ status: "demo", trial: true, masked, reason: TRIAL_DEMO_MSG });
       return json({ status: "test_mode", trial: true, masked, reason: TEST_MODE_TEXT });
@@ -161,7 +163,7 @@ Deno.serve(async (req) => {
         quote_id: quoteId, channel: "email", recipient: to, kind: logKind, status: "suppressed",
         detail: { suppressed_by: "plan_unknown" },
       });
-      if (sErr) console.error("client-mailer: log insert failed", errTag(sErr));
+      if (sErr) log.error("log insert failed", errTag(sErr));
       return json({ status: "failed", masked, error: "could not check the studio plan - nothing was sent, try again", reason: "could not check the studio plan - nothing was sent, try again" }, 503);
     }
 
@@ -179,7 +181,7 @@ Deno.serve(async (req) => {
       quote_id: quoteId, channel: "email", recipient: to, kind: logKind,
       status: res.status === "sent" ? "sent" : res.status === "not_configured" ? "simulated" : "failed",
     });
-    if (logErr) console.error("client-mailer: log insert failed", errTag(logErr));
+    if (logErr) log.error("log insert failed", errTag(logErr));
     if (res.status === "sent") return json({ status: "sent", masked, provider: res.provider });
     return json({ status: res.status, masked, reason: res.reason, ...(res.status === "failed" ? { error: res.reason } : {}) }, res.status === "failed" ? 502 : 200);
   } catch (e) {

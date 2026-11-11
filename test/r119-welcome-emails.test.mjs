@@ -99,7 +99,7 @@ t('2a welcome-mailer + comms-dispatch share welcome-mailer/send.ts; switch befor
 t('2b billing-reminder: billing_reminder_recheck before every send; error -> fail closed (nothing sent)', () => {
   const i = BR.indexOf('admin.rpc("billing_reminder_recheck", { p_id: id })');
   assert.ok(i > 0 && i < BR.indexOf('await sendEmail(to, msg.subject, msg.html'), 'recheck before the send');
-  assert.match(BR, /if \(cErr\) \{ console\.error\("billing-reminder: recheck failed", errTag\(cErr\)\); counts\.failed\+\+; continue; \}/);
+  assert.match(BR, /if \(cErr\) \{ log\.error\("recheck failed", errTag\(cErr\)\); counts\.failed\+\+; continue; \}/);   // R142: JSON logger
   assert.match(BR, /if \(chk !== "send"\) \{ counts\.skipped\+\+; continue; \}/);
 });
 

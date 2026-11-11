@@ -56,6 +56,7 @@ import { BodyTooLarge, clientIp, checkLimits, durableHit, readJsonCapped, tooMan
 import { TRIAL_NO_SEND_HINT, TRIAL_NO_SEND_MSG, trialSendBlocked } from "../_shared/trial-guard.ts";
 import { TLDS } from "./tlds.ts";
 import { NOT_CONNECTED_MSG, studioSender, waPost } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
+import { logger } from "../_shared/log.ts";
 
 const DEFAULT_TEMPLATES = ["event_update", "payment_reminder", "event_reminder", "crew_assignment"];
 const TEMPLATE_NAME = /^[a-z0-9_]{1,512}$/;
@@ -172,6 +173,7 @@ function authzFailure(code: string, hint = ""): [number, string] {
 }
 
 Deno.serve(async (req) => {
+  const log = logger("send-whatsapp", req);   // R142: JSON log lines with the request id
   const { cors, json, serverError } = responders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -239,7 +241,7 @@ Deno.serve(async (req) => {
 
     // ---- the caller's studio must own the event (RLS) ----
     const { data: q, error: qErr } = await asCaller.from("quotes").select("id, org_id").eq("id", quoteId).maybeSingle();
-    if (qErr) { console.error("quote lookup failed", errTag(qErr)); return json({ error: "could not check the event" }, 500); }
+    if (qErr) { log.error("quote lookup failed", errTag(qErr)); return json({ error: "could not check the event" }, 500); }
     if (!q) return json({ error: "you can't send WhatsApp messages for this event to that number" }, 403);
 
     // ---- area right + number belongs to the event + per-studio rate limit ----
@@ -263,23 +265,23 @@ Deno.serve(async (req) => {
     const digits = to.replace(/\D/g, "");
     const { data: optOut, error: ooErr } = await admin.from("whatsapp_opt_outs").select("id")
       .eq("phone", digits).eq("opted_out", true).or("org_id.is.null,org_id.eq." + orgId).limit(1).maybeSingle();
-    if (ooErr) { console.error("opt-out lookup failed", errTag(ooErr)); return json({ error: "could not check the recipient" }, 500); }
+    if (ooErr) { log.error("opt-out lookup failed", errTag(ooErr)); return json({ error: "could not check the recipient" }, 500); }
     if (optOut) return json({ error: "this number has opted out of WhatsApp messages" }, 403);
 
     const { data: sub, error: subErr } = await admin.from("studio_subscriptions").select("status").eq("org_id", orgId).maybeSingle();
-    if (subErr) { console.error("plan lookup failed", errTag(subErr)); return json({ error: "could not check the studio" }, 500); }
+    if (subErr) { log.error("plan lookup failed", errTag(subErr)); return json({ error: "could not check the studio" }, 500); }
     let paid = !!sub && (sub as any).status === "active";
     if (!paid) {   // same rule as public._trial_paid: a current, not-voided payment
       const today = new Date().toISOString().slice(0, 10);
       const { data: pay, error: payErr } = await admin.from("subscription_payments").select("id")
         .eq("org_id", orgId).is("voided_at", null).or("period_end.is.null,period_end.gte." + today).limit(1).maybeSingle();
-      if (payErr) { console.error("payment lookup failed", errTag(payErr)); return json({ error: "could not check the studio" }, 500); }
+      if (payErr) { log.error("payment lookup failed", errTag(payErr)); return json({ error: "could not check the studio" }, 500); }
       paid = !!pay;
     }
     if (!paid || Deno.env.get("WHATSAPP_REQUIRE_OPTIN") === "1") {
       const { data: optIn, error: oiErr } = await admin.from("wa_proposal_optins").select("id")
         .eq("quote_id", quoteId).eq("org_id", orgId).eq("phone_e164", "+" + digits).eq("opted_in", true).limit(1).maybeSingle();
-      if (oiErr) { console.error("opt-in lookup failed", errTag(oiErr)); return json({ error: "could not check the recipient" }, 500); }
+      if (oiErr) { log.error("opt-in lookup failed", errTag(oiErr)); return json({ error: "could not check the recipient" }, 500); }
       if (!optIn) return json({ error: "record the recipient's WhatsApp opt-in for this event first" }, 403);
     }
     // distinct recipients per studio per day (a first message to a number today counts once)
@@ -302,7 +304,7 @@ Deno.serve(async (req) => {
     const { error: logErr } = await admin.from("notifications").insert({
       quote_id: quoteId, channel: "whatsapp", recipient: to, kind, status: sent ? "sent" : "failed",
     });
-    if (logErr) console.error("whatsapp log insert failed", errTag(logErr));
+    if (logErr) log.error("whatsapp log insert failed", errTag(logErr));
 
     if (!sent) return json({ error: "WhatsApp send failed: " + r.text, reason: r.kind }, 502);
     return json({ sent: true, id: r.wamid });

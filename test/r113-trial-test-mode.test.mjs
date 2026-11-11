@@ -67,7 +67,7 @@ t('send-otp: a free trial gets NO code on any channel (no trial_email_otp_begin)
   assert.match(OTP, /Use the test code 000000 on this page/);
   assert.match(OTP, /admin\.rpc\("wa_otp_begin", \{ p_token: token, p_channel: channel, p_user_agent: ua \}\)/);
   assert.match(OTP, /const res = await sendMail\(/);
-  assert.match(OTP, /fetch\("https:\/\/control\.msg91\.com\/api\/v5\/flow\/"/);
+  assert.match(OTP, /fetchWithTimeout\("https:\/\/control\.msg91\.com\/api\/v5\/flow\/"/);   // R142: same call, with a deadline
 });
 t('studio side: share panel note + "Approved (test mode)" only for a trial studio', () => {
   assert.equal(NOTE.shareSpec({ is_trial_org: true }).note, 'Trial: your client sees a test-mode approval page (no code is sent).');

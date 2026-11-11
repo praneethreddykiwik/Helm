@@ -9,13 +9,16 @@
 // The token names one recipient + one sender (a studio, or Helm itself). A malformed or forged
 // token gets { ok: false }. Logs never carry the token or the address.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
-import { errTag, responders } from "../_shared/cors.ts";
+import { errTag, responders, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped, tooMany } from "../_shared/limits.ts";
 import { appBase, UNSUB_TOKEN_RE } from "../_shared/email-compliance.mjs";
+import { logger } from "../_shared/log.ts";
 
 export const ONE_CLICK_RE = /(^|&)List-Unsubscribe=One-Click(&|$)/;
 
 export async function handler(req: Request): Promise<Response> {
+  const log = logger("email-unsubscribe", req);   // R142: JSON log lines with the request id
+  const report = sentryOnce(req);                  // R142: a 500 reaches Sentry (function name + tag only)
   const { cors, json } = responders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const url = new URL(req.url);
@@ -50,13 +53,14 @@ export async function handler(req: Request): Promise<Response> {
     const { data, error } = action === "status"
       ? await admin.rpc("email_unsub_status", { p_token: token })
       : await admin.rpc("email_unsub_set", { p_token: token, p_opt_out: action === "unsubscribe", p_source: source });
-    if (error) { console.error("email-unsubscribe: rpc failed", errTag(error)); return json({ error: "internal error" }, 500); }
+    if (error) { log.error("rpc failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
     const d: any = data && typeof data === "object" ? data : { ok: false };
     if (source === "one_click") return new Response(d.ok ? "unsubscribed" : "invalid", { status: 200, headers: { ...cors, "Content-Type": "text/plain" } });
     return json({ ok: !!d.ok, sender: d.ok ? String(d.sender ?? "") : undefined, email: d.ok ? String(d.email ?? "") : undefined, opted_out: d.ok ? !!d.opted_out : undefined });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
-    console.error("email-unsubscribe error", errTag(e));
+    log.error("email-unsubscribe error", errTag(e));
+    report.error(e);
     return json({ error: "internal error" }, 500);
   }
 }

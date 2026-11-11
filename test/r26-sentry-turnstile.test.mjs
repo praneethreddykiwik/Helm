@@ -205,7 +205,7 @@ await t("5b SQL 0276: additive table + wrappers, checked only for anon callers w
 });
 await t("5c edge functions: optional Sentry (only with SENTRY_DSN) from serverError - function name + error tag only", async () => {
   const cors = r("supabase/functions/_shared/cors.ts");
-  assert.match(cors, /import \{ sentrySend \} from "\.\/sentry\.mjs";/);
+  assert.match(cors, /import \{ (?:fnName, )?sentrySend \} from "\.\/sentry\.mjs";/);   // R142: fnName for the JSON log line
   assert.match(cors, /reportToSentry\(req, e\);/);
   const S = await import("../supabase/functions/_shared/sentry.mjs");
   assert.equal(S.sentrySend(() => "", () => { throw new Error("no send"); }, "https://x/functions/v1/a", "23505"), null, "off without the secret");

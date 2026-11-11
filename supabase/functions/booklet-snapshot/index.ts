@@ -14,8 +14,9 @@
 //
 // Secrets / env: HELM_BOOKLET_SNAPSHOT_ENABLED, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (injected).
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
-import { errTag, UUID_RE } from "../_shared/cors.ts";
+import { errTag, sentryOnce, UUID_RE } from "../_shared/cors.ts";
 import { clientIp, checkLimits } from "../_shared/limits.ts";
+import { logger } from "../_shared/log.ts";
 
 const PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(2d|3d)\.(png|jpg|webp)$/;
 const TYPES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", webp: "image/webp" };
@@ -23,6 +24,8 @@ const MAX = 3 * 1024 * 1024;
 const notFound = () => new Response("not found", { status: 404, headers: { "Content-Type": "text/plain", "Cache-Control": "no-store" } });
 
 Deno.serve(async (req) => {
+  const log = logger("booklet-snapshot", req);   // R142: JSON log lines with the request id
+  const report = sentryOnce(req);                 // R142: unexpected failures reach Sentry (still answered 404)
   try {
     if (Deno.env.get("HELM_BOOKLET_SNAPSHOT_ENABLED") !== "true") return notFound();
     if (req.method !== "GET") return new Response("method not allowed", { status: 405 });
@@ -34,11 +37,11 @@ Deno.serve(async (req) => {
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const { data: path, error } = await admin.rpc("booklet_snapshot_path", { p_token: token, p_kind: kind });
-    if (error) { console.error("booklet-snapshot: lookup failed", errTag(error)); return notFound(); }
+    if (error) { log.error("lookup failed", errTag(error)); report.error(error); return notFound(); }
     const p = typeof path === "string" ? path : "";
     if (!PATH.test(p) || !p.includes("/" + kind + ".")) return notFound();
     const { data: blob, error: dErr } = await admin.storage.from("booklet-snapshots").download(p);
-    if (dErr || !blob) { if (dErr) console.error("booklet-snapshot: download failed", errTag(dErr)); return notFound(); }
+    if (dErr || !blob) { if (dErr) log.error("download failed", errTag(dErr)); return notFound(); }
     const buf = new Uint8Array(await blob.arrayBuffer());
     if (buf.byteLength === 0 || buf.byteLength > MAX) return notFound();
     return new Response(buf, { status: 200, headers: {
@@ -48,7 +51,8 @@ Deno.serve(async (req) => {
       "Cross-Origin-Resource-Policy": "cross-origin",
     } });
   } catch (e) {
-    console.error("booklet-snapshot error", errTag(e));
+    log.error("booklet-snapshot error", errTag(e));
+    report.error(e);
     return notFound();
   }
 });

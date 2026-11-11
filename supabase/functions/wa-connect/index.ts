@@ -16,6 +16,9 @@ import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import { bearer, errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { graphError, graphVersion, templateStates, templatesToCreate, templateSummary, verifyResult } from "../_shared/wa-studio.mjs";
+import { fetchWithTimeout, isTimeout } from "../_shared/http.ts";   // R142: every Meta call has a deadline
+import { logger } from "../_shared/log.ts";
+const L = logger("wa-connect");
 
 const env = (k: string) => Deno.env.get(k);
 const GRAPH = "https://graph.facebook.com";
@@ -25,7 +28,7 @@ const DIGITS = /^[0-9]{5,30}$/;
 async function graph(token: string, path: string, init: RequestInit = {}): Promise<{ status: number; body: any }> {
   const u = new URL(`${GRAPH}/${graphVersion(env)}/${path}`);
   if (u.hostname !== "graph.facebook.com" || u.protocol !== "https:") throw new Error("host not allowed");
-  const r = await fetch(u.toString(), { ...init, redirect: "error",
+  const r = await fetchWithTimeout(u.toString(), { ...init, redirect: "error",
     headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json", ...(init.headers || {}) } });
   const raw = await r.text();
   // deno-lint-ignore no-explicit-any
@@ -37,15 +40,16 @@ async function graph(token: string, path: string, init: RequestInit = {}): Promi
 // deno-lint-ignore no-explicit-any
 async function readStates(admin: any, org: string, token: string, waba: string): Promise<Record<string, string> | null> {
   const r = await graph(token, `${encodeURIComponent(waba)}/message_templates?fields=name,status,language&limit=200`);
-  if (r.status < 200 || r.status >= 300) { console.error("wa-connect: template list", r.status, graphError(r.status, r.body).kind); return null; }
+  if (r.status < 200 || r.status >= 300) { L.error("template list", r.status, { kind: graphError(r.status, r.body).kind }); return null; }
   const states = templateStates(r.body?.data) as Record<string, string>;
   const { error } = await admin.rpc("wa_templates_mark", { p_org: org, p_templates: states });
-  if (error) console.error("wa-connect: templates mark failed", errTag(error));
+  if (error) L.error("templates mark failed", errTag(error));
   return states;
 }
 
 Deno.serve(async (req) => {
   const { cors, json, serverError } = responders(req);
+  const log = logger("wa-connect", req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   try {
@@ -73,7 +77,7 @@ Deno.serve(async (req) => {
     const admin = createClient(url, svc, { auth: { persistSession: false, autoRefreshToken: false } });
 
     const { data: c, error: cErr } = await admin.rpc("org_whatsapp_check_creds", { p_org: org });
-    if (cErr) { console.error("wa-connect: creds failed", errTag(cErr)); return json({ error: "could not read the saved number - try again" }, 500); }
+    if (cErr) { log.error("creds failed", errTag(cErr)); return json({ error: "could not read the saved number - try again" }, 500); }
     const token = String(c?.token || ""), phoneId = String(c?.phone_number_id || ""), waba = String(c?.waba_id || "");
     if (!c || token.length < 20 || !DIGITS.test(phoneId) || !DIGITS.test(waba)) return json({ ok: false, status: "none", error: "save your WhatsApp details first" }, 409);
 
@@ -88,12 +92,12 @@ Deno.serve(async (req) => {
       }
       const { error: mErr } = await admin.rpc("wa_account_verified", { p_org: org, p_ok: v.ok, p_display_phone: v.display || null,
         p_verified_name: v.name || null, p_quality: v.quality || null, p_error: v.ok ? null : (v.error || "connection check failed") });
-      if (mErr) { console.error("wa-connect: verified mark failed", errTag(mErr)); return json({ error: "could not save the result - try again" }, 500); }
+      if (mErr) { log.error("verified mark failed", errTag(mErr)); return json({ error: "could not save the result - try again" }, 500); }
       if (!v.ok) return json({ ok: false, status: "error", error: v.error });
       // delivery ticks + STOP replies reach Helm only for numbers in an account subscribed to Helm's app (best effort)
       let webhook = false;
       try { const s = await graph(token, `${encodeURIComponent(waba)}/subscribed_apps`, { method: "POST" }); webhook = s.status >= 200 && s.status < 300 && s.body?.success === true; }
-      catch (e) { console.error("wa-connect: subscribe", errTag(e)); }
+      catch (e) { log.error("subscribe", errTag(e)); }
       const states = await readStates(admin, org, token, waba);
       return json({ ok: true, status: "connected", display_phone: v.display, verified_name: v.name, quality: v.quality || null, webhook,
         templates: states || {}, summary: templateSummary(states || {}) });
@@ -109,7 +113,7 @@ Deno.serve(async (req) => {
       for (const t of templatesToCreate(before, env("APP_URL"))) {
         const r = await graph(token, `${encodeURIComponent(waba)}/message_templates`, { method: "POST", body: JSON.stringify(t) });
         if (r.status >= 200 && r.status < 300) created++;
-        else if (graphError(r.status, r.body).kind !== "exists") { failed.push(t.name); console.error("wa-connect: template create", t.name, r.status, graphError(r.status, r.body).kind); }
+        else if (graphError(r.status, r.body).kind !== "exists") { failed.push(t.name); log.error("template create", r.status, { template: t.name, kind: graphError(r.status, r.body).kind }); }
       }
     }
     const states = await readStates(admin, org, token, waba);
@@ -117,6 +121,8 @@ Deno.serve(async (req) => {
     return json({ ok: true, status: "connected", created, failed, templates: states, summary: templateSummary(states) });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
+    // R142: Meta passed its 10 s deadline - a provider failure ("try again"), never a saved "error" state
+    if (isTimeout(e)) { log.error("meta timed out", errTag(e)); return json({ error: "WhatsApp (Meta) did not answer in time - try again" }, 502); }
     return serverError(e);
   }
 });

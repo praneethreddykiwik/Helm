@@ -30,12 +30,18 @@
 //                                         treated as misconfigured and objects stay pending.
 //   HELM_AV_TOKEN                         optional bearer token for the scanner
 //   HELM_AV_TIMEOUT_MS                    1000..60000 (default 15000)
+// R142: the Storage download (30 s, the object is at most the bucket's size limit) and the quarantine move (10 s) have
+// a deadline too: a download that times out is a "download failed" retry; a move that times out is a failed move (the
+// object stays hidden as rejected), exactly like a refused one. Unexpected failures reach Sentry (one event per run).
 //
 // Logs carry only counts, reasons and HTTP status — never object paths, owners or tokens.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
-import { errTag } from "../_shared/cors.ts";
+import { errTag, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, rateLimit, readBodyCapped, WEBHOOK_BODY_LIMIT } from "../_shared/limits.ts";
 import { BUCKETS, verdict } from "./sniff.ts";
+import { logger } from "../_shared/log.ts";
+import { fetchWithTimeout, isTimeout } from "../_shared/http.ts";   // R142: every outbound call has a deadline
+const L = logger("verify-upload");
 
 const enc = new TextEncoder();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -71,15 +77,14 @@ export function avConfig(): { url: URL; token: string; timeout: number } | null 
 export async function avScan(bytes: Uint8Array): Promise<AvResult> {
   const cfg = avConfig();
   if (cfg === null) return "off";
-  if (cfg === "misconfigured") { console.error("verify-upload: AV misconfigured (https + allowlisted host required)"); return "error"; }
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), cfg.timeout);
+  if (cfg === "misconfigured") { L.error("AV misconfigured (https + allowlisted host required)"); return "error"; }
   try {
     const headers: Record<string, string> = { "Content-Type": "application/octet-stream" };
     if (cfg.token) headers["Authorization"] = "Bearer " + cfg.token;
-    const r = await fetch(cfg.url.toString(), { method: "POST", headers, body: new Blob([bytes as BlobPart]), signal: ctl.signal, redirect: "error" });
+    // the same HELM_AV_TIMEOUT_MS deadline as before (covers the answer too), now through the shared helper
+    const r = await fetchWithTimeout(cfg.url.toString(), { method: "POST", headers, body: new Blob([bytes as BlobPart]), redirect: "error" }, cfg.timeout);
     const text = (await r.text()).slice(0, 4096);
-    if (!r.ok) { console.error("verify-upload: AV status", r.status); return "error"; }
+    if (!r.ok) { L.error("AV status", r.status); return "error"; }
     let j: any = null;
     try { j = JSON.parse(text); } catch { return "error"; }
     if (j && j.infected === true) return "infected";
@@ -89,10 +94,8 @@ export async function avScan(bytes: Uint8Array): Promise<AvResult> {
     if (/^(ok|clean|passed)$/i.test(st)) return "clean";
     return "error";
   } catch (e) {
-    console.error("verify-upload: AV error", errTag(e));
+    L.error("AV error", errTag(e));
     return "error";
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -107,10 +110,10 @@ const encKey = (k: string) => k.split("/").map(encodeURIComponent).join("/");
 /** Download an object, reading at most `max + 1` bytes. */
 export async function download(bucket: string, name: string, max: number): Promise<{ bytes: Uint8Array; size: number } | null> {
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const r = await fetch(storageUrl("object/" + encodeURIComponent(bucket) + "/" + encKey(name)), {
+  const r = await fetchWithTimeout(storageUrl("object/" + encodeURIComponent(bucket) + "/" + encKey(name)), {
     headers: { Authorization: "Bearer " + key, apikey: key }, redirect: "error",
-  });
-  if (!r.ok || !r.body) { try { await r.body?.cancel(); } catch { /* */ } console.error("verify-upload: download status", r.status); return null; }
+  }, 30_000);
+  if (!r.ok || !r.body) { try { await r.body?.cancel(); } catch { /* */ } L.error("download status", r.status); return null; }
   const reader = r.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -130,13 +133,20 @@ export async function download(bucket: string, name: string, max: number): Promi
 async function quarantine(bucket: string, name: string): Promise<boolean> {
   if ((Deno.env.get("HELM_UPLOAD_QUARANTINE") || "move") === "keep") return true;
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const r = await fetch(storageUrl("object/move"), {
-    method: "POST", redirect: "error",
-    headers: { Authorization: "Bearer " + key, apikey: key, "Content-Type": "application/json" },
-    body: JSON.stringify({ bucketId: bucket, sourceKey: name, destinationBucket: "upload-quarantine", destinationKey: bucket + "/" + name }),
-  });
-  await r.text();
-  if (!r.ok) console.error("verify-upload: quarantine move status", r.status);
+  let r: Response;
+  try {
+    r = await fetchWithTimeout(storageUrl("object/move"), {
+      method: "POST", redirect: "error",
+      headers: { Authorization: "Bearer " + key, apikey: key, "Content-Type": "application/json" },
+      body: JSON.stringify({ bucketId: bucket, sourceKey: name, destinationBucket: "upload-quarantine", destinationKey: bucket + "/" + name }),
+    });
+    await r.text();
+  } catch (e) {
+    if (!isTimeout(e)) throw e;
+    L.error("quarantine move timed out", errTag(e));
+    return false;   // like a refused move: the object stays hidden (status rejected)
+  }
+  if (!r.ok) L.error("quarantine move status", r.status);
   return r.ok;   // a failed move still leaves the object hidden (status rejected)
 }
 
@@ -144,6 +154,8 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
+  const log = logger("verify-upload", req);   // R142: JSON log lines with the request id
+  const report = sentryOnce(req);             // R142: one Sentry event per run at most (function name + tag only)
   try {
     if (Deno.env.get("HELM_UPLOAD_SCAN_ENABLED") !== "true") return json({ status: "dormant" });
     if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -156,12 +168,12 @@ Deno.serve(async (req) => {
     const batch = Math.min(50, Math.max(1, Number(Deno.env.get("UPLOAD_SCAN_BATCH")) || 20));
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const { data: rows, error } = await admin.rpc("upload_scan_claim", { p_limit: batch });
-    if (error) { console.error("verify-upload: claim failed", errTag(error)); return json({ error: "internal error" }, 500); }
+    if (error) { log.error("claim failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
     const counts = { clean: 0, rejected: 0, retry: 0, invalid: 0 };
     const mark = async (id: string, status: string, reason: string, size: number | null) => {
       const { error: mErr } = await admin.rpc("upload_scan_mark", { p_object: id, p_status: status, p_reason: reason, p_size: size });
-      if (mErr) { console.error("verify-upload: mark failed", errTag(mErr)); return false; }
+      if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); return false; }
       return true;
     };
     for (const r of (Array.isArray(rows) ? rows : [])) {
@@ -173,28 +185,30 @@ Deno.serve(async (req) => {
         continue;
       }
       let dl: { bytes: Uint8Array; size: number } | null = null;
-      try { dl = await download(bucket, name, rule.max); } catch (e) { console.error("verify-upload: download error", errTag(e)); }
+      try { dl = await download(bucket, name, rule.max); } catch (e) { log.error("download error", errTag(e)); }
       if (!dl) { await mark(id, "retry", "download failed", null); counts.retry++; continue; }
       const v = verdict(bucket, name, dl.bytes.subarray(0, 16), dl.size, r?.mimetype ?? null);
       if (!v.ok) {
-        console.log("verify-upload: rejected", bucket, v.reason);
+        log.info("rejected", { bucket, reason: v.reason });
         if (await mark(id, "rejected", v.reason, dl.size)) { counts.rejected++; await quarantine(bucket, name); }
         continue;
       }
       const av = await avScan(dl.bytes);
       if (av === "error") { await mark(id, "retry", "antivirus unavailable", dl.size); counts.retry++; continue; }
       if (av === "infected") {
-        console.log("verify-upload: rejected", bucket, "antivirus");
+        log.info("rejected", { bucket, reason: "antivirus" });
         if (await mark(id, "rejected", "antivirus: infected", dl.size)) { counts.rejected++; await quarantine(bucket, name); }
         continue;
       }
       if (await mark(id, "clean", av === "clean" ? "magic+av ok" : "magic ok", dl.size)) counts.clean++;
     }
-    console.log("verify-upload: run", JSON.stringify(counts));
+    log.info("run", counts);
+    if (counts.retry > 0) report.fail("scan_retry");   // download / antivirus failures in this run
     return json({ status: "ok", ...counts });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
-    console.error("verify-upload error", errTag(e));
+    log.error("verify-upload error", errTag(e));
+    report.error(e);
     return json({ error: "internal error" }, 500);
   }
 });
