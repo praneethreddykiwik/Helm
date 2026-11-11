@@ -61,7 +61,7 @@
 //   default https://www.helm.events). Kill switch: HELM_INVITE_DIRECT_SIGNUP="false" →
 //   { fallback: true } for every call.
 // Logs carry only error tags — never an address, a name, a password or a token.
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { clean, inviteEmail, MAIL_KEY_RE, mintMailKey, newLinkEmail, roleLabel, sha256Hex } from "../invite-mailer/templates.ts";

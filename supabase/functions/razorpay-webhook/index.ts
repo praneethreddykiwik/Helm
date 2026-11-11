@@ -32,7 +32,7 @@
 //     x-razorpay-event-id header is not covered by the signature, so it is no longer the key);
 //     a cancelled/expired link's open reservation is closed so it is never reused.
 //     Refunds are recorded only - the ledger is never rewritten automatically.
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag, escHtml, UUID_RE } from "../_shared/cors.ts";
 import { quoteCur, symMoney } from "../_shared/money.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped, WEBHOOK_BODY_LIMIT } from "../_shared/limits.ts";

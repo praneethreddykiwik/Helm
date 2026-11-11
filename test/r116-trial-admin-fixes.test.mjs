@@ -75,6 +75,18 @@ t('1 guard covers store-api.js -> shell-proto.js?v= and SHELL_V (shell-group fil
     s.run('--apply', '--base', 'HEAD'); assert.match(readFileSync(join(s.d, 'public', 'shell-proto.js'), 'utf8'), /SHELL_V = "162"/);
   } finally { rmSync(s.d, { recursive: true, force: true }); }
 });
+t('1 guard (R141): a new version-named vendor file needs no ?v= (immutable by name); an unversioned vendor file still does', () => {
+  const s = sandbox();
+  try {
+    mkdirSync(join(s.d, 'public', 'vendor'));
+    writeFileSync(join(s.d, 'public', 'vendor', 'lib-1.2.3.min.js'), '// lib\n');
+    writeFileSync(join(s.d, 'public', 'c.html'), '<link rel="preload" href="/vendor/lib-1.2.3.min.js" as="script">\n');
+    const ok = s.run('--check', '--base', 'HEAD'); assert.equal(ok.status, 0, ok.stdout);
+    writeFileSync(join(s.d, 'public', 'vendor', 'plain.js'), '// no version in the name\n');
+    writeFileSync(join(s.d, 'public', 'd.html'), '<script src="/vendor/plain.js"></script>\n');
+    const bad = s.run('--check', '--base', 'HEAD'); assert.equal(bad.status, 1, bad.stdout); assert.match(bad.stdout, /vendor\/plain\.js/);
+  } finally { rmSync(s.d, { recursive: true, force: true }); }
+});
 
 // ---- 2 dish dropdown ---------------------------------------------------------------------------------------------
 t('2 plan.html: the open dish-results list lifts its card above later cards and is not clipped', () => {

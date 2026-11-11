@@ -16,7 +16,7 @@
 //        * message_template_status_update / phone_number_quality_update -> wa_record_event
 //          (R129 / 0337: a template's new state also -> wa_template_status, for the studio with that WABA id)
 //      Always 200 after a valid signature (Meta retries non-2xx for days); DB errors -> 500.
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped, WEBHOOK_BODY_LIMIT } from "../_shared/limits.ts";
 
