@@ -1,0 +1,15 @@
+/* audit-clarity.css - R136: audit log grouping, automatic changes, event names (audit-clarity.js) */
+.who .ac-sub{font-size:11.5px;color:var(--ink-3,#6b6577);margin-top:2px;line-height:1.35}
+.who.ac-auto>div:first-child{font-weight:600;color:var(--accent,#047857)}
+.ac-dup{display:inline-block;margin-left:6px;padding:0 6px;border-radius:10px;font-size:11px;font-weight:700;line-height:17px;background:var(--panel-2,#faf8f5);color:var(--ink-2,#4b475f);box-shadow:inset 0 0 0 1px var(--line,#e8e3db);vertical-align:1px}
+.ac-sum>div{color:var(--ink,#1b1930)}
+.ac-toggle{margin-top:6px;height:26px;padding:0 10px;border-radius:7px;border:1px solid var(--line,#e8e3db);background:var(--panel,#fff);color:var(--ink,#1b1930);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.ac-toggle:hover{border-color:var(--accent,#047857)}
+.ac-toggle:focus-visible{outline:2px solid var(--accent,#047857);outline-offset:2px}
+tr.ac-group.ac-open>td{border-bottom-color:transparent}
+tr.ac-step>td{background:var(--panel-2,#faf8f5);font-size:12px;padding-top:7px;padding-bottom:7px}
+tr.ac-step>td.when{padding-left:24px;color:var(--ink-3,#6b6577)}
+.ac-ev .code{display:inline-flex;flex-direction:column;gap:1px;max-width:260px}
+.ac-ev .ac-ev-name{font-family:var(--font,inherit);font-weight:600;color:var(--accent,#047857);overflow-wrap:anywhere}
+.ac-ev .ac-ev-code{font-size:11px;color:var(--ink-3,#6b6577)}
+@media (max-width:640px){ .ac-ev .code{max-width:180px} }

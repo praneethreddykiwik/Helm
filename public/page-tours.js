@@ -359,6 +359,7 @@
       { sel: "#fEntity", title: "What changed", desc: "Filter by type: quotes, payments, users, settings and more." },
       { sel: "#fSearch", title: "Search", desc: "Find a change by name, code or person." },
       { sel: "#rows", title: "Every change, logged", desc: "Who changed what and when. Nothing here can be edited or deleted." },
+      { sel: "#rows .ac-toggle", title: "One line per edit", desc: "A few minutes of editing one quote shows as one line. Show steps lists every change with its time. Helm (automatic) marks what Helm did by itself, like updating the lead." },
       { sel: "#refresh", title: "Refresh", desc: "Load the newest entries." },
     ],
     "inbox.html": [
