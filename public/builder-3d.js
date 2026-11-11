@@ -217,6 +217,93 @@
     return true;
   }
   const GOLD={metalness:.75,roughness:.3, get map(){ return tex('brushed'); }}, CHROME={metalness:.8,roughness:.2, get map(){ return tex('brushed'); }};
+  /* ---- R135 screen faces (stage backdrop, LED / side screens, video wall, LED wall, branding wall, backdrop) ----
+     What a screen shows lives in item.properties (HelmScreen model, stage-screen.js). ONE CanvasTexture per screen,
+     cached by item id and redrawn only when its content key changes; textures of screens that left the scene or
+     changed are disposed (pruneScreenTextures, after every build). No content -> the model is exactly as before. */
+  const SCREEN_TEX=new Map(); let screenSeen=new Set();
+  function scrContent(it){ try{ const HS=typeof window!=='undefined' && window.HelmScreen;
+      if(!HS) return null; const c=HS.contentOf(it, (typeof store!=='undefined' && store && store.items) || []); return HS.hasContent(c) ? c : null; }catch(_){ return null; } }
+  function screenTexture(cacheId, c, side, wFt, hFt){
+    const HS=typeof window!=='undefined' && window.HelmScreen;
+    if(!HS || typeof document==='undefined' || typeof THREE==='undefined' || typeof THREE.CanvasTexture!=='function') return null;
+    const asp=Math.max(0.1, wFt/Math.max(0.1,hFt));
+    const W=side ? Math.max(192, Math.min(1024, Math.round(1024*asp))) : 1024, H=side ? 1024 : Math.max(256, Math.min(1024, Math.round(1024/asp)));
+    const key=HS.keyOf(c, side, W, H), hit=SCREEN_TEX.get(cacheId); screenSeen.add(cacheId);
+    if(hit && hit.key===key) return hit.tex;
+    if(hit && hit.tex) hit.tex.dispose();
+    let t=null;
+    try{ const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const x=cv.getContext('2d');
+      if(x){ HS.draw(x, W, H, c, { side }); t=new THREE.CanvasTexture(cv); t.anisotropy=4; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; } }catch(_){ t=null; }
+    if(t) SCREEN_TEX.set(cacheId, { key, tex:t }); else SCREEN_TEX.delete(cacheId);
+    return t;
+  }
+  function pruneScreenTextures(){ SCREEN_TEX.forEach((v,k)=>{ if(!screenSeen.has(k)){ if(v.tex) v.tex.dispose(); SCREEN_TEX.delete(k); } }); screenSeen=new Set(); }
+  // a flat (or curved, R = bend radius) screen face facing +z, centre (x,y,z). Falls back to the theme colour (no canvas).
+  function screenFace(g, it, c, wFt, hFt, x, y, z, opt){
+    opt=opt||{}; const side=!!opt.side, cacheId=String(it.id||it.type)+(opt.slot||'');
+    const tx0=screenTexture(cacheId, c, side, wFt, hFt), T=(typeof window!=='undefined' && window.HelmScreen && window.HelmScreen.themeOf(c.theme)) || { bg:'#2f6fed' };
+    const geo=new THREE.PlaneGeometry(wFt, hFt, opt.R ? 16 : 1, 1);
+    if(opt.R) bendPlane(geo, opt.R);
+    const m=tx0 ? new THREE.MeshBasicMaterial({ map:tx0, toneMapped:false, side:THREE.DoubleSide })
+               : new THREE.MeshStandardMaterial({ color:col(T.bg), emissive:col(T.bg), emissiveIntensity:.5, roughness:.3 });
+    const mesh=new THREE.Mesh(geo, m); mesh.position.set(x,y,z); g.add(mesh); return mesh;
+  }
+  // curve a plane's columns around the y axis so its edges come toward the viewer (+z): a concave curved LED screen
+  function bendPlane(geo, R){ const p=geo.attributes && geo.attributes.position; if(!p || typeof p.setX!=='function') return geo;
+    for(let i=0;i<p.count;i++){ const a=p.getX(i)/R; p.setX(i, R*Math.sin(a)); p.setZ(i, R*(1-Math.cos(a))); }
+    p.needsUpdate=true; if(geo.computeVertexNormals) geo.computeVertexNormals(); return geo; }
+  // R135 curved LED (ledscreen / videowall style 'curvedled'): a bent face + bent black back on two legs
+  function curvedScreen(g, it, sh, base){
+    if(String(((it.properties||{}).style)||'')!=='curvedled') return false;
+    const w=it.width, R=Math.max(6, w*1.1), y=base+sh/2, sc=scrContent(it);
+    const bk=new THREE.Mesh(bendPlane(new THREE.PlaneGeometry(w, sh+0.4, 16, 1), R), mat('#0a0c10',{side:THREE.DoubleSide})); bk.position.set(0,y,-0.25); g.add(bk);
+    if(sc) screenFace(g, it, sc, w*0.97, sh*0.94, 0, y, 0, { R });
+    else { const fc=new THREE.Mesh(bendPlane(new THREE.PlaneGeometry(w*0.97, sh*0.94, 16, 1), R), mat('#2f6fed',{emissive:col('#2f6fed'),emissiveIntensity:.5,side:THREE.DoubleSide})); fc.position.set(0,y,0); g.add(fc); }
+    for(const s2 of [-1,1]){ const lg=boxMesh(0.5,y,0.6,'#3a4048'); lg.position.set(s2*(w/2-0.6),y/2,R*(1-Math.cos((w/2-0.6)/R))-0.4); g.add(lg); }
+    return true;
+  }
+  // R135 tent / canopy styles: pagoda / stretch / bell / shamiana (classic peaked = no style)
+  function tentStyle(g, it, st){
+    const w=it.width, d=it.height, c=it.color, M=Math.max(w,d);
+    if(st==='pagoda'){ const H=8; for(const [px,pz] of [[-w/2+0.5,-d/2+0.5],[w/2-0.5,-d/2+0.5],[-w/2+0.5,d/2-0.5],[w/2-0.5,d/2-0.5]]){ const p=boxMesh(0.3,H,0.3,'#c9ccd6'); p.position.set(px,H/2,pz); g.add(p); }
+      const rf=new THREE.Mesh(new THREE.ConeGeometry(M*0.72,Math.max(6,M*0.45),4),mat(c,{roughness:.9})); rf.position.y=H+Math.max(6,M*0.45)/2; rf.rotation.y=Math.PI/4; rf.castShadow=true; g.add(rf);
+      const fn=cyl(0.08,0.08,2,'#d9b45a',GOLD,8); fn.position.y=H+Math.max(6,M*0.45)+0.8; g.add(fn); return true; }
+    if(st==='stretch'){ for(const sx2 of [-1,1]){ const p=cyl(0.2,0.25,14,'#8b5a2b',tx('wood',{}),10); p.position.set(sx2*w*0.25,7,0); g.add(p); }
+      const sk=new THREE.Mesh(new THREE.SphereGeometry(1,24,12,0,Math.PI*2,0,Math.PI/2),mat(c,{roughness:.9,side:THREE.DoubleSide,transparent:true,opacity:.92}));
+      sk.scale.set(w/2,13,d/2); sk.position.y=0.5; g.add(sk); return true; }
+    if(st==='bell'){ const R=Math.min(w,d)/2, wl=cyl(R,R,5,'#f3ede2',{roughness:.9,side:THREE.DoubleSide},28); wl.position.y=2.5; g.add(wl);
+      const rf=new THREE.Mesh(new THREE.ConeGeometry(R*1.05,6,28),mat('#f3ede2',{roughness:.9})); rf.position.y=8; g.add(rf);
+      const pl=cyl(0.15,0.15,11.5,'#8b5a2b',{},8); pl.position.y=5.75; g.add(pl); return true; }
+    if(st==='shamiana'){ const H=10; for(const [px,pz] of [[-w/2+0.4,-d/2+0.4],[w/2-0.4,-d/2+0.4],[-w/2+0.4,d/2-0.4],[w/2-0.4,d/2-0.4]]){ const p=cyl(0.2,0.2,H,'#8b5a2b',{},8); p.position.set(px,H/2,pz); g.add(p); }
+      const n=Math.max(4,Math.round(w/3)); for(let i=0;i<n;i++){ const st2=boxMesh(w/n,0.12,d,i%2?'#facc15':'#dc2626',{roughness:.95}); st2.position.set(-w/2+(i+0.5)*w/n,H,0); g.add(st2); }
+      for(const sz2 of [-1,1]){ const vl=boxMesh(w,1.4,0.08,'#dc2626',{roughness:.95}); vl.position.set(0,H-0.7,sz2*d/2); g.add(vl); } return true; }
+    return false;
+  }
+  // R135 truss shapes for the lighting truss: triangle / squareframe / circular / trussarch / flown (straight box span = no style)
+  function trussShape(g, it, st){
+    const w=it.width, d=it.height, c=it.color, H=16, MT={metalness:.5}, ch=(L,x,y,z,ry)=>{ const b=boxMesh(L,0.15,0.15,'#8a95ad',MT); b.position.set(x,y,z); if(ry) b.rotation.y=ry; g.add(b); return b; };
+    const pars=(pts)=>pts.forEach(([x,y,z])=>{ const par=cyl(0.35,0.45,0.9,'#15181f',{metalness:.4},12); par.position.set(x,y-0.9,z); g.add(par);
+      const gl=cyl(0.3,0.3,0.05,c,{emissive:col(c),emissiveIntensity:.8},12); gl.position.set(x,y-1.37,z); g.add(gl); });
+    const towers=(xz)=>xz.forEach(([x,z])=>{ const tw=boxMesh(1,H,1,'#8a95ad',MT); tw.position.set(x,H/2,z); g.add(tw); });
+    const span=[]; for(let x=-w/2+2;x<w/2-1;x+=Math.max(2.5,w/8)) span.push([x,H,0]);
+    if(st==='triangle'){ towers([[-(w/2-0.5),0],[w/2-0.5,0]]); ch(w,0,H-0.2,-0.45); ch(w,0,H-0.2,0.45); ch(w,0,H+0.6,0); pars(span); return true; }
+    if(st==='flown'){ for(const zz of [-0.4,0.4]) for(const yy of [H-0.2,H+0.6]) ch(w,0,yy,zz);
+      for(const sx2 of [-1,1]) rodAB(g,[sx2*(w/2-1),H+0.6,0],[sx2*(w/2-1),H+10,0],0.04,'#c0c4cc'); pars(span); return true; }
+    if(st==='squareframe'){ const D=Math.max(d,4); towers([[-(w/2-0.5),-(D/2-0.5)],[w/2-0.5,-(D/2-0.5)],[-(w/2-0.5),D/2-0.5],[w/2-0.5,D/2-0.5]]);
+      for(const zz of [-1,1]) ch(w,0,H,zz*(D/2-0.5)); for(const xx of [-1,1]) ch(D,xx*(w/2-0.5),H,0,Math.PI/2);
+      pars(span.map(([x])=>[x,H,-(D/2-0.5)])); return true; }
+    if(st==='circular'){ const R=Math.max(2,Math.min(w, Math.max(d,w))/2), rg=new THREE.Mesh(new THREE.TorusGeometry(R,0.3,8,48),mat('#8a95ad',MT));
+      rg.rotation.x=Math.PI/2; rg.position.y=H; g.add(rg);
+      for(let k=0;k<3;k++){ const a=k/3*Math.PI*2; rodAB(g,[Math.cos(a)*R,H,Math.sin(a)*R],[0,H+9,0],0.04,'#c0c4cc'); }
+      const pts=[]; for(let k=0;k<8;k++){ const a=k/8*Math.PI*2; pts.push([Math.cos(a)*R,H,Math.sin(a)*R]); } pars(pts); return true; }
+    if(st==='trussarch'){ const R=Math.max(3,w/2-0.5), ar=new THREE.Mesh(new THREE.TorusGeometry(R,0.5,8,40,Math.PI),mat('#8a95ad',MT)); ar.position.y=0; g.add(ar);
+      const pts=[]; for(let k=1;k<8;k++){ const a=k/8*Math.PI; pts.push([Math.cos(a)*R,Math.sin(a)*R+0.4,0.6]); } bulbs(g, pts, c, 0.3); return true; }
+    return false;
+  }
+  // built-in stage steps (R135): '' centre (the look before) / left / right / both / none - same rule as the 2D plan
+  function stepXs(mode, w, sw){ if(mode==='none') return []; const L=-w/2+sw/2, R=w/2-sw/2;
+    return mode==='left' ? [L] : mode==='right' ? [R] : mode==='both' ? [L,R] : [0]; }
   // vertical strings of marigold / jasmine ("ladi") hanging from y0 down by len
   function ladis(g, xs, z, y0, len, P, rand){ const pts=[]; xs.forEach(x=>{ for(let y=y0;y>y0-len;y-=0.42) pts.push({x:x+(rand()-0.5)*0.05,y,z,s:0.17+rand()*0.05,c:P[(rand()*P.length)|0]}); });
     const im=instanced(new THREE.IcosahedronGeometry(1,1), new THREE.MeshStandardMaterial(tx('petal',{color:0xffffff,roughness:.8})), pts); if(im) g.add(im); }
@@ -348,7 +435,16 @@
         if(ownBack){
         const frame=boxMesh(w,bh,0.5,'#1b2233'); frame.position.set(0,H+bh/2,-d/2+0.25); g.add(frame);
         const fab=drape(w*0.96,bh*0.94,'#f4efe6',{depth:.2,pitch:1.4}); fab.position.set(0,H+bh/2,-d/2+0.7); g.add(fab);
+        const sc=scrContent(it);
+        if(sc){   // R135: the themed screen (texture) + two portrait side panels repeating brand + tagline
+          const sb=boxMesh(w*0.42+0.3,bh*0.45+0.3,0.15,'#11151f'); sb.position.set(0,H+bh*0.6,-d/2+1.0); g.add(sb);
+          screenFace(g, it, sc, w*0.42, bh*0.45, 0, H+bh*0.6, -d/2+1.09);
+          for(const s2 of [-1,1]){ const pw=Math.max(1.5,w*0.1), ph=bh*0.62, px=s2*w*0.34;
+            const pb=boxMesh(pw+0.25,ph+0.25,0.15,'#11151f'); pb.position.set(px,H+bh*0.52,-d/2+1.0); g.add(pb);
+            screenFace(g, it, sc, pw, ph, px, H+bh*0.52, -d/2+1.09, { side:true, slot:':side' }); }
+        } else {
         const scr=boxMesh(w*0.42,bh*0.45,0.15,'#2f6fed',{emissive:col('#2f6fed'),emissiveIntensity:.45}); scr.position.set(0,H+bh*0.6,-d/2+1.0); g.add(scr);
+        }
         const an=[]; for(const s of [-1,1]) for(let y=0;y<bh;y+=0.9) an.push([s*(w*0.48-0.4*Math.sin(y/bh*Math.PI)), H+y+0.4, -d/2+1.1]);
         for(let x=-w*0.45;x<=w*0.45;x+=0.9) an.push([x, H+0.4+rand()*0.3, -d/2+1.1]);
         if(floralOK(it)) blooms(g, an, {rand, pal:pal(c,'blush'), rMin:.25, rMax:.55, per:2, spread:.45});   // never on a rally / conference stage
@@ -356,9 +452,61 @@
         const tt=boxMesh(w,0.9,0.9,'#6b7280',{metalness:.5,roughness:.4}); tt.position.set(0,H+bh+1.6,-d/2+0.5); g.add(tt);
         }
         const sw=Math.min(8,w*0.25);
-        for(let i=0;i<3;i++){ const sh=H*(3-i)/4, t=boxMesh(sw,sh,1.1,'#2b3142'); t.position.set(0,sh/2,d/2+0.85+i*1.1); g.add(t);
-          const tr=boxMesh(sw,0.06,1.1,'#4a3a2e'); tr.position.set(0,sh+0.03,d/2+0.85+i*1.1); g.add(tr); }
+        stepXs(String((it.properties||{}).builtinSteps||''), w, sw).forEach(ox=>{
+        for(let i=0;i<3;i++){ const sh=H*(3-i)/4, t=boxMesh(sw,sh,1.1,'#2b3142'); t.position.set(ox,sh/2,d/2+0.85+i*1.1); g.add(t);
+          const tr=boxMesh(sw,0.06,1.1,'#4a3a2e'); tr.position.set(ox,sh+0.03,d/2+0.85+i*1.1); g.add(tr); } });
         return true; }
+      /* ---- R135 visual-asset-catalogue pack ---- */
+      case 'lawnfloor': {   // artificial grass / lawn flooring laid on the ground
+        const gr=boxMesh(w,0.1,d,'#4d8b3a',tx('carpet',{roughness:1})); gr.position.y=0.05; g.add(gr);
+        const ed=boxMesh(w+0.2,0.06,d+0.2,'#3f6f30',{roughness:1}); ed.position.y=0.02; g.add(ed); return true; }
+      case 'stagelight': {  // one fixture on a floor stand: LED PAR (default) / beam / spot / flood
+        const st=String(VAR.style||''), Hs=5;
+        const ps=cyl(0.08,0.08,Hs,'#3a4048',{metalness:.5},8); ps.position.y=Hs/2; g.add(ps);
+        for(let k=0;k<3;k++){ const a=k/3*Math.PI*2; rodAB(g,[Math.cos(a)*0.9,0,Math.sin(a)*0.9],[0,1.4,0],0.05,'#3a4048'); }
+        const hd = st==='flood' ? boxMesh(1.4,1,0.7,'#15181f',{metalness:.4}) : cyl(st==='beam'?0.3:0.45, st==='beam'?0.35:0.5, st==='spot'?1.4:0.9,'#15181f',{metalness:.4},14);
+        if(st!=='flood') hd.rotation.x=Math.PI/2-0.5; hd.position.set(0,Hs+0.4,0.2); g.add(hd);
+        const rr=st==='beam'?0.1:st==='spot'?0.6:st==='flood'?3:1.4, bl=st==='beam'?14:st==='spot'?9:6;
+        const bm=new THREE.Mesh(new THREE.CylinderGeometry(0.2,rr,bl,16,1,true),new THREE.MeshBasicMaterial({color:col(c),transparent:true,opacity:st==='beam'?0.3:0.14,side:THREE.DoubleSide}));
+        bm.position.set(0,Hs+0.4+bl/2*Math.cos(0.5),0.2+bl/2*Math.sin(0.5)); bm.rotation.x=0.5; g.add(bm); return true; }
+      case 'pathlights': {  // a run along the width: stake lights (default) or a glowing LED rope
+        if(String(VAR.style||'')==='rope'){ const rp=boxMesh(w,0.12,0.12,'#ffffff',{emissive:col(c),emissiveIntensity:1}); rp.position.y=0.1; g.add(rp); return true; }
+        const n=Math.max(2,Math.round(w/4)), heads=[];
+        for(let i=0;i<n;i++){ const x=-w/2+(i+0.5)*w/n, st2=cyl(0.06,0.06,2,'#3a4048',{},8); st2.position.set(x,1,0); g.add(st2); heads.push([x,2.1,0]); }
+        bulbs(g, heads, '#ffe2a8', 0.22); return true; }
+      case 'sidescreen': {  // tall portrait LED side screen on a ground-stack frame; shows brand + tagline when set
+        const H2=Math.max(9,Math.min(16,w*1.8)), base=1, sc=scrContent(it);
+        const fr=boxMesh(w,H2,0.4,'#0a0c10'); fr.position.y=base+H2/2; g.add(fr);
+        if(sc) screenFace(g, it, sc, w*0.94, H2*0.95, 0, base+H2/2, 0.22, { side:true });
+        else { const sr=boxMesh(w*0.94,H2*0.95,0.1,'#2f6fed',{emissive:col('#2f6fed'),emissiveIntensity:.55}); sr.position.set(0,base+H2/2,0.2); g.add(sr); }
+        for(const s2 of [-1,1]){ const ft=boxMesh(0.6,0.2,Math.max(1.5,d+1),'#3a4048'); ft.position.set(s2*(w/2-0.4),0.1,-0.3); g.add(ft);
+          const lg=boxMesh(0.4,base+H2*0.6,0.4,'#3a4048'); lg.position.set(s2*(w/2-0.4),(base+H2*0.6)/2,-0.5); g.add(lg); }
+        return true; }
+      case 'stagedeck': {   // stage extension: same 3 ft deck, wood top and front skirt as the main stage
+        const H=3, dk=boxMesh(w,H-0.25,d,'#262c3a'); dk.position.y=(H-0.25)/2; g.add(dk);
+        const tp=boxMesh(w+0.2,0.25,d+0.2,'#4a3a2e',tx('wood',{roughness:.45})); tp.position.y=H-0.12; g.add(tp);
+        const fr=drape(w+0.2,H-0.3,c,{depth:.12,pitch:1.1}); fr.position.set(0,(H-0.3)/2,d/2+0.2); g.add(fr); return true; }
+      case 'stagestairs': { // stage stairs: n steps rising toward the stage side (local -z), same 3 ft deck height
+        const H=3, n=Math.max(2,Math.min(6,Math.round(+(it.properties||{}).stairSteps)||3)), td=d/n;
+        for(let i=0;i<n;i++){ const sh=H*(n-i)/(n+1), z=-d/2+(i+0.5)*td;
+          const t=boxMesh(w,sh,td,'#2b3142'); t.position.set(0,sh/2,z); g.add(t);
+          const tr=boxMesh(w,0.06,td,'#4a3a2e'); tr.position.set(0,sh+0.03,z); g.add(tr); }
+        if(n>=4) for(const s2 of [-1,1]) rodAB(g,[s2*(w/2-0.1),H*(1/(n+1))+3,d/2-td/2],[s2*(w/2-0.1),H*(n/(n+1))+3,-d/2+td/2],0.05,'#c0c4cc',CHROME);
+        return true; }
+      case 'installation': { // outdoor decor installation: light tree (default) / marquee letters / light tunnel
+        const st=String(VAR.style||'');
+        if(st==='letters'){ const n=4, lw=w/n*0.8, lh=Math.max(3,Math.min(6,w*0.5)), pts=[];
+          for(let i=0;i<n;i++){ const x=-w/2+(i+0.5)*w/n, lb=boxMesh(lw,lh,0.8,c,{roughness:.5}); lb.position.set(x,lh/2,0); g.add(lb);
+            for(let y=0.5;y<lh;y+=0.8) pts.push([x-lw*0.25,y,0.45],[x+lw*0.25,y,0.45]); }
+          bulbs(g, pts, '#ffe2a8', 0.14); return true; }
+        if(st==='lighttunnel'){ const R=Math.max(3,w/2-0.3), n=Math.max(3,Math.round(d/3)), pts=[];
+          for(let k=0;k<n;k++){ const z=-d/2+(k+0.5)*d/n, ar=new THREE.Mesh(new THREE.TorusGeometry(R,0.08,6,32,Math.PI),mat('#20242c')); ar.position.z=z; g.add(ar);
+            for(let j=0;j<=10;j++){ const a=j/10*Math.PI; pts.push([Math.cos(a)*R,Math.sin(a)*R,z]); } }
+          bulbs(g, pts, '#ffe2a8', 0.16); return true; }
+        const R=Math.min(w,d)/2, tk=cyl(0.25,0.4,6,'#6b4a2b',{roughness:.9},10); tk.position.y=3; g.add(tk);
+        const pts=[]; for(let k=0;k<7;k++){ const a=k/7*Math.PI*2, ex=Math.cos(a)*R*0.85, ez=Math.sin(a)*R*0.85, ey=6+(k%3)*0.8;
+          rodAB(g,[0,5,0],[ex,ey,ez],0.07,'#6b4a2b'); for(let t2=0.3;t2<=1;t2+=0.15) pts.push([ex*t2,5+(ey-5)*t2+0.2,ez*t2]); }
+        bulbs(g, pts, '#ffe2a8', 0.15); return true; }
       case 'dancefloor': {
         const T=Math.max(2,Math.min(4,Math.max(w,d)/12)), nx=Math.max(1,Math.round(w/T)), nz=Math.max(1,Math.round(d/T)), tw=w/nx, td=d/nz, L=[];
         for(let i=0;i<nx;i++) for(let j=0;j<nz;j++) L.push({x:-w/2+tw*(i+0.5), y:0.12, z:-d/2+td*(j+0.5), sx:tw*0.97, sy:0.2, sz:td*0.97, c:(i+j)%2?'#f5f6fa':c});
@@ -462,6 +610,11 @@
         for(let i=0;i<4;i++){ const a=i/4*Math.PI*2+0.4; const tr=cyl(0.06,0.06,2.4,'#4f8a4b',{},6); tr.position.set(Math.cos(a)*rr*0.85,6.0,Math.sin(a)*rr*0.85); tr.rotation.z=0.12; g.add(tr); }
         return true; }
       case 'drape': {
+        if(String(VAR.style||'')==='shellscheme'){   // R135: shell-scheme booth partition: white panels between aluminium uprights
+          const Hs=8, n=Math.max(1,Math.round(w/3.3));
+          for(let i=0;i<n;i++){ const pn=boxMesh(w/n-0.15,Hs-0.3,0.08,'#f6f7f9',{roughness:.6}); pn.position.set(-w/2+(i+0.5)*w/n,Hs/2,0); g.add(pn); }
+          for(let i=0;i<=n;i++){ const up=boxMesh(0.16,Hs,0.16,'#c0c4cc',CHROME); up.position.set(-w/2+i*w/n,Hs/2,0); g.add(up); }
+          const rail=boxMesh(w,0.16,0.16,'#c0c4cc',CHROME); rail.position.y=Hs; g.add(rail); return true; }
         const H=10;
         const bar=cyl(0.1,0.1,w,'#9aa3b2',CHROME,8); bar.rotation.z=Math.PI/2; bar.position.y=H; g.add(bar);
         for(let x=-w/2;x<=w/2+0.01;x+=Math.max(4,w/Math.max(1,Math.round(w/8)))){ const p=cyl(0.1,0.1,H,'#9aa3b2',CHROME,8); p.position.set(x,H/2,0); g.add(p);
@@ -518,6 +671,10 @@
         const pi=instanced(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({color:col('#c9ccd6'),...CHROME}), pans); if(pi) g.add(pi);
         const li=instanced(new THREE.SphereGeometry(1,16,8,0,Math.PI*2,0,Math.PI/2), new THREE.MeshStandardMaterial({color:col('#dfe3ea'),...CHROME}), lids); if(li) g.add(li);
         const guard=boxMesh(w*0.96,0.05,d*0.7,'#dff3ff',{transparent:true,opacity:.3,roughness:.05}); guard.position.y=H+1.9; g.add(guard);
+        if(String(VAR.style||'')==='outdoorbuffet'){   // R135: outdoor buffet station under its own canopy
+          for(const sx2 of [-1,1]) for(const sz2 of [-1,1]){ const pp=cyl(0.1,0.1,8,'#e6d6b8',{},8); pp.position.set(sx2*(w/2+0.4),4,sz2*(d/2+1)); g.add(pp); }
+          const rf=boxMesh(w+1.4,0.2,d+2.6,'#f7f4ee',tx('fabric',{roughness:.9})); rf.position.y=8.1; g.add(rf);
+          const vl=drape(w+1.4,0.9,c,{depth:.08,pitch:.7}); vl.position.set(0,7.6,d/2+1.3); g.add(vl); }
         for(const s of [-1,1]){ const p=cyl(0.05,0.05,1.9,'#c9ccd6',CHROME,6); p.position.set(s*w*0.46,H+0.95,0); g.add(p); }
         return true; }
       case 'photobooth': {
@@ -539,8 +696,17 @@
           const gb=instanced(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({color:0xffffff,roughness:.5}), L); if(gb) g.add(gb); }
         return true; }
       case 'redcarpet': {
-        const rug=boxMesh(w,0.08,d,c,{roughness:1}); rug.position.y=0.05; g.add(rug);
-        for(const s of [-1,1]){ const tr=boxMesh(0.25,0.09,d,'#d9b45a',GOLD); tr.position.set(s*(w/2-0.4),0.06,0); g.add(tr);
+        // R135: carpet colour (red = item colour / white / ivory / gold), "no barricades" (single continuous carpet), curved run
+        const CARPET={white:'#f5f5f2', ivory:'#efe6d2', gold:'#c9a227'}, cc=CARPET[VAR.carpet]||c, edges=VAR.edge!=='none';
+        if(String(VAR.style||'')==='curved'){
+          const R=Math.max(d*0.9, w*2), ang=d/R, n=Math.max(6,Math.round(d/2)), seg=d/n*1.06, off=R*(1-Math.cos(ang/2))/2;
+          for(let i=0;i<n;i++){ const a=-ang/2+(i+0.5)*ang/n, cx0=R*(1-Math.cos(a))-off, cz0=R*Math.sin(a);
+            const sg=boxMesh(w,0.08,seg,cc,{roughness:1}); sg.position.set(cx0,0.05,cz0); sg.rotation.y=a; g.add(sg);
+            if(edges && i%2===0) for(const s2 of [-1,1]){ const nx=Math.cos(a)*s2*(w/2+0.6), nz=-Math.sin(a)*s2*(w/2+0.6);
+              const pst=cyl(0.12,0.12,3,'#d9b45a',GOLD,10); pst.position.set(cx0+nx,1.5,cz0+nz); g.add(pst); } }
+          return true; }
+        const rug=boxMesh(w,0.08,d,cc,{roughness:1}); rug.position.y=0.05; g.add(rug);
+        if(edges) for(const s of [-1,1]){ const tr=boxMesh(0.25,0.09,d,'#d9b45a',GOLD); tr.position.set(s*(w/2-0.4),0.06,0); g.add(tr);
           const zs=[]; for(let z=-d/2+1;z<=d/2-1+0.01;z+=Math.max(4,d/Math.max(1,Math.round(d/6)))) zs.push(z);
           zs.forEach((z,i)=>{ const p=cyl(0.12,0.12,3,'#d9b45a',GOLD,10); p.position.set(s*(w/2+0.6),1.5,z); g.add(p);
             const b=cyl(0.45,0.5,0.15,'#d9b45a',GOLD,16); b.position.set(s*(w/2+0.6),0.08,z); g.add(b);
@@ -665,6 +831,10 @@
       case 'fairylights': {   // overhead fairy-light canopy: strands radiating from a centre ring to four posts
         const H=11, top=13.5, posts=[[-w/2,-d/2],[w/2,-d/2],[w/2,d/2],[-w/2,d/2]], L=[];
         posts.forEach(([x,z])=>{ const p=cyl(0.12,0.12,H,'#d9b45a',GOLD,8); p.position.set(x,H/2,z); g.add(p); });
+        if(String(VAR.style||'')==='festoon'){   // R135: festoon = parallel sagging strings of big round bulbs
+          const rows=Math.max(2,Math.round(d/5)); for(let r=0;r<=rows;r++){ const z=-d/2+r*d/rows;
+            curvePts([-w/2,H,z],[w/2,H,z],1.6,Math.max(6,Math.round(w/1.6))).forEach(p=>L.push(p)); }
+          bulbs(g, L, '#ffd27a', 0.3); return true; }
         const n=Math.max(12,Math.round((w+d)/2));
         for(let i=0;i<n;i++){ const t=i/n, per=t*4, k=Math.floor(per), f=per-k, a=posts[k%4], b=posts[(k+1)%4];
           const ex=a[0]+(b[0]-a[0])*f, ez=a[1]+(b[1]-a[1])*f;
@@ -922,6 +1092,7 @@
         else if(st==='balloon'){ const P=balloonPal(c), L=[]; for(let x=-w/2+0.4;x<w/2;x+=0.7) for(let y=0.4;y<H;y+=0.7) L.push({x:x+(rand()-0.5)*0.2,y:y+(rand()-0.5)*0.2,z:z+0.2,s:0.38+rand()*0.12,c:P[(rand()*P.length)|0]});
           const im=instanced(new THREE.SphereGeometry(1,12,8), new THREE.MeshStandardMaterial({color:0xffffff,roughness:.25}), L); if(im) g.add(im); }
         else { const f=drape(w,H*0.97,c,{depth:.15,pitch:1.0}); f.position.set(0,H*0.5,z); g.add(f); }
+        { const sc=scrContent(it); if(sc) screenFace(g, it, sc, w*0.96, H*0.9, 0, H*0.5, z+0.35); }   // R135: printed / screen content
         return true; }
       case 'floralstand': {      // generic floral stand: tall gold stand / urn / pedestal bowl / hoop, topped with blooms
         const st=VAR.style||'', R=Math.min(w,d)/2, P=pal(c,'blush'); let top=4.2;
@@ -966,6 +1137,7 @@
         for(const sx of [-1,1]){ const b=boxMesh(T,T,d,'#9aa0aa',steel); b.position.set(sx*(w/2-T/2),H,0); g.add(b); }
         for(let x=-w/2+w/4;x<w/2-1;x+=w/4){ const b=boxMesh(0.8,0.8,d,'#9aa0aa',steel); b.position.set(x,H,0); g.add(b); }
         const half=d/2+0.5, rise=3, L=Math.hypot(half,rise);   // gable roof skin: ridge along the width, 3 ft rise
+        if(String(VAR.style||'')!=='groundsupport')   // R135: 'groundsupport' = the same towers + grid with no roof skin
         for(const s of [-1,1]){ const p=boxMesh(w+1,0.15,L,'#1c1f26',{roughness:.9}); p.position.set(0,H+0.6+rise/2,s*half/2); p.rotation.x=s*Math.atan2(rise,half); g.add(p); }
         const sides=[]; for(let x=-w/2+2;x<w/2-1;x+=w/6) sides.push([x,H-0.8,d/2-1]); bulbs(g, sides, '#fff3c4', 0.35);
         return true; }
@@ -1216,7 +1388,9 @@
       const gl=new THREE.Group(); inner.rotation.y=Math.PI/2; gl.add(inner); return gl;
     }
     const g=new THREE.Group();
-    if(buildPremium(it, chairs, g)) return g;            // refined / new models (premium kit above)
+    if(buildPremium(it, chairs, g)) return g;
+    // R135: this item's look + whether it carries screen content (read here too, so the classic models stand alone)
+    const VR=(it.properties&&typeof it.properties==='object')?it.properties:{}, SCR=!!(VR.screenTheme||VR.title||VR.brand||VR.tagline||VR.subtitle||VR.dateLine||VR.screenMirror);            // refined / new models (premium kit above)
     const w=it.width, d=it.height, c=it.color;
     switch(it.type){
       case 'podium': {
@@ -1233,8 +1407,17 @@
           const lens=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,0.5,12),mat('#0d1220')); lens.rotation.x=Math.PI/2; lens.position.set(-w/3+i*(w/3),2.6,0.9); g.add(lens); }
         break; }
       case 'dj': {
-        const body=boxMesh(w,3,d,'#2a3346'); body.position.y=1.5; g.add(body);
-        for(const x of [-w*0.22,w*0.22]){ const deck=new THREE.Mesh(new THREE.CylinderGeometry(w*0.16,w*0.16,0.2,20),mat(c)); deck.position.set(x,3.1,0); g.add(deck); }
+        const dst=String(VR.style||'');   // R135 DJ console looks: '' facade booth / djtable / ledfacade / trussdj
+        if(dst==='djtable'){ const top=boxMesh(w,0.15,d*0.7,'#20242c'); top.position.y=3; g.add(top);
+          for(const lx of [-1,1]) for(const lz of [-1,1]){ const lg=boxMesh(0.15,3,0.15,'#9aa3b2',{metalness:.5}); lg.position.set(lx*(w/2-0.3),1.5,lz*(d*0.35-0.2)); g.add(lg); } }
+        else if(dst==='trussdj'){ const rs=boxMesh(w+2,1,d+2,'#2a3346'); rs.position.y=0.5; g.add(rs);
+          const body=boxMesh(w,3,d,'#2a3346'); body.position.y=2.5; g.add(body);
+          for(const lx of [-1,1]) for(const lz of [-1,1]){ const tw=boxMesh(0.8,10,0.8,'#8a95ad',{metalness:.5}); tw.position.set(lx*(w/2+0.6),5,lz*(d/2+0.6)); g.add(tw); }
+          for(const lz of [-1,1]){ const tb=boxMesh(w+2,0.8,0.8,'#8a95ad',{metalness:.5}); tb.position.set(0,10,lz*(d/2+0.6)); g.add(tb); } }
+        else { const body=boxMesh(w,3,d,'#2a3346'); body.position.y=1.5; g.add(body);
+          if(dst==='ledfacade'){ const fc=boxMesh(w*0.98,2.8,0.08,c,{emissive:col(c),emissiveIntensity:.7}); fc.position.set(0,1.5,d/2+0.05); g.add(fc); } }
+        const dy=dst==='trussdj'?1:0;
+        for(const x of [-w*0.22,w*0.22]){ const deck=new THREE.Mesh(new THREE.CylinderGeometry(w*0.16,w*0.16,0.2,20),mat(c)); deck.position.set(x,3.1+dy,0); g.add(deck); }
         break; }
       case 'barricade': {
         const seg=Math.max(1,Math.round(w/6));
@@ -1284,6 +1467,7 @@
         return null;   // no group; chairs handled by instancer
       }
       case 'canopy': {
+        if(VR.style && tentStyle(g, it, String(VR.style))) break;   // R135 tent / canopy styles
         const H=9;
         for(const [px,pz] of [[-w/2+1,-d/2+1],[w/2-1,-d/2+1],[-w/2+1,d/2-1],[w/2-1,d/2-1]]){
           const p=boxMesh(0.35,H,0.35,'#e6d6b8'); p.position.set(px,H/2,pz); g.add(p); }
@@ -1293,6 +1477,7 @@
         const platform=boxMesh(w*0.5,0.3,d*0.5,'#d8c39a'); platform.position.y=0.15; g.add(platform);
         break; }
       case 'tent': {
+        if(VR.style && tentStyle(g, it, String(VR.style))) break;   // R135 tent / canopy styles
         for(const [px,pz] of [[-w/2+1,-d/2+1],[w/2-1,-d/2+1],[-w/2+1,d/2-1],[w/2-1,d/2-1]]){
           const p=boxMesh(0.3,8,0.3,'#c9ccd6'); p.position.set(px,4,pz); g.add(p); }
         const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.72,6,4),mat(c,{roughness:.95,transparent:true,opacity:.9}));
@@ -1307,12 +1492,22 @@
         for(let i=0;i<cabins;i++){ const cab=boxMesh(w/cabins*0.9,7.5,d,c); cab.position.set(-w/2+(i+0.5)*(w/cabins),3.75,0); g.add(cab); }
         break; }
       case 'ledscreen': {
+        if(VR.style==='curvedled' && curvedScreen(g, it, Math.max(8,w*0.4), 1)) break;   // R135 curved LED
+        { const sc=SCR ? scrContent(it) : null, sh=Math.max(8,w*0.4); if(sc){ const fr=boxMesh(w,sh,0.4,'#1b2233'); fr.position.y=sh/2+1; g.add(fr);
+            screenFace(g, it, sc, w-1, sh-1, 0, sh/2+1, 0.31);
+            for(const sxx of [-1,1]){ const leg=boxMesh(0.6,1,0.6,'#6b7280'); leg.position.set(sxx*(w/2-0.5),0.5,0); g.add(leg); } break; } }
         const frame=boxMesh(w,Math.max(8,w*0.4),0.4,'#1b2233'); frame.position.y=Math.max(8,w*0.4)/2+1; g.add(frame);
         const scr=boxMesh(w-1,Math.max(8,w*0.4)-1,0.2,'#2f6fed',{emissive:col('#2f6fed'),emissiveIntensity:.45});
         scr.position.set(0,Math.max(8,w*0.4)/2+1,0.2); g.add(scr);
         for(const sxx of [-1,1]){ const leg=boxMesh(0.6,1,0.6,'#6b7280'); leg.position.set(sxx*(w/2-0.5),0.5,0); g.add(leg); } break; }
       case 'truss': {
         const H=Math.max(14,w*3);
+        if(String(VR.style||'')==='adjustable'){   // R135: crank-up tower - winch box at the base, slimmer telescopic mast
+          const wb=boxMesh(w*0.9,1.2,d*0.9,'#3a4048'); wb.position.y=0.6; g.add(wb);
+          const ms=boxMesh(Math.max(0.5,w*0.35),H,Math.max(0.5,d*0.35),'#8a95ad',{metalness:.5}); ms.position.y=H/2; g.add(ms);
+          const tp=boxMesh(w,0.3,d,'#8a95ad',{metalness:.5}); tp.position.y=H; g.add(tp);
+          for(const [ox,oz] of [[-1,-1],[1,-1],[-1,1],[1,1]]) rodAB(g,[ox*w*0.9,0,oz*d*0.9],[0,2.2,0],0.08,'#6b7280');
+          break; }
         for(const [px,pz] of [[-w/2+0.5,-d/2+0.5],[w/2-0.5,-d/2+0.5],[-w/2+0.5,d/2-0.5],[w/2-0.5,d/2-0.5]]){
           const leg=boxMesh(0.4,H,0.4,'#8a95ad'); leg.position.set(px,H/2,pz); g.add(leg); }
         for(let y=2;y<H;y+=3){ const b=boxMesh(w,0.25,0.25,'#8a95ad'); b.position.set(0,y,-d/2+0.5); g.add(b);
@@ -1334,6 +1529,16 @@
         const counter=boxMesh(w,3.4,d,c); counter.position.y=1.7; g.add(counter);
         const rail=boxMesh(w*0.9,0.15,0.15,'#8a95ad'); rail.position.set(0,4.6,-d/4); g.add(rail); break; }
       case 'sofa': case 'loveseat': case 'armchair': case 'bench': {
+        const ast=it.type==='armchair' ? String(VR.style||'') : '';
+        if(ast==='vip' || ast==='throne'){   // R135 VIP seating: tall wingback / gold maharaja chair
+          const thr=ast==='throne', fc=thr?'#9f1239':c, fr=thr?'#d4af37':'#5b4636', fo=thr?GOLD:{};
+          const st=boxMesh(w,1.5,d,fc); st.position.y=1.05; g.add(st);
+          const bb=boxMesh(w,thr?4.2:3.2,0.45,fc); bb.position.set(0,1.8+(thr?2.1:1.6),-d/2+0.25); g.add(bb);
+          const fb=boxMesh(w+0.3,thr?4.6:3.5,0.25,fr,fo); fb.position.set(0,1.8+(thr?2.3:1.75),-d/2+0.05); g.add(fb);
+          for(const sxx of [-1,1]){ const arm=boxMesh(0.45,1.2,d,fr,fo); arm.position.set(sxx*(w/2-0.2),2.1,0); g.add(arm);
+            if(!thr){ const wg=boxMesh(0.35,1.6,d*0.45,fc); wg.position.set(sxx*(w/2-0.2),3.6,-d*0.25); g.add(wg); } }
+          if(thr){ const crown=new THREE.Mesh(new THREE.TorusGeometry(w*0.45,0.12,8,24,Math.PI),mat(fr,GOLD)); crown.position.set(0,1.8+4.4,-d/2+0.05); g.add(crown); }
+          const lg=boxMesh(w*0.96,0.3,d*0.96,fr,fo); lg.position.y=0.15; g.add(lg); break; }
         const seatH = it.type==='bench'?1.4:1.5;
         const seat=boxMesh(w,seatH,d,c); seat.position.y=seatH/2+0.3; g.add(seat);
         const legs=boxMesh(w*0.96,0.3,d*0.96,'#5b4636'); legs.position.y=0.15; g.add(legs);
@@ -1353,6 +1558,12 @@
         const tier=new THREE.Mesh(new THREE.CylinderGeometry(rad*0.4,rad*0.5,0.4,16),mat('#c9ccd6')); tier.position.y=2; g.add(tier);
         const spout=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,2,10),mat('#c9ccd6')); spout.position.y=3; g.add(spout); break; }
       case 'uplight': {
+        if(String(VR.style||'')==='tree'){   // R135 tree uplight: the fixture at the foot of a tree, beam into the canopy
+          const tr=cyl(0.35,0.5,7,'#6b4a2b',{roughness:.9},10); tr.position.set(0,3.5,-1.2); g.add(tr);
+          const cn=new THREE.Mesh(new THREE.IcosahedronGeometry(3.2,1),mat('#3f7f45',{roughness:.95,flatShading:true})); cn.position.set(0,8.5,-1.2); g.add(cn);
+          const fx=cyl(0.4,0.5,0.4,'#20283a',{},12); fx.position.y=0.2; g.add(fx);
+          const bm=new THREE.Mesh(new THREE.ConeGeometry(2.4,7,16,1,true),new THREE.MeshBasicMaterial({color:col(c),transparent:true,opacity:.2,side:THREE.DoubleSide}));
+          bm.position.set(0,4,-0.6); bm.rotation.x=Math.PI+0.15; g.add(bm); break; }
         const base=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.6,0.5,12),mat('#20283a')); base.position.y=0.25; g.add(base);
         const beam=new THREE.Mesh(new THREE.ConeGeometry(1.6,6,16,1,true),new THREE.MeshBasicMaterial({color:col(c),transparent:true,opacity:.22,side:THREE.DoubleSide}));
         beam.position.y=3.2; g.add(beam); break; }
@@ -1404,6 +1615,10 @@
         const beam=new THREE.Mesh(new THREE.CylinderGeometry(0.05,1.4,7,16,1,true),new THREE.MeshBasicMaterial({color:col(c),transparent:true,opacity:0.14,side:2}));
         beam.position.set(0,4.9,1.2); beam.rotation.x=0.25; g.add(beam); break; }
       case 'videowall': {
+        if(VR.style==='curvedled' && curvedScreen(g, it, Math.max(8,d), 1)) break;   // R135 curved LED
+        { const sc=SCR ? scrContent(it) : null, sh=Math.max(8,d); if(sc){ const fr=boxMesh(w,sh,0.5,'#0a0c10'); fr.position.y=sh/2+1; g.add(fr);
+            screenFace(g, it, sc, w*0.96, sh*0.9, 0, sh/2+1, 0.27);
+            for(const sx2 of [-w/2+0.3,w/2-0.3]){ const leg=boxMesh(0.4,sh/2+1,0.6,'#3a4048'); leg.position.set(sx2,(sh/2+1)/2,-0.3); g.add(leg);} break; } }
         const frame=boxMesh(w,Math.max(8,d),0.5,'#0a0c10'); frame.position.y=Math.max(8,d)/2+1; g.add(frame);
         const screen=new THREE.Mesh(new THREE.BoxGeometry(w*0.96,Math.max(8,d)*0.9,0.1),new THREE.MeshStandardMaterial({color:col(c),emissive:col(c),emissiveIntensity:0.5,roughness:.3}));
         screen.position.set(0,Math.max(8,d)/2+1,0.3); g.add(screen);
@@ -1419,6 +1634,7 @@
         const plate=boxMesh(Math.min(w*0.35, 1.2+(kva>0?Math.min(kva,500)/250:0)),0.9,0.06,'#f2a900'); plate.position.set(w*0.15,3.6,d/2+0.06); g.add(plate);
         break; }
       case 'lighting': {    // overhead box-truss span on two towers with par cans hanging under it
+        if(VR.style && trussShape(g, it, String(VR.style))) break;   // R135 truss shapes
         const H=16; for(const sxx of [-1,1]){ const tw=boxMesh(1,H,1,'#8a95ad',{metalness:.5}); tw.position.set(sxx*(w/2-0.5),H/2,0); g.add(tw); }
         for(const zz of [-0.4,0.4]) for(const yy of [H-0.2,H+0.6]){ const ch=boxMesh(w,0.15,0.15,'#8a95ad',{metalness:.5}); ch.position.set(0,yy,zz); g.add(ch); }
         for(let x=-w/2+2;x<w/2-1;x+=Math.max(2.5,w/8)){ const par=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.45,0.9,12),mat('#15181f',{metalness:.4}));
@@ -1428,15 +1644,17 @@
       case 'led': {         // LED wall on a ground-stack frame (16:9 panel)
         const sh=Math.max(6,Math.round(w*9/16)), base=2;
         const frame=boxMesh(w,sh,0.5,'#0a0c10'); frame.position.y=base+sh/2; g.add(frame);
-        const scr=new THREE.Mesh(new THREE.BoxGeometry(w*0.96,sh*0.94,0.1),new THREE.MeshStandardMaterial({color:col('#2f6fed'),emissive:col('#2f6fed'),emissiveIntensity:.55,roughness:.3}));
-        scr.position.set(0,base+sh/2,0.3); g.add(scr);
+        { const sc=SCR ? scrContent(it) : null; if(sc) screenFace(g, it, sc, w*0.96, sh*0.94, 0, base+sh/2, 0.27);   // R135 screen content
+        else { const scr=new THREE.Mesh(new THREE.BoxGeometry(w*0.96,sh*0.94,0.1),new THREE.MeshStandardMaterial({color:col('#2f6fed'),emissive:col('#2f6fed'),emissiveIntensity:.55,roughness:.3}));
+        scr.position.set(0,base+sh/2,0.3); g.add(scr); } }
         for(const sxx of [-1,1]){ const leg=boxMesh(0.5,base+sh*0.6,0.5,'#3a4048'); leg.position.set(sxx*(w/2-0.6),(base+sh*0.6)/2,-0.5); g.add(leg);
           const foot=boxMesh(0.6,0.2,d+1,'#3a4048'); foot.position.set(sxx*(w/2-0.6),0.1,-0.3); g.add(foot); }
         break; }
       case 'brandwall': {   // printed step-and-repeat backdrop on feet
         const bh=8; const wall=boxMesh(w,bh,0.4,'#f4f1ea'); wall.position.y=bh/2+0.3; g.add(wall);
-        const band=boxMesh(w*0.8,1.4,0.1,c); band.position.set(0,bh*0.6,0.25); g.add(band);
-        for(let x=-w/2+2;x<w/2-1;x+=4){ const logo=boxMesh(1.4,0.8,0.08,c,{transparent:true,opacity:.6}); logo.position.set(x,bh*0.3,0.25); g.add(logo); }
+        { const sc=SCR ? scrContent(it) : null; if(sc) screenFace(g, it, sc, w*0.96, bh*0.92, 0, bh/2+0.3, 0.22);   // R135: printed brand / event text
+        else { const band=boxMesh(w*0.8,1.4,0.1,c); band.position.set(0,bh*0.6,0.25); g.add(band);
+        for(let x=-w/2+2;x<w/2-1;x+=4){ const logo=boxMesh(1.4,0.8,0.08,c,{transparent:true,opacity:.6}); logo.position.set(x,bh*0.3,0.25); g.add(logo); } } }
         for(const sxx of [-1,1]){ const foot=boxMesh(0.4,0.3,d,'#6b7280'); foot.position.set(sxx*(w/2-0.5),0.15,0); g.add(foot); }
         break; }
       case 'chocolatefountain': {   // 3 stacked tiers on a skirted table
@@ -1695,6 +1913,7 @@
           const n=liveLabels==='numbers' ? num.byId.get(it.id) : null;
           if(n){ const bp=badgeSprite(n); bp.position.copy(lp.position); bp.userData.itemId=it.id; bp.visible=!labelsHidden; root.add(bp); } } }
     }
+    pruneScreenTextures();   // R135: free the textures of screens that changed or left the floor
     renderLegendCard(liveLabels==='numbers' ? num.legend : null);
     buildChairs(chairs);
     if(!transform || !transform.dragging){ syncGizmoSnap(); updateGizmo(); }

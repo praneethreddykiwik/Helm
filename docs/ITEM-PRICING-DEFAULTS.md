@@ -168,3 +168,10 @@ Décor **variants** (style / flower / colour story, chosen in the builder inspec
 | `watchtower` | Watch Tower / CCTV | 8,000 | 6 × 6 ft — a scaffold watch tower with CCTV cameras |
 | `extinguisher` | Fire Point | 300 | 1.5 × 1 ft — a red fire extinguisher point |
 | `ambulance` | Ambulance Bay | 6,000 | 22 × 9 ft — an ambulance parked in a marked bay |
+| `lawnfloor` | Outdoor Lawn Flooring | 9,000 | 30 × 20 ft — artificial grass / lawn flooring laid over the ground (R135) |
+| `stagelight` | Stage Light (PAR / beam / spot / flood) | 1,500 | 1.5 × 1.5 ft — one lighting fixture; the look picks LED PAR, beam, spot or flood (R135) |
+| `pathlights` | Pathway / Rope Lights | 2,500 | 20 × 1 ft — a run of pathway stake lights or LED rope light (R135) |
+| `sidescreen` | LED Side Screen | 30,000 | 6 × 1.5 ft — a tall portrait LED panel beside the stage (R135) |
+| `stagedeck` | Stage Extension | 6,000 | 8 × 4 ft — an extra stage deck module at stage height (R135) |
+| `stagestairs` | Stage Stairs | 2,500 | 6 × 3.3 ft — a set of stage steps placed left / centre / right of a stage (R135) |
+| `installation` | Outdoor Decor Installation | 15,000 | 8 × 8 ft — a light sculpture, marquee letters or a light tunnel (R135) |

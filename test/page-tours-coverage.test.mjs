@@ -122,7 +122,7 @@ t('every step selector still exists in its page (' + pages.length + ' pages)', (
 t('every step is short plain English with a title and a description; 4-8 steps a page, 2-8 a section', () => {
   for (const page of pages) for (const [sec, steps] of stepsOf(page)) {
     const n = steps.length, where = page + (sec ? ' #' + sec : '');
-    if (page === 'builder.html') assert.ok(n >= 4 && n <= 24, where + ' (the builder toolbar tour) has ' + n + ' steps');
+    if (page === 'builder.html') assert.ok(n >= 4 && n <= 25, where + ' (the builder toolbar tour) has ' + n + ' steps');
     else if (sec) assert.ok(n >= 2 && n <= 8, where + ' has ' + n + ' steps (2-8)');
     else assert.ok(n >= 4 && n <= 8, where + ' has ' + n + ' steps (4-8)');
     for (const st of steps) {

@@ -210,6 +210,15 @@ const ASSETS = {
   watchtower: { label:'Watch Tower / CCTV', category:'security', w:6, h:6 },
   extinguisher:{ label:'Fire Point', category:'safety', w:1.5, h:1 },
   ambulance:  { label:'Ambulance Bay', category:'safety', w:22, h:9 },
+  /* ---- R135 visual-asset-catalogue pack (2026-11): only the pieces that are NOT already an item or a look
+     of one (docs/builder/R135-CATALOGUE-MAP.md maps all 61 catalogue assets). Real-world footprints in ft. ---- */
+  lawnfloor:  { label:'Outdoor Lawn Flooring', category:'structure', w:30, h:20 },
+  stagelight: { label:'Stage Light (PAR / beam / spot / flood)', category:'av', w:1.5, h:1.5 },
+  pathlights: { label:'Pathway / Rope Lights', category:'decor', w:20, h:1 },
+  sidescreen: { label:'LED Side Screen', category:'av', w:6, h:1.5 },
+  stagedeck:  { label:'Stage Extension', category:'structure', w:8, h:4 },
+  stagestairs:{ label:'Stage Stairs', category:'structure', w:6, h:3.3, props:{stairPos:'centre', stairSteps:3} },
+  installation:{ label:'Outdoor Decor Installation', category:'decor', w:8, h:8 },
 };
 
 /* ---- searchable product list (window.HelmCatalog) ----
@@ -283,6 +292,13 @@ const PRODUCT_META = {
   watchtower:['security','watch tower cctv camera security surveillance tower','political concert festival exhibition'],
   extinguisher:['safety','fire extinguisher fire point safety sand bucket','*'],
   ambulance:['safety','ambulance medical emergency bay standby','*'],
+  lawnfloor:['flooring','lawn grass artificial turf outdoor flooring floor mat garden green carpet','*'],
+  stagelight:['lighting','par led par can beam light spotlight spot light floodlight flood light fixture stage lighting wash','*'],
+  pathlights:['lighting','pathway lights path lights stake lights bollard walkway lighting led rope light strip edge outline','*'],
+  sidescreen:['av','led side screen side panel portrait screen stage wing screen display','*'],
+  stagedeck:['stage','stage extension thrust deck riser platform module extra stage','*'],
+  stagestairs:['stage','stage stairs steps staircase treads stage steps access','*'],
+  installation:['decor','outdoor decorative installation light sculpture marquee letters light tunnel art installation','*'],
   barricade:['security','barricade crowd control','political concert festival'],
   led:['av','led wall screen','*'], press:['political','press riser media cameras','political product_launch concert'],
   brandwall:['branding','branding wall step and repeat backdrop','corporate product_launch political exhibition award_night'],
@@ -334,6 +350,7 @@ const DEFAULT_PRICES = {          // per-unit overrides for big-ticket items (�
   diyastand:2500, trophytable:3000,
   havankund:3500, rangoli:2500, lanterns:1200, hangingfloral:18000, neonsign:4000,
   backdrop:6000, floralstand:1500, decorbox:2000, signage:1200, stageroof:60000, varmala:25000, micstand:500, teleprompter:6000, projector:8000, tvstand:4000, interpreter:15000, pyro:3000, towerlight:4000, gaddi:3000, urli:2500, umbrellas:5000, doli:12000, kalash:800, altar:8000, shoerack:1000, dessert:3500, coffee:3000, stall:6000, counter:2500, plinth:1000, kiosk:3000, ticketbooth:5000, stanchion:1200, watchtower:8000, extinguisher:300, ambulance:6000,
+  lawnfloor:9000, stagelight:1500, pathlights:2500, sidescreen:30000, stagedeck:6000, stagestairs:2500, installation:15000,
 };
 // object types whose seats are billed via the chair rate (so we don't
 // double-charge them as furniture units in the breakdown)
@@ -1227,6 +1244,44 @@ function renderMeasurements(){
   }
 }
 
+/* ---- R135 stage screen + steps helpers (2D). Text is only ever set via textContent (el() + .textContent). ---- */
+function screenContent(it){ return window.HelmScreen ? HelmScreen.contentOf(it, store.items) : null; }
+// the "Tap to add name & brand" hint: builder editing only - never read-only viewers, the capture host or exports
+function screenPlaceholderOn(){ return !RO && !document.querySelector('meta[name="helm-capture"]'); }
+function fitChars(txt, wPx, fs){ const n=Math.max(3, Math.floor(wPx/(fs*0.58))); return txt.length>n ? txt.slice(0,n-1)+'…' : txt; }
+function screenText2D(parent, txt, y, wPx, fs, fill, cls){
+  const t=el('text',{class:cls||'scr-txt', x:0, y, 'text-anchor':'middle', 'font-size':fs, fill, 'pointer-events':'none'});
+  t.textContent=fitChars(String(txt||''), wPx, fs); parent.appendChild(t); return t;
+}
+function screenPlaceholder2D(body, x, y, wPx, hPx){
+  if(!screenPlaceholderOn() || !window.HelmScreen) return;
+  const fs=clamp(hPx*0.62, 3.5, 8);
+  const t=screenText2D(body, HelmScreen.PLACEHOLDER, y+hPx/2+fs*0.35, wPx*0.9, fs, 'currentColor', 'scr-ph');
+  t.setAttribute('fill-opacity','.55'); t.setAttribute('font-style','italic');
+}
+function screenBand2D(body, it, sc, w, h, c){   // the stage's rear screen band, themed, with its line of text
+  const T=HelmScreen.themeOf(sc.theme), bh=Math.min(h*0.18,16);
+  body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:bh,fill:T.bg,stroke:T.accent,'stroke-width':.8}));
+  const line=HelmScreen.shortLine(sc);
+  if(line) screenText2D(body, line, -h/2+bh/2+bh*0.22, w*0.92, clamp(bh*0.6,3.5,10), T.ink);
+  else screenPlaceholder2D(body, -w/2, -h/2, w, bh);
+}
+function screenFace2D(body, it, sc, w, h, c){   // a standalone screen item: themed face + its line of text
+  const T=HelmScreen.themeOf(sc.theme);
+  body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:1,fill:T.bg,stroke:c,'stroke-width':1.2}));
+  const line=HelmScreen.shortLine(sc);
+  if(line){ const fs=clamp(h*0.3,3.5,9); screenText2D(body, line, -h*0.22+fs*0.35, w*0.92, fs, T.ink); }
+}
+const STAGE_STEPS=[['','Centre (default)'],['left','Left'],['right','Right'],['both','Both sides'],['none','None']];
+// x offsets (in the stage's own px frame) of the built-in step sets; '' / unknown = centre (the look before R135)
+function stageStepOffsets(mode, w, sw){
+  if(mode==='none') return [];
+  const L=-w/2+sw/2, R=w/2-sw/2;
+  if(mode==='left') return [L]; if(mode==='right') return [R]; if(mode==='both') return [L,R];
+  return [0];
+}
+function stairStepCount(it){ const n=Math.round(+((it.properties||{}).stairSteps)); return isFinite(n) ? clamp(n,2,6) : 3; }
+
 function renderItem(it){
   const w=it.width*PX_PER_FT, h=it.height*PX_PER_FT;
   const cx=(it.x+it.width/2)*PX_PER_FT, cy=(it.y+it.height/2)*PX_PER_FT;
@@ -1253,11 +1308,15 @@ function renderItem(it){
       if(it.type==='dancefloor'){ // parquet / LED checker
         const n=Math.max(2,Math.min(8,Math.round(Math.max(w,h)/(4*PX_PER_FT)))), tw=w/n, th=h/n;
         for(let i=0;i<n;i++) for(let j=0;j<n;j++) if((i+j)%2) body.appendChild(el('rect',{x:-w/2+i*tw,y:-h/2+j*th,width:tw,height:th,fill:c,'fill-opacity':.22}));
-      } else {    // stage: backdrop band (rear), skirting edge (front) + centre steps
-        body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:Math.min(h*0.12,10),fill:c,'fill-opacity':.55}));
+      } else {    // stage: backdrop band (rear), skirting edge (front) + built-in steps (R135: centre / left / right / both / none)
+        const sc=screenContent(it);
+        if(window.HelmScreen && HelmScreen.hasContent(sc)) screenBand2D(body, it, sc, w, h, c);   // R135: themed screen + its text
+        else { body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:Math.min(h*0.12,10),fill:c,'fill-opacity':.55}));
+          if(!(it.properties||{}).nobackdrop) screenPlaceholder2D(body, -w/2, -h/2, w, Math.min(h*0.12,10)); }
         body.appendChild(el('line',{x1:-w/2+3,y1:h/2-2.5,x2:w/2-3,y2:h/2-2.5,stroke:c,'stroke-width':1,'stroke-dasharray':'2 2'}));
         const sw=Math.min(8*PX_PER_FT,w*0.25);
-        for(let i=1;i<=3;i++) body.appendChild(el('line',{x1:-sw/2,y1:h/2+i*3.4,x2:sw/2,y2:h/2+i*3.4,stroke:c,'stroke-width':1,'stroke-opacity':.75}));
+        stageStepOffsets(it.properties&&it.properties.builtinSteps, w, sw).forEach(ox=>{
+          for(let i=1;i<=3;i++) body.appendChild(el('line',{x1:ox-sw/2,y1:h/2+i*3.4,x2:ox+sw/2,y2:h/2+i*3.4,stroke:c,'stroke-width':1,'stroke-opacity':.75})); });
       }
       break; }
     case 'press': case 'desk': case 'truck': case 'booth': case 'exit': {
@@ -1568,13 +1627,47 @@ function renderItem(it){
       body.appendChild(el('rect',{x:-w*0.38,y:-h*0.3,width:w*0.76,height:h*0.6,rx:2,fill:'#ffffff','fill-opacity':.85,stroke:c,'stroke-width':1}));
       body.appendChild(el('path',{d:`M ${-h*0.12} 0 h ${h*0.24} M 0 ${-h*0.12} v ${h*0.24}`,stroke:'#dc2626','stroke-width':2}));
       break; }
+    // R135 visual-asset-catalogue pack
+    case 'lawnfloor': { drawBox({fill:'color-mix(in srgb, #4d8b3a 30%, var(--canvas))', rx:1, dash:'6 3'});
+      for(let x=-w/2+6;x<w/2-3;x+=12) for(let y=-h/2+6;y<h/2-3;y+=12) body.appendChild(el('path',{d:`M ${x-2} ${y+2} l 2 -4 l 2 4`,stroke:'#3f7f45','stroke-width':.8,fill:'none','stroke-opacity':.7}));
+      break; }
+    case 'stagelight': { const R=Math.min(w,h)/2, st=(it.properties||{}).style||'';
+      body.appendChild(el('circle',{cx:0,cy:0,r:R,fill:fillSoft,stroke:c,'stroke-width':1.2}));
+      body.appendChild(el('circle',{cx:0,cy:0,r:R*(st==='beam'?0.25:st==='flood'?0.7:0.45),fill:c,'fill-opacity':.7}));
+      if(st==='flood') body.appendChild(el('rect',{x:-R*0.8,y:-R*0.5,width:R*1.6,height:R,fill:'none',stroke:c,'stroke-width':.8}));
+      break; }
+    case 'pathlights': { const st=(it.properties||{}).style||'';
+      if(st==='rope'){ body.appendChild(el('line',{x1:-w/2,y1:0,x2:w/2,y2:0,stroke:c,'stroke-width':Math.max(1.5,h*0.35),'stroke-linecap':'round','stroke-opacity':.85})); }
+      else { drawBox({fill:'transparent', dash:'2 3', sw:.6});
+        const n=Math.max(2,Math.round(it.width/4)); for(let i=0;i<n;i++) body.appendChild(el('circle',{cx:-w/2+(i+0.5)*w/n,cy:0,r:Math.max(1.6,Math.min(h*0.35,3)),fill:c,'fill-opacity':.85})); }
+      break; }
+    case 'sidescreen': { drawBox({fill:c,rx:1}); break; }
+    case 'stagedeck': { drawBox({fill:`color-mix(in srgb, ${c} 22%, var(--canvas))`, rx:2});
+      body.appendChild(el('line',{x1:-w/2+3,y1:h/2-2.5,x2:w/2-3,y2:h/2-2.5,stroke:c,'stroke-width':1,'stroke-dasharray':'2 2'})); break; }
+    case 'stagestairs': { drawBox({fill:`color-mix(in srgb, ${c} 18%, var(--canvas))`, rx:1});
+      const n=stairStepCount(it); for(let i=1;i<n;i++) body.appendChild(el('line',{x1:-w/2,y1:-h/2+i*h/n,x2:w/2,y2:-h/2+i*h/n,stroke:c,'stroke-width':1}));
+      body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:Math.min(h/n,3),fill:c,'fill-opacity':.45}));   // top tread (stage side)
+      break; }
+    case 'installation': { const R=Math.min(w,h)/2, st=(it.properties||{}).style||'';
+      if(st==='letters'){ drawBox({fill:fillSoft, rx:1}); const n=4; for(let i=0;i<n;i++) body.appendChild(el('rect',{x:-w/2+w*(i+0.15)/n,y:-h*0.2,width:w*0.7/n,height:h*0.4,rx:1,fill:c,'fill-opacity':.6})); }
+      else if(st==='lighttunnel'){ drawBox({fill:'transparent', dash:'3 3'}); for(let y=-h/2+4;y<h/2;y+=8) body.appendChild(el('line',{x1:-w/2,y1:y,x2:w/2,y2:y,stroke:c,'stroke-width':1.2,'stroke-opacity':.8})); }
+      else { body.appendChild(el('circle',{cx:0,cy:0,r:R,fill:fillSoft,stroke:c,'stroke-width':1.2,'stroke-dasharray':'3 2'}));
+        for(let k=0;k<8;k++){ const a=k/8*Math.PI*2; body.appendChild(el('circle',{cx:Math.cos(a)*R*0.6,cy:Math.sin(a)*R*0.6,r:Math.max(1.2,R*0.08),fill:c})); } }
+      break; }
     default: drawBox({});
+  }
+  // R135: standalone screens show their theme + text (or a builder-only placeholder) on the screen face
+  let scrText=false;
+  if(it.type!=='stage' && window.HelmScreen && HelmScreen.isScreenType(it.type)){
+    const sc=screenContent(it);
+    if(HelmScreen.hasContent(sc)){ screenFace2D(body, it, sc, w, h, c); scrText=HelmScreen.hasText(sc); }
+    else { screenPlaceholder2D(body, -w/2, -h/2, w, h*0.5); scrText=screenPlaceholderOn(); }
   }
   g.appendChild(body);
 
   // label (counter-rotated so it stays upright)
   const fs = clamp(Math.min(w,h)*0.16, 7, 11);
-  const t = el('text',{class:'lbl', x:0, y: (it.type==='table'||it.type==='cocktail')?3:fs*0.35,
+  const t = el('text',{class:'lbl', x:0, y: (it.type==='table'||it.type==='cocktail')?3:(scrText && !(it.rotation%360) ? h*0.25+fs*0.35 : fs*0.35),
     'text-anchor':'middle','font-size':fs, transform:`rotate(${-it.rotation})`});
   t.textContent = it.label;
   g.appendChild(t);
@@ -1818,6 +1911,7 @@ function renderInspector(){
 
   wireInspector(it);
   variantMount(it, box);      // 2026-10c décor variants: style / flower / palette (VARIANTS block at the end of this file)
+  stageScreenMount(it, box);  // R135: stage built-in steps, stage stairs position + the Screen section (R135 block at the end)
   specAdjustMount(it, box);   // 0086 item specs: "Adjust" section (ITEM-SPEC ADJUST block at the end of this file)
 }
 
@@ -2513,6 +2607,12 @@ function sanitizeItem(it){
   { const r=it.properties.rows, c=it.properties.cols;
     if(r>0 && c>0 && r*c>MAX_BLOCK_SEATS) it.properties.cols = Math.max(1, Math.floor(MAX_BLOCK_SEATS/r)); }
   if(it.properties.model!=null && typeof it.properties.model!=='string') delete it.properties.model;
+  // R135: screen text (length-capped plain text, whitelisted theme) + stage steps / stairs options
+  if(typeof window!=='undefined' && window.HelmScreen) window.HelmScreen.sanitize(it.properties);
+  { const P=it.properties;
+    if(P.builtinSteps!=null && !STAGE_STEPS.some(([v])=>v && v===P.builtinSteps)) delete P.builtinSteps;
+    if(P.stairPos!=null && ['left','centre','right'].indexOf(P.stairPos)<0) delete P.stairPos;
+    if(P.stairSteps!=null){ const n=Math.round(+P.stairSteps); if(isFinite(n)) P.stairSteps=clamp(n,2,6); else delete P.stairSteps; } }
   if(typeof it.type!=='string' || it.type in Object.prototype) it.type='unknown';
   if(!it.category || !Object.prototype.hasOwnProperty.call(CATS, it.category)) it.category='structure';
   if(typeof it.label!=='string') it.label = it.label==null ? '' : String(it.label);
@@ -3427,9 +3527,9 @@ function toolIcon(cat){
    colour. Generic basics come first so anything not specifically modelled can still be placed. */
 const TOOLBOX_SECTIONS = [
   ['Generic basics', ['arch','backdrop','floralstand','decorbox','signage','recttable','chiavari','planter']],
-  ['Stage & presentation', ['stage','stageroof','dais','viprisers','walkway','dancefloor','varmala','podium','lectern','micstand','teleprompter','press']],
-  ['Screens, sound & effects', ['led','ledscreen','videowall','projector','tvstand','speaker','linearray','subwoofer','monitor','patower','foh','dj','piano','interpreter','smoke','pyro','dancers']],
-  ['Lighting', ['uplight','lighting','lightingtree','movinghead','truss','chandelier','fairylights','lanterns','towerlight']],
+  ['Stage & presentation', ['stage','stagedeck','stagestairs','stageroof','dais','viprisers','walkway','dancefloor','varmala','podium','lectern','micstand','teleprompter','press']],
+  ['Screens, sound & effects', ['led','ledscreen','sidescreen','videowall','projector','tvstand','speaker','linearray','subwoofer','monitor','patower','foh','dj','piano','interpreter','smoke','pyro','dancers']],
+  ['Lighting', ['uplight','stagelight','pathlights','lighting','lightingtree','movinghead','truss','chandelier','fairylights','lanterns','towerlight']],
   ['Seating & tables', ['table','longtable','headtable','cocktail','chairrow','seatblock','bleacher','barstool','sofa','loveseat','couplesofa','armchair','ottoman','bench','coffeetable','lounge','gaddi']],
   ['Florals & mandap', ['mandap','floralarch','floralentrance','entrancegate','stagebackdrop','flowerwall','hangingfloral','floralpillar','aislefloral','centrepiece','floral','phoolchadar','toran','pillar','urli','fountain']],
   ['Wedding functions', ['haldi','mehendi','umbrellas','jhoola','doli','chariot','selfieframe','welcomeboard','photobooth','neonsign']],
@@ -3438,7 +3538,7 @@ const TOOLBOX_SECTIONS = [
   ['Food & beverage', ['buffet','livecounter','bar','coffee','chocolatefountain','truck','stall']],
   ['Branding, expo & registration', ['brandwall','hoarding','flagstand','booth','counter','plinth','desk','kiosk','easel','trophytable']],
   ['Crowd, security & safety', ['barricade','stagebarrier','fence','stanchion','checkpoint','watchtower','exit','firstaid','extinguisher','ambulance']],
-  ['Venue & logistics', ['tent','canopy','drape','redcarpet','parking','restroom','coatcheck','greenroom','generator','distro','cableramp','heater','aircooler','ticketbooth']],
+  ['Venue & logistics', ['tent','canopy','drape','redcarpet','parking','restroom','coatcheck','greenroom','generator','distro','cableramp','heater','aircooler','ticketbooth','lawnfloor','installation']],
 ];
 function toolboxSections(){
   const seen=new Set(), out=TOOLBOX_SECTIONS.map(([name,types])=>[name, types.filter(t=>ASSETS[t] && !seen.has(t) && seen.add(t))]);
@@ -3637,6 +3737,14 @@ function assetGlyph(type){
     case 'extinguisher': return wrap('<rect x="10" y="6" width="6" height="11" rx="2"/><path d="M13 6V3h3"/>');
     case 'ambulance': return wrap('<rect x="3" y="6" width="15" height="9" rx="1"/><path d="M18 9h3l2 3v3h-5z"/><path d="M10 8v5M7.5 10.5h5"/><circle cx="8" cy="16" r="1.5"/><circle cx="19" cy="16" r="1.5"/>');
     case 'trophytable': return wrap('<rect x="3" y="12" width="20" height="5" rx="1"/><path d="M9 4h6v3a3 3 0 0 1-6 0zM12 10v2M10 12h4"/>');
+    // R135 visual-asset-catalogue pack
+    case 'lawnfloor': return wrap('<rect x="3" y="4" width="20" height="12" rx="1"/><path d="M6 14l1-3 1 3M11 14l1-3 1 3M16 14l1-3 1 3M8 9l1-3 1 3M14 9l1-3 1 3"/>');
+    case 'stagelight': return wrap('<path d="M9 4h8l-2 7h-4z"/><path d="M13 11v3M9 17h8"/><path d="M7 2l-2-1M19 2l2-1"/>');
+    case 'pathlights': return wrap('<path d="M3 15h20"/><circle cx="6" cy="11" r="1.4"/><circle cx="13" cy="11" r="1.4"/><circle cx="20" cy="11" r="1.4"/><path d="M6 12.5V15M13 12.5V15M20 12.5V15"/>');
+    case 'sidescreen': return wrap('<rect x="9" y="2" width="8" height="15" rx="1"/><path d="M11 6h4M11 9h4"/><path d="M13 17v2"/>');
+    case 'stagedeck': return wrap('<rect x="3" y="7" width="20" height="7" rx="1"/><path d="M3 14l2 3M23 14l-2 3M13 7v7"/>');
+    case 'stagestairs': return wrap('<path d="M4 17h5v-4h5V9h5V5h3"/><path d="M4 17V13"/>');
+    case 'installation': return wrap('<path d="M13 2l2 4 4 .5-3 3 1 4-4-2-4 2 1-4-3-3 4-.5z"/><path d="M13 14v4M9 18h8"/>');
     default: return toolIcon();
   }
 }
@@ -4466,6 +4574,7 @@ function planBlob(o){ o=o||{}; return new Promise(resolve=>{
       cn.setAttribute('font-size',cs.fontSize); cn.setAttribute('font-weight',cs.fontWeight);
       cn.removeAttribute('stroke'); }
   }
+  clone.querySelectorAll('.scr-ph').forEach(n=>n.remove());   // R135: the screen placeholder is builder-only - never in a picture
   if(o.clean) clone.querySelectorAll(o.measure ? '.margins' : '.margins,.measure').forEach(n=>n.remove());
   const CF=o.clean && window.HelmCaptureFrame;              // R5: client plan = numbered badges + legend (same numbers as 3D)
   const LM=CF ? CF.labelMode(o.labels) : 'numbers';         // 0083: o.labels 'none' | 'numbers' (default) | 'names'
@@ -5231,13 +5340,36 @@ const VARIANT_STYLES = {
   signage: [['','Roll-up banner'],['standee','Foam-board standee'],['aframe','A-frame sign'],['direction','Directional post'],['digital','Digital standee screen'],['cutout','Life-size cut-out']],
   pyro: [['','Cold pyro (sparkular)'],['co2','CO2 jet'],['confetti','Confetti cannon']],
   stall: [['','Canopy stall'],['kiosk','Hard-top kiosk']],
+  // R135 visual-asset catalogue: same product, different shape / look (docs/builder/R135-CATALOGUE-MAP.md)
+  redcarpet: [['','Straight run'],['curved','Curved run']],
+  lighting: [['','Straight span (box truss)'],['triangle','Straight span (triangle truss)'],['squareframe','Square / box frame'],['circular','Circular ring'],['trussarch','Arch truss'],['flown','Hanging (flown) truss']],
+  truss: [['','Fixed tower'],['adjustable','Adjustable-height (crank-up) tower']],
+  stageroof: [['','Roof with canopy'],['groundsupport','Ground support (no roof)']],
+  fairylights: [['','Fairy-light canopy'],['festoon','Festoon (big bulb) strings']],
+  uplight: [['','Floor uplight'],['tree','Tree uplight (under a tree)']],
+  armchair: [['','Armchair'],['vip','VIP wingback chair'],['throne','Maharaja / throne chair']],
+  ledscreen: [['','Flat'],['curvedled','Curved LED']], videowall: [['','Flat'],['curvedled','Curved LED']],
+  dj: [['','DJ booth (facade)'],['djtable','Open DJ table'],['ledfacade','LED facade booth'],['trussdj','Truss DJ riser']],
+  buffet: [['','Indoor buffet line'],['outdoorbuffet','Outdoor buffet under canopy']],
+  tent: [['','Classic peaked'],['pagoda','Pagoda (pointed)'],['stretch','Stretch (Bedouin)'],['bell','Bell tent'],['shamiana','Shamiana (Indian)']],
+  canopy: [['','Pop-up canopy / gazebo'],['pagoda','Pagoda (pointed)'],['stretch','Stretch (Bedouin)'],['bell','Bell tent'],['shamiana','Shamiana (Indian)']],
+  drape: [['','Pipe & drape'],['shellscheme','Shell-scheme booth partition']],
+  stagelight: [['','LED PAR'],['beam','Beam light'],['spot','Spotlight'],['flood','Floodlight']],
+  pathlights: [['','Pathway stake lights'],['rope','LED rope light']],
+  installation: [['','Light tree sculpture'],['letters','Giant marquee letters'],['lighttunnel','Light tunnel']],
+};
+// R135: extra look fields beyond style / flower / palette (key, label, options) - visual only, never priced
+const VARIANT_EXTRA = {
+  redcarpet: [['carpet','Carpet colour',[['','Red (item colour)'],['white','White'],['ivory','Ivory'],['gold','Gold']]],
+              ['edge','Edges',[['','Stanchions & ropes'],['none','No barricades (single continuous carpet)']]]],
 };
 const VARIANT_FLORAL = new Set(['floral','floralarch','floralentrance','stagebackdrop','flowerwall','toran','floralpillar','aislefloral','centrepiece',
   'phoolchadar','entrancegate','mandap','pillar','haldi','selfieframe','hangingfloral','arch','floralstand','urli','kalash','doli','varmala','altar','jhoola']);
 const VARIANT_PALETTE = new Set([...VARIANT_FLORAL, 'balloonarch','balloonbunch','lanterns','neonsign','fairylights','backdrop','decorbox','umbrellas','dessert']);
 function variantFields(type){ const f=[]; if(VARIANT_STYLES[type]) f.push(['style','Style',VARIANT_STYLES[type]]);
   if(VARIANT_FLORAL.has(type)) f.push(['flower','Flowers',VARIANT_OPTS.flower]);
-  if(VARIANT_PALETTE.has(type)) f.push(['palette','Colour story',VARIANT_OPTS.palette]); return f; }
+  if(VARIANT_PALETTE.has(type)) f.push(['palette','Colour story',VARIANT_OPTS.palette]);
+  (VARIANT_EXTRA[type]||[]).forEach(x=>f.push(x)); return f; }
 if(typeof window!=='undefined') window.HelmVariants = Object.freeze({ fields: variantFields, STYLES: VARIANT_STYLES, OPTS: VARIANT_OPTS });
 function variantMount(it, box){
   const fields=variantFields(it.type); if(!fields.length || !box) return;
@@ -5255,3 +5387,87 @@ function variantMount(it, box){
   const ibtns=box.querySelector('.ibtns'); if(ibtns) box.insertBefore(sec, ibtns); else box.appendChild(sec);
 }
 /* ===================== DÉCOR VARIANTS: END ===================== */
+
+/* ===================== R135 STAGE STEPS + STAIRS + SCREEN: BEGIN =====================
+   Inspector sections built with the DOM API (CSP / Trusted Types safe - every text via textContent):
+   - stage: "Built-in steps" centre (default = the look before R135) / left / right / both / none
+   - stage stairs: "Place at stage" left / centre / right (snaps to the nearest stage's front edge) + steps 2-6
+   - every screen item (stage backdrop, LED screen, side screen, video wall, LED wall, branding wall, backdrop):
+     "Screen" = 6 theme swatches + event title / brand / tagline / subtitle / date line (60 chars each),
+     and "Same as main screen" on the non-stage screens. Live in 2D + 3D; saved in item.properties. */
+// put a stairs item on the front edge of a stage at its left / centre / right (stage frame, so a rotated stage works)
+function snapStairsToStage(st, stage){
+  if(!stage) return false;
+  const pos=(st.properties&&st.properties.stairPos)||'centre', sw=Math.min(st.width, stage.width);
+  const lx = pos==='left' ? -stage.width/2+sw/2 : pos==='right' ? stage.width/2-sw/2 : 0, ly=stage.height/2+st.height/2;
+  const t=(stage.rotation||0)*Math.PI/180, cs=Math.cos(t), sn=Math.sin(t);
+  const cx=stage.x+stage.width/2+lx*cs-ly*sn, cy=stage.y+stage.height/2+lx*sn+ly*cs;
+  st.x=cx-st.width/2; st.y=cy-st.height/2; st.rotation=stage.rotation||0; clampItem(st); return true;
+}
+function nearestStage(it){
+  let best=null, bd=Infinity; const cx=it.x+it.width/2, cy=it.y+it.height/2;
+  store.items.forEach(o=>{ if(o.type!=='stage') return; const d=Math.hypot(o.x+o.width/2-cx, o.y+o.height/2-cy); if(d<bd){ bd=d; best=o; } });
+  return best;
+}
+function stageScreenMount(it, box){
+  if(!box || !it) return;
+  const mk=(tag,cls,text)=>{ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; };
+  const ibtns=box.querySelector('.ibtns'), put=sec=>{ if(ibtns) box.insertBefore(sec, ibtns); else box.appendChild(sec); };
+  const P=()=>{ it.properties=it.properties||{}; return it.properties; };
+  const live=()=>{ renderSceneOnly(); if(window.__on3DStateChange) window.__on3DStateChange(); };
+  const select=(id,label,opts,cur,onChange)=>{ const f=mk('div','ifield'), l=mk('label',null,label), s=mk('select'); l.htmlFor=id; s.id=id;
+    opts.forEach(([v,t])=>{ const o=mk('option',null,t); o.value=v; if(v===cur) o.selected=true; s.appendChild(o); });
+    s.addEventListener('change',()=>{ if(RO) return; onChange(s.value); });
+    if(RO) s.disabled=true; f.appendChild(l); f.appendChild(s); return f; };
+  if(it.type==='stage'){
+    const sec=mk('div','isec stagesteps'); sec.appendChild(mk('div','seclabel','Built-in steps'));
+    const r=mk('div','irow'); sec.appendChild(r);
+    r.appendChild(select('st_steps','Steps at the front',STAGE_STEPS,String(P().builtinSteps||''),v=>{
+      if(v) P().builtinSteps=v; else delete P().builtinSteps; commit(); renderAll(); }));
+    sec.appendChild(mk('div','pitchnote','Need a separate, priced staircase? Add “Stage Stairs” from Stage & presentation and set this to None.'));
+    put(sec);
+  }
+  if(it.type==='stagestairs'){
+    const sec=mk('div','isec stairs'); sec.appendChild(mk('div','seclabel','Stage stairs'));
+    const r=mk('div','irow'); sec.appendChild(r);
+    r.appendChild(select('ss_pos','Place at stage',[['left','Left'],['centre','Centre'],['right','Right']],String(P().stairPos||'centre'),v=>{
+      P().stairPos=v; const ok=snapStairsToStage(it, nearestStage(it)); commit(); renderAll();
+      if(!ok) toast('No stage on the floor yet - the stairs keep their place'); }));
+    r.appendChild(select('ss_steps','Steps',[['2','2'],['3','3'],['4','4'],['5','5'],['6','6']],String(stairStepCount(it)),v=>{
+      P().stairSteps=clamp(parseInt(v,10)||3,2,6); it.height=clamp(P().stairSteps*1.1,0.5,WORLD.h); snapStairsToStage(it, nearestStage(it)); commit(); renderAll(); }));
+    sec.appendChild(mk('div','pitchnote','Snaps to the front edge of the nearest stage. Change the width above for wider steps.'));
+    put(sec);
+  }
+  if(!window.HelmScreen || !HelmScreen.isScreenType(it.type)) return;
+  const S=HelmScreen, sec=mk('div','isec screen'); sec.setAttribute('aria-label','Screen');
+  sec.appendChild(mk('div','seclabel', it.type==='stage' ? 'Screen (backdrop behind the stage)' : 'Screen'));
+  const mirrored=it.type!=='stage' && P().screenMirror===true;
+  if(it.type!=='stage'){
+    const lab=mk('label','scr-mirror'), cb=mk('input'); cb.type='checkbox'; cb.id='scr_mirror'; cb.checked=mirrored; if(RO) cb.disabled=true;
+    cb.addEventListener('change',()=>{ if(RO) return; if(cb.checked) P().screenMirror=true; else delete P().screenMirror; commit(); renderAll(); });
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(' Same as main screen (the stage)')); sec.appendChild(lab);
+  }
+  if(!mirrored){
+    const sw=mk('div','scr-themes'); sw.setAttribute('role','group'); sw.setAttribute('aria-label','Screen theme');
+    const cur=String(P().screenTheme||'');
+    S.THEME_ORDER.forEach(k=>{ const T=S.themeOf(k), b=mk('button','scr-theme'+(k===cur?' on':''));
+      b.type='button'; b.title=T.name; b.setAttribute('aria-label','Theme: '+T.name); b.setAttribute('aria-pressed',String(k===cur));
+      b.style.background='linear-gradient(135deg,'+T.bg+','+T.bg2+')'; b.style.color=T.ink; b.textContent='Aa';
+      if(RO) b.disabled=true;
+      b.addEventListener('click',()=>{ if(RO) return; if(k) P().screenTheme=k; else delete P().screenTheme; commit(); renderAll(); });
+      sw.appendChild(b); });
+    sec.appendChild(sw);
+    const tn=mk('div','pitchnote scr-themename','Theme: '+S.themeOf(cur).name); sec.appendChild(tn);
+    S.FIELDS.forEach(([key,label,eg])=>{ const r=mk('div','irow'), f=mk('div','ifield'), l=mk('label',null,label), inp=mk('input');
+      inp.type='text'; inp.id='scr_'+key; inp.maxLength=S.MAX; inp.placeholder='e.g. '+eg; inp.value=String(P()[key]||''); inp.autocomplete='off';
+      l.htmlFor=inp.id; if(RO) inp.disabled=true;
+      const apply=()=>{ const v=S.cleanText(inp.value); if(v) P()[key]=v; else delete P()[key]; };
+      inp.addEventListener('input',()=>{ if(RO) return; apply(); live(); });
+      inp.addEventListener('change',()=>{ if(RO) return; apply(); commit(); });
+      f.appendChild(l); f.appendChild(inp); r.appendChild(f); sec.appendChild(r); });
+    sec.appendChild(mk('div','pitchnote','Shows on the screen in 2D, 3D and the photo render. Leave it blank and the builder shows a hint only - client pictures never show placeholder text.'));
+  } else sec.appendChild(mk('div','pitchnote','Shows the main stage screen’s theme and text. Untick to give this screen its own.'));
+  put(sec);
+}
+if(typeof window!=='undefined') window.HelmStageTools = Object.freeze({ stepOffsets: stageStepOffsets, STAGE_STEPS, snapStairs: snapStairsToStage, stairSteps: stairStepCount });
+/* ===================== R135 STAGE STEPS + STAIRS + SCREEN: END ===================== */
