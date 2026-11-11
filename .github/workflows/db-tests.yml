@@ -73,8 +73,13 @@ jobs:
           node-version-file: .nvmrc   # R51: exact Node pin lives in .nvmrc (22.23.4)
       - name: Install PostgreSQL client (psql)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          # use the runner's own psql when present; otherwise install with retries (mirror hiccups)
+          if command -v psql >/dev/null && command -v createdb >/dev/null; then psql --version; exit 0; fi
+          for i in 1 2 3; do
+            sudo apt-get update && sudo apt-get install -y postgresql-client && break
+            echo "apt attempt $i failed - retrying in 15s"; sleep 15
+          done
+          psql --version
 
       - name: Refuse to run against production
         env:
