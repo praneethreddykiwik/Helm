@@ -945,8 +945,11 @@
       };
       di.addEventListener("change",()=>commitDate(false));
       di.addEventListener("blur",()=>commitDate(true));
-      ti.addEventListener("change",()=>BPUI.guard(ti,async()=>{ try{ const nt=ti.value||null; await BPStore.quotes.updateMeta(id,{eventTime:nt}); ev.eventTime=nt; renderDateRow(); BPUI.toast("Event time saved.",{type:"ok"}); }
-        catch(e){ ti.value=ev.eventTime||""; BPUI.toast(BPUI.friendlyError(e,{action:"save the event time"}),{type:"err"}); } }));
+      ti.addEventListener("change",()=>BPUI.guard(ti,async()=>{ try{ const nt=ti.value||null;
+          // r147 (R79 lock): same as the date save above - conditioned on the latest updated_at
+          let lock=ev.updatedAt; try{ const fresh=await BPStore.quotes.get(id); if(fresh&&fresh.updatedAt) lock=fresh.updatedAt; }catch(_){}
+          const row=await BPStore.quotes.updateMeta(id,{eventTime:nt}, lock); ev.eventTime=nt; if(row&&row.updated_at) ev.updatedAt=row.updated_at; renderDateRow(); BPUI.toast("Event time saved.",{type:"ok"}); }
+        catch(e){ ti.value=ev.eventTime||""; if(e&&e.code==="CONFLICT"){ await BPUI.alert(e.message,{title:"This quote was changed elsewhere"}); location.reload(); return; } BPUI.toast(BPUI.friendlyError(e,{action:"save the event time"}),{type:"err"}); } }));
     } else { el.innerHTML = (d||tm) ? ("📅 "+esc(evDateLabel(d))+(tm?(" · 🕒 "+esc(evTimeLabel(tm))):"")) : ""; }
   }
   // r20-coord: the read-only date row reads "Thu, 29 Oct · 7:00 pm" (studio style), never ISO "2026-10-29 · 19:00".

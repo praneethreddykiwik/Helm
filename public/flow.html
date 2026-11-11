@@ -1099,7 +1099,9 @@
         throw e;   // do NOT swallow; do NOT claim success
       }
       // legacy / pre-phase77 environment: persist current pricing only.
-      { const row=await BPStore.quotes.updateMeta(id,{ pricing }); if(row&&row.updated_at) ev.updatedAt=row.updated_at; } ev.pricing=pricing; taxSwitched=false; saved("quote"); updateProgress();
+      { let row; try{ row=await BPStore.quotes.updateMeta(id,{ pricing }, ev.updatedAt); }   // r147 (R79 lock): never overwrite a concurrent edit
+        catch(e2){ if(e2&&e2.code==="CONFLICT"){ draftSave(); await BPUI.alert(e2.message+" Your unsaved typing is kept and comes back after the reload.",{title:"This quote was changed elsewhere"}); leaving=true; location.reload(); return; } throw e2; }
+        if(row&&row.updated_at) ev.updatedAt=row.updated_at; } ev.pricing=pricing; taxSwitched=false; saved("quote"); updateProgress();
       if($("#q_msg")) $("#q_msg").textContent="Saved (legacy mode — versioning not enabled)";
     }
   }
