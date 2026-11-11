@@ -51,7 +51,7 @@ t('styles: own stylesheet, theme tokens, pinned on the sign-in page', () => {
   const css = read('public/trial-terms.css');
   assert.match(css, /var\(--accent-soft\)/); assert.match(css, /var\(--acc-text,var\(--accent\)\)/); assert.match(css, /\.tt\[hidden\]\{display:none\}/);
   assert.match(css, /@media\(max-width:420px\)/);
-  assert.match(LOGIN, /<link rel="stylesheet" href="\/trial-terms\.css\?v=\d+">/);
+  assert.match(LOGIN, /<link rel="stylesheet" href="\/trial-terms\.css\?v=\d+"( media="print" data-lazy-css)?>/);   // R146: non-blocking, switched on at DOMContentLoaded
   assert.match(LOGIN, /<script src="\/trial-signup\.js\?v=\d+"( defer)?><\/script>/);
 });
 t('no "demo data or own data" choice left anywhere', () => {
