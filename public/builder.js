@@ -1259,18 +1259,39 @@ function screenPlaceholder2D(body, x, y, wPx, hPx){
   const t=screenText2D(body, HelmScreen.PLACEHOLDER, y+hPx/2+fs*0.35, wPx*0.9, fs, 'currentColor', 'scr-ph');
   t.setAttribute('fill-opacity','.55'); t.setAttribute('font-style','italic');
 }
+// R137: a small logo picture (signed storage URL, only once it has loaded) - an SVG <image>, never markup
+function screenLogo2D(parent, sc, x, y, size){
+  if(!sc || !sc.logo || !HelmScreen.logoImage) return false;
+  HelmScreen.logoImage(sc.logo); const url=HelmScreen.logoUrl(sc.logo); if(!url) return false;
+  const im=el('image',{class:'scr-logo', x:x-size/2, y:y-size/2, width:size, height:size, preserveAspectRatio:'xMidYMid meet', 'pointer-events':'none'});
+  im.setAttribute('href', url); parent.appendChild(im); return true;
+}
 function screenBand2D(body, it, sc, w, h, c){   // the stage's rear screen band, themed, with its line of text
-  const T=HelmScreen.themeOf(sc.theme), bh=Math.min(h*0.18,16);
-  body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:bh,fill:T.bg,stroke:T.accent,'stroke-width':.8}));
-  const line=HelmScreen.shortLine(sc);
-  if(line) screenText2D(body, line, -h/2+bh/2+bh*0.22, w*0.92, clamp(bh*0.6,3.5,10), T.ink);
-  else screenPlaceholder2D(body, -w/2, -h/2, w, bh);
+  const T=HelmScreen.paletteOf ? HelmScreen.paletteOf(sc) : HelmScreen.themeOf(sc.theme), bh=Math.min(h*0.18,16);
+  const line=HelmScreen.shortLine(sc), lay=sc.layout||'';
+  if(!lay){   // R135 look (no screen layout chosen): one themed band across the stage back
+    body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:bh,fill:T.bg,stroke:T.accent,'stroke-width':.8}));
+    const lg=screenLogo2D(body, sc, -w*0.42, -h/2+bh/2, bh*0.8);
+    if(line) screenText2D(body, line, -h/2+bh/2+bh*0.22, w*(lg?0.74:0.92), clamp(bh*0.6,3.5,10), T.ink);
+    else if(!lg) screenPlaceholder2D(body, -w/2, -h/2, w, bh);
+    return;
+  }
+  // R137 screen layout: the backdrop band in the stage colour, the screens on it (single / triple / wide wall)
+  body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:bh,fill:c,'fill-opacity':.35}));
+  HelmScreen.stageSegments(lay, it.width).forEach(sg=>{
+    const sw=w*sg.w, sx=w*sg.x, sh=bh*(sg.side?0.86:0.8), sy=-h/2+(bh-sh)/2;
+    body.appendChild(el('rect',{class:'scr-seg', x:sx-sw/2, y:sy, width:sw, height:sh, rx:.6, fill:T.bg, stroke:T.accent,'stroke-width':.7}));
+    if(sg.side){ screenLogo2D(body, sc, sx, sy+sh/2, Math.min(sw,sh)*0.8); return; }
+    const lg=screenLogo2D(body, sc, sx-sw*0.4, sy+sh/2, sh*0.8);
+    if(line) screenText2D(body, line, sy+sh/2+sh*0.22, sw*(lg?0.66:0.92), clamp(sh*0.6,3.5,10), T.ink).setAttribute('x', String(sx+(lg?sw*0.08:0)));
+    else if(!lg) screenPlaceholder2D(body, sx-sw/2, sy, sw, sh);
+  });
 }
 function screenFace2D(body, it, sc, w, h, c){   // a standalone screen item: themed face + its line of text
-  const T=HelmScreen.themeOf(sc.theme);
+  const T=HelmScreen.paletteOf ? HelmScreen.paletteOf(sc) : HelmScreen.themeOf(sc.theme);
   body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:1,fill:T.bg,stroke:c,'stroke-width':1.2}));
-  const line=HelmScreen.shortLine(sc);
-  if(line){ const fs=clamp(h*0.3,3.5,9); screenText2D(body, line, -h*0.22+fs*0.35, w*0.92, fs, T.ink); }
+  const line=HelmScreen.shortLine(sc), lg=screenLogo2D(body, sc, -w*0.38, 0, Math.min(h*0.8, w*0.2));
+  if(line){ const fs=clamp(h*0.3,3.5,9); screenText2D(body, line, -h*0.22+fs*0.35, w*(lg?0.66:0.92), fs, T.ink); }
 }
 const STAGE_STEPS=[['','Centre (default)'],['left','Left'],['right','Right'],['both','Both sides'],['none','None']];
 // x offsets (in the stage's own px frame) of the built-in step sets; '' / unknown = centre (the look before R135)
@@ -1310,7 +1331,8 @@ function renderItem(it){
         for(let i=0;i<n;i++) for(let j=0;j<n;j++) if((i+j)%2) body.appendChild(el('rect',{x:-w/2+i*tw,y:-h/2+j*th,width:tw,height:th,fill:c,'fill-opacity':.22}));
       } else {    // stage: backdrop band (rear), skirting edge (front) + built-in steps (R135: centre / left / right / both / none)
         const sc=screenContent(it);
-        if(window.HelmScreen && HelmScreen.hasContent(sc)) screenBand2D(body, it, sc, w, h, c);   // R135: themed screen + its text
+        if(sc && sc.layout==='none') body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:Math.min(h*0.12,10),fill:c,'fill-opacity':.35}));   // R137: no screen
+        else if(window.HelmScreen && HelmScreen.hasContent(sc)) screenBand2D(body, it, sc, w, h, c);   // R135: themed screen + its text
         else { body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:Math.min(h*0.12,10),fill:c,'fill-opacity':.55}));
           if(!(it.properties||{}).nobackdrop) screenPlaceholder2D(body, -w/2, -h/2, w, Math.min(h*0.12,10)); }
         body.appendChild(el('line',{x1:-w/2+3,y1:h/2-2.5,x2:w/2-3,y2:h/2-2.5,stroke:c,'stroke-width':1,'stroke-dasharray':'2 2'}));
@@ -1472,8 +1494,14 @@ function renderItem(it){
       [-1,1].forEach(sxx=>[-1,1].forEach(syy=>body.appendChild(el('circle',{cx:sxx*(w/2-w*0.18),cy:syy*h/2,r:Math.min(h*0.22,8),fill:'none',stroke:c,'stroke-width':1.5})))); break; }
     case 'smoke': { body.appendChild(el('rect',{x:-w/2,y:-h/4,width:w*0.7,height:h/2,rx:2,fill:fillSoft,stroke:c,'stroke-width':1.2}));
       body.appendChild(el('path',{d:`M ${w*0.2} 0 q ${w*0.15} ${-h*0.3} ${w*0.3} 0`,fill:'none',stroke:c,'stroke-width':1.2,'stroke-opacity':.7})); break; }
-    case 'dancers': { drawBox({fill:'transparent',dash:'5 3',sw:1.2});
-      for(let i=0;i<5;i++){ const x=-w/2+w*(i+0.5)/5, y=(i%2?-1:1)*h*0.15; body.appendChild(el('circle',{cx:x,cy:y,r:Math.min(4,h*0.12),fill:c,'fill-opacity':.7})); } break; }
+    case 'dancers': { drawBox({fill:'transparent',dash:'5 3',sw:1.2});   // R137: small dancer figures (head, body, arms up / out, skirt)
+      const nD=Math.max(3,Math.min(5,Math.round(+((it.properties||{}).count)||5))), r0=Math.min(3.2,h*0.1,w/(nD*3.2));
+      for(let i=0;i<nD;i++){ const x=-w/2+w*(i+0.5)/nD, y=(i%2?-1:1)*h*0.1, up=i%2===0;
+        body.appendChild(el('circle',{cx:x,cy:y-r0*2.2,r:r0*0.62,fill:c}));
+        body.appendChild(el('path',{d:`M ${x} ${y-r0*1.5} L ${x} ${y+r0*0.4} M ${x-r0*1.5} ${y-r0*(up?2.6:1.2)} L ${x} ${y-r0*1.1} L ${x+r0*1.5} ${y-r0*(up?2.6:0.6)}`,
+          fill:'none',stroke:c,'stroke-width':Math.max(0.8,r0*0.35),'stroke-linecap':'round','stroke-linejoin':'round'}));
+        body.appendChild(el('path',{d:`M ${x-r0*0.45} ${y-r0*0.1} L ${x+r0*0.45} ${y-r0*0.1} L ${x+r0*1.2} ${y+r0*1.5} L ${x-r0*1.2} ${y+r0*1.5} Z`,fill:c,'fill-opacity':.75})); }
+      break; }
     case 'generator': { drawBox({fill:fillSoft, rx:1});
       body.appendChild(el('path',{d:`M ${w*0.08} ${-h*0.32} L ${-w*0.06} ${h*0.04} L ${w*0.04} ${h*0.04} L ${-w*0.08} ${h*0.32}`,fill:'none',stroke:c,'stroke-width':1.5})); break; }
     case 'walkway': { drawBox({fill:`color-mix(in srgb, ${c} 24%, var(--canvas))`, rx:1});
@@ -2612,7 +2640,8 @@ function sanitizeItem(it){
   { const P=it.properties;
     if(P.builtinSteps!=null && !STAGE_STEPS.some(([v])=>v && v===P.builtinSteps)) delete P.builtinSteps;
     if(P.stairPos!=null && ['left','centre','right'].indexOf(P.stairPos)<0) delete P.stairPos;
-    if(P.stairSteps!=null){ const n=Math.round(+P.stairSteps); if(isFinite(n)) P.stairSteps=clamp(n,2,6); else delete P.stairSteps; } }
+    if(P.stairSteps!=null){ const n=Math.round(+P.stairSteps); if(isFinite(n)) P.stairSteps=clamp(n,2,6); else delete P.stairSteps; }
+    if(P.danceStyle!=null && ['classical','western'].indexOf(P.danceStyle)<0) delete P.danceStyle; }   // R137
   if(typeof it.type!=='string' || it.type in Object.prototype) it.type='unknown';
   if(!it.category || !Object.prototype.hasOwnProperty.call(CATS, it.category)) it.category='structure';
   if(typeof it.label!=='string') it.label = it.label==null ? '' : String(it.label);
@@ -4575,6 +4604,7 @@ function planBlob(o){ o=o||{}; return new Promise(resolve=>{
       cn.removeAttribute('stroke'); }
   }
   clone.querySelectorAll('.scr-ph').forEach(n=>n.remove());   // R135: the screen placeholder is builder-only - never in a picture
+  clone.querySelectorAll('.scr-logo').forEach(n=>n.remove());   // R137: a logo is a signed storage link - never baked into an exported SVG/PNG
   if(o.clean) clone.querySelectorAll(o.measure ? '.margins' : '.margins,.measure').forEach(n=>n.remove());
   const CF=o.clean && window.HelmCaptureFrame;              // R5: client plan = numbered badges + legend (same numbers as 3D)
   const LM=CF ? CF.labelMode(o.labels) : 'numbers';         // 0083: o.labels 'none' | 'numbers' (default) | 'names'
@@ -5362,6 +5392,8 @@ const VARIANT_STYLES = {
 const VARIANT_EXTRA = {
   redcarpet: [['carpet','Carpet colour',[['','Red (item colour)'],['white','White'],['ivory','Ivory'],['gold','Gold']]],
               ['edge','Edges',[['','Stanchions & ropes'],['none','No barricades (single continuous carpet)']]]],
+  // R137: dancers in 3D wear this style of costume; the item colour is the lead costume colour
+  dancers: [['danceStyle','Dance style',[['','Bollywood (lehenga + kurta)'],['classical','Classical (Bharatanatyam / Kathak)'],['western','Western / contemporary']]]],
 };
 const VARIANT_FLORAL = new Set(['floral','floralarch','floralentrance','stagebackdrop','flowerwall','toran','floralpillar','aislefloral','centrepiece',
   'phoolchadar','entrancegate','mandap','pillar','haldi','selfieframe','hangingfloral','arch','floralstand','urli','kalash','doli','varmala','altar','jhoola']);
@@ -5458,6 +5490,7 @@ function stageScreenMount(it, box){
       sw.appendChild(b); });
     sec.appendChild(sw);
     const tn=mk('div','pitchnote scr-themename','Theme: '+S.themeOf(cur).name); sec.appendChild(tn);
+    screenExtrasMount(it, sec, mk, select);   // R137: screen layout (stage), background colour, logo picture
     S.FIELDS.forEach(([key,label,eg])=>{ const r=mk('div','irow'), f=mk('div','ifield'), l=mk('label',null,label), inp=mk('input');
       inp.type='text'; inp.id='scr_'+key; inp.maxLength=S.MAX; inp.placeholder='e.g. '+eg; inp.value=String(P()[key]||''); inp.autocomplete='off';
       l.htmlFor=inp.id; if(RO) inp.disabled=true;
@@ -5470,4 +5503,112 @@ function stageScreenMount(it, box){
   put(sec);
 }
 if(typeof window!=='undefined') window.HelmStageTools = Object.freeze({ stepOffsets: stageStepOffsets, STAGE_STEPS, snapStairs: snapStairsToStage, stairSteps: stairStepCount });
+/* ---- R137: screen layout, background colour and logo picture (inspector), all DOM API + textContent ----
+   The logo is uploaded with the Invite Studio photo pipeline (BPStore.sites.uploadPhoto: private 'invite-media' bucket,
+   key <studio>/<event>/<random>.<ext>, storage rules 0027/0048 = own studio + Quotes edit, per-event cap, re-encoded) and
+   only the storage PATH is kept in item.properties.screenLogo; it is shown through a short-lived signed link. */
+const SCREEN_LOGO_TRIAL_MSG='Logo pictures unlock on a paid plan. The screen keeps the brand letter for now.';
+function screenLogoGate(){
+  if(RO) return 'This layout is read-only.';
+  if(builderInTrial()) return SCREEN_LOGO_TRIAL_MSG;
+  if(!(window.BPStore && BPStore.mode && BPStore.mode()==='supabase' && BPStore.sites && BPStore.sites.uploadPhoto)) return 'Sign in to add a logo picture. The screen shows the brand letter for now.';
+  if(!currentQuoteId) return 'Open this layout from an event to add a logo picture.';
+  return '';
+}
+function supabaseOrigin(){ try{ return new URL(String((window.SUPABASE_CONFIG||{}).url||'')).origin; }catch(_){ return ''; } }
+// the studio logo from Settings, only when it is an https link on Helm's own storage host (the builder's CSP allows no other)
+function studioLogoOk(u){ try{ const o=supabaseOrigin(); return typeof u==='string' && /^https:\/\//i.test(u) && !!o && new URL(u).origin===o; }catch(_){ return false; } }
+async function studioLogoUrl(){ try{ if(!(window.BPStore && BPStore.org && BPStore.org.identity)) return ''; const id=await BPStore.org.identity(); const u=id&&id.logo; return studioLogoOk(u)?u:''; }catch(_){ return ''; } }
+function logoPathFromUrl(u){ const m=/\/storage\/v1\/object\/(?:public|sign|authenticated)\/invite-media\/([^?#]+)/.exec(String(u||'')); if(!m) return '';
+  let p=''; try{ p=decodeURIComponent(m[1]); }catch(_){ return ''; } return window.HelmScreen ? HelmScreen.cleanLogo(p) : ''; }
+// shrink to <= 512 px on a canvas (strips metadata) -> PNG blob (keeps transparency)
+async function shrinkLogo(file){
+  const S=HelmScreen; let src=null, w=0, h=0, url='';
+  if(typeof createImageBitmap==='function'){ src=await createImageBitmap(file); w=src.width; h=src.height; }
+  else { url=URL.createObjectURL(file); src=await new Promise((ok,no)=>{ const im=new Image(); im.onload=()=>ok(im); im.onerror=()=>no(new Error('That picture could not be opened.')); im.src=url; }); w=src.naturalWidth; h=src.naturalHeight; }
+  try{ const z=S.fitLogoSize(w,h,S.LOGO_MAX_PX), cv=document.createElement('canvas'); cv.width=z.w; cv.height=z.h;
+    const x=cv.getContext('2d'); x.drawImage(src,0,0,z.w,z.h);
+    const blob=await new Promise(ok=>cv.toBlob(ok,'image/png'));
+    if(!blob) throw new Error('That picture could not be prepared.');
+    if(blob.size>S.LOGO_MAX_BYTES) throw new Error('That picture is still over 2 MB after shrinking. Please use a simpler logo.');
+    return blob;
+  } finally { if(url) URL.revokeObjectURL(url); if(src && src.close) try{ src.close(); }catch(_){} }
+}
+function screenLogoError(e){
+  const m=String((e&&e.message)||''), sc=String((e&&(e.statusCode||e.status))||'');
+  if((e&&e.hint)==='trial_locked' || (e&&e.hint)==='trial_no_links') return SCREEN_LOGO_TRIAL_MSG;
+  if(/bucket/i.test(m)&&/not.?found|does not exist/i.test(m)) return 'Picture uploads are not set up yet - please contact your administrator.';
+  if(/storage is full|too many uploads/i.test(m)) return m.slice(0,200);
+  if(/row-level security|unauthori[sz]ed|permission denied|not authori[sz]ed/i.test(m)||sc==='403') return builderInTrial() ? SCREEN_LOGO_TRIAL_MSG : 'Your role needs edit access to this event to add a logo.';
+  return (window.BPUI && BPUI.friendlyError) ? BPUI.friendlyError(e,{action:'add the logo'}) : 'The logo could not be added.';
+}
+async function screenLogoAdd(it, file, say){
+  const gate=screenLogoGate(); if(gate){ say(gate); return false; }
+  const S=HelmScreen, head=new Uint8Array(await file.slice(0,16).arrayBuffer());
+  const v=S.validateLogo(file, head); if(!v.ok){ say(v.reason); return false; }
+  say('Preparing the logo…');
+  try{
+    const blob=await shrinkLogo(file);
+    say('Uploading the logo…');
+    const up=new File([blob],'logo.png',{type:'image/png'});
+    const path=logoPathFromUrl(await BPStore.sites.uploadPhoto(currentQuoteId, up));
+    if(!path){ say('The logo was uploaded but could not be linked. Please try again.'); return false; }
+    if(RO) return false;
+    it.properties=it.properties||{}; it.properties.screenLogo=path; commit(); renderAll(); return true;
+  }catch(e){ say(screenLogoError(e)); return false; }
+}
+function screenExtrasMount(it, sec, mk, select){
+  const S=window.HelmScreen; if(!S || !S.LAYOUTS) return;
+  const P=()=>{ it.properties=it.properties||{}; return it.properties; };
+  const btn=(text,cls)=>{ const b=mk('button',cls||'btn scr-btn',text); b.type='button'; if(RO) b.disabled=true; return b; };
+  if(it.type==='stage'){
+    const r=mk('div','irow scr-layout');
+    r.appendChild(select('scr_layout','Screen layout',S.LAYOUTS,String(P().screenLayout||''),v=>{
+      if(v) P().screenLayout=v; else delete P().screenLayout; commit(); renderAll(); }));
+    sec.appendChild(r);
+  }
+  // background colour over the theme (text colour is then picked for contrast)
+  const c0=S.rawContent(P()), pal=S.paletteOf(c0), cw=mk('div','scr-colour'); cw.setAttribute('role','group'); cw.setAttribute('aria-label','Screen background colour');
+  const cl=mk('label',null,'Screen colour'), ci=mk('input'); ci.type='color'; ci.id='scr_bg'; cl.htmlFor=ci.id; ci.value=pal.bg; if(RO) ci.disabled=true;
+  const setBg=(v,save)=>{ const h=S.cleanHex(v); if(!h || RO) return; P().screenBg=h; if(save){ commit(); renderAll(); } else { renderSceneOnly(); if(window.__on3DStateChange) window.__on3DStateChange(); } };
+  ci.addEventListener('input',()=>setBg(ci.value,false)); ci.addEventListener('change',()=>setBg(ci.value,true));
+  cw.appendChild(cl); cw.appendChild(ci);
+  S.BG_SWATCHES.forEach(hx=>{ const b=mk('button','scr-sw'+(c0.bg===hx?' on':'')); b.type='button'; b.style.background=hx; b.title=hx; b.setAttribute('aria-label','Screen colour '+hx);
+    if(RO) b.disabled=true; b.addEventListener('click',()=>setBg(hx,true)); cw.appendChild(b); });
+  const rs=btn('Reset to theme'); rs.disabled=RO || !c0.bg; rs.addEventListener('click',()=>{ if(RO) return; delete P().screenBg; commit(); renderAll(); }); cw.appendChild(rs);
+  sec.appendChild(cw);
+  if(c0.bg) sec.appendChild(mk('div','pitchnote scr-ink','Text colour: '+(pal.ink==='#ffffff'?'white':pal.ink==='#111111'?'near-black':'theme')+' (picked so it reads clearly on this colour).'));
+  // logo picture: replaces the brand letter on every screen (main + side panels); none = the letter, as before
+  const lw=mk('div','scr-logobox'); lw.setAttribute('role','group'); lw.setAttribute('aria-label','Logo picture');
+  lw.appendChild(mk('div','scr-sublabel','Logo picture'));
+  const msg=mk('div','pitchnote scr-logomsg'); msg.setAttribute('role','status'); msg.setAttribute('aria-live','polite');
+  const say=t=>{ msg.textContent=String(t||''); };
+  const cur=S.cleanLogo(P().screenLogo), fi=mk('input'); fi.type='file'; fi.accept='image/png,image/jpeg,image/webp'; fi.hidden=true; fi.id='scr_logo_file';
+  const add=btn(cur?'Change logo':'Add logo'), studio=btn('Use studio logo'), rm=btn('Remove logo');
+  studio.hidden=true; rm.hidden=!cur;
+  const busy=f=>Promise.resolve().then(f).catch(e=>say(screenLogoError(e)));
+  add.addEventListener('click',()=>{ if(RO) return; const g=screenLogoGate(); if(g){ say(g); return; } fi.click(); });
+  fi.addEventListener('change',()=>{ const f=fi.files&&fi.files[0]; fi.value=''; if(f) busy(()=>screenLogoAdd(it, f, say)); });
+  lw.addEventListener('dragover',e=>{ if(RO) return; e.preventDefault(); lw.classList.add('drag'); });
+  lw.addEventListener('dragleave',()=>lw.classList.remove('drag'));
+  lw.addEventListener('drop',e=>{ if(RO) return; e.preventDefault(); lw.classList.remove('drag'); const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) busy(()=>screenLogoAdd(it, f, say)); });
+  studio.addEventListener('click',()=>{ if(RO) return; P().screenLogo='studio'; S.forgetLogo('studio'); commit(); renderAll(); });
+  rm.addEventListener('click',()=>{ if(RO) return; delete P().screenLogo; commit(); renderAll(); });
+  const row=mk('div','scr-logobtns'); row.appendChild(add); row.appendChild(studio); row.appendChild(rm);
+  lw.appendChild(row); lw.appendChild(fi); lw.appendChild(msg);
+  if(cur){ const st=S.logoState(cur); say(cur==='studio' ? 'Showing the studio logo from Settings.' : st==='fail' ? 'The logo could not be shown - the brand letter is used instead.' : 'Logo added - it replaces the brand letter on every screen.'); }
+  else { const g0=RO ? '' : screenLogoGate(); say(g0 || 'PNG, JPG or WebP up to 2 MB (drop it here). It replaces the brand letter on every screen.'); }   // trial / signed out: say why up front
+  if(!RO && cur!=='studio') studioLogoUrl().then(u=>{ if(u) studio.hidden=false; }).catch(()=>{});
+  sec.appendChild(lw);
+}
+// R137: logo references -> short-lived signed links; a loaded / failed logo repaints 2D + 3D (failure = the monogram)
+if(typeof window!=='undefined' && window.HelmScreen && HelmScreen.setLogoResolver){
+  HelmScreen.setLogoResolver(async ref=>{
+    if(ref==='studio') return studioLogoUrl();
+    if(!(window.BPStore && BPStore.sites && BPStore.sites.mediaUrls)) return '';
+    const r=await BPStore.sites.mediaUrls(['/storage/v1/object/public/invite-media/'+ref], 3600);
+    const u=Array.isArray(r) ? r[0] : ''; return /^https:\/\//i.test(String(u||'')) ? u : '';
+  });
+  HelmScreen.onLogoChange(()=>{ try{ renderSceneOnly(); if(window.__on3DStateChange) window.__on3DStateChange(); }catch(_){} });
+}
 /* ===================== R135 STAGE STEPS + STAIRS + SCREEN: END ===================== */

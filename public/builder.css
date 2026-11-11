@@ -871,3 +871,15 @@ header #clientImgBtn.trial-off,html.helm-trial header #clientImgBtn{display:none
 .scr-theme{width:36px;height:26px;border-radius:6px;border:1px solid var(--ink-3);font-size:11px;font-weight:600;cursor:pointer;padding:0}
 .scr-theme.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--accent)}
 .scr-mirror{display:flex;align-items:center;gap:6px;font-size:12px;margin:6px 0}
+/* R137: screen colour + logo picture */
+.scr-colour{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0 2px}
+.scr-colour label{font-size:12px;font-weight:600;margin-right:2px}
+.scr-colour input[type=color]{width:36px;height:28px;padding:0;border:1px solid var(--ink-3);border-radius:6px;background:none;cursor:pointer}
+.scr-sw{width:22px;height:22px;border-radius:50%;border:1px solid var(--ink-3);cursor:pointer;padding:0}
+.scr-sw.on{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--accent)}
+.scr-btn{font-size:12px;padding:4px 10px;min-height:28px}
+.scr-logobox{margin:10px 0 4px;padding:8px;border:1px dashed var(--ink-3);border-radius:8px}
+.scr-logobox.drag{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 8%, transparent)}
+.scr-sublabel{font-size:12px;font-weight:600;margin-bottom:6px}
+.scr-logobtns{display:flex;flex-wrap:wrap;gap:6px}
+.scr-logobtns [hidden]{display:none}
