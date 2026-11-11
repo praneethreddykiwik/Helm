@@ -38,18 +38,19 @@ Loaded only by `public/three-boot.js` (dynamic `import()` from `public/builder-3
 | `three-0.186.1/addons/utils/SkeletonUtils.js` | `sha384-YDk7ED8kkTj8Sr8O8624JO3W2l6TmabXBy5IR8qNsqRjUWbSygeJTo2C0gAz0aA6` |
 | `three-0.186.1/three.module.min.js` | `sha384-eZH+Pcr30iKKjwjbpwrnDAgDtIdAPelzi9C6s/tx+5fiQS1SgwamixZGtfLHPjHN` |
 
-## Sentry (CDN, SRI-pinned, not vendored)
+## Sentry 8.55.2 (self-hosted since R138)
 
-`public/telemetry.js` loads `https://browser.sentry-cdn.com/8.55.2/bundle.min.js`
-only when a DSN is configured, and sets `sc.integrity` to
-`sha384-lNMClDekFF9oPvouGJqnUSKioEadbe8byR7uGUA0sPP+g9r2x3eiErEJmm/Em+wB`
-(audit run-3 supply-chain/telemetry/sentry-cdn-script-no-sri). That value is the
-checksum Sentry publishes in its release registry
-(`release-registry.services.sentry.io/sdks/sentry.javascript.browser/8.55.2`, file
-`bundle.min.js`, `sha384-base64`) and it matched a hash of the CDN bytes on
-2026-10-26 (r30 bump from 8.35.0). A tampered file is refused by the browser. To change version, update
-`SENTRY_SRC`, `SENTRY_SRI` and the CSP `script-src` directory in
-`scripts/csp-hashes.cjs` together.
+File: `sentry-8.55.2.bundle.min.js`, loaded by `public/telemetry.js` (`SENTRY_SRC`) only
+when a DSN is configured, with `sc.integrity` =
+`sha384-2pQ5FCOlRmRkz8BBZIW/Yf2pGbnZHHaCCriaUbTwegcr+6Jh0tJKqvi31rfm39XF`.
+
+How it was made (2026-11-11): downloaded `https://browser.sentry-cdn.com/8.55.2/bundle.min.js`;
+its sha384 matched Sentry's published release-registry checksum
+`sha384-lNMClDekFF9oPvouGJqnUSKioEadbe8byR7uGUA0sPP+g9r2x3eiErEJmm/Em+wB`. The ONLY change is
+removing the last line `//# sourceMappingURL=bundle.min.js.map` (we do not ship the map, and
+DevTools otherwise tries to fetch it). Re-make: download, check the published hash, drop the
+last line, recompute sha384 and update `SENTRY_SRI`. The CSP no longer names any Sentry script
+host (`script-src 'self'`); `connect-src` still allows only the DSN's ingest host.
 
 ## Updating supabase-js
 

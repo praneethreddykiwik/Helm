@@ -108,7 +108,7 @@ t('CSP-01: three.js is self-hosted - the builder loads no CDN script at all', ()
     'https://cdnjs.cloudflare.com/ajax/libs/three.js/r127/three.min.js']) assert.ok(!scriptAllowed(builder, g), g);
   // Sentry bundle (dormant) allowed by the pinned directory only
   const sentry = /(?:sc\.src|var SENTRY_SRC) = '([^']+)'/.exec(read('public/telemetry.js'))[1];
-  assert.ok(scriptAllowed(dash, sentry), 'pinned Sentry bundle must stay loadable when a DSN is set');
+  assert.ok(sentry.startsWith('/vendor/') && existsSync(new URL('../public' + sentry, import.meta.url)) && /script-src 'self'/.test(dash), 'pinned Sentry bundle stays loadable when a DSN is set (R138: same-origin /vendor/, covered by self)');
   assert.ok(!scriptAllowed(dash, 'https://browser.sentry-cdn.com/7.0.0/bundle.min.js'));
   assert.deepEqual(SCRIPT_SRC_BUILDER.slice(0, SCRIPT_SRC_BASE.length), SCRIPT_SRC_BASE);
 });

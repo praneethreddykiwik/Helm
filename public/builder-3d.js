@@ -229,12 +229,13 @@
     if(!HS || typeof document==='undefined' || typeof THREE==='undefined' || typeof THREE.CanvasTexture!=='function') return null;
     const asp=Math.max(0.1, wFt/Math.max(0.1,hFt));
     const W=side ? Math.max(192, Math.min(1024, Math.round(1024*asp))) : 1024, H=side ? 1024 : Math.max(256, Math.min(1024, Math.round(1024/asp)));
+    const logo=c.logo && HS.logoImage ? HS.logoImage(c.logo) : null;   // R137: null until loaded (then the monogram) - its arrival rebuilds
     const key=HS.keyOf(c, side, W, H), hit=SCREEN_TEX.get(cacheId); screenSeen.add(cacheId);
     if(hit && hit.key===key) return hit.tex;
     if(hit && hit.tex) hit.tex.dispose();
     let t=null;
     try{ const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const x=cv.getContext('2d');
-      if(x){ HS.draw(x, W, H, c, { side }); t=new THREE.CanvasTexture(cv); t.anisotropy=4; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; } }catch(_){ t=null; }
+      if(x){ HS.draw(x, W, H, c, { side, logo }); t=new THREE.CanvasTexture(cv); t.anisotropy=4; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; } }catch(_){ t=null; }
     if(t) SCREEN_TEX.set(cacheId, { key, tex:t }); else SCREEN_TEX.delete(cacheId);
     return t;
   }
@@ -436,12 +437,15 @@
         const frame=boxMesh(w,bh,0.5,'#1b2233'); frame.position.set(0,H+bh/2,-d/2+0.25); g.add(frame);
         const fab=drape(w*0.96,bh*0.94,'#f4efe6',{depth:.2,pitch:1.4}); fab.position.set(0,H+bh/2,-d/2+0.7); g.add(fab);
         const sc=scrContent(it);
-        if(sc){   // R135: the themed screen (texture) + two portrait side panels repeating brand + tagline
+        const HSx=typeof window!=='undefined' && window.HelmScreen, lay=String((it.properties||{}).screenLayout||'');
+        if(lay==='none'){ /* R137: screen layout None - plain fabric backdrop, no screen */ }
+        else if(sc && HSx && HSx.stageSegments){   // R135/R137: themed screens per layout ('' = centre + two portrait side panels, as R135)
+          HSx.stageSegments(HSx.layoutOf(sc), w).forEach(sg=>{ const sw2=w*sg.w, sh2=bh*sg.h, px=w*sg.x, py=H+bh*sg.y;
+            const fb=boxMesh(sw2+(sg.side?0.25:0.3),sh2+(sg.side?0.25:0.3),0.15,'#11151f'); fb.position.set(px,py,-d/2+1.0); g.add(fb);
+            screenFace(g, it, sc, sw2, sh2, px, py, -d/2+1.09, sg.side ? { side:true, slot:':side' } : null); });
+        } else if(sc){   // (no screen model loaded) the R135 look
           const sb=boxMesh(w*0.42+0.3,bh*0.45+0.3,0.15,'#11151f'); sb.position.set(0,H+bh*0.6,-d/2+1.0); g.add(sb);
           screenFace(g, it, sc, w*0.42, bh*0.45, 0, H+bh*0.6, -d/2+1.09);
-          for(const s2 of [-1,1]){ const pw=Math.max(1.5,w*0.1), ph=bh*0.62, px=s2*w*0.34;
-            const pb=boxMesh(pw+0.25,ph+0.25,0.15,'#11151f'); pb.position.set(px,H+bh*0.52,-d/2+1.0); g.add(pb);
-            screenFace(g, it, sc, pw, ph, px, H+bh*0.52, -d/2+1.09, { side:true, slot:':side' }); }
         } else {
         const scr=boxMesh(w*0.42,bh*0.45,0.15,'#2f6fed',{emissive:col('#2f6fed'),emissiveIntensity:.45}); scr.position.set(0,H+bh*0.6,-d/2+1.0); g.add(scr);
         }
@@ -1677,7 +1681,9 @@
         const plume=new THREE.Mesh(new THREE.SphereGeometry(Math.max(w,d)*0.5,12,8),new THREE.MeshBasicMaterial({color:col('#dfe3ea'),transparent:true,opacity:.25}));
         plume.position.set(w*0.4,1.6,0); plume.scale.set(1.6,0.8,1); g.add(plume);
         break; }
-      case 'dancers': {     // performer group marker: low-poly figures on a marked zone
+      case 'dancers': {     // R137: stylised dancers in costume (dancers-3d.js); the old cylinder figures stay as the fallback
+        const HD=typeof window!=='undefined' && window.HelmDancers;
+        if(HD && typeof HD.build==='function'){ try{ if(HD.build(THREE, g, it)) break; }catch(_){} }
         const zone=boxMesh(w,0.06,d,c,{transparent:true,opacity:.35}); zone.position.y=0.03; g.add(zone);
         const nP=Math.max(3,Math.min(8,Math.round(w*d/16)));
         for(let i=0;i<nP;i++){ const x=-w/2+w*(i+0.5)/nP, z=(i%2?-1:1)*d*0.18;

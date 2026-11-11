@@ -55,7 +55,7 @@ t("1 config.js: the public DSN on every host; env tag by host; tracing 0", () =>
 t("2a telemetry: armed on production + staging, never on localhost", () => {
   for (const h of ["www.helm.events", "helm-v01.vercel.app"]) {
     const { captured, opts } = loadTel(cfgFor(h), { hostname: h });
-    assert.ok(captured.script && /browser\.sentry-cdn\.com\/[\d.]+\/bundle\.min\.js$/.test(captured.script.src), h + " loads the plain errors-only bundle");
+    assert.ok(captured.script && /\/vendor\/sentry-[\d.]+\.bundle\.min\.js$/.test(captured.script.src), h + " loads the plain errors-only bundle");
     assert.equal(opts().dsn, DSN); assert.equal(opts().environment, cfgFor(h).env);
   }
   assert.equal(loadTel(cfgFor("localhost"), { hostname: "localhost" }).captured.script, undefined, "localhost never sends");
