@@ -3,95 +3,17 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
   "version": 1,
-  "serialNumber": "urn:uuid:88c4044f-723f-4660-8b47-27ff09353ccf",
+  "serialNumber": "urn:uuid:7c3524be-c583-4bdd-a27f-8262e20dd0d3",
   "metadata": {
-    "timestamp": "2026-10-02T20:44:52.485Z",
+    "timestamp": "2026-11-11T21:02:20.500Z",
     "tools": {
       "components": [
         {
           "type": "application",
-          "name": "npm",
-          "version": "10.9.8"
-        },
-        {
-          "type": "application",
-          "name": "cyclonedx-npm",
-          "group": "@cyclonedx",
-          "version": "6.0.1",
-          "author": "Jan Kowalleck",
-          "description": "Create CycloneDX Software Bill of Materials (SBOM) from NPM projects.",
-          "licenses": [
-            {
-              "license": {
-                "id": "Apache-2.0"
-              }
-            }
-          ],
-          "externalReferences": [
-            {
-              "url": "git+https://github.com/CycloneDX/cyclonedx-node-npm.git",
-              "type": "vcs",
-              "comment": "as detected from PackageJson property \"repository.url\""
-            },
-            {
-              "url": "https://github.com/CycloneDX/cyclonedx-node-npm#readme",
-              "type": "website",
-              "comment": "as detected from PackageJson property \"homepage\""
-            },
-            {
-              "url": "https://github.com/CycloneDX/cyclonedx-node-npm/issues",
-              "type": "issue-tracker",
-              "comment": "as detected from PackageJson property \"bugs.url\""
-            }
-          ],
-          "properties": [
-            {
-              "name": "cdx:npm:package:constraint:engine:node",
-              "value": ">=20.18.0"
-            },
-            {
-              "name": "cdx:npm:package:constraint:engine:npm",
-              "value": ">=9"
-            }
-          ]
-        },
-        {
-          "type": "library",
-          "name": "cyclonedx-library",
-          "group": "@cyclonedx",
-          "version": "10.3.0",
-          "author": "Jan Kowalleck",
-          "description": "Core functionality of CycloneDX for JavaScript (Node.js or WebBrowser).",
-          "licenses": [
-            {
-              "license": {
-                "id": "Apache-2.0"
-              }
-            }
-          ],
-          "externalReferences": [
-            {
-              "url": "git+https://github.com/CycloneDX/cyclonedx-javascript-library.git",
-              "type": "vcs",
-              "comment": "as detected from PackageJson property \"repository.url\""
-            },
-            {
-              "url": "https://github.com/CycloneDX/cyclonedx-javascript-library#readme",
-              "type": "website",
-              "comment": "as detected from PackageJson property \"homepage\""
-            },
-            {
-              "url": "https://github.com/CycloneDX/cyclonedx-javascript-library/issues",
-              "type": "issue-tracker",
-              "comment": "as detected from PackageJson property \"bugs.url\""
-            }
-          ],
-          "properties": [
-            {
-              "name": "cdx:npm:package:constraint:engine:node",
-              "value": ">=20.18.0"
-            }
-          ]
+          "name": "gen-sbom",
+          "group": "helm",
+          "version": "1",
+          "description": "scripts/gen-sbom.mjs (R147)"
         }
       ]
     },
@@ -99,25 +21,13 @@
       "type": "application",
       "name": "helm",
       "version": "1.0.0",
-      "bom-ref": "helm@1.0.0",
+      "bom-ref": "helm",
       "description": "Helm — event management platform (static front-end on Vercel + Supabase). server.js is the local dev server.",
       "licenses": [
         {
           "license": {
-            "id": "MIT",
-            "acknowledgement": "declared"
+            "name": "UNLICENSED"
           }
-        }
-      ],
-      "purl": "pkg:npm/helm@1.0.0",
-      "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=18"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": ""
         }
       ]
     }
@@ -125,731 +35,822 @@
   "components": [
     {
       "type": "library",
-      "name": "playwright",
-      "group": "@axe-core",
-      "version": "4.13.0",
-      "bom-ref": "helm@1.0.0|@axe-core/playwright@4.13.0",
-      "description": "Provides a method to inject and analyze web pages using axe",
+      "group": "@jridgewell",
+      "name": "gen-mapping",
+      "version": "0.3.13",
+      "scope": "excluded",
+      "bom-ref": "build-tool:@jridgewell/gen-mapping@0.3.13",
+      "purl": "pkg:npm/%40jridgewell/gen-mapping@0.3.13",
       "licenses": [
         {
           "license": {
-            "id": "MPL-2.0",
-            "acknowledgement": "declared"
+            "id": "MIT"
           }
         }
       ],
-      "purl": "pkg:npm/%40axe-core/playwright@4.13.0",
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "da492dffb9e227a32010fc45d1b61d43a7ad65a03e7d0bc370b29c921cb5c8840ecdaa0a8c10634a3eb7fda2d58d8137aa146de5dbccfae5327c283a50a0816c"
+        }
+      ],
       "externalReferences": [
         {
-          "url": "git+https://github.com/dequelabs/axe-core-npm.git",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\""
-        },
-        {
-          "url": "https://github.com/dequelabs/axe-core-npm#readme",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/dequelabs/axe-core-npm/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/@axe-core/playwright/-/playwright-4.13.0.tgz",
           "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "e982f1fa4c57bb918971e1b8a33160fb7ddad84313763630586968277b1bf4ab5ae69a7e64d4b9deec4656883925eb4863cb3ef8fe54aed5fe72b8bebb454056"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+          "url": "https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz"
         }
       ],
       "properties": [
         {
-          "name": "cdx:npm:package:development",
-          "value": "true"
+          "name": "helm:group",
+          "value": "build-tool"
         },
         {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@axe-core/playwright"
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
         }
       ]
     },
     {
       "type": "library",
-      "name": "test",
-      "group": "@playwright",
-      "version": "1.63.0",
-      "bom-ref": "helm@1.0.0|@playwright/test@1.63.0",
-      "author": "Microsoft Corporation",
-      "description": "A high-level API to automate web browsers",
+      "group": "@jridgewell",
+      "name": "resolve-uri",
+      "version": "3.1.2",
+      "scope": "excluded",
+      "bom-ref": "build-tool:@jridgewell/resolve-uri@3.1.2",
+      "purl": "pkg:npm/%40jridgewell/resolve-uri@3.1.2",
       "licenses": [
         {
           "license": {
-            "id": "Apache-2.0",
-            "acknowledgement": "declared"
+            "id": "MIT"
           }
         }
       ],
-      "purl": "pkg:npm/%40playwright/test@1.63.0",
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "6d12128022233f6d3fb5b5923d63048b9e1054f45913192e0fd9492fe508c542adc15240f305b54eb6f58ccb354455e8d42053359ff98690bd42f98a59da292b"
+        }
+      ],
       "externalReferences": [
         {
-          "url": "git+https://github.com/microsoft/playwright.git",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\""
-        },
-        {
-          "url": "https://playwright.dev",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/microsoft/playwright/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/@playwright/test/-/test-1.63.0.tgz",
           "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "a3130ae2f96507d44ae4d436975a6ad487ce7f602f9c4ba3fef6060e3d07da732d9ad6692ad0b0b7f974d0610eeb18c67e904d02f8e8bef61d0a6e74751424a5"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+          "url": "https://registry.npmjs.org/@jridgewell/resolve-uri/-/resolve-uri-3.1.2.tgz"
         }
       ],
       "properties": [
         {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=20"
+          "name": "helm:group",
+          "value": "build-tool"
         },
         {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@playwright/test"
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
         }
       ]
     },
     {
       "type": "library",
+      "group": "@jridgewell",
+      "name": "source-map",
+      "version": "0.3.11",
+      "scope": "excluded",
+      "bom-ref": "build-tool:@jridgewell/source-map@0.3.11",
+      "purl": "pkg:npm/%40jridgewell/source-map@0.3.11",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "64ca7557c64570f1b97485a740baf7352235322094ed4113752fc0d06f15fd7587bc9bf766c16abad267d58e513e600f5fa177062137f7b3aabde53ff4d0ae20"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@jridgewell/source-map/-/source-map-0.3.11.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "build-tool"
+        },
+        {
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@jridgewell",
+      "name": "sourcemap-codec",
+      "version": "1.6.0",
+      "scope": "excluded",
+      "bom-ref": "build-tool:@jridgewell/sourcemap-codec@1.6.0",
+      "purl": "pkg:npm/%40jridgewell/sourcemap-codec@1.6.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "4fb8dffb9ce0b191f0349e25bd0eff69ecdbca4d27357fb32555a998703b558b04c7b6bbaabe5183921bb4916a920cdee58dacaeeab545463c43cdfb39dee217"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.6.0.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "build-tool"
+        },
+        {
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@jridgewell",
+      "name": "trace-mapping",
+      "version": "0.3.31",
+      "scope": "excluded",
+      "bom-ref": "build-tool:@jridgewell/trace-mapping@0.3.31",
+      "purl": "pkg:npm/%40jridgewell/trace-mapping@0.3.31",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "cf3351f9275048327373c8e869e3fc410a0242bf0db98c76748232b65d507811191c9f6e5ba85e6ecad881bcfc849c1441aa374d608cb667d5f0dbb5b7038b03"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "build-tool"
+        },
+        {
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "acorn",
+      "version": "8.19.0",
+      "scope": "excluded",
+      "bom-ref": "build-tool:acorn@8.19.0",
+      "purl": "pkg:npm/acorn@8.19.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "a09940dd78919bb0b293aa850f6267f1a93d07b8d2cb4ab2d340033b7fbc7694f42d28c58a1418bf80b4d8b142498255dd0dfbc58c30472e66f88a48894cea5b"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/acorn/-/acorn-8.19.0.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "build-tool"
+        },
+        {
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "buffer-from",
+      "version": "1.1.2",
+      "scope": "excluded",
+      "bom-ref": "build-tool:buffer-from@1.1.2",
+      "purl": "pkg:npm/buffer-from@1.1.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "13e5d0091c126da6a20a1b6fea4e83c2073e6f1f81b3abee2891c7979928c7f05a29b8625f3a903b02b870edb6c84946a763829a3c15853dc79b18323c69c97d"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/buffer-from/-/buffer-from-1.1.2.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "build-tool"
+        },
+        {
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "clean-css",
+      "version": "5.3.3",
+      "scope": "excluded",
+      "bom-ref": "build-tool:clean-css@5.3.3",
+      "purl": "pkg:npm/clean-css@5.3.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "0f927e9076956ffc0a485732c95ef9b829fc7e2638b15dfc5c9a1ee02532190fa6394fdf315614747d61242f82250e6e6371275b6ed26c9612e17f0188bac016"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/clean-css/-/clean-css-5.3.3.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "build-tool"
+        },
+        {
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "commander",
+      "version": "2.20.3",
+      "scope": "excluded",
+      "bom-ref": "build-tool:commander@2.20.3",
+      "purl": "pkg:npm/commander@2.20.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "1a956498cf2f176bd05248f62ef6660f7e49c5e24e2c2c09f5c524ba0ca4da7ba16efdfe989be92d862dfb4f9448cc44fa88fe7b2fe52449e1670ef9c7f38c71"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/commander/-/commander-2.20.3.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "build-tool"
+        },
+        {
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "source-map-support",
+      "version": "0.5.21",
+      "scope": "excluded",
+      "bom-ref": "build-tool:source-map-support@0.5.21",
+      "purl": "pkg:npm/source-map-support@0.5.21",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "b811d4dcbddccec232617297f3c7ddac6a2fc5d482a13183459e92617b524712d95331e0e4fffae87b7aba85251eef4466877e8a75e12a8dea420c17513ff2d7"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/source-map-support/-/source-map-support-0.5.21.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "build-tool"
+        },
+        {
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "source-map",
+      "version": "0.6.1",
+      "scope": "excluded",
+      "bom-ref": "build-tool:source-map@0.6.1",
+      "purl": "pkg:npm/source-map@0.6.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "52381aa6e99695b3219018334fb624739617513e3a17488abbc4865ead1b7303f9773fe1d0f963e9e9c9aa3cf565bab697959aa989eb55bc16396332177178ee"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/source-map/-/source-map-0.6.1.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "build-tool"
+        },
+        {
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "terser",
+      "version": "5.51.2",
+      "scope": "excluded",
+      "bom-ref": "build-tool:terser@5.51.2",
+      "purl": "pkg:npm/terser@5.51.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "6d69e348db1c9ae23e189cdee99ba99c73fc1bf71372c245f9b5c279092793648742c81b3499cbaea887f636765b84933d55c7da60ca2915f78b03e173d0a7fd"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/terser/-/terser-5.51.2.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "build-tool"
+        },
+        {
+          "name": "helm:source",
+          "value": "tools/build/package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "std",
+      "group": "deno.land",
+      "version": "0.224.0",
+      "scope": "excluded",
+      "bom-ref": "deno-edge:https:deno.land/std@0.224.0",
+      "purl": "pkg:generic/deno.land/std@0.224.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://deno.land/std@0.224.0/"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "deno-edge"
+        },
+        {
+          "name": "helm:import",
+          "value": "https://deno.land/std@0.224.0"
+        },
+        {
+          "name": "helm:use",
+          "value": "test-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@std",
+      "name": "assert",
+      "version": "1.0.19",
+      "scope": "excluded",
+      "bom-ref": "deno-edge:jsr:@std/assert@1.0.19",
+      "purl": "pkg:generic/jsr/%40std/assert@1.0.19",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "deno-edge"
+        },
+        {
+          "name": "helm:import",
+          "value": "jsr:@std/assert@1.0.19"
+        },
+        {
+          "name": "helm:use",
+          "value": "test-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@std",
+      "name": "internal",
+      "version": "1.0.14",
+      "scope": "excluded",
+      "bom-ref": "deno-edge:jsr:@std/internal@1.0.14",
+      "purl": "pkg:generic/jsr/%40std/internal@1.0.14",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "deno-edge"
+        },
+        {
+          "name": "helm:import",
+          "value": "jsr (dependency of @std/assert@1.0.19)"
+        },
+        {
+          "name": "helm:use",
+          "value": "test-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@supabase",
       "name": "supabase-js",
+      "version": "2.118.0",
+      "scope": "required",
+      "bom-ref": "deno-edge:npm:@supabase/supabase-js@2.118.0",
+      "purl": "pkg:npm/%40supabase/supabase-js@2.118.0",
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "deno-edge"
+        },
+        {
+          "name": "helm:import",
+          "value": "npm:@supabase/supabase-js@2.118.0"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "group": "@supabase",
-      "version": "2.117.2",
-      "bom-ref": "helm@1.0.0|@supabase/supabase-js@2.117.2",
-      "author": "Supabase",
-      "description": "Isomorphic Javascript SDK for Supabase",
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/%40supabase/supabase-js@2.117.2",
-      "externalReferences": [
-        {
-          "url": "git+https://github.com/supabase/supabase-js.git#packages/core/supabase-js",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\" and \"repository.directory\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/tree/master/packages/core/supabase-js",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/@supabase/supabase-js/-/supabase-js-2.117.2.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "7921b654a9c747e0a5a753e689d675ff0789f0f270a326e3bdadcbd8680aa851b86034b522a99ceb5a6c28664fe71c3a38c4f63bb668acf478d8f63aab504e5e"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=22.0.0"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@supabase/supabase-js"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "axe-core",
-      "version": "4.13.0",
-      "bom-ref": "helm@1.0.0|axe-core@4.13.0",
-      "description": "Accessibility engine for automated Web UI testing",
-      "licenses": [
-        {
-          "license": {
-            "id": "MPL-2.0",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/axe-core@4.13.0",
-      "externalReferences": [
-        {
-          "url": "git+https://github.com/dequelabs/axe-core.git",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\""
-        },
-        {
-          "url": "https://www.deque.com/axe/",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/dequelabs/axe-core/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/axe-core/-/axe-core-4.13.0.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "5331adf3383b372f1d8db60c871976cee11ebd56bbaf68098d86392f0af5c4cefe5d4da777a0a421615355c0886c03fadef4b3ef535a572cae4a4f651ca732d0"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=4"
-        },
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/axe-core"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "playwright-core",
-      "version": "1.63.0",
-      "bom-ref": "helm@1.0.0|playwright-core@1.63.0",
-      "author": "Microsoft Corporation",
-      "description": "A high-level API to automate web browsers",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/playwright-core@1.63.0",
-      "externalReferences": [
-        {
-          "url": "git+https://github.com/microsoft/playwright.git",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\""
-        },
-        {
-          "url": "https://playwright.dev",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/microsoft/playwright/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.63.0.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "ad80ac045fcce478d4721e766dbb5538d1058efe97bbcb26f21ef674d951e5bcc81357ef0bf6f182ca7392349f53e3307843263ccf0a25e6c6ea79f2c68e660a"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=20"
-        },
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/playwright-core"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "playwright",
-      "version": "1.63.0",
-      "bom-ref": "helm@1.0.0|playwright@1.63.0",
-      "author": "Microsoft Corporation",
-      "description": "A high-level API to automate web browsers",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/playwright@1.63.0",
-      "externalReferences": [
-        {
-          "url": "git+https://github.com/microsoft/playwright.git",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\""
-        },
-        {
-          "url": "https://playwright.dev",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/microsoft/playwright/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/playwright/-/playwright-1.63.0.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "fbbce204b89d4b835a34276de7b4940d3fb062699de5f9a241e8d489cfe46fe62c61208fc8e384f6c79bccc8cd990aec9cda4326a778587bd5ffc95f29f50352"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=20"
-        },
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/playwright"
-        }
-      ]
-    },
-    {
-      "type": "library",
       "name": "auth-js",
-      "group": "@supabase",
-      "version": "2.117.2",
-      "bom-ref": "helm@1.0.0|@supabase/auth-js@2.117.2",
-      "author": "Supabase",
-      "description": "Official SDK for Supabase Auth",
+      "version": "2.118.0",
+      "scope": "required",
+      "bom-ref": "npm-runtime:@supabase/auth-js@2.118.0",
+      "purl": "pkg:npm/%40supabase/auth-js@2.118.0",
       "licenses": [
         {
           "license": {
-            "id": "MIT",
-            "acknowledgement": "declared"
+            "id": "MIT"
           }
         }
       ],
-      "purl": "pkg:npm/%40supabase/auth-js@2.117.2",
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "c567cf5f2852d8a0d27c09de32d23aa7fb419db762cffe6f69129712a51fcdf0bd5829e22abd83b39a391bb4481a28346e89b8cfac1463dcda574ed60d54df9d"
+        }
+      ],
       "externalReferences": [
         {
-          "url": "git+https://github.com/supabase/supabase-js.git#packages/core/auth-js",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\" and \"repository.directory\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/tree/master/packages/core/auth-js",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/@supabase/auth-js/-/auth-js-2.117.2.tgz",
           "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "6775a71b0ae985866e6eb2dbc69e48bf4b4b03d0391a1bcacc9fd95e0971ab07764041f6478757465b63549f2c227e31116d814852064f4c802d524881978363"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+          "url": "https://registry.npmjs.org/@supabase/auth-js/-/auth-js-2.118.0.tgz"
         }
       ],
       "properties": [
         {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=22.0.0"
+          "name": "helm:group",
+          "value": "npm-runtime"
         },
         {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@supabase/auth-js"
+          "name": "helm:source",
+          "value": "package-lock.json"
         }
       ]
     },
     {
       "type": "library",
+      "group": "@supabase",
       "name": "functions-js",
+      "version": "2.118.0",
+      "scope": "required",
+      "bom-ref": "npm-runtime:@supabase/functions-js@2.118.0",
+      "purl": "pkg:npm/%40supabase/functions-js@2.118.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "e287e57ad3dafe7a0a014e8a1deaac777173b46cd13d410945ecb530a634a3e3c81da55e3ea44f4a1217b65dfb81c57221668533eccd83aafdce1d2e51214e48"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@supabase/functions-js/-/functions-js-2.118.0.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "npm-runtime"
+        },
+        {
+          "name": "helm:source",
+          "value": "package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "group": "@supabase",
-      "version": "2.117.2",
-      "bom-ref": "helm@1.0.0|@supabase/functions-js@2.117.2",
-      "author": "Supabase",
-      "description": "JS SDK to interact with Supabase Functions.",
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/%40supabase/functions-js@2.117.2",
-      "externalReferences": [
-        {
-          "url": "git+https://github.com/supabase/supabase-js.git#packages/core/functions-js",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\" and \"repository.directory\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/tree/master/packages/core/functions-js",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/@supabase/functions-js/-/functions-js-2.117.2.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "e834f86488e66716bd00d29a048ae373ce80c8aad7f0cdfbeb29ef35e38105569ddde3fbc77507a967c3476ca71641c6cc2b8ea6bd40fa439b9a76a1c6ec2ea2"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=22.0.0"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@supabase/functions-js"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "postgrest-js",
-      "group": "@supabase",
-      "version": "2.117.2",
-      "bom-ref": "helm@1.0.0|@supabase/postgrest-js@2.117.2",
-      "author": "Supabase",
-      "description": "Isomorphic PostgREST client",
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/%40supabase/postgrest-js@2.117.2",
-      "externalReferences": [
-        {
-          "url": "git+https://github.com/supabase/supabase-js.git#packages/core/postgrest-js",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\" and \"repository.directory\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/tree/master/packages/core/postgrest-js",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/@supabase/postgrest-js/-/postgrest-js-2.117.2.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "5754219fe33cc7326a09ab0ec47676286d7d163dfd3f153bc1e10098e2bae7f293b160915dba01e21710c05bf146f33b66291e3fd21958dbd091f8ef4b1cd817"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=22.0.0"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@supabase/postgrest-js"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "realtime-js",
-      "group": "@supabase",
-      "version": "2.117.2",
-      "bom-ref": "helm@1.0.0|@supabase/realtime-js@2.117.2",
-      "author": "Supabase",
-      "description": "Listen to realtime updates to your PostgreSQL database",
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/%40supabase/realtime-js@2.117.2",
-      "externalReferences": [
-        {
-          "url": "git+https://github.com/supabase/supabase-js.git#packages/core/realtime-js",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\" and \"repository.directory\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/tree/master/packages/core/realtime-js",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/@supabase/realtime-js/-/realtime-js-2.117.2.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "9585d2008837780280e7cae25040fa55bf930b317c8edc75f2e3a888269527b64cadee85581a7007530f796f81eafca4253fe13dd8aeab071207b20b312db57b"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=22.0.0"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@supabase/realtime-js"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "storage-js",
-      "group": "@supabase",
-      "version": "2.117.2",
-      "bom-ref": "helm@1.0.0|@supabase/storage-js@2.117.2",
-      "author": "Supabase",
-      "description": "Isomorphic storage client for Supabase.",
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/%40supabase/storage-js@2.117.2",
-      "externalReferences": [
-        {
-          "url": "git+https://github.com/supabase/supabase-js.git#packages/core/storage-js",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\" and \"repository.directory\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/tree/master/packages/core/storage-js",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/supabase/supabase-js/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/@supabase/storage-js/-/storage-js-2.117.2.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "f20009a156b165afd66abda41517c93311a4e0cd7dd10ee527bd01a1fc06951c54feef6922875de97c93be65e4c4e2975ae218b640da60f66b20052dd53ffb15"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=22.0.0"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@supabase/storage-js"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "tslib",
-      "version": "2.8.1",
-      "bom-ref": "helm@1.0.0|tslib@2.8.1",
-      "author": "Microsoft Corp.",
-      "description": "Runtime library for TypeScript helper functions",
-      "licenses": [
-        {
-          "license": {
-            "id": "0BSD",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/tslib@2.8.1",
-      "externalReferences": [
-        {
-          "url": "git+https://github.com/Microsoft/tslib.git",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\""
-        },
-        {
-          "url": "https://www.typescriptlang.org/",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/Microsoft/TypeScript/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "a0916ef781d06fe29576e49440bef09e99aa9df98bb0e03f9c087a6fa107d30084a0ad3f98f79753a737c0a0d5f373243ae1cf447b525ca294f7d2016b34bfdb"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/tslib"
-        }
-      ]
-    },
-    {
-      "type": "library",
       "name": "phoenix",
-      "group": "@supabase",
       "version": "0.4.5",
-      "bom-ref": "helm@1.0.0|@supabase/phoenix@0.4.5",
-      "author": "Chris McCord",
-      "description": "The official JavaScript client for the Phoenix web framework.",
+      "scope": "required",
+      "bom-ref": "npm-runtime:@supabase/phoenix@0.4.5",
+      "purl": "pkg:npm/%40supabase/phoenix@0.4.5",
       "licenses": [
         {
           "license": {
-            "id": "MIT",
-            "acknowledgement": "declared"
+            "id": "MIT"
           }
         }
       ],
-      "purl": "pkg:npm/%40supabase/phoenix@0.4.5",
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "6809fd1fda2f572780a4acb5d4e58eaeb386abc0d5ebcc96787e2e77694df5fce7e1a3bc65be462cbf66d69520f672ea21c4fe6437c072c65ed04fe7a9dbf697"
+        }
+      ],
       "externalReferences": [
         {
-          "url": "git://github.com/supabase/phoenix.git",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\""
-        },
-        {
-          "url": "https://github.com/supabase/phoenix#readme",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/supabase/phoenix/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/@supabase/phoenix/-/phoenix-0.4.5.tgz",
           "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "6809fd1fda2f572780a4acb5d4e58eaeb386abc0d5ebcc96787e2e77694df5fce7e1a3bc65be462cbf66d69520f672ea21c4fe6437c072c65ed04fe7a9dbf697"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+          "url": "https://registry.npmjs.org/@supabase/phoenix/-/phoenix-0.4.5.tgz"
         }
       ],
       "properties": [
         {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@supabase/phoenix"
+          "name": "helm:group",
+          "value": "npm-runtime"
+        },
+        {
+          "name": "helm:source",
+          "value": "package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@supabase",
+      "name": "postgrest-js",
+      "version": "2.118.0",
+      "scope": "required",
+      "bom-ref": "npm-runtime:@supabase/postgrest-js@2.118.0",
+      "purl": "pkg:npm/%40supabase/postgrest-js@2.118.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "257cbedfb28f0291ecca8b5a4000a8beffc9cbd136dab7e258b46e4fed948e810070021e943148aec17f158e3b0f2d7d98eee52344eafb30c25fca09d8ecdf8b"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@supabase/postgrest-js/-/postgrest-js-2.118.0.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "npm-runtime"
+        },
+        {
+          "name": "helm:source",
+          "value": "package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@supabase",
+      "name": "realtime-js",
+      "version": "2.118.0",
+      "scope": "required",
+      "bom-ref": "npm-runtime:@supabase/realtime-js@2.118.0",
+      "purl": "pkg:npm/%40supabase/realtime-js@2.118.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "a730881168ea0f9ff1a846507aba6dfaaf6bb2062472b92008981fd16d942ea0b87d851e07fa7d0856b7b7dbe7f88561e9d30df6be19084dbada566f502f817f"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@supabase/realtime-js/-/realtime-js-2.118.0.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "npm-runtime"
+        },
+        {
+          "name": "helm:source",
+          "value": "package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@supabase",
+      "name": "storage-js",
+      "version": "2.118.0",
+      "scope": "required",
+      "bom-ref": "npm-runtime:@supabase/storage-js@2.118.0",
+      "purl": "pkg:npm/%40supabase/storage-js@2.118.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "e4c3642add8ca32ec9b9dfec3d7effdbc070743c593025471894f4d1bf28a772916bd2ca4a3380614e4871f19622cb5a6ac02a63c1a46c0ea82372110e007561"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@supabase/storage-js/-/storage-js-2.118.0.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "npm-runtime"
+        },
+        {
+          "name": "helm:source",
+          "value": "package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@supabase",
+      "name": "supabase-js",
+      "version": "2.118.0",
+      "scope": "required",
+      "bom-ref": "npm-runtime:@supabase/supabase-js@2.118.0",
+      "purl": "pkg:npm/%40supabase/supabase-js@2.118.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "17123c5173150b6506ec891e888f1fb9066aab6a08dc9792b8df0c3c80b644b55aa04031292d27a84ea48a2f44c29abc7fd80d3ccea08add58f1fd2f37f40b17"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@supabase/supabase-js/-/supabase-js-2.118.0.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "npm-runtime"
+        },
+        {
+          "name": "helm:source",
+          "value": "package-lock.json"
         }
       ]
     },
@@ -857,142 +858,207 @@
       "type": "library",
       "name": "iceberg-js",
       "version": "0.8.1",
-      "bom-ref": "helm@1.0.0|iceberg-js@0.8.1",
-      "author": "mandarini",
-      "description": "A small, framework-agnostic JavaScript/TypeScript client for the Apache Iceberg REST Catalog",
+      "scope": "required",
+      "bom-ref": "npm-runtime:iceberg-js@0.8.1",
+      "purl": "pkg:npm/iceberg-js@0.8.1",
       "licenses": [
         {
           "license": {
-            "id": "MIT",
-            "acknowledgement": "declared"
+            "id": "MIT"
           }
         }
       ],
-      "purl": "pkg:npm/iceberg-js@0.8.1",
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "d5d8554195e17078deefbf7c21533ec68a3fd597557f338c21cf3fae05528a344adfc103a8e2681ae95af4dffc648e510fc413c4d42d2bf1a8ce9afea94a9144"
+        }
+      ],
       "externalReferences": [
         {
-          "url": "git+https://github.com/supabase/iceberg-js.git",
-          "type": "vcs",
-          "comment": "as detected from PackageJson property \"repository.url\""
-        },
-        {
-          "url": "https://github.com/supabase/iceberg-js#readme",
-          "type": "website",
-          "comment": "as detected from PackageJson property \"homepage\""
-        },
-        {
-          "url": "https://github.com/supabase/iceberg-js/issues",
-          "type": "issue-tracker",
-          "comment": "as detected from PackageJson property \"bugs.url\""
-        },
-        {
-          "url": "https://registry.npmjs.org/iceberg-js/-/iceberg-js-0.8.1.tgz",
           "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "d5d8554195e17078deefbf7c21533ec68a3fd597557f338c21cf3fae05528a344adfc103a8e2681ae95af4dffc648e510fc413c4d42d2bf1a8ce9afea94a9144"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+          "url": "https://registry.npmjs.org/iceberg-js/-/iceberg-js-0.8.1.tgz"
         }
       ],
       "properties": [
         {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": ">=20.0.0"
+          "name": "helm:group",
+          "value": "npm-runtime"
         },
         {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/iceberg-js"
+          "name": "helm:source",
+          "value": "package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "tslib",
+      "version": "2.8.1",
+      "scope": "required",
+      "bom-ref": "npm-runtime:tslib@2.8.1",
+      "purl": "pkg:npm/tslib@2.8.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "0BSD"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "a0916ef781d06fe29576e49440bef09e99aa9df98bb0e03f9c087a6fa107d30084a0ad3f98f79753a737c0a0d5f373243ae1cf447b525ca294f7d2016b34bfdb"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "npm-runtime"
+        },
+        {
+          "name": "helm:source",
+          "value": "package-lock.json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@sentry",
+      "name": "browser",
+      "version": "8.55.2",
+      "scope": "required",
+      "bom-ref": "vendored-browser:sentry-8.55.2.bundle.min.js",
+      "purl": "pkg:npm/%40sentry/browser@8.55.2",
+      "description": "Sentry browser CDN bundle (errors only), loaded by telemetry.js",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-384",
+          "content": "da94391423a5466464cfc0416485bf61fda919b9d91c76820ab89a51b4f07a072bfba261d2d24aaaf8b7d6b7e6dfd5c5"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "vendored-browser"
+        },
+        {
+          "name": "helm:file",
+          "value": "public/vendor/sentry-8.55.2.bundle.min.js"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "@supabase",
+      "name": "supabase-js",
+      "version": "2.118.0",
+      "scope": "required",
+      "bom-ref": "vendored-browser:supabase-js-2.118.0.min.js",
+      "purl": "pkg:npm/%40supabase/supabase-js@2.118.0",
+      "description": "UMD build (window.supabase), loaded by store-api.js",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-384",
+          "content": "4dc1d1037cc16e7f8b7b18799fe3a297882e34f392deb8cd0e919100de3abbfb3f981d88679d1c782e93603536caf80a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "vendored-browser"
+        },
+        {
+          "name": "helm:file",
+          "value": "public/vendor/supabase-js-2.118.0.min.js"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "three",
+      "version": "0.186.1",
+      "scope": "required",
+      "bom-ref": "vendored-browser:three-0.186.1",
+      "purl": "pkg:npm/three@0.186.1",
+      "description": "three.js core + addons for the builder 3D view, loaded by three-boot.js",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "vendored-browser"
+        },
+        {
+          "name": "helm:file",
+          "value": "public/vendor/three-0.186.1/addons/controls/OrbitControls.js sha384:9918fd48b4410a96cd2c9356b80808d25568bb60afce6029c98261a07039cf528c189c7e846cd6c7bb0da84d052e33e9"
+        },
+        {
+          "name": "helm:file",
+          "value": "public/vendor/three-0.186.1/addons/controls/TransformControls.js sha384:a01d2cd3e8f8419ae2e1f7721e764cfff4a6abeca038f646e358fa836f59e1f0773c13a102203dcba5f06fde602644b9"
+        },
+        {
+          "name": "helm:file",
+          "value": "public/vendor/three-0.186.1/addons/loaders/GLTFLoader.js sha384:b355ba36f095a73009afc374b9eae64f898783bd5db5ba28309ec939fbeb33362c711c2a772b56dcc832460f8a308103"
+        },
+        {
+          "name": "helm:file",
+          "value": "public/vendor/three-0.186.1/addons/utils/BufferGeometryUtils.js sha384:325762ea4d1adc97be7ddfaa6c261f83afeab8d615901ad8cedb10277b66a1f58deafb7e7e6665da4ca0537cf352b690"
+        },
+        {
+          "name": "helm:file",
+          "value": "public/vendor/three-0.186.1/addons/utils/SkeletonUtils.js sha384:60393b103f249138fc4abf0ef3adb824edd6da5e9399a6d7072e4847ca8db2a4635166d2ca07894e8d82d20033d1a03a"
+        },
+        {
+          "name": "helm:file",
+          "value": "public/vendor/three-0.186.1/three.module.min.js sha384:7991fe3dcaf7d2228a8f08dba70ae70c0803b487403de9738bd0bab3fb71fb97e2412d528306a68b1646b5f2c73e31cd"
         }
       ]
     }
   ],
   "dependencies": [
     {
-      "ref": "helm@1.0.0",
+      "ref": "helm",
       "dependsOn": [
-        "helm@1.0.0|@axe-core/playwright@4.13.0",
-        "helm@1.0.0|@playwright/test@1.63.0",
-        "helm@1.0.0|@supabase/supabase-js@2.117.2"
+        "deno-edge:npm:@supabase/supabase-js@2.118.0",
+        "npm-runtime:@supabase/auth-js@2.118.0",
+        "npm-runtime:@supabase/functions-js@2.118.0",
+        "npm-runtime:@supabase/phoenix@0.4.5",
+        "npm-runtime:@supabase/postgrest-js@2.118.0",
+        "npm-runtime:@supabase/realtime-js@2.118.0",
+        "npm-runtime:@supabase/storage-js@2.118.0",
+        "npm-runtime:@supabase/supabase-js@2.118.0",
+        "npm-runtime:iceberg-js@0.8.1",
+        "npm-runtime:tslib@2.8.1",
+        "vendored-browser:sentry-8.55.2.bundle.min.js",
+        "vendored-browser:supabase-js-2.118.0.min.js",
+        "vendored-browser:three-0.186.1"
       ]
-    },
-    {
-      "ref": "helm@1.0.0|@axe-core/playwright@4.13.0",
-      "dependsOn": [
-        "helm@1.0.0|axe-core@4.13.0",
-        "helm@1.0.0|playwright-core@1.63.0"
-      ]
-    },
-    {
-      "ref": "helm@1.0.0|@playwright/test@1.63.0",
-      "dependsOn": [
-        "helm@1.0.0|playwright@1.63.0"
-      ]
-    },
-    {
-      "ref": "helm@1.0.0|@supabase/supabase-js@2.117.2",
-      "dependsOn": [
-        "helm@1.0.0|@supabase/auth-js@2.117.2",
-        "helm@1.0.0|@supabase/functions-js@2.117.2",
-        "helm@1.0.0|@supabase/postgrest-js@2.117.2",
-        "helm@1.0.0|@supabase/realtime-js@2.117.2",
-        "helm@1.0.0|@supabase/storage-js@2.117.2"
-      ]
-    },
-    {
-      "ref": "helm@1.0.0|axe-core@4.13.0"
-    },
-    {
-      "ref": "helm@1.0.0|playwright-core@1.63.0"
-    },
-    {
-      "ref": "helm@1.0.0|playwright@1.63.0",
-      "dependsOn": [
-        "helm@1.0.0|playwright-core@1.63.0"
-      ]
-    },
-    {
-      "ref": "helm@1.0.0|@supabase/auth-js@2.117.2",
-      "dependsOn": [
-        "helm@1.0.0|tslib@2.8.1"
-      ]
-    },
-    {
-      "ref": "helm@1.0.0|@supabase/functions-js@2.117.2",
-      "dependsOn": [
-        "helm@1.0.0|tslib@2.8.1"
-      ]
-    },
-    {
-      "ref": "helm@1.0.0|@supabase/postgrest-js@2.117.2",
-      "dependsOn": [
-        "helm@1.0.0|tslib@2.8.1"
-      ]
-    },
-    {
-      "ref": "helm@1.0.0|@supabase/realtime-js@2.117.2",
-      "dependsOn": [
-        "helm@1.0.0|@supabase/phoenix@0.4.5",
-        "helm@1.0.0|tslib@2.8.1"
-      ]
-    },
-    {
-      "ref": "helm@1.0.0|@supabase/storage-js@2.117.2",
-      "dependsOn": [
-        "helm@1.0.0|iceberg-js@0.8.1",
-        "helm@1.0.0|tslib@2.8.1"
-      ]
-    },
-    {
-      "ref": "helm@1.0.0|tslib@2.8.1"
-    },
-    {
-      "ref": "helm@1.0.0|@supabase/phoenix@0.4.5"
-    },
-    {
-      "ref": "helm@1.0.0|iceberg-js@0.8.1"
     }
   ]
 }
