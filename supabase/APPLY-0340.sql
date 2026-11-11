@@ -1,35 +1,6 @@
--- APPLY-0340.sql - paste into the Supabase SQL editor (STAGING first, production when the owner says go).
--- It stops with STOP 0340: ... if a migration it builds on is missing (0164 and 0199 must be applied first).
--- R136: clearer audit log.
---   WHAT PEOPLE WILL NOTICE: in Settings > Audit log, a lead that Helm creates or updates by itself when a quote is saved
---   now shows Who = Helm (automatic), with from quote ... after <person> saved it underneath.
---   Nothing is dropped or deleted. Existing audit rows are not changed. Safe to run twice.
+-- APPLY-0340 (R136 audit log). Run on STAGING first, then production. Safe to run twice.
 begin;
--- 0340_r136_audit_via.sql - CANONICAL forward-only. R136 (owner, 11 Nov 2026: make the audit log clear).
--- REQUIRES 0164 (tg_audit body with the sys-quiet-0164 marker, _audit_redact, _is_system_change),
---          0199 (sync_quote_to_lead body with the budget / guests single-source marker).
---
--- In plain words:
---   When a quote is saved, Helm itself creates or updates the matching CRM lead (sync_quote_to_lead, the
---   quotes_sync_lead_ins / quotes_sync_lead_upd triggers). The audit log wrote that lead change under the
---   person who saved the quote, so it read like the person had edited the lead by hand.
---   From now on:
---     1  sync_quote_to_lead() sets a marker for the length of its OWN lead write only
---        (set_config(helm.audit_via, quote_sync, true) + the quote id in helm.audit_via_quote), and puts the
---        previous value back straight after. Everything else in the function is exactly the 0199 body.
---     2  tg_audit() copies that marker into the new audit row: changed->_via = quote_sync and
---        changed->_via_quote = the quote id. The audit page then shows Who = Helm (automatic) with
---        from quote ... after <person> saved it. The actor (the person) is kept, so nothing is lost.
---        Everything else in tg_audit is exactly the 0164 body (secrets redacted, maintenance tag, studio id).
---   Values for the quotes client details were already stored (old + new) by tg_audit, nothing changes there.
---   The audit page shows values only for non-sensitive client fields (phone / e-mail / address stay names-only).
---
--- ZERO DATA LOSS: additive + idempotent. No table, column, row, policy or grant is changed or removed, existing
--- audit rows are never touched. The two functions keep their signatures and triggers, each previous body is kept
--- once as <name>__pre0340 (no app privilege) for a rollback. A function whose live body is not the known one is
--- left unchanged (notice). Safe to run twice.
-
--- ---- 0) preflight ----------------------------------------------------------------------------------------------
+-- 0340_r136_audit_via.sql - R136 audit log (Helm automatic + quote marker). Forward-only, additive, safe to run twice. Notes: docs in PR 381.
 do $$
 begin
   if to_regprocedure('public.tg_audit()') is null then raise exception 'STOP 0340: public.tg_audit() missing (0164)'; end if;
@@ -39,10 +10,8 @@ begin
     raise exception 'STOP 0340: sync_quote_to_lead / _b199_amount missing - run 0199 first'; end if;
 end $$;
 
--- ---- 1) keep a functions current body once as <name>__pre0340 (no API privilege) --------------------------------
 create or replace function public._r340_keep(p_fn text)
 returns void language plpgsql volatile security definer set search_path = '' as $$
--- r136-0340: copy (never rename - triggers stay bound to the live function) the current body once
 declare v_oid oid := to_regprocedure(p_fn); v_name text; v_types text; v_def text; v_pre text;
 begin
   if v_oid is null then return; end if;
@@ -64,7 +33,6 @@ do $$ begin
   if exists (select 1 from pg_roles where rolname = 'authenticated') then revoke all on function public._r340_keep(text) from authenticated; end if;
 end $$;
 
--- ---- 2) sync_quote_to_lead: the 0199 body + the made by Helm from this quote marker around its lead write ------
 do $do$ declare v_src text; begin
   select p.prosrc into v_src from pg_proc p where p.oid = to_regprocedure('public.sync_quote_to_lead()');
   if position('0199: the quote is the single source' in v_src) = 0 and position('audit-via-0340' in v_src) = 0 then
@@ -79,12 +47,11 @@ create or replace function public.sync_quote_to_lead()
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
--- audit-via-0340: the lead write below is marked so its audit row reads Helm (automatic), from this quote
+-- audit-via-0340
 declare
   v_name  text := nullif(btrim(NEW.client->>'name'), '');
   v_email text := nullif(btrim(NEW.client->>'email'), '');
   v_phone text := nullif(btrim(NEW.client->>'phone'), '');
-  -- 0199: the quote is the single source of the events budget + guests
   v_budget numeric := public._b199_amount(NEW.client->>'budget');
   v_guests integer := public._b199_guests(NEW.client->>'guests');
   v_bchg boolean := true;
@@ -114,7 +81,7 @@ begin
           or (v_email is null and lower(coalesce(name,'')) = lower(v_name)) )
      order by updated_at desc limit 1;
   end if;
-  -- audit-via-0340: only this functions own lead write carries the marker (transaction-local, put back below)
+  -- audit-via-0340
   perform set_config('helm.audit_via', 'quote_sync', true);
   perform set_config('helm.audit_via_quote', NEW.id::text, true);
   if v_lead.id is not null then
@@ -124,7 +91,6 @@ begin
       phone      = coalesce(v_phone, phone),
       event_type = coalesce(NEW.event_type, event_type),
       event_date = coalesce(NEW.event_date, event_date),
-      -- 0199: only when the quotes budget / guests were set or changed, a cleared value keeps the leads
       budget      = case when v_bchg and v_budget is not null then v_budget else budget end,
       guest_count = case when v_gchg and v_guests is not null then v_guests else guest_count end,
       status     = case when status in ('won','lost') and v_status in ('quoted','discovery')
@@ -143,7 +109,6 @@ end; $function$
 $fn$;
 end $do$;
 
--- ---- 3) tg_audit: the 0164 body + the marker copied into the row ----------------------------------------------
 do $do$ declare v_src text; begin
   select p.prosrc into v_src from pg_proc p where p.oid = to_regprocedure('public.tg_audit()');
   if position('sys-quiet-0164' in v_src) = 0 and position('audit-via-0340' in v_src) = 0 then
@@ -154,8 +119,7 @@ do $do$ declare v_src text; begin
   execute $fn$
 create or replace function public.tg_audit()
 returns trigger language plpgsql security definer set search_path = 'public' as $body$
--- audit-via-0340: the 0164 body (row carries the studio, role_access role + area, link secrets redacted, direct-DB
---   changes tagged helm:maintenance) + a change Helm made by itself on a persons behalf carries _via / _via_quote
+-- audit-via-0340
 declare
   v_actor uuid := auth.uid();
   v_email text;
@@ -194,7 +158,7 @@ begin
     v_changed := public._audit_redact(n, false);
   end if;
 
-  -- audit-via-0340: made by Helm itself (e.g. the lead kept in step with a saved quote) - the person stays the actor
+  -- audit-via-0340
   if v_via is not null and v_via ~ '^[a-z_]{1,40}$' then
     v_changed := coalesce(v_changed, '{}'::jsonb) || jsonb_build_object('_via', v_via)
       || case when coalesce(v_via_q, '') ~ '^[0-9a-fA-F-]{36}$' then jsonb_build_object('_via_quote', v_via_q) else '{}'::jsonb end;
@@ -218,7 +182,7 @@ $fn$;
 end $do$;
 commit;
 
--- VERIFY (every line should say true)
+-- VERIFY every line should say true
 select item, ok from (values
   ('01 sync_quote_to_lead marks its lead write', position('audit-via-0340' in (select prosrc from pg_proc where oid = to_regprocedure('public.sync_quote_to_lead()'))) > 0),
   ('02 tg_audit copies the marker into the row', position('audit-via-0340' in (select prosrc from pg_proc where oid = to_regprocedure('public.tg_audit()'))) > 0),
