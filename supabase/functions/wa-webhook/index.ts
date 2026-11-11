@@ -12,7 +12,11 @@
 //      parsing, then records (idempotently, unique per provider event id):
 //        * statuses[]  sent / delivered / read / failed           -> wa_record_event
 //        * messages[]  text "STOP"/"UNSUBSCRIBE" -> opt-out, "START" -> opt back in
-//                      (wa_set_opt_out); message bodies are NEVER stored
+//                      (wa_set_opt_out); message bodies are NEVER stored. R143 (0342): the Meta message time + id
+//                      go with it and the database does both steps in ONE call / transaction - the optout:<id> event
+//                      is recorded first (a duplicate / replayed event is never applied again) and only a message
+//                      NEWER than the last STOP / START changes the state (a late START cannot undo a later STOP).
+//                      A database without 0342 -> the 0117 pair (wa_set_opt_out + wa_record_event) as before.
 //        * message_template_status_update / phone_number_quality_update -> wa_record_event
 //          (R129 / 0337: a template's new state also -> wa_template_status, for the studio with that WABA id)
 //      Always 200 after a valid signature (Meta retries non-2xx for days); DB errors -> 500.
@@ -37,6 +41,8 @@ export function timingSafeEqual(a: string, b: string) {
 const STOP = /^\s*(stop|unsubscribe|stop all|opt out|optout|cancel)\s*[.!]?\s*$/i;
 const START = /^\s*(start|unstop|subscribe|opt in|optin)\s*[.!]?\s*$/i;
 const ID = (v: unknown, re = /^[A-Za-z0-9_.:=+\/-]{1,160}$/) => re.test(String(v ?? "")) ? String(v) : null;
+// Meta's message "timestamp" (unix seconds, as a string) -> ISO time, else null (the database then uses its own clock)
+export const metaTime = (v: unknown) => /^[0-9]{9,11}$/.test(String(v ?? "")) ? new Date(Number(v) * 1000).toISOString() : null;
 
 // deno-lint-ignore no-explicit-any
 export type Action = { kind: "event" | "optout" | "template"; args: Record<string, unknown> };
@@ -62,10 +68,9 @@ export function planActions(evt: any): Action[] {
           const body = m?.type === "text" ? String(m.text?.body || "") : m?.type === "button" ? String(m.button?.text || m.button?.payload || "") : "";
           const optOut = STOP.test(body) ? true : START.test(body) ? false : null;
           if (optOut === null) continue;            // ordinary replies are not stored
-          out.push({ kind: "optout", args: { p_phone_number_id: phoneId, p_phone: String(m.from || ""), p_opted_out: optOut } });
-          const mid = ID(m.id);
-          if (mid) out.push({ kind: "event", args: { p_event_id: `optout:${mid}`, p_phone_number_id: phoneId, p_type: optOut ? "opt_out" : "opt_in",
-            p_ref: mid, p_status: optOut ? "opted_out" : "opted_in", p_recipient: String(m.from || ""), p_detail: {} } });
+          // R143 (0342): one action - the database records the optout:<id> event and applies the newest STOP / START
+          out.push({ kind: "optout", args: { p_phone_number_id: phoneId, p_phone: String(m.from || ""), p_opted_out: optOut,
+            p_event_at: metaTime(m.timestamp), p_message_id: ID(m.id) } });
         }
       } else if (field === "message_template_status_update" || field === "phone_number_quality_update") {
         const ref = ID(v.message_template_name || v.display_phone_number || v.message_template_id) || "unknown";
@@ -81,6 +86,23 @@ export function planActions(evt: any): Action[] {
     }
   }
   return out;
+}
+
+// R143 (0342): STOP / START in one database call (event dedupe + newest-wins, one transaction). A database without 0342
+// has no 5-argument wa_set_opt_out yet -> the 0117 pair, exactly as before. Returns the error to report, or null.
+const NO_0342 = /^(PGRST202|42883)$/;
+// deno-lint-ignore no-explicit-any
+export async function setOptOut(admin: any, args: Record<string, unknown>): Promise<unknown> {
+  const { error } = await admin.rpc("wa_set_opt_out", args);
+  if (!error) return null;
+  if (!NO_0342.test(String((error as { code?: unknown })?.code ?? ""))) return error;
+  const { p_phone_number_id, p_phone, p_opted_out, p_message_id } = args;
+  const old = await admin.rpc("wa_set_opt_out", { p_phone_number_id, p_phone, p_opted_out });
+  if (old.error) return old.error;
+  if (!p_message_id) return null;
+  const ev = await admin.rpc("wa_record_event", { p_event_id: `optout:${p_message_id}`, p_phone_number_id, p_type: p_opted_out ? "opt_out" : "opt_in",
+    p_ref: p_message_id, p_status: p_opted_out ? "opted_out" : "opted_in", p_recipient: String(p_phone ?? ""), p_detail: {} });
+  return ev.error || null;
 }
 
 Deno.serve(async (req) => {
@@ -114,7 +136,12 @@ Deno.serve(async (req) => {
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     for (const a of actions) {
-      const { error } = await admin.rpc(a.kind === "optout" ? "wa_set_opt_out" : a.kind === "template" ? "wa_template_status" : "wa_record_event", a.args);
+      if (a.kind === "optout") {
+        const oErr = await setOptOut(admin, a.args);
+        if (oErr) { log.error("record failed", errTag(oErr)); report.error(oErr); return new Response("error", { status: 500 }); }
+        continue;
+      }
+      const { error } = await admin.rpc(a.kind === "template" ? "wa_template_status" : "wa_record_event", a.args);
       if (error && a.kind === "template") { log.error("template state not saved", errTag(error)); continue; }   // cosmetic: no retry storm
       if (error) { log.error("record failed", errTag(error)); report.error(error); return new Response("error", { status: 500 }); }
     }
