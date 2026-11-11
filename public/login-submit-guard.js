@@ -12,6 +12,16 @@
     pending = e.target;
     submitter = e.submitter || null;
   }, true);
+  // R146 (faster first paint): the stylesheets only the sign-up / plan / onboarding steps use (ui-pickers, trial-terms,
+  // plan-cards, referral-signup) are in login.html as <link media="print" data-lazy-css>: they download early but do
+  // not hold the first paint. They are switched on here, at DOMContentLoaded, BEFORE login.html's page script (its
+  // listener is registered later) shows any of those steps - so every step still has its styles when it appears.
+  document.addEventListener("DOMContentLoaded", function () {
+    try {
+      var ls = document.querySelectorAll("link[data-lazy-css]");
+      for (var i = 0; i < ls.length; i++) ls[i].media = "all";
+    } catch (err) { /* never break the page */ }
+  });
   document.addEventListener("DOMContentLoaded", function () {
     // the page script's DOMContentLoaded listener was registered after this one: let it run first
     setTimeout(function () {

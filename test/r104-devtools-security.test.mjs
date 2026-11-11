@@ -4,7 +4,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 const PUB = path.resolve(import.meta.dirname, '..', 'public');
 const pages = fs.readdirSync(PUB).filter(f => f.endsWith('.html'));
-const missing = pages.filter(f => !/<script src="\/console-warning\.js\?v=\d+"><\/script>/.test(fs.readFileSync(path.join(PUB, f), 'utf8')));
+const missing = pages.filter(f => !/<script src="\/console-warning\.js\?v=\d+"( defer)?><\/script>/.test(fs.readFileSync(path.join(PUB, f), 'utf8')));
 assert.deepEqual(missing, [], 'pages missing console-warning.js: ' + missing.join(', '));
 const w = fs.readFileSync(path.join(PUB, 'console-warning.js'), 'utf8');
 assert.match(w, /Stop!/);
