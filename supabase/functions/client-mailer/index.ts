@@ -31,7 +31,7 @@
 // gate off for trials (trial_email_gate -> allowed false). Paid studios: unchanged.
 // WhatsApp / SMS are not sent from here at all.
 // (The "Share booklet" dialog's Send to client goes through booklet_send / comms_outbox, 0200 / 0212.)
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { bearer, errTag, isAllowedOrigin, responders, UUID_RE } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { brandMode, EMAIL_RE, sendMail } from "../_shared/mailer.ts";

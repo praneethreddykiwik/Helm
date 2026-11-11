@@ -40,7 +40,7 @@
 // R108 (0318): a quote with no price (total missing or <= 0, public_quote_ready) gets no code -> 409 { not_priced: true }
 // with "This quote isn't ready yet - please contact <Studio>."; the database refuses its approval too (0318 trigger).
 // A database without 0318: the check is skipped (unchanged behaviour). The e-mail / SMS / WhatsApp sends are unchanged.
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { otpEmail, otpMessage } from "../wa-proposal/logic.mjs";

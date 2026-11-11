@@ -36,10 +36,15 @@ const BASE = args.includes('--base') ? args[args.indexOf('--base') + 1] : 'HEAD'
 const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] });
 const atBase = (rel) => { try { return git('show', `${BASE}:${rel}`); } catch { return null; } };
 
+const VERSIONED_VENDOR = /^vendor\/[^/]*-\d+\.\d+\.\d+[^/]*(\/|$)/;
 const changed = [...new Set([
   ...git('diff', '--name-only', BASE, '--', 'public').split('\n'),
   ...git('ls-files', '--others', '--exclude-standard', 'public').split('\n'),
-])].filter((f) => /\.(js|css)$/.test(f) && existsSync(join(ROOT, f))).map((f) => f.slice('public/'.length));
+])].filter((f) => /\.(js|css)$/.test(f) && existsSync(join(ROOT, f))).map((f) => f.slice('public/'.length))
+  /* R141: a vendored file with the exact version in its path (vendor/supabase-js-2.119.0.min.js, vendor/three-0.186.1/...)
+     is immutable by name - a new version is a new URL, so it needs no ?v= (a ?v= on its <link rel=preload> would also stop
+     the preload matching the SRI-checked load in store-api.js). See public/vendor/README.md. */
+  .filter((f) => !VERSIONED_VENDOR.test(f));
 const changedSet = new Set(changed);
 
 /* files loaded via shell-proto.js css()/js()/optCss() helpers + shell-b.js addons + tour.js: all share SHELL_V */

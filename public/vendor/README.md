@@ -6,10 +6,10 @@ changed file is refused by the browser.
 
 | File | Source package | Version | Source path in package | sha384 (SRI) |
 |---|---|---|---|---|
-| `supabase-js-2.118.0.min.js` | `@supabase/supabase-js` (npm) | 2.118.0 | `dist/umd/supabase.js` (the minified UMD build; exposes `window.supabase`) | `sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK` |
+| `supabase-js-2.119.0.min.js` | `@supabase/supabase-js` (npm) | 2.119.0 | `dist/umd/supabase.js` (the minified UMD build; exposes `window.supabase`) | `sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O` |
 
-npm tarball integrity for 2.118.0 (r30, verified against the registry 2026-10-26):
-`sha512-FxI8UXMVC2UG7IkeiI8fuQZqq2oI3JeSuN8MPIC2RLVaoEAxKS0nqE6kii9Ewpq8f9gNPM6git1Y8f0vN/QLFw==`.
+npm tarball integrity for 2.119.0 (R141, verified against the registry 2026-11-11):
+`sha512-MKP49G6bJbPhvsZDegZ/IXS/ITApPgplDCF5+F65KZ5kIArS5Y90WFxwvWYALx2bsxdrSuHvkCiXHYr3dU8+sw==`.
 
 Loaded by `public/store-api.js` → `loadSupabaseLib()`. The version, file name
 and integrity are in the `SUPABASE_JS` constant there.
@@ -56,7 +56,7 @@ host (`script-src 'self'`); `connect-src` still allows only the DSN's ingest hos
 
 ```sh
 cd "$(mktemp -d)"
-npm pack @supabase/supabase-js@<version>          # e.g. 2.118.0 (stay on 2.x)
+npm pack @supabase/supabase-js@<version>          # e.g. 2.119.0 (stay on 2.x)
 tar xzf supabase-supabase-js-<version>.tgz
 cp package/dist/umd/supabase.js <repo>/public/vendor/supabase-js-<version>.min.js
 echo "sha384-$(openssl dgst -sha384 -binary <repo>/public/vendor/supabase-js-<version>.min.js | openssl base64 -A)"

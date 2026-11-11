@@ -12,7 +12,7 @@
 // Answer: { ok, status, display_phone?, verified_name?, quality?, error?, templates: { name: STATE }, summary, webhook? }
 // The token is read with the service role (org_whatsapp_check_creds), sent only to graph.facebook.com, never returned,
 // never logged. Costs Meta quota, so it is rate-limited per admin and per studio.
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { bearer, errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { graphError, graphVersion, templateStates, templatesToCreate, templateSummary, verifyResult } from "../_shared/wa-studio.mjs";
