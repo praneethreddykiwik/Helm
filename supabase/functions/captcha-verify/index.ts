@@ -29,10 +29,13 @@ import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { bearer, errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { hostList, isPublicAction, judge, SITEVERIFY_URL, validRequest, verifyForm } from "./logic.mjs";
+import { logger } from "../_shared/log.ts";
+import { fetchWithTimeout } from "../_shared/http.ts";   // R142: the shared deadline helper (same 8 s as before)
 
 const FAILED = "The security check failed - please try again.";
 
 Deno.serve(async (req) => {
+  const log = logger("captcha-verify", req);   // R142: JSON log lines with the request id
   const { cors, json, serverError } = responders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -72,20 +75,19 @@ Deno.serve(async (req) => {
 
     let answer: unknown = null;
     try {
-      const r = await fetch(SITEVERIFY_URL, { redirect: "error",
+      const r = await fetchWithTimeout(SITEVERIFY_URL, { redirect: "error",
         method: "POST",
         body: verifyForm(secret, v.token, ip, crypto.randomUUID()),
-        signal: AbortSignal.timeout(8000),
-      });
+      }, 8000);
       answer = r.ok ? await r.json() : null;
-      if (!r.ok) console.error("captcha-verify: siteverify status", r.status);
+      if (!r.ok) log.error("siteverify status", r.status);
     } catch (e) {
-      console.error("captcha-verify: siteverify unreachable", errTag(e));
+      log.error("siteverify unreachable", errTag(e));
       return json({ error: "The security check couldn't be confirmed just now. Please try again.", code: "captcha_unavailable" }, 503);
     }
     if (answer === null) return json({ error: "The security check couldn't be confirmed just now. Please try again.", code: "captcha_unavailable" }, 503);
     const verdict = judge(answer, { action: v.action, hostnames: hostList(Deno.env.get("HELM_TURNSTILE_HOSTNAMES")) });
-    if (!verdict.ok) { console.log("captcha-verify: refused", verdict.reason); return json({ error: FAILED, code: "captcha_failed" }, 403); }
+    if (!verdict.ok) { log.info("refused", { reason: verdict.reason }); return json({ error: FAILED, code: "captcha_failed" }, 403); }
 
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "", { auth: { persistSession: false } });
     if (pub) {
@@ -94,7 +96,7 @@ Deno.serve(async (req) => {
       if (pErr) {
         // a database without 0276 does not check the public forms either: the form can go on
         if (String((pErr as any).code || "") === "PGRST202") return json({ ok: true, configured: true, pass: null });
-        console.error("captcha-verify: public pass failed", errTag(pErr));
+        log.error("public pass failed", errTag(pErr));
         return json({ error: "internal error" }, 500);
       }
       return json({ ok: true, configured: true, pass: typeof pass === "string" ? pass : null });
@@ -103,7 +105,7 @@ Deno.serve(async (req) => {
     if (error) {
       // a database without 0249 has no captcha switch either: the request can go on
       if (String((error as any).code || "") === "PGRST202") return json({ ok: true, configured: true, recorded: false });
-      console.error("captcha-verify: record failed", errTag(error));
+      log.error("record failed", errTag(error));
       return json({ error: "internal error" }, 500);
     }
     return json({ ok: true, configured: true, recorded: true });

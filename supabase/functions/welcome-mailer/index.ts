@@ -22,9 +22,10 @@
 // The database decides WHO gets mail (one row per person per kind, queued by triggers, re-checked at claim).
 // Logs carry only counts, SQLSTATE codes and HTTP status — never an address or a name.
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
-import { errTag } from "../_shared/cors.ts";
+import { errTag, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/limits.ts";
 import { runWelcomeBatch } from "./send.ts";
+import { logger } from "../_shared/log.ts";
 
 const enc = new TextEncoder();
 
@@ -44,6 +45,8 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
+  const log = logger("welcome-mailer", req);   // R142: JSON log lines with the request id
+  const report = sentryOnce(req);   // R142: one Sentry event per run at most (function name + tag only)
   try {
     if (Deno.env.get("HELM_WELCOME_EMAILS_ENABLED") !== "true") return json({ status: "dormant" });
     if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -57,14 +60,16 @@ Deno.serve(async (req) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
     const w = await runWelcomeBatch(admin, batch);
-    if (w.error) { console.error("welcome-mailer: claim failed", errTag(w.error)); return json({ error: "internal error" }, 500); }
+    if (w.error) { log.error("claim failed", errTag(w.error)); report.error(w.error); return json({ error: "internal error" }, 500); }
     if (w.off) return json({ status: "switched_off" });   // 0327 switch off: nothing claimed
     const counts = w.counts;
-    console.log("welcome-mailer: run", JSON.stringify(counts));
+    log.info("run", counts);
+    if (counts.failed > 0) report.fail("send_failed");   // failed sends (retried next run) or rows not marked
     return json({ status: "ok", ...counts });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
-    console.error("welcome-mailer error", errTag(e));
+    log.error("welcome-mailer error", errTag(e));
+    report.error(e);
     return json({ error: "internal error" }, 500);
   }
 });

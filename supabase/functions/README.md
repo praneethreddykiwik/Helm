@@ -14,6 +14,12 @@ function loses its check.
 Rate limits fail **closed** by default since r21 (`_shared/limits.ts`). Set
 `HELM_RATE_LIMIT_FAIL_CLOSED=false` only to go back to fail-open.
 
+R142: every outbound call goes through `_shared/http.ts` (`fetchWithTimeout`, 10 s default; SMTP connect/STARTTLS
+10 s too) - a timeout is handled like the provider failing (retry / the usual "try again"). Every function except
+the public `csp-report` reports unexpected failures to Sentry (only with `SENTRY_DSN`; one event per request via
+`sentryOnce`, function name + error tag only). Logs are JSON lines from `_shared/log.ts`
+(`level, fn, msg, code, req` = the incoming `sb-request-id`). Shared code changed: redeploy ALL functions.
+
 New in r21 (both dormant or harmless until configured):
 - `captcha-verify` (verify_jwt false, user JWT checked in code): server-side Cloudflare Turnstile check
   for checkout "Contact sales". Secret: `TURNSTILE_SECRET_KEY` (the same Turnstile secret pasted

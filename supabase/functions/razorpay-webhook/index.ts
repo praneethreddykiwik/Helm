@@ -32,8 +32,12 @@
 //     x-razorpay-event-id header is not covered by the signature, so it is no longer the key);
 //     a cancelled/expired link's open reservation is closed so it is never reused.
 //     Refunds are recorded only - the ledger is never rewritten automatically.
+// R142: every 500 (Razorpay retries) and the top-level catch also reach Sentry when SENTRY_DSN is set - one event per
+//   delivery, function name + error tag only. Logs are JSON lines (_shared/log.ts) with the request id.
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
-import { errTag, escHtml, UUID_RE } from "../_shared/cors.ts";
+import { errTag, escHtml, sentryOnce, UUID_RE } from "../_shared/cors.ts";
+import { fetchWithTimeout } from "../_shared/http.ts";   // R142: the Resend call has a deadline (timeout = "failed")
+import { logger } from "../_shared/log.ts";
 import { quoteCur, symMoney } from "../_shared/money.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped, WEBHOOK_BODY_LIMIT } from "../_shared/limits.ts";
 import { postalAddress, txFooter, withFooter } from "../_shared/email-compliance.mjs";
@@ -55,6 +59,7 @@ function timingSafeEqual(a: string, b: string) {
 }
 
 const EMAIL = /^[^\s@<>"',;:\\]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/;
+const L = logger("razorpay-webhook");
 // "Studio Name <addr>" with the studio's (sanitized) name and the configured sender address
 function fromHeader(studio: string) {
   const conf = Deno.env.get("RESEND_FROM") || "onboarding@resend.dev";
@@ -70,15 +75,15 @@ async function sendEmail(to: string, subject: string, html: string, from: string
   if (!to || !EMAIL.test(to)) return "failed";
   const _f = withFooter({ text: "", html }, txFooter("payment", { app: Deno.env.get("APP_URL"), address: postalAddress((k: string) => Deno.env.get(k)) }));
     try {
-    const r = await fetch("https://api.resend.com/emails", { redirect: "error",
+    const r = await fetchWithTimeout("https://api.resend.com/emails", { redirect: "error",
       method: "POST", headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
       body: JSON.stringify({ from, to, subject, html: _f.html, ...(replyTo && EMAIL.test(replyTo) ? { reply_to: replyTo } : {}) }),
     });
     await r.text();
-    if (!r.ok) console.error("resend error", r.status);
+    if (!r.ok) L.error("resend error", r.status);
     return r.ok ? "sent" : "failed";
   } catch (e) {
-    console.error("resend error", errTag(e));
+    L.error("resend error", errTag(e));
     return "failed";
   }
 }
@@ -93,6 +98,7 @@ async function sha256Hex(s: string) {
 // deno-lint-ignore no-explicit-any
 async function recordEvent(admin: any, req: Request, raw: string, evt: any, org: string | null): Promise<Response> {
   const type = String(evt.event);
+  const log = logger("razorpay-webhook", req);
   // R32 SRV-2: the de-duplication key comes only from the SIGNED body. The x-razorpay-event-id header
   // is not signed, so a replayed body with a new header id used to be recorded again. Razorpay
   // re-sends the identical body on retries, so the body hash is stable per event.
@@ -117,10 +123,10 @@ async function recordEvent(admin: any, req: Request, raw: string, evt: any, org:
     // only RECORDED (never settled), so a missing function answers 200 "ignored" - a 500 here made Razorpay retry and
     // then switch the whole webhook off, which would also stop the real payment_link.paid deliveries.
     if (isMissingRpc(recErr)) {
-      console.error("razorpay_record_event missing (0117 not applied) - event ignored", type);
+      log.error("razorpay_record_event missing (0117 not applied) - event ignored", undefined, { event: type });
       return new Response(JSON.stringify({ ignored: true }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
-    console.error("razorpay_record_event failed", errTag(recErr)); return new Response("error", { status: 500 });
+    sentryOnce(req).error(recErr); log.error("razorpay_record_event failed", errTag(recErr)); return new Response("error", { status: 500 });
   }
   if (data?.result === "replay") return new Response("already recorded (idempotent)", { status: 200 });
   if (data?.result === "org_mismatch") return new Response("ignored", { status: 200 });
@@ -130,6 +136,8 @@ async function recordEvent(admin: any, req: Request, raw: string, evt: any, org:
 const oneLine = (s: unknown) => String(s ?? "").replace(/[\r\n]/g, " ").slice(0, 120);
 
 Deno.serve(async (req) => {
+  const log = logger("razorpay-webhook", req);
+  const report = sentryOnce(req);   // R142: one Sentry event per delivery at most
   try {
     const wait = await checkLimits([["rzp:ip:" + clientIp(req), 300, 60_000]]);
     if (wait) return new Response("too many requests", { status: 429, headers: { "Retry-After": String(wait) } });
@@ -143,7 +151,7 @@ Deno.serve(async (req) => {
     const db = () => admin ||= createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     if (orgParam) {
       const { data: cr, error: cErr } = await db().rpc("org_razorpay_creds", { p_org: orgParam });
-      if (cErr) { console.error("org_razorpay_creds failed", errTag(cErr)); return new Response("error", { status: 500 }); }
+      if (cErr) { report.error(cErr); log.error("org_razorpay_creds failed", errTag(cErr)); return new Response("error", { status: 500 }); }
       secret = typeof cr?.webhook_secret === "string" ? cr.webhook_secret : "";
     } else {
       secret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") || "";
@@ -169,14 +177,14 @@ Deno.serve(async (req) => {
     // (amount_mismatch) for the studio to check by hand - money is never dropped, never counted at the wrong value.
     const payCur = String(payEnt.currency || linkEnt.currency || "INR").trim().toUpperCase();
     const paidPaise = payCur === "INR" ? Number(linkEnt.amount_paid ?? payEnt.amount ?? NaN) : NaN;
-    if (payCur !== "INR") console.error("webhook: paid event not in INR - sent to reconciliation", oneLine(payCur).slice(0, 8));
+    if (payCur !== "INR") log.error("paid event not in INR - sent to reconciliation", undefined, { currency: oneLine(payCur).slice(0, 8) });
     // r31: razorpay_settle de-duplicates on the payment id. An event WITHOUT one can't be de-duplicated, so a
     // re-sent copy would file another reconciliation row and e-mail the studio again: only a fresh one is used.
     if (!payId) {
       const maxAge = Math.max(60, Number(Deno.env.get("RAZORPAY_EVENT_MAX_AGE_SEC")) || 86400);
       const created = Number(evt?.created_at), now = Math.floor(Date.now() / 1000);
       if (!Number.isFinite(created) || created < now - maxAge || created > now + 300) {
-        console.error("webhook: paid event without a payment id and not fresh - ignored", type);
+        log.error("paid event without a payment id and not fresh - ignored", undefined, { event: type });
         return new Response("stale event", { status: 200 });
       }
     }
@@ -195,24 +203,25 @@ Deno.serve(async (req) => {
       out = gOut; sErr = gErr;
     }
     if (sErr || !out) {
-      console.error("razorpay_settle failed", errTag(sErr));
+      report.error(sErr);
+      log.error("razorpay_settle failed", errTag(sErr));
       return new Response("error", { status: 500 });                    // Razorpay retries
     }
-    if (out.result === "org_mismatch") { console.error("webhook: payment belongs to another studio - ignored", type); return new Response("ignored", { status: 200 }); }
-    if (out.result === "unmatched") { console.error("webhook: payment matched no quote", type); return new Response("no quote", { status: 200 }); }
+    if (out.result === "org_mismatch") { log.error("payment belongs to another studio - ignored", undefined, { event: type }); return new Response("ignored", { status: 200 }); }
+    if (out.result === "unmatched") { log.error("payment matched no quote", undefined, { event: type }); return new Response("no quote", { status: 200 }); }
     // IDEMPOTENCY: a replayed delivery returns 200 WITHOUT re-notifying
     if (out.result === "replay") return new Response("already recorded (idempotent)", { status: 200 });
 
     // per-studio details for the emails
     const { data: q, error: qErr } = await admin.from("quotes").select("id, code, title, client, pricing, org_id, currency, tax_snapshot").eq("id", out.quote_id).maybeSingle();
-    if (qErr) { console.error("quote load failed", errTag(qErr)); return new Response("error", { status: 500 }); }
+    if (qErr) { report.error(qErr); log.error("quote load failed", errTag(qErr)); return new Response("error", { status: 500 }); }
     if (!q) return new Response("ok", { status: 200 });
     const { data: org, error: oErr } = await admin.from("organizations").select("name").eq("id", q.org_id).maybeSingle();
-    if (oErr) { console.error("studio load failed", errTag(oErr)); return new Response("error", { status: 500 }); }
+    if (oErr) { report.error(oErr); log.error("studio load failed", errTag(oErr)); return new Response("error", { status: 500 }); }
     const studio = String(org?.name || "Your event studio");
     // r59 (audit E-03): the studio e-mail only once confirmed, else the studio owner's login e-mail
     const billTo = await studioBillingEmail(admin, String(q.org_id));
-    if (billTo === null) { console.error("studio e-mail lookup failed"); return new Response("error", { status: 500 }); }
+    if (billTo === null) { report.fail("billing_email_lookup"); log.error("studio e-mail lookup failed"); return new Response("error", { status: 500 }); }
     const studioEmail = billTo;
     const from = fromHeader(studio);
     const subjCode = oneLine(q.code);
@@ -223,7 +232,7 @@ Deno.serve(async (req) => {
       const st = await sendEmail(studioEmail, `Payment needs attention — ${subjCode}`, html, fromHeader("Helm"));
       const { error: nErr } = await admin.from("notifications").insert(
         { quote_id: q.id, channel: "email", recipient: studioEmail || null, kind: "payment_reconcile", status: st });
-      if (nErr) console.error("notification log failed", errTag(nErr));
+      if (nErr) log.error("notification log failed", errTag(nErr));
       return new Response("recorded for reconciliation", { status: 200 });
     }
 
@@ -231,7 +240,7 @@ Deno.serve(async (req) => {
     // India audit: say what was PAID (this payment + ledger total) and the balance - never the quote total as if paid in full
     const grand = Number(q.pricing?.total || 0);
     const { data: pays, error: paysErr } = await admin.from("quote_payments").select("amount").eq("quote_id", q.id).eq("status", "paid");
-    if (paysErr) console.error("payments load failed", errTag(paysErr));   // email still goes, using this payment only
+    if (paysErr) log.error("payments load failed", errTag(paysErr));   // email still goes, using this payment only
     const paidSum = (pays || []).reduce((a: number, r: { amount: unknown }) => a + (Number(r.amount) || 0), 0);
     const thisPay = Number.isFinite(paidPaise) ? Math.round(paidPaise) / 100 : paidSum;
     const bal = Math.max(0, grand - paidSum);
@@ -244,7 +253,7 @@ Deno.serve(async (req) => {
     // studio copy: the studio admin may have switched the automatic "payment received"
     // e-mail off (0036 notification_prefs). Fail-open: if the check errors, send as before.
     const { data: studioOn, error: pErr } = await admin.rpc("notify_allowed", { p_org: q.org_id, p_role: "*", p_type: "advance_paid", p_channel: "email" });
-    if (pErr) console.error("notification prefs check failed", errTag(pErr));
+    if (pErr) log.error("notification prefs check failed", errTag(pErr));
     const studioStatus = (pErr || studioOn !== false)
       ? await sendEmail(studioEmail, `Event confirmed (paid) — ${subjCode}`, html, from)
       : "suppressed";
@@ -252,7 +261,7 @@ Deno.serve(async (req) => {
       { quote_id: q.id, channel: "email", recipient: clientEmail || null, kind: "payment_receipt", status: clientStatus },
       { quote_id: q.id, channel: "email", recipient: studioEmail || null, kind: "payment_receipt", status: studioStatus },
     ]);
-    if (nErr) console.error("notification log failed", errTag(nErr));
+    if (nErr) log.error("notification log failed", errTag(nErr));
 
     // optional platform-ops copy: no tenant data at all
     const ops = Deno.env.get("MANAGER_EMAIL") || "";
@@ -260,7 +269,8 @@ Deno.serve(async (req) => {
     return new Response("ok", { status: 200 });
   } catch (e) {
     if (e instanceof BodyTooLarge) return new Response("payload too large", { status: 413 });
-    console.error("webhook error", errTag(e));
+    log.error("webhook error", errTag(e));
+    report.error(e);
     return new Response("error", { status: 500 });
   }
 });

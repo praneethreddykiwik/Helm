@@ -19,9 +19,12 @@
 // file names or reasons. Logs carry only counts, SQLSTATE codes and HTTP status.
 // Outbound HTTP goes only to a FIXED host allowlist (no URL is ever taken from input).
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
-import { errTag, escHtml } from "../_shared/cors.ts";
+import { errTag, escHtml, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/limits.ts";
 import { postalAddress, txFooter, withFooter } from "../_shared/email-compliance.mjs";
+import { logger } from "../_shared/log.ts";
+import { fetchWithTimeout } from "../_shared/http.ts";   // R142: the Resend call has a 10 s deadline (timeout = failed -> retry)
+const L = logger("security-alert-mailer");
 
 const enc = new TextEncoder();
 const ALLOWED_HOSTS = new Set(["api.resend.com"]);
@@ -44,7 +47,7 @@ export async function secretMatches(given: string, expected: string): Promise<bo
 async function safeFetch(url: string, init: RequestInit): Promise<Response> {
   const u = new URL(url);
   if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname)) throw new Error("host not allowed");
-  return await fetch(u.toString(), { ...init, redirect: "error" });
+  return await fetchWithTimeout(u.toString(), { ...init, redirect: "error" });
 }
 
 type SendResult = "sent" | "skipped" | "failed";
@@ -66,10 +69,10 @@ async function sendEmail(to: string[], subject: string, html: string): Promise<S
       body: JSON.stringify({ from, to: list, subject, html: _f.html }),
     });
     await r.text();
-    if (!r.ok) console.error("security-alert-mailer: provider status", r.status);
+    if (!r.ok) L.error("provider status", r.status);
     return r.ok ? "sent" : "failed";
   } catch (e) {
-    console.error("security-alert-mailer: provider error", errTag(e));
+    L.error("provider error", errTag(e));
     return "failed";
   }
 }
@@ -90,6 +93,8 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
+  const log = logger("security-alert-mailer", req);   // R142: JSON log lines with the request id
+  const report = sentryOnce(req);   // R142: one Sentry event per run at most (function name + tag only)
   try {
     if (Deno.env.get("HELM_SECURITY_ALERTS_ENABLED") !== "true") return json({ status: "dormant" });
     if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -103,7 +108,7 @@ Deno.serve(async (req) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
     const { data: rows, error } = await admin.rpc("security_alert_outbox_claim", { p_limit: batch });
-    if (error) { console.error("security-alert-mailer: claim failed", errTag(error)); return json({ error: "internal error" }, 500); }
+    if (error) { log.error("claim failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
     const hqTo = String(Deno.env.get("HELM_SECURITY_ALERT_HQ_TO") || "").split(",").map((s) => s.trim()).filter(Boolean);
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
@@ -115,14 +120,16 @@ Deno.serve(async (req) => {
       const msg = message(String(r?.label || "Security event"), Math.max(1, Number(r?.count) || 1), String(r?.studio || ""), hq);
       const res = await sendEmail(to, msg.subject, msg.html);
       const { error: mErr } = await admin.rpc("security_alert_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("security-alert-mailer: mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
-    console.log("security-alert-mailer: run", JSON.stringify(counts));
+    log.info("run", counts);
+    if (counts.failed > 0) report.fail("send_failed");   // failed sends (retried next run) or rows not marked
     return json({ status: "ok", ...counts });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
-    console.error("security-alert-mailer error", errTag(e));
+    log.error("security-alert-mailer error", errTag(e));
+    report.error(e);
     return json({ error: "internal error" }, 500);
   }
 });

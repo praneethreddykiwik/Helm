@@ -20,7 +20,8 @@
 // (e.g. a project literally named "helm-v01-x-vk-hub"), so patterns are never trusted.
 // Server-to-server callers (razorpay-webhook) do not use CORS at all.
 
-import { sentrySend } from "./sentry.mjs";
+import { fnName, sentrySend } from "./sentry.mjs";
+import { logger } from "./log.ts";
 
 const DEFAULT_ORIGINS = [
   "https://helm.events",
@@ -67,7 +68,7 @@ export function responders(req: Request) {
   // Log only a short, PII-free description server-side; return a generic message to
   // the caller so internal details (SQL, provider responses) never reach the browser.
   const serverError = (e: unknown) => {
-    console.error("internal error:", errTag(e));
+    logger(fnName(req.url), req).error("internal error", errTag(e));   // R142: one JSON line (_shared/log.ts)
     reportToSentry(req, e);   // r26: optional alert (only with the SENTRY_DSN secret; function name + error tag only)
     return json({ error: "internal error" }, 500);
   };
@@ -78,16 +79,37 @@ export function responders(req: Request) {
 // name and errTag(e) - never the message, stack, body, headers or caller. Kept alive past the response when the
 // runtime allows (EdgeRuntime.waitUntil); never throws.
 export function reportToSentry(req: Request, e: unknown) {
+  sentryTag(req, errTag(e));
+}
+function sentryTag(req: Request, tag: string) {
   try {
-    const p = sentrySend((k: string) => Deno.env.get(k) || "", globalThis.fetch, req.url, errTag(e));
+    const p = sentrySend((k: string) => Deno.env.get(k) || "", globalThis.fetch, req.url, tag);
     const rt = (globalThis as any).EdgeRuntime;
     if (p && rt && typeof rt.waitUntil === "function") rt.waitUntil(p);
   } catch (_) { /* never break the answer */ }
 }
 
+// R142: Sentry for the functions that do not answer through serverError above (cron senders, webhooks, the
+// unsubscribe link, ...). At most ONE event per request, so a batch in which 100 rows fail sends one event, not 100.
+//   const report = sentryOnce(req);
+//   report.error(e)             an unexpected failure: tag = errTag(e) (SQLSTATE / error name)
+//   report.fail("send_failed")  provider failures in a batch: a fixed lower_case kind written in the code
+// Same PII-free payload as reportToSentry (function name + tag); OFF unless SENTRY_DSN is set; never throws.
+export function sentryOnce(req: Request) {
+  let sent = false;
+  const send = (tag: string) => { if (sent) return; sent = true; sentryTag(req, tag); };
+  return {
+    error: (e: unknown) => send(errTag(e)),
+    fail: (kind: string) => send(/^[a-z_]{1,40}$/.test(kind) ? kind : "failure"),
+  };
+}
+
 // A log-safe tag for an error: SQLSTATE / name only — never the message body, which
 // can carry phone numbers, emails or provider payloads.
+// R142: a DOMException (e.g. the "TimeoutError" of a passed deadline, _shared/http.ts) is tagged by its name - its
+// numeric legacy code (23 for a timeout) said nothing.
 export function errTag(e: unknown): string {
+  if (typeof DOMException !== "undefined" && e instanceof DOMException) return String(e.name || "error").slice(0, 40);
   const o = (e && typeof e === "object") ? e as Record<string, unknown> : {};
   return String(o.code || o.name || "error").slice(0, 40);
 }

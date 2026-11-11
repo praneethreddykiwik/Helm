@@ -22,6 +22,10 @@
 // non-transactional caller passes its own `footer` (with Unsubscribe) + List-Unsubscribe `headers`.
 import { postalAddress, txFooter, withFooter } from "./email-compliance.mjs";
 import { smtpReason, smtpSend } from "./smtp.ts";
+import { fetchWithTimeout } from "./http.ts";   // R142: Resend call has a deadline (timeout = "could not be reached")
+import { errTag } from "./cors.ts";
+import { logger } from "./log.ts";
+const log = logger("mailer");
 
 export type MailMsg = {
   to: string; subject: string; text: string; html?: string;
@@ -99,15 +103,15 @@ export async function sendMail(msg: MailMsg, opts: { env?: EnvGet; smtp?: SmtpSe
   if (cfg.provider === "resend") {
     try {
       const env = opts.env || envOf();
-      const r = await fetch("https://api.resend.com/emails", { redirect: "error",
+      const r = await fetchWithTimeout("https://api.resend.com/emails", { redirect: "error",
         method: "POST",
         headers: { "Authorization": "Bearer " + env("RESEND_API_KEY"), "Content-Type": "application/json" },
         body: JSON.stringify({ from, to: [to], subject, text: body.text, ...(body.html ? { html: body.html } : {}), ...(headers ? { headers } : {}), ...(replyTo ? { reply_to: replyTo } : {}) }),
       });
       await r.text();
-      if (!r.ok) { console.error("mailer: resend status", r.status); return { status: "failed", provider: "resend", reason: "the e-mail provider refused the message" }; }
+      if (!r.ok) { log.error("resend status", r.status); return { status: "failed", provider: "resend", reason: "the e-mail provider refused the message" }; }
       return { status: "sent", provider: "resend" };
-    } catch (_) { console.error("mailer: resend unreachable"); return { status: "failed", provider: "resend", reason: "the e-mail provider could not be reached" }; }
+    } catch (e) { log.error("resend unreachable", errTag(e)); return { status: "failed", provider: "resend", reason: "the e-mail provider could not be reached" }; }
   }
   try {
     await (opts.smtp || builtinSmtp)(cfg.smtp!, { from, to, subject, text: body.text, html: body.html, replyTo, ...(headers ? { headers } : {}) });

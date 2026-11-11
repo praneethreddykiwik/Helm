@@ -17,8 +17,9 @@
 //          (R129 / 0337: a template's new state also -> wa_template_status, for the studio with that WABA id)
 //      Always 200 after a valid signature (Meta retries non-2xx for days); DB errors -> 500.
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
-import { errTag } from "../_shared/cors.ts";
+import { errTag, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped, WEBHOOK_BODY_LIMIT } from "../_shared/limits.ts";
+import { logger } from "../_shared/log.ts";
 
 const enc = new TextEncoder();
 async function hmacHex(secret: string, body: string) {
@@ -83,6 +84,8 @@ export function planActions(evt: any): Action[] {
 }
 
 Deno.serve(async (req) => {
+  const log = logger("wa-webhook", req);   // R142: JSON log lines with the request id
+  const report = sentryOnce(req);           // R142: a 500 (Meta retries) reaches Sentry once per delivery
   try {
     const verifyToken = Deno.env.get("WHATSAPP_WEBHOOK_VERIFY_TOKEN") || "";
     const appSecret = Deno.env.get("WHATSAPP_APP_SECRET") || "";
@@ -112,13 +115,14 @@ Deno.serve(async (req) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     for (const a of actions) {
       const { error } = await admin.rpc(a.kind === "optout" ? "wa_set_opt_out" : a.kind === "template" ? "wa_template_status" : "wa_record_event", a.args);
-      if (error && a.kind === "template") { console.error("wa-webhook template state not saved", errTag(error)); continue; }   // cosmetic: no retry storm
-      if (error) { console.error("wa-webhook record failed", errTag(error)); return new Response("error", { status: 500 }); }
+      if (error && a.kind === "template") { log.error("template state not saved", errTag(error)); continue; }   // cosmetic: no retry storm
+      if (error) { log.error("record failed", errTag(error)); report.error(error); return new Response("error", { status: 500 }); }
     }
     return new Response("ok", { status: 200 });
   } catch (e) {
     if (e instanceof BodyTooLarge) return new Response("payload too large", { status: 413 });
-    console.error("wa-webhook error", errTag(e));
+    log.error("wa-webhook error", errTag(e));
+    report.error(e);
     return new Response("error", { status: 500 });
   }
 });

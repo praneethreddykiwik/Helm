@@ -41,6 +41,9 @@ import { errTag, normPhone, responders } from "../_shared/cors.ts";
 import { dialFor, quoteCur, razorpaySupports } from "../_shared/money.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { isTrialNoSend, trialSendBlocked } from "../_shared/trial-guard.ts";
+import { fetchWithTimeout } from "../_shared/http.ts";   // R142: every Razorpay call has a deadline
+import { logger } from "../_shared/log.ts";
+const L = logger("create-payment-link");
 
 const TRIAL_PAY_MSG = "Online payment isn't available while your planner's studio is on its free trial - your planner will share payment details.";
 
@@ -55,11 +58,11 @@ export async function resolveRazorpayCreds(admin: any, orgId: unknown): Promise<
   if (orgId && typeof orgId === "string") {
     try {
       const { data, error } = await admin.rpc("org_razorpay_creds", { p_org: orgId });
-      if (error) console.error("org_razorpay_creds failed", errTag(error));
+      if (error) L.error("org_razorpay_creds failed", errTag(error));
       else if (data && KEY_ID.test(String(data.key_id || "")) && typeof data.key_secret === "string" && data.key_secret.length >= 8) {
         return { keyId: String(data.key_id), keySecret: data.key_secret, source: "studio" };
       }
-    } catch (e) { console.error("org_razorpay_creds failed", errTag(e)); }
+    } catch (e) { L.error("org_razorpay_creds failed", errTag(e)); }
   }
   if (Deno.env.get("RAZORPAY_REQUIRE_STUDIO_ACCOUNT") === "1") return null;
   const keyId = Deno.env.get("RAZORPAY_KEY_ID") || "", keySecret = Deno.env.get("RAZORPAY_KEY_SECRET") || "";
@@ -70,6 +73,7 @@ const isRazorpayLink = (ref: unknown, url: unknown) => PLINK.test(String(ref || 
 
 Deno.serve(async (req) => {
   const { cors, json, serverError } = responders(req);
+  const log = logger("create-payment-link", req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   try {
@@ -85,7 +89,7 @@ Deno.serve(async (req) => {
     // 0092: INR only - checked before payment_link_begin so nothing is reserved for AED / USD
     const { data: qc, error: qcErr } = await admin.from("quotes").select("currency, tax_snapshot, pricing, org_id")
       .eq("approval_token", token.toLowerCase()).maybeSingle();
-    if (qcErr) { console.error("quote currency load failed", errTag(qcErr)); return json({ error: "could not prepare the payment, please try again" }, 500); }
+    if (qcErr) { log.error("quote currency load failed", errTag(qcErr)); return json({ error: "could not prepare the payment, please try again" }, 500); }
     // 0187: never a real link (Razorpay SMS / e-mail to the client, real money) from a free-trial studio
     if (await trialSendBlocked(admin, { org: qc?.org_id ? String(qc.org_id) : null, token: token.toLowerCase() })) {
       return json({ error: TRIAL_PAY_MSG, code: "trial", trial: true }, 409);
@@ -106,7 +110,7 @@ Deno.serve(async (req) => {
     const ttl = Math.min(43200, Math.max(20, Number(Deno.env.get("PAYMENT_LINK_TTL_MINUTES")) || 4320));
     const { data: b, error: bErr } = await admin.rpc("payment_link_begin", { p_token: token, p_ttl_minutes: ttl });
     if (isTrialNoSend(bErr)) return json({ error: TRIAL_PAY_MSG, code: "trial", trial: true }, 409);   // 0187
-    if (bErr || !b) { console.error("payment_link_begin failed", errTag(bErr)); return json({ error: "could not prepare the payment, please try again" }, 500); }
+    if (bErr || !b) { log.error("payment_link_begin failed", errTag(bErr)); return json({ error: "could not prepare the payment, please try again" }, 500); }
     switch (b.action) {
       case "invalid": return json({ error: "invalid link" }, 404);
       // Never mint a second live link for a quote that is already paid (double charge).
@@ -122,15 +126,19 @@ Deno.serve(async (req) => {
     }
 
     const auth = "Basic " + btoa(keyId + ":" + keySecret);
+    // R142: 10 s deadline. A cancel that times out is logged like any failed cancel (best effort). A CREATE that times
+    // out may still have been made at Razorpay, so it is NOT marked failed here: it goes to the generic 500 below (as
+    // a network error always did) and the reservation is superseded after 2 minutes (payment_link_begin, 0027); a
+    // payment that still arrives on such a link is filed for reconciliation by the webhook, never dropped.
     const rzp = (path: string, init: RequestInit = {}) =>
-      fetch("https://api.razorpay.com/v1/" + path, { ...init, redirect: "error", headers: { "Authorization": auth, "Content-Type": "application/json" } });
+      fetchWithTimeout("https://api.razorpay.com/v1/" + path, { ...init, redirect: "error", headers: { "Authorization": auth, "Content-Type": "application/json" } });
 
     // cancel links superseded by a changed total (best effort; the webhook records any
     // payment that still arrives on one for reconciliation)
     for (const ref of Array.isArray(b.supersede) ? b.supersede : []) {
       if (!PLINK.test(String(ref))) continue;
-      try { const r = await rzp(`payment_links/${ref}/cancel`, { method: "POST" }); await r.text(); if (!r.ok) console.error("razorpay cancel failed", r.status); }
-      catch (e) { console.error("razorpay cancel failed", errTag(e)); }
+      try { const r = await rzp(`payment_links/${ref}/cancel`, { method: "POST" }); await r.text(); if (!r.ok) log.error("razorpay cancel failed", r.status); }
+      catch (e) { log.error("razorpay cancel failed", errTag(e)); }
     }
 
     const total = Number(b.amount);
@@ -157,9 +165,9 @@ Deno.serve(async (req) => {
     });
     const link = await r.json().catch(() => ({}));
     if (!r.ok || !isRazorpayLink(link.id, link.short_url)) {
-      console.error("razorpay error", r.status);
+      log.error("razorpay error", r.status);
       const { error: fErr } = await admin.rpc("payment_link_fail", { p_payment: b.payment_id });
-      if (fErr) console.error("payment_link_fail failed", errTag(fErr));
+      if (fErr) log.error("payment_link_fail failed", errTag(fErr));
       return json({ error: "could not create the payment link, please try again" }, 502);
     }
 
@@ -168,7 +176,7 @@ Deno.serve(async (req) => {
       { p_payment: b.payment_id, p_provider_ref: link.id, p_link_url: link.short_url });
     if (aErr || attached !== true) {
       // our reservation was superseded meanwhile — never hand out an untracked link
-      console.error("payment_link_attach failed", errTag(aErr));
+      log.error("payment_link_attach failed", errTag(aErr));
       try { const c = await rzp(`payment_links/${link.id}/cancel`, { method: "POST" }); await c.text(); } catch (_) { /* best effort */ }
       return json({ error: "your payment link changed — please try again" }, 409);
     }

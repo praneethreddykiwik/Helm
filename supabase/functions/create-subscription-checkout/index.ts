@@ -30,8 +30,10 @@
 // show), "declined" (402/502, provider refused), "security" (401/403/429, generic
 // message only), "dormant" (503), "server" (500).
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
-import { bearer, errTag, responders } from "../_shared/cors.ts";
+import { bearer, errTag, responders, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped } from "../_shared/limits.ts";
+import { fetchWithTimeout, isTimeout } from "../_shared/http.ts";   // R142: Razorpay calls have a deadline
+import { logger } from "../_shared/log.ts";
 
 const PLAN = /^[a-z0-9][a-z0-9_-]{1,39}$/;
 const RZP_PLAN = /^plan_[A-Za-z0-9]{6,40}$/;
@@ -51,6 +53,8 @@ const SECURITY_MSG = "We couldn't verify this request. Please sign in again, or 
 
 Deno.serve(async (req) => {
   const { cors, json } = responders(req);
+  const log = logger("create-subscription-checkout", req);
+  const report = sentryOnce(req);   // R142: unexpected failures reach Sentry (function name + error tag only)
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed", kind: "validation" }, 405);
   const keyId = Deno.env.get("RAZORPAY_KEY_ID") || "", keySecret = Deno.env.get("RAZORPAY_KEY_SECRET") || "";
@@ -79,13 +83,13 @@ Deno.serve(async (req) => {
       const sig = String(body.razorpay_signature ?? "").trim().toLowerCase();
       if (!RZP_PAY.test(payId) || !RZP_SUB.test(subId) || !/^[0-9a-f]{64}$/.test(sig)) return json({ error: SECURITY_MSG, kind: "security" }, 400);
       if (!timingSafeEqual(await hmacHex(keySecret, payId + "|" + subId), sig)) {
-        console.error("checkout: payment signature mismatch");
+        log.error("payment signature mismatch");
         return json({ error: SECURITY_MSG, kind: "security" }, 400);
       }
       const { data: myOrg, error: oErr } = await asCaller.rpc("current_org_id");
       const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
       const { data: row, error: sErr } = await admin.from("studio_subscriptions").select("org_id").eq("provider_subscription_id", subId).maybeSingle();
-      if (oErr || sErr) { console.error("checkout: verify lookup failed", errTag(oErr || sErr)); return json({ error: "Something went wrong. Please try again.", kind: "server" }, 500); }
+      if (oErr || sErr) { log.error("verify lookup failed", errTag(oErr || sErr)); report.error(oErr || sErr); return json({ error: "Something went wrong. Please try again.", kind: "server" }, 500); }
       if (!myOrg || !row?.org_id || String(row.org_id).toLowerCase() !== String(myOrg).toLowerCase()) return json({ error: SECURITY_MSG, kind: "security" }, 403);
       return json({ verified: true });
     }
@@ -103,42 +107,55 @@ Deno.serve(async (req) => {
         const msg = String((pErr as any).message || "").replace(/[^\w .,'’()-]/g, "").slice(0, 120) || "Please check your details";
         return json({ error: msg, kind: "validation" }, 400);
       }
-      console.error("checkout: prepare failed", errTag(pErr));
+      log.error("prepare failed", errTag(pErr)); report.error(pErr);
       return json({ error: "Something went wrong. Please try again.", kind: "server" }, 500);
     }
     const org = String(q?.org_id || ""), rzpPlan = String(q?.razorpay_plan_id || "");
     const total = Number(q?.total), currency = String(q?.currency || "");
     if (!/^[0-9a-f-]{36}$/i.test(org) || !RZP_PLAN.test(rzpPlan) || !(total > 0) || !/^[A-Z]{3}$/.test(currency)) {
-      console.error("checkout: prepare returned an unusable answer");
+      log.error("prepare returned an unusable answer"); report.fail("prepare_unusable");
       return json({ error: "Something went wrong. Please try again.", kind: "server" }, 500);
     }
 
     const auth = "Basic " + btoa(keyId + ":" + keySecret);
     const rzp = (path: string, init: RequestInit = {}) =>
-      fetch("https://api.razorpay.com/v1/" + path, { ...init, redirect: "error", headers: { "Authorization": auth, "Content-Type": "application/json" } });
+      fetchWithTimeout("https://api.razorpay.com/v1/" + path, { ...init, redirect: "error", headers: { "Authorization": auth, "Content-Type": "application/json" } });
+    const UNAVAILABLE = () => json({ error: "The payment provider is unavailable. Please try again shortly.", kind: "declined" }, 502);
 
     // the Razorpay plan must charge exactly what the page showed
-    const pr = await rzp("plans/" + rzpPlan);
+    // R142: a lookup that passes its 10 s deadline is answered like Razorpay being unavailable (502)
+    let pr: Response;
+    try { pr = await rzp("plans/" + rzpPlan); }
+    catch (e) { if (!isTimeout(e)) throw e; log.error("razorpay plan lookup timed out", errTag(e)); return UNAVAILABLE(); }
     const pj = await pr.json().catch(() => ({}));
-    if (!pr.ok) { console.error("checkout: razorpay plan lookup failed", pr.status); return json({ error: "The payment provider is unavailable. Please try again shortly.", kind: "declined" }, 502); }
+    if (!pr.ok) { log.error("razorpay plan lookup failed", pr.status); return json({ error: "The payment provider is unavailable. Please try again shortly.", kind: "declined" }, 502); }
     const item = pj?.item || {};
     if (Number(item.amount) !== Math.round(total * 100) || String(item.currency || "").toUpperCase() !== currency) {
-      console.error("checkout: razorpay plan amount does not match the server total");
+      log.error("razorpay plan amount does not match the server total");
       return json({ error: "This plan's price is being updated. Please try again later or contact support.", kind: "validation" }, 409);
     }
 
-    const r = await rzp("subscriptions", {
-      method: "POST",
-      body: JSON.stringify({
-        plan_id: rzpPlan,
-        total_count: interval === "yearly" ? 10 : 120,
-        customer_notify: 1,
-        notes: { org_id: org, plan: plan, interval },
-      }),
-    });
+    // R142: a create that passes its 10 s deadline is answered like Razorpay refusing it (502, nothing attached: a
+    // subscription Razorpay may still have made is never handed to the page, so it can never be paid)
+    let r: Response;
+    try {
+      r = await rzp("subscriptions", {
+        method: "POST",
+        body: JSON.stringify({
+          plan_id: rzpPlan,
+          total_count: interval === "yearly" ? 10 : 120,
+          customer_notify: 1,
+          notes: { org_id: org, plan: plan, interval },
+        }),
+      });
+    } catch (e) {
+      if (!isTimeout(e)) throw e;
+      log.error("razorpay subscription create timed out", errTag(e));
+      return json({ error: "The payment provider couldn't start your payment. Please try again.", kind: "declined" }, 502);
+    }
     const sub = await r.json().catch(() => ({}));
     if (!r.ok || !RZP_SUB.test(String(sub?.id || ""))) {
-      console.error("checkout: razorpay subscription create failed", r.status);
+      log.error("razorpay subscription create failed", r.status);
       return json({ error: "The payment provider couldn't start your payment. Please try again.", kind: "declined" }, 502);
     }
 
@@ -146,7 +163,7 @@ Deno.serve(async (req) => {
     const { data: attached, error: aErr } = await admin.rpc("checkout_attach_subscription",
       { p_org: org, p_subscription_id: sub.id, p_plan: plan, p_interval: interval });
     if (aErr || attached !== true) {
-      console.error("checkout: attach failed", errTag(aErr));
+      log.error("attach failed", errTag(aErr)); if (aErr) report.error(aErr);
       try { const c = await rzp(`subscriptions/${sub.id}/cancel`, { method: "POST", body: "{}" }); await c.text(); } catch (_) { /* best effort */ }
       return json({ error: "Something went wrong. Please try again.", kind: "server" }, 409);
     }
@@ -154,7 +171,8 @@ Deno.serve(async (req) => {
     return json({ key_id: keyId, subscription_id: sub.id });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large", kind: "validation" }, 413);
-    console.error("checkout: internal error", errTag(e));
+    log.error("internal error", errTag(e));
+    report.error(e);
     return json({ error: "Something went wrong. Please try again.", kind: "server" }, 500);
   }
 });

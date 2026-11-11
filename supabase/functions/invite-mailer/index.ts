@@ -35,11 +35,13 @@
 // Logs carry only counts, SQLSTATE codes and HTTP status — never an address, a name or a token.
 // Outbound HTTP goes only to a FIXED host allowlist (no URL is ever taken from input).
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
-import { bearer, errTag, responders } from "../_shared/cors.ts";
+import { bearer, errTag, responders, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped, tooMany } from "../_shared/limits.ts";
 import { inviteEmail, joinLink, mintMailKey, roleLabel } from "./templates.ts";
 import { mailConfig, sendMail } from "../_shared/mailer.ts";
 import { isReservedEmail } from "../_shared/reserved-email.mjs";
+import { logger } from "../_shared/log.ts";
+const L = logger("invite-mailer");
 
 const enc = new TextEncoder();
 const EMAIL = /^[^\s@<>"',;:\\]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/;
@@ -78,20 +80,20 @@ async function sendViaSupabaseAuth(admin: any, to: string, token: string, meta: 
     const { error } = await admin.auth.admin.inviteUserByEmail(to, { redirectTo: link, data: meta });
     if (!error) return "sent";
     const already = /already|registered|exists/i.test(String(error.message || "") + " " + String(error.code || "")) || error.status === 422;
-    if (!already) { console.error("invite-mailer: auth invite status", error.status ?? "?"); return "failed"; }
+    if (!already) { L.error("auth invite status", error.status ?? "?"); return "failed"; }
     // best effort: only the invitation keys of THIS invitation's own login (0205); never blocks the send
     try {
       const { data: uid } = await admin.rpc("invite_auth_user_id", { p_token: token });
       if (typeof uid === "string" && UUIDISH.test(uid)) {
         const { error: uErr } = await admin.auth.admin.updateUserById(uid, { user_metadata: meta });
-        if (uErr) console.error("invite-mailer: invite details not refreshed", uErr.status ?? "?");
+        if (uErr) L.error("invite details not refreshed", uErr.status ?? "?");
       }
     } catch (_) { /* 0205 not applied yet: the magic link shows the plain sign-in text */ }
     const { error: oErr } = await admin.auth.signInWithOtp({ email: to, options: { shouldCreateUser: false, emailRedirectTo: link } });
-    if (oErr) { console.error("invite-mailer: auth magic-link status", oErr.status ?? "?"); return "failed"; }
+    if (oErr) { L.error("auth magic-link status", oErr.status ?? "?"); return "failed"; }
     return "sent";
   } catch (e) {
-    console.error("invite-mailer: auth mail error", errTag(e));
+    L.error("auth mail error", errTag(e));
     return "failed";
   }
 }
@@ -104,6 +106,8 @@ async function sendBranded(to: string, mail: { subject: string; html: string; te
 }
 
 Deno.serve(async (req) => {
+  const log = logger("invite-mailer", req);   // R142: JSON log lines with the request id
+  const report = sentryOnce(req);   // R142: one Sentry event per run at most (function name + tag only)
   const { cors, json } = responders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -135,14 +139,14 @@ Deno.serve(async (req) => {
       const userWait = await checkLimits([["invite:user:" + user.id, 10, 60_000]]);
       if (userWait) return tooMany(json, userWait);
       const { data: kOrg, error: kErr } = await asCaller.rpc("invite_email_kick_org");
-      if (kErr) { console.error("invite-mailer: kick check failed", errTag(kErr)); return json({ error: "internal error" }, 500); }
+      if (kErr) { log.error("kick check failed", errTag(kErr)); report.error(kErr); return json({ error: "internal error" }, 500); }
       if (typeof kOrg !== "string" || !UUIDISH.test(kOrg)) return json({ error: "forbidden" }, 403);
       org = kOrg;
     }
 
     const batch = Math.min(100, Math.max(1, Number(Deno.env.get("INVITE_EMAIL_BATCH")) || 25));
     const { data: rows, error } = await admin.rpc("invite_email_outbox_claim", { p_limit: batch, p_org: org });
-    if (error) { console.error("invite-mailer: claim failed", errTag(error)); return json({ error: "internal error" }, 500); }
+    if (error) { log.error("claim failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
     const branded = !!mailConfig().provider;   // one provider decision per run (same e-mail for every row)
@@ -159,14 +163,16 @@ Deno.serve(async (req) => {
         studio: String(r?.studio ?? "").slice(0, 120), role: roleLabel(r?.role).slice(0, 60), invited_by: String(r?.inviter ?? "").slice(0, 120),
       });
       const { error: mErr } = await admin.rpc("invite_email_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("invite-mailer: mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
-    console.log("invite-mailer: run", JSON.stringify({ scope: org ? "one" : "all", ...counts }));
+    log.info("run", { scope: org ? "one" : "all", ...counts });
+    if (counts.failed > 0) report.fail("send_failed");   // failed sends (retried next run) or rows not marked
     return json({ status: "ok", ...counts });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
-    console.error("invite-mailer error", errTag(e));
+    log.error("invite-mailer error", errTag(e));
+    report.error(e);
     return json({ error: "internal error" }, 500);
   }
 });

@@ -4,6 +4,7 @@
 // like the "·" in our footer, unencoded custom headers) and opaque errors made Gmail failures
 // undiagnosable. Bodies are base64 UTF-8; non-ASCII headers are RFC 2047 encoded.
 // Errors carry a stage + SMTP reply code; the password is never logged or echoed.
+import { withDeadline } from "./http.ts";
 
 export type SmtpStage = "connect" | "greeting" | "ehlo" | "tls" | "auth" | "mail_from" | "rcpt" | "data" | "send";
 export class SmtpError extends Error {
@@ -109,13 +110,18 @@ async function writeAll(c: Conn, s: string) {
 // R32 SRV-1: a plain (non-465) connection may skip STARTTLS only when the server is this machine
 // (local fake servers in tests); everywhere else no STARTTLS = no login.
 const isLoopback = (h: string) => /^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|localhost|::1|\[::1\])$/i.test(String(h || "").trim());
-export async function smtpSend(cfg: SmtpConn["cfg"], mail: RawMail, opts: { timeoutMs?: number; connect?: () => Promise<Conn>; startTls?: (c: Conn, host: string) => Promise<Conn> } = {}): Promise<void> {
+// R142: the TCP / TLS connect and the STARTTLS handshake have a deadline too (connectTimeoutMs, default 10 s; each
+// reply already had timeoutMs). A mail server that never answers the connect used to hold the send - and a whole
+// cron batch - open with no limit. A connection that opens after the deadline is closed at once.
+export async function smtpSend(cfg: SmtpConn["cfg"], mail: RawMail, opts: { timeoutMs?: number; connectTimeoutMs?: number; connect?: () => Promise<Conn>; startTls?: (c: Conn, host: string) => Promise<Conn> } = {}): Promise<void> {
   const T = opts.timeoutMs ?? 15000;
+  const CT = opts.connectTimeoutMs ?? 10000;
+  const closeLate = (c: Conn) => { try { c.close(); } catch (_) { /* ignore */ } };
   let conn: Conn;
   try {
-    conn = opts.connect ? await opts.connect()
-      : cfg.tls ? await Deno.connectTls({ hostname: cfg.host, port: cfg.port })
-      : await Deno.connect({ hostname: cfg.host, port: cfg.port });
+    conn = await withDeadline(opts.connect ? opts.connect()
+      : cfg.tls ? Deno.connectTls({ hostname: cfg.host, port: cfg.port })
+      : Deno.connect({ hostname: cfg.host, port: cfg.port }), CT, closeLate);
   } catch (e) {
     throw new SmtpError("connect", (e as Error)?.name + ": " + String((e as Error)?.message || e).slice(0, 200));
   }
@@ -137,12 +143,13 @@ export async function smtpSend(cfg: SmtpConn["cfg"], mail: RawMail, opts: { time
       if (offers) {
         await cmd("tls", "STARTTLS", [220], "STARTTLS");
         try {
-          conn = opts.startTls ? await opts.startTls(conn, cfg.host)
-            : await Deno.startTls(conn as Deno.TcpConn, { hostname: cfg.host });
+          conn = await withDeadline(opts.startTls ? opts.startTls(conn, cfg.host)
+            : Deno.startTls(conn as Deno.TcpConn, { hostname: cfg.host }), CT, closeLate);
           // R32b (SRV-1 info): finish the TLS handshake HERE so a bad certificate is reported as stage "tls"
           // (Deno otherwise handshakes lazily on the first write - the EHLO - and it would read as "ehlo")
+          // R142: within the connect deadline too (on a timeout the finally below closes the connection)
           const hs = (conn as Deno.TlsConn).handshake;
-          if (typeof hs === "function") await hs.call(conn);
+          if (typeof hs === "function") await withDeadline(hs.call(conn), CT);
         } catch (e) {
           throw new SmtpError("tls", "secure upgrade failed: " + String((e as Error)?.message || e).slice(0, 200));
         }

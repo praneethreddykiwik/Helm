@@ -80,8 +80,11 @@
 // codes - never an address, a phone number, a name or message text. Outbound HTTP goes only
 // to a FIXED host allowlist; no URL is ever taken from the database (deep links are built
 // from ids by the same rule as the in-app bell and joined to APP_URL).
+// R142: every provider call has a 10 s deadline (_shared/http.ts; SMTP connect too) - a timeout is a failed send, so the
+// row goes back to "retry" exactly like a provider refusal. A run with failed rows (or a crash) sends ONE Sentry event
+// (function name + tag only, only with SENTRY_DSN). Logs are JSON lines with the request id (_shared/log.ts).
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
-import { errTag, escHtml } from "../_shared/cors.ts";
+import { errTag, escHtml, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/limits.ts";
 import { absoluteLink } from "./deeplink.js";
 import { FOLLOWUP_KINDS, FOLLOWUP_REASON, FOLLOWUP_REPLY_TO, placeFooter, trialReminderEmail, trialRetentionEmail, RETENTION_NOTICE_KINDS, RETENTION_TX_REASON } from "./trial-reminders.mjs";
@@ -100,6 +103,9 @@ import { rowReplyTo } from "../_shared/reply-to.mjs";   // R107: Reply-To fallba
 import { runWelcomeBatch } from "../welcome-mailer/send.ts";   // R119 (0327): welcome e-mails (database switch, 48 h)
 import { orgOfRow, senderCache, waPost, type WaSender } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
 import { fieldContent, noticeContent } from "../_shared/wa-studio.mjs";
+import { logger } from "../_shared/log.ts";
+import { fetchWithTimeout } from "../_shared/http.ts";
+const L = logger("comms-dispatch");
 
 const enc = new TextEncoder();
 const ALLOWED_HOSTS = new Set(["api.resend.com", "graph.facebook.com"]);
@@ -119,7 +125,7 @@ export async function secretMatches(given: string, expected: string): Promise<bo
 async function safeFetch(url: string, init: RequestInit): Promise<Response> {
   const u = new URL(url);
   if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname)) throw new Error("host not allowed");
-  return await fetch(u.toString(), { ...init, redirect: "error" });
+  return await fetchWithTimeout(u.toString(), { ...init, redirect: "error" });
 }
 
 type Res = "sent" | "skipped" | "failed";
@@ -154,7 +160,7 @@ export async function sendEmailSmtp(to: string, subject: string, text: string, s
     { env: e, prefer: "smtp", ...(opts.smtp ? { smtp: opts.smtp } : {}) });
   if (r.status === "sent") return "sent";
   if (r.status === "not_configured") return "skipped";
-  console.error("comms-dispatch: email smtp failed");
+  L.error("email smtp failed");
   return "failed";
 }
 // html (R124): a designed message with its footer already placed (placeFooter); default = the plain text in a <p>
@@ -175,9 +181,9 @@ async function sendEmail(id: string, to: string, subject: string, text: string, 
       body: JSON.stringify({ from, to: [to], subject: subject.slice(0, 150), html: body.html, text: body.text, ...headers, ...(replyTo ? { reply_to: replyTo } : {}) }),
     });
     await r.text();
-    if (!r.ok) console.error("comms-dispatch: email status", r.status);
+    if (!r.ok) L.error("email status", r.status);
     return r.ok ? "sent" : "failed";
-  } catch (e) { console.error("comms-dispatch: email error", errTag(e)); return "failed"; }
+  } catch (e) { L.error("email error", errTag(e)); return "failed"; }
 }
 
 // purposes that are NOT transactional (need consent + unsubscribe); pay_reminder is transactional
@@ -244,9 +250,9 @@ async function sendWhatsApp(to: string, text: string, kind: WaKind = "general", 
 async function waStopped(admin: any, to: string): Promise<Res | null> {
   try {
     const { data, error } = await admin.rpc("wa_recipient_opted_out", { p_phone: to });
-    if (error) { console.error("comms-dispatch: stop check failed", errTag(error)); return "failed"; }
+    if (error) { L.error("stop check failed", errTag(error)); return "failed"; }
     return data === true ? "skipped" : null;
-  } catch (e) { console.error("comms-dispatch: stop check error", errTag(e)); return "failed"; }
+  } catch (e) { L.error("stop check error", errTag(e)); return "failed"; }
 }
 
 // R130 (0338): an assign row's studio + template + fields (service role reads; null when the row / columns are missing)
@@ -259,8 +265,8 @@ async function assignMeta(admin: any, id: string): Promise<{ org_id: string; tem
 }
 // deno-lint-ignore no-explicit-any
 async function assignWa(admin: any, id: string, wamid: string | null, status: "sent" | "failed" | "not_set_up"): Promise<void> {
-  try { const { error } = await admin.rpc("assign_notify_wamid", { p_id: id, p_wamid: wamid, p_status: status }); if (error && !/PGRST202|42883/.test(String(error.code || ""))) console.error("comms-dispatch: wamid not saved", errTag(error)); }
-  catch (e) { console.error("comms-dispatch: wamid error", errTag(e)); }
+  try { const { error } = await admin.rpc("assign_notify_wamid", { p_id: id, p_wamid: wamid, p_status: status }); if (error && !/PGRST202|42883/.test(String(error.code || ""))) L.error("wamid not saved", errTag(error)); }
+  catch (e) { L.error("wamid error", errTag(e)); }
 }
 
 // 0132: assignment text from the database + the person's own task link (path is validated
@@ -288,6 +294,8 @@ export function messageFor(purpose: string, payload: Record<string, unknown>, or
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
+  const log = logger("comms-dispatch", req);   // R142: JSON log lines with the request id
+  const report = sentryOnce(req);              // R142: one Sentry event per run at most
   try {
     if (!commsOn(Deno.env.get("HELM_COMMS_ENABLED"))) return json({ status: "dormant" });
     if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -302,7 +310,7 @@ Deno.serve(async (req) => {
     waAdmin = admin;
     const waSenderOf = senderCache(admin);   // R129: one studio-number lookup per studio per run
     const { data: rows, error } = await admin.rpc("comms_outbox_claim", { p_limit: batch });
-    if (error) { console.error("comms-dispatch: claim failed", errTag(error)); return json({ error: "internal error" }, 500); }
+    if (error) { log.error("claim failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
     const origin = appOrigin();
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
@@ -335,7 +343,7 @@ Deno.serve(async (req) => {
       else if (channel === "whatsapp") res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text, purpose === "wa_forward" && String(payload.type ?? "") === "event_reminder" ? "event_reminder" : "general",
         await waSenderOf(await orgOfRow(admin, "comms_outbox", id)));
       const { error: mErr } = await admin.rpc("comms_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("comms-dispatch: mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // 0184: retention settings once per run, so the day 5 / 7 / 8 copy can say how long data is kept
@@ -344,7 +352,7 @@ Deno.serve(async (req) => {
     try { const { data, error } = await admin.rpc("trial_retention_mail_settings"); if (!error && data && typeof data === "object") retention = data; } catch (_) { retention = null; }
     // 0120: free-trial reminder e-mails (a database without 0120 just has nothing to claim)
     const { data: trows, error: tErr } = await admin.rpc("trial_reminder_email_claim", { p_limit: batch });
-    if (tErr) console.error("comms-dispatch: trial claim skipped", errTag(tErr));
+    if (tErr) log.error("trial claim skipped", errTag(tErr));
     for (const r of (Array.isArray(trows) ? trows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
@@ -360,16 +368,16 @@ Deno.serve(async (req) => {
       const extra = msg ? marketingExtra(u, "Helm", "you started a free trial of Helm", origin) : null;
       const res: Res = msg && extra ? await sendEmail(id, to, msg.subject, msg.text, "Helm", {}, extra) : "skipped";
       const { error: mErr } = await admin.rpc("trial_reminder_email_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("comms-dispatch: trial mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("trial mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // 0184: post-trial mails to the studio owner (a database without 0184 just has nothing to claim).
     // Deletion warnings are service notices (transactional footer); the follow-ups are nudges (Helm unsubscribe).
     const { data: rrows, error: rErr } = await admin.rpc("trial_retention_email_claim", { p_limit: batch });
-    if (rErr) console.error("comms-dispatch: retention claim skipped", errTag(rErr));
+    if (rErr) log.error("retention claim skipped", errTag(rErr));
     // R124 (0333): Day 0 / 2 / 14 have their own claim, so an older dispatcher can never mark them skipped; same mark.
     const { data: frows, error: fErr } = await admin.rpc("trial_followup_email_claim", { p_limit: batch });
-    if (fErr) console.error("comms-dispatch: follow-up claim skipped", errTag(fErr));
+    if (fErr) log.error("follow-up claim skipped", errTag(fErr));
     for (const r of [...(Array.isArray(rrows) ? rrows : []), ...(Array.isArray(frows) ? frows : [])]) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? ""), kind = String(r?.kind ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
@@ -389,12 +397,12 @@ Deno.serve(async (req) => {
       const html = msg && extra && msg.html ? placeFooter(msg.html, extra.footer) : undefined;
       const res: Res = msg && extra ? await sendEmail(id, to, msg.subject, msg.text, "Helm", follow ? { reply_to: FOLLOWUP_REPLY_TO } : {}, extra, html) : "skipped";
       const { error: mErr } = await admin.rpc("trial_retention_email_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("comms-dispatch: retention mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("retention mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // 0132: "you've been assigned ..." WhatsApp to staff (a database without 0132 has nothing to claim)
     const { data: arows, error: aErr } = await admin.rpc("assign_notify_claim", { p_limit: batch });
-    if (aErr) console.error("comms-dispatch: assign claim skipped", errTag(aErr));
+    if (aErr) log.error("assign claim skipped", errTag(aErr));
     for (const r of (Array.isArray(arows) ? arows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
@@ -419,14 +427,14 @@ Deno.serve(async (req) => {
       }
       else res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, text, "task_assigned", sender);
       const { error: mErr } = await admin.rpc("assign_notify_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("comms-dispatch: assign mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("assign mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // R130 (0338): task reminders, late reminders and office alerts (task_reminder_tick queues them every minute).
     // From the studio's own number only; not connected -> "not_set_up" (the Live Status line says so). A database
     // without 0338 just has nothing to claim.
     const { data: rmRows, error: trErr } = await admin.rpc("task_wa_claim", { p_limit: batch });
-    if (trErr && !/PGRST202|42883/.test(String(trErr.code || ""))) console.error("comms-dispatch: reminder claim skipped", errTag(trErr));
+    if (trErr && !/PGRST202|42883/.test(String(trErr.code || ""))) log.error("reminder claim skipped", errTag(trErr));
     for (const r of (Array.isArray(rmRows) ? rmRows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
@@ -443,12 +451,12 @@ Deno.serve(async (req) => {
         else { st = "retry"; reason = w.kind; }
       }
       const { error: tmErr } = await admin.rpc("task_wa_mark", { p_id: id, p_status: st, p_wamid: wamid, p_reason: reason });
-      if (tmErr) { console.error("comms-dispatch: reminder mark failed", errTag(tmErr)); counts.failed++; continue; }
+      if (tmErr) { log.error("reminder mark failed", errTag(tmErr)); report.error(tmErr); counts.failed++; continue; }
       counts[st === "sent" ? "sent" : st === "retry" || st === "failed" ? "failed" : "skipped"]++;
     }
     // 0241: delivery / arrival reminders (a database without 0241 just has nothing to claim). E-mail only.
     const { data: drows, error: dErr } = await admin.rpc("delivery_reminder_claim", { p_limit: batch });
-    if (dErr) console.error("comms-dispatch: delivery claim skipped", errTag(dErr));
+    if (dErr) log.error("delivery claim skipped", errTag(dErr));
     for (const r of (Array.isArray(drows) ? drows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
@@ -457,13 +465,13 @@ Deno.serve(async (req) => {
       const extra: Extra = { footer: txFooter("delivery", { app: origin, address: postalAddress(env) }) };
       const res: Res = msg.text ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
       const { error: mErr } = await admin.rpc("delivery_reminder_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("comms-dispatch: delivery mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("delivery mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // 0256: vendor requests + "still waiting" reminders (e-mail lane only; WhatsApp rows stay queued for a future
     // lane; a database without 0256 just has nothing to claim). The claim re-checks each row and mints a fresh link.
     const { data: vrows, error: vErr } = await admin.rpc("vendor_request_claim", { p_limit: batch, p_channel: "email" });
-    if (vErr) console.error("comms-dispatch: vendor request claim skipped", errTag(vErr));
+    if (vErr) log.error("vendor request claim skipped", errTag(vErr));
     for (const r of (Array.isArray(vrows) ? vrows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
@@ -472,12 +480,12 @@ Deno.serve(async (req) => {
       const extra: Extra = { footer: txFooter(VENDOR_TX_REASON, { app: origin, address: postalAddress(env) }) };
       const res: Res = msg.text ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
       const { error: mErr } = await admin.rpc("vendor_request_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("comms-dispatch: vendor request mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("vendor request mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // 0269: run-sheet reminders (e-mail lane; a database without 0269 just has nothing to claim)
     const { data: rsrows, error: rsErr } = await admin.rpc("runsheet_reminder_claim", { p_limit: batch });
-    if (rsErr) console.error("comms-dispatch: run-sheet claim skipped", errTag(rsErr));
+    if (rsErr) log.error("run-sheet claim skipped", errTag(rsErr));
     for (const r of (Array.isArray(rsrows) ? rsrows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
@@ -486,12 +494,12 @@ Deno.serve(async (req) => {
       const extra: Extra = { footer: txFooter(RUNSHEET_TX_REASON, { app: origin, address: postalAddress(env) }) };
       const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
       const { error: mErr } = await admin.rpc("runsheet_reminder_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("comms-dispatch: run-sheet mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("run-sheet mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // 0269: instant replies to the public enquiry form (a database without 0269 has nothing to claim)
     const { data: eqrows, error: eqErr } = await admin.rpc("enquiry_reply_claim", { p_limit: batch });
-    if (eqErr) console.error("comms-dispatch: enquiry reply claim skipped", errTag(eqErr));
+    if (eqErr) log.error("enquiry reply claim skipped", errTag(eqErr));
     for (const r of (Array.isArray(eqrows) ? eqrows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
@@ -500,13 +508,13 @@ Deno.serve(async (req) => {
       const extra: Extra = { footer: txFooter(ENQUIRY_TX_REASON, { app: origin, address: postalAddress(env) }) };
       const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
       const { error: mErr } = await admin.rpc("enquiry_reply_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("comms-dispatch: enquiry reply mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("enquiry reply mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // 0244: Helm's own notices - a plan request to sales@helm.events, "Ask my admin to upgrade" to the studio's
     // admins (recipients resolved by the claim, never from the row; a database without 0244 has nothing to claim)
     const { data: hrows, error: hErr } = await admin.rpc("helm_notice_outbox_claim", { p_limit: batch });
-    if (hErr) console.error("comms-dispatch: notice claim skipped", errTag(hErr));
+    if (hErr) log.error("notice claim skipped", errTag(hErr));
     for (const r of (Array.isArray(hrows) ? hrows : [])) {
       const id = String(r?.id ?? ""), kind = String(r?.kind ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
@@ -523,20 +531,22 @@ Deno.serve(async (req) => {
         res = outs.includes("sent") ? "sent" : outs.includes("failed") ? "failed" : "skipped";
       }
       const { error: mErr } = await admin.rpc("helm_notice_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("comms-dispatch: notice mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("notice mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // R119 (0327): welcome e-mails - only while the database switch is on; a database without 0327 -> nothing claimed
     try {
       const w = await runWelcomeBatch(admin, batch, { env });
-      if (w.error) console.error("comms-dispatch: welcome claim skipped", errTag(w.error));
+      if (w.error) log.error("welcome claim skipped", errTag(w.error));
       counts.sent += w.counts.sent; counts.skipped += w.counts.skipped; counts.failed += w.counts.failed; counts.invalid += w.counts.invalid;
-    } catch (e) { console.error("comms-dispatch: welcome lane failed", errTag(e)); }
-    console.log("comms-dispatch: run", JSON.stringify(counts));
+    } catch (e) { log.error("welcome lane failed", errTag(e)); report.error(e); }
+    log.info("run", counts);
+    if (counts.failed > 0) report.fail("send_failed");   // failed sends (retried) or rows that could not be marked
     return json({ status: "ok", ...counts });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
-    console.error("comms-dispatch error", errTag(e));
+    log.error("comms-dispatch error", errTag(e));
+    report.error(e);
     return json({ error: "internal error" }, 500);
   }
 });
