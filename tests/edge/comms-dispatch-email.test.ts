@@ -203,15 +203,15 @@ Deno.test("handler, Resend only: falls back to Resend with idempotency key + hea
   } finally { f(); smtp.restore(); }
 });
 
-Deno.test("handler, no e-mail secrets: rows skipped, nothing sent", async () => {
+Deno.test("handler, no e-mail secrets: e-mail rows released for retry (R154g, never skipped), nothing sent", async () => {
   const marks = wireDb();
   const smtp = installFakeSmtp();
   const f = installFetch((url) => { throw new Error("unexpected fetch " + url); });
   try {
     const { out } = await run({});
-    assertEquals(out.sent, 0); assertEquals(out.skipped, 3);
+    assertEquals(out.sent, 0); assertEquals(out.skipped, 0); assertEquals(out.no_provider, 3);
     assertEquals(smtp.connects.length, 0); assertEquals(fetchLog().length, 0);
-    assertEquals(marks[ID1], "skipped");
+    assertEquals(marks[ID1], "retry");
   } finally { f(); smtp.restore(); }
 });
 

@@ -158,7 +158,9 @@ Deno.test("comms-dispatch: Resend timing out on every row -> rows back to retry,
     assert(/"function":"comms-dispatch"/.test(body) && /"type":"send_failed"/.test(body), body);
     assert(!/example\.com|Sparkle|Asha|Ravi|asha/.test(body), "no PII in the event");
     const lines = logs.map((l) => { try { return JSON.parse(l); } catch (_) { return {}; } });
-    assert(lines.some((l) => l.fn === "comms-dispatch" && l.msg === "email error" && l.code === "TimeoutError"));
+    // R154g: comms-dispatch sends through the shared mailer, which logs the timeout (no address)
+    assert(lines.some((l) => l.fn === "mailer" && l.msg === "resend unreachable" && l.code === "TimeoutError"));
+    assert(lines.some((l) => l.fn === "comms-dispatch" && l.msg === "email failed"));
     assert(!logs.join(" ").includes("example.com"), "no address in logs");
   } finally { rF(); rEnv(); resetSupaMock(); }
 });

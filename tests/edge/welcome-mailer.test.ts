@@ -113,14 +113,16 @@ Deno.test("welcome-mailer: sends owner + member welcomes through the shared mail
   } finally { f(); r(); }
 });
 
-Deno.test("welcome-mailer: no provider at all / bad address / unknown kind -> marked skipped, no fetch", async () => {
+Deno.test("welcome-mailer: no provider -> nothing claimed (R154g); bad address / unknown kind -> marked skipped, no fetch", async () => {
   resetSupaMock(); db();
   let r = setEnv({ ...ON, RESEND_API_KEY: "" }); let f = noFetch();
   try {
     const h = await loadHandler(FN);
-    assertEquals((await (await h(req(SECRET))).json()).skipped, 2);
+    const { result } = await captureConsoleError(async () => await h(req(SECRET)));
+    assertEquals((await result.json()).status, "no_provider");
     assertEquals(fetchLog().length, 0);
-    assert(marks().every((x) => x.args.p_status === "skipped"));
+    assertEquals(marks().length, 0);
+    assertEquals(supaLog().filter((l) => l.rpc).length, 0, "neither the switch nor the claim is called");
   } finally { f(); r(); }
   resetSupaMock(); db([{ id: ID1, kind: "member", to: "not-an-email", studio: "S", safe: SAFE }, { id: ID2, kind: "weird", to: "a@b.co", studio: "S", safe: SAFE }]);
   r = setEnv(ON); f = noFetch();

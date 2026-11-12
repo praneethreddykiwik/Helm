@@ -7,7 +7,7 @@ const g = globalThis as any;
 const FN = "../../supabase/functions/security-alert-mailer/index.ts";
 const SECRET = "sec-alert-shared-secret";
 const BASE = { SUPABASE_URL: "https://proj.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role-secret" };
-const ON = { ...BASE, HELM_SECURITY_ALERTS_ENABLED: "true", HELM_SECURITY_ALERT_SECRET: SECRET, RESEND_API_KEY: "re_test", RESEND_FROM: "Helm <alerts@helm.events>" };
+const ON = { ...BASE, HELM_SECURITY_ALERTS_ENABLED: "true", HELM_SECURITY_ALERT_SECRET: SECRET, RESEND_API_KEY: "re_test", RESEND_FROM: "Helm <alerts@helm.events>", HELM_SECURITY_ALERT_HQ_TO: "hq@helm.events" };
 const ID1 = "c0000000-0000-4000-8000-0000000054a1";
 const ID2 = "c0000000-0000-4000-8000-0000000054a2";
 const noFetch = () => installFetch(() => { throw new Error("no fetch expected"); });
@@ -66,6 +66,8 @@ Deno.test("security-alert-mailer: sends to DB-chosen admins + HQ inbox via Resen
     assertEquals(fetchLog().length, 2);
     const b1 = JSON.parse(String(fetchLog()[0].init?.body)), b2 = JSON.parse(String(fetchLog()[1].init?.body));
     assertEquals(b1.to, ["admin@studio-a.in"]);
+    assertEquals(b1.from, '"Helm Security" <alerts@helm.events>');
+    assert(b1.text.includes("Security alert for Studio <A>:") && !/<b>/.test(b1.text), "plain-text part (R154g)");
     assertEquals(b2.to, ["hq@helm.events"]);
     assert(b1.html.includes("Studio &lt;A&gt;") && b1.html.includes("4 times"));
     assert(!/https?:\/\//.test(b1.html) && !/token/i.test(b1.html), "no links / tokens in the e-mail");
@@ -77,15 +79,31 @@ Deno.test("security-alert-mailer: sends to DB-chosen admins + HQ inbox via Resen
   } finally { f(); r(); }
 });
 
-Deno.test("security-alert-mailer: no provider key / no HQ inbox -> marked skipped, no fetch", async () => {
+Deno.test("security-alert-mailer: no provider key -> no_provider, nothing claimed (no attempt used up), no fetch", async () => {
   resetSupaMock(); db();
   const r = setEnv({ ...ON, RESEND_API_KEY: "" }); const f = noFetch();
   try {
     const h = await loadHandler(FN);
-    assertEquals((await (await h(req(SECRET))).json()).skipped, 2);
+    const { result } = await captureConsoleError(async () => await h(req(SECRET)));
+    assertEquals((await result.json()).status, "no_provider");   // R154g: rows stay queued untouched
     assertEquals(fetchLog().length, 0);
-    assert(marks().every((x) => x.args.p_status === "skipped"));
+    assertEquals(rpcs().length, 0);
   } finally { f(); r(); }
+});
+
+Deno.test("security-alert-mailer: no HQ inbox (unset / not an address) -> no_recipient, nothing claimed, setting named in the log", async () => {
+  for (const hq of ["", "not-an-address"]) {
+    resetSupaMock(); db();
+    const r = setEnv({ ...ON, HELM_SECURITY_ALERT_HQ_TO: hq }); const f = noFetch();
+    try {
+      const h = await loadHandler(FN);
+      const logs: string[] = []; const ow = console.warn; console.warn = (...a: unknown[]) => logs.push(a.join(" "));
+      let out: any; try { out = await (await h(req(SECRET))).json(); } finally { console.warn = ow; }
+      assertEquals(out.status, "no_recipient");   // R154g: never marked skipped for a missing setting
+      assertEquals(rpcs().length, 0); assertEquals(fetchLog().length, 0);
+      assert(logs.some((l) => l.includes("HELM_SECURITY_ALERT_HQ_TO is not set")));
+    } finally { f(); r(); }
+  }
 });
 
 Deno.test("security-alert-mailer: provider failure -> row released for retry", async () => {
