@@ -127,8 +127,22 @@
     not_found: 'This event couldn’t be found — save it and try again.',
     render_failed: 'The photo couldn’t be made this time — please try again.',
     render_timeout: 'The photo took too long — please try again.',
+    /* R154a: the image service refused Helm itself (key / billing / model) - retrying will not help */
+    render_provider_auth: 'Photo renders are paused — the image service connection needs renewing. Please let Helm support know (ref: provider_auth).',
+    render_provider_billing: 'Photo renders are paused — the image service account needs topping up. Please let Helm support know (ref: provider_billing).',
+    render_provider_model: 'Photo renders are paused — the image model isn’t available right now. Please let Helm support know (ref: provider_model).',
   };
-  function plainError(e) { var c = e && e.code; return (c && PLAIN[c]) || 'The photo couldn’t be made this time — please try again.'; }
+  /* R154a: a short reference so support can tell failures apart (a code, never server wording or a key) */
+  function refOf(e) {
+    var c = String((e && e.code) || '').replace(/[^a-z0-9_]/gi, '').slice(0, 40);
+    if (c) return c.replace(/^render_/, '');
+    var s = e && e.status; return s ? 'http_' + (parseInt(s, 10) || 0) : 'unknown';
+  }
+  function plainError(e) {
+    var c = e && e.code;
+    if (c && PLAIN[c]) return PLAIN[c];
+    return 'The photo couldn’t be made this time — please try again. (ref: ' + refOf(e) + ')';
+  }
   function canManage() { return !!(state.cfg && state.cfg.can_manage); }
   // fetch to an undeployed edge function: CORS preflight 404 -> TypeError "Failed to fetch"
   function isNetErr(e) { return !!e && (e.name === 'TypeError' || /failed to fetch|networkerror|load failed/i.test(String(e.message || ''))); }
@@ -241,7 +255,11 @@
       var code = e && e.code;
       if (code === 'render_not_configured' || code === 'render_disabled' || isNetErr(e)) showOff(OFF_MSG, canManage());
       else if (code === 'not_allowed') showOff(NO_PERM_MSG, false);
-      else toast(plainError(e), { type: 'err' });
+      else {
+        // R154a: log the reason code for support (codes only - the server never sends a key or provider text)
+        try { console.warn('[photo-render] failed', { code: (e && e.code) || '', reason: (e && e.reason) || '', status: (e && e.status) || 0, job: (e && e.jobId) || '' }); } catch (_) {}
+        toast(plainError(e), { type: 'err' });
+      }
     } finally {
       state.ac = null; showBusy(false);
     }

@@ -10949,13 +10949,17 @@ window.HelmUrl = HelmUrl;
         const j = await res.json().catch(() => ({}));
         // 404 without the function's own error code = the function is not deployed
         if (res.status === 404 && !j.error) { const e = new Error("Photo renders aren't switched on yet."); e.code = "render_not_configured"; e.status = 404; throw e; }
-        if (!res.ok) { const e = new Error(String(j.message || j.error || ("HTTP " + res.status))); e.code = String(j.error || ""); e.status = res.status; throw e; }
+        if (!res.ok) { const e = new Error(String(j.message || j.error || ("HTTP " + res.status))); e.code = String(j.error || ""); e.status = res.status; e.reason = "http " + res.status + " " + String(j.error || "").slice(0, 60); throw e; }
         if (res.status !== 202 || !j.job_id) return j;
         // async render (0095): the server answered at once; poll the job, then load each photo
         const JOB_MSG = { timeout: ["render_timeout", "The render took too long - try standard quality or fewer images"],
           blocked: ["render_blocked", "The image service refused this request - change the decor theme and try again"],
           busy: ["render_busy", "The image service is busy - try again in a minute"],
-          failed: ["render_failed", "The image service could not make the photo"] };
+          failed: ["render_failed", "The image service could not make the photo"],
+          // R154a: account problems on the image service side (the owner must act; "try again" will not help)
+          auth: ["render_provider_auth", "The image service key needs renewing"],
+          billing: ["render_provider_billing", "The image service account is out of credit"],
+          model: ["render_provider_model", "The image model is not available to this account"] };
         const t0 = Date.now();
         for (;;) {
           if (signal && signal.aborted) { const e = new Error("Cancelled"); e.name = "AbortError"; throw e; }
@@ -10964,8 +10968,9 @@ window.HelmUrl = HelmUrl;
           let st = null;
           try { st = await rpc("photo_render_job", { p_usage_id: j.job_id }); } catch (e) { if (e && (e.code === "42501" || e.code === "P0002")) throw e; continue; }
           if (!st || st.status === "pending") continue;
-          if (st.status === "error") { const k = String(st.error || "failed").split(":")[0]; const m = JOB_MSG[k] || JOB_MSG.failed;
-            const e = new Error(m[1]); e.code = m[0]; throw e; }
+          if (st.status === "error") { const k = String(st.error || "failed").split(":")[0].trim(); const m = JOB_MSG[k] || JOB_MSG.failed;
+            // R154a: e.reason = the server's short reason ("auth: openai 401 expired_secret_key") - codes only, never a key
+            const e = new Error(m[1]); e.code = m[0]; e.reason = String(st.error || "").slice(0, 120); e.jobId = j.job_id; throw e; }
           const ids = Array.isArray(st.renders) ? st.renders : [];
           const renders = [];
           for (const id of ids) {
