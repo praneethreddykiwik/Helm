@@ -366,6 +366,8 @@ run "r129-studio-whatsapp-0337" "R129-STUDIO-WHATSAPP-0337: ALL PASS \(42/42\)" 
 run "r130-task-reminders-0338" "R130-TASK-REMINDERS-0338: ALL PASS \(40/40\)" psql -q -f tests/db/r130-task-reminders-0338.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
 run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f tests/db/r136-audit-via-0340.sql
+# r153 (0345): prod catch-up - a production-shaped database (PROD-DIAG-1111 gaps rebuilt in the test transaction) brought in line with canonical by 0345 applied twice: same triggers / bodies / grants as canonical, exactly one pricing trigger, nothing duplicated, kept __pre0345 bodies without privilege; overpayment / approval link end date / code limit / plan-save area check / return_reservation behaviour; duplicate inventory names -> index skipped, rows untouched; no-op on canonical; rolled back
+run "r153-prod-catchup-0345" "R153-PROD-CATCHUP-0345: ALL PASS \(19/19\)" psql -q -f tests/db/r153-prod-catchup-0345.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
