@@ -84,7 +84,7 @@
     hoarding: 'hoarding banner flex billboard', flagstand: 'flag pole stand', lectern: 'lectern podium speech dais mic', dais: 'dais vip platform',
     barricade: 'barricade crowd control barrier', stagebarrier: 'stage barrier front of stage pit barricade', fence: 'fence perimeter boundary',
     checkpoint: 'security check metal detector dfmd frisking', exit: 'exit entrance emergency door', firstaid: 'first aid medical',
-    diyastand: 'diya lamp deepam samai vilakku', havankund: 'havan kund homam yagna fire pooja', rangoli: 'rangoli kolam muggu floor art',
+    diyastand: 'diya lamp deepam samai vilakku', jyothi: 'jyothi jyoti prajwalana lamp lighting diya deepam candle inauguration ceremony', havankund: 'havan kund homam yagna fire pooja', rangoli: 'rangoli kolam muggu floor art',
     toran: 'toran bandhanwar garland door', phoolchadar: 'phoolon ki chadar flower canopy', haldi: 'haldi pithi yellow', mehendi: 'mehendi mehndi henna lounge',
     balloonarch: 'balloon arch garland', balloonbunch: 'balloon bouquet bunch helium', kidszone: 'kids play bouncy castle ball pit slide',
     couplesofa: 'couple sofa maharaja throne', fairylights: 'fairy lights string lights canopy', chandelier: 'chandelier crystal jhoomar',

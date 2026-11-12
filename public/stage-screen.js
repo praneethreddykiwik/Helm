@@ -191,23 +191,62 @@
   function setLogoResolver(fn) { resolver = typeof fn === 'function' ? fn : null; }
   function onLogoChange(fn) { if (typeof fn === 'function') listeners.push(fn); }
   function logoState(ref) { var e = ref && LOGO.get(ref); return e ? e.state : 'none'; }
-  function settle(ref, state, img) { LOGO.set(ref, { state: state, img: img || null }); listeners.forEach(function (f) { try { f(ref, state); } catch (e) {} }); }
+  // R154: the signed link behind a loaded logo expires (1 h); after LOGO_REFRESH_MS a fresh one is fetched in the
+  // background (the old picture keeps showing), so a long-open builder never ends up pointing at an expired link
+  var LOGO_REFRESH_MS = 45 * 60 * 1000, LOGO_RETRY_MS = 60 * 1000;
+  var now = function () { return Date.now(); };
+  function settle(ref, state, img) { LOGO.set(ref, { state: state, img: img || null, at: now() }); listeners.forEach(function (f) { try { f(ref, state); } catch (e) {} }); }
   function okUrl(u) { return typeof u === 'string' && u.length <= 2000 && /^(?:https:\/\/|http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/)[^\s"'<>]+$/i.test(u); }
   // the loaded image for a logo reference, or null (still loading, failed, no resolver, not a browser): callers then
   // draw the brand monogram. Starts the load on first ask; the listeners re-render when it lands.
+  function loadLogo(ref, onOk, onFail) {
+    Promise.resolve().then(function () { return resolver(ref); }).then(function (url) {
+      if (!okUrl(url)) { onFail(); return; }
+      var img = new Image(); img.crossOrigin = 'anonymous'; img.decoding = 'async';
+      img.onload = function () { if (img.naturalWidth > 0) onOk(img); else onFail(); };
+      img.onerror = function () { onFail(); };
+      img.src = url;
+    }).catch(function () { onFail(); });
+  }
   function logoImage(ref) {
     ref = cleanLogo(ref); if (!ref) return null;
-    var e = LOGO.get(ref); if (e) return e.state === 'ok' ? e.img : null;
+    var e = LOGO.get(ref);
+    if (e) {
+      if (e.state === 'ok' && resolver && !e.refreshing && e.at && now() - e.at > LOGO_REFRESH_MS) {   // R154 silent refresh
+        e.refreshing = true;
+        loadLogo(ref, function (img) { if (LOGO.get(ref) === e) settle(ref, 'ok', img); },
+          function () { e.refreshing = false; e.at = now() - LOGO_REFRESH_MS + LOGO_RETRY_MS; });
+      }
+      return e.state === 'ok' ? e.img : null;
+    }
     if (!resolver || typeof Image === 'undefined') return null;
     LOGO.set(ref, { state: 'loading', img: null });
-    Promise.resolve().then(function () { return resolver(ref); }).then(function (url) {
-      if (!okUrl(url)) { settle(ref, 'fail'); return; }
-      var img = new Image(); img.crossOrigin = 'anonymous'; img.decoding = 'async';
-      img.onload = function () { settle(ref, img.naturalWidth > 0 ? 'ok' : 'fail', img); };
-      img.onerror = function () { settle(ref, 'fail'); };
-      img.src = url;
-    }).catch(function () { settle(ref, 'fail'); });
+    loadLogo(ref, function (img) { settle(ref, 'ok', img); }, function () { settle(ref, 'fail'); });
     return null;
+  }
+  // R154: start loading every logo in refs and resolve once none is still loading (or after ms), so a client-image
+  // capture right after opening / adding a logo bakes the picture instead of the brand letter
+  function whenLogos(refs, ms) {
+    var list = (Array.isArray(refs) ? refs : []).map(cleanLogo).filter(function (r, i, a) { return r && a.indexOf(r) === i; });
+    list.forEach(logoImage);
+    var t0 = now(), limit = Math.max(0, +ms || 5000);
+    return new Promise(function (done) {
+      (function poll() {
+        if (list.every(function (r) { return logoState(r) !== 'loading'; }) || now() - t0 >= limit) { done(list.map(logoState)); return; }
+        setTimeout(poll, 80);
+      })();
+    });
+  }
+  // R154: the loaded logo as PNG pixels (a data: URL) for an exported floor-plan picture only - never stored, never the
+  // signed link. '' when it is not loaded or the canvas refuses (the export then leaves the logo out, as before).
+  function logoSnapshot(ref) {
+    var e = LOGO.get(cleanLogo(ref)), img = e && e.state === 'ok' ? e.img : null;
+    if (!img || !(img.naturalWidth > 0) || typeof document === 'undefined') return '';
+    try {
+      var z = fitLogoSize(img.naturalWidth, img.naturalHeight, LOGO_MAX_PX), cv = document.createElement('canvas'); cv.width = z.w; cv.height = z.h;
+      var x = cv.getContext('2d'); if (!x) return ''; x.drawImage(img, 0, 0, z.w, z.h);
+      var u = cv.toDataURL('image/png'); return /^data:image\/png;base64,/.test(u) ? u : '';
+    } catch (err) { return ''; }
   }
   function logoUrl(ref) { var e = LOGO.get(cleanLogo(ref)); return e && e.state === 'ok' && e.img ? e.img.src : ''; }
   function forgetLogo(ref) { LOGO.delete(ref); }
@@ -370,6 +409,7 @@
     layoutOf: layoutOf, stageSegments: stageSegments, monogram: monogram, shortLine: shortLine, keyOf: keyOf, draw: draw,
     luminance: luminance, contrast: contrast, inkFor: inkFor, paletteOf: paletteOf,
     sniffLogo: sniffLogo, validateLogo: validateLogo, fitLogoSize: fitLogoSize,
-    setLogoResolver: setLogoResolver, onLogoChange: onLogoChange, logoState: logoState, logoImage: logoImage, logoUrl: logoUrl, forgetLogo: forgetLogo
+    setLogoResolver: setLogoResolver, onLogoChange: onLogoChange, logoState: logoState, logoImage: logoImage, logoUrl: logoUrl, forgetLogo: forgetLogo,
+    whenLogos: whenLogos, logoSnapshot: logoSnapshot, LOGO_REFRESH_MS: LOGO_REFRESH_MS
   });
 });
