@@ -3331,6 +3331,25 @@ window.HelmUrl = HelmUrl;
     p.catch(() => { if (_memo.get(key) === ent) _memo.delete(key); });
     return p.then(memoCopy);
   }
+  /* R163 (prod pg_stat_statements: Realtime WAL polling realtime.list_changes = 1.85 M calls, ~6x everything else): a
+     postgres_changes channel keeps the Realtime server reading the database change log for as long as it is open. Every
+     channel now goes through rtLive(): it is closed while the tab is hidden for more than RT_IDLE_MS and opened again
+     (with a catch-up callback) when the tab is visible. make(cb) builds and subscribes the channel; onBack() runs after a
+     re-open so the page reloads what it missed. Returns { unsubscribe() } like a channel. */
+  const RT_IDLE_MS = 60000;
+  function rtLive(make, onBack) {
+    let ch = null, stopped = false, idleT = null;
+    const open = () => { if (stopped || ch) return; try { ch = make(); } catch (e) { ch = null; } };
+    const close = () => { if (!ch) return; try { if (supa && typeof supa.removeChannel === "function") supa.removeChannel(ch); else if (ch.unsubscribe) ch.unsubscribe(); } catch (e) {} ch = null; };
+    const onVis = () => {
+      if (typeof document === "undefined") return;
+      if (document.hidden) { clearTimeout(idleT); idleT = setTimeout(close, RT_IDLE_MS); return; }
+      clearTimeout(idleT); if (!ch && !stopped) { open(); try { onBack && onBack(); } catch (e) {} }
+    };
+    open();
+    try { document.addEventListener("visibilitychange", onVis); } catch (e) {}
+    return { unsubscribe() { stopped = true; clearTimeout(idleT); try { document.removeEventListener("visibilitychange", onVis); } catch (e) {} close(); } };
+  }
   const MEMO_LIST_MS = 8000;
   // Any non-read method on the object forgets the shared read first, so a list() asked for after a
   // save never gets an answer that started before it.
@@ -3395,11 +3414,10 @@ window.HelmUrl = HelmUrl;
       if (mode !== "supabase" || !supa || typeof supa.channel !== "function" || !/^[0-9a-f-]{36}$/i.test(String(id || ""))) return { unsubscribe() {} };
       try {
         const f = "quote_id=eq." + id;
-        const ch = supa.channel("qv-rt-" + id + "-" + Math.random().toString(36).slice(2, 8))
+        return rtLive(() => supa.channel("qv-rt-" + id + "-" + Math.random().toString(36).slice(2, 8))
           .on("postgres_changes", { event: "INSERT", schema: "public", table: "quote_versions", filter: f }, () => { try { cb && cb("layout"); } catch (e) {} })
           .on("postgres_changes", { event: "INSERT", schema: "public", table: "quotation_versions", filter: f }, () => { try { cb && cb("quotation"); } catch (e) {} })
-          .subscribe();
-        return { unsubscribe() { try { supa.removeChannel(ch); } catch (e) {} } };
+          .subscribe(), () => { try { cb && cb("layout"); cb && cb("quotation"); } catch (e) {} });   // R163: closed while hidden
       } catch (e) { return { unsubscribe() {} }; }
     },
     create: (code, title, eventType, data, objectCount) => qt().create(code, title, eventType, data, objectCount),
@@ -4684,9 +4702,14 @@ window.HelmUrl = HelmUrl;
     subscribe(cb, onStatus) {
       if (mode !== "supabase" || !supa) { if (onStatus) onStatus("DISABLED"); return { unsubscribe() {} }; }
       try {
-        return supa.channel("leads-rt")
-          .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, (payload) => cb && cb(payload))
-          .subscribe((status) => { if (onStatus) onStatus(status); });   // real status: SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED
+        // R163: only this studio's rows (row security still decides), and closed while the tab is hidden
+        const oid = currentUser ? swrOrg(currentUser.id) : null;
+        const spec = { event: "*", schema: "public", table: "leads" };
+        if (oid && /^[0-9a-f-]{36}$/i.test(String(oid))) spec.filter = "org_id=eq." + oid;
+        return rtLive(() => supa.channel("leads-rt")
+          .on("postgres_changes", spec, (payload) => cb && cb(payload))
+          .subscribe((status) => { if (onStatus) onStatus(status); }),   // real status: SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED
+          () => { if (onStatus) onStatus("CONNECTING"); try { cb && cb(null); } catch (e) {} });
       } catch { if (onStatus) onStatus("ERROR"); return { unsubscribe() {} }; }
     },
   };
@@ -7400,12 +7423,12 @@ window.HelmUrl = HelmUrl;
         return { unsubscribe() { try { if (chatBC) chatBC.removeEventListener("message", h); } catch (e) {} try { window.removeEventListener("storage", sh); } catch (e) {} } };
       }
       try {
-        const ch = supa.channel(chanName || "chat-rt")
+        // R163: closed while the tab is hidden; back = one catch-up refresh (cb)
+        return rtLive(() => supa.channel(chanName || "chat-rt")
           .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, () => cb && cb())
           .on("postgres_changes", { event: "*", schema: "public", table: "chat_reactions" }, () => cb && cb())
           .on("postgres_changes", { event: "*", schema: "public", table: "chat_conversations" }, () => cb && cb())
-          .subscribe((status) => { if (onStatus) onStatus(status); });
-        return ch;
+          .subscribe((status) => { if (onStatus) onStatus(status); }), () => { try { cb && cb(); } catch (e) {} });
       } catch (e) { if (onStatus) onStatus("ERROR"); return { unsubscribe() {} }; }
     },
   };
@@ -9450,7 +9473,9 @@ window.HelmUrl = HelmUrl;
     prefs: {
       async mine() {
         if (mode !== "supabase" || !supa || !currentUser) return { hidden: [] };
-        try { const r = await rpc("my_notification_prefs", {}); return { hidden: (r && Array.isArray(r.hidden)) ? r.hidden : [] }; }
+        // R163: one answer per tab session (sessionStorage, re-checked in the background after 20 s; any settings write clears it) -
+        // it was asked on every page (prod: 3,553 calls x 197 ms)
+        try { const r = await swr("nprefs", () => rpc("my_notification_prefs", {})); return { hidden: (r && Array.isArray(r.hidden)) ? r.hidden : [] }; }
         catch (e) { return { hidden: [] }; }
       },
       // studio admin only (the DB refuses anyone else): catalog + effective matrix
@@ -9465,7 +9490,7 @@ window.HelmUrl = HelmUrl;
       // 0063: types this person muted for themselves (fail-open: no 0063 → nothing muted)
       async mutes() {
         if (mode !== "supabase" || !supa || !currentUser) return [];
-        try { const r = await rpc("my_notification_mutes", {}); return Array.isArray(r) ? r.map(String) : []; } catch (e) { return []; }
+        try { const r = await swr("nmutes", () => rpc("my_notification_mutes", {})); return Array.isArray(r) ? r.map(String) : []; } catch (e) { return []; }   // R163: per tab session, like mine()
       },
       setMute: (type, muted) => rpc("set_notification_mute", { p_type: String(type || ""), p_muted: !!muted }),
     },
@@ -9572,8 +9597,12 @@ window.HelmUrl = HelmUrl;
          Keep the last good answer on screen (no empty list, no dot reset to 0), back off the safety poll (60 s, 2 m,
          4 m … max 8 m) and retry quietly ONCE a few seconds later - no user-facing error, no hammering. */
       let goodFeed = null, feedFails = 0, feedBackoffUntil = 0, feedRetryT = null;
+      /* R163 (owner): the bell list loads 10 at a time; scrolling to the end of the open list asks for 10 more (up to the
+         100 the server allows). Closing the bell goes back to 10, so the 30 s poll stays small. */
+      const BELL_PAGE = 10, BELL_MAX = 100;
+      let bellLimit = BELL_PAGE, bellMoreBusy = false, bellLastCount = 0;
       const safeFeed = async () => {
-        try { const f = await this.feed(20); goodFeed = f; feedFails = 0; feedBackoffUntil = 0; return f; }
+        try { const f = await this.feed(bellLimit); bellLastCount = f && Array.isArray(f.items) ? f.items.length : 0; goodFeed = f; feedFails = 0; feedBackoffUntil = 0; return f; }
         catch (x) {
           feedFails++; feedBackoffUntil = Date.now() + Math.min(480000, 30000 * Math.pow(2, feedFails));
           if (feedFails === 1 && !feedRetryT) feedRetryT = setTimeout(() => { feedRetryT = null; if (!document.hidden) liveRefresh(); }, 4000 + Math.floor(Math.random() * 3000));
@@ -9581,7 +9610,7 @@ window.HelmUrl = HelmUrl;
         }
       };
       try { window.__bpBellFeedState = () => ({ fails: feedFails, backoffUntil: feedBackoffUntil, hasGood: !!goodFeed }); } catch (e) {}
-      const refreshNow = async () => { lastRf = Date.now(); const g = mutGen; const f = await safeFeed(); noteInbox(f); await loadChat();
+      const refreshNow = async () => { lastRf = Date.now(); bellStamp(); const g = mutGen; const f = await safeFeed(); noteInbox(f); await loadChat();
         if (g !== mutGen) return f;
         setDot(serverUnread(f));
         const merged = mergedFeed(f && f.items); if (f) popToasts(merged);
@@ -9618,7 +9647,7 @@ window.HelmUrl = HelmUrl;
         else setDot(serverUnread(f));
       };
       const close = (restore) => {
-        if (!isOpen) return; isOpen = false;
+        if (!isOpen) return; isOpen = false; bellLimit = BELL_PAGE;
         root.classList.remove("is-open"); document.documentElement.classList.remove("bpb-is-open"); btn.setAttribute("aria-expanded", "false");
         try { document.documentElement.style.overflow = prevOverflow || ""; } catch (e) {}
         const hide = () => { if (!isOpen) root.hidden = true; };
@@ -9626,6 +9655,12 @@ window.HelmUrl = HelmUrl;
         if (restore !== false) { const t = (lastFocus && lastFocus.isConnected && lastFocus !== document.body) ? lastFocus : btn; try { t.focus({ preventScroll: true }); } catch (e) {} }
       };
       btn.addEventListener("click", (e) => { e.stopPropagation(); if (isOpen) close(); else open(); });
+      list.addEventListener("scroll", () => {
+        if (!isOpen || bellMoreBusy || bellLimit >= BELL_MAX || bellLastCount < bellLimit) return;   // the last page was not full: nothing older
+        if (list.scrollTop + list.clientHeight < list.scrollHeight - 48) return;
+        bellMoreBusy = true; bellLimit = Math.min(BELL_MAX, bellLimit + BELL_PAGE);
+        Promise.resolve(refresh()).catch(() => {}).then(() => { bellMoreBusy = false; });
+      }, { passive: true });
       // 0063: per-row ⋯ menu (Mute this type / Mark read) with an Undo toast
       const say = (msg, undo) => { try { window.BPUI && window.BPUI.toast && window.BPUI.toast(msg, { type: "info", timeout: 6000, action: undo ? { label: "Undo", onClick: undo } : undefined }); } catch (x) {} };
       const closeMenu = () => { const m = root.querySelector(".bpb-menu"); if (m) { const b = m.__btn; m.remove(); if (b) b.setAttribute("aria-expanded", "false"); return b; } return null; };
@@ -9758,15 +9793,29 @@ window.HelmUrl = HelmUrl;
         rfBusy = Promise.resolve(refresh()).catch(() => {}).then(() => { rfBusy = null; if (rfAgain) { rfAgain = false; return liveRefresh(); } });
         return rfBusy; };
       const kick = () => { if (kicked) return; if (!auth.user()) return; kicked = true; liveRefresh();
+        // R163: the bell opened a Realtime chat channel on EVERY signed-in page (3 postgres_changes, every tab, every device) -
+        // the top database cost on prod. Off the Chat page the bell now follows the 30 s poll (+ focus / visible catch-up).
+        if (pageKey() !== "chat") return;
         try { if (chat && chat.subscribe) { csub = chat.subscribe(function () { liveRefresh(); }, function () {}, "chat-rt-bell"); window.addEventListener("beforeunload", function () { try { csub && csub.unsubscribe && csub.unsubscribe(); } catch (e) {} }); } } catch (e) {}
       };
       // la-fetch (audit 25): one poll is ~7 reads (feed + chat bootstrap). On the Chat page realtime already
       // refreshes on every message, so the safety poll there runs every 90 s, elsewhere every 30 s; never
       // while the tab is hidden, and a tab coming back after its interval catches up once.
       const pollMs = () => (pageKey() === "chat" && csub ? 90000 : 30000);
-      const timer = setInterval(() => { if (kicked && !document.hidden && !isOpen && Date.now() >= feedBackoffUntil && Date.now() - lastRf >= pollMs() - 1000) refresh(); }, 30000);
+      /* R163: one Helm tab polls for all. Hidden tabs never poll (as before); a visible tab that is NOT focused skips
+         its poll while another tab of the same person polled less than a poll ago (each tab writes a timestamp in
+         localStorage). The focused tab always polls, and a tab that gets focus catches up at once. */
+      const bellTab = Math.random().toString(36).slice(2, 10);
+      const bellKey = () => "bp_bell_poll:" + ((auth.user() && auth.user().id) || "");
+      function bellStamp() { try { localStorage.setItem(bellKey(), JSON.stringify({ t: Date.now(), tab: bellTab })); } catch (e) {} }
+      function otherTabPolled(ms) {
+        try { if (typeof document.hasFocus === "function" && document.hasFocus()) return false;
+          const v = JSON.parse(localStorage.getItem(bellKey()) || "null");
+          return !!(v && v.tab !== bellTab && Date.now() - Number(v.t || 0) < ms); } catch (e) { return false; }
+      }
+      const timer = setInterval(() => { if (kicked && !document.hidden && !isOpen && Date.now() >= feedBackoffUntil && Date.now() - lastRf >= pollMs() - 1000 && !otherTabPolled(pollMs() - 2000)) refresh(); }, 30000);
       const onVis = () => { if (kicked && !document.hidden && !isOpen && Date.now() >= feedBackoffUntil && Date.now() - lastRf >= pollMs()) liveRefresh(); };
-      document.addEventListener("visibilitychange", onVis);
+      document.addEventListener("visibilitychange", onVis); window.addEventListener("focus", onVis);
       btn.addEventListener("click", kick);
       if (pageKey() === "chat") kick();
       else {
@@ -9776,7 +9825,7 @@ window.HelmUrl = HelmUrl;
       // Let the chat page nudge the bell after it marks a conversation read.
       try { window.__bpBellRefresh = refresh; } catch (e) {}
       function bellStop() { try { if (typeof window.__bpBellTeardown === "function") window.__bpBellTeardown(); } catch (e) {} }
-      try { window.__bpBellTeardown = () => { kicked = true; clearInterval(timer); clearTimeout(feedRetryT); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVis); if (isOpen) close(false);
+      try { window.__bpBellTeardown = () => { kicked = true; clearInterval(timer); clearTimeout(feedRetryT); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("focus", onVis); if (isOpen) close(false);
         try { csub && csub.unsubscribe && csub.unsubscribe(); } catch (e) {} try { root.remove(); } catch (e) {} }; } catch (e) {}
     },
   };
@@ -10871,7 +10920,8 @@ window.HelmUrl = HelmUrl;
     },
     // Phase 3 — personal dashboard feed: upcoming events + per-event task rollup + unread count.
     // Org- and area-scoped server-side (my_pending is SECURITY DEFINER gated on has_area('quotes','view')).
-    pending: () => (supa ? rpc("my_pending") : Promise.resolve({ upcoming: [], unread: 0 })),
+    // R163: the dashboard asked my_pending twice on one load - one shared answer (in flight, then 5 s; a write clears the 5 s copy)
+    pending: () => (supa ? memoRead("ops.pending", 5000, () => shareInflight("ops.pending", () => rpc("my_pending"))) : Promise.resolve({ upcoming: [], unread: 0 })),
     // Build 3 — personal task list bucketed TODAY/OVERDUE/BLOCKED/UPCOMING/COMPLETED.
     // Inherently personal + org-scoped server-side (my_tasks is SECURITY DEFINER, crew_id = caller).
     // Operator-only read RPCs (0029). The database refuses every non-operator (42501).

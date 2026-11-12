@@ -171,7 +171,7 @@ t('history: every open re-reads the list from the database; one card per render,
 
 t('wiring: versions bumped, builder passes the logo wait, render-photo takes the screen pictures', () => {
   const bh = rd('public/builder.html');
-  for (const v of ['stage-screen.js?v=4', 'photo-render-prompt.js?v=12', 'photo-render-ui.js?v=11', 'builder.js?v=91', 'builder.css?v=40', 'store-api.js?v=349']) assert.ok(bh.includes(v), v);
+  for (const v of ['stage-screen.js?v=4', 'photo-render-prompt.js?v=12', 'photo-render-ui.js?v=12', 'builder.js?v=91', 'builder.css?v=40', 'store-api.js?v=350']) assert.ok(bh.includes(v), v);
   assert.match(rd('public/builder.js'), /logosReady: \(\) => screenLogosReady\(\)/);
   const fn = rd('supabase/functions/render-photo/index.ts');
   assert.match(fn, /MAX_SCREEN_IMAGES = 2, MAX_LOGO_IMAGES = 1/);
