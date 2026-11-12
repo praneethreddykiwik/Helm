@@ -8,6 +8,8 @@
 set client_min_messages = warning;
 begin;
 create temp table _bt(name text, result text); grant all on _bt to anon, authenticated;
+-- earlier suites in run-all.sh re-apply older inbox bodies (0266 / 0270) for real: put the canonical 0293 rules back first
+\i supabase/migrations/0293_r52_notifications_clear.sql
 \i supabase/migrations/0357_r163_bell_type_once.sql
 -- a re-run is safe
 \i supabase/migrations/0357_r163_bell_type_once.sql
