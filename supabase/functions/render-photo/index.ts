@@ -9,7 +9,9 @@
 //
 // Request (POST, JSON, signed-in staff JWT):
 //   { quote_id, prompt, n (1-4), quality "standard"|"high", size "1536x1024"|"1024x1024"|"1024x1536",
-//     style, camera, theme, images: [{ mime: "image/jpeg"|"image/png", data: base64 }] (1-4, <= 2 MB each: 3D view, plan, labelled plan, semantic colour map) }
+//     style, camera, theme, images: [{ mime: "image/jpeg"|"image/png", data: base64 }] (1-4, <= 2 MB each: 3D view, plan, labelled plan, semantic colour map),
+//     R160 (optional): screens: [HelmScreen.photoSpecs data, <= 4] + after the base pictures up to 2 { role:"screen", screen:i } flat screen
+//     artworks and 1 { role:"logo" } client logo. The server cleans screens and appends the SCREEN CONTENT section (screen.ts). }
 // Who may: photo_render_begin runs AS THE CALLER - signed in, staff of the event's studio, quotes EDIT
 // + photo_render EDIT, studio writable, renders switched on, hourly limit + monthly quota.
 // The photos are stored in the database (photo_renders, like the 0083 booklet pictures - no
@@ -25,12 +27,15 @@ import { bearer, errTag, responders, UUID_RE } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { logger } from "../_shared/log.ts";
 import { fetchWithTimeout, isTimeout } from "../_shared/http.ts";   // R142: also bounds reading OpenAI's answer
+import { cleanScreens, screenBlock, type ScreenImages } from "./screen.ts";   // R160: what the stage / LED screens show
 
 const OPENAI_EDITS = "https://api.openai.com/v1/images/edits";
-const BODY_LIMIT = 11 * 1024 * 1024;          // four reference pictures (base64) + prompt
+const BODY_LIMIT = 16 * 1024 * 1024;          // four reference pictures + R160 screen artwork / logo (base64) + prompt
 const IMG_LIMIT = 2 * 1024 * 1024;            // per reference picture (decoded)
 const OUT_LIMIT = 6 * 1024 * 1024;            // per photo stored (photo_renders_bytes_ck)
 const MAX_IMAGES = 4;                         // 3D view, plan, labelled plan, semantic colour map
+const MAX_SCREEN_IMAGES = 2, MAX_LOGO_IMAGES = 1;   // R160: flat screen artwork + the client's logo (OpenAI edits take up to 16)
+const PROMPT_MAX = 32000;                     // OpenAI GPT image prompt limit (characters)
 const SIZES = new Set(["1536x1024", "1024x1024", "1024x1536"]);
 const MODEL_RE = /^[a-z0-9.-]{1,60}$/;
 const B64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
@@ -116,9 +121,27 @@ Deno.serve(async (req) => {
     const model = (Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-2.5-sunburst").trim();
     if (!MODEL_RE.test(model)) return json({ error: "render_not_configured" }, 503);
     const imgs = Array.isArray(body.images) ? body.images : [];
-    if (imgs.length < 1 || imgs.length > MAX_IMAGES) return json({ error: "send 1 to 4 reference pictures" }, 400);
+    // R160: the base pictures come first (the prompt numbers them Image 1-4), then optional screen artwork + logo
+    const isExtra = (im: any) => im?.role === "screen" || im?.role === "logo";
+    const nBase = imgs.findIndex(isExtra) < 0 ? imgs.length : imgs.findIndex(isExtra);
+    const extras = imgs.slice(nBase);
+    if (nBase < 1 || nBase > MAX_IMAGES) return json({ error: "send 1 to 4 reference pictures" }, 400);
+    if (!extras.every(isExtra) || extras.filter((im: any) => im.role === "screen").length > MAX_SCREEN_IMAGES ||
+        extras.filter((im: any) => im.role === "logo").length > MAX_LOGO_IMAGES) return json({ error: "too many screen reference pictures" }, 400);
+    const screens = cleanScreens(body.screens);
+    const shots: ScreenImages = { artwork: {}, logo: 0 };
+    const sent: any[] = imgs.slice(0, nBase);
+    for (const im of extras) {
+      if (im.role === "screen") {
+        const j = Math.round(Number(im.screen));
+        if (!(j >= 0 && j < screens.length) || shots.artwork[j]) continue;   // artwork of a screen that is not described: not sent
+        sent.push(im); shots.artwork[j] = sent.length;
+      } else if (screens.some((x) => x.logo)) { sent.push(im); shots.logo = sent.length; }
+    }
+    const block = screenBlock(screens, shots);
+    const fullPrompt = block ? prompt.slice(0, Math.max(0, PROMPT_MAX - block.length - 2)) + "\n\n" + block : prompt;
     const files: Blob[] = [];
-    for (const im of imgs) {
+    for (const im of sent) {
       const data = String(im?.data || "");
       if (!data || data.length > Math.ceil(IMG_LIMIT * 4 / 3) + 4 || !B64_RE.test(data)) return json({ error: "a reference picture is too large or invalid" }, 413);
       let b: Uint8Array<ArrayBuffer>;
@@ -163,7 +186,7 @@ Deno.serve(async (req) => {
     // precision matters most"); override with OPENAI_IMAGE_MODEL (e.g. gpt-image-2.5-flare = faster).
     const fd = new FormData();
     fd.append("model", model);
-    fd.append("prompt", prompt);
+    fd.append("prompt", fullPrompt);
     fd.append("n", String(n));
     fd.append("size", size);
     fd.append("quality", quality);
@@ -218,7 +241,7 @@ Deno.serve(async (req) => {
           if (!mime || bytes.byteLength > OUT_LIMIT) continue;
           const { data: row, error: iErr } = await admin.from("photo_renders").insert({
             org_id: orgId, quote_id: quoteId, usage_id: usageId, created_by: user.id, ...meta,
-            quality, model, size, prompt, mime, bytes: bytes.byteLength, data: "\\x" + Array.from(bytes, (x) => x.toString(16).padStart(2, "0")).join(""),
+            quality, model, size, prompt: fullPrompt, mime, bytes: bytes.byteLength, data: "\\x" + Array.from(bytes, (x) => x.toString(16).padStart(2, "0")).join(""),
           }).select("id").single();
           if (iErr || !row) { log.error("render insert failed", errTag(iErr)); continue; }
           renders.push({ id: String(row.id), mime, data: b64 });

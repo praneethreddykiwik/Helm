@@ -10,5 +10,5 @@ assert.match(m[1], /header \.hgroup\{[^}]*flex-wrap:wrap/, 'header groups wrap o
 assert.match(m[1], /min-width:0/, 'groups may shrink below content width');
 assert.doesNotMatch(m[1], /overflow-x/, 'no inner scroller that would clip header menus');
 const html = readFileSync(new URL('../public/builder.html', import.meta.url), 'utf8');
-assert.match(html, /builder\.css\?v=39/, 'builder.css cache-bust bumped');
+assert.match(html, /builder\.css\?v=40/, 'builder.css cache-bust bumped');
 console.log('builder-toolbar-tablet-r77: ok');

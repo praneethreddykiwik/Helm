@@ -137,8 +137,8 @@ t('builder: Render dialog markup with style / camera / theme / quality / count, 
   assert.match(html, /<option value="4">4<\/option>/);
   assert.match(html, /Photo renders aren’t switched on for your studio yet\./);
   assert.doesNotMatch(html, /OPENAI_API_KEY/);
-  assert.match(html, /builder-3d\.js\?v=34"><\/script>\n<script src="photo-render-prompt\.js\?v=11"><\/script>\n<script src="photo-render-ui\.js\?v=10"><\/script>/);
-  assert.match(cap, /photo-render-ui\.js\?v=10/);
+  assert.match(html, /builder-3d\.js\?v=34"><\/script>\n<script src="photo-render-prompt\.js\?v=12"><\/script>\n<script src="photo-render-ui\.js\?v=11"><\/script>/);
+  assert.match(cap, /photo-render-ui\.js\?v=11/);
   assert.doesNotMatch(html, /style="/);
 });
 t('dialog: three captures (clean 3D labels none, plan plain, plan names + measure), ≤1536 px, render via BPStore', () => {
@@ -203,7 +203,7 @@ t('render-photo: dormant 503 render_not_configured before anything else; key fro
   assert.match(rd('supabase/functions/README.md'), /supabase functions deploy render-photo/);
   assert.match(fn, /asCaller\.rpc\("photo_render_begin"/);
   assert.match(fn, /AbortController/);
-  assert.match(fn, /BODY_LIMIT = 11 \* 1024 \* 1024/);
+  assert.match(fn, /BODY_LIMIT = 16 \* 1024 \* 1024/);   // R160: + screen artwork / logo pictures
   assert.match(rd('docs/PHOTO-RENDER-SETUP.md'), /supabase secrets set OPENAI_API_KEY=/);
 });
 

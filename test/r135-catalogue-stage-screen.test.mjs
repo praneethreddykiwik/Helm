@@ -159,7 +159,7 @@ t('placeholder is builder-only: never in exports, the capture host, read-only vi
     { id: 'l1', type: 'sidescreen', x: 60, y: 2, width: 6, height: 1.5, rotation: 0, properties: { screenMirror: true } }], world: { w: 200, h: 140 } }).prompt;
   assert.match(r2, /backdrop screen in a royal maroon and gold theme with a gold border showing exactly the words "Sita & Ram", "Reception"/);
   assert.match(r2, /the screen in a royal maroon and gold theme/, 'mirrored side screen copies the stage');
-  assert.match(r2, /EXCEPT the exact screen words listed below/);
+  assert.match(r2, /EXCEPT the planned screen content \(words, colours and logo\)/);   // R160: SCREEN CONTENT section
   const r3 = P.build({ items: [{ ...items[0], properties: { title: 'A <b>"x"</b>\u0007' } }], world: { w: 200, h: 140 } }).prompt;
   assert.ok(!/<b>/.test(r3) && /"A b 'x' \/b"/.test(r3), 'cleaned + quoted');
 });
