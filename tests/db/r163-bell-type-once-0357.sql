@@ -14,6 +14,21 @@ create temp table _bt(name text, result text); grant all on _bt to anon, authent
 -- a re-run is safe
 \i supabase/migrations/0357_r163_bell_type_once.sql
 
+-- same bell answer: equal unread count + equal items, where rows sharing the SAME created_at (ties, e.g. rows from one
+-- insert in an earlier suite) may come in either order - the 0036 query has no tie-break, so neither body fixes one.
+-- At the cut-off time only the number of rows is compared (which tied row makes the page is the planner's choice).
+create function public._r357t_same(a jsonb, b jsonb) returns boolean language sql as $$
+  with ai as (select e.i, (e.i ->> 'created_at')::timestamptz as t from jsonb_array_elements(a -> 'items') e(i)),
+       bi as (select e.i, (e.i ->> 'created_at')::timestamptz as t from jsonb_array_elements(b -> 'items') e(i)),
+       cut as (select min(t) as t from ai)
+  select (a ->> 'unread') is not distinct from (b ->> 'unread')
+     and (select count(*) from ai) = (select count(*) from bi)
+     and (select count(*) from ai where t = (select t from cut)) = (select count(*) from bi where t = (select t from cut))
+     and not exists (select i from ai where t > (select t from cut) except all select i from bi where t > (select t from cut))
+     and not exists (select i from bi where t > (select t from cut) except all select i from ai where t > (select t from cut))
+     and (select coalesce(jsonb_agg(t order by t desc), '[]') from ai) = (select coalesce(jsonb_agg(t order by t desc), '[]') from bi);
+$$;
+
 do $$ declare a_admin uuid; a_staff uuid; org uuid := 'a0000000-0000-4000-8000-000000000001'; q uuid; n int; m int;
   t0 timestamptz; t_old interval; t_new interval; src text; begin
   execute 'reset role';
@@ -52,10 +67,11 @@ do $$ declare a_admin uuid; a_staff uuid; org uuid := 'a0000000-0000-4000-8000-0
   -- 5-6 bell_feed__pre0042 (the 0036 list + unread) identical, as admin and as sales
   perform auth.login_as(a_admin); execute 'reset role';
   insert into _bt values ('05 admin bell list + unread identical',
-    case when public.bell_feed__pre0042(20) = public.bell_feed__pre0042__pre0357(20) and public.bell_feed__pre0042(100) = public.bell_feed__pre0042__pre0357(100) then 'PASS' else 'FAIL' end);
+    case when public._r357t_same(public.bell_feed__pre0042(20), public.bell_feed__pre0042__pre0357(20))
+          and public._r357t_same(public.bell_feed__pre0042(100), public.bell_feed__pre0042__pre0357(100)) then 'PASS' else 'FAIL' end);
   perform auth.login_as(a_staff); execute 'reset role';
   insert into _bt values ('06 sales bell list + unread identical',
-    case when public.bell_feed__pre0042(20) = public.bell_feed__pre0042__pre0357(20) then 'PASS' else 'FAIL' end);
+    case when public._r357t_same(public.bell_feed__pre0042(20), public.bell_feed__pre0042__pre0357(20)) then 'PASS' else 'FAIL' end);
 
   -- 7 faster: the old inbox rows vs the new ones (same data)
   t0 := clock_timestamp(); perform count(*) from public._r23_visible__pre0357(org, a_admin); t_old := clock_timestamp() - t0;

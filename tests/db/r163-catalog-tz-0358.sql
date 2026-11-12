@@ -7,6 +7,8 @@
 set client_min_messages = warning;
 begin;
 create temp table _ct(name text, result text); grant all on _ct to anon, authenticated;
+-- earlier suites in run-all.sh re-apply older catalog bodies for real: put the canonical 0354 catalog back first
+\i supabase/migrations/0354_r156_wa_template_jobs.sql
 \i supabase/migrations/0358_r163_catalog_tz_speed.sql
 \i supabase/migrations/0358_r163_catalog_tz_speed.sql
 
