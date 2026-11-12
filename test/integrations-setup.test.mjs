@@ -52,7 +52,12 @@ await t('edge logic: status booleans only, sender/reply-to, masking', () => {
   assert.ok(!JSON.stringify(live).includes('re_x') && !JSON.stringify(live).includes('"t"'), 'no secret values in status');
   assert.equal(L.channelStatus(env({ WHATSAPP_TOKEN: 't', WHATSAPP_PHONE_ID: '1234567' })).whatsapp.live, false, 'no template -> not live');
   assert.equal(L.fromHeader('Helm <hello@helm.events>', 'Rao "Events"', 'X'), '"Rao Events" <hello@helm.events>');
-  assert.equal(L.fromHeader('', '', 'Studio'), '"Studio" <onboarding@resend.dev>');
+  // R154g: no fallback sender - nothing configured -> empty address (display only; nothing is sent)
+  assert.equal(L.fromHeader('', '', 'Studio'), '"Studio" <>');
+  assert.equal(L.senderAddress('Helm'), ''); assert.equal(L.emailProvider(env({ RESEND_API_KEY: 're_x', RESEND_FROM: 'Helm' })), '');
+  for (const f of ['_shared/mailer.ts', 'integrations-test/logic.mjs', 'comms-dispatch/index.ts', 'billing-reminder/index.ts',
+    'security-alert-mailer/index.ts', 'pkg-client-notify/index.ts', 'razorpay-webhook/index.ts'])
+    assert.doesNotMatch(r('supabase/functions/' + f).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n'), /onboarding@resend\.dev/, f);
   // R154: SMTP-only counts as live (the shared mailer sends through it); Resend needs key AND from (as mailConfig)
   const smtp = L.channelStatus(env({ SMTP_HOST: 'smtp.gmail.com', SMTP_USER: 'mail@helm.events', SMTP_PASS: 'pw' }));
   assert.equal(smtp.email.live, true); assert.equal(smtp.email.provider, 'smtp'); assert.equal(smtp.email.sender, 'mail@helm.events');
@@ -74,7 +79,7 @@ await t('edge function: caller JWT, fixed recipients, host allowlist, no secret 
   assert.match(fn, /const out = await sendMail\(\{ to, subject: msg\.subject/); assert.ok(!/api\.resend\.com/.test(fn), 'no direct Resend call');
   assert.match(fn, /checkLimits\(\[\["itest:send:" \+ user\.id, 5, 600_000\]\]\)/);
   assert.ok(!/json\([^;]*env\("(WHATSAPP_TOKEN|RESEND_API_KEY|WHATSAPP_APP_SECRET)"\)/.test(fn), 'secret values never returned');
-  assert.match(disp, /comms_outbox_email_identity/); assert.match(disp, /reply_to: replyTo/);
+  assert.match(disp, /comms_outbox_email_identity/); assert.match(disp, /replyTo: replyToOf\(ident\.reply_to\) \|\| null/);   // R154g: shared mailer for both lanes
 });
 await t('page: CSP-safe forms + Send test buttons, no secret inputs', () => {
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html)); assert.ok(!/\sstyle=/i.test(html)); assert.ok(!/\son[a-z]+=/i.test(html));

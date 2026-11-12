@@ -47,24 +47,29 @@ await t("1b every file that talks to a provider or Storage uses fetchWithTimeout
     assert.match(s, /import \{[^}]*fetchWithTimeout[^}]*\} from "(\.\.\/_shared|\.)\/http\.ts"/, f);
     users++;
   }
-  assert.ok(users >= 15, "files on the helper: " + users);   // R154: integrations-test now sends through _shared/mailer.ts (on the helper)
+  // R154: integrations-test now sends through _shared/mailer.ts (on the helper); R154g: so do comms-dispatch,
+  // billing-reminder, pkg-client-notify, security-alert-mailer and razorpay-webhook (their own Resend calls are gone)
+  assert.ok(users >= 10, "files on the helper: " + users);
   // a provider host only appears where the call goes through a helper (or in a pure logic / template module)
   for (const f of SRC) {
     const s = strip(r(f));
     if (!PROVIDERS.test(s) || /\.mjs$/.test(f) || f.endsWith("_shared/http.ts")) continue;
     assert.match(s, /fetchWithTimeout|safeFetch|waPost|graphVersion/, f + " names a provider host but has no deadline helper");
   }
-  // the safeFetch / rzp / graph wrappers themselves are on the helper
-  // R154: integrations-test sends its test e-mail through _shared/mailer.ts (on the helper, checked below)
-  for (const f of ["comms-dispatch", "billing-reminder", "pkg-client-notify", "security-alert-mailer"])
-    assert.match(r(join(FN, f, "index.ts")), /return await fetchWithTimeout\(u\.toString\(\), \{ \.\.\.init, redirect: "error" \}\);/, f);
+  // the rzp / graph wrappers themselves are on the helper
+  // R154 / R154g: integrations-test, comms-dispatch, billing-reminder, pkg-client-notify, security-alert-mailer and
+  // razorpay-webhook send e-mail only through _shared/mailer.ts (on the helper, checked below) - no own Resend call
+  for (const f of ["comms-dispatch", "billing-reminder", "pkg-client-notify", "security-alert-mailer", "razorpay-webhook"]) {
+    const s = strip(r(join(FN, f, "index.ts")));
+    assert.match(s, /import \{[^}]*\bsendMail\b[^}]*\} from "\.\.\/_shared\/mailer\.ts"/, f);
+    assert.doesNotMatch(s, /api\.resend\.com|onboarding@resend\.dev/, f);
+  }
   assert.match(r(join(FN, "create-payment-link/index.ts")), /fetchWithTimeout\("https:\/\/api\.razorpay\.com\/v1\/" \+ path/);
   assert.match(r(join(FN, "create-subscription-checkout/index.ts")), /fetchWithTimeout\("https:\/\/api\.razorpay\.com\/v1\/" \+ path/);
   assert.match(r(join(FN, "wa-connect/index.ts")), /const r = await fetchWithTimeout\(u\.toString\(\)/);
   assert.match(r(join(FN, "_shared/wa-sender.ts")), /r = await fetchWithTimeout\(url, \{[\s\S]{0,300}raw = await r\.text\(\);[^\n]*\n\s*\} catch \(e\) \{/,
     "Meta answer read inside the deadline + the network-failure catch");
   assert.match(r(join(FN, "_shared/mailer.ts")), /await fetchWithTimeout\("https:\/\/api\.resend\.com\/emails"/);
-  assert.match(r(join(FN, "razorpay-webhook/index.ts")), /await fetchWithTimeout\("https:\/\/api\.resend\.com\/emails"/);
   assert.match(r(join(FN, "send-otp/index.ts")), /await fetchWithTimeout\("https:\/\/control\.msg91\.com\/api\/v5\/flow\/"/);
   assert.match(r(join(FN, "captcha-verify/index.ts")), /fetchWithTimeout\(SITEVERIFY_URL, \{[\s\S]*?\}, 8000\)/);
   assert.match(r(join(FN, "render-photo/index.ts")), /fetchWithTimeout\(OPENAI_EDITS, \{[^\n]*signal: ac\.signal \}, timeout \+ 5_000\)/);

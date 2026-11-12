@@ -34,7 +34,8 @@
 //                   approval link path is added by the claim - no token in the row; re-checked there)
 //   * welcome e-mails (0057 + R119 0327) "Welcome to Helm" for a new studio owner (the free-trial version for a trial
 //                   studio) and "You've joined <studio>" for a new teammate, designed HTML through the shared mailer
-//                   (welcome-mailer/send.ts). Nothing is claimed until the DATABASE switch is on
+//                   (welcome-mailer/send.ts). R154g: HELM_WELCOME_EMAILS_ENABLED "true" or unset -> lane on, any
+//                   other value -> lane off (welcomeLaneOn). Nothing is claimed until the DATABASE switch is on
 //                   (helm_welcome_mail_settings.enabled, default off; APPLY-0327-WELCOME-ON.sql); the 0327 claim hands
 //                   out only rows queued in the last 48 hours, re-checked (studio / member / ended trial / duplicate).
 // FREE TRIAL (0212): the database queues and hands out a free-trial studio's row ONLY for the invitation /
@@ -46,7 +47,7 @@
 // WhatsApp, R129 / 0337: the row's studio has connected its OWN WhatsApp number on the Integrations page).
 // E-MAIL TRANSPORT (release 1018): SMTP first - the same shared mailer (_shared/mailer.ts + smtp.ts)
 // as client-mailer / invite-mailer / welcome-mailer, e.g. Gmail smtp.gmail.com:465 + an App Password.
-// Resend only when SMTP is NOT set and RESEND_API_KEY is. Neither -> e-mail rows are "skipped".
+// Resend only when SMTP is NOT set and RESEND_API_KEY + RESEND_FROM are. Neither -> e-mail rows are "skipped".
 // Both transports get the identical body + compliance footer + List-Unsubscribe headers (0165).
 // Kill switch: HELM_COMMS_ENABLED="false" -> every request is a no-op 200 and nothing is
 // claimed (rows stay queued). Invoked ONLY by a cron / service caller presenting a
@@ -63,8 +64,8 @@
 //                                     preferred e-mail transport (shared mailer). Display name:
 //                                     EMAIL_BRAND_MODE "helm" (default) -> "Helm Events"; "studio" ->
 //                                     the studio's sender name (0150) or "<Studio> via Helm Events".
-//   RESEND_API_KEY, RESEND_FROM       fallback transport, used only when SMTP is not set; the display
-//                                     name comes from the studio's Integrations page (0150).
+//   RESEND_API_KEY, RESEND_FROM       fallback transport, used only when SMTP is not set; same display-name rule
+//                                     (EMAIL_BRAND_MODE) as SMTP - R154g. No fallback sender: RESEND_FROM must be set.
 //   Neither set -> e-mail rows are marked "skipped". Reply-To = the studio's reply-to (0150), else (R107) the
 //                                     studio's business e-mail, else the studio owner's e-mail - never Helm's
 //                                     own sending address (a client reply there is lost); both transports.
@@ -78,7 +79,7 @@
 // Idempotent: the database hands each row out once (claim + mark, UNIQUE dedupe key) and the
 // row id is sent as the e-mail provider idempotency key. Logs carry only counts and status
 // codes - never an address, a phone number, a name or message text. Outbound HTTP goes only
-// to a FIXED host allowlist; no URL is ever taken from the database (deep links are built
+// to FIXED provider endpoints (shared mailer, wa-sender); no URL is ever taken from the database (deep links are built
 // from ids by the same rule as the in-app bell and joined to APP_URL).
 // R142: every provider call has a 10 s deadline (_shared/http.ts; SMTP connect too) - a timeout is a failed send, so the
 // row goes back to "retry" exactly like a provider refusal. A run with failed rows (or a crash) sends ONE Sentry event
@@ -96,19 +97,17 @@ import { deliveryMessage } from "./delivery-reminder.mjs";   // 0241: delivery /
 import { vendorRequestMessage, VENDOR_TX_REASON } from "./vendor-request.mjs";   // 0256: vendor requests + reminders
 import { helmNoticeEmail, NOTICE_TX_REASON } from "./helm-notices.mjs";   // 0244: sales requests + "ask my admin"
 import { runsheetReminderMessage, enquiryReplyMessage, RUNSHEET_TX_REASON, ENQUIRY_TX_REASON } from "./r24-automation.mjs";   // 0269: run-sheet reminders + enquiry replies
-import { fromHeader, replyToOf } from "../integrations-test/logic.mjs";
-import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks, withFooter } from "../_shared/email-compliance.mjs";
-import { brandMode, sendMail, type SmtpSend } from "../_shared/mailer.ts";
+import { replyToOf } from "../integrations-test/logic.mjs";
+import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks } from "../_shared/email-compliance.mjs";
+import { brandMode, mailConfig, sendMail, type SmtpSend } from "../_shared/mailer.ts";
 import { rowReplyTo } from "../_shared/reply-to.mjs";   // R107: Reply-To fallback (business e-mail -> owner)
 import { runWelcomeBatch } from "../welcome-mailer/send.ts";   // R119 (0327): welcome e-mails (database switch, 48 h)
 import { orgOfRow, senderCache, waPost, type WaSender } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
 import { fieldContent, noticeContent } from "../_shared/wa-studio.mjs";
 import { logger } from "../_shared/log.ts";
-import { fetchWithTimeout } from "../_shared/http.ts";
 const L = logger("comms-dispatch");
 
 const enc = new TextEncoder();
-const ALLOWED_HOSTS = new Set(["api.resend.com", "graph.facebook.com"]);
 const EMAIL = /^[^\s@<>"',;:\\]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/;
 const PHONE = /^[0-9]{8,15}$/;
 const UUIDISH = /^[0-9a-f-]{36}$/i;
@@ -120,12 +119,6 @@ export async function secretMatches(given: string, expected: string): Promise<bo
   let diff = 0;
   for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
   return diff === 0;
-}
-
-async function safeFetch(url: string, init: RequestInit): Promise<Response> {
-  const u = new URL(url);
-  if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname)) throw new Error("host not allowed");
-  return await fetchWithTimeout(u.toString(), { ...init, redirect: "error" });
 }
 
 type Res = "sent" | "skipped" | "failed";
@@ -140,50 +133,35 @@ export type Identity = { from_name?: string | null; reply_to?: string | null };
 // Compliance (docs/ops/EMAIL-COMPLIANCE.md): every e-mail carries a footer; non-transactional
 // mail (follow-ups, trial nudges) also carries a visible Unsubscribe link + RFC 8058 headers.
 export type Extra = { footer: { text: string; html: string }; headers?: Record<string, string> };
-// which e-mail transport this run uses: SMTP when its three secrets are set, else Resend when
-// RESEND_API_KEY is set, else none (rows skipped)
+// which e-mail transport this run uses: SMTP when its three secrets are set (and a valid sender), else Resend when
+// RESEND_API_KEY + RESEND_FROM are set, else none (rows skipped). R154g: the shared mailer's own rule (mailConfig).
 export function emailTransport(e: (k: string) => string | undefined = (k) => Deno.env.get(k)): "smtp" | "resend" | null {
-  if (e("SMTP_HOST") && e("SMTP_USER") && e("SMTP_PASS")) return "smtp";
-  return e("RESEND_API_KEY") ? "resend" : null;
+  return mailConfig(e, "smtp").provider;
 }
-// SMTP path through the shared mailer. `extra.footer` is the footer (transactional or marketing
-// with Unsubscribe); `extra.headers` the RFC 8058 List-Unsubscribe headers - passed through as is.
-// Helm's own mails (trial / retention, studio "Helm") always go out as "Helm Events".
+// Every e-mail goes through the shared mailer (SMTP first, else Resend - R154g: the Resend lane used to build its own
+// request, ignored EMAIL_BRAND_MODE and fell back to "onboarding@resend.dev"; now both transports are identical).
+// `extra.footer` is the footer (transactional or marketing with Unsubscribe); `extra.headers` the RFC 8058
+// List-Unsubscribe headers - passed through as is. Display name (EMAIL_BRAND_MODE, both transports): "helm" (default)
+// -> "Helm Events"; "studio" -> the studio's sender name (0150) or "<Studio> via Helm Events". Helm's own mails (trial /
+// retention, studio "Helm") always go out as "Helm Events". opts.idempotencyKey -> Resend Idempotency-Key ("comms-<id>").
 export async function sendEmailSmtp(to: string, subject: string, text: string, studio: string, ident: Identity, extra: Extra,
-  opts: { env?: (k: string) => string | undefined; smtp?: SmtpSend; html?: string } = {}): Promise<Res> {
+  opts: { env?: (k: string) => string | undefined; smtp?: SmtpSend; html?: string; idempotencyKey?: string } = {}): Promise<Res> {
   const e = opts.env || ((k: string) => Deno.env.get(k));
   const own = studio === "Helm";
   const fromName = !own && brandMode(e) === "studio" ? (String(ident.from_name ?? "").trim() || null) : null;
   const r = await sendMail({ to, subject: subject.slice(0, 150), text, html: opts.html || `<p>${escHtml(text).replace(/\n/g, "<br>")}</p>`,
     studio: own ? null : studio, fromName, replyTo: replyToOf(ident.reply_to) || null, footer: extra.footer,
     ...(extra.headers && Object.keys(extra.headers).length ? { headers: extra.headers } : {}) },
-    { env: e, prefer: "smtp", ...(opts.smtp ? { smtp: opts.smtp } : {}) });
+    { env: e, prefer: "smtp", ...(opts.smtp ? { smtp: opts.smtp } : {}), ...(opts.idempotencyKey ? { idempotencyKey: opts.idempotencyKey } : {}) });
   if (r.status === "sent") return "sent";
   if (r.status === "not_configured") return "skipped";
-  L.error("email smtp failed");
+  L.error("email failed", r.provider || "unknown");
   return "failed";
 }
 // html (R124): a designed message with its footer already placed (placeFooter); default = the plain text in a <p>
 async function sendEmail(id: string, to: string, subject: string, text: string, studio: string, ident: Identity = {}, extra?: Extra, html?: string): Promise<Res> {
-  const via = emailTransport();
-  if (!via || !EMAIL.test(to) || !text || !extra) return "skipped";
-  if (via === "smtp") return await sendEmailSmtp(to, subject, text, studio, ident, extra, { html });
-  const key = Deno.env.get("RESEND_API_KEY") || "";
-  const from = fromHeader(Deno.env.get("RESEND_FROM"), ident.from_name, studio);
-  const replyTo = replyToOf(ident.reply_to);
-  const body = html ? { html, text: withFooter({ text }, extra.footer).text }
-    : withFooter({ text, html: `<p>${escHtml(text).replace(/\n/g, "<br>")}</p>` }, extra.footer);
-  const headers = extra.headers && Object.keys(extra.headers).length ? { headers: extra.headers } : {};
-  try {
-    const r = await safeFetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", "Idempotency-Key": "comms-" + id },
-      body: JSON.stringify({ from, to: [to], subject: subject.slice(0, 150), html: body.html, text: body.text, ...headers, ...(replyTo ? { reply_to: replyTo } : {}) }),
-    });
-    await r.text();
-    if (!r.ok) L.error("email status", r.status);
-    return r.ok ? "sent" : "failed";
-  } catch (e) { L.error("email error", errTag(e)); return "failed"; }
+  if (!EMAIL.test(to) || !text || !extra) return "skipped";
+  return await sendEmailSmtp(to, subject, text, studio, ident, extra, { html, idempotencyKey: "comms-" + id });
 }
 
 // purposes that are NOT transactional (need consent + unsubscribe); pay_reminder is transactional
@@ -197,6 +175,16 @@ export function marketingExtra(u: any, sender: string, reason: string, app: stri
   if (!links) return null;
   return { footer: mktFooter(links.page, { app, address: postalAddress(e), sender, reason }),
            headers: listUnsubHeaders(links.oneClick, e("UNSUB_MAILTO")) };
+}
+
+// R154g: the welcome lane follows welcome-mailer's switch HELM_WELCOME_EMAILS_ENABLED without silently turning a live
+// feature off: exactly "true" -> on; UNSET (or blank) -> on, decided by the DATABASE switch alone
+// (helm_welcome_mail_settings.enabled, 0327 - that is how production runs today); any other value ("false", "off",
+// "0", "TRUE" ...) -> off, nothing claimed. In every "on" case the 0327 claim still answers only while the database
+// switch is on (runWelcomeBatch -> welcome_email_switch), so the database stays the final word.
+export function welcomeLaneOn(v: string | undefined): boolean {
+  const s = String(v ?? "").trim();
+  return s === "" || s === "true";
 }
 
 // kill switch only: anything but an explicit "false" keeps the dispatcher on
@@ -534,8 +522,9 @@ Deno.serve(async (req) => {
       if (mErr) { log.error("notice mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
-    // R119 (0327): welcome e-mails - only while the database switch is on; a database without 0327 -> nothing claimed
-    try {
+    // R119 (0327): welcome e-mails - only while the database switch is on; a database without 0327 -> nothing claimed.
+    // R154g: HELM_WELCOME_EMAILS_ENABLED set to anything but "true" -> the lane is off (nothing claimed, rows stay queued).
+    if (welcomeLaneOn(Deno.env.get("HELM_WELCOME_EMAILS_ENABLED"))) try {
       const w = await runWelcomeBatch(admin, batch, { env });
       if (w.error) log.error("welcome claim skipped", errTag(w.error));
       counts.sent += w.counts.sent; counts.skipped += w.counts.skipped; counts.failed += w.counts.failed; counts.invalid += w.counts.invalid;

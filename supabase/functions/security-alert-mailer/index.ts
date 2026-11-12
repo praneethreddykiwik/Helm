@@ -8,7 +8,9 @@
 //   HELM_SECURITY_ALERT_SECRET            shared secret; caller sends it in the
 //                                         `x-helm-cron-secret` header. Unset → every call 401.
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (injected)
-//   RESEND_API_KEY, RESEND_FROM           unset key → rows are marked "skipped"
+//   RESEND_API_KEY + RESEND_FROM, or SMTP_HOST + SMTP_USER + SMTP_PASS (+ SMTP_PORT, SMTP_FROM) - the shared mailer
+//                                         (R154g). Neither (or no valid sender address) → the run stops BEFORE claiming:
+//                                         no row is touched (no attempt used up), alerts wait until e-mail is set up.
 //   HELM_SECURITY_ALERT_HQ_TO             HQ inbox for HQ-level alerts (unset → HQ rows skipped)
 //   SECURITY_ALERT_BATCH                  rows per run, 1..100 (default 25)
 //
@@ -17,17 +19,16 @@
 // (one row per alert type per studio per 10 minutes, with a count).
 // The e-mail carries the alert name, count and studio name only — no links, tokens,
 // file names or reasons. Logs carry only counts, SQLSTATE codes and HTTP status.
-// Outbound HTTP goes only to a FIXED host allowlist (no URL is ever taken from input).
+// Outbound mail goes only through the shared mailer (fixed provider endpoints; no URL is ever taken from input).
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag, escHtml, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/limits.ts";
-import { postalAddress, txFooter, withFooter } from "../_shared/email-compliance.mjs";
+import { postalAddress, txFooter } from "../_shared/email-compliance.mjs";
 import { logger } from "../_shared/log.ts";
-import { fetchWithTimeout } from "../_shared/http.ts";   // R142: the Resend call has a 10 s deadline (timeout = failed -> retry)
+import { htmlToText, mailConfig, sendMail } from "../_shared/mailer.ts";   // R154g: Resend or SMTP (10 s deadline, R142)
 const L = logger("security-alert-mailer");
 
 const enc = new TextEncoder();
-const ALLOWED_HOSTS = new Set(["api.resend.com"]);
 const EMAIL = /^[^\s@<>"',;:\\]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/;
 const UUIDISH = /^[0-9a-f-]{36}$/i;
 const MAX_TO = 20;
@@ -44,37 +45,25 @@ export async function secretMatches(given: string, expected: string): Promise<bo
   return diff === 0;
 }
 
-async function safeFetch(url: string, init: RequestInit): Promise<Response> {
-  const u = new URL(url);
-  if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname)) throw new Error("host not allowed");
-  return await fetchWithTimeout(u.toString(), { ...init, redirect: "error" });
-}
-
 type SendResult = "sent" | "skipped" | "failed";
 
-// Provider abstraction: today Resend or nothing.
+// R154g: through the SHARED mailer (_shared/mailer.ts sendMail: Resend when RESEND_API_KEY + RESEND_FROM are set, else
+// SMTP) - before, this called Resend directly and an SMTP-only setup marked every alert "skipped" for good. One message
+// per recipient (the shared mailer sends to one address); at least one delivered -> "sent", none delivered and one
+// failed -> "failed" (released for retry), no valid address -> "skipped". The "no provider" case never reaches here:
+// the run stops before claiming (see the handler). Display name "Helm Security"; plain-text part from the same HTML.
 async function sendEmail(to: string[], subject: string, html: string): Promise<SendResult> {
-  const key = Deno.env.get("RESEND_API_KEY") || "";
-  if (!key) return "skipped";
-  const list = to.filter((t) => EMAIL.test(t)).slice(0, MAX_TO);
+  const list = [...new Set(to.filter((t) => EMAIL.test(t)).map((t) => t.toLowerCase()))].slice(0, MAX_TO);
   if (!list.length) return "skipped";
-  const conf = Deno.env.get("RESEND_FROM") || "onboarding@resend.dev";
-  const m = conf.match(/<([^>]+)>/);
-  const from = `"Helm Security" <${(m ? m[1] : conf).trim()}>`;
-  const _f = withFooter({ text: "", html }, txFooter("security", { noLinks: true, app: Deno.env.get("APP_URL"), address: postalAddress((k: string) => Deno.env.get(k)) }));
-    try {
-    const r = await safeFetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: list, subject, html: _f.html }),
-    });
-    await r.text();
-    if (!r.ok) L.error("provider status", r.status);
-    return r.ok ? "sent" : "failed";
-  } catch (e) {
-    L.error("provider error", errTag(e));
-    return "failed";
+  const env = (k: string) => Deno.env.get(k);
+  const footer = txFooter("security", { noLinks: true, app: env("APP_URL"), address: postalAddress(env) });
+  const outs: string[] = [];
+  for (const addr of list) {
+    const r = await sendMail({ to: addr, subject, html, text: htmlToText(html), fromName: "Helm Security", studio: null, footer }, { env });
+    outs.push(r.status);
+    if (r.status === "failed") L.error("provider failed", r.provider || "unknown");
   }
+  return outs.includes("sent") ? "sent" : outs.includes("failed") || outs.includes("not_configured") ? "failed" : "skipped";
 }
 
 export function message(label: string, count: number, studio: string, hq: boolean) {
@@ -104,6 +93,10 @@ Deno.serve(async (req) => {
     const ok = await secretMatches(req.headers.get("x-helm-cron-secret") || "", Deno.env.get("HELM_SECURITY_ALERT_SECRET") || "");
     if (!ok) return json({ error: "unauthorized" }, 401);
 
+    // R154g: no e-mail provider -> do not claim (a claim uses up one of the 5 attempts; after 5 the database closes the
+    // row as failed). Rows stay queued untouched and are sent once e-mail is set up.
+    const mc = mailConfig((k: string) => Deno.env.get(k));
+    if (!mc.provider) { log.warn("no e-mail provider - nothing claimed", undefined, { why: mc.note ? "sender" : "unset" }); return json({ status: "no_provider" }); }
     const batch = Math.min(100, Math.max(1, Number(Deno.env.get("SECURITY_ALERT_BATCH")) || 25));
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 

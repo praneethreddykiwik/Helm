@@ -96,7 +96,7 @@ Vercel previews any more (audit Phase 8): anyone can create a Vercel project who
 | `WHATSAPP_ALLOW_TEXT=1` | send-whatsapp | allow free-form text inside the 24h window (off by default) |
 | `PAYMENT_LINK_TTL_MINUTES` | create-payment-link | link lifetime, 20..43200, default 4320 (3 days); capped at the approval link expiry |
 | `APP_URL` | create-payment-link | **required for the return page**; Razorpay returns the payer to `APP_URL/approve.html?payment=done` (no token) |
-| `RESEND_FROM` | razorpay-webhook | only the ADDRESS is used; the display name is the paying studio's `organizations.name` |
+| `RESEND_FROM` | razorpay-webhook (and every mailer, via `_shared/mailer.ts`) | only the ADDRESS is used; the display name is the paying studio's `organizations.name`. Required - there is no fallback sender (R154g); SMTP-only setups use `SMTP_FROM` / `SMTP_USER` instead |
 | `MANAGER_EMAIL` | razorpay-webhook | optional platform-ops copy with NO tenant data; studio receipts go to `organizations.business_email` |
 | `EXTRA_ALLOWED_ORIGINS` | all browser-called | exact extra CORS origins |
 
@@ -154,10 +154,15 @@ In `public/config.js` add:
 ```js
 window.SUPABASE_CONFIG.liveChannels = { sms: true, pay: true };
 ```
-and in the DB set the channel flags on so simulation stops returning codes:
+and in the DB set the SMS / payment channel flags on so simulation stops returning codes (merged into the existing
+row - no other key is touched):
 ```sql
-update public.app_config set value='{"sms_live":true,"email_live":true,"pay_live":true}'::jsonb where key='channels';
+update public.app_config set value = value || '{"sms_live":true,"pay_live":true}'::jsonb where key='channels';
 ```
+E-mail has **no database flag**: no edge function reads one. E-mail is live as soon as the shared mailer has a provider
+(`RESEND_API_KEY` + `RESEND_FROM`, or `SMTP_HOST` + `SMTP_USER` + `SMTP_PASS` with `SMTP_FROM` / an address in
+`SMTP_USER`) - see `docs/ops/EMAIL-SETUP.md`. There is no fallback sender: without `RESEND_FROM` / `SMTP_FROM` nothing
+is sent (R154g).
 
 ## Compliance notes (India)
 - **MSG91 / DLT:** register your sender id and OTP template on DLT; the template must contain `##OTP##`.
@@ -184,8 +189,8 @@ deploying them changes nothing. Do these steps only when subscription billing go
      HELM_BILLING_CRON_SECRET="<long random string>" \
      RAZORPAY_SUBSCRIPTION_WEBHOOK_SECRET="<from Razorpay dashboard>"
    # optional: RAZORPAY_EVENT_MAX_AGE_SEC=86400  BILLING_REMINDER_BATCH=50
-   # RESEND_API_KEY / RESEND_FROM are shared with razorpay-webhook; without a key,
-   # reminders are marked channel='skipped' instead of sent.
+   # e-mail goes through the shared mailer (R154g): RESEND_API_KEY + RESEND_FROM, or the SMTP_* secrets.
+   # Without a provider the run stops before touching any row: reminders stay unsent and go out once e-mail is set up.
    ```
 4. Razorpay dashboard → Webhooks → add `…/functions/v1/razorpay-subscription-webhook`
    with event `subscription.charged` and the secret above. Each subscription must
@@ -265,8 +270,8 @@ and the HQ "Security" panel work without it.
    supabase secrets set \
      HELM_SECURITY_ALERT_SECRET="<long random string>" \
      HELM_SECURITY_ALERT_HQ_TO="security@helm.events"
-   # optional: SECURITY_ALERT_BATCH=25. RESEND_API_KEY / RESEND_FROM are shared;
-   # without a key rows are marked status='skipped'.
+   # optional: SECURITY_ALERT_BATCH=25. E-mail through the shared mailer (R154g): RESEND_API_KEY + RESEND_FROM,
+   # or the SMTP_* secrets. Without a provider nothing is claimed (no attempt used up) - alerts wait, never skipped.
    ```
 4. Schedule a POST every 5 minutes with header `x-helm-cron-secret: <secret>`.
 5. Turn it on: `supabase secrets set HELM_SECURITY_ALERTS_ENABLED=true`.

@@ -146,7 +146,7 @@ await t('comms-dispatch: every studio e-mail lane gets the Reply-To fallback; He
 await t('pkg-client-notify: client package e-mails get Reply-To + studio-mode sender', () => {
   const pk = read('supabase/functions/pkg-client-notify/index.ts');
   assert.match(pk, /rowReplyTo\(admin, "pkg", id, null,/);
-  assert.match(pk, /reply_to: replyTo/);
+  assert.match(pk, /replyTo: replyTo && EMAIL\.test\(replyTo\) \? replyTo : null/);   // R154g: via the shared mailer (reply_to there)
   assert.match(pk, /return s \? s \+ " via " \+ HELM_BRAND : "Helm";/);
 });
 

@@ -1,5 +1,5 @@
 // pkg-client-notify - delivers the messages queued by migration 0069 (pkg_outbox):
-// client e-mail (Resend; R107: Reply-To = the studio's business e-mail, else its owner's - never Helm's sender;
+// client e-mail (shared mailer - Resend or SMTP, R154g; R107: Reply-To = the studio's business e-mail, else its owner's - never Helm's sender;
 // sender "<Studio> via Helm Events" when EMAIL_BRAND_MODE=studio) / WhatsApp (Meta Cloud API) for an accepted or declined package
 // choice and the booklet confirmation code, and staff WhatsApp for "client picked a
 // package" / "package payment received". Numbers that replied STOP are skipped (0155: by the
@@ -11,7 +11,10 @@
 //   HELM_PKG_NOTIFY_ENABLED="true"    turn it on (anything else -> dormant no-op)
 //   HELM_PKG_NOTIFY_SECRET            shared secret in the `x-helm-cron-secret` header; unset -> 401
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (injected)
-//   RESEND_API_KEY, RESEND_FROM       unset key -> e-mail rows are marked "skipped"
+//   RESEND_API_KEY + RESEND_FROM, or SMTP_HOST + SMTP_USER + SMTP_PASS (+ SMTP_PORT, SMTP_FROM) - the shared mailer
+//                                     (R154g). Neither -> e-mail rows are released for a later try ("retry"), never
+//                                     marked skipped (WhatsApp rows in the same batch still go out). Note: each claim
+//                                     counts one attempt (0342 backoff 1..60 min, 8 tries) - set e-mail up promptly.
 //   WHATSAPP_API_VERSION (default v21.0). R129 (0337): WhatsApp rows go out from the row's STUDIO's own connected
 //                                     number (helm_notice template Helm creates in the studio's account); a studio
 //                                     without one -> skipped. Helm's own number is never used.
@@ -20,23 +23,21 @@
 // Idempotent: the database hands each row out once (claim + mark, unique dedupe key) and
 // the row id is sent as the provider idempotency key. Logs carry only counts and status
 // codes - never an address, a phone number, a name or a code. Outbound HTTP goes only to a
-// FIXED host allowlist; no URL is ever taken from the database except the approval path,
+// FIXED set of provider endpoints (shared mailer / wa-sender); no URL is ever taken from the database except the approval path,
 // which must match /approve?token=<uuid> and is joined to the fixed site origin.
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/limits.ts";
 import { render } from "./templates.ts";
-import { postalAddress, txFooter, withFooter } from "../_shared/email-compliance.mjs";
-import { brandMode, cleanName, HELM_BRAND } from "../_shared/mailer.ts";
+import { postalAddress, txFooter } from "../_shared/email-compliance.mjs";
+import { brandMode, cleanName, HELM_BRAND, htmlToText, sendMail } from "../_shared/mailer.ts";   // R154g: Resend or SMTP
 import { orgOfRow, senderCache, waPost, type WaSender } from "../_shared/wa-sender.ts";   // R129 (0337)
 import { noticeContent } from "../_shared/wa-studio.mjs";
 import { rowReplyTo } from "../_shared/reply-to.mjs";   // R107: Reply-To = business e-mail, else the studio owner's
 import { logger } from "../_shared/log.ts";
-import { fetchWithTimeout } from "../_shared/http.ts";   // R142: the Resend call has a 10 s deadline (timeout = failed -> retry)
 const L = logger("pkg-client-notify");
 
 const enc = new TextEncoder();
-const ALLOWED_HOSTS = new Set(["api.resend.com", "graph.facebook.com"]);
 const EMAIL = /^[^\s@<>"',;:\\]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/;
 const PHONE = /^[0-9]{8,15}$/;
 const UUIDISH = /^[0-9a-f-]{36}$/i;
@@ -50,36 +51,28 @@ export async function secretMatches(given: string, expected: string): Promise<bo
   return diff === 0;
 }
 
-async function safeFetch(url: string, init: RequestInit): Promise<Response> {
-  const u = new URL(url);
-  if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname)) throw new Error("host not allowed");
-  return await fetchWithTimeout(u.toString(), { ...init, redirect: "error" });
-}
-
-type Res = "sent" | "skipped" | "failed";
+type Res = "sent" | "skipped" | "failed" | "no_provider";
 
 // R107: display name "Helm" as before; EMAIL_BRAND_MODE=studio -> "<Studio> via Helm Events" (address unchanged)
 export function pkgFromName(studio: unknown, mode: "helm" | "studio"): string {
   const s = mode === "studio" ? cleanName(studio) : "";
   return s ? s + " via " + HELM_BRAND : "Helm";
 }
+// R154g: through the SHARED mailer (_shared/mailer.ts sendMail: Resend when RESEND_API_KEY + RESEND_FROM are set, else
+// SMTP) - before, this called Resend directly and an SMTP-only setup marked every client e-mail "skipped" for good.
+// Display name as before (pkgFromName: "Helm", or "<Studio> via Helm Events" with EMAIL_BRAND_MODE=studio); Resend gets
+// the row id as Idempotency-Key ("pkg-<id>"). No provider (or no valid sender) -> "no_provider": released for a later
+// try ("retry"), never marked skipped. No valid address / no message -> "skipped" (as before).
 async function sendEmail(id: string, to: string, subject: string, html: string, text: string, studio = "", replyTo = ""): Promise<Res> {
-  const key = Deno.env.get("RESEND_API_KEY") || "";
-  if (!key || !EMAIL.test(to) || !html) return "skipped";
-  const conf = Deno.env.get("RESEND_FROM") || "onboarding@resend.dev";
-  const m = conf.match(/<([^>]+)>/);
-  const from = `"${pkgFromName(studio, brandMode((k: string) => Deno.env.get(k)))}" <${(m ? m[1] : conf).trim()}>`;
-  const _f = withFooter({ text: text, html }, txFooter("package", { app: Deno.env.get("APP_URL"), address: postalAddress((k: string) => Deno.env.get(k)) }));
-    try {
-    const r = await safeFetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", "Idempotency-Key": "pkg-" + id },
-      body: JSON.stringify({ from, to: [to], subject, html: _f.html, text: _f.text, ...(replyTo && EMAIL.test(replyTo) ? { reply_to: replyTo } : {}) }),
-    });
-    await r.text();
-    if (!r.ok) L.error("email status", r.status);
-    return r.ok ? "sent" : "failed";
-  } catch (e) { L.error("email error", errTag(e)); return "failed"; }
+  if (!EMAIL.test(to) || !html) return "skipped";
+  const env = (k: string) => Deno.env.get(k);
+  const r = await sendMail({ to, subject, html, text: text || htmlToText(html), studio: null, fromName: pkgFromName(studio, brandMode(env)),
+    replyTo: replyTo && EMAIL.test(replyTo) ? replyTo : null,
+    footer: txFooter("package", { app: env("APP_URL"), address: postalAddress(env) }) }, { env, idempotencyKey: "pkg-" + id });
+  if (r.status === "sent") return "sent";
+  if (r.status === "not_configured") return "no_provider";
+  L.error("email failed", r.provider || "unknown");
+  return "failed";
 }
 
 // R129 (0337): from the row's STUDIO's own connected number (helm_notice template in the studio's account, one body
@@ -124,7 +117,7 @@ Deno.serve(async (req) => {
     const { data: rows, error } = await admin.rpc("pkg_outbox_claim", { p_limit: batch });
     if (error) { log.error("claim failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
-    const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
+    const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0, no_provider: 0 };
     const rtCache = new Map<string, string>();
     const waSenderOf = senderCache(admin);   // R129: one studio-number lookup per studio per run
     for (const r of (Array.isArray(rows) ? rows : [])) {
@@ -139,7 +132,8 @@ Deno.serve(async (req) => {
         res = await sendEmail(id, to, msg.subject, msg.html, msg.text, String(p.studio ?? ""), replyTo);
       }
       else if (msg && channel === "whatsapp") res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text, await waSenderOf(await orgOfRow(admin, "pkg_outbox", id)), admin);
-      const { error: mErr } = await admin.rpc("pkg_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      // failed / no provider -> released for a later try (never "skipped" just because e-mail is not set up)
+      const { error: mErr } = await admin.rpc("pkg_outbox_mark", { p_id: id, p_status: res === "failed" || res === "no_provider" ? "retry" : res });
       if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }

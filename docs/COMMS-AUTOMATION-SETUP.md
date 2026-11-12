@@ -25,7 +25,9 @@ Every automatic message is a row in `comms_outbox` with a UNIQUE `dedupe_key`, s
    - `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID` (already set for `send-whatsapp`)
    - `COMMS_WHATSAPP_TEMPLATE` = an approved Meta template with ONE body variable `{{1}}` (e.g. name `helm_message`, body `{{1}}`). Without it WhatsApp rows are skipped unless `WHATSAPP_ALLOW_TEXT=1` (free text only works inside the 24-hour customer window - not suitable for reminders).
    - `APP_URL` = `https://www.helm.events` (deep links in forwarded messages)
-   - `HELM_COMMS_ENABLED` = `true` **last**, when you are ready to go live.
+   - `HELM_COMMS_ENABLED` is a **kill switch**, not an on switch: the dispatcher runs whenever it is called with the
+     secret unless this is exactly `false`. Leave it unset to run; `supabase secrets set HELM_COMMS_ENABLED=false` stops
+     it (nothing is claimed, rows wait); `supabase secrets unset HELM_COMMS_ENABLED` turns it back on.
 5. **Run the sender every 5 minutes** - SQL editor (needs `pg_net` + `pg_cron`; store the secret in Vault first):
    ```sql
    select vault.create_secret('<HELM_COMMS_SECRET value>', 'helm_comms_secret');
@@ -42,9 +44,14 @@ Every automatic message is a row in `comms_outbox` with a UNIQUE `dedupe_key`, s
 
 ## Fail-closed behaviour
 
-- `HELM_COMMS_ENABLED` not `true` -> the function answers `{"status":"dormant"}` and claims nothing (rows wait).
+- `HELM_COMMS_ENABLED` = `false` (kill switch) -> the function answers `{"status":"dormant"}` and claims nothing (rows
+  wait). Unset or any other value -> on.
+- Welcome e-mails (R154g): the welcome lane runs when `HELM_WELCOME_EMAILS_ENABLED` is exactly `true` **or unset**; any
+  other value (`false`, `off`, ...) turns that lane off. In both "on" cases the database switch
+  `helm_welcome_mail_settings.enabled` (0327) still decides - off there means nothing is claimed.
 - Wrong / missing `x-helm-cron-secret` -> 401.
-- No SMTP secrets and no `RESEND_API_KEY` -> e-mail rows marked `skipped`. No WhatsApp token / phone id / template -> WhatsApp rows `skipped`.
+- No SMTP secrets and no `RESEND_API_KEY` + `RESEND_FROM` -> e-mail rows marked `skipped` (there is no fallback sender:
+  `RESEND_API_KEY` without `RESEND_FROM` counts as not set up, R154g). No WhatsApp token / phone id / template -> WhatsApp rows `skipped`.
 - No studio WhatsApp number -> nothing is queued for WhatsApp and queued WhatsApp rows are skipped.
 - Rows older than 3 days are skipped instead of sent late; 5 failed attempts -> `failed`.
 
@@ -76,7 +83,7 @@ Owner steps (staging first, then production when you say go):
    not enabled: Database > Extensions > `pg_cron`, then
    `select cron.schedule('helm_delivery_reminders', '*/5 * * * *', 'select public.delivery_reminders_tick()');`
 3. **Sender** - redeploy the dispatcher: `supabase functions deploy comms-dispatch --no-verify-jwt`
-   (same secrets as above: `HELM_COMMS_SECRET`, SMTP_* or RESEND_*, `APP_URL`, `HELM_COMMS_ENABLED`).
+   (same secrets as above: `HELM_COMMS_SECRET`, SMTP_* or RESEND_*, `APP_URL`; `HELM_COMMS_ENABLED` only to stop it).
    The dispatcher must run on a schedule (step 5 above, `helm_comms_dispatch`). For reminders that land close to the
    chosen minute, run it every 2-5 minutes (`*/2 * * * *` is fine; each run claims at most `COMMS_BATCH` rows).
 4. **Switch it on** - Control Center > Notifications > "Delivery & arrival reminders": tick "Send automatic delivery &

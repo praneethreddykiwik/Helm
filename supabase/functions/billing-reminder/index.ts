@@ -7,7 +7,9 @@
 //   HELM_BILLING_CRON_SECRET                shared secret; caller sends it in the
 //                                           `x-helm-cron-secret` header. Unset → every call 401.
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (injected)
-//   RESEND_API_KEY, RESEND_FROM             unset key → reminders are marked "skipped"
+//   RESEND_API_KEY + RESEND_FROM, or SMTP_HOST + SMTP_USER + SMTP_PASS (+ SMTP_PORT, SMTP_FROM) - the shared mailer
+//                                           (R154g). Neither (or no valid sender address) → nothing is sent and NO row
+//                                           is touched: reminders stay unsent and go out once e-mail is set up.
 //   APP_URL                                 link in the e-mail (default https://www.helm.events)
 //   BILLING_REMINDER_BATCH                  rows per run, 1..200 (default 50)
 //
@@ -20,7 +22,8 @@
 // AND sent_at IS NULL, so two overlapping cron runs can never double-mark; a row whose
 // e-mail failed stays unsent and is retried on the next run.
 //   channel = 'email'   sent through the provider
-//   channel = 'skipped' no provider configured / no valid studio address (not retried)
+//   channel = 'skipped' no valid studio address / not needed any more (not retried). R154g: "no provider" is NOT a
+//                       skip any more - the run stops before touching any row (status "no_provider").
 //
 // R119 (0327): before EVERY send the database re-checks the row (billing_reminder_recheck): a reminder queued more
 // than 3 days ago, or one the studio no longer needs (paid since it was queued, the plan moved on, the trial
@@ -28,21 +31,20 @@
 // 0327 (or any error) -> nothing is sent, the row stays unsent (fail closed).
 //
 // Logs carry only counts, SQLSTATE codes and HTTP status — never addresses or names.
-// Outbound HTTP goes only to a FIXED host allowlist (no URL is ever taken from input).
-// R142: the Resend call has a 10 s deadline (_shared/http.ts) - a timeout is a failed send, left unsent and retried next
-// run. A run with failures (or a crash) sends ONE Sentry event (function name + tag only, only with SENTRY_DSN).
+// Outbound mail goes only through the shared mailer (fixed provider endpoints; no URL is ever taken from input).
+// R142: the provider call has a 10 s deadline (_shared/http.ts via the shared mailer) - a timeout is a failed send, left
+// unsent and retried next run. A run with failures (or a crash) sends ONE Sentry event (function name + tag only, only with SENTRY_DSN).
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag, escHtml, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/limits.ts";
 import { isTrialKind, trialMessage } from "./trial-email.ts";
 import { studioBillingEmail } from "../_shared/billing-email.ts";
-import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks, withFooter } from "../_shared/email-compliance.mjs";
+import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks } from "../_shared/email-compliance.mjs";
 import { logger } from "../_shared/log.ts";
-import { fetchWithTimeout } from "../_shared/http.ts";
+import { htmlToText, mailConfig, sendMail } from "../_shared/mailer.ts";   // R154g: Resend or SMTP, no fallback sender
 const L = logger("billing-reminder");
 
 const enc = new TextEncoder();
-const ALLOWED_HOSTS = new Set(["api.resend.com"]);
 const EMAIL = /^[^\s@<>"',;:\\]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/;
 const UUIDISH = /^[0-9a-f-]{36}$/i;
 
@@ -59,39 +61,27 @@ export async function secretMatches(given: string, expected: string): Promise<bo
   return diff === 0;
 }
 
-async function safeFetch(url: string, init: RequestInit): Promise<Response> {
-  const u = new URL(url);
-  if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname)) throw new Error("host not allowed");
-  return await fetchWithTimeout(u.toString(), { ...init, redirect: "error" });
-}
+type SendResult = "sent" | "skipped" | "failed" | "no_provider";
 
-type SendResult = "sent" | "skipped" | "failed";
-
-// Provider abstraction: today Resend or nothing.
+// R154g: through the SHARED mailer (_shared/mailer.ts sendMail: Resend when RESEND_API_KEY + RESEND_FROM are set, else
+// SMTP) - before, this called Resend directly and an SMTP-only setup marked every reminder "skipped" for good.
+//   no provider (or no valid sender address) -> "no_provider": the row is NOT marked, it stays unsent and is sent on a
+//   later run once e-mail is set up (the R119 recheck still closes a reminder that has become too old / not needed).
+//   no valid studio address -> "skipped" (as before). Provider refusal / timeout -> "failed" (left unsent, retried).
+// The display name stays "Helm Billing"; a plain-text part is built from the same HTML (htmlToText).
 type Extra = { footer: { text: string; html: string }; headers?: Record<string, string> };
 async function sendEmail(to: string, subject: string, html: string, extra?: Extra): Promise<SendResult> {
-  const key = Deno.env.get("RESEND_API_KEY") || "";
-  if (!key) return "skipped";
   if (!EMAIL.test(to)) return "skipped";
-  const conf = Deno.env.get("RESEND_FROM") || "onboarding@resend.dev";
-  const m = conf.match(/<([^>]+)>/);
-  const from = `"Helm Billing" <${(m ? m[1] : conf).trim()}>`;
+  const env = (k: string) => Deno.env.get(k);
   // compliance: subscription notices are transactional (footer only); trial nudges carry
   // Unsubscribe + RFC 8058 headers (extra, built by the caller)
-  const _f = withFooter({ text: "", html }, extra?.footer || txFooter("billing", { app: Deno.env.get("APP_URL"), address: postalAddress((k: string) => Deno.env.get(k)) }));
-  try {
-    const r = await safeFetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to, subject, html: _f.html, ...(extra?.headers && Object.keys(extra.headers).length ? { headers: extra.headers } : {}) }),
-    });
-    await r.text();
-    if (!r.ok) L.error("provider status", r.status);
-    return r.ok ? "sent" : "failed";
-  } catch (e) {
-    L.error("provider error", errTag(e));
-    return "failed";
-  }
+  const r = await sendMail({ to, subject, html, text: htmlToText(html), fromName: "Helm Billing", studio: null,
+    footer: extra?.footer || txFooter("billing", { app: env("APP_URL"), address: postalAddress(env) }),
+    ...(extra?.headers && Object.keys(extra.headers).length ? { headers: extra.headers } : {}) }, { env });
+  if (r.status === "sent") return "sent";
+  if (r.status === "not_configured") return "no_provider";
+  L.error("provider failed", r.provider || "unknown");
+  return "failed";
 }
 
 export function message(kind: string, studio: string, periodEnd: string) {
@@ -125,6 +115,10 @@ Deno.serve(async (req) => {
     const ok = await secretMatches(req.headers.get("x-helm-cron-secret") || "", Deno.env.get("HELM_BILLING_CRON_SECRET") || "");
     if (!ok) return json({ error: "unauthorized" }, 401);
 
+    // R154g: no e-mail provider (or no valid sender) -> stop here, before any row is loaded, re-checked or marked:
+    // every reminder stays unsent (retryable) - nothing is marked "skipped" just because e-mail is not set up yet.
+    const mc = mailConfig((k: string) => Deno.env.get(k));
+    if (!mc.provider) { log.warn("no e-mail provider - nothing sent, rows left unsent", undefined, { why: mc.note ? "sender" : "unset" }); return json({ status: "no_provider" }); }
     const batch = Math.min(200, Math.max(1, Number(Deno.env.get("BILLING_REMINDER_BATCH")) || 50));
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
@@ -138,7 +132,7 @@ Deno.serve(async (req) => {
     }
     if (error) { log.error("load failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
-    const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
+    const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0, no_provider: 0 };
     for (const r of (Array.isArray(rows) ? rows : [])) {
       const id = String(r?.id ?? ""), kind = String(r?.kind ?? "");
       if (!UUIDISH.test(id) || !(["due_soon", "past_due"].includes(kind) || isTrialKind(kind))) { counts.invalid++; continue; }
@@ -169,6 +163,7 @@ Deno.serve(async (req) => {
         res = extra ? await sendEmail(to, msg.subject, msg.html, extra) : "skipped";
       } else res = await sendEmail(to, msg.subject, msg.html);
       if (res === "failed") { counts.failed++; continue; }               // left unsent → retried next run
+      if (res === "no_provider") { counts.no_provider++; continue; }     // R154g: left unsent → sent once e-mail is set up
       const { error: uErr } = await admin.from("billing_reminders")
         .update({ sent_at: new Date().toISOString(), channel: res === "sent" ? "email" : "skipped" })
         .eq("id", id).is("sent_at", null);                                  // idempotent mark

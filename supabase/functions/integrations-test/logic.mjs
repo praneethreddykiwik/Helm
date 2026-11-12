@@ -13,10 +13,11 @@ const TPL_NAME = /^[a-z0-9_]{1,64}$/;
 //             Neither -> client e-mails are simulated and teammate invites fall back to Supabase Auth mail.
 //   whatsapp: WHATSAPP_TOKEN + numeric WHATSAPP_PHONE_ID + an approved general template
 //             (COMMS_WHATSAPP_TEMPLATE) or WHATSAPP_ALLOW_TEXT=1
+//             R154g: the sender must be a real address (RESEND_FROM / SMTP_FROM, else SMTP_USER) - no fallback sender.
 export function emailProvider(env) {
   const g = (k) => String(env(k) || "").trim();
-  if (g("RESEND_API_KEY") && g("RESEND_FROM")) return "resend";
-  if (g("SMTP_HOST") && g("SMTP_USER") && g("SMTP_PASS")) return "smtp";
+  if (g("RESEND_API_KEY") && senderAddress(g("RESEND_FROM"))) return "resend";
+  if (g("SMTP_HOST") && g("SMTP_USER") && g("SMTP_PASS") && senderAddress(g("SMTP_FROM") || g("SMTP_USER"))) return "smtp";
   return "";
 }
 export function channelStatus(env) {
@@ -34,15 +35,18 @@ export function channelStatus(env) {
 // R154: why the e-mail test was only simulated (names of settings only, never a value)
 export const EMAIL_NOT_SET_REASON = "no e-mail provider is set up yet: RESEND_API_KEY + RESEND_FROM, or SMTP_HOST + SMTP_USER + SMTP_PASS";
 
-// the bare address out of RESEND_FROM / SMTP_FROM ('Helm <hello@helm.events>' or 'hello@helm.events')
+// the bare address out of RESEND_FROM / SMTP_FROM ('Helm <hello@helm.events>' or 'hello@helm.events'), or "" when it
+// is missing / not an address. R154g: no fallback sender (the old "onboarding@resend.dev" default is gone) - "" means
+// e-mail is not set up and nothing is sent.
 export function senderAddress(conf) {
-  const c = String(conf || "").trim() || "onboarding@resend.dev";
+  const c = String(conf || "").trim();
   const m = c.match(/<([^>]+)>/);
   const a = (m ? m[1] : c).trim();
-  return EMAIL_RE.test(a) ? a : "onboarding@resend.dev";
+  return EMAIL_RE.test(a) ? a : "";
 }
 
-// '"<display name>" <address>' - display name from the studio setting, else the studio name
+// '"<display name>" <address>' - display name from the studio setting, else the studio name. Display only (the
+// Integrations page preview masks the address); with no configured sender the address part is empty: "<>".
 export function fromHeader(conf, fromName, studio) {
   const name = String(fromName || studio || "Helm").replace(/["<>\r\n]/g, "").trim().slice(0, 60) || "Helm";
   return `"${name}" <${senderAddress(conf)}>`;

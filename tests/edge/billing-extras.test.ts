@@ -193,15 +193,16 @@ Deno.test("billing-reminder: sends via Resend only, marks sent idempotently, no 
   } finally { f(); r(); }
 });
 
-Deno.test("billing-reminder: no provider key -> marked skipped, no fetch", async () => {
+Deno.test("billing-reminder: no provider key -> no_provider, NO row touched (left unsent, retried later), no fetch", async () => {
   resetSupaMock(); remDb();
   const r = setEnv({ ...REM_ENV, RESEND_API_KEY: "" }); const f = noFetch();
   try {
     const h = await loadHandler(REM);
-    const res = await h(cronReq(CRON));
-    assertEquals((await res.json()).skipped, 1);
+    const { result } = await captureConsoleError(async () => await h(cronReq(CRON)));
+    assertEquals((await result.json()).status, "no_provider");   // R154g: never marked "skipped" for a missing provider
     assertEquals(fetchLog().length, 0);
-    assertEquals(updates()[0].calls.find((c: any) => c[0] === "update")[1][0].channel, "skipped");
+    assertEquals(updates().length, 0);
+    assertEquals(supaLog().filter((l) => l.rpc === "billing_reminder_recheck").length, 0);
   } finally { f(); r(); }
 });
 

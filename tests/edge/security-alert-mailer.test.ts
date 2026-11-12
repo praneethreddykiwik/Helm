@@ -66,6 +66,8 @@ Deno.test("security-alert-mailer: sends to DB-chosen admins + HQ inbox via Resen
     assertEquals(fetchLog().length, 2);
     const b1 = JSON.parse(String(fetchLog()[0].init?.body)), b2 = JSON.parse(String(fetchLog()[1].init?.body));
     assertEquals(b1.to, ["admin@studio-a.in"]);
+    assertEquals(b1.from, '"Helm Security" <alerts@helm.events>');
+    assert(b1.text.includes("Security alert for Studio <A>:") && !/<b>/.test(b1.text), "plain-text part (R154g)");
     assertEquals(b2.to, ["hq@helm.events"]);
     assert(b1.html.includes("Studio &lt;A&gt;") && b1.html.includes("4 times"));
     assert(!/https?:\/\//.test(b1.html) && !/token/i.test(b1.html), "no links / tokens in the e-mail");
@@ -77,14 +79,27 @@ Deno.test("security-alert-mailer: sends to DB-chosen admins + HQ inbox via Resen
   } finally { f(); r(); }
 });
 
-Deno.test("security-alert-mailer: no provider key / no HQ inbox -> marked skipped, no fetch", async () => {
+Deno.test("security-alert-mailer: no provider key -> no_provider, nothing claimed (no attempt used up), no fetch", async () => {
   resetSupaMock(); db();
   const r = setEnv({ ...ON, RESEND_API_KEY: "" }); const f = noFetch();
   try {
     const h = await loadHandler(FN);
-    assertEquals((await (await h(req(SECRET))).json()).skipped, 2);
+    const { result } = await captureConsoleError(async () => await h(req(SECRET)));
+    assertEquals((await result.json()).status, "no_provider");   // R154g: rows stay queued untouched
     assertEquals(fetchLog().length, 0);
-    assert(marks().every((x) => x.args.p_status === "skipped"));
+    assertEquals(rpcs().length, 0);
+  } finally { f(); r(); }
+});
+
+Deno.test("security-alert-mailer: no HQ inbox -> HQ row marked skipped (studio row still sent)", async () => {
+  resetSupaMock(); db();
+  const r = setEnv(ON);
+  const f = installFetch((url) => { if (url === "https://api.resend.com/emails") return jsonResponse({ id: "e1" }); throw new Error("unexpected " + url); });
+  try {
+    const h = await loadHandler(FN);
+    const out = await (await h(req(SECRET))).json();
+    assertEquals([out.sent, out.skipped], [1, 1]);
+    assertEquals(marks().map((x) => x.args.p_status), ["sent", "skipped"]);
   } finally { f(); r(); }
 });
 
