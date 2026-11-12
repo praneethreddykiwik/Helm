@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=69"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=70"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1521,7 +1521,7 @@ window.HelmUrl = HelmUrl;
     loadAuthUi();
   }
   // Account menu / two-step banner live in auth-ui.js (loaded on signed-in staff pages only).
-  const AUTH_UI_VERSION = "61";
+  const AUTH_UI_VERSION = "62";
   let authUiLoading = null;
   function loadAuthUi() {
     if (authUiLoading || typeof document === "undefined") return authUiLoading;
@@ -10836,6 +10836,18 @@ window.HelmUrl = HelmUrl;
     hq: (fn, args) => (/^hq_[a-z_]+$/.test(fn) ? rpc(fn, args || {}) : Promise.reject(new Error("bad call"))),
     // r24 (0271): "Send a suggestion" (profile menu -> suggest.js). The server records who + their studio.
     suggest: (p) => rpc("submit_suggestion", { p: p || {} }),
+    // R154e (0351): the Suggestion box v2 - my own list + the ones my studio shared (+1), the Helm reply, the unread dot.
+    // A database without 0351: submit falls back to the 0271 route, the list answers null (the dialog says "not yet").
+    suggestions: {
+      submit: (p) => rpc("suggestion_submit", { p: p || {} }).catch((e) => {
+        if (rpcMissing(e)) { const q = Object.assign({}, p || {}); delete q.share; return rpc("submit_suggestion", { p: q }); }
+        throw e; }),
+      mine: () => rpc("my_suggestions").catch((e) => { if (rpcMissing(e)) return null; throw e; }),
+      unread: () => (supa ? rpc("my_suggestion_unread").then((n) => Number(n) || 0, () => 0) : Promise.resolve(0)),
+      seen: () => rpc("suggestion_replies_seen").catch(() => 0),
+      vote: (id, on) => rpc("suggestion_vote", { p_id: id, p_on: on !== false }),
+      share: (id, on) => rpc("suggestion_share", { p_id: id, p_on: !!on }),
+    },
     // r33 (0283): Settings -> Team safety. Deactivate (never delete), Reactivate (counts against the seat limit),
     // the protected Studio owner, 24-hour admin changes by non-owners (+ Cancel), ownership hand-over (owner + fresh
     // two-step code; an active admin accepts). The database decides who may do what; overview() is null before 0283.

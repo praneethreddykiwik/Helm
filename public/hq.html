@@ -213,6 +213,10 @@
   .kv dt{color:var(--ink-3)} .kv dd{margin:0;overflow-wrap:anywhere;min-width:0}
   .notes{list-style:none;margin:var(--s2) 0 0;padding:0;font-size:13px;color:var(--ink-2)}
   .notes li{padding:var(--s2) 0;border-top:1px dashed var(--line)}
+  .sgreply{margin:var(--s3) 0 0;padding:var(--s3) var(--s4);border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+  .sgreply h4{margin:0 0 var(--s2);font-size:13px}
+  .sgreply textarea{width:100%;box-sizing:border-box;min-height:72px;font:inherit;font-size:14px}
+  .sgreply .actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);margin-top:var(--s2)}
   /* r39 (0288): Google-only sign-in for Helm staff */
   .gwarn{border-left:4px solid var(--bad);background:#fdeceb;color:#5c140e;border-radius:var(--r);padding:var(--s3) var(--s4);font-size:14px;line-height:1.55;margin:var(--s3) 0}
   .sgsteps{margin:var(--s2) 0 var(--s3);padding-left:22px;font-size:14px;line-height:1.6;color:var(--ink-2)}
@@ -562,11 +566,13 @@
     </section>
     <section class="card" id="rp-sugg" aria-labelledby="hSg" hidden>
       <div class="hd"><h2 id="hSg">Suggestions</h2>
-        <select id="fSg" aria-label="Filter suggestions"><option value="new">New</option><option value="reviewed">Reviewed</option><option value="done">Done</option><option value="">All</option></select>
+        <select id="fSg" aria-label="Filter suggestions by status"><option value="new">New</option><option value="planned">Planned</option><option value="done">Done</option><option value="not_now">Not now</option><option value="reviewed">Seen (older)</option><option value="">All</option></select>
+        <select id="fSgKind" aria-label="Filter suggestions by kind"><option value="">Every kind</option><option value="idea">Idea</option><option value="problem">Problem</option><option value="other">Other</option></select>
+        <input type="search" id="fSgQ" maxlength="80" placeholder="Search text or studio" aria-label="Search suggestions">
         <button class="btn" id="btnSg" type="button">Show</button></div>
-      <p class="hint">From “Send a suggestion” in the app (profile menu) and the public /suggest page.</p>
+      <p class="hint">From “Suggest an idea” in the app (the ? help menu and the profile menu) and the public /suggest page. Open a row to set New / Planned / Done / Not now and write a reply the sender reads under My suggestions. +1 = people of the same studio who back a shared idea.</p>
       <p class="muted" id="sgCounts"></p>
-      <div class="scroll"><table class="rq rt"><thead><tr><th>When</th><th>From</th><th>Kind</th><th>Suggestion</th><th>Status</th></tr></thead><tbody id="tSg"></tbody></table></div>
+      <div class="scroll"><table class="rq rt"><thead><tr><th>When</th><th>From</th><th>Kind</th><th>Suggestion</th><th>+1</th><th>Status</th></tr></thead><tbody id="tSg"></tbody></table></div>
     </section>
     <section class="card" id="rp-alerts" aria-labelledby="hSeSet" hidden>
       <h2 id="hSeSet">E-mail alerts for these requests</h2>
@@ -916,13 +922,13 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=344"></script>
-<script src="auth-ui.js?v=61"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=345"></script>
+<script src="auth-ui.js?v=62"></script>
 <script src="hq-invoice.js?v=3"></script>
 <script src="hq-mfa.js?v=2"></script>
 <script src="hq-staff.js?v=3"></script>
-<script src="hq.js?v=38"></script>
-<script src="page-tours.js?v=26"></script>
-<script src="tour.js?v=46"></script>
+<script src="hq.js?v=39"></script>
+<script src="page-tours.js?v=27"></script>
+<script src="tour.js?v=47"></script>
 </body>
 </html>

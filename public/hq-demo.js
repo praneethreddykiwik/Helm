@@ -193,8 +193,11 @@
       return { counts: { new: 3, contacted: 1, won: 0, lost: 1 }, settings: { notify_email: "notifications@helm.events", auto_reply: true, form_open: true }, rows: rows.filter(function (r) { return !a.p_status || r.status === a.p_status; }) };
     },
     hq_suggestions: function (a) {
-      var rows = [{ id: uuid(8001), created_at: ago(0.4), who: "Priya (Shaadi Squad Events)", studio: STUDIOS[0].name, email: "priya@shaadisquad.in", source: "app", page: "builder", category: "idea", message: "Let us copy a floor plan from one event to another.", status: "new" }];
-      return { counts: { new: 1, reviewed: 3, done: 7 }, rows: rows.filter(function (r) { return !a.p_status || r.status === a.p_status; }) };
+      // R154e (0351): + reply / shared / +1 / in-app
+      var rows = [{ id: uuid(8001), created_at: ago(0.4), who: "Priya (Shaadi Squad Events)", studio: STUDIOS[0].name, email: "priya@shaadisquad.in", source: "app", page: "builder", category: "idea", message: "Let us copy a floor plan from one event to another.", status: "new", shared: true, votes: 3, in_app: true },
+        { id: uuid(8002), created_at: ago(3), who: "Arjun", studio: STUDIOS[1].name, email: "arjun@example.in", source: "app", page: "/quotes", category: "problem", message: "The quote PDF cuts long venue names.", status: "planned", shared: false, votes: 0, in_app: true,
+          reply: "Thanks Arjun - a fix is planned for the next release.", replied_at: ago(2), reply_seen_at: ago(1.5) }];
+      return { counts: { new: 1, planned: 1, done: 7, not_now: 1 }, rows: rows.filter(function (r) { return !a.p_status || r.status === a.p_status; }) };
     },
     hq_billing_settings: function () { return { legal_name: "Helm Events Technologies Pvt Ltd", gstin: "36AAACH1234M1Z2", address: "Hitech City, Hyderabad 500081", seller_state: "Telangana", seller_country: "IN",
       lut_number: "AD360326000123X", lut_valid_from: "2026-04-01", lut_valid_to: "2027-03-31", gst_rate: 18, invoice_prefix: "HELM-", online_payments_live: false, allow_trial_bypass: false, terms_version: "2026-10" }; },

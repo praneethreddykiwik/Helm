@@ -49,7 +49,9 @@
     help: "M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01",
     plus: "M12 5v14M5 12h14",
     sliders: "M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1M15 5v4M9 10v4M17 15v4",
-    gift: "M4 9h16v4H4zM5 13v7h14v-7M12 9v11M12 9c-1.5-3-5-3.5-5-1.2C7 9 9 9 12 9zM12 9c1.5-3 5-3.5 5-1.2C17 9 15 9 12 9z"   /* r29: Refer a studio */
+    gift: "M4 9h16v4H4zM5 13v7h14v-7M12 9v11M12 9c-1.5-3-5-3.5-5-1.2C7 9 9 9 12 9zM12 9c1.5-3 5-3.5 5-1.2C17 9 15 9 12 9z",   /* r29: Refer a studio */
+    idea: "M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z",   /* R154e: Suggest an idea */
+    inbox: "M4 13l2.5-7h11l2.5 7v6H4zM4 13h5l1 2h4l1-2h5"   /* R154e: My suggestions */
   };
   var NS = "http://www.w3.org/2000/svg";
   function icon(name) {
@@ -123,6 +125,8 @@
     { sel: "[data-tour='theme']", side: "right", title: "Look and feel", desc: window.HELM_DARK_MODE === true ? "Switch dark mode and pick a colour theme." : "Pick a colour theme: Emerald, Cobalt, Graphite or Studio." },
     { sel: "[data-tour='account']", side: "right", title: "Your account", desc: (window.HELM_FEATURES && window.HELM_FEATURES.manual === true) ? "Your profile, account settings (password and two-step verification), the user manual and sign out." : "Your profile, account settings (password and two-step verification) and sign out." },
     { sel: "[data-tour='search']", title: "Search anything", desc: "Find quotes, leads, clients and pages from one box. Press / or Ctrl+K." },
+    /* R154e (0351): the "?" menu holds the Suggestion box */
+    { sel: "[data-tour='tour-top']", title: "Help and ideas", desc: "Tour this page, keyboard shortcuts, and Suggest an idea: send an idea or a problem to the Helm team. Their reply shows under My suggestions." },
     /* r20 coord (b): role-aware (tour.js resolves need / uses through BPStore.auth); null alt = this admin wording */
     { sel: "[data-tour='bell']", uses: "finance", alt: function (can) { return can("finance") ? null : { desc: "Approvals, reminders and mentions arrive here." }; }, title: "Notifications", desc: "Approvals, payments and mentions arrive here." },
     { sel: "[data-tour='new']", need: ["create", "edit:quotes"], title: "Create", desc: "Start a new quote, lead or event from any page." }
@@ -470,13 +474,29 @@
     var nw = el("span", "hb-mi-new", "New"); nw.hidden = true; tourMi.appendChild(nw);
     var keysMi = el("button", "hb-mi"); keysMi.type = "button"; keysMi.setAttribute("role", "menuitem"); keysMi.tabIndex = -1;
     keysMi.appendChild(icon("sliders")); keysMi.appendChild(el("span", null, "Keyboard shortcuts")); keysMi.appendChild(el("kbd", "hb-mi-kbd", "?"));
-    menu.appendChild(tourMi); menu.appendChild(keysMi); wrap.appendChild(menu);
-    function mis() { return [tourMi, keysMi]; }
+    /* R154e (0351): the Suggestion box - every signed-in role. "My suggestions" shows a count of unread Helm replies
+     * (asked when this menu opens, never on page load). */
+    var sep = el("div", "hb-msep"); sep.setAttribute("role", "separator");
+    var ideaMi = el("button", "hb-mi"); ideaMi.type = "button"; ideaMi.setAttribute("role", "menuitem"); ideaMi.tabIndex = -1; ideaMi.id = "hbSuggest";
+    ideaMi.appendChild(icon("idea")); ideaMi.appendChild(el("span", null, "Suggest an idea"));
+    var mineMi = el("button", "hb-mi"); mineMi.type = "button"; mineMi.setAttribute("role", "menuitem"); mineMi.tabIndex = -1; mineMi.id = "hbMySuggest";
+    mineMi.appendChild(icon("inbox")); mineMi.appendChild(el("span", null, "My suggestions"));
+    var rep = el("span", "hb-mi-new"); rep.hidden = true; mineMi.appendChild(rep);
+    menu.appendChild(tourMi); menu.appendChild(keysMi); menu.appendChild(sep); menu.appendChild(ideaMi); menu.appendChild(mineMi); wrap.appendChild(menu);
+    function mis() { return [tourMi, keysMi, ideaMi, mineMi]; }
+    function replies() {
+      try {
+        var S = window.BPStore && window.BPStore.suggestions;
+        if (!S || typeof S.unread !== "function") return;
+        S.unread().then(function (n) { n = Number(n) || 0; rep.hidden = n < 1; rep.textContent = n === 1 ? "1 reply" : n + " replies"; }, function () {});
+      } catch (e) {}
+    }
     function open(idx) {
       try { var T = window.HelmTour; nw.hidden = !(T && typeof T.pageSeen === "function" && !T.pageSeen()); } catch (e) { nw.hidden = true; }
+      replies();
       try { var hc = document.querySelector(".hbp-hint"); if (hc && hc.parentNode) hc.parentNode.removeChild(hc); } catch (e) {}   /* the one-time "Amounts hidden" chip sits right where this menu opens */
       menu.hidden = false; btn.setAttribute("aria-expanded", "true"); document.documentElement.classList.add("hb-pop-open");
-      mis()[idx < 0 ? 1 : 0].focus();
+      mis()[idx < 0 ? mis().length - 1 : 0].focus();
     }
     function close(restore) {
       if (menu.hidden) return;
@@ -487,6 +507,8 @@
     btn.addEventListener("keydown", function (e) { if (e.key === "ArrowDown") { e.preventDefault(); open(0); } else if (e.key === "ArrowUp") { e.preventDefault(); open(-1); } });
     tourMi.addEventListener("click", function () { close(true); safe(startTour); });
     keysMi.addEventListener("click", function () { close(true); safe(helpOpen); });
+    ideaMi.addEventListener("click", function () { close(true); suggestOpen("send"); });
+    mineMi.addEventListener("click", function () { close(true); rep.hidden = true; suggestOpen("mine"); });
     menu.addEventListener("keydown", function (e) {
       var l = mis(), i = l.indexOf(document.activeElement);
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
@@ -498,6 +520,13 @@
     });
     document.addEventListener("click", function (e) { if (!menu.hidden && !wrap.contains(e.target)) close(false); });
     try { window.HelmHelpMenu = { open: function () { open(0); }, close: close, tour: function () { safe(startTour); } }; } catch (e) {}
+  }
+
+  /* R154e: suggest.js (the Suggestion box dialog) is loaded on first use only */
+  function suggestOpen(view) {
+    function go() { if (window.HelmSuggest) window.HelmSuggest.open({ view: view }); }
+    if (window.HelmSuggest) { go(); return; }
+    var sc = document.createElement("script"); sc.src = "/suggest.js?v=3"; sc.onload = go; document.head.appendChild(sc);
   }
 
   function quickCreate(split, nq) {

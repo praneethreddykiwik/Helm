@@ -381,6 +381,8 @@ run "r143-outbox-backoff-0342" "R143-OUTBOX-BACKOFF-0342: ALL PASS \(55/55\)" ps
 run "r148-rls-initplan-0343" "R148-RLS-INITPLAN-0343: ALL PASS \(21/21\)" psql -q -f tests/db/r148-rls-initplan-0343.sql
 # r149 (0344): 34 missing indexes (row-security org_id tables, quote -> lead sync, Live Status, every-minute task reminders, outboxes, booking links) all there + valid + used by the planner; comms_outbox_unsub back with the 0165 body, service role only, ok / opted_out / token as comms-dispatch reads them; a prod-like database without it is fixed by 0344 alone; re-applies itself 3x (no index, function or row count changed), rolled back
 run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests/db/r149-indexes-0344.sql
+# r154e (0351): Suggestion box v2 - admin / sales / crew send (server records the studio), own list + studio-shared rows only (never who), +1 kept (never deleted), another studio sees nothing, anon refused, 20 a day per person on every route, HQ list masked + Planned / Not now + reply (audited), sender reads + marks the reply; re-applies itself, rolled back
+run "r154e-suggestion-box-0351" "R154E-SUGGESTION-BOX-0351: ALL PASS \(50/50\)" psql -q -f tests/db/r154e-suggestion-box-0351.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

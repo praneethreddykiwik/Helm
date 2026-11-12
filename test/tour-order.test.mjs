@@ -83,7 +83,7 @@ t('the generic shell tour (pages without their own steps) also goes sidebar firs
   const blk = SHELL.slice(SHELL.indexOf('var SHELL_TOUR = ['), SHELL.indexOf('];', SHELL.indexOf('var SHELL_TOUR = [')));
   const ks = [...blk.matchAll(/sel: "([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(ks, ["[data-tour='pin']", '#hbRail .hb-group:not(.hb-fav)', '.hb-recent .htr-btn', "[data-tour='theme']", "[data-tour='account']",
-    "[data-tour='search']", "[data-tour='bell']", "[data-tour='new']"]);
+    "[data-tour='search']", "[data-tour='tour-top']", "[data-tour='bell']", "[data-tour='new']"]);   // R154e: the "?" (help + Suggestion box) sits between search and the bell
 });
 
 t('per-page steps follow each toolbar left to right, then the content below', () => {
