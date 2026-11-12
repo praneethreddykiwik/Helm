@@ -381,6 +381,8 @@ run "r143-outbox-backoff-0342" "R143-OUTBOX-BACKOFF-0342: ALL PASS \(55/55\)" ps
 run "r148-rls-initplan-0343" "R148-RLS-INITPLAN-0343: ALL PASS \(21/21\)" psql -q -f tests/db/r148-rls-initplan-0343.sql
 # r149 (0344): 34 missing indexes (row-security org_id tables, quote -> lead sync, Live Status, every-minute task reminders, outboxes, booking links) all there + valid + used by the planner; comms_outbox_unsub back with the 0165 body, service role only, ok / opted_out / token as comms-dispatch reads them; a prod-like database without it is fixed by 0344 alone; re-applies itself 3x (no index, function or row count changed), rolled back
 run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests/db/r149-indexes-0344.sql
+# r154f (0352): sign-up staff check + sign-in Google-only hint - same answers as the kept bodies, 20 asks per 10 minutes per network and per address then false (fail closed, the answer the pages treat as no), another network / address unaffected, no address = one shared bucket, counter that cannot be written = false, address stored only as a hash, kept __pre0352 copies with no app privilege, anon + signed-in can still call; re-applies itself twice, rolled back
+run "r154f-email-probe-0352" "R154F-EMAIL-PROBE-0352: ALL PASS \(21/21\)" psql -q -f tests/db/r154f-email-probe-0352.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

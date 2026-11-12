@@ -1333,7 +1333,7 @@
     if (line) {
       var words = line.textContent.trim().split(/\s+/); line.textContent = '';
       var sr = el('span', 'sr', words.join(' ')); line.appendChild(sr);
-      ws = words.map(function (w) { var sp = el('span', 'fw', w); sp.setAttribute('aria-hidden', 'true'); line.appendChild(sp); line.appendChild(document.createTextNode(' ')); return sp; });
+      ws = words.map(function (w) { var sp = el('span', 'fw'); sp.setAttribute('data-w', w); sp.setAttribute('aria-hidden', 'true');   /* R154f: drawn from data-w (CSS), not a text node - the faint words are decoration, the .sr copy is the text */ line.appendChild(sp); line.appendChild(document.createTextNode(' ')); return sp; });
     }
     if (reduce) { if (ws) ws.forEach(function (w) { w.classList.add('on'); }); if (cur) cur.classList.add('open'); return; }
     var live = new Set(), raf = 0;

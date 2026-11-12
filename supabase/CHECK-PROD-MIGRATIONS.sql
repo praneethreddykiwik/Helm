@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (303 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (304 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3863 objects): body 175, bucket 9, col 221, con 402, cron 19, fn 1760, idx 394, marker 1, pol 179, polexpr 4, pre 89, pub 5, seq 1, tbl 259, trg 343, view 2.
+-- What is checked (3868 objects): body 177, bucket 9, col 221, con 402, cron 19, fn 1762, idx 394, marker 1, pol 179, polexpr 4, pre 90, pub 5, seq 1, tbl 259, trg 343, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3886,7 +3886,12 @@ with o(m, k, s, n, x) as (values
   ('0344_r149_missing_indexes', 'idx', 'public.ix_event_resources_need_id_0344', null, null),
   ('0344_r149_missing_indexes', 'idx', 'public.ix_lead_enquiries_lead_id_0344', null, null),
   ('0344_r149_missing_indexes', 'idx', 'public.ix_welcome_email_outbox_org_id_0344', null, null),
-  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_tasks_planned_start_0344', null, null)
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_tasks_planned_start_0344', null, null),
+  ('0352_r154f_email_probe_limits', 'body', 'public', 'signup_email_preauthorised', 'text|80893820defa7dd899dd8649b80b088e'),
+  ('0352_r154f_email_probe_limits', 'body', 'public', 'staff_google_only_for', 'text|1ae39048bcbf8a5bb92764ba21185bdb'),
+  ('0352_r154f_email_probe_limits', 'fn', 'public', '_r352_keep', 'text'),
+  ('0352_r154f_email_probe_limits', 'fn', 'public', '_r352_allow', 'text,text'),
+  ('0352_r154f_email_probe_limits', 'pre', null, '__pre0352', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4191,7 +4196,8 @@ mig(ord, m, ov, note) as (values
   (300, '0341_r139_token_lookup_limits', null, null),
   (301, '0342_r143_outbox_backoff', null, null),
   (302, '0343_r148_rls_initplan', null, 'ALTER POLICY only (calls wrapped as (select ...)); besides the kept helpers, 4 sample policies are checked for the wrapped form - run select * from public._r343_unwrapped() for the full list (0 rows expected)'),
-  (303, '0344_r149_missing_indexes', null, null)
+  (303, '0344_r149_missing_indexes', null, null),
+  (304, '0352_r154f_email_probe_limits', null, null)
 ),
 env as (
   select
