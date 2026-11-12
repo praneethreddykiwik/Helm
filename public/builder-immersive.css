@@ -1,0 +1,161 @@
+/* R164 - the floor builder on a PHONE (upright or sideways) as a full-screen editor (builder-immersive.js).
+   The floor gets the whole screen; the controls float over it: Back + Tools (top-left), Inspector + More + Save
+   (top-right), 2D / 3D / Walkthrough stacked on the left edge, zoom in / out / fit (+ full screen, tour) stacked
+   on the right edge. The full top bar opens from More as a sheet. The app's bottom tab bar is folded away in the
+   builder (a small handle on the right brings it up). Full screen keeps all of it working, with an Exit button.
+   Every layout rule sits inside the ONE phone media query below (touch screen; sideways and at most 500px high,
+   or upright and at most 599px wide), so tablets, laptops and desktops are untouched. The /try sandbox
+   (html.helm-sandbox) keeps its own design. Outside the query the floating controls simply do not exist. */
+.bim-cluster,.bim-rail,.bim-navh,.bim-menux{display:none}
+
+/* every on-canvas control: a tap is a tap (no double-tap page zoom eating the 2nd press of + / -) - all screens */
+.fabstack button,.fs-bar button,.navpad button{touch-action:manipulation}
+
+@media (pointer:coarse) and (orientation:landscape) and (max-height:500px), (pointer:coarse) and (orientation:portrait) and (max-width:599px){
+  html:not(.helm-sandbox),html:not(.helm-sandbox) body{height:100%;height:100dvh;overscroll-behavior:none}
+
+  /* ---------- floating buttons ---------- */
+  html:not(.helm-sandbox) .bim-cluster{position:fixed;z-index:50;display:flex;gap:8px;align-items:center;pointer-events:none}
+  html:not(.helm-sandbox) .bim-cluster>*{pointer-events:auto}
+  html:not(.helm-sandbox) .bim-tl{left:calc(8px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px))}
+  html:not(.helm-sandbox) .bim-tr{right:calc(8px + env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px))}
+  html:not(.helm-sandbox) .bim-b{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:44px;height:44px;padding:0 12px;
+    border-radius:22px;border:1px solid var(--line,#e0eae5);background:color-mix(in srgb,var(--panel,#fff) 94%,transparent);color:var(--ink,#0b2a22);
+    font:600 14px/1 var(--font,system-ui);box-shadow:0 4px 14px -6px rgba(11,42,34,.35);cursor:pointer;touch-action:manipulation;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);-webkit-tap-highlight-color:transparent}
+  html:not(.helm-sandbox) .bim-b:not(:has(.bim-t)){width:44px;padding:0}
+  html:not(.helm-sandbox) .bim-b[hidden],html:not(.helm-sandbox) .bim-b.bim-navh{display:none}
+  html:not(.helm-sandbox) .bim-b:disabled{opacity:.5;cursor:default}
+  html:not(.helm-sandbox) .bim-b .bim-i{font-size:17px;line-height:1}
+  html:not(.helm-sandbox) .bim-b:focus-visible{outline:2px solid var(--accent,#047857);outline-offset:2px}
+  html:not(.helm-sandbox) .bim-b[aria-expanded="true"],html:not(.helm-sandbox) .bim-b[aria-pressed="true"]{background:var(--accent,#047857);color:#fff;border-color:transparent}
+  html:not(.helm-sandbox) .bim-b.bim-primary{background:var(--accent,#047857);color:#fff;border-color:transparent}
+  html:not(.helm-sandbox) .bim-b.bim-exit{color:var(--danger-text-b,#b91c1c);border-color:currentColor}
+
+  /* 2D / 3D / Walkthrough: stacked on the left edge, vertically centred */
+  html:not(.helm-sandbox) .bim-rail{position:fixed;z-index:50;left:calc(8px + env(safe-area-inset-left,0px));top:50%;transform:translateY(-50%);
+    display:flex;flex-direction:column;gap:4px;padding:4px;border-radius:24px;border:1px solid var(--line,#e0eae5);
+    background:color-mix(in srgb,var(--panel,#fff) 94%,transparent);box-shadow:0 4px 14px -6px rgba(11,42,34,.35);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  html:not(.helm-sandbox) .bim-rail .bim-b{width:44px;min-width:44px;height:44px;padding:0;border:0;box-shadow:none;background:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+  html:not(.helm-sandbox) .bim-rail .bim-b[aria-pressed="true"]{background:var(--accent,#047857);color:#fff}
+  html:not(.helm-sandbox) .bim-rail .bim-t{font-size:13px}
+
+  /* ---------- the header: hidden; "More" opens it as a sheet over the top of the floor ---------- */
+  html:not(.helm-sandbox) body>header{position:fixed;top:0;left:0;right:0;z-index:70;flex-wrap:wrap;overflow-x:hidden;overflow-y:auto;
+    max-height:calc(100dvh - 24px);height:auto;row-gap:8px;column-gap:8px;align-content:flex-start;
+    padding:max(8px,env(safe-area-inset-top,0px)) calc(10px + env(safe-area-inset-right,0px)) 10px calc(10px + env(safe-area-inset-left,0px));
+    border-radius:0 0 14px 14px;box-shadow:0 12px 32px -12px rgba(11,42,34,.45);
+    transform:translateY(calc(-100% - 16px));visibility:hidden;transition:transform .2s ease,visibility 0s linear .2s}
+  html.bim-menu:not(.helm-sandbox) body>header{transform:none;visibility:visible;transition:transform .2s ease,visibility 0s}
+  html:not(.helm-sandbox) body>header .drawer-btns{display:none}
+  html:not(.helm-sandbox) body>header .bim-menux{display:inline-flex;align-items:center;order:99;margin-left:auto;height:40px;min-height:40px}
+  html:not(.helm-sandbox) body>header>*{flex:0 1 auto;min-width:0;max-width:100%}
+  html:not(.helm-sandbox) body>header .hgroup{flex-wrap:wrap;row-gap:8px;min-width:0;max-width:100%}
+  html:not(.helm-sandbox) body>header .seg{flex-wrap:wrap}
+  html:not(.helm-sandbox) body>header :is(select,.tbtn,.nameinput,.capmeter,.capinput){height:40px;min-height:40px}
+  html:not(.helm-sandbox) body>header .seg button{height:40px;min-height:40px}
+  html:not(.helm-sandbox) body>header .tbtn.icon{width:40px;min-width:40px}
+  html:not(.helm-sandbox) body>header .brand{display:none}               /* Back is the floating ← button */
+  html:not(.helm-sandbox) body>header :is(input[type="text"],input[type="number"],input:not([type]),select){font-size:16px}  /* no iOS zoom on focus */
+  html:not(.helm-sandbox) .hmenu[open] .hmenu-pop{position:fixed;top:auto;bottom:auto;right:calc(10px + env(safe-area-inset-right,0px));
+    max-height:calc(100dvh - 64px);overflow:auto;z-index:71}
+  html:not(.helm-sandbox) .capbanner,html:not(.helm-sandbox) .verbanner{position:fixed;left:50%;transform:translateX(-50%);z-index:49;
+    top:calc(60px + env(safe-area-inset-top,0px));max-width:calc(100% - 140px);border-radius:10px}
+
+  /* ---------- the floor fills the screen ---------- */
+  html:not(.helm-sandbox) main{position:relative;overflow:hidden;flex:1 1 auto}
+  html:not(.helm-sandbox) aside.left,html:not(.helm-sandbox) aside.right{z-index:60}
+  html:not(.helm-sandbox) .viewport .scroll,html:not(.helm-sandbox) .viewport #rulerLeft,html:not(.helm-sandbox) .viewport .stage3d,
+  html:not(.helm-sandbox) .viewport:not(.dock-min) .scroll,html:not(.helm-sandbox) .viewport:not(.dock-min) #rulerLeft,
+  html:not(.helm-sandbox) .viewport:not(.dock-min) .stage3d{bottom:0}
+  html:not(.helm-sandbox) .viewport::after,html:not(.helm-sandbox) .viewport:not(.dock-min)::after{display:none}
+  /* one finger pans the floor, two fingers zoom it (builder-orient.js) - upright too; objects drag */
+  html:not(.helm-sandbox) .scroll,html:not(.helm-sandbox) .scroll svg{touch-action:pan-x pan-y;overscroll-behavior:contain}
+  html:not(.helm-sandbox) .scroll svg :is(.obj,[data-handle],[data-margin]){touch-action:none}
+  html:not(.helm-sandbox) .ptoggle,html:not(.helm-sandbox) .hint.hint1{display:none}
+
+  /* ---------- zoom in / out / fit (+ full screen, tour): stacked on the right edge, vertically centred ---------- */
+  html:not(.helm-sandbox) .viewport .fabstack,html:not(.helm-sandbox) .viewport:not(.dock-min) .fabstack,html:not(.helm-sandbox) .viewport.dock-min .fabstack{
+    position:fixed;left:auto;right:calc(8px + env(safe-area-inset-right,0px));top:50%;bottom:auto;transform:translateY(-50%);z-index:50;
+    flex-direction:column;align-items:center;justify-content:center;gap:6px;opacity:1;max-width:none}
+  html:not(.helm-sandbox) .fabstack .zoombar{order:1;flex-direction:column;align-items:center;gap:2px;padding:4px;border-radius:24px;
+    box-shadow:0 4px 14px -6px rgba(11,42,34,.35)}
+  html:not(.helm-sandbox) .viewport.dock-min .fabstack>.zoombar{display:flex!important}
+  html:not(.helm-sandbox) .fabstack .zoombar button{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border-radius:22px;font-size:20px}
+  html:not(.helm-sandbox) .fabstack .zoombar #zoomIn{order:1}
+  html:not(.helm-sandbox) .fabstack .zoombar #zoomLbl{order:2;min-width:0;font-size:11px;line-height:14px;padding:0}
+  html:not(.helm-sandbox) .fabstack .zoombar #zoomOut{order:3}
+  html:not(.helm-sandbox) .fabstack .zoombar #zoomFit{order:4;font-size:11px;font-weight:700}
+  html:not(.helm-sandbox) .fabstack .zoombar :is(.zsep,#navPadToggle,#dockHide){display:none}
+  html:not(.helm-sandbox) .viewport .fabstack .navpad,html:not(.helm-sandbox) .fabstack .dock-open,html:not(.helm-sandbox) .fabstack .wt-fab{display:none!important}
+  html:not(.helm-sandbox) .fabstack .fs-fab{order:2;width:44px;min-width:44px;height:44px;min-height:44px;border-radius:22px;font-size:18px;
+    box-shadow:0 4px 14px -6px rgba(11,42,34,.35)}
+  html:not(.helm-sandbox) .viewport.dock-min .fabstack>.fs-fab{display:inline-flex!important}
+  html:not(.helm-sandbox) .fabstack .htour-fab,html:not(.helm-sandbox) .fabstack .htour-fab.in-stack{order:3;width:44px;min-width:44px;height:44px;padding:0;
+    font-size:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;overflow:hidden}
+  html:not(.helm-sandbox) .fabstack .htour-fab::before{content:"?";font-size:17px;font-weight:700;line-height:1}
+
+  /* the status line: small, bottom-left, never under a control; off in 3D (it describes the 2D floor) */
+  html:not(.helm-sandbox) .statusbar,html:not(.helm-sandbox) .viewport:not(.dock-min) .statusbar,html:not(.helm-sandbox) .viewport.dock-min .statusbar{
+    position:fixed;left:calc(8px + env(safe-area-inset-left,0px));bottom:calc(8px + env(safe-area-inset-bottom,0px));top:auto;z-index:8;
+    max-width:calc(100% - 140px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));padding:4px 10px;font-size:12px;box-shadow:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.92;pointer-events:none}
+  html:not(.helm-sandbox) .viewport.is3d .statusbar{display:none}
+  html:not(.helm-sandbox) .toast{top:calc(60px + env(safe-area-inset-top,0px));max-width:calc(100% - 140px)}
+  html:not(.helm-sandbox) body :is(.hs-toasts,.bpui-toasts){top:calc(60px + env(safe-area-inset-top,0px));bottom:auto}
+  /* the one-time "Amounts hidden" hint points at the eye in the (folded) top bar: show it under the floating buttons */
+  html:not(.helm-sandbox) body>.hbp-hint{top:calc(60px + env(safe-area-inset-top,0px))!important;left:50%!important;right:auto;transform:translateX(-50%);max-width:calc(100% - 140px)}
+
+  /* ---------- 3D: Move / Rotate / Scale at the bottom centre; the legend clears the right edge ---------- */
+  html:not(.helm-sandbox) .tools3d{position:absolute;left:50%;right:auto;top:auto;bottom:calc(8px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+    flex-wrap:nowrap;gap:2px;padding:3px;max-width:calc(100% - 136px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));overflow-x:auto;scrollbar-width:none}
+  html:not(.helm-sandbox) .tools3d::-webkit-scrollbar{display:none}
+  html:not(.helm-sandbox) .tools3d button{min-height:40px;height:40px;padding:0 9px;flex:0 0 auto}
+  html:not(.helm-sandbox) .tools3d .l3-lbl,html:not(.helm-sandbox) .hint3d{display:none}
+  html:not(.helm-sandbox) .legend3d{top:calc(60px + env(safe-area-inset-top,0px));bottom:auto;right:calc(64px + env(safe-area-inset-right,0px));left:auto;
+    max-height:calc(100% - 140px);max-width:200px}
+
+  /* ---------- the app's bottom tab bar (mobile-nav.js): folded away here, the handle brings it up ---------- */
+  html:not(.helm-sandbox) body.hmn-on{padding-bottom:0}
+  html:not(.helm-sandbox):not(.bim-nav-open) body .hmn-bar{display:none!important}
+
+  /* ---------- full screen (fullscreen.js): everything keeps working, Back becomes Exit ---------- */
+  html:not(.helm-sandbox) body.fs-on .fs-bar,html:not(.helm-sandbox) body.fs-on .fabstack .fs-fab,
+  html:not(.helm-sandbox) body.fs-on .hmn-bar,html:not(.helm-sandbox) body.fs-on #bimMore{display:none!important}
+  html:not(.helm-sandbox) body.fs-on #leftPanel.open,html:not(.helm-sandbox) body.fs-on #rightPanel.open{visibility:visible}
+  html:not(.helm-sandbox) body.fs-on .viewport .tools3d{display:flex!important}
+  html:not(.helm-sandbox) body.fs-on .fabstack .htour-fab{display:none!important}
+  html.fs-phone:not(.helm-sandbox),html.fs-phone:not(.helm-sandbox) body{background:var(--canvas,#f4f8f6)}
+}
+/* the handle exists only where the app bar itself would show (mobile-nav.js: under 768px wide) */
+@media (pointer:coarse) and (orientation:landscape) and (max-height:500px) and (max-width:767.98px), (pointer:coarse) and (orientation:portrait) and (max-width:599px){
+  html:not(.helm-sandbox) body.hmn-on:not(.fs-on) .bim-b.bim-navh{display:inline-flex;position:fixed;z-index:901;right:calc(4px + env(safe-area-inset-right,0px));
+    bottom:calc(8px + env(safe-area-inset-bottom,0px));width:40px;min-width:40px;height:40px;padding:0;border-radius:12px;opacity:.85;font-size:14px}
+  html.bim-nav-open:not(.helm-sandbox) body.hmn-on .bim-b.bim-navh{bottom:calc(68px + env(safe-area-inset-bottom,0px))}
+  html.bim-nav-open:not(.helm-sandbox) body.hmn-on .statusbar{bottom:calc(68px + env(safe-area-inset-bottom,0px))}
+}
+/* a sideways phone is short: both side rails start just under the top buttons instead of being centred, so the zoom
+   column (+ / % / - / FIT, full screen, tour) never reaches up into Save; the app-bar handle moves left of the zoom
+   column and the 3D Move / Rotate / Scale bar leaves room for it */
+@media (pointer:coarse) and (orientation:landscape) and (max-height:500px){
+  html:not(.helm-sandbox) .bim-rail,html:not(.helm-sandbox) .viewport .fabstack,html:not(.helm-sandbox) .viewport:not(.dock-min) .fabstack,
+  html:not(.helm-sandbox) .viewport.dock-min .fabstack{top:calc(60px + env(safe-area-inset-top,0px));transform:none}
+  html:not(.helm-sandbox) body.hmn-on:not(.fs-on) .bim-b.bim-navh{right:calc(64px + env(safe-area-inset-right,0px))}
+  html:not(.helm-sandbox) .tools3d{max-width:calc(100% - 216px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px))}
+  html:not(.helm-sandbox) .statusbar,html:not(.helm-sandbox) .viewport:not(.dock-min) .statusbar,html:not(.helm-sandbox) .viewport.dock-min .statusbar{
+    max-width:calc(100% - 180px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px))}
+}
+/* walkthrough on a sideways phone: its card sits between the two side rails (upright, the rails are well above it) */
+@media (pointer:coarse) and (orientation:landscape) and (max-height:500px){
+  html:not(.helm-sandbox) body.wt-on .wt-overlay{padding-left:calc(64px + env(safe-area-inset-left,0px));padding-right:calc(64px + env(safe-area-inset-right,0px))}
+}
+@media (pointer:coarse) and (orientation:landscape) and (max-height:500px), (pointer:coarse) and (orientation:portrait) and (max-width:599px){
+  html:not(.helm-sandbox) body.wt-on .viewport .tools3d{display:none!important}
+  html:not(.helm-sandbox) .wt-list{top:calc(60px + env(safe-area-inset-top,0px));left:calc(64px + env(safe-area-inset-left,0px));right:calc(64px + env(safe-area-inset-right,0px))}
+}
+/* the narrowest sideways phones (iPhone SE 667x375): labels on the floating buttons give way to icons */
+@media (pointer:coarse) and (orientation:landscape) and (max-height:500px) and (max-width:700px), (pointer:coarse) and (orientation:portrait) and (max-width:374px){
+  html:not(.helm-sandbox) .bim-cluster .bim-b:not(.bim-exit) .bim-t{display:none}
+  html:not(.helm-sandbox) .bim-cluster .bim-b:not(.bim-exit){width:44px;padding:0}
+}
+@media (prefers-reduced-motion:reduce){ html:not(.helm-sandbox) body>header{transition:none} }

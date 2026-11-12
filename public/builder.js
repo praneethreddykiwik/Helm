@@ -5243,7 +5243,7 @@ DRAWERS.forEach((d,i)=>{
 document.addEventListener('pointerdown',e=>{
   if(!drawersOpen()) return;
   const t=e.target;
-  if(t.closest('#leftPanel,#rightPanel,.drawer-btns,.modal,.bpui-overlay,[data-bpui]')) return;
+  if(t.closest('#leftPanel,#rightPanel,.drawer-btns,.bim-keep,.modal,.bpui-overlay,[data-bpui]')) return;   // R164: + the phone's floating Tools / Inspector buttons
   closeDrawers(false);
 },true);
 // leaving the mobile layout resets the drawers to plain side panels

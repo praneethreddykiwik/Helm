@@ -87,7 +87,7 @@ const rowsOf = (host) => host.all().filter((n) => n.cls.has('fr-hrow'));
 await t('ROOT CAUSE fixed: start quote one (left at Proposal), start quote two -> Home lists BOTH, newest first, each at its own step', async () => {
   const S = fakeStore(); const { env, block } = dashEnv(S);
   env.win.HelmFlowResume.mount(); await until(() => !block.hidden);
-  assert.deepEqual(JSON.parse(JSON.stringify(S.calls.open[0])), { scope: 'mine', limit: 5, maxDays: 60 }, 'Home asks for 5 (was limit 1)');
+  assert.deepEqual(JSON.parse(JSON.stringify(S.calls.open[0])), { scope: 'mine', limit: 3, maxDays: 60 }, 'Home asks for 3 (R164; was 5, before that limit 1)');
   const rs = rowsOf(block); assert.equal(rs.length, 2, 'both quotes have a Continue entry');
   assert.deepEqual(rs.map((r) => r.getAttribute('data-quote')), [Q2, Q1], 'most recent first');
   const go = (r) => r.all().find((n) => n.tagName === 'A' && n.textContent === 'Continue');
@@ -99,11 +99,11 @@ await t('ROOT CAUSE fixed: start quote one (left at Proposal), start quote two -
   assert.match(block.textContent, /2 quotes in progress/); assert.equal(block.all().find((n) => n.cls.has('fr-more')).href, 'quotes.html?view=inprogress');
 });
 
-await t('more than 5: shows 5 + "See all N →"', async () => {
+await t('more than 3: shows 3 + "See all N →" (R164, was 5)', async () => {
   const many = Array.from({ length: 5 }, (_, i) => row({ id: 'a0000000-0000-4000-8000-0000000001' + String(i).padStart(2, '0'), title: 'Q' + i }));
   const S = fakeStore({ openFn: () => ({ total: 9, rows: many, can_edit: true, open: true }) }); const { env, block } = dashEnv(S);
   env.win.HelmFlowResume.mount(); await until(() => !block.hidden);
-  assert.equal(rowsOf(block).length, 5); assert.match(block.textContent, /9 quotes in progress/); assert.match(block.textContent, /See all 9 →/);
+  assert.equal(rowsOf(block).length, 3); assert.match(block.textContent, /9 quotes in progress/); assert.match(block.textContent, /See all 9 →/);
 });
 
 await t('Hide: hides ONLY that quote (dismiss), the others stay, nothing is deleted, a toast says so', async () => {

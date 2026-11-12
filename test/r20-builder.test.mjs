@@ -88,7 +88,7 @@ t('tours: H and the hide controls are explained (dashboard, shell, builder)', ()
   assert.match(sh, /Press H \(when you are not typing\) to jump home to the dashboard\./);
   const pt = read('public/page-tours.js');   // R46: the steps live in page-tours.js
   const blk = pt.slice(pt.indexOf('"builder.html": ['), pt.indexOf('"quotes.html": ['));
-  assert.match(blk, /\{ sel: "header \.brand", title: "Back home", desc: "[^"]*press H \(when you are not typing\) to jump home to the dashboard/);
+  assert.match(blk, /\{ sel: (\["header \.brand", "#bimBack"\]|"header \.brand"), title: "Back home", desc: "[^"]*press H \(when you are not typing\) to jump home to the dashboard/);
   assert.match(blk, /To hide them, press the down arrow \(⌄\); the small “⊕ View” button brings them back\./, 'hide: the view dock');
   assert.match(blk, /title: "Hide amounts"/);
   assert.match(blk, /\{ sel: "#clientImgBtn", trial: false,/, 'the trial-hidden button is not toured');
@@ -97,7 +97,7 @@ t('tours: H and the hide controls are explained (dashboard, shell, builder)', ()
   for (const m of blk.matchAll(/sel: (\[[^\]]*\]|"[^"]*")/g)) {
     const first = JSON.parse(m[1].startsWith('[') ? m[1] : '[' + m[1] + ']')[0];
     const id = /#([\w-]+)/.exec(first), cls = /\.([\w-]+)/.exec(first);
-    if (first === '.wt-field' || first === '#wtStart' || first.startsWith('.bp-priv-slot')) continue;   // mounted at runtime (walkthrough.js / shell-b-privacy.js)
+    if (first === '.wt-field' || first === '#wtStart' || first.startsWith('.bp-priv-slot') || first.startsWith('#bim')) continue;   // mounted at runtime (walkthrough.js / shell-b-privacy.js / R164 builder-immersive.js)
     assert.ok(id ? html.includes('id="' + id[1] + '"') : html.includes(cls[1]), 'target on the page: ' + first);
   }
 });

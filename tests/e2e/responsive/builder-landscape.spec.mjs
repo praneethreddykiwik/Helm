@@ -2,7 +2,7 @@
 // Needs NO credentials and NO network, like no-overflow-local.spec.mjs: every request that is not this local server
 // is blocked and config.js is served with the Supabase url + key blanked, so the builder runs in its local mode.
 // Nothing is saved anywhere and the photo render is only OPENED (never started).
-// For each landscape phone: no page scroll, a one-row header, the canvas gets most of the screen, the key controls
+// For each landscape phone: no page scroll, the top bar folded away (R164: floating controls), the canvas gets the screen, the key controls
 // are inside the screen and never overlap, touch targets >= 40px, the toolbox / inspector are slide-over drawers,
 // dialogs fit the height and scroll inside, two fingers zoom the 2D floor, rotating keeps the state and re-fits
 // (2D zoom + 3D renderer size), and tablets / desktop keep their layout.
@@ -73,8 +73,9 @@ function assertNoOverlap(rects, vw, vh, label) {
     expect(overlaps(shown[i], shown[j]), `${label}: ${shown[i].s} must not overlap ${shown[j].s}`).toBe(false);
   }
 }
-// controls that must always be on screen in landscape (header row start + the strip under the floor)
-const KEY_CONTROLS = ['#toolsToggle', '#inspToggle', 'header .brand', '#viewSeg', '#status', '#zoomOut', '#zoomLbl', '#zoomIn', '#zoomFit', '#navPadToggle', '#dockHide', '.fabstack .fs-fab', '.fabstack .htour-fab'];
+// controls that must always be on screen on a sideways phone - R164: the floating ones (builder-immersive.js); the top bar
+// is folded behind More, the zoom / fit / full screen / tour buttons are stacked on the right edge
+const KEY_CONTROLS = ['#bimBack', '#bimTools', '#bimInsp', '#bimMore', '#bimSave', '#bimRail', '#status', '#zoomOut', '#zoomLbl', '#zoomIn', '#zoomFit', '.fabstack .fs-fab', '.fabstack .htour-fab'];
 
 test.describe('@responsive builder on a phone held sideways (local, no sign-in)', () => {
   test.beforeEach(({ browserName }) => { test.skip(browserName !== 'chromium', 'phone emulation (isMobile / touch) is Chromium-only in Playwright'); });
@@ -91,17 +92,18 @@ test.describe('@responsive builder on a phone held sideways (local, no sign-in)'
         expect(await page.locator('#orientCard').isVisible().catch(() => false)).toBe(false);
         // the page itself never scrolls (pinch / drag stay on the canvas)
         const m = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight, w: innerWidth, h: innerHeight,
-          hdr: document.querySelector('header').getBoundingClientRect().height, vp: document.querySelector('.viewport').getBoundingClientRect().toJSON(),
+          hdr: document.querySelector('header').getBoundingClientRect().bottom, hdrVis: getComputedStyle(document.querySelector('header')).visibility, vp: document.querySelector('.viewport').getBoundingClientRect().toJSON(),
           sc: document.getElementById('scroll').getBoundingClientRect().toJSON() }));
         expect(m.sw, 'no sideways page scroll').toBeLessThanOrEqual(m.w);
         expect(m.sh, 'no up/down page scroll').toBeLessThanOrEqual(m.h);
-        expect(m.hdr, 'one compact header row').toBeLessThanOrEqual(60);
+        expect(m.hdr, 'R164: the top bar is folded away (More opens it)').toBeLessThanOrEqual(1);
+        expect(m.hdrVis).toBe('hidden');
         expect(m.vp.width, 'the canvas spans the screen (panels are drawers)').toBeGreaterThanOrEqual(vw - 1);
-        expect(m.vp.height, 'the canvas gets the rest of the height').toBeGreaterThanOrEqual(vh - 64);
-        expect(m.sc.height, 'the 2D floor area is most of the screen').toBeGreaterThanOrEqual(vh * 0.55);
+        expect(m.vp.height, 'R164: the canvas gets the whole height').toBeGreaterThanOrEqual(vh - 1);
+        expect(m.sc.height, 'the 2D floor area is most of the screen').toBeGreaterThanOrEqual(vh * 0.85);
         assertNoOverlap(await page.evaluate(RECTS, KEY_CONTROLS), vw, vh, name + ' 2D');
         // touch targets: header controls in view + the dock
-        const small = await page.evaluate(() => [...document.querySelectorAll('header button, header select, header input, header summary, .zoombar button, .fabstack .fs-fab, .fabstack .htour-fab')]
+        const small = await page.evaluate(() => [...document.querySelectorAll('.bim-b, .zoombar button, .fabstack .fs-fab, .fabstack .htour-fab')]
           .filter((n) => n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden' && !n.closest('.hmenu-pop'))
           .map((n) => ({ id: n.id || n.textContent.trim().slice(0, 16), h: n.getBoundingClientRect().height })).filter((x) => x.h < 40 - 0.5));
         expect(small, 'touch targets at least 40px tall').toEqual([]);
@@ -111,24 +113,26 @@ test.describe('@responsive builder on a phone held sideways (local, no sign-in)'
         await page.screenshot({ path: join(dir, `${name}-2d.png`) });
 
         // toolbox drawer: slides over, fits, closes on an outside tap
-        await page.locator('#toolsToggle').tap();
+        await page.locator('#bimTools').tap();
         await page.waitForTimeout(350);
         let r = await page.evaluate(RECTS, ['#leftPanel']);
         expect(r[0].missing, 'toolbox drawer open').toBeFalsy();
         expect(inside(r[0], vw, vh), 'toolbox drawer inside the screen').toBe(true);
         expect(r[0].w, 'toolbox drawer leaves part of the floor visible').toBeLessThanOrEqual(vw * 0.6);
         await page.screenshot({ path: join(dir, `${name}-tools-drawer.png`) });
-        await page.touchscreen.tap(vw - 60, Math.round(vh / 2));
+        await page.touchscreen.tap(Math.round(vw * 0.7), Math.round(vh / 2));   // the floor beside the drawer (not the zoom rail)
         await page.waitForTimeout(350);
         expect(await page.evaluate(() => document.getElementById('leftPanel').classList.contains('open'))).toBe(false);
         // inspector / price drawer
-        await page.locator('#inspToggle').tap();
+        await page.locator('#bimInsp').tap();
         await page.waitForTimeout(350);
         r = await page.evaluate(RECTS, ['#rightPanel']);
         expect(inside(r[0], vw, vh), 'inspector drawer inside the screen').toBe(true);
         expect(await page.evaluate(() => { const a = document.getElementById('rightPanel'); return a.scrollHeight <= a.clientHeight + 1 || getComputedStyle(a).overflowY === 'auto'; }), 'inspector scrolls inside').toBe(true);
         await page.screenshot({ path: join(dir, `${name}-inspector-drawer.png`) });
-        await page.locator('#inspToggle').tap();
+        await page.touchscreen.tap(Math.round(vw * 0.25), Math.round(vh / 2));   // outside tap closes it
+        await page.waitForTimeout(300);
+        expect(await page.evaluate(() => document.getElementById('rightPanel').classList.contains('open'))).toBe(false);
         await page.waitForTimeout(300);
 
         // two fingers zoom the 2D floor (and do not scroll the page)
@@ -184,7 +188,7 @@ test.describe('@responsive builder on a phone held sideways (local, no sign-in)'
           return st && !st.hidden && c && c.width > 0 && Math.abs(c.getBoundingClientRect().width - st.clientWidth) < 2; }, null, { timeout: 20_000 }).then(() => true).catch(() => false);
         if (has3d) {
           await page.waitForTimeout(800);
-          assertNoOverlap(await page.evaluate(RECTS, ['#tools3d', '#zoomOut', '#zoomIn', '#zoomFit', '.fabstack .fs-fab', '.fabstack .htour-fab', '#toolsToggle', '#viewSeg']), vw, vh, name + ' 3D');
+          assertNoOverlap(await page.evaluate(RECTS, ['#tools3d', '#zoomOut', '#zoomIn', '#zoomFit', '.fabstack .fs-fab', '.fabstack .htour-fab', '#bimBack', '#bimTools', '#bimInsp', '#bimMore', '#bimSave', '#bimRail']), vw, vh, name + ' 3D');
           const small3d = await page.evaluate(() => [...document.querySelectorAll('#tools3d button')].filter((b) => b.getClientRects().length).map((b) => b.getBoundingClientRect().height).filter((hh) => hh < 39.5));
           expect(small3d, '3D Move / Rotate / Scale buttons at least 40px').toEqual([]);
           await page.screenshot({ path: join(dir, `${name}-3d.png`) });
@@ -254,8 +258,8 @@ test.describe('@responsive builder on a phone held sideways (local, no sign-in)'
       await page.locator('#orientContinue').tap();
       await expect(card).toBeHidden();
       expect(await page.evaluate(() => sessionStorage.getItem('helm.builder.portraitOk'))).toBe('1');
-      // portrait layout as before: drawers from the header buttons
-      await page.locator('#toolsToggle').tap();
+      // R164: upright too the floor is the full-screen editor; Tools floats top-left and opens the drawer
+      await page.locator('#bimTools').tap();
       await page.waitForTimeout(300);
       expect(await page.evaluate(() => document.getElementById('leftPanel').classList.contains('open'))).toBe(true);
       await page.screenshot({ path: join(dir, 'iphone14-portrait-continue.png') });
@@ -280,10 +284,13 @@ test.describe('@responsive builder on a phone held sideways (local, no sign-in)'
         expect(await page.evaluate((q) => matchMedia(q).matches, LAND_Q)).toBe(false);
         await expect(page.locator('#orientCard')).toHaveCount(0);
         const s = await page.evaluate(() => ({ drawers: DRAWER_MQ.matches, btns: getComputedStyle(document.querySelector('.drawer-btns')).display,
+          bim: ['#bimTL', '#bimTR', '#bimRail', '#bimNav'].map((q) => getComputedStyle(document.querySelector(q)).display), hdrPos: getComputedStyle(document.querySelector('header')).position,
           left: getComputedStyle(document.getElementById('leftPanel')).position, sw: document.documentElement.scrollWidth, w: innerWidth }));
         expect(s.drawers).toBe(expectDrawers);
         expect(s.btns).toBe('none');
         expect(s.left).toBe('static');
+        expect(s.bim, 'R164: no floating phone controls here').toEqual(['none', 'none', 'none', 'none']);
+        expect(s.hdrPos, 'the top bar stays in place').not.toBe('fixed');
         expect(s.sw).toBeLessThanOrEqual(s.w);
         await page.screenshot({ path: join(dir, `${name}.png`) });
         expect(errors).toEqual([]);
@@ -305,13 +312,13 @@ test.describe('@responsive builder on a phone held sideways (local, no sign-in)'
       await page.waitForFunction(() => window.BPStore && typeof store !== 'undefined' && !document.documentElement.classList.contains('auth-pending'), null, { timeout: 30_000 });
       await page.waitForTimeout(2500);
       expect(await page.evaluate(() => window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.url)).toContain('xizehqgeyjcfpzrdymly');
-      const m = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight, w: innerWidth, h: innerHeight, hdr: document.querySelector('header').getBoundingClientRect().height }));
+      const m = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight, w: innerWidth, h: innerHeight, hdr: document.querySelector('header').getBoundingClientRect().bottom }));
       expect(m.sw).toBeLessThanOrEqual(m.w);
       expect(m.sh).toBeLessThanOrEqual(m.h);
-      expect(m.hdr).toBeLessThanOrEqual(60);
+      expect(m.hdr, 'R164: the top bar is folded away').toBeLessThanOrEqual(1);
       assertNoOverlap(await page.evaluate(RECTS, KEY_CONTROLS), 844, 390, 'staging 844x390');
       await page.screenshot({ path: join(dir, 'staging-signed-in-844x390.png') });
-      await page.locator('#inspToggle').tap();
+      await page.locator('#bimInsp').tap();
       await page.waitForTimeout(400);
       await page.screenshot({ path: join(dir, 'staging-signed-in-inspector.png') });
       expect(prod, 'zero requests to production').toEqual([]);

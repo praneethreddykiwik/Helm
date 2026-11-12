@@ -73,22 +73,22 @@ assert.match(js, /Continue anyway/, 'Continue anyway');
 assert.match(js, /Turn your phone sideways for the best view/, 'the card text');
 assert.doesNotMatch(js, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/, 'DOM API only');
 assert.match(js, /addEventListener\('touchmove'[\s\S]*\{ passive: false \}/, 'pinch can stop the page from zooming');
-assert.match(js, /if \(!landMq\.matches \|\| e\.touches\.length !== 2\) return;/, 'two-finger zoom only on a sideways phone');
+assert.match(js, /if \(!\(landMq\.matches \|\| phoneMq\.matches\) \|\| e\.touches\.length !== 2\) return;/, 'two-finger zoom only on a phone (R164: upright too)');
 assert.match(js, /if \(typing\(\)\) return;/, 'a keyboard squeezing the screen is not a rotation');
 
 // ---- wiring ----
 assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">/, 'safe areas + stable layout with the keyboard');
 assert.match(html, /<link rel="stylesheet" href="\/builder-landscape\.css\?v=1">/, 'stylesheet wired');
 assert.ok(html.indexOf('builder-landscape.css') > html.indexOf('builder-v2.css'), 'landscape sheet loads after builder-v2.css');
-assert.match(html, /<script src="builder-orient\.js\?v=1"><\/script>/, 'script wired');
+assert.match(html, /<script src="builder-orient\.js\?v=2"><\/script>/, 'script wired');
 assert.ok(html.indexOf('builder-orient.js') > html.indexOf('builder.js?v='), 'orient script after builder.js (uses its globals)');
-assert.match(html, /builder\.js\?v=91/, 'builder.js cache-bust bumped');
+assert.match(html, /builder\.js\?v=(9[1-9]|\d{3})\b/, 'builder.js cache-bust bumped');
 assert.match(html, /builder-3d\.js\?v=34/, 'builder-3d.js cache-bust bumped');
 assert.match(html, /page-tours\.js\?v=(3[1-9]|[4-9]\d|\d{3})\b/, 'page-tours.js cache-bust bumped (31 or later)');
 const capture = read('capture.html');
 assert.match(capture, /builder-landscape\.css\?v=1/, 'capture.html regenerated');
-assert.match(read('try.html'), /builder-orient\.js\?v=1/, 'try.html regenerated (the script no-ops there)');
+assert.match(read('try.html'), /builder-orient\.js\?v=\d+/, 'try.html regenerated (the script no-ops there)');
 const tours = read('page-tours.js');
-assert.match(tours, /\{ sel: \["#toolbox", "#toolsToggle"\], side: "right", title: "Drag any asset"/, 'toolbox step falls back to the phone Tools button');
-assert.match(tours, /\{ sel: \["#rightPanel", "#inspToggle"\], side: "left", title: "Price & inspector"/, 'inspector step falls back to the phone Inspector button');
+assert.match(tours, /\{ sel: \["#toolbox", "#toolsToggle"(, "#bimTools")?\], side: "right", title: "Drag any asset"/, 'toolbox step falls back to the phone Tools button');
+assert.match(tours, /\{ sel: \["#rightPanel", "#inspToggle"(, "#bimInsp")?\], side: "left", title: "Price & inspector"/, 'inspector step falls back to the phone Inspector button');
 console.log('r154i-builder-landscape: ok');

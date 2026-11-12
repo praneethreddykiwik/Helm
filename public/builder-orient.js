@@ -16,7 +16,9 @@
   var PORTRAIT_Q = '(orientation:portrait) and (pointer:coarse) and (max-width:599px)';
   var LAND_Q = '(orientation:landscape) and (max-height:500px) and (pointer:coarse)';
   var KEY = 'helm.builder.portraitOk';
-  var portraitMq = matchMedia(PORTRAIT_Q), landMq = matchMedia(LAND_Q);
+  // R164: the floor is a full-screen editor on a phone held either way (builder-immersive.css) - two fingers zoom it upright too
+  var PHONE_Q = '(pointer:coarse) and (orientation:landscape) and (max-height:500px), (pointer:coarse) and (orientation:portrait) and (max-width:599px)';
+  var portraitMq = matchMedia(PORTRAIT_Q), landMq = matchMedia(LAND_Q), phoneMq = matchMedia(PHONE_Q);
   var onMq = function (mq, fn) { if (mq.addEventListener) mq.addEventListener('change', fn); else if (mq.addListener) mq.addListener(fn); };
   var typing = function () { var a = doc.activeElement; return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); };
 
@@ -120,7 +122,7 @@
   var dist = function (t) { var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY; return Math.sqrt(dx * dx + dy * dy); };
   if (scrollEl && typeof setZoom === 'function') {
     scrollEl.addEventListener('touchstart', function (e) {
-      if (!landMq.matches || e.touches.length !== 2) return;
+      if (!(landMq.matches || phoneMq.matches) || e.touches.length !== 2) return;
       if (typeof is3DActive === 'function' && is3DActive()) return;
       var z0 = (typeof store !== 'undefined' && store.view && store.view.zoom) || 1, d0 = dist(e.touches);
       if (!(d0 > 0)) return;
