@@ -371,7 +371,7 @@
       { sel: "#ibxMail", title: "E-mail me", desc: "Get unread notifications by e-mail, straight away or once each morning." },
     ],
     "integrations.html": [
-      { sel: "#itgEmail", title: "E-mail invites", desc: "The sender name and reply-to address on e-mails Helm sends for you." },
+      { sel: "#itgEmail", title: "E-mail invites", desc: "The sender name and reply-to address on e-mails Helm sends for you. Changing the reply-to address needs two-step sign-in; the sender name does not." },
       { sel: "#itgEmailTest", title: "Test it", desc: "Send yourself a test e-mail to see how it looks." },
       { sel: "#itgWa", title: "WhatsApp", desc: "Your studio's own WhatsApp Business number. Proposals, approval codes, reminders and crew tasks go out from it." },
       { sel: "#itgWaConnect", title: "Connect your number", desc: "Paste your WhatsApp IDs and token, check the connection, then set up the message templates for Meta to approve." },

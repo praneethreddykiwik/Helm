@@ -138,7 +138,7 @@
       if (fl) {
         var nm = (state.es && (state.es.from_name || state.es.studio_name)) || "your studio";
         var addr = state.srv && state.srv.email && state.srv.email.sender ? state.srv.email.sender : "Helm's sending address";
-        fl.textContent = "Clients see: " + nm + " <" + addr + ">" + (state.es && state.es.reply_to ? ", replies go to " + state.es.reply_to : "") + ".";
+        fl.textContent = "Clients see: " + nm + " <" + addr + ">" + (state.es && state.es.reply_to ? ", replies go to " + state.es.reply_to : ", replies go to your studio's business e-mail (or the owner's)") + ".";
       }
     };
     repaint();
@@ -216,9 +216,24 @@
     nameEl.value = state.es.from_name || ""; rtEl.value = state.es.reply_to || "";
     if (state.es.studio_name) nameEl.placeholder = String(state.es.studio_name).slice(0, 60);
     form.hidden = false;
+    // R154: a CHANGE of the reply-to address needs two-step sign-in (the database decides, 0285); the sender name does
+    // not. Say so up front (with a Set up two-step button) when this account has no two-step yet - Save stays on,
+    // so the sender name alone can always be saved.
+    var note = doc.getElementById("itgReplyTo2fa"), noteBtn = doc.getElementById("itgReplyTo2faBtn");
+    var showNote = function (on) { if (note) note.hidden = !on; };
+    Promise.resolve().then(function () { return S.auth && S.auth.mfa && S.auth.mfa.verifiedTotp ? S.auth.mfa.verifiedTotp() : null; })
+      .then(function (f) { if (Array.isArray(f)) showNote(f.length === 0); }, function () {});
+    if (noteBtn) noteBtn.addEventListener("click", function () {
+      var A = global.HelmAuthUI;
+      if (A && A.openTwoStepSetup) {
+        Promise.resolve(A.openTwoStepSetup({ reason: "Changing the reply-to address needs two-step sign-in. Set it up now (about 2 minutes), then save again.", doneLabel: "Back to e-mail settings" }))
+          .then(function (on) { if (on === true) { showNote(false); showResult(doc, "itgEmailResult", { state: "on", text: "Two-step is on. Press Save e-mail settings again." }); } }, function () {});
+      } else if (A && A.openAccount) A.openAccount({ section: "settings", focus: "mfa" });
+    });
     form.addEventListener("submit", function (ev) {
       ev.preventDefault();
       var nm = nameEl.value.trim(), rt = rtEl.value.trim().toLowerCase(), bad = false;
+      var rtBefore = String(state.es.reply_to || "").toLowerCase();
       setErr(doc, "itgFromName", validFromName(nm) ? "" : (bad = true, "Up to 60 characters, no < > or quotes."));
       setErr(doc, "itgReplyTo", validEmail(rt) ? "" : (bad = true, "Enter one e-mail address, e.g. bookings@yourstudio.com."));
       if (bad) { (doc.querySelector("#itgEmailForm [aria-invalid=true]") || nameEl).focus(); return; }
@@ -228,7 +243,15 @@
           state.es.from_name = (out && out.from_name) || null; state.es.reply_to = (out && out.reply_to) || null;
           repaint();
           showResult(doc, "itgEmailResult", { state: "on", text: "E-mail settings saved." });
-        } catch (e) { showResult(doc, "itgEmailResult", { state: "off", text: friendly(e) }); }
+        } catch (e) {
+          var txt = friendly(e);
+          // R154: the save is all-or-nothing - name it plainly and offer the way out instead of the generic payment text
+          if (e && e.stepUp === "setup" && rt !== rtBefore) {
+            showNote(true);
+            txt = "Not saved – changing the reply-to address needs two-step sign-in on your account. Press Set up two-step, or put the reply-to back " + (rtBefore ? "to " + rtBefore : "to empty") + " to save only the sender name.";
+          }
+          showResult(doc, "itgEmailResult", { state: "off", text: txt });
+        }
       });
     });
     doc.getElementById("itgEmailTest").addEventListener("click", function () {

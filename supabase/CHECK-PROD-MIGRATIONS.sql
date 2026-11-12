@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (303 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (304 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,12 +17,13 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3863 objects): body 175, bucket 9, col 221, con 402, cron 19, fn 1760, idx 394, marker 1, pol 179, polexpr 4, pre 89, pub 5, seq 1, tbl 259, trg 343, view 2.
+-- What is checked (3864 objects): body 175, bucket 9, col 221, con 402, cron 19, exec 1, fn 1760, idx 394, marker 1, pol 179, polexpr 4, pre 89, pub 5, seq 1, tbl 259, trg 343, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
 --   marker = the function body contains a text the migration puts there (from check-prod-overrides.json).
 --   polexpr = the policy USING / WITH CHECK expression contains a text the migration puts there (overrides).
+--   exec = the named role may run the function (EXECUTE granted by the migration, from overrides).
 with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'current_org_id', ''),
   ('base-v1-2026-09-25', 'tbl', 'public.organizations', null, null),
@@ -3886,7 +3887,8 @@ with o(m, k, s, n, x) as (values
   ('0344_r149_missing_indexes', 'idx', 'public.ix_event_resources_need_id_0344', null, null),
   ('0344_r149_missing_indexes', 'idx', 'public.ix_lead_enquiries_lead_id_0344', null, null),
   ('0344_r149_missing_indexes', 'idx', 'public.ix_welcome_email_outbox_org_id_0344', null, null),
-  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_tasks_planned_start_0344', null, null)
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_tasks_planned_start_0344', null, null),
+  ('0346_r154_slug_skeleton_execute', 'exec', 'public', '_r23_slug_skeleton', 'text|authenticated')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4191,7 +4193,8 @@ mig(ord, m, ov, note) as (values
   (300, '0341_r139_token_lookup_limits', null, null),
   (301, '0342_r143_outbox_backoff', null, null),
   (302, '0343_r148_rls_initplan', null, 'ALTER POLICY only (calls wrapped as (select ...)); besides the kept helpers, 4 sample policies are checked for the wrapped form - run select * from public._r343_unwrapped() for the full list (0 rows expected)'),
-  (303, '0344_r149_missing_indexes', null, null)
+  (303, '0344_r149_missing_indexes', null, null),
+  (304, '0346_r154_slug_skeleton_execute', null, 'EXECUTE grant only: signed-in users may run the look-alike helper used by the organizations / org_slug_history indexes (studio settings save)')
 ),
 env as (
   select
@@ -4214,6 +4217,7 @@ r as (
       when 'col' then 'column ' || o.s || '.' || o.n
       when 'pol' then 'policy ' || o.n || ' on ' || o.s
       when 'polexpr' then 'polexpr ' || o.n || ' on ' || o.s || ' ' || o.x
+      when 'exec' then 'execute ' || substr(o.x, position('|' in o.x) + 1) || ' ' || o.s || '.' || o.n || '(' || split_part(o.x, '|', 1) || ')'
       when 'trg' then 'trigger ' || o.n || ' on ' || o.s
       when 'con' then 'constraint ' || o.n || ' on ' || o.s
       when 'tbl' then 'table ' || o.s
@@ -4249,6 +4253,10 @@ r as (
       when 'polexpr' then exists (select 1 from pg_policy p where p.polrelid = to_regclass(o.s) and p.polname = o.n
         and position(o.x in coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')) > 0)
       when 'trg' then exists (select 1 from pg_trigger t where t.tgrelid = to_regclass(o.s) and t.tgname = o.n)
+      when 'exec' then exists (select 1 from pg_proc p join pg_roles g on g.rolname = substr(o.x, position('|' in o.x) + 1)
+        where p.pronamespace = to_regnamespace(o.s) and p.proname = o.n and has_function_privilege(g.oid, p.oid, 'execute')
+          and p.proargtypes::text = coalesce((select string_agg(coalesce(to_regtype(t)::oid, 0)::text, ' ' order by i)
+                                              from unnest(string_to_array(split_part(o.x, '|', 1), ',')) with ordinality u(t, i)), ''))
       when 'con' then exists (select 1 from pg_constraint c where c.conrelid = to_regclass(o.s) and c.conname = o.n)
       when 'schema' then to_regnamespace(o.n) is not null
       when 'pre' then exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and right(p.proname, length(o.n)) = o.n)

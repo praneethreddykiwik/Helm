@@ -48,8 +48,9 @@
         <div class="itg-f">
           <label for="itgReplyTo">Reply-to e-mail</label>
           <input id="itgReplyTo" name="reply_to" type="email" maxlength="254" autocomplete="email" inputmode="email" placeholder="e.g. bookings@raoevents.in">
-          <small class="itg-hint">When a client presses Reply, it goes here. Empty = replies are not read.</small>
+          <small class="itg-hint">When a client presses Reply, it goes here. Empty = replies go to your studio's business e-mail (Settings), else to the studio owner's e-mail.</small>
           <div class="itg-err" id="itgReplyToErr" role="alert"></div>
+          <p class="itg-note" id="itgReplyTo2fa" hidden>Changing the reply-to address needs two-step sign-in on your account. The sender name saves without it. <button type="button" class="btn" id="itgReplyTo2faBtn">Set up two-step</button></p>
         </div>
         <p class="itg-note" id="itgEmailFromLine"></p>
         <div class="itg-row">
@@ -154,6 +155,6 @@
 <script src="event-name.js?v=9"></script>
 <script src="country-profile.js?v=7"></script><script src="store-api.js?v=344"></script>
 <script src="wa-connect-ui.js?v=2"></script>
-<script src="integrations.js?v=7"></script>
+<script src="integrations.js?v=8"></script>
 </body>
 </html>

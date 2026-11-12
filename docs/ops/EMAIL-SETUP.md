@@ -56,8 +56,10 @@ from one Helm address and names the studio + admin inside the e-mail.
 2. Deploy: `supabase functions deploy comms-dispatch --no-verify-jwt --project-ref <ref>` (reads the two settings)
    and `supabase functions deploy integrations-test --project-ref <ref>` (status + Send test).
 3. Integrations page → Email card: set **Sender name** and **Reply-to e-mail**, Save, **Send test e-mail to me**.
-   - **Simulated**: `RESEND_API_KEY` is not set; the result shows the From / Reply-to it would use. Nothing is sent.
-   - **Live**: sent through Resend to the signed-in admin's OWN login address (never an address from the page).
+   - **Simulated**: no e-mail provider is set (neither `RESEND_API_KEY` + `RESEND_FROM` nor `SMTP_HOST` + `SMTP_USER` + `SMTP_PASS`);
+     the result shows the From / Reply-to it would use. Nothing is sent. (R154: before, SMTP-only also read Simulated.)
+   - **Live**: sent through the shared mailer (Resend first, else SMTP) to the signed-in admin's OWN login address (never an address from the page).
+   - Changing the **Reply-to** needs two-step sign-in on the admin's account (0285); the Sender name alone does not.
    Client e-mails then go out as `"<Sender name>" <address in RESEND_FROM>` with `Reply-To: <reply-to>`.
    The sending ADDRESS is always Helm's verified domain (RESEND_FROM); only the display name and reply-to are per studio.
 

@@ -381,6 +381,8 @@ run "r143-outbox-backoff-0342" "R143-OUTBOX-BACKOFF-0342: ALL PASS \(55/55\)" ps
 run "r148-rls-initplan-0343" "R148-RLS-INITPLAN-0343: ALL PASS \(21/21\)" psql -q -f tests/db/r148-rls-initplan-0343.sql
 # r149 (0344): 34 missing indexes (row-security org_id tables, quote -> lead sync, Live Status, every-minute task reminders, outboxes, booking links) all there + valid + used by the planner; comms_outbox_unsub back with the 0165 body, service role only, ok / opted_out / token as comms-dispatch reads them; a prod-like database without it is fixed by 0344 alone; re-applies itself 3x (no index, function or row count changed), rolled back
 run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests/db/r149-indexes-0344.sql
+# r154 (0346): studio Settings save refused with 42501 "permission denied for function _r23_slug_skeleton" (prod 12 Nov) - reproduced with the 0257 grants (row not updatable in place -> look-alike index entry); after 0346 the saves go through, other studio / anon still change nothing, link lock holds, helper body untouched, anon + PUBLIC still without EXECUTE, no public index on a function signed-in users cannot run; re-applies itself twice, rolled back
+run "r154-slug-skeleton-0346" "R154-SLUG-SKELETON-0346: ALL PASS \(16/16\)" psql -q -f tests/db/r154-slug-skeleton-0346.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
