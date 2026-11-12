@@ -7,22 +7,34 @@ export const PHONE_RE = /^[0-9]{8,15}$/;
 const TPL_NAME = /^[a-z0-9_]{1,64}$/;
 
 // Which channels can really send right now. Booleans only.
-//   email:    RESEND_API_KEY set (else invite e-mails fall back to Supabase Auth mail and
-//             client e-mails are skipped)
+//   email:    the same rule as the shared mailer (_shared/mailer.ts mailConfig) that client-mailer, send-otp and
+//             invite-mailer use - Resend (RESEND_API_KEY + RESEND_FROM) or SMTP (SMTP_HOST + SMTP_USER + SMTP_PASS).
+//             R154: SMTP counts too (before, an SMTP-only setup read "Simulated" although those e-mails went out).
+//             Neither -> client e-mails are simulated and teammate invites fall back to Supabase Auth mail.
 //   whatsapp: WHATSAPP_TOKEN + numeric WHATSAPP_PHONE_ID + an approved general template
 //             (COMMS_WHATSAPP_TEMPLATE) or WHATSAPP_ALLOW_TEXT=1
+export function emailProvider(env) {
+  const g = (k) => String(env(k) || "").trim();
+  if (g("RESEND_API_KEY") && g("RESEND_FROM")) return "resend";
+  if (g("SMTP_HOST") && g("SMTP_USER") && g("SMTP_PASS")) return "smtp";
+  return "";
+}
 export function channelStatus(env) {
   const g = (k) => String(env(k) || "").trim();
-  const email = !!g("RESEND_API_KEY");
+  const provider = emailProvider(env);
+  const email = !!provider;
   const waCreds = !!g("WHATSAPP_TOKEN") && /^[0-9]{5,20}$/.test(g("WHATSAPP_PHONE_ID"));
   const waTpl = TPL_NAME.test(g("COMMS_WHATSAPP_TEMPLATE")) || g("WHATSAPP_ALLOW_TEXT") === "1";
   return {
-    email: { live: email, sender: email ? senderAddress(g("RESEND_FROM")) : "" },
+    email: { live: email, provider, sender: provider === "resend" ? senderAddress(g("RESEND_FROM")) : provider === "smtp" ? senderAddress(g("SMTP_FROM") || g("SMTP_USER")) : "" },
     whatsapp: { live: waCreds && waTpl, credentials: waCreds, template: waTpl, webhook: !!g("WHATSAPP_APP_SECRET") && !!g("WHATSAPP_WEBHOOK_VERIFY_TOKEN") },
   };
 }
 
-// the bare address out of RESEND_FROM ('Helm <hello@helm.events>' or 'hello@helm.events')
+// R154: why the e-mail test was only simulated (names of settings only, never a value)
+export const EMAIL_NOT_SET_REASON = "no e-mail provider is set up yet: RESEND_API_KEY + RESEND_FROM, or SMTP_HOST + SMTP_USER + SMTP_PASS";
+
+// the bare address out of RESEND_FROM / SMTP_FROM ('Helm <hello@helm.events>' or 'hello@helm.events')
 export function senderAddress(conf) {
   const c = String(conf || "").trim() || "onboarding@resend.dev";
   const m = c.match(/<([^>]+)>/);

@@ -385,6 +385,10 @@ run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests
 run "r153-prod-catchup-0345" "R153-PROD-CATCHUP-0345: ALL PASS \(19/19\)" psql -q -f tests/db/r153-prod-catchup-0345.sql
 # r154c (0350): Continue quote list - every open quote of mine until Confirmed (building / quotation saved / locked / sent), not only the newest; approved / paid / cancelled / confirmed / shelved / sample data out; Hide hides only (quote untouched); other studio sees nothing; view-only = can_edit false; 0206 list unchanged; rolled back
 run "r154c-open-quotes-0350" "R154C-OPEN-QUOTES-0350: ALL PASS \(21/21\)" psql -q -f tests/db/r154c-open-quotes-0350.sql
+# r154 (0346): studio Settings save refused with 42501 "permission denied for function _r23_slug_skeleton" (prod 12 Nov) - reproduced with the 0257 grants (row not updatable in place -> look-alike index entry); after 0346 the saves go through, other studio / anon still change nothing, link lock holds, helper body untouched, anon + PUBLIC still without EXECUTE, no public index on a function signed-in users cannot run; re-applies itself twice, rolled back
+run "r154-slug-skeleton-0346" "R154-SLUG-SKELETON-0346: ALL PASS \(16/16\)" psql -q -f tests/db/r154-slug-skeleton-0346.sql
+# r154h (0353): WhatsApp IDs kept without the token - the old body refused them (typed IDs lost), now the studio admin saves + reads them back (token_saved yes / no, never the token); members / other studio / anon refused; bad IDs + one number per studio; with a token as before; same IDs keep connected, new IDs need the check, paused stays paused; after Disconnect; re-applies itself twice, rolled back
+run "r154h-wa-details-0353" "R154H-WA-DETAILS-0353: ALL PASS \(35/35\)" psql -q -f tests/db/r154h-wa-details-0353.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

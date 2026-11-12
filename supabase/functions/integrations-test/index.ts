@@ -22,7 +22,9 @@
 //
 // Secrets / env (same names as comms-dispatch / invite-mailer - nothing new to set):
 //   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (injected)
-//   RESEND_API_KEY, RESEND_FROM
+//   E-mail: the shared mailer (_shared/mailer.ts), the same one client-mailer / send-otp / invite-mailer use -
+//   RESEND_API_KEY + RESEND_FROM, or SMTP_HOST + SMTP_USER + SMTP_PASS (+ SMTP_PORT, SMTP_FROM); EMAIL_BRAND_MODE.
+//   R154: before, this test (and the status badge) only knew Resend, so an SMTP-only setup read "Simulated".
 //   R129 (0337): WhatsApp = the studio's OWN connected number (Integrations page -> Connect WhatsApp), the helm_notice
 //   template Helm creates in the studio's account. Helm's own WHATSAPP_TOKEN / WHATSAPP_PHONE_ID are never used here.
 //   WHATSAPP_API_VERSION; WHATSAPP_APP_SECRET + WHATSAPP_WEBHOOK_VERIFY_TOKEN (status only: is the webhook configured)
@@ -33,22 +35,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { bearer, errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
-import { postalAddress, txFooter, withFooter } from "../_shared/email-compliance.mjs";
+import { postalAddress, txFooter } from "../_shared/email-compliance.mjs";
 import { TRIAL_NO_SEND_MSG, trialSendBlocked } from "../_shared/trial-guard.ts";
-import { channelStatus, fromHeader, maskEmail, maskPhone, PHONE_RE, EMAIL_RE, replyToOf, testEmail, waTargetRefusal, optOutTableMissing, waTestPerDay, TEST_TEXT } from "./logic.mjs";
+import { channelStatus, EMAIL_NOT_SET_REASON, fromHeader, maskEmail, maskPhone, PHONE_RE, EMAIL_RE, replyToOf, testEmail, waTargetRefusal, optOutTableMissing, waTestPerDay, TEST_TEXT } from "./logic.mjs";
 import { studioSender, waPost } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
 import { noticeContent } from "../_shared/wa-studio.mjs";
 import { logger } from "../_shared/log.ts";
-import { fetchWithTimeout, isTimeout } from "../_shared/http.ts";   // R142: the Resend test call has a deadline
+import { brandMode, mailConfig, sendMail, senderHeader } from "../_shared/mailer.ts";   // R154: Resend OR SMTP, 10 s deadline inside
 
 const DAY_MS = 86_400_000;
-
-const ALLOWED_HOSTS = new Set(["api.resend.com", "graph.facebook.com"]);
-async function safeFetch(url: string, init: RequestInit): Promise<Response> {
-  const u = new URL(url);
-  if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname)) throw new Error("host not allowed");
-  return await fetchWithTimeout(u.toString(), { ...init, redirect: "error" });
-}
 const env = (k: string) => Deno.env.get(k);
 
 Deno.serve(async (req) => {
@@ -98,26 +93,19 @@ Deno.serve(async (req) => {
     if (channel === "email") {
       const to = String(t.email || "");
       if (!EMAIL_RE.test(to)) return json({ error: "your login has no e-mail address" }, 400);
-      const from = fromHeader(env("RESEND_FROM"), t.from_name, t.studio_name);
+      const cfg = mailConfig(env);
+      const from = cfg.provider ? senderHeader(cfg.from || "", t.studio_name, brandMode(env), t.from_name) : "";
       const reply = replyToOf(t.reply_to);
-      const shown = { to: maskEmail(to), from: st.email.live ? from : fromHeader("", t.from_name, t.studio_name).replace(/<[^>]*>/, "<Helm's sending address>"), reply_to: reply || null };
-      if (!st.email.live || off) return json({ mode: "simulated", sent: false, reason: off ? "test sending is switched off" : "RESEND_API_KEY is not set yet", ...shown });
+      const shown = { to: maskEmail(to), from: from || fromHeader("", t.from_name, t.studio_name).replace(/<[^>]*>/, "<Helm's sending address>"), reply_to: reply || null };
+      if (!cfg.provider || off) return json({ mode: "simulated", sent: false, reason: off ? "test sending is switched off" : EMAIL_NOT_SET_REASON, ...shown });
       const msg = testEmail(t.studio_name);
-      // R142: a provider that passes its 10 s deadline gets the same "not sent" answer as a refusal, in plain words
-      let r: Response;
-      try {
-        r = await safeFetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Authorization": "Bearer " + (env("RESEND_API_KEY") || ""), "Content-Type": "application/json" },
-          body: JSON.stringify({ from, to: [to], subject: msg.subject, text: withFooter({ text: msg.text }, txFooter("test", { app: Deno.env.get("APP_URL"), address: postalAddress((k: string) => Deno.env.get(k)) })).text, ...(reply ? { reply_to: reply } : {}) }),
-        });
-        await r.text();
-      } catch (e) {
-        if (!isTimeout(e)) throw e;
-        log.error("email timed out", errTag(e));
-        return json({ mode: "live", sent: false, error: "the e-mail provider did not answer in time - try again in a minute", ...shown });
+      // the shared mailer adds the compliance footer, drops a reply-to equal to the sender and has a 10 s deadline
+      const out = await sendMail({ to, subject: msg.subject, text: msg.text, studio: t.studio_name, fromName: t.from_name, replyTo: reply || null,
+        footer: txFooter("test", { app: Deno.env.get("APP_URL"), address: postalAddress((k: string) => Deno.env.get(k)) }) }, { env });
+      if (out.status !== "sent") {
+        log.error("email not sent", out.provider || "-");
+        return json({ mode: "live", sent: false, error: (out.reason || "the e-mail provider refused it") + " - check the sending domain / SMTP login", ...shown });
       }
-      if (!r.ok) { log.error("email status", r.status); return json({ mode: "live", sent: false, error: "the e-mail provider refused it (status " + r.status + ") - check the sending domain is verified", ...shown }); }
       return json({ mode: "live", sent: true, ...shown });
     }
 

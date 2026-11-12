@@ -176,12 +176,13 @@ export function graphError(status, body) {
   return { kind: "other", text: "Meta refused it (status " + (Number(status) || 0) + (code ? ", code " + code : "") + ")" };
 }
 
-// connection check: Meta's phone-number answer + the account's numbers -> { ok, display, name, quality, error }
+// connection check: Meta's phone-number answer + the account's numbers -> { ok, display, name, quality, error, code }
+// R154h: code (number | not_in_account) is a short reason the page can explain - never a secret
 export function verifyResult(phoneId, phone, wabaPhones) {
   const id = String(phoneId || "");
-  if (!phone || typeof phone !== "object" || String(phone.id || "") !== id) return { ok: false, error: "Meta did not return that phone number ID" };
+  if (!phone || typeof phone !== "object" || String(phone.id || "") !== id) return { ok: false, code: "number", error: "Meta did not return that phone number ID" };
   const list = Array.isArray(wabaPhones) ? wabaPhones : null;
-  if (list && !list.some((p) => p && String(p.id || "") === id)) return { ok: false, error: "that phone number ID is not in the WhatsApp Business Account you entered" };
+  if (list && !list.some((p) => p && String(p.id || "") === id)) return { ok: false, code: "not_in_account", error: "that phone number ID is not in the WhatsApp Business Account you entered" };
   const display = String(phone.display_phone_number || "").replace(/[^0-9+ ()-]/g, "").trim().slice(0, 30);
   const name = String(phone.verified_name || "").replace(/[<>\r\n\t]/g, " ").trim().slice(0, 120);
   const quality = String(phone.quality_rating || "").replace(/[^A-Za-z_]/g, "").slice(0, 20);

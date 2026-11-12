@@ -47,7 +47,7 @@ await t("1b every file that talks to a provider or Storage uses fetchWithTimeout
     assert.match(s, /import \{[^}]*fetchWithTimeout[^}]*\} from "(\.\.\/_shared|\.)\/http\.ts"/, f);
     users++;
   }
-  assert.ok(users >= 16, "files on the helper: " + users);
+  assert.ok(users >= 15, "files on the helper: " + users);   // R154: integrations-test now sends through _shared/mailer.ts (on the helper)
   // a provider host only appears where the call goes through a helper (or in a pure logic / template module)
   for (const f of SRC) {
     const s = strip(r(f));
@@ -55,7 +55,8 @@ await t("1b every file that talks to a provider or Storage uses fetchWithTimeout
     assert.match(s, /fetchWithTimeout|safeFetch|waPost|graphVersion/, f + " names a provider host but has no deadline helper");
   }
   // the safeFetch / rzp / graph wrappers themselves are on the helper
-  for (const f of ["comms-dispatch", "billing-reminder", "pkg-client-notify", "security-alert-mailer", "integrations-test"])
+  // R154: integrations-test sends its test e-mail through _shared/mailer.ts (on the helper, checked below)
+  for (const f of ["comms-dispatch", "billing-reminder", "pkg-client-notify", "security-alert-mailer"])
     assert.match(r(join(FN, f, "index.ts")), /return await fetchWithTimeout\(u\.toString\(\), \{ \.\.\.init, redirect: "error" \}\);/, f);
   assert.match(r(join(FN, "create-payment-link/index.ts")), /fetchWithTimeout\("https:\/\/api\.razorpay\.com\/v1\/" \+ path/);
   assert.match(r(join(FN, "create-subscription-checkout/index.ts")), /fetchWithTimeout\("https:\/\/api\.razorpay\.com\/v1\/" \+ path/);
@@ -91,7 +92,7 @@ await t("1e a timeout takes the provider-failure path (never a saved error state
   const otp = r(join(FN, "send-otp/index.ts"));
   assert.match(otp, /if \(!isTimeout\(e\)\) throw e;[\s\S]{0,120}return json\(\{ error: "could not send the SMS, please try again" \}, 502\);/);
   const wc = r(join(FN, "wa-connect/index.ts"));
-  assert.match(wc, /if \(isTimeout\(e\)\) \{[^\n]*return json\(\{ error: "WhatsApp \(Meta\) did not answer in time - try again" \}, 502\); \}\s*return serverError\(e\);/);
+  assert.match(wc, /if \(isTimeout\(e\)\) \{[^\n]*return json\(\{ error: "WhatsApp \(Meta\) did not answer in time - try again"(, code: "timeout")? \}, 502\); \}\s*return serverError\(e\);/);
   const csc = r(join(FN, "create-subscription-checkout/index.ts"));
   assert.equal((csc.match(/if \(!isTimeout\(e\)\) throw e;/g) || []).length, 2);
   // a payment-link CREATE that times out is not marked failed (it may exist at Razorpay): generic 500, 2-minute reservation
