@@ -41,7 +41,7 @@
   var LAND = { client: 1, discovery: 2, reqs: 3, venue: 4, menu: 5, proposal: 6, layout: 7, quote: 8, approve: 9, pay: 10 };
   // r154c (0350): an open quote past step 8 - what it is waiting for (building = still in steps 1 to 8)
   var PHASES = { building: "", quoted: "Quotation saved · not shared yet", locked: "Locked · not sent yet", sent: "Sent · waiting for the client" };
-  var HOME_MAX = 5;                    // Home: at most 5, then "See all"
+  var HOME_MAX = 3;                    // Home: at most 3, then "See all" (R164, was 5)
   var MAX_AGE = 60 * 864e5;            // browser copy: 60 days (owner decision E)
   var MAX_LOCAL = 30;                  // browser copy: at most 30 quotes
   var DASH_DAYS = 60;                  // dashboard card: hide quotes idle longer than this

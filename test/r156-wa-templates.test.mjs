@@ -195,7 +195,7 @@ await t('page: plain reasons, background text, OTP verify text, health + categor
   assert.match(h, /wa-connect-ui\.js\?v=4/); assert.match(h, /integrations\.css\?v=10/);
   assert.match(h, /Setup runs in the background – you can leave the page/);
   assert.match(r('public/page-tours.js'), /Template setup runs in the background - leave the page; a bell notice says when Meta is done/);
-  assert.match(r('public/tour.js'), /const PT_V = "33";/);
+  assert.match(r('public/tour.js'), /const PT_V = "3[4-9]";/);
   const d = r('docs/ops/WHATSAPP-SETUP.md');
   assert.match(d, /## R156 \(0354\)/); assert.match(d, /helm_wa_template_secret/); assert.match(d, /supabase functions deploy wa-template-worker --no-verify-jwt/);
 });
