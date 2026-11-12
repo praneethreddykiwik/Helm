@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (299 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (303 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,11 +17,12 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3809 objects): body 172, bucket 9, col 220, con 402, cron 19, fn 1749, idx 361, marker 1, pol 179, pre 87, pub 5, seq 1, tbl 259, trg 343, view 2.
+-- What is checked (3863 objects): body 175, bucket 9, col 221, con 402, cron 19, fn 1760, idx 394, marker 1, pol 179, polexpr 4, pre 89, pub 5, seq 1, tbl 259, trg 343, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
 --   marker = the function body contains a text the migration puts there (from check-prod-overrides.json).
+--   polexpr = the policy USING / WITH CHECK expression contains a text the migration puts there (overrides).
 with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'current_org_id', ''),
   ('base-v1-2026-09-25', 'tbl', 'public.organizations', null, null),
@@ -1814,7 +1815,6 @@ with o(m, k, s, n, x) as (values
   ('0117_integration_accounts', 'fn', 'public', 'razorpay_settle_for_org', 'uuid,uuid,text,text,bigint,text'),
   ('0117_integration_accounts', 'fn', 'public', 'razorpay_record_event', 'text,uuid,text,text,text,text,bigint,text,uuid'),
   ('0117_integration_accounts', 'fn', 'public', 'wa_record_event', 'text,text,text,text,text,text,jsonb'),
-  ('0117_integration_accounts', 'fn', 'public', 'wa_set_opt_out', 'text,text,boolean'),
   ('0117_integration_accounts', 'fn', 'public', 'save_org_payment_account', 'text,text,text'),
   ('0117_integration_accounts', 'fn', 'public', 'set_org_integration_status', 'text,text'),
   ('0117_integration_accounts', 'fn', 'public', 'my_integration_accounts', ''),
@@ -3694,7 +3694,6 @@ with o(m, k, s, n, x) as (values
   ('0327_r119_welcome_live_safe', 'tbl', 'public.helm_welcome_mail_settings', null, null),
   ('0327_r119_welcome_live_safe', 'fn', 'public', 'welcome_email_outbox_claim__pre0327', 'integer'),
   ('0327_r119_welcome_live_safe', 'fn', 'public', 'welcome_email_switch', ''),
-  ('0327_r119_welcome_live_safe', 'body', 'public', 'welcome_email_outbox_claim', 'integer|cb3be800eff4ffd8c59b6d4920c5fdc8'),
   ('0327_r119_welcome_live_safe', 'fn', 'public', 'billing_reminder_recheck', 'uuid'),
   ('0327_r119_welcome_live_safe', 'pre', null, '__pre0327', null),
   ('0328_r120_hq_notify_trial_wording', 'body', 'public', 'hq_activate_plan', 'uuid,text,text,numeric,text,date,date,text,text,numeric|d54f248efe9bb8658f131f5a8b3f1e03'),
@@ -3831,7 +3830,63 @@ with o(m, k, s, n, x) as (values
   ('0340_r136_audit_via', 'body', 'public', 'sync_quote_to_lead', '|8ccf6daf0d9c0420c0d4a06d8f4ab940'),
   ('0340_r136_audit_via', 'body', 'public', 'tg_audit', '|44a5d2f34204ade8d038cef2a27ef6b8'),
   ('0340_r136_audit_via', 'fn', 'public', '_r340_keep', 'text'),
-  ('0340_r136_audit_via', 'pre', null, '__pre0340', null)
+  ('0340_r136_audit_via', 'pre', null, '__pre0340', null),
+  ('0341_r139_token_lookup_limits', 'body', 'public', 'public_get_quote', 'uuid|fd1b9f962e5279864bffb2e43cc3b11c'),
+  ('0341_r139_token_lookup_limits', 'body', 'public', 'public_get_portal', 'uuid|2d6ca88353cb08d1e2e138c226e3d333'),
+  ('0341_r139_token_lookup_limits', 'body', 'public', 'public_event_site', 'text|2789864f30915c360419728ac90e3118'),
+  ('0341_r139_token_lookup_limits', 'fn', 'public', '_r341_keep', 'text'),
+  ('0341_r139_token_lookup_limits', 'fn', 'public', '_r341_limit', 'text,integer,integer'),
+  ('0341_r139_token_lookup_limits', 'pre', null, '__pre0341', null),
+  ('0342_r143_outbox_backoff', 'fn', 'public', '_r342_queue_cols', 'text'),
+  ('0342_r143_outbox_backoff', 'fn', 'public', '_r342_max_attempts', 'text'),
+  ('0342_r143_outbox_backoff', 'fn', 'public', '_r342_backoff', 'integer'),
+  ('0342_r143_outbox_backoff', 'fn', 'public', '_r342_tg_backoff', ''),
+  ('0342_r143_outbox_backoff', 'fn', 'public', '_r342_keep', 'text'),
+  ('0342_r143_outbox_backoff', 'col', 'public.whatsapp_opt_outs', 'last_event_at', null),
+  ('0342_r143_outbox_backoff', 'fn', 'public', 'wa_set_opt_out', 'text,text,boolean,timestamp with time zone,text'),
+  ('0342_r143_outbox_backoff', 'fn', 'public', 'wa_set_opt_out', 'text,text,boolean'),
+  ('0342_r143_outbox_backoff', 'pre', null, '__pre0342', null),
+  ('0343_r148_rls_initplan', 'fn', 'public', '_r343_md5', 'text'),
+  ('0343_r148_rls_initplan', 'fn', 'public', '_r343_wrap', 'text,text,text,text,text,text,text,text'),
+  ('0343_r148_rls_initplan', 'fn', 'public', '_r343_unwrapped', ''),
+  ('0343_r148_rls_initplan', 'polexpr', 'public.leads', 'ra view', 'has_area(''leads''::text, ''view''::text) AS has_area)'),
+  ('0343_r148_rls_initplan', 'polexpr', 'public.event_tasks', 'ra upd', 'has_area(''staff''::text, ''edit''::text) AS has_area)'),
+  ('0343_r148_rls_initplan', 'polexpr', 'public.audit_log', 'audit read', 'has_area(''controls''::text, ''view''::text) AS has_area)'),
+  ('0343_r148_rls_initplan', 'polexpr', 'public.event_tasks', 'ra view', 'current_org_id() AS current_org_id)'),
+  ('0344_r149_missing_indexes', 'body', 'public', 'comms_outbox_unsub', 'uuid|e0e1fddae392689eed3f2ce97afa7e3a'),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_client_booklets_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_client_link_opens_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_checkin_sites_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_files_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_inbox_person_prefs_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_notification_mutes_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_open_shift_claims_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_package_selections_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_pkg_credits_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_profiles_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_quotation_versions_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_quote_validity_log_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_user_dashboard_prefs_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_user_recent_records_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_leads_quote_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_assign_notify_outbox_quote_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_task_wa_outbox_org_id_quote_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_notifications_quote_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_comms_outbox_quote_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_comms_outbox_org_id_created_at_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_delivery_commitments_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_delivery_reminder_sends_commitment_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_delivery_reminder_sends_org_id_created_at_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_vendor_request_sends_request_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_vendor_bills_booking_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_vendor_bills_vendor_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_vendor_bills_file_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_costs_booking_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_vendor_invoices_booking_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_resources_need_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_lead_enquiries_lead_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_welcome_email_outbox_org_id_0344', null, null),
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_tasks_planned_start_0344', null, null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4132,7 +4187,11 @@ mig(ord, m, ov, note) as (values
   (296, '0336_r128_security_fixes', null, null),
   (297, '0337_r129_studio_whatsapp', null, null),
   (298, '0338_r130_task_reminders', null, null),
-  (299, '0340_r136_audit_via', null, null)
+  (299, '0340_r136_audit_via', null, null),
+  (300, '0341_r139_token_lookup_limits', null, null),
+  (301, '0342_r143_outbox_backoff', null, null),
+  (302, '0343_r148_rls_initplan', null, 'ALTER POLICY only (calls wrapped as (select ...)); besides the kept helpers, 4 sample policies are checked for the wrapped form - run select * from public._r343_unwrapped() for the full list (0 rows expected)'),
+  (303, '0344_r149_missing_indexes', null, null)
 ),
 env as (
   select
@@ -4154,6 +4213,7 @@ r as (
       when 'pub' then 'publication ' || o.n || ' has ' || o.s
       when 'col' then 'column ' || o.s || '.' || o.n
       when 'pol' then 'policy ' || o.n || ' on ' || o.s
+      when 'polexpr' then 'polexpr ' || o.n || ' on ' || o.s || ' ' || o.x
       when 'trg' then 'trigger ' || o.n || ' on ' || o.s
       when 'con' then 'constraint ' || o.n || ' on ' || o.s
       when 'tbl' then 'table ' || o.s
@@ -4186,6 +4246,8 @@ r as (
       when 'type' then to_regtype(o.s) is not null
       when 'col' then exists (select 1 from pg_attribute a where a.attrelid = to_regclass(o.s) and a.attname = o.n and a.attnum > 0 and not a.attisdropped)
       when 'pol' then exists (select 1 from pg_policy p where p.polrelid = to_regclass(o.s) and p.polname = o.n)
+      when 'polexpr' then exists (select 1 from pg_policy p where p.polrelid = to_regclass(o.s) and p.polname = o.n
+        and position(o.x in coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')) > 0)
       when 'trg' then exists (select 1 from pg_trigger t where t.tgrelid = to_regclass(o.s) and t.tgname = o.n)
       when 'con' then exists (select 1 from pg_constraint c where c.conrelid = to_regclass(o.s) and c.conname = o.n)
       when 'schema' then to_regnamespace(o.n) is not null

@@ -5,7 +5,8 @@
     "note: shown in the checker's note column. ignore: object labels (exactly as the checker prints them) not to check.",
     "add: extra objects to check, same labels: 'fn public.f(uuid,text)', 'table public.t', 'column public.t.c', 'index public.i',",
     "  'policy NAME on public.t', 'trigger NAME on public.t', 'constraint NAME on public.t', 'cron NAME', 'bucket ID',",
-    "  'publication NAME has public.t', 'marker public.f(args) TEXT' (the function body contains TEXT).",
+    "  'publication NAME has public.t', 'marker public.f(args) TEXT' (the function body contains TEXT),",
+    "  'polexpr NAME on public.t TEXT' (the policy's USING / WITH CHECK expression contains TEXT; NAME may contain spaces).",
     "A migration that makes nothing the parser can see MUST have an entry here (the generator fails otherwise)."
   ],
   "0002": { "status": "skip", "note": "privilege lock-down only (grants on create_helm_user) - nothing to look up by name" },
@@ -25,5 +26,6 @@
   "0175": { "status": "skip", "note": "data only: free-trial sample layout templates" },
   "0204": { "status": "skip", "note": "grants / policy tidy only" },
   "0251": { "status": "skip", "note": "data only: political rally sample layout" },
-  "0270": { "note": "speed fix written into the existing _r23_visible body", "add": ["marker public._r23_visible(uuid,uuid) r24-ci-0270"] }
+  "0270": { "note": "speed fix written into the existing _r23_visible body", "add": ["marker public._r23_visible(uuid,uuid) r24-ci-0270"] },
+  "0343": { "note": "ALTER POLICY only (calls wrapped as (select ...)); besides the kept helpers, 4 sample policies are checked for the wrapped form - run select * from public._r343_unwrapped() for the full list (0 rows expected)", "add": ["polexpr ra view on public.leads has_area('leads'::text, 'view'::text) AS has_area)", "polexpr ra upd on public.event_tasks has_area('staff'::text, 'edit'::text) AS has_area)", "polexpr audit read on public.audit_log has_area('controls'::text, 'view'::text) AS has_area)", "polexpr ra view on public.event_tasks current_org_id() AS current_org_id)"] }
 }

@@ -3,9 +3,9 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
   "version": 1,
-  "serialNumber": "urn:uuid:7c3524be-c583-4bdd-a27f-8262e20dd0d3",
+  "serialNumber": "urn:uuid:f58fc2c4-dcde-4c24-b970-7dd73d3a5c1e",
   "metadata": {
-    "timestamp": "2026-11-11T21:02:20.500Z",
+    "timestamp": "2026-11-11T22:36:52.496Z",
     "tools": {
       "components": [
         {
@@ -573,10 +573,10 @@
       "type": "library",
       "group": "@supabase",
       "name": "supabase-js",
-      "version": "2.118.0",
+      "version": "2.119.0",
       "scope": "required",
-      "bom-ref": "deno-edge:npm:@supabase/supabase-js@2.118.0",
-      "purl": "pkg:npm/%40supabase/supabase-js@2.118.0",
+      "bom-ref": "deno-edge:npm:@supabase/supabase-js@2.119.0",
+      "purl": "pkg:npm/%40supabase/supabase-js@2.119.0",
       "properties": [
         {
           "name": "helm:group",
@@ -584,7 +584,7 @@
         },
         {
           "name": "helm:import",
-          "value": "npm:@supabase/supabase-js@2.118.0"
+          "value": "npm:@supabase/supabase-js@2.119.0"
         }
       ]
     },
@@ -592,10 +592,10 @@
       "type": "library",
       "group": "@supabase",
       "name": "auth-js",
-      "version": "2.118.0",
+      "version": "2.119.0",
       "scope": "required",
-      "bom-ref": "npm-runtime:@supabase/auth-js@2.118.0",
-      "purl": "pkg:npm/%40supabase/auth-js@2.118.0",
+      "bom-ref": "npm-runtime:@supabase/auth-js@2.119.0",
+      "purl": "pkg:npm/%40supabase/auth-js@2.119.0",
       "licenses": [
         {
           "license": {
@@ -606,13 +606,13 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "c567cf5f2852d8a0d27c09de32d23aa7fb419db762cffe6f69129712a51fcdf0bd5829e22abd83b39a391bb4481a28346e89b8cfac1463dcda574ed60d54df9d"
+          "content": "588ecaa89471a998e6efb3e544efd57caadeb4be121bc83cb2d59f066a72c7d4e8f9f15aa599526d703c42476ea0cbebef6ad1a48176e192eb8e4b41ae9f9914"
         }
       ],
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/@supabase/auth-js/-/auth-js-2.118.0.tgz"
+          "url": "https://registry.npmjs.org/@supabase/auth-js/-/auth-js-2.119.0.tgz"
         }
       ],
       "properties": [
@@ -630,10 +630,10 @@
       "type": "library",
       "group": "@supabase",
       "name": "functions-js",
-      "version": "2.118.0",
+      "version": "2.119.0",
       "scope": "required",
-      "bom-ref": "npm-runtime:@supabase/functions-js@2.118.0",
-      "purl": "pkg:npm/%40supabase/functions-js@2.118.0",
+      "bom-ref": "npm-runtime:@supabase/functions-js@2.119.0",
+      "purl": "pkg:npm/%40supabase/functions-js@2.119.0",
       "licenses": [
         {
           "license": {
@@ -644,13 +644,13 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "e287e57ad3dafe7a0a014e8a1deaac777173b46cd13d410945ecb530a634a3e3c81da55e3ea44f4a1217b65dfb81c57221668533eccd83aafdce1d2e51214e48"
+          "content": "d1a39d17f638940fbad8ad369f064295f02d857985126974a1de36ab7cb2ffdb776c18ada2600e6046ad4c54a7c53ff951e7880cd9f60ce9d74dd00fd2ca8635"
         }
       ],
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/@supabase/functions-js/-/functions-js-2.118.0.tgz"
+          "url": "https://registry.npmjs.org/@supabase/functions-js/-/functions-js-2.119.0.tgz"
         }
       ],
       "properties": [
@@ -706,10 +706,10 @@
       "type": "library",
       "group": "@supabase",
       "name": "postgrest-js",
-      "version": "2.118.0",
+      "version": "2.119.0",
       "scope": "required",
-      "bom-ref": "npm-runtime:@supabase/postgrest-js@2.118.0",
-      "purl": "pkg:npm/%40supabase/postgrest-js@2.118.0",
+      "bom-ref": "npm-runtime:@supabase/postgrest-js@2.119.0",
+      "purl": "pkg:npm/%40supabase/postgrest-js@2.119.0",
       "licenses": [
         {
           "license": {
@@ -720,13 +720,13 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "257cbedfb28f0291ecca8b5a4000a8beffc9cbd136dab7e258b46e4fed948e810070021e943148aec17f158e3b0f2d7d98eee52344eafb30c25fca09d8ecdf8b"
+          "content": "a8199c8c414eecfb727f9aaf3976096b5b386df038cec30815fda2fa1db377a4514c32f0aae5fccf59a74bd76334e2636e23b5386161e58d8b736936a40f1333"
         }
       ],
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/@supabase/postgrest-js/-/postgrest-js-2.118.0.tgz"
+          "url": "https://registry.npmjs.org/@supabase/postgrest-js/-/postgrest-js-2.119.0.tgz"
         }
       ],
       "properties": [
@@ -744,10 +744,10 @@
       "type": "library",
       "group": "@supabase",
       "name": "realtime-js",
-      "version": "2.118.0",
+      "version": "2.119.0",
       "scope": "required",
-      "bom-ref": "npm-runtime:@supabase/realtime-js@2.118.0",
-      "purl": "pkg:npm/%40supabase/realtime-js@2.118.0",
+      "bom-ref": "npm-runtime:@supabase/realtime-js@2.119.0",
+      "purl": "pkg:npm/%40supabase/realtime-js@2.119.0",
       "licenses": [
         {
           "license": {
@@ -758,13 +758,13 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "a730881168ea0f9ff1a846507aba6dfaaf6bb2062472b92008981fd16d942ea0b87d851e07fa7d0856b7b7dbe7f88561e9d30df6be19084dbada566f502f817f"
+          "content": "7cfcf1b7e4806307aab1950249999ad9dbcdf874fa9558f05a3f016e45706a95bac0d7f5a1d522f804d837bb2f5f8666f6fb74933d25d15cc8340500037f0512"
         }
       ],
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/@supabase/realtime-js/-/realtime-js-2.118.0.tgz"
+          "url": "https://registry.npmjs.org/@supabase/realtime-js/-/realtime-js-2.119.0.tgz"
         }
       ],
       "properties": [
@@ -782,10 +782,10 @@
       "type": "library",
       "group": "@supabase",
       "name": "storage-js",
-      "version": "2.118.0",
+      "version": "2.119.0",
       "scope": "required",
-      "bom-ref": "npm-runtime:@supabase/storage-js@2.118.0",
-      "purl": "pkg:npm/%40supabase/storage-js@2.118.0",
+      "bom-ref": "npm-runtime:@supabase/storage-js@2.119.0",
+      "purl": "pkg:npm/%40supabase/storage-js@2.119.0",
       "licenses": [
         {
           "license": {
@@ -796,13 +796,13 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "e4c3642add8ca32ec9b9dfec3d7effdbc070743c593025471894f4d1bf28a772916bd2ca4a3380614e4871f19622cb5a6ac02a63c1a46c0ea82372110e007561"
+          "content": "86dc757520a748954f971d8135280b4940ef2ccc6e19b61aea950f979c680ace1ab38708841570bb18fbf336e0802c8f1f12e71178ec57faaf943b158e9a1d2b"
         }
       ],
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/@supabase/storage-js/-/storage-js-2.118.0.tgz"
+          "url": "https://registry.npmjs.org/@supabase/storage-js/-/storage-js-2.119.0.tgz"
         }
       ],
       "properties": [
@@ -820,10 +820,10 @@
       "type": "library",
       "group": "@supabase",
       "name": "supabase-js",
-      "version": "2.118.0",
+      "version": "2.119.0",
       "scope": "required",
-      "bom-ref": "npm-runtime:@supabase/supabase-js@2.118.0",
-      "purl": "pkg:npm/%40supabase/supabase-js@2.118.0",
+      "bom-ref": "npm-runtime:@supabase/supabase-js@2.119.0",
+      "purl": "pkg:npm/%40supabase/supabase-js@2.119.0",
       "licenses": [
         {
           "license": {
@@ -834,13 +834,13 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "17123c5173150b6506ec891e888f1fb9066aab6a08dc9792b8df0c3c80b644b55aa04031292d27a84ea48a2f44c29abc7fd80d3ccea08add58f1fd2f37f40b17"
+          "content": "30a3f8f46e9b25b3e1bec6437a067f2174bf2130293e0a650c2179f85eb9299e64200ad2e58f74585c70bd66002f1d9bb3176b4ae1ef9028971d8af7754f3eb3"
         }
       ],
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/@supabase/supabase-js/-/supabase-js-2.118.0.tgz"
+          "url": "https://registry.npmjs.org/@supabase/supabase-js/-/supabase-js-2.119.0.tgz"
         }
       ],
       "properties": [
@@ -932,10 +932,10 @@
       "type": "library",
       "group": "@sentry",
       "name": "browser",
-      "version": "8.55.2",
+      "version": "10.78.0",
       "scope": "required",
-      "bom-ref": "vendored-browser:sentry-8.55.2.bundle.min.js",
-      "purl": "pkg:npm/%40sentry/browser@8.55.2",
+      "bom-ref": "vendored-browser:sentry-10.78.0.bundle.min.js",
+      "purl": "pkg:npm/%40sentry/browser@10.78.0",
       "description": "Sentry browser CDN bundle (errors only), loaded by telemetry.js",
       "licenses": [
         {
@@ -947,7 +947,7 @@
       "hashes": [
         {
           "alg": "SHA-384",
-          "content": "da94391423a5466464cfc0416485bf61fda919b9d91c76820ab89a51b4f07a072bfba261d2d24aaaf8b7d6b7e6dfd5c5"
+          "content": "d21661949ddabbe4072b2105945452581f40cf39184f2a93fa86c13e8d928f1cbfbace950dd6cab09f2fdbedc302aa21"
         }
       ],
       "properties": [
@@ -957,7 +957,7 @@
         },
         {
           "name": "helm:file",
-          "value": "public/vendor/sentry-8.55.2.bundle.min.js"
+          "value": "public/vendor/sentry-10.78.0.bundle.min.js"
         }
       ]
     },
@@ -965,10 +965,10 @@
       "type": "library",
       "group": "@supabase",
       "name": "supabase-js",
-      "version": "2.118.0",
+      "version": "2.119.0",
       "scope": "required",
-      "bom-ref": "vendored-browser:supabase-js-2.118.0.min.js",
-      "purl": "pkg:npm/%40supabase/supabase-js@2.118.0",
+      "bom-ref": "vendored-browser:supabase-js-2.119.0.min.js",
+      "purl": "pkg:npm/%40supabase/supabase-js@2.119.0",
       "description": "UMD build (window.supabase), loaded by store-api.js",
       "licenses": [
         {
@@ -980,7 +980,7 @@
       "hashes": [
         {
           "alg": "SHA-384",
-          "content": "4dc1d1037cc16e7f8b7b18799fe3a297882e34f392deb8cd0e919100de3abbfb3f981d88679d1c782e93603536caf80a"
+          "content": "bad78c7ce9682c31add38dae0f3fb11c6177ca6eb7fd643aac5abb9aead0446f0887b42b5c610636d59df3af3cb1be0e"
         }
       ],
       "properties": [
@@ -990,7 +990,7 @@
         },
         {
           "name": "helm:file",
-          "value": "public/vendor/supabase-js-2.118.0.min.js"
+          "value": "public/vendor/supabase-js-2.119.0.min.js"
         }
       ]
     },
@@ -1045,18 +1045,18 @@
     {
       "ref": "helm",
       "dependsOn": [
-        "deno-edge:npm:@supabase/supabase-js@2.118.0",
-        "npm-runtime:@supabase/auth-js@2.118.0",
-        "npm-runtime:@supabase/functions-js@2.118.0",
+        "deno-edge:npm:@supabase/supabase-js@2.119.0",
+        "npm-runtime:@supabase/auth-js@2.119.0",
+        "npm-runtime:@supabase/functions-js@2.119.0",
         "npm-runtime:@supabase/phoenix@0.4.5",
-        "npm-runtime:@supabase/postgrest-js@2.118.0",
-        "npm-runtime:@supabase/realtime-js@2.118.0",
-        "npm-runtime:@supabase/storage-js@2.118.0",
-        "npm-runtime:@supabase/supabase-js@2.118.0",
+        "npm-runtime:@supabase/postgrest-js@2.119.0",
+        "npm-runtime:@supabase/realtime-js@2.119.0",
+        "npm-runtime:@supabase/storage-js@2.119.0",
+        "npm-runtime:@supabase/supabase-js@2.119.0",
         "npm-runtime:iceberg-js@0.8.1",
         "npm-runtime:tslib@2.8.1",
-        "vendored-browser:sentry-8.55.2.bundle.min.js",
-        "vendored-browser:supabase-js-2.118.0.min.js",
+        "vendored-browser:sentry-10.78.0.bundle.min.js",
+        "vendored-browser:supabase-js-2.119.0.min.js",
         "vendored-browser:three-0.186.1"
       ]
     }

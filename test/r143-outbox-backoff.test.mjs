@@ -60,6 +60,6 @@ await t('suites: DB suite in run-all with its count, older suites run with the b
   const ra = r('scripts/db-test/run-all.sh');
   assert.match(ra, /run "r143-outbox-backoff-0342" "R143-OUTBOX-BACKOFF-0342: ALL PASS \\\(55\/55\\\)" psql -q -f tests\/db\/r143-outbox-backoff-0342\.sql/);
   assert.match(ra, /-c helm\.retry_backoff=off"/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0340', '0342'\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0342'(, '\d{4}')*\]/, f);
 });
 console.log(`r143-outbox-backoff: ${n} passed`);

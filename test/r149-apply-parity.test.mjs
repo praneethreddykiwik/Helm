@@ -104,7 +104,10 @@ t('0344: in the MANIFEST once, after 0340, plain words, nothing dropped, safe to
   assert.equal((mf.match(/^forward  supabase\/migrations\/0344_r149_missing_indexes\.sql$/gm) || []).length, 1);
   assert.ok(mf.indexOf('forward  supabase/migrations/0340_r136_audit_via.sql') < mf.indexOf('forward  supabase/migrations/0344_r149_missing_indexes.sql'));
   assert.match(mf, /# 0344 \(R149[^\n]*Nothing dropped or deleted\. Safe to run twice\./);
-  for (const k of ['0339', '0341', '0342', '0343']) assert.ok(!new RegExp('migrations/' + k + '_').test(mf), k + ' is not this branch');
+  assert.ok(!/migrations\/0339_/.test(mf), '0339 is not a migration');
+  // R152: the release has 0341 (R139), 0342 (R143), 0343 (R148) too - each once, in number order before 0344
+  const pos = ['0340', '0341', '0342', '0343', '0344'].map((k) => { const m = mf.match(new RegExp('^forward  supabase/migrations/' + k + '_[^\\n]*$', 'gm')) || []; assert.equal(m.length, 1, k); return mf.indexOf(m[0]); });
+  assert.deepEqual([...pos].sort((x, y) => x - y), pos, 'MANIFEST order 0340 < 0341 < 0342 < 0343 < 0344');
 });
 
 t('0344: additive only - 34 "create index if not exists", no drop / delete / truncate / alter table / update, no grant widened', () => {
@@ -165,7 +168,7 @@ t('APPLY-0344-CONCURRENT: the same 34 indexes, one concurrently line each, no tr
 
 t('DB suite wired into run-all.sh; release after-lists know 0344', () => {
   assert.match(r('scripts/db-test/run-all.sh'), /run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \\\(\d+\/\d+\\\)" psql -q -f tests\/db\/r149-indexes-0344\.sql/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0340', '0344'\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0340', '0341', '0342', '0343', '0344'\]/, f);
   assert.match(r('package.json'), /node test\/r149-apply-parity\.test\.mjs/);
 });
 

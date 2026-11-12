@@ -209,6 +209,7 @@ function keyOf(o) {
     case 'pre': return `pre *${o.name}`;
     case 'pub': return `publication ${o.name} has ${rel(o.rel)}`;
     case 'marker': return `marker ${rel(o)}(${o.types.join(',')}) ${o.text}`;
+    case 'polexpr': return `polexpr ${o.name} on ${rel(o.rel)} ${o.text}`;
     default: throw new Error('kind ' + o.kind);
   }
 }
@@ -535,6 +536,9 @@ function objFromLabel(label, who) {
   if ((m = label.match(/^(policy|trigger|constraint) (.+) on (\S+)$/))) { const t = qname(m[3]); if (!t) bad(); const obj = { kind: { policy: 'pol', trigger: 'trg', constraint: 'con' }[m[1]], name: m[2], rel: t }; return { key: keyOf(obj), obj }; }
   if ((m = label.match(/^(cron|bucket|schema) (\S+)$/))) { const obj = { kind: m[1], name: m[2] }; return { key: keyOf(obj), obj }; }
   if ((m = label.match(/^publication (\S+) has (\S+)$/))) { const t = qname(m[2]); if (!t) bad(); const obj = { kind: 'pub', name: m[1], rel: t }; return { key: keyOf(obj), obj }; }
+  // R152: a policy whose expression (USING or WITH CHECK, as pg_get_expr prints it) contains TEXT - for a migration
+  // that only ALTERs policies (0343): NAME may contain spaces, the table is the first word after " on "
+  if ((m = label.match(/^polexpr (.+?) on (\S+) (.+)$/))) { const t = qname(m[2]); if (!t) bad(); const obj = { kind: 'polexpr', name: m[1], rel: t, text: m[3] }; return { key: keyOf(obj), obj }; }
   if ((m = label.match(/^marker ([^(]+)\(([^)]*)\) (.+)$/))) { const q = qname(m[1]); const a = parseArgs(m[2]); if (!q || !a) bad(); const obj = { kind: 'marker', ...q, types: a.types, text: m[3] }; return { key: keyOf(obj), obj }; }
   return bad();
 }
@@ -555,6 +559,7 @@ function rowSql(id, x) {
     case 'schema': case 'cron': case 'bucket': case 'pre': return [id, o.kind, null, o.name, null];
     case 'pub': return [id, 'pub', rel(o.rel), o.name, null];
     case 'marker': return [id, 'marker', o.schema, o.name, o.types.join(',') + '|' + o.text];
+    case 'polexpr': return [id, 'polexpr', rel(o.rel), o.name, o.text];
     default: throw new Error(o.kind);
   }
 }
@@ -592,6 +597,7 @@ export function render({ migs, rows }) {
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
 --   marker = the function body contains a text the migration puts there (from check-prod-overrides.json).
+--   polexpr = the policy USING / WITH CHECK expression contains a text the migration puts there (overrides).
 with o(m, k, s, n, x) as (values
 ${objRows.join(',\n')}
 ),
@@ -618,6 +624,7 @@ r as (
       when 'pub' then 'publication ' || o.n || ' has ' || o.s
       when 'col' then 'column ' || o.s || '.' || o.n
       when 'pol' then 'policy ' || o.n || ' on ' || o.s
+      when 'polexpr' then 'polexpr ' || o.n || ' on ' || o.s || ' ' || o.x
       when 'trg' then 'trigger ' || o.n || ' on ' || o.s
       when 'con' then 'constraint ' || o.n || ' on ' || o.s
       when 'tbl' then 'table ' || o.s
@@ -650,6 +657,8 @@ r as (
       when 'type' then to_regtype(o.s) is not null
       when 'col' then exists (select 1 from pg_attribute a where a.attrelid = to_regclass(o.s) and a.attname = o.n and a.attnum > 0 and not a.attisdropped)
       when 'pol' then exists (select 1 from pg_policy p where p.polrelid = to_regclass(o.s) and p.polname = o.n)
+      when 'polexpr' then exists (select 1 from pg_policy p where p.polrelid = to_regclass(o.s) and p.polname = o.n
+        and position(o.x in coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')) > 0)
       when 'trg' then exists (select 1 from pg_trigger t where t.tgrelid = to_regclass(o.s) and t.tgname = o.n)
       when 'con' then exists (select 1 from pg_constraint c where c.conrelid = to_regclass(o.s) and c.conname = o.n)
       when 'schema' then to_regnamespace(o.n) is not null

@@ -35,7 +35,7 @@ await t("1 HQ billing CSV: BOM first, then the CSV", async () => {
 await t("2 public enquiry / delivery / vendor-request pages load telemetry.js like approve / work", async () => {
   for (const p of ["enquiry", "delivery", "vendor-request", "approve", "work"]) {
     const h = r("public/" + p + ".html");
-    assert.match(h, /<script src="\/telemetry\.js\?v=10"><\/script>\n<script src="\/config\.js\?v=\d+"><\/script>/, p + ": telemetry.js right before config.js");
+    assert.match(h, /<script src="\/telemetry\.js\?v=11"><\/script>\n<script src="\/config\.js\?v=\d+"><\/script>/, p + ": telemetry.js right before config.js");
     assert.equal((h.match(/telemetry\.js/g) || []).length, 1, p + ": loaded once");
     assert.ok(h.indexOf("trusted-types.js") < h.indexOf("telemetry.js"), p + ": after the Trusted Types policy");
   }
@@ -125,9 +125,9 @@ await t("6 sbom.json current: npm runtime + build tools + vendored browser libs 
   const s = JSON.parse(r("sbom.json"));
   assert.equal(s.bomFormat, "CycloneDX"); assert.equal(s.specVersion, "1.6");
   const refs = s.components.map((c) => c["bom-ref"]);
-  for (const want of ["npm-runtime:@supabase/supabase-js@2.118.0", "build-tool:terser@5.51.2", "build-tool:clean-css@5.3.3",
-    "vendored-browser:supabase-js-2.118.0.min.js", "vendored-browser:sentry-8.55.2.bundle.min.js", "vendored-browser:three-0.186.1",
-    "deno-edge:npm:@supabase/supabase-js@2.118.0", "deno-edge:jsr:@std/assert@1.0.19"]) assert.ok(refs.includes(want), want);
+  for (const want of ["npm-runtime:@supabase/supabase-js@2.119.0", "build-tool:terser@5.51.2", "build-tool:clean-css@5.3.3",
+    "vendored-browser:supabase-js-2.119.0.min.js", "vendored-browser:sentry-10.78.0.bundle.min.js", "vendored-browser:three-0.186.1",
+    "deno-edge:npm:@supabase/supabase-js@2.119.0", "deno-edge:jsr:@std/assert@1.0.19"]) assert.ok(refs.includes(want), want);
   assert.ok(!refs.some((x) => /playwright|axe-core/.test(x)), "dev-only packages left out");
   assert.equal(s.components.find((c) => c["bom-ref"] === "deno-edge:jsr:@std/assert@1.0.19").scope, "excluded", "test-only");
 });

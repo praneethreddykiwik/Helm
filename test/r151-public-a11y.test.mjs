@@ -98,7 +98,7 @@ await t("6 tap targets >= 24px without moving anything", () => {
   assert.match(V, /\.rfs-consent input\[type="checkbox"\] \{ width:24px; height:24px; min-width:24px; margin-top:-2px; margin-bottom:-3px; \}/);
   assert.match(r("public/contact-sales.css"), /\.cs-consent input\{width:24px;height:24px;min-height:0;margin:1px 0 -2px;/);
   assert.match(HOME_JS, /consent\.style\.width = '24px'; consent\.style\.height = '24px'; consent\.style\.marginTop = '0'; consent\.style\.marginBottom = '0'; consent\.style\.flex = '0 0 auto';/);
-  for (const p of ["public/login.html", "public/reset-password.html"]) assert.match(r(p), /\/public-v2\.css\?v=8"/, p + " loads the new public-v2.css");
+  for (const p of ["public/login.html", "public/reset-password.html"]) assert.match(r(p), /\/public-v2\.css\?v=9"/, p + " loads the new public-v2.css");
 });
 
 await t("7 OG image is versioned, every reference updated, bytes kept", () => {
