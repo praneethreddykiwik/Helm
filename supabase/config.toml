@@ -61,6 +61,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.welcome-mailer]   # cron secret HELM_WELCOME_EMAIL_SECRET
 verify_jwt = false
+[functions.wa-template-worker]   # R156 (0354): cron secret HELM_WA_TEMPLATE_SECRET (pg_cron + pg_net, Vault)
+verify_jwt = false
 [functions.razorpay-webhook]   # Razorpay HMAC (x-razorpay-signature) - Razorpay never sends a JWT
 verify_jwt = false
 [functions.razorpay-subscription-webhook]   # Razorpay HMAC - Razorpay never sends a JWT

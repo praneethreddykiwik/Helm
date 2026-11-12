@@ -154,14 +154,14 @@ await t("3b config.toml: every function declared exactly once; verify_jwt=false 
   const map = new Map(sections);
   assert.equal(map.size, sections.length, "no duplicates");
   assert.deepEqual([...map.keys()].sort(), fns.sort(), "config.toml lists exactly the functions in supabase/functions");
-  assert.equal(fns.length, 25);   // R129: + wa-connect (verify_jwt = true)
+  assert.equal(fns.length, 26);   // R129: + wa-connect (verify_jwt = true); R156: + wa-template-worker (cron)
   const AUTH = {
     jwt: /auth\.getUser\(jwt\)/, cron: /secretMatches\(req\.headers\.get\("x-helm-cron-secret"\)/,
     rzp: /x-razorpay-signature/, meta: /x-hub-signature-256/, token: /admin\.rpc\("(booklet_snapshot_path|email_unsub_status|invite_account_state)"/,
   };
   const want = { "captcha-verify": "jwt", "client-mailer": "jwt", "invite-mailer": "jwt", "invite-signup": "token", "booklet-snapshot": "token",
     "email-unsubscribe": "token", "billing-reminder": "cron", "comms-dispatch": "cron", "pkg-client-notify": "cron", "security-alert-mailer": "cron",
-    "verify-upload": "cron", "welcome-mailer": "cron", "razorpay-webhook": "rzp", "razorpay-subscription-webhook": "rzp", "wa-webhook": "meta" };
+    "verify-upload": "cron", "welcome-mailer": "cron", "wa-template-worker": "cron", "razorpay-webhook": "rzp", "razorpay-subscription-webhook": "rzp", "wa-webhook": "meta" };
   for (const [fn, on] of map) {
     if (on) continue;
     const src = r("supabase/functions/" + fn + "/index.ts");

@@ -20,7 +20,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { bearer, errTag, responders, UUID_RE } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { KINDS, templateMessage } from "./logic.mjs";
-import { NOT_CONNECTED_MSG, studioSender, waPost } from "../_shared/wa-sender.ts";
+import { NOT_CONNECTED_MSG, studioSender, templateVariant, waPost } from "../_shared/wa-sender.ts";
 import { STUDIO_LANG } from "../_shared/wa-studio.mjs";
 import { isTrialNoSend, TRIAL_NO_SEND_MSG, trialSendBlocked } from "../_shared/trial-guard.ts";
 import { logger } from "../_shared/log.ts";
@@ -85,7 +85,8 @@ Deno.serve(async (req) => {
 
     // deno-lint-ignore no-explicit-any
     let msg: any;
-    try { msg = templateMessage(prep.to, kind, prep.vars, prep.token, STUDIO_LANG); }
+    const variant = await templateVariant(admin, String((q as { org_id?: string }).org_id || ""), kind);   // R156: own or library wording
+    try { msg = templateMessage(prep.to, kind, prep.vars, prep.token, STUDIO_LANG, variant); }
     catch (_) { return json({ error: "could not build the message" }, 400); }
     const { messaging_product: _mp, ...payload } = msg;
     const r = await waPost(admin, sender!, payload);

@@ -111,7 +111,7 @@ await t("4 lost-update lock (R79) on the builder client saves, the event time sa
 
 await t("5 API.md lists every edge function in supabase/config.toml, no store-api line numbers", async () => {
   const fns = [...r("supabase/config.toml").matchAll(/^\[functions\.([a-z0-9-]+)\]/gm)].map((m) => m[1]);
-  assert.equal(fns.length, 25);
+  assert.equal(fns.length, 26);   // R156: + wa-template-worker
   const api = r("docs/project/API.md");
   const sec4 = api.slice(api.indexOf("## 4."), api.indexOf("## 5."));
   for (const f of fns) assert.match(sec4, new RegExp("\\| `" + f + "` \\|"), "API.md section 4 misses " + f);

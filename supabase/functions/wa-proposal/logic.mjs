@@ -4,6 +4,7 @@
 
 import { layout, h1, para, strong, note, codeBox, escHtml, TEXT_FOOTER } from "../_shared/email-layout.mjs";
 import { DEFAULT_POSTAL_ADDRESS, TX_REASONS } from "../_shared/email-compliance.mjs";
+import { libraryParams } from "../_shared/wa-studio.mjs";
 
 export const KINDS = ["proposal_sent", "proposal_reminder", "proposal_approved_pay", "payment_received"];
 export const OTP_TEMPLATE = "proposal_approval_otp";
@@ -28,10 +29,20 @@ export function bodyVars(kind, vars) {
 
 // Meta Cloud API template message. Every template has ONE URL button whose dynamic suffix is
 // the approval token (base URL fixed in the approved template).
-export function templateMessage(to, kind, vars, token, lang = "en") {
+// R156 (0354): variant = what the studio's account has for this template (wa_template_variant): Helm's own wording (null /
+// "own") or Meta's Template Library version, whose blanks are in ITS order (param_map.fields) and which may have no link button.
+/** @param {any} [variant] */
+export function templateMessage(to, kind, vars, token, lang = "en", variant = null) {
   if (!KINDS.includes(kind)) throw new Error("unknown kind");
   if (!/^[0-9]{8,15}$/.test(String(to || ""))) throw new Error("bad number");
   if (!TOKEN_RE.test(String(token || ""))) throw new Error("bad token");
+  const v = vars || {};
+  const lib = libraryParams(variant, { name: v.client_name, amount: v.total, date: v.event_date, reference: v.event_type, business: v.studio_name });
+  if (lib) {
+    const components = [{ type: "body", parameters: lib.params.map((text) => ({ type: "text", text })) }];
+    if (lib.urlButton) components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: String(token) }] });
+    return { messaging_product: "whatsapp", to: String(to), type: "template", template: { name: kind, language: { code: lang }, components } };
+  }
   return {
     messaging_product: "whatsapp", to: String(to), type: "template",
     template: {

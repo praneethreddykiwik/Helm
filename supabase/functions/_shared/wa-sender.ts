@@ -75,6 +75,17 @@ export async function orgOfRow(admin: any, table: "comms_outbox" | "assign_notif
   } catch (_) { return null; }
 }
 
+// R156 (0354): which wording a studio's account has for a template (own / Meta library + its blank order), or null
+// (own wording, or a database without 0354). Never fails a send: any problem = null = Helm's own wording.
+// deno-lint-ignore no-explicit-any
+export async function templateVariant(admin: any, orgId: string | null | undefined, name: string): Promise<Record<string, unknown> | null> {
+  if (!UUID.test(String(orgId || "")) || !/^[a-z0-9_]{1,64}$/.test(String(name || ""))) return null;
+  try {
+    const { data, error } = await admin.rpc("wa_template_variant", { p_org: orgId, p_name: name, p_language: "en" });
+    return error || !data || typeof data !== "object" ? null : data;
+  } catch (_) { return null; }
+}
+
 export type WaResult = { ok: boolean; status: number; wamid: string | null; kind: string; text: string };
 // POST one message from this sender. Only graph.facebook.com, never a redirect. A studio token Meta refuses -> "error".
 // deno-lint-ignore no-explicit-any
