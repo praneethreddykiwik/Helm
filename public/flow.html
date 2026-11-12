@@ -126,7 +126,7 @@
 <link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=5">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=73" id="shellProto"></script>
+<script src="/shell-proto.js?v=74" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -462,9 +462,9 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=348"></script><script src="/trial-sim.js?v=3"></script>
-<script src="page-tours.js?v=32"></script>
-<script src="tour.js?v=51"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=349"></script><script src="/trial-sim.js?v=3"></script>
+<script src="page-tours.js?v=33"></script>
+<script src="tour.js?v=52"></script>
 <script src="payment-schedule.js?v=6"></script>
 <script src="booklet.js?v=33"></script>
 <script src="share-checklist.js?v=15"></script>
@@ -473,7 +473,7 @@
 <script src="event-sizing.js?v=5"></script>
 <script src="flow-autosave.js?v=5"></script>
 <script src="flow-validate.js?v=5"></script>
-<script src="flow-resume.js?v=7"></script>
+<script src="flow-resume.js?v=8"></script>
 <script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=5"></script>
 <script src="flow-dish-editor.js?v=3"></script>
 <script src="venues-core.js?v=11"></script>
@@ -1868,6 +1868,39 @@
       flowTrack.land(st).catch(()=>{}); };
     if(fromBuilder || location.hash || resumeLanded) landOnce(null);
   }
+  // r161: the shared "Continue where you left off" banner, when the flow opens on another step than the one Continue lands on
+  // (a #step link from the workspace / Discovery, back from the builder, a quotation saved but not shared yet). It sits at the
+  // top of the step on screen; Continue scrolls to the step in place. Editors only, open quotes only, "Not now" = this session.
+  // It is asked for BEFORE this open saves its own step (earlyLand), so it compares with where the quote really stood.
+  const fromBuilderPeek=()=>{ try{ return new URLSearchParams(location.search).get("from")==="builder" || sessionStorage.getItem(HelmFlowLayout.KEY+id)!=null; }catch(_){ return false; } };
+  function flowBanner(fromBuilder, info){
+    try{
+      const H=window.HelmFlowResume; if(!H || !ev || !canEdit) return Promise.resolve(null);
+      const h=(location.hash||"").replace(/^#sec-/,"");
+      const shown=fromBuilder ? "quote" : H.landStep(h) ? h : (info && H.landStep(info.step)) ? info.step : "client";
+      const sec=document.getElementById("sec-"+shown), host=(shown!=="client" && sec) ? sec : $("#app");
+      return H.mountBanner({ host, before:host===$("#app") ? ($("#reminder")||null) : null, quote:ev, quoteId:id, canEdit:true, current:shown, store:BPStore,
+        onContinue:(v,b)=>{ const t=document.getElementById("sec-"+v.step); if(!t) return; if(b&&b.parentNode) b.parentNode.removeChild(b);
+          if(location.hash!=="#sec-"+v.step) location.hash="#sec-"+v.step; else { try{ t.scrollIntoView({behavior:"auto",block:"start"}); }catch(_){ } } } }).catch(()=>null);
+    }catch(_){ return Promise.resolve(null); }
+  }
+  // r161: a quote opened here joins the Home "Continue quotes" list at once - the full landing (landOnce) waits for every step
+  // to load (5-10 s on a slow line), and a quote with no content yet was left off the list when the person went back sooner.
+  // Same step landOnce would save when it is already known (the #step link, my / a teammate last step), else Client.
+  function earlyLand(){
+    try{
+      const H=window.HelmFlowResume; if(!H) return;
+      const fromB=fromBuilderPeek(), h=(location.hash||"").replace(/^#sec-/,"");
+      const banner=resumeP.then(info=>flowBanner(fromB, info)).catch(()=>null);
+      if(!flowTrack || !H.unfinished(ev)) return;
+      banner.then(()=>{
+        if(resumeLanded || flowTrack.last()) return;
+        if(H.STEPS[h]){ flowTrack.land(h).catch(()=>{}); return; }
+        if(location.hash || fromB) return;                                                  // landOnce saves those
+        return resumeP.then(info=>{ if(resumeLanded || flowTrack.last()) return; flowTrack.land(info && H.STEPS[info.step] ? info.step : "client").catch(()=>{}); });
+      }).catch(()=>{});
+    }catch(_){ }
+  }
   // The floor layout drives chairs + décor/setup ("other"). After the builder saves a new
   // layout version, bring the quotation in line with it (same rules as the builder's own
   // sync) and — when the user just came back from the builder — persist it through the SAME
@@ -2157,6 +2190,7 @@
     try{ const o=await BPStore.org.current(); const bl=o&&o.brand&&o.brand.billing; flowStudioState=(bl&&typeof bl.state==="string")?bl.state:""; }catch{}
     try{ if(window.HelmTrail) HelmTrail.setCurrent({title:[ev.code,ev.title].filter((v,i,a)=>v&&a.indexOf(v)===i).join(" "),kind:"quote",href:"flow.html?quote="+encodeURIComponent(id),recordHref:"event.html?id="+encodeURIComponent(id)}); }catch(e){}
     loading=true;
+    earlyLand();
     await loadAll();
     $("#app").hidden=false; { const mb=$("#mPriceBar"); if(mb) mb.hidden=false; }
     if(!wired){ wired=true; wire(); }

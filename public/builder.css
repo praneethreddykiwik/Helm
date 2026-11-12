@@ -616,6 +616,8 @@ aside.left.collapsed,aside.right.collapsed{width:0;border-width:0;overflow:hidde
 .ph-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
 .ph-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel-2)}
 .ph-card img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;background:var(--canvas)}
+.ph-card .ph-ph{display:flex;align-items:center;justify-content:center;aspect-ratio:3/2;background:var(--canvas);color:var(--ink-3);font-size:12px;text-align:center;padding:8px}
+.ph-card .ph-ph[hidden],.ph-card img[hidden]{display:none}
 .ph-card .ph-meta{font-size:11px;color:var(--ink-3);padding:6px 8px 0}
 .ph-card .ph-acts{padding:0 8px 8px}
 .ph-card .ph-acts button,.ph-card .ph-acts a{height:28px;font-size:12px}

@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=73"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=74"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -3689,9 +3689,12 @@ window.HelmUrl = HelmUrl;
   const BOOKLET_IMG_MIME = /^image\/(jpeg|png|webp)$/;
   // server answer {mime, data(base64)} -> data: URL (only the three image types, only base64 characters)
   // 0095: stored photo render -> data: URL (<= 6 MB)
+  // R160: photo_render_image (0095) answers encode(data, 'base64'), which Postgres wraps with a line break every 76
+  // characters - the strict check below then refused EVERY past render ("That photo couldn't be loaded"), while a fresh
+  // render worked because it skipped this check. Line breaks / spaces are not part of base64: drop them first.
   function photoDataUrl(r) {
     if (!r || typeof r !== "object" || !BOOKLET_IMG_MIME.test(String(r.mime || ""))) return null;
-    const d = String(r.data || "");
+    const d = String(r.data || "").replace(/[\r\n\t ]+/g, "");
     if (!d || d.length > 8400000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(d)) return null;
     return "data:" + r.mime + ";base64," + d;
   }
@@ -11026,7 +11029,7 @@ window.HelmUrl = HelmUrl;
           const renders = [];
           for (const id of ids) {
             const r = await rpc("photo_render_image", { p_render_id: id }).catch(() => null);
-            if (r && r.data) renders.push({ id: String(id), mime: String(r.mime || "image/jpeg"), data: String(r.data) });
+            if (r && r.data) renders.push({ id: String(id), mime: String(r.mime || "image/jpeg"), data: String(r.data).replace(/[\r\n\t ]+/g, "") });   // R160: same line breaks as photoDataUrl
           }
           if (!renders.length) { const e = new Error("No photo came back - please try again"); e.code = "render_failed"; throw e; }
           return { renders, used: j.used, quota: j.quota };

@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (310 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (311 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3934 objects): body 175, bucket 9, col 226, con 402, cron 19, exec 4, fn 1799, idx 398, marker 7, pol 184, polexpr 4, pre 93, pub 5, seq 1, tbl 262, trg 344, view 2.
+-- What is checked (3937 objects): body 176, bucket 9, col 226, con 402, cron 19, exec 4, fn 1800, idx 398, marker 7, pol 184, polexpr 4, pre 94, pub 5, seq 1, tbl 262, trg 344, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3958,7 +3958,10 @@ with o(m, k, s, n, x) as (values
   ('0354_r156_wa_template_jobs', 'marker', 'public', 'notification_catalog', '|r156-0354'),
   ('0354_r156_wa_template_jobs', 'marker', 'public', 'notify_default', 'uuid,text,text,text|r156-0354'),
   ('0354_r156_wa_template_jobs', 'exec', 'public', 'my_wa_template_setup', '|authenticated'),
-  ('0354_r156_wa_template_jobs', 'exec', 'public', 'wa_template_resubmit', 'text,text|authenticated')
+  ('0354_r156_wa_template_jobs', 'exec', 'public', 'wa_template_resubmit', 'text,text|authenticated'),
+  ('0356_r161_open_quotes_order', 'fn', 'public', 'my_open_quotes__pre0356', 'text,integer,integer,uuid,integer'),
+  ('0356_r161_open_quotes_order', 'body', 'public', 'my_open_quotes', 'text,integer,integer,uuid,integer|d3a9b119446602d4fbafc7866cfd2f2d'),
+  ('0356_r161_open_quotes_order', 'pre', null, '__pre0356', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4270,7 +4273,8 @@ mig(ord, m, ov, note) as (values
   (307, '0351_r154e_suggestion_box', null, 'hq_suggestions + hq_set_suggestion re-issued in place (same names), checked by the 0351 marker in their bodies'),
   (308, '0352_r154f_email_probe_limits', null, null),
   (309, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)'),
-  (310, '0354_r156_wa_template_jobs', null, 'WhatsApp template setup in the background (two tables, worker functions, bell kind wa_templates). The two cron jobs are scheduled only once the Vault secrets exist (owner step), so they are not expected here - check them with select jobname from cron.job where jobname like helm-wa-templates%')
+  (310, '0354_r156_wa_template_jobs', null, 'WhatsApp template setup in the background (two tables, worker functions, bell kind wa_templates). The two cron jobs are scheduled only once the Vault secrets exist (owner step), so they are not expected here - check them with select jobname from cron.job where jobname like helm-wa-templates%'),
+  (311, '0356_r161_open_quotes_order', null, null)
 ),
 env as (
   select

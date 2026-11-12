@@ -18,6 +18,13 @@
    quotation is saved (step 8), locked or sent, Continue lands on step 9 "Share with client & approval". The list comes
    from my_open_quotes (BPStore.flowProgress.open); a database without 0350 falls back to my_unfinished_quotes.
    Hide = dismiss for me (never changes or deletes the quote); it comes back when I work on the quote again.
+   r161 (owner, Nov 2026): ONE "Continue where you left off" banner wherever a not-yet-Confirmed quote is opened (event
+   workspace, quote flow, Discovery, Proposal, the Quotes Confirm dialog) - mountBanner(): open quotes only (never Confirmed /
+   later, cancelled, archived, deleted, sample data - the server decides, my_open_quotes), editors only (a view-only role gets
+   no banner; lists keep "Open"), "Not now" hides it for this browser tab session (sessionStorage, ids only). Copy: "Next:
+   Quotation (step 8 of 8) · Discovery and Proposal skipped" instead of "step 8 of 8 (Quotation). 2 of 8 steps done".
+   Lists are ordered by the quote's LAST ACTIVITY (its own last save or anyone's last flow step), newest first, ties by
+   created time (0356 on the server; sortRows() here too, so an older database orders the same way).
    Fallback (local mode, or a database without 0206): a browser copy with ONE ENTRY PER QUOTE
    (helm_flow_resume_v3_<uid>); a quote's entry is only ever removed for that quote.
    Only quote ids, display names and step keys are kept in the browser (no client data).
@@ -144,15 +151,66 @@
     var at = mine ? (r.my_step_at || r.activity || r.updated_at) : (r.last_step_at || r.activity || r.updated_at);
     // r154c: "last edited" = the newer of my last step and the quote's own last save
     var act = r.activity || at || null; if (mine && act && at && Date.parse(act) > Date.parse(at)) at = act;
+    // r161: the quote's last activity = the newest of its own last save and anyone's last flow step (0356 does the same)
+    [r.updated_at, r.last_step_at, r.my_step_at].forEach(function (x) { if (x && (!act || ts(x) > ts(act))) act = x; });
+    if (mine && act && (!at || ts(act) > ts(at))) at = act;
     return { quoteId: String(r.id || ""), name: nameOf(r), code: r.code || "", client: (r.client && r.client.name) || "", eventType: r.event_type || "",
       step: step, stepNo: stepNo(step), stepLabel: LABELS[step], done: done.length, total: Number(r.steps_total) || TOTAL,
       at: at || null, activity: act, lastUser: r.last_user_name || "", lastByMe: r.last_by_me === true,
-      lastAt: r.last_step_at || null, hasLast: !!r.last_step, phase: phase, phaseLabel: PHASES[phase], hidden: r.hidden === true, myStep: validStep(r.my_step) };
+      lastAt: r.last_step_at || null, hasLast: !!r.last_step, phase: phase, phaseLabel: PHASES[phase], hidden: r.hidden === true, myStep: validStep(r.my_step),
+      doneKeys: done, created: r.created_at || null };
   }
   function fromLocal(e) { return { quoteId: e.quoteId, name: e.name || "your quote", code: "", client: "", step: e.step, stepNo: stepNo(e.step), stepLabel: LABELS[e.step],
     done: null, total: TOTAL, at: e.at, activity: e.at, lastUser: "", lastByMe: true, lastAt: e.at, hasLast: true, phase: "building", phaseLabel: "", hidden: false }; }
   function stepText(v) { return v.stepNo > TOTAL ? "step " + v.stepNo + " · " + v.stepLabel : "step " + v.stepNo + " of " + TOTAL + " · " + v.stepLabel; }
   function progressText(v) { return v.done == null ? "" : v.done + " of " + (v.total || TOTAL); }
+  /* r161 banner copy. skippedOf: the flow steps BEFORE the one Continue lands on that are not done (past step 8: any of 1-8) */
+  function skippedOf(v) {
+    if (!v || !Array.isArray(v.doneKeys)) return [];
+    var d = {}; v.doneKeys.forEach(function (k) { d[k] = 1; });
+    var upto = ORDER.indexOf(v.step); if (upto < 0) upto = LAND[v.step] > TOTAL ? ORDER.length : 0;
+    var out = []; for (var i = 0; i < upto; i++) if (!d[ORDER[i]]) out.push(LABELS[ORDER[i]]);
+    return out;
+  }
+  function andList(a) { return a.length < 2 ? (a[0] || "") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]; }
+  /* r162: "Next" names the first step at or after where they left off that is not done yet (steps before it are the skipped ones),
+     so a left-off step that is already done no longer reads "Next: Client (step 1 of 8) · 1 of 8 steps done". Fallback: the left-off step.
+     Continue still lands on the left-off step (href). */
+  function nextStepOf(v) {
+    if (!v) return null;
+    var at = ORDER.indexOf(v.step); if (at < 0 || !Array.isArray(v.doneKeys)) return v.step;
+    var d = {}; v.doneKeys.forEach(function (k) { d[k] = 1; });
+    for (var i = at; i < ORDER.length; i++) if (!d[ORDER[i]]) return ORDER[i];
+    return v.step;
+  }
+  function nextText(v) { var s = nextStepOf(v) || v.step, n = stepNo(s); return "Next: " + LABELS[s] + (n > TOTAL ? " (step " + n + ")" : " (step " + n + " of " + TOTAL + ")"); }
+  // { next: "Next: Quotation (step 8 of 8)", note: "Discovery and Proposal skipped" | "3 of 8 steps done" | "" }
+  function bannerText(v) {
+    var sk = skippedOf(v), note = "";
+    if (sk.length) note = andList(sk) + " skipped";
+    else if (v.done != null && v.stepNo <= TOTAL && v.done > 0) note = progressText(v) + " steps done";
+    return { next: nextText(v), note: note };
+  }
+  /* r161: newest activity first, ties by created time (newest first), then the order the server gave */
+  function ts(x) { var t = Date.parse(x || ""); return isFinite(t) ? t : -Infinity; }
+  function sortRows(rows) {
+    return (rows || []).map(function (v, i) { return { v: v, i: i }; }).sort(function (a, b) {
+      return (ts(b.v.activity) - ts(a.v.activity)) || (ts(b.v.created) - ts(a.v.created)) || (a.i - b.i);
+    }).map(function (x) { return x.v; });
+  }
+  /* r161: "Not now" on the banner = hidden for this browser tab session only (quote ids only, never client data) */
+  var HIDE_KEY = "helm_fr_banner_hidden";
+  function sstore() { try { return root.sessionStorage || null; } catch (e) { return null; } }
+  function hiddenIds() {
+    try { var ss = sstore(), a = JSON.parse((ss && ss.getItem(HIDE_KEY)) || "[]"); return Array.isArray(a) ? a.filter(function (x) { return UUID.test(String(x)); }) : []; }
+    catch (e) { return []; }
+  }
+  function bannerHidden(id) { return hiddenIds().indexOf(String(id || "")) >= 0; }
+  function hideBanner(id) {
+    id = String(id || ""); if (!UUID.test(id)) return false;
+    var a = hiddenIds().filter(function (x) { return x !== id; }); a.push(id);
+    try { var ss = sstore(); if (!ss) return false; ss.setItem(HIDE_KEY, JSON.stringify(a.slice(-50))); return true; } catch (e) { return false; }
+  }
   function label(v, now) { var a = ago(v.at, now); return (v.name || "your quote") + " · " + stepText(v) + (a ? " · edited " + a : ""); }
   function href(v) { return "flow.html?quote=" + encodeURIComponent(v.quoteId) + "#sec-" + (landStep(v.step) || "client"); }
   function lastBy(v, now) { if (!v.lastUser || v.lastByMe) return ""; var a = ago(v.lastAt, now); return "Last worked on by " + v.lastUser + (a ? ", " + a : ""); }
@@ -188,7 +246,7 @@
     var server = fp ? Promise.resolve(get.call(fp, opts)).catch(function () { return { failed: true }; }) : Promise.resolve(null);
     return server.then(function (d) {
       if (d && d.failed) return { rows: [], total: 0, canEdit: false, source: "error" };            // offline / error: show nothing, no toast
-      if (d && Array.isArray(d.rows)) return { rows: d.rows.map(function (r) { return fromServer(r, mine); }), total: Number(d.total) || 0,
+      if (d && Array.isArray(d.rows)) return { rows: sortRows(d.rows.map(function (r) { return fromServer(r, mine); })), total: Number(d.total) || 0,
         canEdit: d.can_edit !== false, readOnly: d.read_only === true, source: "server", open: d.open === true };
       if (!mine || opts.quote) return { rows: [], total: 0, canEdit: true, source: "none" };        // no studio-wide list without the server
       var all = readAll(uid).filter(function (e) { return !e.dismissed && (!opts.maxDays || Date.now() - e.at <= opts.maxDays * 864e5); });
@@ -260,7 +318,9 @@
     ".fr-row .fr-n{font-weight:600;overflow-wrap:anywhere}.fr-row .fr-m{font-size:13px;color:var(--hb-ink2,var(--ink-2,#5b6470));overflow-wrap:anywhere}" +
     "@media (max-width:760px){.fr-row{grid-template-columns:1fr}.fr-row .btn{width:100%}}" +
     ".fr-banner{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;padding:10px 14px;margin:0 0 12px;border:1px solid var(--hb-line,var(--line,#e3e6ea));border-left:3px solid var(--hb-acc,var(--accent,#1f6f4a));border-radius:10px;background:var(--hb-card,var(--card,#fff))}" +
-    ".fr-banner p{margin:0;overflow-wrap:anywhere}.fr-banner .fr-sub{margin:2px 0 0}" +
+    ".fr-banner p{margin:0;overflow-wrap:anywhere}.fr-banner .fr-sub{margin:2px 0 0}.fr-banner .fr-title{font-size:15px;font-weight:500}.fr-banner .fr-title strong{font-weight:650}" +
+    ".fr-banner .fr-skip{color:var(--hb-ink2,var(--ink-2,#5b6470))}.fr-banner .fr-phase{margin-top:4px}" +
+    "@media (max-width:560px){.fr-banner .fr-acts{width:100%}.fr-banner .fr-acts>*{flex:1 1 0}}" +
     ".fr-note{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13px;padding:8px 12px;margin:0 0 10px;border-radius:8px;background:var(--hb-soft,var(--soft,#f3f6f4));color:var(--hb-ink,var(--ink,#1d232a))}" +
     ".fr-note button{background:none;border:0;padding:6px 4px;min-height:32px;font:inherit;color:var(--hb-acc,var(--accent,#1f6f4a));text-decoration:underline;cursor:pointer}" +
     ".fr-empty{color:var(--hb-ink2,var(--ink-2,#5b6470));padding:14px 4px}" +
@@ -367,18 +427,58 @@
     });
     host.appendChild(list); return rows.length;
   }
-  /* event.html: "This quote is at step 4 of 8 (Venue). Continue where you left off" */
+  /* r161: the ONE "Continue where you left off" banner (event workspace, quote flow, Discovery, Proposal, Quotes Confirm dialog):
+       Not confirmed yet
+       Next: Quotation (step 8 of 8) · Discovery and Proposal skipped     [Continue where you left off] [Not now]
+       Last worked on by Priya, 10 min ago
+     opts: { canEdit, before, btnClass, onContinue(v) }. No banner without a row, for a view-only role, or once hidden this session. */
   function renderBanner(host, v, opts) {
     var doc = host.ownerDocument || root.document; opts = opts || {}; css(doc);
     var old = doc.getElementById("flowResumeBanner"); if (old && old.parentNode) old.parentNode.removeChild(old);
-    if (!v) return null;
-    var b = el(doc, "div", "fr-banner"); b.id = "flowResumeBanner"; b.setAttribute("role", "status");
-    var t = el(doc, "div"), sv = v.stepNo > TOTAL ? "This quote is at " + v.stepLabel + "." : "This quote is at step " + v.stepNo + " of " + TOTAL + " (" + v.stepLabel + ").";
-    t.appendChild(el(doc, "p", null, sv + (v.done != null ? " " + progressText(v) + " steps done." : "")));
+    if (!v || opts.canEdit === false || bannerHidden(v.quoteId)) return null;
+    var b = el(doc, "div", "fr-banner"); b.id = "flowResumeBanner"; b.setAttribute("role", "region"); b.setAttribute("aria-label", "Continue where you left off");
+    b.setAttribute("data-quote", v.quoteId); b.setAttribute("data-step", v.step);
+    var t = el(doc, "div", "fr-main"), bt = bannerText(v);
+    t.appendChild(el(doc, "p", "fr-eyebrow", "Not confirmed yet"));
+    var p = el(doc, "p", "fr-title"); p.appendChild(el(doc, "strong", null, bt.next)); if (bt.note) p.appendChild(el(doc, "span", "fr-skip", " · " + bt.note));
+    t.appendChild(p);
+    if (v.phaseLabel) t.appendChild(el(doc, "span", "fr-phase", v.phaseLabel));
     var lb = lastBy(v); if (lb) t.appendChild(el(doc, "p", "fr-sub", lb));
     b.appendChild(t);
-    if (opts.canEdit !== false) { var a = el(doc, "a", opts.btnClass || "btn primary", "Continue where you left off"); a.href = href(v); b.appendChild(a); }
+    var acts = el(doc, "div", "fr-acts");
+    var a = el(doc, "a", opts.btnClass || "btn primary", "Continue where you left off"); a.href = href(v);
+    a.setAttribute("aria-label", "Continue where you left off: " + bt.next);
+    if (typeof opts.onContinue === "function") a.addEventListener("click", function (e) { if (e && e.preventDefault) e.preventDefault(); opts.onContinue(v, b); });
+    acts.appendChild(a);
+    var x = el(doc, "button", "btn", "Not now"); x.type = "button";
+    x.setAttribute("aria-label", "Hide this reminder for this session (the quote is not changed)");
+    x.addEventListener("click", function () { hideBanner(v.quoteId); if (b.parentNode) b.parentNode.removeChild(b); });
+    acts.appendChild(x); b.appendChild(acts);
     host.insertBefore(b, opts.before && opts.before.parentNode === host ? opts.before : host.firstChild); return b;
+  }
+  /* r161: mountBanner({ host, before, quote, quoteId, canEdit, current, onContinue, store }) -> Promise<banner | null>.
+     Shown only for an OPEN quote (client precheck isOpen + the server row of my_open_quotes, 0206 list on an older database),
+     for an editor (canEdit: true / false, or asked from the store: quotes edit + the server can_edit), when it is not hidden
+     this session, and not when the page already shows the step Continue would land on (current). Never throws, never blocks. */
+  var bannerSeq = 0;
+  function mountBanner(o) {
+    o = o || {}; var seq = ++bannerSeq, doc = (o.host && o.host.ownerDocument) || root.document;
+    function drop() { try { var old = doc && doc.getElementById("flowResumeBanner"); if (old && old.parentNode) old.parentNode.removeChild(old); } catch (e) {} return null; }
+    try {
+      var q = o.quote || null, id = String(o.quoteId || (q && q.id) || ""), s = o.store || S();
+      if (!o.host || !UUID.test(id) || (q && !isOpen(q)) || o.canEdit === false || bannerHidden(id) || !serverOn(s)) return Promise.resolve(drop());
+      var fp = s.flowProgress, get = typeof fp.open === "function" ? fp.open : fp.list;
+      var can = o.canEdit === true ? Promise.resolve(true)
+        : Promise.resolve(s.auth && typeof s.auth.canEditArea === "function" ? s.auth.canEditArea("quotes") : true).then(function (x) { return x !== false; }, function () { return false; });
+      return Promise.all([withTimeout(Promise.resolve(get.call(fp, { scope: "studio", quote: id, limit: 1 })), 8000, null), can]).then(function (a) {
+        if (seq !== bannerSeq) return null;                                                     // a newer banner was asked for
+        var d = a[0], r = d && Array.isArray(d.rows) ? d.rows[0] : null;
+        if (!a[1] || !r || d.can_edit === false || String(r.id) !== id) return drop();
+        var v = fromServer(r, true);
+        if (o.current && landStep(o.current) === v.step) return drop();                       // already on that step
+        return renderBanner(o.host, v, { canEdit: true, before: o.before, btnClass: o.btnClass, onContinue: o.onContinue });
+      }).catch(function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
   }
   /* flow.html: "You stopped at Venue · Go to top" */
   function renderNotice(host, info, onTop, before) {
@@ -458,7 +558,8 @@
     record: record, clear: clear, dismissLocal: dismissLocal, lastStep: lastStep, unfinished: unfinished, stepNo: stepNo, firstNotDone: firstNotDone,
     ago: ago, fromServer: fromServer, fromLocal: fromLocal, stepText: stepText, progressText: progressText, label: label, href: href, lastBy: lastBy,
     ready: ready, whoami: whoami, load: load, dismiss: dismiss, resumeStep: resumeStep, track: track,
-    renderCard: renderCard, renderHome: renderHome, renderList: renderList, isOpen: isOpen, phaseOf: phaseOf, LAND: LAND, PHASES: PHASES, HOME_MAX: HOME_MAX, landStep: landStep, renderBanner: renderBanner, renderNotice: renderNotice, mount: mount };
+    renderCard: renderCard, renderHome: renderHome, renderList: renderList, isOpen: isOpen, phaseOf: phaseOf, LAND: LAND, PHASES: PHASES, HOME_MAX: HOME_MAX, landStep: landStep, renderBanner: renderBanner, renderNotice: renderNotice, mount: mount,
+    mountBanner: mountBanner, bannerText: bannerText, skippedOf: skippedOf, nextStepOf: nextStepOf, sortRows: sortRows, bannerHidden: bannerHidden, hideBanner: hideBanner, HIDE_KEY: HIDE_KEY };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HelmFlowResume = api;
   if (root.document && root.document.currentScript && root.document.currentScript.hasAttribute("data-mount")) autoMount();

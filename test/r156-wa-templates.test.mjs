@@ -157,7 +157,7 @@ await t('0354: MANIFEST once after 0353, additive (no drop / truncate / delete),
     assert.doesNotMatch(s, /^\s*\\/m); assert.doesNotMatch(s, /\bcreate\s+(temp|temporary)\s+table\b/i);
     assert.doesNotMatch(s, /^\s*(set|reset)\s+/im);
   }
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0352', '0353', '0354'\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0352', '0353', '0354'(, '\d{4}')*\]/, f);
   assert.match(r('scripts/db-test/run-all.sh'), /run "r156-wa-template-jobs-0354" "R156-WA-TEMPLATE-JOBS-0354: ALL PASS \\\(48\/48\\\)" psql -q -f tests\/db\/r156-wa-template-jobs-0354\.sql/);
   assert.match(r('supabase/check-prod-overrides.json'), /"0354": \{ "note": "WhatsApp template setup in the background[^\n]*"ignore": \["cron helm-wa-templates", "cron helm-wa-templates-nightly"\]/);
   assert.match(r('supabase/CHECK-PROD-MIGRATIONS.sql'), /\('0354_r156_wa_template_jobs', 'tbl', 'public\.wa_template_jobs', null, null\)/);
@@ -195,7 +195,7 @@ await t('page: plain reasons, background text, OTP verify text, health + categor
   assert.match(h, /wa-connect-ui\.js\?v=4/); assert.match(h, /integrations\.css\?v=10/);
   assert.match(h, /Setup runs in the background – you can leave the page/);
   assert.match(r('public/page-tours.js'), /Template setup runs in the background - leave the page; a bell notice says when Meta is done/);
-  assert.match(r('public/tour.js'), /const PT_V = "32";/);
+  assert.match(r('public/tour.js'), /const PT_V = "33";/);
   const d = r('docs/ops/WHATSAPP-SETUP.md');
   assert.match(d, /## R156 \(0354\)/); assert.match(d, /helm_wa_template_secret/); assert.match(d, /supabase functions deploy wa-template-worker --no-verify-jwt/);
 });

@@ -63,7 +63,7 @@
 <link rel="stylesheet" href="discovery-polish.css?v=1">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=73" id="shellProto"></script>
+<script src="/shell-proto.js?v=74" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -135,7 +135,7 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=348"></script><script src="save-back.js?v=2"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=349"></script><script src="save-back.js?v=2"></script><script src="flow-resume.js?v=8"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -253,6 +253,8 @@
     if(!ev){ $("#notfound").hidden=false; return; }
     $("#evName").textContent = (ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"");
     $("#app").hidden=false;
+    // r161: the shared "Continue where you left off" banner for a quote not yet Confirmed (editors only, never blocks the page)
+    if(window.HelmFlowResume) HelmFlowResume.mountBanner({ host:$("#app"), quote:ev, quoteId:ev.id||id, current:"discovery", store:BPStore });
     $("#d_save").hidden=!canEdit; $("#addReq").hidden=!canEdit;
     $("#d_bmaxEdit").href="flow.html?quote="+encodeURIComponent(id)+"#sec-client";   // budget-single-source: one budget, edited in the quote flow
     // prefill discovery

@@ -179,11 +179,11 @@ await t('dialog: 4 reference images (each <= 1536 px JPEG 0.85), chosen style pa
 await t('payload limits: edge function accepts up to 4 pictures <= 2 MB each, body cap fits them', () => {
   const fn = rd('supabase/functions/render-photo/index.ts');
   assert.match(fn, /const MAX_IMAGES = 4;/);
-  assert.match(fn, /imgs\.length > MAX_IMAGES/);
+  assert.match(fn, /nBase > MAX_IMAGES/);   // R160: 1-4 base pictures, then optional screen artwork / logo
   const img = Number(fn.match(/IMG_LIMIT = (\d+) \* 1024 \* 1024/)[1]) * 1048576, body = Number(fn.match(/BODY_LIMIT = (\d+) \* 1024 \* 1024/)[1]) * 1048576;
   assert.equal(img, 2 * 1048576);
   assert.ok(body >= 4 * Math.ceil(img * 4 / 3) + 40000, 'body cap holds 4 max-size base64 pictures + prompt');
-  assert.ok(body <= 12 * 1048576);
+  assert.ok(body <= 16 * 1048576);   // R160: + small screen artwork / logo pictures (typically < 0.5 MB each)
   const ui = rd('public/photo-render-ui.js');
   assert.match(ui, /var MAX_W = 1536;/); assert.match(ui, /encodeImage\(blob, MAX_W, 0\.85\)/);
   assert.doesNotMatch(rd('public/photo-render-prompt.js'), /fetch\(|XMLHttpRequest|api\.openai/);
