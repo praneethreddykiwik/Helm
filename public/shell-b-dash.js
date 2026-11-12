@@ -517,7 +517,7 @@
      touched, so a saved layout can't reveal a gated block. Saved on Done (server RPC when 0109 is
      applied, else this device). Mouse = native drag and drop; touch = pointer events on the grip;
      keyboard = grip button (Space/Enter pick up, arrows move, Space drop, Esc cancel). */
-  var CZ_NAMES = { resume: "Continue where you left off", mywork: "My events & tasks", mytasks: "My tasks", quotes: "Quotes pipeline", roleboard: "Team board" };
+  var CZ_NAMES = { resume: "Continue quotes", mywork: "My events & tasks", mytasks: "My tasks", quotes: "Quotes pipeline", roleboard: "Team board" };
   var CZ_CACHE = "helm.dash.layout.last";
   function ssGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
   function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
@@ -843,9 +843,9 @@
     /* sections: one parent, DOM order = reading order (grid/cols are display:contents) */
     var grid = el("div", "hd-grid"); root.appendChild(grid);
     delayN = 2;
-    /* resume v3 (0206): "Continue where you left off" - my most recent unfinished quote, filled by flow-resume.js
+    /* resume v3 (0206) + r154c: "Continue quotes" - EVERY open quote of mine (up to 5 + See all), filled by flow-resume.js
        (hidden until it has one; a real block, so it is never pushed below the whole dashboard) */
-    var cResume = card("hdResume", "Continue where you left off", IC.doc, { skel: 1, span: "hd-s-full", block: "resume" }); cResume.hidden = true;
+    var cResume = card("hdResume", "Continue quotes", IC.doc, { skel: 1, span: "hd-s-full", block: "resume" }); cResume.hidden = true;
     var cShift = card("hdShift", "My next shift", IC.pin, { skel: 2, span: "hd-s-full", block: "shift" }); cShift.hidden = true;
     var cCal = card("hdCal", "Your month", IC.cal, { skel: 4, more: ["calendar.html", "Calendar"], span: "hd-s-wide", block: "calendar" });
     var cAtt = card("hdAtt", "Needs attention", IC.alert, { span: "hd-s-side", block: "attention" });

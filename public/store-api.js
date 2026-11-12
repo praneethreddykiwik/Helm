@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=69"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=70"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1201,7 +1201,7 @@ window.HelmUrl = HelmUrl;
   // la-fetch (audit 25): the list below also names the STABLE (read-only) RPCs every page asks while it
   // boots (trial / upgrade status, seat use, prefs, shelf list, mentions, PIN status). Before, each one was
   // treated as a write and dropped every shared read of the page, so the page's own reads ran again.
-  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes)(\?|$)/;
+  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
   const readCache = new Map();
   function hdrOf(init, input, name) {
     try {
@@ -3664,6 +3664,24 @@ window.HelmUrl = HelmUrl;
         p_quote: q, p_max_days: o.maxDays == null ? null : n(o.maxDays, 1, 3650, 60) };
       try { const d = await rpc("my_unfinished_quotes", args); return d && typeof d === "object" && Array.isArray(d.rows) ? d : null; }
       catch (e) { if (rpcMissing(e)) return null; throw e; }
+    },
+    /* r154c (0350): the "Continue quote" list - EVERY open quote not yet Confirmed (building / quoted / locked / sent),
+       same options + answer shape as list() plus rows[].phase (and rows[].hidden in the studio list). A database
+       without 0350 answers through list() (0206, building only) with legacy: true; null like list() otherwise. */
+    async open(opts) {
+      if (!flowProgress.available()) return null;
+      const o = opts || {}, n = (v, lo, hi, d) => { v = Math.floor(Number(v)); return isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
+      const q = o.quote && UUID_RE_PKG.test(String(o.quote)) ? String(o.quote) : null;
+      if (o.quote && !q) return { total: 0, rows: [], can_edit: false };
+      if (flowProgress._noOpen) { const d = await flowProgress.list(o); return d ? Object.assign({}, d, { legacy: true }) : null; }
+      const args = { p_scope: o.scope === "studio" ? "studio" : "mine", p_limit: n(o.limit, 1, 100, 20), p_offset: n(o.offset, 0, 100000, 0),
+        p_quote: q, p_max_days: o.maxDays == null ? null : n(o.maxDays, 1, 3650, 60) };
+      try { const d = await rpc("my_open_quotes", args); return d && typeof d === "object" && Array.isArray(d.rows) ? d : null; }
+      catch (e) {
+        if (!rpcMissing(e)) throw e;
+        flowProgress._noOpen = true;                                    // remember for this page: one failed call, not one per read
+        const d = await flowProgress.list(o); return d ? Object.assign({}, d, { legacy: true }) : null;
+      }
     },
   };
   // 0083: booklet pictures kept in the database

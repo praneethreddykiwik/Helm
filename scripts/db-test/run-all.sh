@@ -383,6 +383,8 @@ run "r148-rls-initplan-0343" "R148-RLS-INITPLAN-0343: ALL PASS \(21/21\)" psql -
 run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests/db/r149-indexes-0344.sql
 # r153 (0345): prod catch-up - a production-shaped database (PROD-DIAG-1111 gaps rebuilt in the test transaction) brought in line with canonical by 0345 applied twice: same triggers / bodies / grants as canonical, exactly one pricing trigger, nothing duplicated, kept __pre0345 bodies without privilege; overpayment / approval link end date / code limit / plan-save area check / return_reservation behaviour; duplicate inventory names -> index skipped, rows untouched; no-op on canonical; rolled back
 run "r153-prod-catchup-0345" "R153-PROD-CATCHUP-0345: ALL PASS \(19/19\)" psql -q -f tests/db/r153-prod-catchup-0345.sql
+# r154c (0350): Continue quote list - every open quote of mine until Confirmed (building / quotation saved / locked / sent), not only the newest; approved / paid / cancelled / confirmed / shelved / sample data out; Hide hides only (quote untouched); other studio sees nothing; view-only = can_edit false; 0206 list unchanged; rolled back
+run "r154c-open-quotes-0350" "R154C-OPEN-QUOTES-0350: ALL PASS \(21/21\)" psql -q -f tests/db/r154c-open-quotes-0350.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

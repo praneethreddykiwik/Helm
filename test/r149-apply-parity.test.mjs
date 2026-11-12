@@ -168,7 +168,7 @@ t('APPLY-0344-CONCURRENT: the same 34 indexes, one concurrently line each, no tr
 
 t('DB suite wired into run-all.sh; release after-lists know 0344', () => {
   assert.match(r('scripts/db-test/run-all.sh'), /run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \\\(\d+\/\d+\\\)" psql -q -f tests\/db\/r149-indexes-0344\.sql/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0340', '0341', '0342', '0343', '0344'\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0340', '0341', '0342', '0343', '0344'[,\]]/, f);   // r154c: later migrations (0350) follow
   assert.match(r('package.json'), /node test\/r149-apply-parity\.test\.mjs/);
 });
 
