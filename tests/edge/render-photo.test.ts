@@ -136,3 +136,77 @@ Deno.test("render-photo: async - 202 with the job at once, OpenAI call finishes 
     delete (globalThis as any).EdgeRuntime; rF(); rEnv();
   }
 });
+
+// R154a: prod renders failed with "openai 401 expired_secret_key" but the builder said "try again".
+// The reason kind is now specific, stored in the usage row and logged as one JSON line (status + code, no key).
+Deno.test("render-photo: providerKind maps OpenAI account problems to owner-action kinds", async () => {
+  // import with Deno.serve stubbed (the module starts a server at load time)
+  const origServe = (Deno as any).serve;
+  (Deno as any).serve = () => ({ finished: Promise.resolve(), shutdown() {}, ref() {}, unref() {} });
+  let providerKind: (s: number, c: string) => string;
+  try { ({ providerKind } = await import(FN + "?pk=" + Date.now())); } finally { (Deno as any).serve = origServe; }
+  assertEquals(providerKind(401, "expired_secret_key"), "auth");
+  assertEquals(providerKind(401, "invalid_api_key"), "auth");
+  assertEquals(providerKind(403, "403"), "auth");
+  assertEquals(providerKind(429, "insufficient_quota"), "billing");   // not "busy" - retrying will not help
+  assertEquals(providerKind(400, "billing_hard_limit_reached"), "billing");
+  assertEquals(providerKind(404, "model_not_found"), "model");
+  assertEquals(providerKind(400, "moderation_blocked"), "blocked");
+  assertEquals(providerKind(429, "rate_limit_exceeded"), "busy");
+  assertEquals(providerKind(500, "server_error"), "failed");
+});
+
+Deno.test("render-photo: expired key -> render_provider_auth, usage row says auth, JSON log has status + code but never the key", async () => {
+  resetSupaMock(); allow();
+  const rEnv = setEnv(ON);
+  const rF = installFetch(() => jsonResponse({ error: { code: "expired_secret_key", message: "Your key sk-test-not-real has expired" } }, 401));
+  const lines: string[] = [];
+  const origErr = console.error;
+  console.error = (...a: unknown[]) => { lines.push(a.map(String).join(" ")); };
+  try {
+    const h = await loadHandler(FN);
+    const res = await h(post(body(), AUTH));
+    assertEquals(res.status, 503);
+    assertEquals((await res.json()).error, "render_provider_auth");
+    const u = supaLog().find((x) => x.table === "photo_render_usage");
+    assert(u && JSON.stringify(u.calls).includes("auth: openai 401 expired_secret_key"));
+    const line = lines.find((l) => l.includes("openai images error"));
+    assert(line, "structured error line written");
+    const o = JSON.parse(line!);
+    assertEquals(o.fn, "render-photo"); assertEquals(o.code, "expired_secret_key"); assertEquals(o.status, 401); assertEquals(o.reason, "auth");
+    assert(!lines.join("\n").includes("sk-test-not-real"), "the key never reaches the logs");
+    assert(!lines.join("\n").includes("has expired"), "the provider message never reaches the logs");
+  } finally { console.error = origErr; rF(); rEnv(); }
+});
+
+Deno.test("render-photo: insufficient_quota (429) -> render_provider_billing, not busy", async () => {
+  resetSupaMock(); allow();
+  const rEnv = setEnv(ON);
+  const rF = installFetch(() => jsonResponse({ error: { code: "insufficient_quota" } }, 429));
+  const origErr = console.error; console.error = () => {};
+  try {
+    const h = await loadHandler(FN);
+    const res = await h(post(body(), AUTH));
+    assertEquals((await res.json()).error, "render_provider_billing");
+  } finally { console.error = origErr; rF(); rEnv(); }
+});
+
+Deno.test("render-photo: provider deadline (TimeoutError) -> render_timeout, not a network failure", async () => {
+  resetSupaMock(); allow();
+  const rEnv = setEnv(ON);
+  const rF = installFetch(() => { throw new DOMException("late", "TimeoutError"); });
+  const origErr = console.error; console.error = () => {};
+  try {
+    const h = await loadHandler(FN);
+    const res = await h(post(body(), AUTH));
+    assertEquals(res.status, 504);
+    assertEquals((await res.json()).error, "render_timeout");
+  } finally { console.error = origErr; rF(); rEnv(); }
+});
+
+Deno.test("render-photo: the OpenAI deadline stays inside the edge wall clock (default 140 s + 5 s < 150 s Free plan)", async () => {
+  const src = await Deno.readTextFile(new URL("../../supabase/functions/render-photo/index.ts", import.meta.url));
+  assert(/Number\(Deno\.env\.get\("RENDER_TIMEOUT_MS"\)\) \|\| 140_000/.test(src));
+  assert(/timeout \+ 5_000\)/.test(src));
+  assert(140_000 + 5_000 < 150_000);
+});
