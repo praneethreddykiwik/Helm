@@ -24,7 +24,7 @@ const t = (name, fn) => { fn(); passed++; console.log('  ✓ ' + name); };
 const api = read('public/store-api.js');
 // Isolate the uploadPhoto body so assertions can't be satisfied by the
 // unrelated event-docs path elsewhere in the file.
-const upM = api.match(/async uploadPhoto\(quoteId, file\)\s*\{([\s\S]*?)\n    \},/);
+const upM = api.match(/async uploadPhoto\(quoteId, file(?:, opts)?\)\s*\{([\s\S]*?)\n    \},/);
 assert.ok(upM, 'sites.uploadPhoto must exist');
 const uploadBody = upM[1];
 

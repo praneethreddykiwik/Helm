@@ -4075,6 +4075,7 @@ window.HelmUrl = HelmUrl;
     havankund:3500, rangoli:2500, lanterns:1200, hangingfloral:18000, neonsign:4000,
     backdrop:6000, floralstand:1500, decorbox:2000, signage:1200, stageroof:60000, varmala:25000, micstand:500, teleprompter:6000, projector:8000, tvstand:4000, interpreter:15000, pyro:3000, towerlight:4000, gaddi:3000, urli:2500, umbrellas:5000, doli:12000, kalash:800, altar:8000, shoerack:1000, dessert:3500, coffee:3000, stall:6000, counter:2500, plinth:1000, kiosk:3000, ticketbooth:5000, stanchion:1200, watchtower:8000, extinguisher:300, ambulance:6000,
     lawnfloor:9000, stagelight:1500, pathlights:2500, sidescreen:30000, stagedeck:6000, stagestairs:2500, installation:15000,
+    jyothi:3000,
   };
   /* ITEM-SPEC-ENGINE:BEGIN (0086 item specifications + spec-based pricing) ---------------
      An item placed on the floor (item.properties.spec) can carry a SPEC — e.g. a stage's
@@ -6002,6 +6003,9 @@ window.HelmUrl = HelmUrl;
     opts = opts || {};
     const maxBytes = opts.maxBytes || 8 * 1024 * 1024, maxInput = opts.maxInput || 25 * 1024 * 1024, maxPx = opts.maxPx || 2560;
     const allow = opts.allow || ["image/png", "image/jpeg", "image/webp", "image/gif"];
+    // R154 opts.keepAlpha (builder screen logos): keep transparency - WebP with alpha, or a lossless PNG when the
+    // browser has no WebP encoder (Safari); JPEG (flattened on white) stays the last resort. Photos are unchanged.
+    const keepAlpha = !!opts.keepAlpha;
     if (!file || typeof file.size !== "number" || typeof file.slice !== "function") throw ugErr("Choose a photo to upload.");
     if (file.size < 12) throw ugErr("That file is empty or not a photo.");
     if (file.size > maxInput) throw ugErr("That photo is too large — choose one under " + Math.round(maxInput / 1048576) + " MB.", "upload_too_large");
@@ -6030,27 +6034,39 @@ window.HelmUrl = HelmUrl;
       const cv = doc.createElement("canvas"); cv.width = box.w; cv.height = box.h;
       const ctx = cv.getContext("2d");
       if (!ctx) throw ugErr("Photos can't be processed in this browser.", "upload_unavailable");
-      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, box.w, box.h);            // flatten transparency for JPEG
+      if (!keepAlpha) { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, box.w, box.h); }   // flatten transparency for JPEG
       try { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; } catch (e) {}
       ctx.drawImage(img, 0, 0, box.w, box.h);
-      const toBlob = (type, q) => new Promise((resolve) => { try { cv.toBlob((b) => resolve(b), type, q); } catch (e) { resolve(null); } });
+      const blobOf = (c, type, q) => new Promise((resolve) => { try { c.toBlob((b) => resolve(b), type, q); } catch (e) { resolve(null); } });
+      const toBlob = (type, q) => blobOf(cv, type, q);
+      // keepAlpha JPEG fallback: a white-backed copy (the working canvas keeps its transparency)
+      const flatJpeg = (q) => { const f = doc.createElement("canvas"); f.width = cv.width; f.height = cv.height;
+        const fx = f.getContext("2d"); if (!fx) return Promise.resolve(null);
+        fx.fillStyle = "#ffffff"; fx.fillRect(0, 0, f.width, f.height); fx.drawImage(cv, 0, 0); return blobOf(f, "image/jpeg", q); };
       let out = null, cur = cv;
       for (let pass = 0; pass < 3 && !out; pass++) {
         for (const q of [0.9, 0.82, 0.74, 0.66, 0.58]) {
           let b = await toBlob("image/webp", q);
-          if (!b || b.type !== "image/webp") b = await toBlob("image/jpeg", q);
+          if (!b || b.type !== "image/webp") {
+            if (keepAlpha) {
+              const pb = await toBlob("image/png");
+              if (pb && pb.type === "image/png" && pb.size <= maxBytes) { out = pb; break; }
+              b = await flatJpeg(q);
+            } else b = await toBlob("image/jpeg", q);
+          }
           if (b && b.size <= maxBytes) { out = b; break; }
         }
         if (!out && pass < 2) {                                                 // still too big: halve the pixels
           const nw = Math.max(1, Math.round(cur.width * 0.7)), nh = Math.max(1, Math.round(cur.height * 0.7));
           const c2 = doc.createElement("canvas"); c2.width = nw; c2.height = nh;
-          const g2 = c2.getContext("2d"); g2.fillStyle = "#ffffff"; g2.fillRect(0, 0, nw, nh); g2.drawImage(cur, 0, 0, nw, nh);
+          const g2 = c2.getContext("2d"); if (!keepAlpha) { g2.fillStyle = "#ffffff"; g2.fillRect(0, 0, nw, nh); } g2.drawImage(cur, 0, 0, nw, nh);
           cv.width = nw; cv.height = nh; ctx.drawImage(c2, 0, 0); cur = cv;
         }
       }
       if (!out) throw ugErr("That photo couldn't be made small enough — try another one.", "upload_too_large");
       const outSniff = ugSniff(await ugHead(out, 16));
-      if (!outSniff || (outSniff.mime !== "image/webp" && outSniff.mime !== "image/jpeg")) throw ugErr("That photo couldn't be converted — try another one.");
+      const outOk = outSniff && (outSniff.mime === "image/webp" || outSniff.mime === "image/jpeg" || (keepAlpha && outSniff.mime === "image/png"));
+      if (!outOk) throw ugErr("That photo couldn't be converted — try another one.");
       return { blob: out, mime: outSniff.mime, ext: outSniff.ext, sniffed: sniff.mime };
     } finally {
       if (url) { try { URL.revokeObjectURL(url); } catch (e) {} }
@@ -6142,7 +6158,8 @@ window.HelmUrl = HelmUrl;
     unpublish: (id) => rpc("publish_event_site", { p_id: id, p_publish: false }),
     // Upload an invitation photo to Supabase Storage (public bucket 'invite-media').
     // Path is prefixed with the org id so storage RLS keeps tenants isolated.
-    async uploadPhoto(quoteId, file) {
+    // opts.keepAlpha (R154, builder screen logos): keep a transparent background (WebP / PNG instead of white-backed)
+    async uploadPhoto(quoteId, file, opts) {
       if (!supa) throw new Error("Supabase not configured");
       if (!file) throw new Error("no file");
       if (file.size > INVITE_IMG_MAX * 3) throw new Error("Image too large (max 8 MB).");
@@ -6152,7 +6169,7 @@ window.HelmUrl = HelmUrl;
       // 0048: declared type / extension must agree with the bytes; then re-encode on a
       // canvas (strips EXIF/GPS, caps size at INVITE_IMG_MAX + pixels). The bytes uploaded
       // are the re-encoded ones; type + extension come from re-sniffing them.
-      const img = await ugPrepareImage(file, { maxBytes: INVITE_IMG_MAX, maxInput: INVITE_IMG_MAX * 3, maxPx: 2560 });
+      const img = await ugPrepareImage(file, { maxBytes: INVITE_IMG_MAX, maxInput: INVITE_IMG_MAX * 3, maxPx: 2560, keepAlpha: !!(opts && opts.keepAlpha) });
       sniff = { mime: img.mime, ext: img.ext };
       const orgId = await org.id();
       if (!orgId) throw new Error("no organization in context");

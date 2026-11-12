@@ -175,3 +175,4 @@ Décor **variants** (style / flower / colour story, chosen in the builder inspec
 | `stagedeck` | Stage Extension | 6,000 | 8 × 4 ft — an extra stage deck module at stage height (R135) |
 | `stagestairs` | Stage Stairs | 2,500 | 6 × 3.3 ft — a set of stage steps placed left / centre / right of a stage (R135) |
 | `installation` | Outdoor Decor Installation | 15,000 | 8 × 8 ft — a light sculpture, marquee letters or a light tunnel (R135) |
+| `jyothi` | Jyothi Prajwalana | 3,000 | 1.5 × 1.5 ft, about 5.5 ft tall — the ceremonial brass lamp-lighting stand with tiered oil lamps (or candles), lit before the event starts (R154) |

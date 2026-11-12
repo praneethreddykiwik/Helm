@@ -1040,6 +1040,25 @@
         bulbs(g, fl, '#ffb547', 0.06);
         fl.forEach(p=>{ const f=new THREE.Mesh(new THREE.ConeGeometry(0.045,0.2,8),new THREE.MeshBasicMaterial({color:col('#ffd27a'),transparent:true,opacity:.9})); f.position.set(p[0],p[1]+0.12,p[2]); g.add(f); });
         return true; }
+      case 'jyothi': {           // R154 Jyothi Prajwalana: round foot, tall turned pole, 3 tiered lamp trays + a crown lamp (~5.6 ft);
+        // flames are unlit (basic) materials (outer flame, hot core, wick bead), so the stand reads as lit in every light / render mode
+        const rb=Math.max(0.45,Math.min(w,d)/2), candle=String(VAR.style||'')==='candle';
+        const metal=candle?'#26231f':'#c99a3a', mo=candle?{metalness:.55,roughness:.45}:GOLD;
+        g.add(lathe([[0.01,0],[rb,0],[rb*0.96,0.1],[rb*0.6,0.22],[rb*0.3,0.42],[0.11,0.62],[0.08,1.2],[0.13,1.35],[0.07,1.5],[0.07,5.0],[0.12,5.12],[0.06,5.22],[0.01,5.22]],metal,mo));
+        const lamps=[];
+        [[2.5,0.6,7],[3.6,0.46,6],[4.6,0.32,5]].forEach(([y,r0,n],ti)=>{
+          const tr=lathe([[0.01,-0.05],[0.1,-0.07],[r0,-0.02],[r0+0.04,0.06],[r0-0.01,0.05],[0.01,0.02]],metal,mo); tr.position.y=y; g.add(tr);
+          for(let i=0;i<n;i++){ const a=i/n*Math.PI*2+ti*0.45; lamps.push([Math.cos(a)*r0*0.84, y+0.05, Math.sin(a)*r0*0.84]); } });
+        lamps.push([0,5.22,0]);                                                   // crown lamp on the finial
+        const lampGeo=candle ? new THREE.CylinderGeometry(0.055,0.06,0.32,10)
+          : new THREE.LatheGeometry([[0.01,0],[0.06,0.005],[0.095,0.05],[0.09,0.07],[0.05,0.03],[0.01,0.03]].map(q=>new THREE.Vector2(q[0],q[1])),12);
+        const cups=instanced(lampGeo, candle ? mat('#f5efe0',{roughness:.6}) : mat('#d4a640',GOLD), lamps.map(q=>({x:q[0],y:q[1]+(candle?0.16:0),z:q[2]}))); if(cups) g.add(cups);
+        const top=candle?0.42:0.15;                                               // flame base above the tray
+        const flame=(geo,c,o)=>{ const m=instanced(geo,new THREE.MeshBasicMaterial(Object.assign({color:col(c)},o||{})),lamps.map(q=>({x:q[0],y:q[1]+top,z:q[2]}))); if(m){ m.castShadow=false; m.receiveShadow=false; g.add(m); } };
+        flame((()=>{ const c0=new THREE.ConeGeometry(0.05,0.2,8); c0.translate(0,0.1,0); return c0; })(), '#ffa63a', {transparent:true,opacity:.92});
+        flame((()=>{ const c1=new THREE.ConeGeometry(0.024,0.1,6); c1.translate(0,0.05,0); return c1; })(), '#fff4c6');
+        flame((()=>{ const h=new THREE.SphereGeometry(0.035,8,6); h.translate(0,0.02,0); return h; })(), '#fff2b0');   // bright wick bead at the flame root
+        return true; }
       /* ---- religious + ambience pack (2026-10c) ---- */
       case 'havankund': {        // copper/brick havan kund on a low square platform: stepped pyramid pit, fire, kalash at the corners
         const R=Math.min(w,d)/2;
