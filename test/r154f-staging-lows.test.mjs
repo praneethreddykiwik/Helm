@@ -72,7 +72,7 @@ t('3 0352: APPLY = header + begin + migration verbatim + commit + VERIFY; editor
   const man = r('supabase/migrations/MANIFEST');
   assert.equal((man.match(/^forward  supabase\/migrations\/0352_r154f_email_probe_limits\.sql$/gm) || []).length, 1);
   assert.match(r('scripts/db-test/run-all.sh'), /run "r154f-email-probe-0352" "R154F-EMAIL-PROBE-0352: ALL PASS \\\(\d+\/\d+\\\)" psql -q -f tests\/db\/r154f-email-probe-0352\.sql/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0352'\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0352'[,\]]/, f);   // R155: later numbers (0353) may follow
   // the pages treat any error / false as "no" (unchanged; store-api.js is not touched by this round)
   const S = r('public/store-api.js');
   assert.match(S, /supa\.rpc\("signup_email_preauthorised", \{ p_email: String\(email\)\.trim\(\)\.toLowerCase\(\) \}\); return !r\.error && r\.data === true;/);

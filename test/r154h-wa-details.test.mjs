@@ -22,7 +22,7 @@ await t('0353: MANIFEST once, after 0337 and 0346, plain words, nothing dropped,
   assert.ok(mf.indexOf('forward  supabase/migrations/0337_r129_studio_whatsapp.sql') < mf.indexOf(line));
   assert.ok(mf.indexOf('forward  supabase/migrations/0346_r154_slug_skeleton_execute.sql') < mf.indexOf(line));
   assert.match(mf, /# 0353 \(R154h[^\n]*Nothing dropped or deleted\. Safe to run twice\./);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0346', '0353'(, '\d{4}')*\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0353'(, '\d{4}')*\]/, f);
   assert.match(r('scripts/db-test/run-all.sh'), /run "r154h-wa-details-0353" "R154H-WA-DETAILS-0353: ALL PASS \\\(35\/35\\\)" psql -q -f tests\/db\/r154h-wa-details-0353\.sql/);
   assert.match(r('supabase/check-prod-overrides.json'), /"0353": \{ "note": "WhatsApp IDs saved without the token/);
   assert.match(r('supabase/CHECK-PROD-MIGRATIONS.sql'), /\('0353_r154h_wa_details', 'marker', 'public', 'save_org_whatsapp_account', 'text,text,text,text\|r154h-0353'\)/);
@@ -77,10 +77,10 @@ await t('page: never stores the token in the browser; versions bumped; guide + t
   const ui = r('public/wa-connect-ui.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''), h = r('public/integrations.html');
   assert.doesNotMatch(ui, /localStorage|sessionStorage|indexedDB|document\.cookie|console\.|location\.(hash|search|href)\s*=|history\.(push|replace)State/);
   assert.doesNotMatch(ui, /innerHTML|insertAdjacentHTML|outerHTML/);
-  assert.match(h, /wa-connect-ui\.js\?v=3/); assert.match(h, /integrations\.js\?v=9/); assert.match(h, /integrations\.css\?v=9/);
+  assert.match(h, /wa-connect-ui\.js\?v=3/); assert.match(h, /integrations\.js\?v=10/); assert.match(h, /integrations\.css\?v=9/);
   assert.match(h, /Press <b>Save details<\/b> – the two IDs stay saved/);
   assert.match(r('public/page-tours.js'), /Save details keeps the two IDs without the token/);
-  assert.match(r('public/tour.js'), /const PT_V = "29";/);
+  assert.match(r('public/tour.js'), /const PT_V = "30";/);
 });
 
 await t('pure helpers: tokenSaved, statusLine, codeHelp, validateIds, isDirty', () => {

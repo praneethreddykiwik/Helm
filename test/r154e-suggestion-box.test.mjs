@@ -80,8 +80,8 @@ t('0351: additive (no drop table / column, no delete), RLS on the vote table, ed
 });
 t('MANIFEST + release lists + page tours', () => {
   assert.match(man, /^forward  supabase\/migrations\/0351_r154e_suggestion_box\.sql$/m);
-  assert.ok(r('test/release-1019.test.mjs').includes("'0344', '0351']"));
-  assert.ok(r('test/release-1020.test.mjs').includes("'0344', '0351']"));
+  assert.match(r('test/release-1019.test.mjs'), /'0344'(, '\d{4}')*, '0351'(, '\d{4}')*\]/);   // R155: other migrations may sit around 0351
+  assert.match(r('test/release-1020.test.mjs'), /'0344'(, '\d{4}')*, '0351'(, '\d{4}')*\]/);   // R155: other migrations may sit around 0351
   assert.match(r('public/page-tours.js'), /sel: "#tab-requests"[^\n]*mark New \/ Planned \/ Done \/ Not now and write a reply the sender reads under My suggestions/);
   assert.match(sb, /sel: "\[data-tour='tour-top'\]", title: "Help and ideas"/);
   assert.match(r('scripts/db-test/run-all.sh'), /R154E-SUGGESTION-BOX-0351: ALL PASS/);
