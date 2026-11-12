@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3901 objects): body 176, bucket 9, col 226, con 402, cron 19, exec 2, fn 1777, idx 397, marker 5, pol 179, polexpr 4, pre 93, pub 5, seq 1, tbl 260, trg 344, view 2.
+-- What is checked (3900 objects): body 175, bucket 9, col 226, con 402, cron 19, exec 2, fn 1778, idx 397, marker 5, pol 179, polexpr 4, pre 92, pub 5, seq 1, tbl 260, trg 344, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3884,9 +3884,8 @@ with o(m, k, s, n, x) as (values
   ('0345_r153_prod_catchup', 'body', 'public', 'set_discovery', 'uuid,date,text,text,text,text,numeric,numeric|2973a38dae4f13a24ec86ee32444a33d'),
   ('0345_r153_prod_catchup', 'body', 'public', 'set_event_plan', 'uuid,text,text,text,text,text,text|89ad1477dafdfbf1cf4af6826b6f1c05'),
   ('0345_r153_prod_catchup', 'body', 'public', 'set_proposal', 'uuid,text,text,jsonb,jsonb,jsonb|677a340c2c628e51ee14b0c528897b91'),
-  ('0345_r153_prod_catchup', 'body', 'public', 'return_reservation', 'uuid,numeric|3247d7a1ef85d26729e8d24acd9a7962'),
   ('0345_r153_prod_catchup', 'fn', 'public', '_r345_keep', 'text'),
-  ('0345_r153_prod_catchup', 'pre', null, '__pre0345', null),
+  ('0345_r153_prod_catchup', 'fn', 'public', 'return_reservation', 'uuid,numeric'),
   ('0346_r154_slug_skeleton_execute', 'exec', 'public', '_r23_slug_skeleton', 'text|authenticated'),
   ('0350_r154c_open_quotes', 'fn', 'public', 'my_open_quotes', 'text,integer,integer,uuid,integer'),
   ('0351_r154e_suggestion_box', 'fn', 'public', '_r351_keep', 'text'),
@@ -4231,7 +4230,7 @@ mig(ord, m, ov, note) as (values
   (301, '0342_r143_outbox_backoff', null, null),
   (302, '0343_r148_rls_initplan', null, 'ALTER POLICY only (calls wrapped as (select ...)); besides the kept helpers, 4 sample policies are checked for the wrapped form - run select * from public._r343_unwrapped() for the full list (0 rows expected)'),
   (303, '0344_r149_missing_indexes', null, null),
-  (304, '0345_r153_prod_catchup', null, null),
+  (304, '0345_r153_prod_catchup', null, 'guarded catch-up: return_reservation is only created where it is missing (checked by name, not by body) and NAME__pre0345 copies only exist where a body was re-issued'),
   (305, '0346_r154_slug_skeleton_execute', null, 'EXECUTE grant only: signed-in users may run the look-alike helper used by the organizations / org_slug_history indexes (studio settings save)'),
   (306, '0350_r154c_open_quotes', null, null),
   (307, '0351_r154e_suggestion_box', null, 'hq_suggestions + hq_set_suggestion re-issued in place (same names), checked by the 0351 marker in their bodies'),
