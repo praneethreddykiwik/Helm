@@ -52,7 +52,20 @@ await t('edge logic: status booleans only, sender/reply-to, masking', () => {
   assert.ok(!JSON.stringify(live).includes('re_x') && !JSON.stringify(live).includes('"t"'), 'no secret values in status');
   assert.equal(L.channelStatus(env({ WHATSAPP_TOKEN: 't', WHATSAPP_PHONE_ID: '1234567' })).whatsapp.live, false, 'no template -> not live');
   assert.equal(L.fromHeader('Helm <hello@helm.events>', 'Rao "Events"', 'X'), '"Rao Events" <hello@helm.events>');
-  assert.equal(L.fromHeader('', '', 'Studio'), '"Studio" <onboarding@resend.dev>');
+  // R154g: no fallback sender - nothing configured -> empty address (display only; nothing is sent)
+  assert.equal(L.fromHeader('', '', 'Studio'), '"Studio" <>');
+  assert.equal(L.senderAddress('Helm'), ''); assert.equal(L.emailProvider(env({ RESEND_API_KEY: 're_x', RESEND_FROM: 'Helm' })), '');
+  for (const f of ['_shared/mailer.ts', 'integrations-test/logic.mjs', 'comms-dispatch/index.ts', 'billing-reminder/index.ts',
+    'security-alert-mailer/index.ts', 'pkg-client-notify/index.ts', 'razorpay-webhook/index.ts'])
+    assert.doesNotMatch(r('supabase/functions/' + f).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n'), /onboarding@resend\.dev/, f);
+  // R154: SMTP-only counts as live (the shared mailer sends through it); Resend needs key AND from (as mailConfig)
+  const smtp = L.channelStatus(env({ SMTP_HOST: 'smtp.gmail.com', SMTP_USER: 'mail@helm.events', SMTP_PASS: 'pw' }));
+  assert.equal(smtp.email.live, true); assert.equal(smtp.email.provider, 'smtp'); assert.equal(smtp.email.sender, 'mail@helm.events');
+  assert.ok(!JSON.stringify(smtp).includes('"pw"'), 'no SMTP password in status');
+  assert.equal(L.channelStatus(env({ RESEND_API_KEY: 're_x' })).email.live, false, 'key without RESEND_FROM: the shared mailer does not send');
+  assert.equal(L.channelStatus(env({ SMTP_HOST: 'h', SMTP_USER: 'u@x.io' })).email.live, false, 'SMTP without password: not live');
+  assert.equal(L.channelStatus(env({ RESEND_API_KEY: 're_x', RESEND_FROM: 'a@helm.events', SMTP_HOST: 'h', SMTP_USER: 'u@x.io', SMTP_PASS: 'p' })).email.provider, 'resend', 'Resend first, like mailConfig');
+  assert.match(L.EMAIL_NOT_SET_REASON, /SMTP_HOST/);
   assert.equal(L.replyToOf('Bad <x>'), ''); assert.equal(L.replyToOf('B@Rao.in'), 'b@rao.in');
   assert.equal(L.maskEmail('owner@rao.in'), 'o***@rao.in'); assert.equal(L.maskPhone('919876543210'), '+91******10');
   assert.equal(L.waTestContent(env({ COMMS_WHATSAPP_TEMPLATE: 'helm_notice' })).template.name, 'helm_notice');
@@ -61,10 +74,12 @@ await t('edge logic: status booleans only, sender/reply-to, masking', () => {
 await t('edge function: caller JWT, fixed recipients, host allowlist, no secret echoed', () => {
   assert.match(fn, /jwt === anonKey/); assert.match(fn, /rpc\("integrations_test_target"/);
   assert.ok(!/body\.(to|number|email|phone)/.test(fn), 'recipient never taken from the request');
-  assert.match(fn, /ALLOWED_HOSTS = new Set\(\["api\.resend\.com", "graph\.facebook\.com"\]\)/);
+  // R154: the e-mail test goes through the shared mailer (Resend or SMTP, its own deadline + host); WhatsApp via waPost
+  assert.match(fn, /import \{ brandMode, mailConfig, sendMail, senderHeader \} from "\.\.\/_shared\/mailer\.ts";/);
+  assert.match(fn, /const out = await sendMail\(\{ to, subject: msg\.subject/); assert.ok(!/api\.resend\.com/.test(fn), 'no direct Resend call');
   assert.match(fn, /checkLimits\(\[\["itest:send:" \+ user\.id, 5, 600_000\]\]\)/);
   assert.ok(!/json\([^;]*env\("(WHATSAPP_TOKEN|RESEND_API_KEY|WHATSAPP_APP_SECRET)"\)/.test(fn), 'secret values never returned');
-  assert.match(disp, /comms_outbox_email_identity/); assert.match(disp, /reply_to: replyTo/);
+  assert.match(disp, /comms_outbox_email_identity/); assert.match(disp, /replyTo: replyToOf\(ident\.reply_to\) \|\| null/);   // R154g: shared mailer for both lanes
 });
 await t('page: CSP-safe forms + Send test buttons, no secret inputs', () => {
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html)); assert.ok(!/\sstyle=/i.test(html)); assert.ok(!/\son[a-z]+=/i.test(html));

@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=69"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=71"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1201,7 +1201,7 @@ window.HelmUrl = HelmUrl;
   // la-fetch (audit 25): the list below also names the STABLE (read-only) RPCs every page asks while it
   // boots (trial / upgrade status, seat use, prefs, shelf list, mentions, PIN status). Before, each one was
   // treated as a write and dropped every shared read of the page, so the page's own reads ran again.
-  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes)(\?|$)/;
+  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
   const readCache = new Map();
   function hdrOf(init, input, name) {
     try {
@@ -1521,7 +1521,7 @@ window.HelmUrl = HelmUrl;
     loadAuthUi();
   }
   // Account menu / two-step banner live in auth-ui.js (loaded on signed-in staff pages only).
-  const AUTH_UI_VERSION = "61";
+  const AUTH_UI_VERSION = "62";
   let authUiLoading = null;
   function loadAuthUi() {
     if (authUiLoading || typeof document === "undefined") return authUiLoading;
@@ -3665,6 +3665,24 @@ window.HelmUrl = HelmUrl;
       try { const d = await rpc("my_unfinished_quotes", args); return d && typeof d === "object" && Array.isArray(d.rows) ? d : null; }
       catch (e) { if (rpcMissing(e)) return null; throw e; }
     },
+    /* r154c (0350): the "Continue quote" list - EVERY open quote not yet Confirmed (building / quoted / locked / sent),
+       same options + answer shape as list() plus rows[].phase (and rows[].hidden in the studio list). A database
+       without 0350 answers through list() (0206, building only) with legacy: true; null like list() otherwise. */
+    async open(opts) {
+      if (!flowProgress.available()) return null;
+      const o = opts || {}, n = (v, lo, hi, d) => { v = Math.floor(Number(v)); return isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
+      const q = o.quote && UUID_RE_PKG.test(String(o.quote)) ? String(o.quote) : null;
+      if (o.quote && !q) return { total: 0, rows: [], can_edit: false };
+      if (flowProgress._noOpen) { const d = await flowProgress.list(o); return d ? Object.assign({}, d, { legacy: true }) : null; }
+      const args = { p_scope: o.scope === "studio" ? "studio" : "mine", p_limit: n(o.limit, 1, 100, 20), p_offset: n(o.offset, 0, 100000, 0),
+        p_quote: q, p_max_days: o.maxDays == null ? null : n(o.maxDays, 1, 3650, 60) };
+      try { const d = await rpc("my_open_quotes", args); return d && typeof d === "object" && Array.isArray(d.rows) ? d : null; }
+      catch (e) {
+        if (!rpcMissing(e)) throw e;
+        flowProgress._noOpen = true;                                    // remember for this page: one failed call, not one per read
+        const d = await flowProgress.list(o); return d ? Object.assign({}, d, { legacy: true }) : null;
+      }
+    },
   };
   // 0083: booklet pictures kept in the database
   const BOOKLET_IMG_KINDS = ["2d", "3d"], BOOKLET_IMG_VARIANTS = ["labels", "plain"], BOOKLET_IMG_MAX = 1536 * 1024;
@@ -4075,6 +4093,7 @@ window.HelmUrl = HelmUrl;
     havankund:3500, rangoli:2500, lanterns:1200, hangingfloral:18000, neonsign:4000,
     backdrop:6000, floralstand:1500, decorbox:2000, signage:1200, stageroof:60000, varmala:25000, micstand:500, teleprompter:6000, projector:8000, tvstand:4000, interpreter:15000, pyro:3000, towerlight:4000, gaddi:3000, urli:2500, umbrellas:5000, doli:12000, kalash:800, altar:8000, shoerack:1000, dessert:3500, coffee:3000, stall:6000, counter:2500, plinth:1000, kiosk:3000, ticketbooth:5000, stanchion:1200, watchtower:8000, extinguisher:300, ambulance:6000,
     lawnfloor:9000, stagelight:1500, pathlights:2500, sidescreen:30000, stagedeck:6000, stagestairs:2500, installation:15000,
+    jyothi:3000,
   };
   /* ITEM-SPEC-ENGINE:BEGIN (0086 item specifications + spec-based pricing) ---------------
      An item placed on the floor (item.properties.spec) can carry a SPEC — e.g. a stage's
@@ -6002,6 +6021,9 @@ window.HelmUrl = HelmUrl;
     opts = opts || {};
     const maxBytes = opts.maxBytes || 8 * 1024 * 1024, maxInput = opts.maxInput || 25 * 1024 * 1024, maxPx = opts.maxPx || 2560;
     const allow = opts.allow || ["image/png", "image/jpeg", "image/webp", "image/gif"];
+    // R154 opts.keepAlpha (builder screen logos): keep transparency - WebP with alpha, or a lossless PNG when the
+    // browser has no WebP encoder (Safari); JPEG (flattened on white) stays the last resort. Photos are unchanged.
+    const keepAlpha = !!opts.keepAlpha;
     if (!file || typeof file.size !== "number" || typeof file.slice !== "function") throw ugErr("Choose a photo to upload.");
     if (file.size < 12) throw ugErr("That file is empty or not a photo.");
     if (file.size > maxInput) throw ugErr("That photo is too large — choose one under " + Math.round(maxInput / 1048576) + " MB.", "upload_too_large");
@@ -6030,27 +6052,39 @@ window.HelmUrl = HelmUrl;
       const cv = doc.createElement("canvas"); cv.width = box.w; cv.height = box.h;
       const ctx = cv.getContext("2d");
       if (!ctx) throw ugErr("Photos can't be processed in this browser.", "upload_unavailable");
-      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, box.w, box.h);            // flatten transparency for JPEG
+      if (!keepAlpha) { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, box.w, box.h); }   // flatten transparency for JPEG
       try { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; } catch (e) {}
       ctx.drawImage(img, 0, 0, box.w, box.h);
-      const toBlob = (type, q) => new Promise((resolve) => { try { cv.toBlob((b) => resolve(b), type, q); } catch (e) { resolve(null); } });
+      const blobOf = (c, type, q) => new Promise((resolve) => { try { c.toBlob((b) => resolve(b), type, q); } catch (e) { resolve(null); } });
+      const toBlob = (type, q) => blobOf(cv, type, q);
+      // keepAlpha JPEG fallback: a white-backed copy (the working canvas keeps its transparency)
+      const flatJpeg = (q) => { const f = doc.createElement("canvas"); f.width = cv.width; f.height = cv.height;
+        const fx = f.getContext("2d"); if (!fx) return Promise.resolve(null);
+        fx.fillStyle = "#ffffff"; fx.fillRect(0, 0, f.width, f.height); fx.drawImage(cv, 0, 0); return blobOf(f, "image/jpeg", q); };
       let out = null, cur = cv;
       for (let pass = 0; pass < 3 && !out; pass++) {
         for (const q of [0.9, 0.82, 0.74, 0.66, 0.58]) {
           let b = await toBlob("image/webp", q);
-          if (!b || b.type !== "image/webp") b = await toBlob("image/jpeg", q);
+          if (!b || b.type !== "image/webp") {
+            if (keepAlpha) {
+              const pb = await toBlob("image/png");
+              if (pb && pb.type === "image/png" && pb.size <= maxBytes) { out = pb; break; }
+              b = await flatJpeg(q);
+            } else b = await toBlob("image/jpeg", q);
+          }
           if (b && b.size <= maxBytes) { out = b; break; }
         }
         if (!out && pass < 2) {                                                 // still too big: halve the pixels
           const nw = Math.max(1, Math.round(cur.width * 0.7)), nh = Math.max(1, Math.round(cur.height * 0.7));
           const c2 = doc.createElement("canvas"); c2.width = nw; c2.height = nh;
-          const g2 = c2.getContext("2d"); g2.fillStyle = "#ffffff"; g2.fillRect(0, 0, nw, nh); g2.drawImage(cur, 0, 0, nw, nh);
+          const g2 = c2.getContext("2d"); if (!keepAlpha) { g2.fillStyle = "#ffffff"; g2.fillRect(0, 0, nw, nh); } g2.drawImage(cur, 0, 0, nw, nh);
           cv.width = nw; cv.height = nh; ctx.drawImage(c2, 0, 0); cur = cv;
         }
       }
       if (!out) throw ugErr("That photo couldn't be made small enough — try another one.", "upload_too_large");
       const outSniff = ugSniff(await ugHead(out, 16));
-      if (!outSniff || (outSniff.mime !== "image/webp" && outSniff.mime !== "image/jpeg")) throw ugErr("That photo couldn't be converted — try another one.");
+      const outOk = outSniff && (outSniff.mime === "image/webp" || outSniff.mime === "image/jpeg" || (keepAlpha && outSniff.mime === "image/png"));
+      if (!outOk) throw ugErr("That photo couldn't be converted — try another one.");
       return { blob: out, mime: outSniff.mime, ext: outSniff.ext, sniffed: sniff.mime };
     } finally {
       if (url) { try { URL.revokeObjectURL(url); } catch (e) {} }
@@ -6142,7 +6176,8 @@ window.HelmUrl = HelmUrl;
     unpublish: (id) => rpc("publish_event_site", { p_id: id, p_publish: false }),
     // Upload an invitation photo to Supabase Storage (public bucket 'invite-media').
     // Path is prefixed with the org id so storage RLS keeps tenants isolated.
-    async uploadPhoto(quoteId, file) {
+    // opts.keepAlpha (R154, builder screen logos): keep a transparent background (WebP / PNG instead of white-backed)
+    async uploadPhoto(quoteId, file, opts) {
       if (!supa) throw new Error("Supabase not configured");
       if (!file) throw new Error("no file");
       if (file.size > INVITE_IMG_MAX * 3) throw new Error("Image too large (max 8 MB).");
@@ -6152,7 +6187,7 @@ window.HelmUrl = HelmUrl;
       // 0048: declared type / extension must agree with the bytes; then re-encode on a
       // canvas (strips EXIF/GPS, caps size at INVITE_IMG_MAX + pixels). The bytes uploaded
       // are the re-encoded ones; type + extension come from re-sniffing them.
-      const img = await ugPrepareImage(file, { maxBytes: INVITE_IMG_MAX, maxInput: INVITE_IMG_MAX * 3, maxPx: 2560 });
+      const img = await ugPrepareImage(file, { maxBytes: INVITE_IMG_MAX, maxInput: INVITE_IMG_MAX * 3, maxPx: 2560, keepAlpha: !!(opts && opts.keepAlpha) });
       sniff = { mime: img.mime, ext: img.ext };
       const orgId = await org.id();
       if (!orgId) throw new Error("no organization in context");
@@ -10836,6 +10871,18 @@ window.HelmUrl = HelmUrl;
     hq: (fn, args) => (/^hq_[a-z_]+$/.test(fn) ? rpc(fn, args || {}) : Promise.reject(new Error("bad call"))),
     // r24 (0271): "Send a suggestion" (profile menu -> suggest.js). The server records who + their studio.
     suggest: (p) => rpc("submit_suggestion", { p: p || {} }),
+    // R154e (0351): the Suggestion box v2 - my own list + the ones my studio shared (+1), the Helm reply, the unread dot.
+    // A database without 0351: submit falls back to the 0271 route, the list answers null (the dialog says "not yet").
+    suggestions: {
+      submit: (p) => rpc("suggestion_submit", { p: p || {} }).catch((e) => {
+        if (rpcMissing(e)) { const q = Object.assign({}, p || {}); delete q.share; return rpc("submit_suggestion", { p: q }); }
+        throw e; }),
+      mine: () => rpc("my_suggestions").catch((e) => { if (rpcMissing(e)) return null; throw e; }),
+      unread: () => (supa ? rpc("my_suggestion_unread").then((n) => Number(n) || 0, () => 0) : Promise.resolve(0)),
+      seen: () => rpc("suggestion_replies_seen").catch(() => 0),
+      vote: (id, on) => rpc("suggestion_vote", { p_id: id, p_on: on !== false }),
+      share: (id, on) => rpc("suggestion_share", { p_id: id, p_on: !!on }),
+    },
     // r33 (0283): Settings -> Team safety. Deactivate (never delete), Reactivate (counts against the seat limit),
     // the protected Studio owner, 24-hour admin changes by non-owners (+ Cancel), ownership hand-over (owner + fresh
     // two-step code; an active admin accepts). The database decides who may do what; overview() is null before 0283.
@@ -10949,13 +10996,17 @@ window.HelmUrl = HelmUrl;
         const j = await res.json().catch(() => ({}));
         // 404 without the function's own error code = the function is not deployed
         if (res.status === 404 && !j.error) { const e = new Error("Photo renders aren't switched on yet."); e.code = "render_not_configured"; e.status = 404; throw e; }
-        if (!res.ok) { const e = new Error(String(j.message || j.error || ("HTTP " + res.status))); e.code = String(j.error || ""); e.status = res.status; throw e; }
+        if (!res.ok) { const e = new Error(String(j.message || j.error || ("HTTP " + res.status))); e.code = String(j.error || ""); e.status = res.status; e.reason = "http " + res.status + " " + String(j.error || "").slice(0, 60); throw e; }
         if (res.status !== 202 || !j.job_id) return j;
         // async render (0095): the server answered at once; poll the job, then load each photo
         const JOB_MSG = { timeout: ["render_timeout", "The render took too long - try standard quality or fewer images"],
           blocked: ["render_blocked", "The image service refused this request - change the decor theme and try again"],
           busy: ["render_busy", "The image service is busy - try again in a minute"],
-          failed: ["render_failed", "The image service could not make the photo"] };
+          failed: ["render_failed", "The image service could not make the photo"],
+          // R154a: account problems on the image service side (the owner must act; "try again" will not help)
+          auth: ["render_provider_auth", "The image service key needs renewing"],
+          billing: ["render_provider_billing", "The image service account is out of credit"],
+          model: ["render_provider_model", "The image model is not available to this account"] };
         const t0 = Date.now();
         for (;;) {
           if (signal && signal.aborted) { const e = new Error("Cancelled"); e.name = "AbortError"; throw e; }
@@ -10964,8 +11015,9 @@ window.HelmUrl = HelmUrl;
           let st = null;
           try { st = await rpc("photo_render_job", { p_usage_id: j.job_id }); } catch (e) { if (e && (e.code === "42501" || e.code === "P0002")) throw e; continue; }
           if (!st || st.status === "pending") continue;
-          if (st.status === "error") { const k = String(st.error || "failed").split(":")[0]; const m = JOB_MSG[k] || JOB_MSG.failed;
-            const e = new Error(m[1]); e.code = m[0]; throw e; }
+          if (st.status === "error") { const k = String(st.error || "failed").split(":")[0].trim(); const m = JOB_MSG[k] || JOB_MSG.failed;
+            // R154a: e.reason = the server's short reason ("auth: openai 401 expired_secret_key") - codes only, never a key
+            const e = new Error(m[1]); e.code = m[0]; e.reason = String(st.error || "").slice(0, 120); e.jobId = j.job_id; throw e; }
           const ids = Array.isArray(st.renders) ? st.renders : [];
           const renders = [];
           for (const id of ids) {

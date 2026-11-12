@@ -89,7 +89,7 @@ t('only a storage reference is ever kept: the invite-media path or "studio" - ne
   assert.equal(HS.sanitize({ screenLogo: PATH }).screenLogo, PATH);
   // the builder stores the PATH it gets back from the Invite Studio uploader (same bucket, key and per-studio rules)
   const add = fnSrc(b, 'screenLogoAdd');
-  assert.match(add, /BPStore\.sites\.uploadPhoto\(currentQuoteId, up\)/);
+  assert.match(add, /BPStore\.sites\.uploadPhoto\(currentQuoteId, up, \{keepAlpha:true\}\)/);   // R154: keeps transparency
   assert.match(add, /it\.properties\.screenLogo=path;/);
   assert.ok(!/data:|toDataURL|readAsDataURL/.test(add + fnSrc(b, 'shrinkLogo') + fnSrc(b, 'screenExtrasMount')), 'no data: URL anywhere in the logo flow');
   assert.match(fnSrc(b, 'shrinkLogo'), /S\.fitLogoSize\(w,h,S\.LOGO_MAX_PX\)/);
@@ -138,7 +138,9 @@ t('logo display: signed link via mediaUrls, crossOrigin anonymous, failure -> mo
     assert.match(b3, /HS\.draw\(x, W, H, c, \{ side, logo \}\)/);
     assert.match(b, /HelmScreen\.onLogoChange\(\(\)=>\{ try\{ renderSceneOnly\(\); if\(window\.__on3DStateChange\) window\.__on3DStateChange\(\);/);
     // exported pictures never carry the signed link
-    assert.match(b, /clone\.querySelectorAll\('\.scr-logo'\)\.forEach\(n=>n\.remove\(\)\);/);
+    // R154: the export bakes the logo PIXELS (HelmScreen.logoSnapshot) and drops the signed href + marker; no picture = removed
+    assert.match(b, /clone\.querySelectorAll\('\.scr-logo'\)\.forEach\(n=>\{ const d=window\.HelmScreen && HelmScreen\.logoSnapshot \? HelmScreen\.logoSnapshot\(n\.getAttribute\('data-logo'\)\) : '';/);
+    assert.match(b, /n\.removeAttribute\('data-logo'\); n\.removeAttribute\('crossorigin'\); if\(d\) n\.setAttribute\('href', d\); else n\.remove\(\); \}\);/);
   } finally { delete globalThis.Image; HS.setLogoResolver(null); }
 });
 

@@ -85,7 +85,7 @@ Deno.test("webhook: payment after already paid -> recorded (reconcile), studio t
   try {
     const h = await loadHandler(FN);
     assertEquals((await h(await signed(PAID))).status, 200);
-    assertEquals(to, ["owner@studio-a.in"]);
+    assertEquals(to, [["owner@studio-a.in"]]);   // R154g: the shared mailer sends to: [address]
   } finally { rF(); rEnv(); }
 });
 
@@ -97,12 +97,14 @@ Deno.test("webhook: settled -> receipts from the STUDIO (name + address), no glo
   try {
     const h = await loadHandler(FN);
     assertEquals((await h(await signed(PAID))).status, 200);
-    const client = mails.find((m) => m.to === "alice@example.com");
-    const studio = mails.find((m) => m.to === "owner@studio-a.in");
-    const ops = mails.find((m) => m.to === "ops@platform.example");
+    // R154g: through the shared mailer (to: [address]) with a plain-text part from the same HTML
+    const client = mails.find((m) => m.to[0] === "alice@example.com");
+    const studio = mails.find((m) => m.to[0] === "owner@studio-a.in");
+    const ops = mails.find((m) => m.to[0] === "ops@platform.example");
     assert(client && studio && ops);
     assertEquals(client.from, '"Studio A" <events@helm.events>');
     assert(client.html.includes("Studio A") && !client.html.includes("Blueprint Stage"));
+    assert(typeof client.text === "string" && client.text.includes("Payment received") && client.text.includes("Thank you") && !/<[a-z]/i.test(client.text), "plain-text part");
     assertEquals(client.reply_to, "owner@studio-a.in");
     const opsText = JSON.stringify(ops);
     assert(!/Alice|alice@|A-0001|236|Studio A|Wedding/.test(opsText), "ops copy must carry no tenant data: " + opsText);

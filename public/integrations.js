@@ -57,6 +57,8 @@
     var w = (ov && ov.whatsapp) || null, acct = w && w.status;
     var num = w && w.display_phone ? String(w.display_phone) : "";
     if (acct === "connected") return { state: "on", label: "Live", meta: "Messages go out from your studio's own WhatsApp number" + (num ? " " + num : "") + "." };
+    // R154h (0353): the two IDs can be saved before the token - say which part is still missing
+    if (acct === "pending" && w.token_saved === false) return { state: "wait", label: "Not connected yet", meta: "Your WhatsApp Business Account ID and Phone number ID are saved. Add the access token below and press Connect WhatsApp." };
     if (acct === "pending") return { state: "wait", label: "Not checked", meta: "Your WhatsApp details are saved. Press Check connection below." };
     if (acct === "error") return { state: "off", label: "Needs attention", meta: "The last connection check failed - see below, fix it and press Check connection." };
     if (acct === "disabled" && w && w.phone_number_id) return { state: "off", label: "Paused", meta: "Nothing is sent on WhatsApp from your studio while it is paused." };
@@ -138,7 +140,7 @@
       if (fl) {
         var nm = (state.es && (state.es.from_name || state.es.studio_name)) || "your studio";
         var addr = state.srv && state.srv.email && state.srv.email.sender ? state.srv.email.sender : "Helm's sending address";
-        fl.textContent = "Clients see: " + nm + " <" + addr + ">" + (state.es && state.es.reply_to ? ", replies go to " + state.es.reply_to : "") + ".";
+        fl.textContent = "Clients see: " + nm + " <" + addr + ">" + (state.es && state.es.reply_to ? ", replies go to " + state.es.reply_to : ", replies go to your studio's business e-mail (or the owner's)") + ".";
       }
     };
     repaint();
@@ -148,7 +150,7 @@
     var wac = doc.getElementById("itgWaConnect");
     if (wac && global.HelmWaConnect) global.HelmWaConnect.mount(wac, { store: S, onChange: function (x) {
       var w = x && x.w;
-      state.ov.whatsapp = w ? { status: w.status, display_phone: w.display_phone, phone_number_id: w.phone_number_id, connected_at: w.connected_at } : null;
+      state.ov.whatsapp = w ? { status: w.status, display_phone: w.display_phone, phone_number_id: w.phone_number_id, connected_at: w.connected_at, token_saved: w.token_saved } : null;
       repaint();
     } }).catch(function () {});
     // online payments are not offered yet (liveChannels.pay off) - no card that cannot be used
@@ -216,9 +218,24 @@
     nameEl.value = state.es.from_name || ""; rtEl.value = state.es.reply_to || "";
     if (state.es.studio_name) nameEl.placeholder = String(state.es.studio_name).slice(0, 60);
     form.hidden = false;
+    // R154: a CHANGE of the reply-to address needs two-step sign-in (the database decides, 0285); the sender name does
+    // not. Say so up front (with a Set up two-step button) when this account has no two-step yet - Save stays on,
+    // so the sender name alone can always be saved.
+    var note = doc.getElementById("itgReplyTo2fa"), noteBtn = doc.getElementById("itgReplyTo2faBtn");
+    var showNote = function (on) { if (note) note.hidden = !on; };
+    Promise.resolve().then(function () { return S.auth && S.auth.mfa && S.auth.mfa.verifiedTotp ? S.auth.mfa.verifiedTotp() : null; })
+      .then(function (f) { if (Array.isArray(f)) showNote(f.length === 0); }, function () {});
+    if (noteBtn) noteBtn.addEventListener("click", function () {
+      var A = global.HelmAuthUI;
+      if (A && A.openTwoStepSetup) {
+        Promise.resolve(A.openTwoStepSetup({ reason: "Changing the reply-to address needs two-step sign-in. Set it up now (about 2 minutes), then save again.", doneLabel: "Back to e-mail settings" }))
+          .then(function (on) { if (on === true) { showNote(false); showResult(doc, "itgEmailResult", { state: "on", text: "Two-step is on. Press Save e-mail settings again." }); } }, function () {});
+      } else if (A && A.openAccount) A.openAccount({ section: "settings", focus: "mfa" });
+    });
     form.addEventListener("submit", function (ev) {
       ev.preventDefault();
       var nm = nameEl.value.trim(), rt = rtEl.value.trim().toLowerCase(), bad = false;
+      var rtBefore = String(state.es.reply_to || "").toLowerCase();
       setErr(doc, "itgFromName", validFromName(nm) ? "" : (bad = true, "Up to 60 characters, no < > or quotes."));
       setErr(doc, "itgReplyTo", validEmail(rt) ? "" : (bad = true, "Enter one e-mail address, e.g. bookings@yourstudio.com."));
       if (bad) { (doc.querySelector("#itgEmailForm [aria-invalid=true]") || nameEl).focus(); return; }
@@ -228,7 +245,15 @@
           state.es.from_name = (out && out.from_name) || null; state.es.reply_to = (out && out.reply_to) || null;
           repaint();
           showResult(doc, "itgEmailResult", { state: "on", text: "E-mail settings saved." });
-        } catch (e) { showResult(doc, "itgEmailResult", { state: "off", text: friendly(e) }); }
+        } catch (e) {
+          var txt = friendly(e);
+          // R154: the save is all-or-nothing - name it plainly and offer the way out instead of the generic payment text
+          if (e && e.stepUp === "setup" && rt !== rtBefore) {
+            showNote(true);
+            txt = "Not saved – changing the reply-to address needs two-step sign-in on your account. Press Set up two-step, or put the reply-to back " + (rtBefore ? "to " + rtBefore : "to empty") + " to save only the sender name.";
+          }
+          showResult(doc, "itgEmailResult", { state: "off", text: txt });
+        }
       });
     });
     doc.getElementById("itgEmailTest").addEventListener("click", function () {

@@ -1,7 +1,7 @@
 // @smoke - "Continue where you left off" (0206) on localhost -> STAGING, two browser contexts (= two devices).
 // Start a quote, fill client + discovery, click into Requirements; a SECOND browser context (a fresh
 // session from the same saved login, no shared localStorage) shows the dashboard card at "step 3 of 8";
-// saving the quotation (step 8) finishes it and the card is gone. The quote is moved to Deleted at the
+// saving the quotation (step 8) takes it off the 0206 list; r154c: the Continue list (0350) keeps it at step 9 until Confirmed. The quote is moved to Deleted at the
 // end (soft, restorable). Needs HELM_E2E_* staging env + 0206 applied on staging.
 // Run: npx playwright test --project=chromium tests/e2e/workflow/resume.spec.mjs
 import { test, expect } from '@playwright/test';
@@ -40,10 +40,12 @@ test('@smoke resume card follows the quote across devices until the quotation is
     // 3) a second device: the dashboard card is there, at step 3
     const b = await authedPage(browser, 'admin');
     try {
+      // r154c: Home lists every open quote (up to 5) - pick THIS quote's row
       const card = b.page.locator('#hdResume, #flowResume').first();
       await expect(card).toBeVisible({ timeout: 20_000 });
-      await expect(card).toContainText('step 3 of 8');
-      await expect(card.getByRole('link', { name: /^Continue/ })).toHaveAttribute('href', new RegExp('flow(\\.html)?\\?quote=' + quoteId + '#sec-reqs'));
+      const mine = card.locator('[data-quote="' + quoteId + '"]');
+      await expect(mine).toContainText('step 3 of 8');
+      await expect(mine.getByRole('link', { name: /^Continue/ })).toHaveAttribute('href', new RegExp('flow(\\.html)?\\?quote=' + quoteId + '#sec-reqs'));
       // the Quotes "In progress" tab lists it for the whole studio
       await b.page.goto('/quotes.html?view=inprogress');
       await expect(b.page.locator('#ipWrap')).toContainText('Stopped at: Requirements', { timeout: 20_000 });
@@ -58,6 +60,10 @@ test('@smoke resume card follows the quote across devices until the quotation is
       await b.page.waitForTimeout(4_000);
       const rows = await b.page.evaluate(async () => (await window.BPStore.flowProgress.list({ scope: 'mine', limit: 100 })).rows.map((r) => r.id));
       expect(rows).not.toContain(quoteId);
+      // r154c (0350): still open (not confirmed) -> the Continue list keeps it, now at step 9 Share with client & approval
+      const open = await b.page.evaluate(async () => (await window.BPStore.flowProgress.open({ scope: 'mine', limit: 100 })));
+      const me = (open.rows || []).find((r) => r.id === quoteId);
+      if (open.open) { expect(me && me.phase).toBe('quoted'); }
       await assertStagingOnly(b.page);
     } finally { await b.context.close(); }
   } finally {

@@ -37,7 +37,7 @@ t('dashboard tour follows the on-screen reading order exactly', () => {
     '(card)',                                                     // welcome
     'pin', 'rail:dashboard', 'rail:quotes', 'rail:leads', 'rail:calendar', 'rail:chat', 'nav-manage', 'nav-admin', 'theme', 'account',   // sidebar
     'search', 'privacy', 'chat', 'bell', 'new',                   // top bar, left to right
-    'today', 'hero', 'customize', 'kpis', '#myworkSection',                      // main content, top to bottom
+    'today', 'hero', 'customize', 'kpis', '#hdResume', '#myworkSection',         // main content, top to bottom (r154c: + Continue quotes)
     'setup',                                                      // getting-started checklist
     '(card)',                                                     // wrap-up
   ]);
@@ -53,7 +53,7 @@ t('welcome step: trial wording for a free-trial studio, studio wording for a pai
   assert.doesNotMatch(tr, /8-day|Demo ·/);
   assert.match(pd, /^Welcome to Helm — here's a quick look around your studio\./);
   assert.doesNotMatch(pd, /trial|sample data|Demo/i);
-  assert.equal(TOUR.length, 23, 'still 23 steps (r47: + My events & tasks)');
+  assert.equal(TOUR.length, 24, 'still 24 steps (r47: + My events & tasks, r154c: + Continue quotes)');
 });
 
 t('sidebar steps sit beside the rail (side:"right"), top-bar / content steps do not', () => {
@@ -83,14 +83,14 @@ t('the generic shell tour (pages without their own steps) also goes sidebar firs
   const blk = SHELL.slice(SHELL.indexOf('var SHELL_TOUR = ['), SHELL.indexOf('];', SHELL.indexOf('var SHELL_TOUR = [')));
   const ks = [...blk.matchAll(/sel: "([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(ks, ["[data-tour='pin']", '#hbRail .hb-group:not(.hb-fav)', '.hb-recent .htr-btn', "[data-tour='theme']", "[data-tour='account']",
-    "[data-tour='search']", "[data-tour='bell']", "[data-tour='new']"]);
+    "[data-tour='search']", "[data-tour='tour-top']", "[data-tour='bell']", "[data-tour='new']"]);   // R154e: the "?" (help + Suggestion box) sits between search and the bell
 });
 
 t('per-page steps follow each toolbar left to right, then the content below', () => {
   const T = loadTour().T;
   const sels = (pg) => Array.from(T._steps[pg], (s) => (Array.isArray(s.sel) ? s.sel[0] : s.sel));
   // R46: every page tour has 4-8 steps (page-tours.js), still in on-screen order
-  assert.deepEqual(sels('quotes.html'), ['#tabs', '#search', '#typeFilter', '#newBtn', '#rows']);
+  assert.deepEqual(sels('quotes.html'), ['#tabs', '#tab_inprogress', '#search', '#typeFilter', '#newBtn', '#rows']);
   assert.deepEqual(sels('leads.html'), ['#search', '#archBtn', '#enqBtn', '#newBtn', '#board']);
   assert.deepEqual(sels('staff.html'), ['#search', '#deptFilter', '#importBtn', '#newBtn', '#grid']);
   assert.deepEqual(sels('inventory.html'), ['#eventPanel', '#search', '#seedBtn', '#newBtn', '#pane-loans', '#lossRows']);

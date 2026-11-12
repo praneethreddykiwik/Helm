@@ -9,7 +9,9 @@
 //   templates  Set up message templates: creates Helm's templates (_shared/wa-studio.mjs) that are not in the studio's
 //              account yet, then refreshes the states. Meta reviews each one (minutes to a few hours).
 //   status     Refresh the template states only.
-// Answer: { ok, status, display_phone?, verified_name?, quality?, error?, templates: { name: STATE }, summary, webhook? }
+// Answer: { ok, status, display_phone?, verified_name?, quality?, error?, code?, templates: { name: STATE }, summary, webhook? }
+// R154h: code = a short reason the page explains (details_missing | token | permission | number | waba | not_in_account | limit |
+//        not_checked | timeout | other). Codes and Meta error numbers only - never the token or any part of it.
 // The token is read with the service role (org_whatsapp_check_creds), sent only to graph.facebook.com, never returned,
 // never logged. Costs Meta quota, so it is rate-limited per admin and per studio.
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
@@ -79,21 +81,26 @@ Deno.serve(async (req) => {
     const { data: c, error: cErr } = await admin.rpc("org_whatsapp_check_creds", { p_org: org });
     if (cErr) { log.error("creds failed", errTag(cErr)); return json({ error: "could not read the saved number - try again" }, 500); }
     const token = String(c?.token || ""), phoneId = String(c?.phone_number_id || ""), waba = String(c?.waba_id || "");
-    if (!c || token.length < 20 || !DIGITS.test(phoneId) || !DIGITS.test(waba)) return json({ ok: false, status: "none", error: "save your WhatsApp details first" }, 409);
+    if (!c || token.length < 20 || !DIGITS.test(phoneId) || !DIGITS.test(waba)) return json({ ok: false, status: "none", code: "details_missing", error: "save the WhatsApp Business Account ID, Phone number ID and access token first" }, 409);
 
     if (action === "verify") {
       const p = await graph(token, `${encodeURIComponent(phoneId)}?fields=id,display_phone_number,verified_name,quality_rating`);
-      let v: { ok: boolean; display?: string; name?: string; quality?: string; error?: string };
-      if (p.status < 200 || p.status >= 300) v = { ok: false, error: graphError(p.status, p.body).text };
+      let v: { ok: boolean; display?: string; name?: string; quality?: string; error?: string; code?: string };
+      if (p.status < 200 || p.status >= 300) { const ge = graphError(p.status, p.body); v = { ok: false, error: ge.text, code: ge.kind }; }
       else {
         const l = await graph(token, `${encodeURIComponent(waba)}/phone_numbers?fields=id&limit=100`);
-        v = l.status >= 200 && l.status < 300 ? verifyResult(phoneId, p.body, l.body?.data)
-          : { ok: false, error: graphError(l.status, l.body).text.replace("phone number ID or account ID", "WhatsApp Business Account ID") };
+        if (l.status >= 200 && l.status < 300) v = verifyResult(phoneId, p.body, l.body?.data);
+        else {
+          const ge = graphError(l.status, l.body);
+          // the phone number answered, so a "not known" here is the WhatsApp Business Account ID
+          v = { ok: false, error: ge.text.replace("phone number ID or account ID", "WhatsApp Business Account ID").replace(" - check both numbers", ""),
+                code: ge.kind === "number" ? "waba" : ge.kind };
+        }
       }
       const { error: mErr } = await admin.rpc("wa_account_verified", { p_org: org, p_ok: v.ok, p_display_phone: v.display || null,
         p_verified_name: v.name || null, p_quality: v.quality || null, p_error: v.ok ? null : (v.error || "connection check failed") });
       if (mErr) { log.error("verified mark failed", errTag(mErr)); return json({ error: "could not save the result - try again" }, 500); }
-      if (!v.ok) return json({ ok: false, status: "error", error: v.error });
+      if (!v.ok) return json({ ok: false, status: "error", error: v.error, code: v.code || "other" });
       // delivery ticks + STOP replies reach Helm only for numbers in an account subscribed to Helm's app (best effort)
       let webhook = false;
       try { const s = await graph(token, `${encodeURIComponent(waba)}/subscribed_apps`, { method: "POST" }); webhook = s.status >= 200 && s.status < 300 && s.body?.success === true; }
@@ -104,7 +111,7 @@ Deno.serve(async (req) => {
     }
 
     // templates / status need a number that passed the check
-    if (String(c.status) !== "connected") return json({ ok: false, status: String(c.status || "pending"), error: "press Check connection first" }, 409);
+    if (String(c.status) !== "connected") return json({ ok: false, status: String(c.status || "pending"), code: "not_checked", error: "press Check connection first" }, 409);
     let created = 0;
     const failed: string[] = [];
     if (action === "templates") {
@@ -122,7 +129,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
     // R142: Meta passed its 10 s deadline - a provider failure ("try again"), never a saved "error" state
-    if (isTimeout(e)) { log.error("meta timed out", errTag(e)); return json({ error: "WhatsApp (Meta) did not answer in time - try again" }, 502); }
+    if (isTimeout(e)) { log.error("meta timed out", errTag(e)); return json({ error: "WhatsApp (Meta) did not answer in time - try again", code: "timeout" }, 502); }
     return serverError(e);
   }
 });

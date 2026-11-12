@@ -67,7 +67,8 @@ t('in-page links: sections on the way render first, then a settle-and-correct pa
 });
 
 t('cache-busters bumped', () => {
-  assert.match(html, /\/home\.css\?v=39"/);
-  assert.match(html, /\/home\.js\?v=40"/);
+  // at least the r43 versions (later rounds bump them again, e.g. R154f: 40 / 41)
+  assert.ok(+(/\/home\.css\?v=(\d+)"/.exec(html) || [])[1] >= 39, 'home.css ?v');
+  assert.ok(+(/\/home\.js\?v=(\d+)"/.exec(html) || [])[1] >= 40, 'home.js ?v');
 });
 console.log(`r43-landing-speed: ${n} passed`);

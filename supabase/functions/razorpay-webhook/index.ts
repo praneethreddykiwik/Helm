@@ -1,5 +1,5 @@
 // razorpay-webhook — verifies the Razorpay signature, settles the quote, and sends the
-// confirmation to the client + the studio by email (Resend).
+// confirmation to the client + the studio by email (shared mailer: Resend or SMTP, R154g).
 // Set this URL as a webhook in the Razorpay dashboard for the `payment_link.paid`
 // (and `payment.captured`) events, with the same secret as RAZORPAY_WEBHOOK_SECRET.
 //
@@ -8,6 +8,8 @@
 //   RAZORPAY_WEBHOOK_SECRET
 //   RESEND_API_KEY, RESEND_FROM          (e.g. "Helm <events@helm.events>" — the ADDRESS is
 //                                         used; the display name is the paying studio's name)
+//   or SMTP_HOST, SMTP_USER, SMTP_PASS (+ SMTP_PORT, SMTP_FROM) - R154g, the shared mailer. Neither (or no valid
+//                                         sender address) -> nothing is sent, notifications.status = 'simulated'.
 //   MANAGER_EMAIL                        (OPTIONAL platform-ops copy: carries NO tenant data —
 //                                         no client, amount or studio details)
 //
@@ -36,11 +38,11 @@
 //   delivery, function name + error tag only. Logs are JSON lines (_shared/log.ts) with the request id.
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag, escHtml, sentryOnce, UUID_RE } from "../_shared/cors.ts";
-import { fetchWithTimeout } from "../_shared/http.ts";   // R142: the Resend call has a deadline (timeout = "failed")
+import { htmlToText, mailConfig, sendMail } from "../_shared/mailer.ts";   // R154g: Resend or SMTP (R142 deadline inside)
 import { logger } from "../_shared/log.ts";
 import { quoteCur, symMoney } from "../_shared/money.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped, WEBHOOK_BODY_LIMIT } from "../_shared/limits.ts";
-import { postalAddress, txFooter, withFooter } from "../_shared/email-compliance.mjs";
+import { postalAddress, txFooter } from "../_shared/email-compliance.mjs";
 import { isMissingRpc } from "../_shared/limits.ts";
 import { studioBillingEmail } from "../_shared/billing-email.ts";
 
@@ -60,32 +62,27 @@ function timingSafeEqual(a: string, b: string) {
 
 const EMAIL = /^[^\s@<>"',;:\\]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/;
 const L = logger("razorpay-webhook");
-// "Studio Name <addr>" with the studio's (sanitized) name and the configured sender address
-function fromHeader(studio: string) {
-  const conf = Deno.env.get("RESEND_FROM") || "onboarding@resend.dev";
-  const m = conf.match(/<([^>]+)>/);
-  const addr = (m ? m[1] : conf).trim();
-  const name = String(studio || "Helm").replace(/[\r\n<>"\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "Helm";
-  return `"${name}" <${addr}>`;
+// R154g: the display name for a payment mail - the paying studio's (sanitized) name, else "Helm". The sending ADDRESS
+// is the configured sender of the shared mailer (RESEND_FROM / SMTP_FROM); there is no fallback sender any more.
+function fromName(studio: string) {
+  return String(studio || "Helm").replace(/[\r\n<>"\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "Helm";
 }
 
-// returns the notifications.status to record: sent | failed | simulated (no provider)
-async function sendEmail(to: string, subject: string, html: string, from: string, replyTo?: string): Promise<string> {
-  const key = Deno.env.get("RESEND_API_KEY"); if (!key) return "simulated";
+// returns the notifications.status to record: sent | failed | simulated (no provider / no valid sender: nothing sent)
+// R154g: through the SHARED mailer (_shared/mailer.ts sendMail: Resend when RESEND_API_KEY + RESEND_FROM are set, else
+// SMTP) - before, Resend only, so an SMTP-only setup never sent a payment receipt. Plain-text part from the same HTML.
+// The payment itself is settled before any mail; a mail problem never changes the 200 answer to Razorpay.
+async function sendEmail(to: string, subject: string, html: string, name: string, replyTo?: string): Promise<string> {
+  const env = (k: string) => Deno.env.get(k);
+  if (!mailConfig(env).provider) return "simulated";   // as before: no provider -> simulated (checked first)
   if (!to || !EMAIL.test(to)) return "failed";
-  const _f = withFooter({ text: "", html }, txFooter("payment", { app: Deno.env.get("APP_URL"), address: postalAddress((k: string) => Deno.env.get(k)) }));
-    try {
-    const r = await fetchWithTimeout("https://api.resend.com/emails", { redirect: "error",
-      method: "POST", headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to, subject, html: _f.html, ...(replyTo && EMAIL.test(replyTo) ? { reply_to: replyTo } : {}) }),
-    });
-    await r.text();
-    if (!r.ok) L.error("resend error", r.status);
-    return r.ok ? "sent" : "failed";
-  } catch (e) {
-    L.error("resend error", errTag(e));
-    return "failed";
-  }
+  const r = await sendMail({ to, subject, html, text: htmlToText(html), studio: null, fromName: name,
+    replyTo: replyTo && EMAIL.test(replyTo) ? replyTo : null,
+    footer: txFooter("payment", { app: env("APP_URL"), address: postalAddress(env) }) }, { env });
+  if (r.status === "sent") return "sent";
+  if (r.status === "not_configured") return "simulated";
+  L.error("mail failed", r.provider || "unknown");
+  return "failed";
 }
 
 // 0117: events that are RECORDED (idempotently), never settled
@@ -223,13 +220,13 @@ Deno.serve(async (req) => {
     const billTo = await studioBillingEmail(admin, String(q.org_id));
     if (billTo === null) { report.fail("billing_email_lookup"); log.error("studio e-mail lookup failed"); return new Response("error", { status: 500 }); }
     const studioEmail = billTo;
-    const from = fromHeader(studio);
+    const from = fromName(studio);
     const subjCode = oneLine(q.code);
 
     if (out.result === "reconcile") {
       // money arrived that could not settle the quote: tell the studio (refund / match by hand)
       const html = `<h2>Payment needs your attention — ${escHtml(q.code)}</h2><p>A Razorpay payment for <b>${escHtml(q.title || q.code)}</b> could not be applied automatically (${escHtml(out.reason)}). It is listed under payment reconciliation; refund or match it in Razorpay.</p>`;
-      const st = await sendEmail(studioEmail, `Payment needs attention — ${subjCode}`, html, fromHeader("Helm"));
+      const st = await sendEmail(studioEmail, `Payment needs attention — ${subjCode}`, html, fromName("Helm"));
       const { error: nErr } = await admin.from("notifications").insert(
         { quote_id: q.id, channel: "email", recipient: studioEmail || null, kind: "payment_reconcile", status: st });
       if (nErr) log.error("notification log failed", errTag(nErr));
@@ -265,7 +262,7 @@ Deno.serve(async (req) => {
 
     // optional platform-ops copy: no tenant data at all
     const ops = Deno.env.get("MANAGER_EMAIL") || "";
-    if (ops) await sendEmail(ops, "Helm: a Razorpay payment was settled", "<p>A payment-link payment was settled. Details are in the studio's own account.</p>", fromHeader("Helm"));
+    if (ops) await sendEmail(ops, "Helm: a Razorpay payment was settled", "<p>A payment-link payment was settled. Details are in the studio's own account.</p>", fromName("Helm"));
     return new Response("ok", { status: 200 });
   } catch (e) {
     if (e instanceof BodyTooLarge) return new Response("payload too large", { status: 413 });

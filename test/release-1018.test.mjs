@@ -80,12 +80,14 @@ t('0202: ASCII, additive, right after 0201 in the MANIFEST, clone list + master 
 });
 t('comms-dispatch: e-mail via the shared SMTP mailer first, Resend only without SMTP; compliance kept', () => {
   const cd = read('supabase/functions/comms-dispatch/index.ts'), ml = read('supabase/functions/_shared/mailer.ts');
-  assert.match(cd, /import \{ brandMode, sendMail, type SmtpSend \} from "\.\.\/_shared\/mailer\.ts";/);
-  assert.match(cd, /if \(e\("SMTP_HOST"\) && e\("SMTP_USER"\) && e\("SMTP_PASS"\)\) return "smtp";\n  return e\("RESEND_API_KEY"\) \? "resend" : null;/);
-  assert.match(cd, /if \(via === "smtp"\) return await sendEmailSmtp\(to, subject, text, studio, ident, extra, \{ html \}\);/);
+  assert.match(cd, /import \{ brandMode, mailConfig, sendMail, type SmtpSend \} from "\.\.\/_shared\/mailer\.ts";/);
+  // R154g: the transport rule IS the shared mailer's (SMTP first, Resend needs key + RESEND_FROM); both lanes go through
+  // sendEmailSmtp -> sendMail (the old own Resend request is gone)
+  assert.match(cd, /return mailConfig\(e, "smtp"\)\.provider;/);
+  assert.match(cd, /return await sendEmailSmtp\(to, subject, text, studio, ident, extra, \{ html, idempotencyKey: "comms-" \+ id \}\);/);
   assert.match(cd, /footer: extra\.footer,\n    \.\.\.\(extra\.headers && Object\.keys\(extra\.headers\)\.length \? \{ headers: extra\.headers \} : \{\}\) \}/);
   assert.match(cd, /\{ env: e, prefer: "smtp"/);
-  assert.match(ml, /if \(prefer === "smtp" && smtpOn\) return smtpCfg\(\);\n  if \(key && rfrom\) return \{ provider: "resend", from: rfrom \};/, 'default order unchanged for other callers');
+  assert.match(ml, /if \(prefer === "smtp" && smtpOn\) return smtpCfg\(\);\n  if \(resendOn\) return \{ provider: "resend", from: rfrom \};/, 'default order unchanged for other callers');
 });
 t('client-mailer: 0166 outbox gate, then 0179 trial_send_blocked, both before the send', () => {
   const cm = read('supabase/functions/client-mailer/index.ts');

@@ -210,6 +210,7 @@ function keyOf(o) {
     case 'pub': return `publication ${o.name} has ${rel(o.rel)}`;
     case 'marker': return `marker ${rel(o)}(${o.types.join(',')}) ${o.text}`;
     case 'polexpr': return `polexpr ${o.name} on ${rel(o.rel)} ${o.text}`;
+    case 'exec': return `execute ${o.role} ${rel(o)}(${o.types.join(',')})`;
     default: throw new Error('kind ' + o.kind);
   }
 }
@@ -539,6 +540,8 @@ function objFromLabel(label, who) {
   // R152: a policy whose expression (USING or WITH CHECK, as pg_get_expr prints it) contains TEXT - for a migration
   // that only ALTERs policies (0343): NAME may contain spaces, the table is the first word after " on "
   if ((m = label.match(/^polexpr (.+?) on (\S+) (.+)$/))) { const t = qname(m[2]); if (!t) bad(); const obj = { kind: 'polexpr', name: m[1], rel: t, text: m[3] }; return { key: keyOf(obj), obj }; }
+  // R154: ROLE may run the function (has_function_privilege EXECUTE) - for a migration that only GRANTs (0346)
+  if ((m = label.match(/^execute ([a-z_]+) ([^(]+)\(([^)]*)\)$/))) { const q = qname(m[2]); const a = parseArgs(m[3]); if (!q || !a) bad(); const obj = { kind: 'exec', ...q, types: a.types, role: m[1] }; return { key: keyOf(obj), obj }; }
   if ((m = label.match(/^marker ([^(]+)\(([^)]*)\) (.+)$/))) { const q = qname(m[1]); const a = parseArgs(m[2]); if (!q || !a) bad(); const obj = { kind: 'marker', ...q, types: a.types, text: m[3] }; return { key: keyOf(obj), obj }; }
   return bad();
 }
@@ -560,6 +563,7 @@ function rowSql(id, x) {
     case 'pub': return [id, 'pub', rel(o.rel), o.name, null];
     case 'marker': return [id, 'marker', o.schema, o.name, o.types.join(',') + '|' + o.text];
     case 'polexpr': return [id, 'polexpr', rel(o.rel), o.name, o.text];
+    case 'exec': return [id, 'exec', o.schema, o.name, o.types.join(',') + '|' + o.role];
     default: throw new Error(o.kind);
   }
 }
@@ -598,6 +602,7 @@ export function render({ migs, rows }) {
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
 --   marker = the function body contains a text the migration puts there (from check-prod-overrides.json).
 --   polexpr = the policy USING / WITH CHECK expression contains a text the migration puts there (overrides).
+--   exec = the named role may run the function (EXECUTE granted by the migration, from overrides).
 with o(m, k, s, n, x) as (values
 ${objRows.join(',\n')}
 ),
@@ -625,6 +630,7 @@ r as (
       when 'col' then 'column ' || o.s || '.' || o.n
       when 'pol' then 'policy ' || o.n || ' on ' || o.s
       when 'polexpr' then 'polexpr ' || o.n || ' on ' || o.s || ' ' || o.x
+      when 'exec' then 'execute ' || substr(o.x, position('|' in o.x) + 1) || ' ' || o.s || '.' || o.n || '(' || split_part(o.x, '|', 1) || ')'
       when 'trg' then 'trigger ' || o.n || ' on ' || o.s
       when 'con' then 'constraint ' || o.n || ' on ' || o.s
       when 'tbl' then 'table ' || o.s
@@ -660,6 +666,10 @@ r as (
       when 'polexpr' then exists (select 1 from pg_policy p where p.polrelid = to_regclass(o.s) and p.polname = o.n
         and position(o.x in coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')) > 0)
       when 'trg' then exists (select 1 from pg_trigger t where t.tgrelid = to_regclass(o.s) and t.tgname = o.n)
+      when 'exec' then exists (select 1 from pg_proc p join pg_roles g on g.rolname = substr(o.x, position('|' in o.x) + 1)
+        where p.pronamespace = to_regnamespace(o.s) and p.proname = o.n and has_function_privilege(g.oid, p.oid, 'execute')
+          and p.proargtypes::text = coalesce((select string_agg(coalesce(to_regtype(t)::oid, 0)::text, ' ' order by i)
+                                              from unnest(string_to_array(split_part(o.x, '|', 1), ',')) with ordinality u(t, i)), ''))
       when 'con' then exists (select 1 from pg_constraint c where c.conrelid = to_regclass(o.s) and c.conname = o.n)
       when 'schema' then to_regnamespace(o.n) is not null
       when 'pre' then exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and right(p.proname, length(o.n)) = o.n)

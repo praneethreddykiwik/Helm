@@ -5,9 +5,9 @@
 // Documented per-host differences (NOT compared):
 //   • server.js drops `upgrade-insecure-requests` on localhost (dev is plain http) —
 //     this test asks server.js for a production host, so UIR must match there.
-//   • Vercel header rules see only the PATH, so every .js/.css is immutable there;
-//     server.js also sees the query and only treats `?v=`-versioned assets as
-//     immutable. Only the versioned case is compared.
+//   • R154f: vercel.json and server.js both make a .js / .css immutable only when the URL carries ?v=
+//     (vercel.json: has query v) - an un-versioned or mistyped URL is no-cache on both. Cloudflare _headers
+//     rules see only the PATH, so every .js / .css stays immutable there; only the versioned case is compared.
 //   • _headers uses Cloudflare "! Header" detach semantics for per-page overrides.
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -27,10 +27,12 @@ const PAGES = readdirSync(PUB).filter((f) => f.endsWith('.html')).map((f) => f.s
 const vercel = JSON.parse(readFileSync(join(ROOT, 'vercel.json'), 'utf8'));
 // host = null → a non-production host (branch preview); a prod host also applies
 // the host-conditioned rules (prod-only CSP overrides, legacy alias noindex).
-function vercelHeaders(p, host = null) {
+// query = '?v=1' style string: a rule with has [{type:'query', key}] applies only when that key is present (R154f)
+function vercelHeaders(p, host = null, query = '') {
   const out = {};
+  const q = new URLSearchParams(query.replace(/^\?/, ''));
   for (const r of vercel.headers) {
-    if (r.has && !(host && r.has.every((c) => c.type === 'host' && c.value === host))) continue;
+    if (r.has && !r.has.every((c) => (c.type === 'host' && host && c.value === host) || (c.type === 'query' && q.has(c.key) && (c.value == null || q.get(c.key) === c.value)))) continue;
     // Sources use only regex-compatible path-to-regexp syntax (groups, \\.),
     // verified against path-to-regexp@6 when written.
     if (new RegExp('^' + r.source + '$').test(p)) for (const h of r.headers) out[h.key.toLowerCase()] = h.value;
@@ -177,11 +179,19 @@ t('cache policy: versioned assets / vendor immutable, config.js short, marketing
   const cases = [['/store-api.js', '?v=1'], ['/theme.css', '?v=1'], ['/vendor/x-1.0.0.min.js', ''], ['/config.js', '?v=1'], ['/dashboard', ''], ['/', ''],
     ['/login', ''], ['/reset-password', ''], ['/approve', ''], ['/about', '']];
   for (const [p, q] of cases) {
-    const v = vercelHeaders(p)['cache-control'];
+    const v = vercelHeaders(p, null, q)['cache-control'];
     assert.equal(serverHeaders(p, q)['cache-control'], v, `server.js Cache-Control ≠ vercel.json for ${p}${q}`);
     assert.equal(netlifyHeaders(p)['cache-control'], v, `_headers Cache-Control ≠ vercel.json for ${p}`);
   }
   assert.match(vercelHeaders('/vendor/a.js')['cache-control'], /immutable/);
+  // R154f: immutable only with ?v= (or a versioned / content-hashed name); an un-versioned .js / .css (or a 404 for one) revalidates
+  for (const [p, q, want] of [['/store-api.js', '', 'no-cache'], ['/legal.css', '', 'no-cache'], ['/nope-404.js', '', 'no-cache'],
+      ['/legal.css', '?v=8', 'public, max-age=31536000, immutable'], ['/home.js', '?x=1&v=40', 'public, max-age=31536000, immutable'],
+      ['/fonts/g/instrument-serif-7940be3e.css', '', 'public, max-age=31536000, immutable'], ['/vendor/supabase-js-2.119.0.min.js', '', 'public, max-age=31536000, immutable'],
+      ['/config.js', '?v=3', 'public, max-age=300, stale-while-revalidate=3600']]) {
+    assert.equal(vercelHeaders(p, null, q)['cache-control'], want, `vercel.json ${p}${q}`);
+    assert.equal(serverHeaders(p, q)['cache-control'], want, `server.js ${p}${q}`);
+  }
   // r26 speed: the landing film + posters are cached for a day on every host
   for (const p of ['/home-assets/hero-hq.mp4', '/home-assets/hero.webm', '/home-assets/hero-poster.jpg']) {
     assert.equal(vercelHeaders(p)['cache-control'], 'public, max-age=86400, stale-while-revalidate=604800', p);

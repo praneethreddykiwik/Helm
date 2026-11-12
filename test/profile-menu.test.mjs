@@ -34,12 +34,12 @@ t('no name → e-mail local part, 2-letter initials', () => {
 });
 t('R19: account items only for every role (Settings / Insights live in the sidebar)', () => {
   // r20 coord (e): the user manual is hidden for now (config.js HELM_FEATURES.manual false / absent)
-  assert.equal(ids(mm({ id: 'a' }, {}, 'admin', true)), 'profile,settings,suggest,signout');
-  assert.equal(ids(mm({ id: 'a' }, {}, 'admin', false)), 'profile,settings,suggest,signout');
-  assert.equal(ids(mm({ id: 'a' }, {}, 'sales', 'yes')), 'profile,settings,suggest,signout');
+  assert.equal(ids(mm({ id: 'a' }, {}, 'admin', true)), 'profile,settings,suggest,suggest_mine,signout');
+  assert.equal(ids(mm({ id: 'a' }, {}, 'admin', false)), 'profile,settings,suggest,suggest_mine,signout');
+  assert.equal(ids(mm({ id: 'a' }, {}, 'sales', 'yes')), 'profile,settings,suggest,suggest_mine,signout');
   // ...and comes back between Account settings and Sign out once the flag is flipped to true
   ctx.window = { HELM_FEATURES: { manual: true } };
-  try { assert.equal(ids(mm({ id: 'a' }, {}, 'admin', true)), 'profile,settings,manual,suggest,signout'); }
+  try { assert.equal(ids(mm({ id: 'a' }, {}, 'admin', true)), 'profile,settings,manual,suggest,suggest_mine,signout'); }
   finally { delete ctx.window; }
 });
 t('links are same-origin pages only', () => {
@@ -109,9 +109,9 @@ t('CSP: new CSS goes through __helmAdoptCss; no style= in the menu code', () => 
   assert.match(AUI, /\.hau-menu\{/); assert.match(AUI, /html\[data-theme=dark\] \.hau-menu/);
 });
 t('versions bumped: AUTH_UI_VERSION 19, every page on store-api v=158', () => {
-  assert.match(API, /const AUTH_UI_VERSION = "61";/);
+  assert.match(API, /const AUTH_UI_VERSION = "62";/);
   const pages = readdirSync(new URL('../public/', import.meta.url)).filter((f) => f.endsWith('.html'));
-  pages.forEach((p) => { const h = read('public/' + p); const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '344', p); });
+  pages.forEach((p) => { const h = read('public/' + p); const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '346', p); });
 });
 t('migration 0060 + APPLY are additive, ASCII, verified', () => {
   const mig = read('supabase/migrations/0060_studio_avatars.sql'), ap = read('supabase/APPLY-0060.sql');

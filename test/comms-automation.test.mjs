@@ -58,9 +58,9 @@ t('edge function: dormant unless HELM_COMMS_ENABLED, shared-secret gated, fixed 
   assert.match(fn, /await waSenderOf\(meta\?\.org_id \?\? await orgOfRow\(admin, "assign_notify_outbox", id\)\)/);   // R129: the studio's own number
   assert.ok(fn.indexOf('HELM_COMMS_ENABLED') < fn.indexOf('comms_outbox_claim'), 'claims before the dormant check');
   assert.match(fn, /secretMatches\(req\.headers\.get\("x-helm-cron-secret"\) \|\| "", Deno\.env\.get\("HELM_COMMS_SECRET"\) \|\| ""\)/);
-  assert.match(fn, /new Set\(\["api\.resend\.com", "graph\.facebook\.com"\]\)/);
-  assert.match(fn, /redirect: "error"/);
-  assert.match(fn, /"Idempotency-Key": "comms-" \+ id/);
+  // R154g: e-mail only through the shared mailer (fixed provider endpoints there, redirect: "error"), WhatsApp via waPost
+  assert.doesNotMatch(fn, /api\.resend\.com/);
+  assert.match(fn, /idempotencyKey: "comms-" \+ id/);
   assert.match(fn, /from "npm:@supabase\/supabase-js@2\.119\.0"/);
   for (const m of fn.matchAll(/console\.(?:log|error)\(([^;]*)\);/g)) assert.doesNotMatch(m[1], /\bto\b|text|payload|recipient|subject/, 'PII in log: ' + m[1]);
   assert.match(fn, /p_status: res === "failed" \? "retry" : res/);

@@ -78,3 +78,21 @@ Photos are stored in the database (`photo_renders`, ≤ 6 MB each — no public 
 event in the dialog ("Past renders"), downloadable, and **Use in client booklet** copies one into
 the booklet's "3D without labels" picture (≤ 1.5 MB, the 0083 limit). Note: the booklet's
 automatic re-capture after a new layout version replaces that picture again.
+
+## When a render fails (R154a)
+
+Every failure is written to `photo_render_usage.error` as `<kind>: openai <status> <code>` and logged by the
+function as one JSON line (`fn` render-photo, `code` = the OpenAI error code, `status`, `reason`). The builder shows
+a message per kind and a `ref:` code; the browser console gets `[photo-render] failed { code, reason }`.
+
+| kind | example | what to do |
+|---|---|---|
+| `auth` | `openai 401 expired_secret_key` / `invalid_api_key` | make a new key in the OpenAI dashboard, `supabase secrets set OPENAI_API_KEY=...` |
+| `billing` | `openai 429 insufficient_quota` | add credit / raise the limit in OpenAI billing |
+| `model` | `openai 404 model_not_found` | check `OPENAI_IMAGE_MODEL` (or the account's access / organisation verification) |
+| `blocked` | `moderation_blocked` | change the decor theme / prompt |
+| `busy` | `openai 429 rate_limit_exceeded` | try again in a minute |
+| `timeout` | | try standard quality or fewer photos; `RENDER_TIMEOUT_MS` |
+
+Read-only check: `select created_at, status, error from photo_render_usage order by created_at desc limit 10;`
+Failed rows never count against the monthly quota.

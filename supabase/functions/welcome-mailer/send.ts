@@ -8,7 +8,7 @@
 //   * the 0327 claim hands out only rows queued in the last 48 hours, re-checked (studio / member / trial ended / dup)
 //     and marked safe = "r119-0327"; a row without that marker (an older claim body) is released, never sent.
 // Logs carry only counts and SQLSTATE codes - never an address or a name.
-import { sendMail, EMAIL_RE, type SmtpSend } from "../_shared/mailer.ts";
+import { mailConfig, sendMail, EMAIL_RE, type SmtpSend } from "../_shared/mailer.ts";
 import { render } from "./templates.ts";
 
 export const SAFE_MARK = "r119-0327";
@@ -24,8 +24,11 @@ type Env = (k: string) => string | undefined;
 
 // deno-lint-ignore no-explicit-any
 export async function runWelcomeBatch(admin: any, batch: number, opts: { env?: Env; smtp?: SmtpSend } = {}):
-  Promise<{ counts: WelcomeCounts; off?: boolean; error?: unknown }> {
+  Promise<{ counts: WelcomeCounts; off?: boolean; noProvider?: boolean; error?: unknown }> {
   const counts: WelcomeCounts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
+  // R154g: no e-mail provider (or no valid sender) -> claim nothing, so no welcome is ever marked "skipped" for it
+  // (the 0327 claim only hands out rows queued in the last 48 h - set e-mail up within that window)
+  if (!mailConfig(opts.env || ((k: string) => Deno.env.get(k)), "smtp").provider) return { counts, noProvider: true };
   const sw = await admin.rpc("welcome_email_switch");
   if (sw?.error) return { counts, error: sw.error };   // no 0327 -> never claim with an older (unsafe) body
   if (sw?.data !== true) return { counts, off: true };
@@ -43,7 +46,8 @@ export async function runWelcomeBatch(admin: any, batch: number, opts: { env?: E
       else {
         const res = await sendMail({ to, subject: mail.subject, html: mail.html, text: mail.text, studio: null, txReason: WELCOME_TX_REASON[kind] },
           { prefer: "smtp", ...(opts.env ? { env: opts.env } : {}), ...(opts.smtp ? { smtp: opts.smtp } : {}) });
-        status = res.status === "sent" ? "sent" : res.status === "not_configured" ? "skipped" : "retry";
+        // not_configured cannot normally happen here (checked before the claim); if it does, release - never skip
+        status = res.status === "sent" ? "sent" : "retry";
       }
     }
     const { error: mErr } = await admin.rpc("welcome_email_outbox_mark", { p_id: id, p_status: status });

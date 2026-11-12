@@ -38,7 +38,7 @@
     security: "barricade stagebarrier fence checkpoint stanchion watchtower",
     logistics: "bar buffet truck generator distro parking restroom coatcheck desk gifttable caketable heater aircooler livecounter dessert coffee stall counter kiosk ticketbooth shoerack",
     safety: "exit firstaid extinguisher ambulance cableramp",
-    decor: "fountain floralarch arch redcarpet floral pillar planter entrancegate phoolchadar haldi mehendi welcomeboard fairylights floralentrance stagebackdrop flowerwall toran floralpillar aislefloral centrepiece balloonarch balloonbunch flagstand hoarding diyastand havankund rangoli lanterns hangingfloral neonsign backdrop floralstand decorbox signage easel urli umbrellas kalash altar plinth trophytable installation",
+    decor: "fountain floralarch arch redcarpet floral pillar planter entrancegate phoolchadar haldi mehendi welcomeboard fairylights floralentrance stagebackdrop flowerwall toran floralpillar aislefloral centrepiece balloonarch balloonbunch flagstand hoarding diyastand jyothi havankund rangoli lanterns hangingfloral neonsign backdrop floralstand decorbox signage easel urli umbrellas kalash altar plinth trophytable installation",
     fun: "dancers photobooth chocolatefountain chariot jhoola kidszone doli selfieframe"
   };
   var CAT_OF = {};

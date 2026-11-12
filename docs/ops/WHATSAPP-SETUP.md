@@ -12,6 +12,9 @@ What the studio admin does (Integrations page -> WhatsApp card -> **Your WhatsAp
 1. Meta steps 1-4 below in the **studio's own** Meta Business account (number, WABA ID, phone number ID, permanent token).
 2. Paste the WhatsApp Business Account ID, the Phone number ID and the token, press **Connect WhatsApp**. The token goes
    into Supabase Vault; it is never shown again and never logged. Helm checks the number with Meta straight away.
+   R154h (0353): **Save details** keeps the two IDs without the token (they are pre-filled every visit); the page only
+   learns "token saved yes / no" and offers **Replace token**. A failed check says why with a code (token, permission,
+   number, waba, not_in_account, limit, timeout). Leaving with typed but unsaved boxes asks first.
 3. Press **Set up message templates**. Helm creates its 8 templates in the studio's account
    (`supabase/functions/_shared/wa-studio.mjs`): proposal_sent, proposal_reminder, proposal_approved_pay, payment_received,
    proposal_approval_otp (authentication), helm_notice, helm_task_assigned, helm_event_reminder. Meta reviews each one.

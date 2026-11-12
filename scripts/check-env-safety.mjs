@@ -82,12 +82,14 @@ console.log('Env-safety: production hosts never receive the staging project:');
       // + optional X-Frame-Options SAMEORIGIN (legacy) or the Trusted Types report-only header
       // (audit run-3: staging-only TT rollout; the union no longer carries frame-ancestors)
       r.headers.slice(1).every((h) => (h.key === 'X-Frame-Options' && h.value === 'SAMEORIGIN') ||
-        (h.key === 'Content-Security-Policy-Report-Only' && /^require-trusted-types-for 'script'; trusted-types [a-z -]+$/.test(h.value))) && r.headers.length <= 2;
+        (h.key === 'Content-Security-Policy-Report-Only' && /^require-trusted-types-for 'script'; trusted-types [a-z -]+$/.test(h.value)) ||
+        // R154f: the staging site's report group points at the STAGING project, never production
+        (h.key === 'Reporting-Endpoints' && h.value === 'csp-endpoint="https://' + stgRef + '.supabase.co/functions/v1/csp-report"')) && r.headers.length <= 3;
     const rest = { ...vercel, headers: (vercel.headers || []).filter((r) => !isStgRule(r)) };
     JSON.stringify(rest).includes(stgRef) ? fail('vercel.json names the staging project outside the staging-site rule') : ok('vercel.json CSP is staging-free on every non-staging host');
     for (const host of STG_SITE) {
       const r = (vercel.headers || []).filter(isStgRule).find((x) => x.has[0].value === host);
-      r && r.headers[0].value.includes('https://' + stgRef + '.supabase.co') && !r.headers[0].value.includes(prodRef)
+      r && r.headers[0].value.includes('https://' + stgRef + '.supabase.co') && !JSON.stringify(r.headers).includes(prodRef)
         ? ok(host + ': staging-site CSP allows staging only') : fail(host + ': staging-site CSP rule missing or names production');
     }
     rest.headers.some((r) => (r.has || []).some((c) => c.type === 'host') &&

@@ -69,7 +69,7 @@
   // ---------------- classification ----------------
   // never a subject: rides with the item it sits on / next to (or the overview when it is loose)
   const ACCESSORY = bag('uplight centrepiece floral cableramp distro micstand monitor movinghead smoke pyro aircooler heater kalash balloonbunch lanterns ' +
-    'aislefloral signage easel speaker subwoofer linearray lightingtree truss drape fence barricade stagebarrier flagstand diyastand floralpillar pillar planter ' +
+    'aislefloral signage easel speaker subwoofer linearray lightingtree truss drape fence barricade stagebarrier flagstand diyastand jyothi floralpillar pillar planter ' +
     'urli welcomeboard ottoman coffeetable teleprompter toran floralstand decorbox stanchion extinguisher');
   const ENVELOPE = bag('tent canopy stageroof fairylights hangingfloral umbrellas parking');   // overhead / area: shown by the overview
   const MARKER = bag('exit checkpoint arch');                                                  // entry / exit markers: the overview (or the entrance)
@@ -116,7 +116,7 @@
     dais: ['dais', 'daises'], varmala: ['varmala stage'], viprisers: ['VIP riser'], greenroom: ['green room'], press: ['press area'], trophytable: ['trophy table'],
     chariot: ['chariot'], stagebackdrop: ['stage backdrop'], haldi: ['haldi corner'], mehendi: ['mehendi corner'], doli: ['doli'], altar: ['altar'], towerlight: ['tower light'],
     shoerack: ['shoe rack'], ticketbooth: ['ticket booth'], interpreter: ['interpreter booth'], watchtower: ['watch tower'], ambulance: ['ambulance'], plinth: ['plinth'], counter: ['counter'],
-    sidescreen: ['side screen'], stagestairs: ['stage stairs', 'stage stairs'], stagedeck: ['stage extension'], installation: ['decor installation'] });
+    sidescreen: ['side screen'], stagestairs: ['stage stairs', 'stage stairs'], stagedeck: ['stage extension'], installation: ['decor installation'], jyothi: ['ceremonial lamp stand'] });
   function noun(t, n) { const e = NOUN[t]; const one = e ? e[0] : String(t); return n === 1 ? one : (e && e[1]) || (/(s|x|ch|sh)$/.test(one) ? one + 'es' : one + 's'); }
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
   const famOf = (t) => FAMILY[t] || 'solo:' + t;
@@ -1018,6 +1018,8 @@
     const tables = (items || []).filter((i) => i && (i.type === 'table' || i.type === 'longtable' || i.type === 'headtable'));
     const step = Math.max(1, Math.ceil(tables.length / 4));
     for (let i = 0; i < tables.length && pts.length < 8; i += step) add(tables[i], 10, 0.9, 40);
+    // R154: a lit Jyothi Prajwalana lamp stand casts a small warm pool (only while the 8-light budget has room)
+    (items || []).filter((i) => i && i.type === 'jyothi').slice(0, 2).forEach((s) => { if (pts.length < 8) add(s, 5.5, 0.5, 14); });
     if (!pts.length) pts.push({ x: 0, y: 20, z: 0, k: 1.4, r: Math.max(W, H) });
     return pts.slice(0, 8);
   }

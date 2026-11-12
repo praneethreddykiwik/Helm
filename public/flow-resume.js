@@ -13,6 +13,11 @@
      - event.html: renderBanner() - "This quote is at step 4 of 8 (Venue). Continue where you left off".
    "Unfinished" is decided by the server: not sent, no saved quotation version (step 8), not shelved,
    not trial sample data. Dismiss hides a quote for me until I next work on it.
+   r154c (0350, owner Nov 2026): Home lists EVERY open quote of mine (up to 5, newest first, "See all N"), each with
+   client / step reached / last edited, Continue + Hide; and a quote stays resumable until it is Confirmed - after the
+   quotation is saved (step 8), locked or sent, Continue lands on step 9 "Share with client & approval". The list comes
+   from my_open_quotes (BPStore.flowProgress.open); a database without 0350 falls back to my_unfinished_quotes.
+   Hide = dismiss for me (never changes or deletes the quote); it comes back when I work on the quote again.
    Fallback (local mode, or a database without 0206): a browser copy with ONE ENTRY PER QUOTE
    (helm_flow_resume_v3_<uid>); a quote's entry is only ever removed for that quote.
    Only quote ids, display names and step keys are kept in the browser (no client data).
@@ -24,7 +29,12 @@
   var STEPS = { client: 1, discovery: 2, reqs: 3, venue: 4, menu: 5, proposal: 6, layout: 7, quote: 8, pay: 10 };   // r22: step 9 on the quote page is "Share with client & approval" (not tracked), the advance is step 10
   var ORDER = ["client", "discovery", "reqs", "venue", "menu", "proposal", "layout", "quote"];
   var TOTAL = 8;
-  var LABELS = { client: "Client", discovery: "Discovery", reqs: "Requirements", venue: "Venue", menu: "Menu", proposal: "Proposal", layout: "Layout", quote: "Quotation", pay: "Advance payment" };
+  var LABELS = { client: "Client", discovery: "Discovery", reqs: "Requirements", venue: "Venue", menu: "Menu", proposal: "Proposal", layout: "Layout", quote: "Quotation", approve: "Share with client & approval", pay: "Advance payment" };
+  // r154c: where Continue may LAND (STEPS = the steps the flow saves; step 9 "approve" is a landing only, never saved)
+  var LAND = { client: 1, discovery: 2, reqs: 3, venue: 4, menu: 5, proposal: 6, layout: 7, quote: 8, approve: 9, pay: 10 };
+  // r154c (0350): an open quote past step 8 - what it is waiting for (building = still in steps 1 to 8)
+  var PHASES = { building: "", quoted: "Quotation saved · not shared yet", locked: "Locked · not sent yet", sent: "Sent · waiting for the client" };
+  var HOME_MAX = 5;                    // Home: at most 5, then "See all"
   var MAX_AGE = 60 * 864e5;            // browser copy: 60 days (owner decision E)
   var MAX_LOCAL = 30;                  // browser copy: at most 30 quotes
   var DASH_DAYS = 60;                  // dashboard card: hide quotes idle longer than this
@@ -85,13 +95,31 @@
     if (q.approvalToken || q.approval_token) return false;
     return true;
   }
-  function stepNo(step) { return STEPS[step] || 0; }
+  function stepNo(step) { return LAND[step] || 0; }
+  // r154c: open = not yet Confirmed (client side, for the Quotes rows): building, quotation saved, locked or sent
+  function isOpen(q) {
+    if (!q) return false;
+    if (q.deletedAt || q.archivedAt || q.deleted_at || q.archived_at || q.autoDiscardedAt || q.auto_discarded_at) return false;
+    if (q.isDemo === true || q.is_demo === true) return false;
+    var st = String(q.status || "quote").toLowerCase(), stage = String(q.lifecycleStage || q.lifecycle_stage || "quote").toLowerCase();
+    var ap = String(q.approvalStatus || q.approval_status || "none").toLowerCase();
+    if (st !== "quote" && st !== "confirmed") return false;
+    if (["lead", "discovery", "proposal", "quote"].indexOf(stage) < 0) return false;
+    return ap === "none" || ap === "sent";
+  }
+  function phaseOf(q) {
+    var ap = String((q && (q.approvalStatus || q.approval_status)) || "none").toLowerCase();
+    if (ap === "sent") return "sent";
+    if (String((q && q.status) || "quote").toLowerCase() === "confirmed") return "locked";
+    return "building";
+  }
   function firstNotDone(done) {
     var d = {}; (Array.isArray(done) ? done : []).forEach(function (k) { d[k] = 1; });
     for (var i = 0; i < ORDER.length; i++) if (!d[ORDER[i]]) return ORDER[i];
     return "quote";
   }
   function validStep(s) { return STEPS[s] ? s : null; }
+  function landStep(s) { return LAND[s] ? s : null; }
   function ago(ts, now) {
     var t = typeof ts === "number" ? ts : Date.parse(ts || ""); if (!isFinite(t)) return "";
     var s = Math.max(0, Math.round(((now || Date.now()) - t) / 1000));
@@ -110,19 +138,23 @@
   function fromServer(r, mine) {
     r = r || {};
     var done = Array.isArray(r.steps_done) ? r.steps_done.filter(function (k) { return ORDER.indexOf(k) >= 0; }) : [];
+    var phase = PHASES.hasOwnProperty(r.phase) ? r.phase : "building";
     var step = validStep(mine ? (r.my_step || r.last_step) : (r.last_step || r.my_step)) || firstNotDone(done);
+    if (phase !== "building") step = "approve";                       // r154c: past step 8 - share / approval is what is left
     var at = mine ? (r.my_step_at || r.activity || r.updated_at) : (r.last_step_at || r.activity || r.updated_at);
+    // r154c: "last edited" = the newer of my last step and the quote's own last save
+    var act = r.activity || at || null; if (mine && act && at && Date.parse(act) > Date.parse(at)) at = act;
     return { quoteId: String(r.id || ""), name: nameOf(r), code: r.code || "", client: (r.client && r.client.name) || "", eventType: r.event_type || "",
       step: step, stepNo: stepNo(step), stepLabel: LABELS[step], done: done.length, total: Number(r.steps_total) || TOTAL,
-      at: at || null, activity: r.activity || at || null, lastUser: r.last_user_name || "", lastByMe: r.last_by_me === true,
-      lastAt: r.last_step_at || null, hasLast: !!r.last_step };
+      at: at || null, activity: act, lastUser: r.last_user_name || "", lastByMe: r.last_by_me === true,
+      lastAt: r.last_step_at || null, hasLast: !!r.last_step, phase: phase, phaseLabel: PHASES[phase], hidden: r.hidden === true, myStep: validStep(r.my_step) };
   }
   function fromLocal(e) { return { quoteId: e.quoteId, name: e.name || "your quote", code: "", client: "", step: e.step, stepNo: stepNo(e.step), stepLabel: LABELS[e.step],
-    done: null, total: TOTAL, at: e.at, activity: e.at, lastUser: "", lastByMe: true, lastAt: e.at, hasLast: true }; }
+    done: null, total: TOTAL, at: e.at, activity: e.at, lastUser: "", lastByMe: true, lastAt: e.at, hasLast: true, phase: "building", phaseLabel: "", hidden: false }; }
   function stepText(v) { return v.stepNo > TOTAL ? "step " + v.stepNo + " · " + v.stepLabel : "step " + v.stepNo + " of " + TOTAL + " · " + v.stepLabel; }
   function progressText(v) { return v.done == null ? "" : v.done + " of " + (v.total || TOTAL); }
   function label(v, now) { var a = ago(v.at, now); return (v.name || "your quote") + " · " + stepText(v) + (a ? " · edited " + a : ""); }
-  function href(v) { return "flow.html?quote=" + encodeURIComponent(v.quoteId) + "#sec-" + (validStep(v.step) || "client"); }
+  function href(v) { return "flow.html?quote=" + encodeURIComponent(v.quoteId) + "#sec-" + (landStep(v.step) || "client"); }
   function lastBy(v, now) { if (!v.lastUser || v.lastByMe) return ""; var a = ago(v.lastAt, now); return "Last worked on by " + v.lastUser + (a ? ", " + a : ""); }
 
   /* ---------------- store access ---------------- */
@@ -151,11 +183,13 @@
   /* the list: server first; browser copy only when the server has no 0206 / local mode */
   function load(s, uid, opts) {
     opts = opts || {}; var mine = opts.scope !== "studio";
-    var server = serverOn(s) ? Promise.resolve(s.flowProgress.list(opts)).catch(function () { return { failed: true }; }) : Promise.resolve(null);
+    // r154c: open quotes until Confirmed (0350) when the store has it; else the 0206 list (building only)
+    var fp = serverOn(s) ? s.flowProgress : null, get = fp && typeof fp.open === "function" ? fp.open : fp && fp.list;
+    var server = fp ? Promise.resolve(get.call(fp, opts)).catch(function () { return { failed: true }; }) : Promise.resolve(null);
     return server.then(function (d) {
       if (d && d.failed) return { rows: [], total: 0, canEdit: false, source: "error" };            // offline / error: show nothing, no toast
       if (d && Array.isArray(d.rows)) return { rows: d.rows.map(function (r) { return fromServer(r, mine); }), total: Number(d.total) || 0,
-        canEdit: d.can_edit !== false, readOnly: d.read_only === true, source: "server" };
+        canEdit: d.can_edit !== false, readOnly: d.read_only === true, source: "server", open: d.open === true };
       if (!mine || opts.quote) return { rows: [], total: 0, canEdit: true, source: "none" };        // no studio-wide list without the server
       var all = readAll(uid).filter(function (e) { return !e.dismissed && (!opts.maxDays || Date.now() - e.at <= opts.maxDays * 864e5); });
       return Promise.all(all.slice(0, 6).map(function (e) {
@@ -229,7 +263,14 @@
     ".fr-banner p{margin:0;overflow-wrap:anywhere}.fr-banner .fr-sub{margin:2px 0 0}" +
     ".fr-note{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13px;padding:8px 12px;margin:0 0 10px;border-radius:8px;background:var(--hb-soft,var(--soft,#f3f6f4));color:var(--hb-ink,var(--ink,#1d232a))}" +
     ".fr-note button{background:none;border:0;padding:6px 4px;min-height:32px;font:inherit;color:var(--hb-acc,var(--accent,#1f6f4a));text-decoration:underline;cursor:pointer}" +
-    ".fr-empty{color:var(--hb-ink2,var(--ink-2,#5b6470));padding:14px 4px}";
+    ".fr-empty{color:var(--hb-ink2,var(--ink-2,#5b6470));padding:14px 4px}" +
+    ".fr-home{display:grid;gap:8px;margin:0;padding:0;list-style:none}" +
+    ".fr-hrow{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--hb-line,var(--line,#e3e6ea));border-radius:10px;background:var(--hb-card,var(--card,#fff))}" +
+    ".fr-hrow .fr-main{flex:1 1 240px}.fr-hrow .fr-title{font-size:15px}.fr-hrow .fr-title a{color:inherit;text-decoration:none}.fr-hrow .fr-title a:hover{text-decoration:underline}" +
+    ".fr-phase{display:inline-block;font-size:12px;line-height:1.3;padding:2px 8px;margin:4px 0 0;border-radius:999px;background:var(--hb-soft,var(--soft,#f3f6f4));color:var(--hb-ink,var(--ink,#1d232a))}" +
+    ".fr-foot{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;margin-top:8px;font-size:13px;color:var(--hb-ink2,var(--ink-2,#5b6470))}" +
+    ".fr-foot .fr-more{margin-top:0}" +
+    "@media (max-width:560px){.fr-hrow .fr-acts{width:100%}.fr-hrow .fr-acts>*{flex:1 1 0}}";
   var cssDone = false;
   function css(doc) { if (cssDone) return; cssDone = true; try { if (typeof root.__helmAdoptCss === "function") root.__helmAdoptCss(doc || root.document, CSS); } catch (e) {} }
   function el(doc, tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = String(text); return e; }
@@ -263,21 +304,62 @@
     acts.appendChild(x); box.appendChild(acts);
     host.appendChild(box); return box;
   }
+  /* r154c Home: EVERY open quote of mine (newest first, at most opts.max = 5), each with client, step reached,
+     last edited, what it waits for, Continue (Open for a view-only role) + Hide; "See all N" when there are more.
+     opts: { btn:{primary,ghost}, onHide(v,row), max }. Returns the number of rows drawn. */
+  function renderHome(host, data, opts) {
+    var doc = host.ownerDocument || root.document; opts = opts || {}; css(doc);
+    while (host.firstChild) host.removeChild(host.firstChild);
+    var all = (data && data.rows) || [], max = opts.max || HOME_MAX, rows = all.slice(0, max), now = Date.now();
+    if (!rows.length) return 0;
+    var B = opts.btn || { primary: "btn primary", ghost: "btn" }, edit = data.canEdit !== false;
+    var ul = el(doc, "ul", "fr-home"); ul.setAttribute("aria-label", "Quotes you can continue");
+    rows.forEach(function (v) {
+      var li = el(doc, "li", "fr-hrow"); li.setAttribute("data-quote", v.quoteId);
+      var main = el(doc, "div", "fr-main"), t = el(doc, "p", "fr-title"), a0 = el(doc, "a", null, v.name || "your quote");
+      a0.href = "event.html?id=" + encodeURIComponent(v.quoteId); t.appendChild(a0); main.appendChild(t);
+      var ag = ago(v.at, now), sub = [];
+      if (v.client) sub.push(v.client);
+      sub.push("Reached " + stepText(v));
+      if (ag) sub.push("edited " + ag);
+      var lb = lastBy(v, now); if (lb) sub.push(lb);
+      main.appendChild(el(doc, "p", "fr-sub", sub.join(" · ")));
+      if (v.phaseLabel) main.appendChild(el(doc, "span", "fr-phase", v.phaseLabel));
+      li.appendChild(main);
+      var acts = el(doc, "div", "fr-acts");
+      if (edit) { var go = el(doc, "a", B.primary, "Continue"); go.href = href(v); go.setAttribute("aria-label", "Continue " + v.name + " at " + stepText(v)); acts.appendChild(go); }
+      else { var op = el(doc, "a", B.ghost, "Open"); op.href = "event.html?id=" + encodeURIComponent(v.quoteId); op.setAttribute("aria-label", "Open " + v.name); acts.appendChild(op); }
+      var x = el(doc, "button", B.ghost, "Hide"); x.type = "button";
+      x.setAttribute("aria-label", "Hide " + v.name + " from this list until you work on it again (the quote is not deleted)");
+      x.title = "Hide from this list until you work on it again. The quote itself is not changed or deleted.";
+      x.addEventListener("click", function () { if (opts.onHide) opts.onHide(v, li); });
+      acts.appendChild(x); li.appendChild(acts); ul.appendChild(li);
+    });
+    host.appendChild(ul);
+    var total = Math.max(Number(data.total) || 0, all.length), foot = el(doc, "div", "fr-foot");
+    foot.appendChild(el(doc, "span", null, total === 1 ? "1 quote in progress" : total + " quotes in progress"));
+    var all1 = el(doc, "a", "fr-more", total > rows.length ? "See all " + total + " →" : "Open the In progress list →");
+    all1.href = "quotes.html?view=inprogress"; foot.appendChild(all1); host.appendChild(foot);
+    return rows.length;
+  }
   /* Quotes > In progress: every unfinished quote of the studio */
   function renderList(host, data, opts) {
     var doc = host.ownerDocument || root.document; opts = opts || {}; css(doc);
     while (host.firstChild) host.removeChild(host.firstChild);
     var rows = (data && data.rows) || [], now = Date.now();
-    if (!rows.length) { host.appendChild(el(doc, "p", "fr-empty", opts.empty || "No quotes in progress. Quotes appear here until their quotation is saved in step 8.")); return 0; }
+    if (!rows.length) { host.appendChild(el(doc, "p", "fr-empty", opts.empty || (data && data.open ? "No quotes in progress. Every quote shows here until it is confirmed." : "No quotes in progress. Quotes appear here until their quotation is saved in step 8."))); return 0; }
     var list = el(doc, "div", "fr-list"); list.setAttribute("role", "list");
     rows.forEach(function (v) {
       var r = el(doc, "div", "fr-row"); r.setAttribute("role", "listitem"); r.setAttribute("data-quote", v.quoteId);
       var c1 = el(doc, "div"); var n = el(doc, "a", "fr-n", v.name); n.href = "event.html?id=" + encodeURIComponent(v.quoteId); c1.appendChild(n);
       c1.appendChild(el(doc, "div", "fr-m", [v.code, v.client].filter(Boolean).join(" · ") || "No client yet")); r.appendChild(c1);
       var c2 = el(doc, "div"); c2.appendChild(el(doc, "div", "fr-m", progressText(v) + " steps done")); c2.appendChild(bar(doc, v)); r.appendChild(c2);
-      var c3 = el(doc, "div"); c3.appendChild(el(doc, "div", "fr-m", "Stopped at: " + v.stepLabel));
+      if (v.phaseLabel) c2.appendChild(el(doc, "span", "fr-phase", v.phaseLabel));
+      var c3 = el(doc, "div"); c3.appendChild(el(doc, "div", "fr-m", (v.phase && v.phase !== "building" ? "Next: " : "Stopped at: ") + v.stepLabel));
       var who = v.hasLast ? (v.lastByMe ? "You" : (v.lastUser || "A teammate")) : "Not opened in the flow yet", a = v.hasLast ? ago(v.lastAt, now) : ago(v.activity, now);
-      c3.appendChild(el(doc, "div", "fr-m", (v.hasLast ? "Last worked by " + who : who) + (a ? " · " + a : ""))); r.appendChild(c3);
+      c3.appendChild(el(doc, "div", "fr-m", (v.hasLast ? "Last worked by " + who : who) + (a ? " · " + a : "")));
+      if (v.hidden) c3.appendChild(el(doc, "div", "fr-m", "Hidden from your Home list"));
+      r.appendChild(c3);
       var go = el(doc, "a", opts.btnClass || "btn primary", data.canEdit === false ? "Open" : "Continue");
       go.href = data.canEdit === false ? "event.html?id=" + encodeURIComponent(v.quoteId) : href(v);
       go.setAttribute("aria-label", (data.canEdit === false ? "Open " : "Continue ") + v.name + " at " + v.stepLabel); r.appendChild(go);
@@ -320,12 +402,27 @@
       if (!s || seq !== mountSeq) return;
       var u = whoami(s); if (!u) return;                                                      // signed out: nothing
       var dash = /dashboard/.test(String((root.location && root.location.pathname) || "")) || !!doc.getElementById("hdResume");
-      return load(s, u.id, { scope: "mine", limit: 1, maxDays: DASH_DAYS }).then(function (data) {
+      // r154c: Home lists up to 5 open quotes (+ "See all"); other pages keep the one compact card
+      var homeList = dash || !!doc.getElementById("hdResume");
+      return load(s, u.id, { scope: "mine", limit: homeList ? HOME_MAX : 1, maxDays: DASH_DAYS }).then(function (data) {
         if (seq !== mountSeq) return;
         var old = doc.getElementById("flowResume"); if (old && old.parentNode) old.parentNode.removeChild(old);
         var block = doc.getElementById("hdResume");
         function paint(host, isBlock) {
           var target = isBlock ? (host.querySelector(".hd-body") || host) : host;
+          if (homeList) {
+            var btn = isBlock ? { primary: "hd-btn hd-primary", ghost: "hd-btn hd-ghost" } : null;
+            var onHide = function (v) {
+              dismiss(s, u.id, v.quoteId).then(function () { mount(); });          // re-read: the next open quote moves up
+              data = { rows: data.rows.filter(function (r) { return r.quoteId !== v.quoteId; }), total: Math.max(0, (data.total || 1) - 1), canEdit: data.canEdit, open: data.open };
+              var left = renderHome(target, data, { btn: btn, onHide: onHide });
+              if (!left) { if (isBlock) host.hidden = true; else if (host.parentNode) host.parentNode.removeChild(host); }
+              try { var U = root.BPUI; if (U && U.toast) U.toast("Hidden from your list - the quote is not deleted. It comes back when you work on it again, and it stays under Quotes > In progress.", { type: "info" }); } catch (e) {}
+            };
+            var drawn = renderHome(target, data, { btn: btn, onHide: onHide });
+            if (isBlock) host.hidden = !drawn;
+            return drawn;
+          }
           var shown = renderCard(target, data, { btn: isBlock ? { primary: "hd-btn hd-primary", ghost: "hd-btn hd-ghost" } : null, noEyebrow: isBlock,
             onDismiss: function (v) {
               dismiss(s, u.id, v.quoteId).then(function () { mount(); });
@@ -361,7 +458,7 @@
     record: record, clear: clear, dismissLocal: dismissLocal, lastStep: lastStep, unfinished: unfinished, stepNo: stepNo, firstNotDone: firstNotDone,
     ago: ago, fromServer: fromServer, fromLocal: fromLocal, stepText: stepText, progressText: progressText, label: label, href: href, lastBy: lastBy,
     ready: ready, whoami: whoami, load: load, dismiss: dismiss, resumeStep: resumeStep, track: track,
-    renderCard: renderCard, renderList: renderList, renderBanner: renderBanner, renderNotice: renderNotice, mount: mount };
+    renderCard: renderCard, renderHome: renderHome, renderList: renderList, isOpen: isOpen, phaseOf: phaseOf, LAND: LAND, PHASES: PHASES, HOME_MAX: HOME_MAX, landStep: landStep, renderBanner: renderBanner, renderNotice: renderNotice, mount: mount };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HelmFlowResume = api;
   if (root.document && root.document.currentScript && root.document.currentScript.hasAttribute("data-mount")) autoMount();

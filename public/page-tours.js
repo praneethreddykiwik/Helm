@@ -76,11 +76,12 @@
     ],
     "quotes.html": [
       { sel: "#tabs", title: "Find confirmed fast", desc: "Active · Quotes · Confirmed · Archive · Deleted. Confirmed events rise to the top and are highlighted so you never scroll to find them." },
+      { sel: "#tab_inprogress", title: "In progress", desc: "Every quote that is not confirmed yet - still being prepared, or shared and waiting for the client - with the step it reached and who worked on it last. Continue picks it up right there." },
       { sel: "#search", title: "Search", desc: "Jump to any quote by client name or quote code." },
       { sel: "#typeFilter", title: "Filter", desc: "Show only one event type, or quotes from a date range." },
       { sel: "#newBtn", need: ["create", "edit:quotes"], title: "Start a new quote", desc: "Price a fresh event here. It becomes the event everything else hangs off." },
       { sel: "#rows", uses: "edit:quotes", alt: (can) => can("edit:quotes") ? null : { desc: "Click a row to open the event and see its details." },
-        title: "Your quotes", desc: "Click a row to open it, confirm it, re-price it, or take client approval by OTP / consent / payment link." },
+        title: "Your quotes", desc: "Click a row to open it, confirm it, re-price it, or take client approval by OTP / consent / payment link. A quote that is not confirmed yet has a Continue button that takes you back to the step you left." },
     ],
     "flow.html": [
       { sel: "#code", title: "The event workspace", desc: "Every stage of this one event lives here, top to bottom — fill it in order and nothing gets missed." },
@@ -371,10 +372,10 @@
       { sel: "#ibxMail", title: "E-mail me", desc: "Get unread notifications by e-mail, straight away or once each morning." },
     ],
     "integrations.html": [
-      { sel: "#itgEmail", title: "E-mail invites", desc: "The sender name and reply-to address on e-mails Helm sends for you." },
+      { sel: "#itgEmail", title: "E-mail invites", desc: "The sender name and reply-to address on e-mails Helm sends for you. Changing the reply-to address needs two-step sign-in; the sender name does not." },
       { sel: "#itgEmailTest", title: "Test it", desc: "Send yourself a test e-mail to see how it looks." },
       { sel: "#itgWa", title: "WhatsApp", desc: "Your studio's own WhatsApp Business number. Proposals, approval codes, reminders and crew tasks go out from it." },
-      { sel: "#itgWaConnect", title: "Connect your number", desc: "Paste your WhatsApp IDs and token, check the connection, then set up the message templates for Meta to approve." },
+      { sel: "#itgWaConnect", title: "Connect your number", desc: "Paste your WhatsApp IDs and token, check the connection, then set up the message templates for Meta to approve. Save details keeps the two IDs without the token; the token is never shown again (Replace token puts in a new one)." },
     ],
     "client.html": [
       { sel: "#c_name", title: "One client, everything", desc: "This client's name, contact details and status." },
@@ -495,7 +496,8 @@
       { sel: "#gSearch", title: "Search studios and people", desc: "Find a studio by name or link, or a person by e-mail. A studio's client logins are never listed. Invoices are under Billing." },
       { sel: "#kpis", title: "Key numbers", desc: "New studios, monthly income, plan mix and the trial funnel." },
       { sel: "#attList", title: "Needs attention", desc: "Studios and requests waiting on HQ. Trial ends show the studio's own day. System health beside it says why if job history can't be read." },
-      { sel: "#tab-requests", side: "right", title: "Requests", desc: "Plan requests, sales enquiries and suggestions from studios." },
+      // R154e (0351): Suggestions = the in-app Suggestion box (status, +1, a reply the sender reads in the app)
+      { sel: "#tab-requests", side: "right", title: "Requests", desc: "Plan requests, sales enquiries and suggestions from studios. Under Suggestions, filter by status, kind or text, see the +1 count, mark New / Planned / Done / Not now and write a reply the sender reads under My suggestions." },
       { sel: "#tab-staff", side: "right", title: "Staff access", desc: "Who on the Helm team can use HQ, and with which rights." },
       // r123a (0332): every HQ person - their own sign-ins
       { sel: "#tab-account", side: "right", title: "Where you're logged in", desc: "Every device signed in to HQ with your account: device, rough location, last active. Sign out one, or log out of all other devices." },

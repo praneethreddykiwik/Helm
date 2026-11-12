@@ -219,6 +219,9 @@ const ASSETS = {
   stagedeck:  { label:'Stage Extension', category:'structure', w:8, h:4 },
   stagestairs:{ label:'Stage Stairs', category:'structure', w:6, h:3.3, props:{stairPos:'centre', stairSteps:3} },
   installation:{ label:'Outdoor Decor Installation', category:'decor', w:8, h:8 },
+  /* R154: Jyothi Prajwalana - the ceremonial lamp-lighting stand lit before an event starts (inaugurations,
+     conferences, weddings). A ~1.5 ft round base and a ~5.5 ft brass / iron pole with tiered lamp trays. */
+  jyothi:     { label:'Jyothi Prajwalana', category:'decor', w:1.5, h:1.5 },
 };
 
 /* ---- searchable product list (window.HelmCatalog) ----
@@ -299,6 +302,7 @@ const PRODUCT_META = {
   stagedeck:['stage','stage extension thrust deck riser platform module extra stage','*'],
   stagestairs:['stage','stage stairs steps staircase treads stage steps access','*'],
   installation:['decor','outdoor decorative installation light sculpture marquee letters light tunnel art installation','*'],
+  jyothi:['religious','jyothi jyoti prajwalana jyothi prajwalana lamp lighting lamp stand diya deepam candle candle stand inauguration inaugural ceremony oil lamp brass samai kuthu vilakku','*'],
   barricade:['security','barricade crowd control','political concert festival'],
   led:['av','led wall screen','*'], press:['political','press riser media cameras','political product_launch concert'],
   brandwall:['branding','branding wall step and repeat backdrop','corporate product_launch political exhibition award_night'],
@@ -351,6 +355,7 @@ const DEFAULT_PRICES = {          // per-unit overrides for big-ticket items (�
   havankund:3500, rangoli:2500, lanterns:1200, hangingfloral:18000, neonsign:4000,
   backdrop:6000, floralstand:1500, decorbox:2000, signage:1200, stageroof:60000, varmala:25000, micstand:500, teleprompter:6000, projector:8000, tvstand:4000, interpreter:15000, pyro:3000, towerlight:4000, gaddi:3000, urli:2500, umbrellas:5000, doli:12000, kalash:800, altar:8000, shoerack:1000, dessert:3500, coffee:3000, stall:6000, counter:2500, plinth:1000, kiosk:3000, ticketbooth:5000, stanchion:1200, watchtower:8000, extinguisher:300, ambulance:6000,
   lawnfloor:9000, stagelight:1500, pathlights:2500, sidescreen:30000, stagedeck:6000, stagestairs:2500, installation:15000,
+  jyothi:3000,
 };
 // object types whose seats are billed via the chair rate (so we don't
 // double-charge them as furniture units in the breakdown)
@@ -1285,6 +1290,8 @@ function screenLogo2D(parent, sc, x, y, size){
   if(!sc || !sc.logo || !HelmScreen.logoImage) return false;
   HelmScreen.logoImage(sc.logo); const url=HelmScreen.logoUrl(sc.logo); if(!url) return false;
   const im=el('image',{class:'scr-logo', x:x-size/2, y:y-size/2, width:size, height:size, preserveAspectRatio:'xMidYMid meet', 'pointer-events':'none'});
+  im.setAttribute('crossorigin','anonymous');   // R154: same CORS mode as the cached picture (one fetch, reused)
+  im.setAttribute('data-logo', sc.logo);        // R154: which logo this is, so an exported picture can bake its pixels
   im.setAttribute('href', url); parent.appendChild(im); return true;
 }
 function screenBand2D(body, it, sc, w, h, c){   // the stage's rear screen band, themed, with its line of text
@@ -1702,6 +1709,12 @@ function renderItem(it){
       else if(st==='lighttunnel'){ drawBox({fill:'transparent', dash:'3 3'}); for(let y=-h/2+4;y<h/2;y+=8) body.appendChild(el('line',{x1:-w/2,y1:y,x2:w/2,y2:y,stroke:c,'stroke-width':1.2,'stroke-opacity':.8})); }
       else { body.appendChild(el('circle',{cx:0,cy:0,r:R,fill:fillSoft,stroke:c,'stroke-width':1.2,'stroke-dasharray':'3 2'}));
         for(let k=0;k<8;k++){ const a=k/8*Math.PI*2; body.appendChild(el('circle',{cx:Math.cos(a)*R*0.6,cy:Math.sin(a)*R*0.6,r:Math.max(1.2,R*0.08),fill:c})); } }
+      break; }
+    case 'jyothi': { const R=Math.min(w,h)/2, candle=((it.properties||{}).style||'')==='candle';   // R154: round base, tray ring of lamps, flame at the top
+      body.appendChild(el('circle',{cx:0,cy:0,r:R,fill:fillSoft,stroke:c,'stroke-width':1.2}));
+      body.appendChild(el('circle',{cx:0,cy:0,r:R*0.62,fill:'none',stroke:c,'stroke-width':.8,'stroke-dasharray':candle?'1.5 1.5':''}));
+      for(let k=0;k<6;k++){ const a=k/6*Math.PI*2-Math.PI/2; body.appendChild(el('circle',{cx:Math.cos(a)*R*0.62,cy:Math.sin(a)*R*0.62,r:Math.max(0.9,R*0.13),fill:'#ffb547',stroke:c,'stroke-width':.4})); }
+      body.appendChild(el('path',{d:`M 0 ${-R*0.38} C ${R*0.2} ${-R*0.12} ${R*0.18} ${R*0.12} 0 ${R*0.2} C ${-R*0.18} ${R*0.12} ${-R*0.2} ${-R*0.12} 0 ${-R*0.38} Z`,fill:'#ff9a3c',stroke:c,'stroke-width':.4}));
       break; }
     default: drawBox({});
   }
@@ -2396,6 +2409,7 @@ const TEMPLATES = {
     it.push(makeItem('stage', cx-24, 6, {properties:{plain:true}, width:48,height:14,label:'Keynote Stage'}));
     it.push(makeItem('podium', cx-1.5, 15, {label:'Podium'}));
     it.push(makeItem('press', cx+26, 6, {width:16,height:8,label:'Press'}));
+    it.push(makeItem('jyothi', cx-20, 24, {label:'Jyothi Prajwalana'}));   // R154: lamp lit at the start, stage-left floor
     it.push(makeItem('seatblock', cx-bW/2, 34, {width:bW,height:bH,properties:{rows:10,cols:20},label:'Center Front'}));
     it.push(makeItem('seatblock', cx-bW/2, 34+bH+6, {width:bW,height:bH,properties:{rows:10,cols:20},label:'Center Rear'}));
     it.push(makeItem('seatblock', 8, 34, {width:30,height:bH*2+6,properties:{rows:22,cols:12},label:'Left Wing'}));
@@ -3583,7 +3597,7 @@ const TOOLBOX_SECTIONS = [
   ['Seating & tables', ['table','longtable','headtable','cocktail','chairrow','seatblock','bleacher','barstool','sofa','loveseat','couplesofa','armchair','ottoman','bench','coffeetable','lounge','gaddi']],
   ['Florals & mandap', ['mandap','floralarch','floralentrance','entrancegate','stagebackdrop','flowerwall','hangingfloral','floralpillar','aislefloral','centrepiece','floral','phoolchadar','toran','pillar','urli','fountain']],
   ['Wedding functions', ['haldi','mehendi','umbrellas','jhoola','doli','chariot','selfieframe','welcomeboard','photobooth','neonsign']],
-  ['Religious & cultural', ['havankund','kalash','altar','rangoli','diyastand','shoerack']],
+  ['Religious & cultural', ['jyothi','havankund','kalash','altar','rangoli','diyastand','shoerack']],
   ['Balloons, kids & party', ['balloonarch','balloonbunch','kidszone','caketable','dessert','gifttable']],
   ['Food & beverage', ['buffet','livecounter','bar','coffee','chocolatefountain','truck','stall']],
   ['Branding, expo & registration', ['brandwall','hoarding','flagstand','booth','counter','plinth','desk','kiosk','easel','trophytable']],
@@ -3748,6 +3762,7 @@ function assetGlyph(type){
     case 'hoarding': return wrap('<rect x="3" y="3" width="20" height="9"/><path d="M6 12v6M20 12v6M3 18h20M8 12l-2 6M18 12l2 6"/>');
     case 'patower': return wrap('<path d="M7 18L9 2h8l2 16M8 10h10"/><rect x="10" y="3" width="6" height="4" rx=".5"/><rect x="10" y="11" width="6" height="4" rx=".5"/>');
     case 'lightingtree': return wrap('<path d="M13 4v10M13 14l-5 4M13 14l5 4M13 14v4"/><path d="M6 4h14"/><path d="M7 4v2M11 4v2M15 4v2M19 4v2"/><circle cx="7" cy="7" r="1"/><circle cx="11" cy="7" r="1"/><circle cx="15" cy="7" r="1"/><circle cx="19" cy="7" r="1"/>');
+    case 'jyothi': return wrap('<path d="M13 7v10M9 18h8M8 9h10M10 13h6"/><path d="M8 9V8M18 9V8M10 13v-1M16 13v-1"/><path d="M13 2c1.2 1.6 1.2 2.8 0 4c-1.2-1.2-1.2-2.4 0-4z"/>');
     case 'diyastand': return wrap('<path d="M13 6v11M9 17h8M10 8h6M11 12h4"/><path d="M13 2c1 1.5 1 2.5 0 3.5c-1-1-1-2 0-3.5z"/>');
     case 'havankund': return wrap('<rect x="5" y="9" width="16" height="8"/><path d="M13 3c-2 2-2 4 0 6 2-2 2-4 0-6z"/>');
     case 'rangoli': return wrap('<circle cx="13" cy="10" r="7"/><circle cx="13" cy="10" r="3"/><path d="M13 3v14M6 10h14"/>');
@@ -4625,7 +4640,10 @@ function planBlob(o){ o=o||{}; return new Promise(resolve=>{
       cn.removeAttribute('stroke'); }
   }
   clone.querySelectorAll('.scr-ph').forEach(n=>n.remove());   // R135: the screen placeholder is builder-only - never in a picture
-  clone.querySelectorAll('.scr-logo').forEach(n=>n.remove());   // R137: a logo is a signed storage link - never baked into an exported SVG/PNG
+  // R137: a logo is a signed storage link - never baked into an exported SVG/PNG. R154: its PIXELS are (a PNG data: URL
+  // made from the already-loaded picture, inside this throw-away clone only), so client plan pictures keep the logo
+  clone.querySelectorAll('.scr-logo').forEach(n=>{ const d=window.HelmScreen && HelmScreen.logoSnapshot ? HelmScreen.logoSnapshot(n.getAttribute('data-logo')) : '';
+    n.removeAttribute('data-logo'); n.removeAttribute('crossorigin'); if(d) n.setAttribute('href', d); else n.remove(); });
   if(o.clean) clone.querySelectorAll(o.measure ? '.margins' : '.margins,.measure').forEach(n=>n.remove());
   const CF=o.clean && window.HelmCaptureFrame;              // R5: client plan = numbered badges + legend (same numbers as 3D)
   const LM=CF ? CF.labelMode(o.labels) : 'numbers';         // 0083: o.labels 'none' | 'numbers' (default) | 'names'
@@ -4731,6 +4749,12 @@ function captureClientImages(silent){
   clientImgBusy=captureClientImagesRun(silent).finally(()=>{ clientImgBusy=null; });
   return clientImgBusy;
 }
+// R154: every logo on a screen of this layout has loaded (or failed) - at most 6 s
+function screenLogosReady(){
+  const S=window.HelmScreen; if(!S || !S.whenLogos) return Promise.resolve([]);
+  const refs=store.items.filter(it=>S.isScreenType(it.type)).map(it=>S.contentOf(it, store.items).logo).filter(Boolean);
+  return refs.length ? S.whenLogos(refs, 6000) : Promise.resolve([]);
+}
 async function captureClientImagesRun(silent){
   // R4-E: pin the quote / version / layout the capture started on — if any changes while the
   // (slow) renders run, the pictures no longer match that quote's saved layout: never upload them.
@@ -4740,6 +4764,7 @@ async function captureClientImagesRun(silent){
   const why=e=>String((e && e.message) || e || 'failed').slice(0,120);
   const res={}, p2={}, p3={};   // R8: per-picture result: true | reason
   try{
+    await screenLogosReady();   // R154: a logo still loading would be baked as the brand letter
     say('Capturing 2D…');
     for(const [v,m] of CLIENT_IMG_STYLES){
       try{ const b=await planBlob({clean:true, maxW:1600, labels:m}); if(b) p2[v]=b; else res['2d_'+v]='couldn’t draw the floor plan'; }
@@ -5408,6 +5433,7 @@ const VARIANT_STYLES = {
   stagelight: [['','LED PAR'],['beam','Beam light'],['spot','Spotlight'],['flood','Floodlight']],
   pathlights: [['','Pathway stake lights'],['rope','LED rope light']],
   installation: [['','Light tree sculpture'],['letters','Giant marquee letters'],['lighttunnel','Light tunnel']],
+  jyothi: [['','Brass stand with oil lamps (diyas)'],['candle','Iron stand with candles']],
 };
 // R135: extra look fields beyond style / flower / palette (key, label, options) - visual only, never priced
 const VARIANT_EXTRA = {
@@ -5572,7 +5598,7 @@ async function screenLogoAdd(it, file, say){
     const blob=await shrinkLogo(file);
     say('Uploading the logo…');
     const up=new File([blob],'logo.png',{type:'image/png'});
-    const path=logoPathFromUrl(await BPStore.sites.uploadPhoto(currentQuoteId, up));
+    const path=logoPathFromUrl(await BPStore.sites.uploadPhoto(currentQuoteId, up, {keepAlpha:true}));   // R154: a transparent logo stays transparent on the screen
     if(!path){ say('The logo was uploaded but could not be linked. Please try again.'); return false; }
     if(RO) return false;
     it.properties=it.properties||{}; it.properties.screenLogo=path; commit(); renderAll(); return true;

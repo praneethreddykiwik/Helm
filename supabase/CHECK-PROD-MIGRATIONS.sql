@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (303 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (309 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,12 +17,13 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3863 objects): body 175, bucket 9, col 221, con 402, cron 19, fn 1760, idx 394, marker 1, pol 179, polexpr 4, pre 89, pub 5, seq 1, tbl 259, trg 343, view 2.
+-- What is checked (3900 objects): body 175, bucket 9, col 226, con 402, cron 19, exec 2, fn 1778, idx 397, marker 5, pol 179, polexpr 4, pre 92, pub 5, seq 1, tbl 260, trg 344, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
 --   marker = the function body contains a text the migration puts there (from check-prod-overrides.json).
 --   polexpr = the policy USING / WITH CHECK expression contains a text the migration puts there (overrides).
+--   exec = the named role may run the function (EXECUTE granted by the migration, from overrides).
 with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'current_org_id', ''),
   ('base-v1-2026-09-25', 'tbl', 'public.organizations', null, null),
@@ -716,9 +717,6 @@ with o(m, k, s, n, x) as (values
   ('0010_feature_settlement_teardown', 'fn', 'public', 'return_reservation', 'uuid,numeric'),
   ('0010_feature_settlement_teardown', 'fn', 'public', 'invitation_preview', 'text'),
   ('0010_feature_settlement_teardown', 'fn', 'public', 'record_settlement_payment', 'uuid,numeric,text,text,uuid,text,text'),
-  ('0011_authz_complete', 'body', 'public', 'set_discovery', 'uuid,date,text,text,text,text,numeric,numeric|2973a38dae4f13a24ec86ee32444a33d'),
-  ('0011_authz_complete', 'body', 'public', 'set_event_plan', 'uuid,text,text,text,text,text,text|89ad1477dafdfbf1cf4af6826b6f1c05'),
-  ('0011_authz_complete', 'body', 'public', 'set_proposal', 'uuid,text,text,jsonb,jsonb,jsonb|677a340c2c628e51ee14b0c528897b91'),
   ('0012_token_otp_hardening', 'col', 'public.work_tokens', 'expires_at', null),
   ('0012_token_otp_hardening', 'col', 'public.work_tokens', 'revoked_at', null),
   ('0012_token_otp_hardening', 'fn', 'public', 'tg_approval_token_expiry', ''),
@@ -790,7 +788,6 @@ with o(m, k, s, n, x) as (values
   ('0021_profiles_privilege_lockdown', 'fn', 'public', 'profiles_privilege_guard', ''),
   ('0021_profiles_privilege_lockdown', 'trg', 'public.profiles', 'profiles_privilege_guard_biud', null),
   ('0022_client_link_windows', 'body', 'public', 'tg_work_token_expiry', '|9c42caa0c32252f71abc4fd82092fcf8'),
-  ('0022_client_link_windows', 'body', 'public', 'tg_work_token_renew', '|71703a4bb4d7eb4e9f8fd25d1cb1d367'),
   ('0022_client_link_windows', 'fn', 'public', 'try_date', 'text'),
   ('0022_client_link_windows', 'fn', 'public', 'client_link_deadline', 'date,uuid,integer'),
   ('0022_client_link_windows', 'fn', 'public', 'client_link_window_days', 'text'),
@@ -1808,7 +1805,6 @@ with o(m, k, s, n, x) as (values
   ('0117_integration_accounts', 'pol', 'public.integration_webhook_events', 'integration_webhook_events_admin_read', null),
   ('0117_integration_accounts', 'fn', 'public', '_integ_vault_put', 'uuid,text,text'),
   ('0117_integration_accounts', 'fn', 'public', '_integ_vault_get', 'uuid'),
-  ('0117_integration_accounts', 'fn', 'public', 'save_org_whatsapp_account', 'text,text,text,text'),
   ('0117_integration_accounts', 'fn', 'public', 'org_razorpay_creds', 'uuid'),
   ('0117_integration_accounts', 'fn', 'public', 'org_whatsapp_creds', 'uuid'),
   ('0117_integration_accounts', 'fn', 'public', 'mark_org_integration', 'uuid,text,text,text'),
@@ -1817,6 +1813,7 @@ with o(m, k, s, n, x) as (values
   ('0117_integration_accounts', 'fn', 'public', 'wa_record_event', 'text,text,text,text,text,text,jsonb'),
   ('0117_integration_accounts', 'fn', 'public', 'save_org_payment_account', 'text,text,text'),
   ('0117_integration_accounts', 'fn', 'public', 'set_org_integration_status', 'text,text'),
+  ('0117_integration_accounts', 'fn', 'public', 'save_org_whatsapp_account', 'text,text,text,text'),
   ('0117_integration_accounts', 'fn', 'public', 'my_integration_accounts', ''),
   ('0116_trial_orgs', 'col', 'public.organizations', 'trial_ends_at', null),
   ('0116_trial_orgs', 'idx', 'public.organizations_trial_ends_idx116', null, null),
@@ -1866,7 +1863,6 @@ with o(m, k, s, n, x) as (values
   ('0124_vendor_bills', 'fn', 'public', 'vendor_payables_summary', ''),
   ('0124_vendor_bills', 'fn', 'public', 'business_pnl', 'date,date'),
   ('0124_vendor_bills', 'fn', 'public', '_vb_event_pnl', 'uuid,uuid'),
-  ('0125_lead_audit_and_milestone_fix', 'body', 'public', 'enforce_no_overpayment_ms', '|ffc5e111349422aec8b6876a79994fc7'),
   ('0125_lead_audit_and_milestone_fix', 'trg', 'public.leads', 'audit_trg', null),
   ('0126_trial_staff_and_expiry', 'fn', 'public', '_trial_member_blocked', 'uuid'),
   ('0126_trial_staff_and_expiry', 'fn', 'public', 'my_trial_access', ''),
@@ -1961,7 +1957,6 @@ with o(m, k, s, n, x) as (values
   ('0145_dashboard_money_currency_fix', 'body', 'public', 'dashboard_money', 'integer|d5a2c2bf917330e8cc932c3abea3a22f'),
   ('0146_audit_1017_pnl_trial', 'fn', 'public', '_aud1017_is_member', 'uuid'),
   ('0147_manager_quote_create', 'body', 'public', 'can_create', '|5ae21c10731f21b35f08019700b3af79'),
-  ('0147_manager_quote_create', 'body', 'public', 'can_edit', '|69bfcb907becec50cdc0024b1d8a87b2'),
   ('0149_lead_guest_count_range', 'con', 'public.leads', 'leads_guest_count_range_chk', null),
   ('0150_studio_channel_settings', 'col', 'public.comms_settings', 'email_from_name', null),
   ('0150_studio_channel_settings', 'col', 'public.comms_settings', 'email_reply_to', null),
@@ -3790,7 +3785,6 @@ with o(m, k, s, n, x) as (values
   ('0337_r129_studio_whatsapp', 'fn', 'public', 'public_quote_ready__pre0337', 'uuid'),
   ('0337_r129_studio_whatsapp', 'body', 'public', 'public_quote_ready', 'uuid|053aab223d3438d065a3a8e8bf07567a'),
   ('0337_r129_studio_whatsapp', 'fn', 'public', 'my_integration_accounts__pre0337', ''),
-  ('0337_r129_studio_whatsapp', 'body', 'public', 'my_integration_accounts', '|ff862832cdbb5de8f41391926e28f14b'),
   ('0337_r129_studio_whatsapp', 'pre', null, '__pre0337', null),
   ('0338_r130_task_reminders', 'tbl', 'public.task_reminder_settings', null, null),
   ('0338_r130_task_reminders', 'col', 'public.event_tasks', 'remind_before', null),
@@ -3886,7 +3880,51 @@ with o(m, k, s, n, x) as (values
   ('0344_r149_missing_indexes', 'idx', 'public.ix_event_resources_need_id_0344', null, null),
   ('0344_r149_missing_indexes', 'idx', 'public.ix_lead_enquiries_lead_id_0344', null, null),
   ('0344_r149_missing_indexes', 'idx', 'public.ix_welcome_email_outbox_org_id_0344', null, null),
-  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_tasks_planned_start_0344', null, null)
+  ('0344_r149_missing_indexes', 'idx', 'public.ix_event_tasks_planned_start_0344', null, null),
+  ('0345_r153_prod_catchup', 'body', 'public', 'set_discovery', 'uuid,date,text,text,text,text,numeric,numeric|2973a38dae4f13a24ec86ee32444a33d'),
+  ('0345_r153_prod_catchup', 'body', 'public', 'set_event_plan', 'uuid,text,text,text,text,text,text|89ad1477dafdfbf1cf4af6826b6f1c05'),
+  ('0345_r153_prod_catchup', 'body', 'public', 'set_proposal', 'uuid,text,text,jsonb,jsonb,jsonb|677a340c2c628e51ee14b0c528897b91'),
+  ('0345_r153_prod_catchup', 'fn', 'public', '_r345_keep', 'text'),
+  ('0345_r153_prod_catchup', 'fn', 'public', 'return_reservation', 'uuid,numeric'),
+  ('0346_r154_slug_skeleton_execute', 'exec', 'public', '_r23_slug_skeleton', 'text|authenticated'),
+  ('0350_r154c_open_quotes', 'fn', 'public', 'my_open_quotes', 'text,integer,integer,uuid,integer'),
+  ('0351_r154e_suggestion_box', 'fn', 'public', '_r351_keep', 'text'),
+  ('0351_r154e_suggestion_box', 'col', 'public.suggestions', 'reply', null),
+  ('0351_r154e_suggestion_box', 'col', 'public.suggestions', 'replied_at', null),
+  ('0351_r154e_suggestion_box', 'col', 'public.suggestions', 'replied_by', null),
+  ('0351_r154e_suggestion_box', 'col', 'public.suggestions', 'reply_seen_at', null),
+  ('0351_r154e_suggestion_box', 'col', 'public.suggestions', 'share_with_studio', null),
+  ('0351_r154e_suggestion_box', 'idx', 'public.suggestions_user_created_0351', null, null),
+  ('0351_r154e_suggestion_box', 'idx', 'public.suggestions_studio_shared_0351', null, null),
+  ('0351_r154e_suggestion_box', 'tbl', 'public.suggestion_votes', null, null),
+  ('0351_r154e_suggestion_box', 'idx', 'public.suggestion_votes_user_0351', null, null),
+  ('0351_r154e_suggestion_box', 'fn', 'public', '_r351_tg_suggestion_guard', ''),
+  ('0351_r154e_suggestion_box', 'trg', 'public.suggestions', 'zz_r351_suggestion_guard', null),
+  ('0351_r154e_suggestion_box', 'fn', 'public', '_r351_row', 'suggestions,uuid'),
+  ('0351_r154e_suggestion_box', 'fn', 'public', '_r351_org', ''),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'suggestion_submit', 'jsonb'),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'my_suggestions', ''),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'my_suggestion_unread', ''),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'suggestion_replies_seen', ''),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'suggestion_vote', 'uuid,boolean'),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'suggestion_share', 'uuid,boolean'),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'hq_reply_suggestion', 'uuid,text,text'),
+  ('0351_r154e_suggestion_box', 'pre', null, '__pre0351', null),
+  ('0351_r154e_suggestion_box', 'marker', 'public', 'hq_suggestions', 'text|r154e-0351'),
+  ('0351_r154e_suggestion_box', 'marker', 'public', 'hq_set_suggestion', 'uuid,text,text|r154e-0351'),
+  ('0352_r154f_email_probe_limits', 'body', 'public', 'signup_email_preauthorised', 'text|80893820defa7dd899dd8649b80b088e'),
+  ('0352_r154f_email_probe_limits', 'body', 'public', 'staff_google_only_for', 'text|1ae39048bcbf8a5bb92764ba21185bdb'),
+  ('0352_r154f_email_probe_limits', 'fn', 'public', '_r352_keep', 'text'),
+  ('0352_r154f_email_probe_limits', 'fn', 'public', '_r352_allow', 'text,text'),
+  ('0352_r154f_email_probe_limits', 'pre', null, '__pre0352', null),
+  ('0353_r154h_wa_details', 'fn', 'public', 'save_org_whatsapp_account__pre0353', 'text,text,text,text'),
+  ('0353_r154h_wa_details', 'fn', 'public', 'my_integration_accounts__pre0353', ''),
+  ('0353_r154h_wa_details', 'body', 'public', 'save_org_whatsapp_account', 'text,text,text,text|0e008c23b247c5be0a921927b8147129'),
+  ('0353_r154h_wa_details', 'body', 'public', 'my_integration_accounts', '|8ffdde81d6dacb155d93f2431145cd4f'),
+  ('0353_r154h_wa_details', 'pre', null, '__pre0353', null),
+  ('0353_r154h_wa_details', 'marker', 'public', 'save_org_whatsapp_account', 'text,text,text,text|r154h-0353'),
+  ('0353_r154h_wa_details', 'marker', 'public', 'my_integration_accounts', '|r154h-0353'),
+  ('0353_r154h_wa_details', 'exec', 'public', 'save_org_whatsapp_account', 'text,text,text,text|authenticated')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -3900,7 +3938,7 @@ mig(ord, m, ov, note) as (values
   (9, '0008_feature_designer', null, null),
   (10, '0009_feature_tasks_files', null, null),
   (11, '0010_feature_settlement_teardown', null, null),
-  (12, '0011_authz_complete', null, null),
+  (12, '0011_authz_complete', 'superseded', 'everything it made was re-issued or removed by later migrations (checked there)'),
   (13, '0012_token_otp_hardening', null, null),
   (14, '0013_storage_hardening', null, null),
   (15, '0014_advisor_hardening', 'skip', 'settings only (RLS on the runner ledger, search_path of set_updated_at)'),
@@ -4191,7 +4229,13 @@ mig(ord, m, ov, note) as (values
   (300, '0341_r139_token_lookup_limits', null, null),
   (301, '0342_r143_outbox_backoff', null, null),
   (302, '0343_r148_rls_initplan', null, 'ALTER POLICY only (calls wrapped as (select ...)); besides the kept helpers, 4 sample policies are checked for the wrapped form - run select * from public._r343_unwrapped() for the full list (0 rows expected)'),
-  (303, '0344_r149_missing_indexes', null, null)
+  (303, '0344_r149_missing_indexes', null, null),
+  (304, '0345_r153_prod_catchup', null, 'guarded catch-up: return_reservation is only created where it is missing (checked by name, not by body) and NAME__pre0345 copies only exist where a body was re-issued'),
+  (305, '0346_r154_slug_skeleton_execute', null, 'EXECUTE grant only: signed-in users may run the look-alike helper used by the organizations / org_slug_history indexes (studio settings save)'),
+  (306, '0350_r154c_open_quotes', null, null),
+  (307, '0351_r154e_suggestion_box', null, 'hq_suggestions + hq_set_suggestion re-issued in place (same names), checked by the 0351 marker in their bodies'),
+  (308, '0352_r154f_email_probe_limits', null, null),
+  (309, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)')
 ),
 env as (
   select
@@ -4214,6 +4258,7 @@ r as (
       when 'col' then 'column ' || o.s || '.' || o.n
       when 'pol' then 'policy ' || o.n || ' on ' || o.s
       when 'polexpr' then 'polexpr ' || o.n || ' on ' || o.s || ' ' || o.x
+      when 'exec' then 'execute ' || substr(o.x, position('|' in o.x) + 1) || ' ' || o.s || '.' || o.n || '(' || split_part(o.x, '|', 1) || ')'
       when 'trg' then 'trigger ' || o.n || ' on ' || o.s
       when 'con' then 'constraint ' || o.n || ' on ' || o.s
       when 'tbl' then 'table ' || o.s
@@ -4249,6 +4294,10 @@ r as (
       when 'polexpr' then exists (select 1 from pg_policy p where p.polrelid = to_regclass(o.s) and p.polname = o.n
         and position(o.x in coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')) > 0)
       when 'trg' then exists (select 1 from pg_trigger t where t.tgrelid = to_regclass(o.s) and t.tgname = o.n)
+      when 'exec' then exists (select 1 from pg_proc p join pg_roles g on g.rolname = substr(o.x, position('|' in o.x) + 1)
+        where p.pronamespace = to_regnamespace(o.s) and p.proname = o.n and has_function_privilege(g.oid, p.oid, 'execute')
+          and p.proargtypes::text = coalesce((select string_agg(coalesce(to_regtype(t)::oid, 0)::text, ' ' order by i)
+                                              from unnest(string_to_array(split_part(o.x, '|', 1), ',')) with ordinality u(t, i)), ''))
       when 'con' then exists (select 1 from pg_constraint c where c.conrelid = to_regclass(o.s) and c.conname = o.n)
       when 'schema' then to_regnamespace(o.n) is not null
       when 'pre' then exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and right(p.proname, length(o.n)) = o.n)

@@ -130,7 +130,7 @@
 <link rel="stylesheet" href="link-views.css?v=2">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=69" id="shellProto"></script>
+<script src="/shell-proto.js?v=71" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -148,7 +148,7 @@
   <div class="toolbar">
     <div class="tabs" id="tabs" role="group" aria-label="Show quotes">
       <button type="button" data-f="all" class="on" aria-pressed="true">Active</button>
-      <button type="button" data-f="inprogress" aria-pressed="false" id="tab_inprogress" hidden title="Quotes still being prepared - no quotation saved in step 8 yet. The whole studio, with who worked on each last.">In progress<span class="tcount" id="cnt_inprogress"></span></button>
+      <button type="button" data-f="inprogress" aria-pressed="false" id="tab_inprogress" hidden title="Quotes not confirmed yet - still being prepared, or shared and waiting for the client. The whole studio, with who worked on each last.">In progress<span class="tcount" id="cnt_inprogress"></span></button>
       <button type="button" data-f="quote" aria-pressed="false">Quotes</button>
       <button type="button" data-f="confirmed" aria-pressed="false" title="Priced and locked quotes: sent to the client (awaiting approval) and client-confirmed events">Sent &amp; confirmed</button>
       <button type="button" data-f="attention" aria-pressed="false" title="Events whose date has passed but are not wrapped up, and quotes that expire soon or just expired">⚠ Attention</button>
@@ -281,10 +281,10 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=344"></script><script src="flow-resume.js?v=6" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=5"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=3"></script>
+<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=346"></script><script src="flow-resume.js?v=7" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=5"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=3"></script>
 <script src="event-sizing.js?v=5"></script><script src="quote-smart-filter.js?v=2"></script><script src="approval-watch.js?v=2"></script><script src="event-group-picker.js?v=5"></script><script src="link-views.js?v=4"></script>
-<script src="page-tours.js?v=26"></script>
-<script src="tour.js?v=46"></script>
+<script src="page-tours.js?v=30"></script>
+<script src="tour.js?v=49"></script>
 <script>
   const $ = (s)=>document.querySelector(s);
   const esc = (s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -354,17 +354,36 @@
   }
   /* ---------- In progress (0206): every unfinished quote of the studio ---------- */
   // Unfinished = not sent, no quotation saved in step 8 yet, not shelved, not trial sample data (server rule).
+  // r154c (0350): with my_open_quotes = every open quote until it is Confirmed (quotation saved / locked / sent too).
   // Rows: name, client, progress bar "3 of 8", "Stopped at", who worked on it last, Continue. The tab shows
   // only when this database has 0206 (BPStore.flowProgress.list answers); otherwise it stays hidden.
-  const ip={ready:false, total:0, data:null};
+  const ip={ready:false, total:0, data:null, byId:{}, canEdit:true, open:false};
   const ipUid=()=>{ try{ const u=BPStore.auth.user&&BPStore.auth.user(); return (u&&u.id)||"anon"; }catch(_){ return "anon"; } };
   function paintIpTab(){ const t=$("#tab_inprogress"); if(!t) return; t.hidden=!ip.ready && filter!=="inprogress"; $("#cnt_inprogress").textContent=ip.ready?String(ip.total):""; }
+  // r154c (0350): one read gives the tab count AND each open row's step for its Continue button (ip.byId)
   async function loadInProgressCount(){
     if(!BPStore.flowProgress || !window.HelmFlowResume){ ip.ready=false; paintIpTab(); return; }
-    try{ const d=await BPStore.flowProgress.list({ scope:"studio", limit:1 }); ip.ready=!!d; ip.total=d?Number(d.total)||0:0; }
-    catch(_){ ip.ready=false; }
-    paintIpTab();
+    let d=null; try{ d=await HelmFlowResume.load(BPStore, ipUid(), { scope:"studio", limit:100 }); }catch(_){ d=null; }
+    if(d && d.source==="server"){ ip.ready=true; ip.total=Number(d.total)||0; ip.canEdit=d.canEdit!==false; ip.open=d.open===true; const m={}; d.rows.forEach(v=>{ m[v.quoteId]=v; }); ip.byId=m; }
+    else { ip.ready=false; ip.byId={}; }
+    paintIpTab(); if(quotes.length) render();
   }
+  // r154c: an open (not yet Confirmed) row gets "Continue" - to the step it stopped at when the server knows it,
+  // else the flow itself lands on my last step. Editors only (quotes edit, studio not read-only).
+  const continueOf=(x)=>{
+    const H=window.HelmFlowResume;
+    if(!canEdit || ip.canEdit===false || !H || sh(x) || !H.isOpen(x)) return null;
+    const v=ip.byId&&ip.byId[x.id];
+    if(v){ // my own step first (the studio list says where the TEAM stopped)
+      const mine=v.phase==="building"&&v.myStep ? Object.assign({}, v, { step:v.myStep, stepNo:H.stepNo(v.myStep), stepLabel:H.LABELS[v.myStep] }) : v;
+      return { href:H.href(mine), title:"Continue at "+H.stepText(mine)+(mine.phaseLabel?" ("+mine.phaseLabel+")":"") }; }
+    // the server listed every open quote and this one is not among them (an empty draft / sample data): no Continue
+    // (before 0350 the server list has building quotes only, so a quotation-saved / locked / sent row still gets one)
+    if(ip.ready && ip.total<=Object.keys(ip.byId||{}).length && (ip.open || H.phaseOf(x)==="building")) return null;
+    return H.phaseOf(x)==="building" ? { href:"flow.html?quote="+encodeURIComponent(x.id), title:"Continue where this quote stopped" }
+      : { href:"flow.html?quote="+encodeURIComponent(x.id)+"#sec-approve", title:"Continue at step 9 · Share with client & approval" };
+  };
+
   function paintIpVisibility(){ const on=filter==="inprogress", r=$("#rows"), card=r&&r.closest?r.closest(".card"):null, w=$("#ipWrap");
     if(w) w.hidden=!on; if(card) card.hidden=on; }
   async function renderInProgress(){
@@ -379,7 +398,7 @@
     const rows=d.rows.filter(v=>(!type || String(v.eventType||"").toLowerCase()===type)
       && (!term || [v.name,v.code,v.client].some(x=>String(x||"").toLowerCase().includes(term))));
     ip.ready=true; ip.total=Number(d.total)||0; paintIpTab();
-    HelmFlowResume.renderList(host, { rows, total:rows.length, canEdit:d.canEdit }, (term||type) ? { empty:"No quotes in progress match this search or filter." } : {});
+    HelmFlowResume.renderList(host, { rows, total:rows.length, canEdit:d.canEdit, open:d.open }, (term||type) ? { empty:"No quotes in progress match this search or filter." } : {});
   }
   /* ---------- end In progress ---------- */
   // one page of the current tab (wraps BPStore.quotes.page): the first page also refreshes the
@@ -680,6 +699,11 @@
     // lazy-load versions into each dropdown + wire actions
     tb.querySelectorAll("tr[data-id]").forEach(tr=>{
       const id=tr.dataset.id;
+      // r154c: an open (not yet Confirmed) quote leads with "▶ Continue" - built as DOM (text only), first so it stays visible
+      const rq=quotes.find(q=>q.id===id), cont=rq?continueOf(rq):null, ra0=tr.querySelector(".row-actions");
+      if(cont&&ra0){ const cb=document.createElement("button"); cb.type="button"; cb.className="ic confirm"; cb.setAttribute("data-act","continue");
+        cb.setAttribute("data-href",cont.href); cb.title=cont.title; cb.setAttribute("aria-label","Continue "+((rq&&rq.code)||"this quote")+": "+cont.title);
+        cb.textContent="▶ Continue"; ra0.insertBefore(cb, ra0.firstChild); }
       // keep the row calm: the first three actions stay visible, the rest go in a "⋯" menu (same buttons, same handlers)
       const ra=tr.querySelector(".row-actions"), acts=ra?[...ra.querySelectorAll(":scope > [data-act]")]:[];
       if(acts.length>4){
@@ -694,7 +718,8 @@
       sel.addEventListener("focus",()=>fillVersions(id,sel),{once:true});
       tr.querySelectorAll("[data-act]").forEach(b=>b.addEventListener("click",()=>{
         const act=b.dataset.act, ver=selectedVersion(sel);
-        if(act==="details") location.href="closure.html?id="+encodeURIComponent(id);
+        if(act==="continue"){ const h=b.getAttribute("data-href")||""; if(/^flow\.html\?quote=[0-9a-f-]{36}(#sec-[a-z]+)?$/i.test(h)) location.href=h; }
+        else if(act==="details") location.href="closure.html?id="+encodeURIComponent(id);
         else if(act==="edit") location.href="builder.html?quote="+encodeURIComponent(id)+(ver?"&v="+ver:"");
         else if(act==="confirm") BPUI.guard(b,()=>openConfirm(id)).catch(e=>{ try{ console.error("[quotes] open confirm failed",e); }catch(_){} BPUI.toast(BPUI.friendlyError(e,{action:"open the confirm dialog"}),{type:"err"}); });
         else if(act==="download") BPUI.guard(b,()=>downloadQuote(id, ver));

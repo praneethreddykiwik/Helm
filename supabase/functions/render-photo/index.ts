@@ -24,7 +24,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { bearer, errTag, responders, UUID_RE } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { logger } from "../_shared/log.ts";
-import { fetchWithTimeout } from "../_shared/http.ts";   // R142: also bounds reading OpenAI's answer
+import { fetchWithTimeout, isTimeout } from "../_shared/http.ts";   // R142: also bounds reading OpenAI's answer
 
 const OPENAI_EDITS = "https://api.openai.com/v1/images/edits";
 const BODY_LIMIT = 11 * 1024 * 1024;          // four reference pictures (base64) + prompt
@@ -53,6 +53,27 @@ function costPer(quality: string): number {
   return isFinite(v) && v >= 0 ? v : d[quality] ?? 0.25;
 }
 const clip = (v: unknown, n: number) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, n);
+
+// R154a: what an OpenAI error means, as a short reason kind. It goes into photo_render_usage.error as
+// "<kind>: openai <status> <code>" and the builder maps the kind to its own message, so an account problem
+// (expired / revoked key, unpaid bill, unknown model) no longer looks like "try again". Never the provider's text.
+//   auth     401 / 403 - the key is invalid, expired or revoked, or the account may not use the model (owner action)
+//   billing  402 or a quota / billing code - the OpenAI account is out of credit (owner action)
+//   model    404 or a model_* code - OPENAI_IMAGE_MODEL is not available to this account (owner action)
+//   blocked  the safety system refused the prompt or pictures
+//   busy     429 rate limit (try again shortly)
+//   failed   anything else
+export function providerKind(status: number, code: string): string {
+  const c = String(code || "").toLowerCase();
+  if (c === "moderation_blocked" || c.includes("safety")) return "blocked";
+  if (status === 402 || c === "insufficient_quota" || c.startsWith("billing") || c.includes("quota_exceeded")) return "billing";
+  if (status === 401 || status === 403 || c === "invalid_api_key" || c.includes("secret_key") || c.includes("api_key")) return "auth";
+  if (status === 404 || c.startsWith("model_") || c === "model_not_found") return "model";
+  if (status === 429) return "busy";
+  return "failed";
+}
+// HTTP status for the inline (no background runtime) answer
+const INLINE_STATUS: Record<string, number> = { timeout: 504, blocked: 422, busy: 503, auth: 503, billing: 503, model: 503 };
 
 export function notConfigured(): boolean { return !(Deno.env.get("OPENAI_API_KEY") || "").trim(); }
 
@@ -167,16 +188,24 @@ Deno.serve(async (req) => {
           r = await fetchWithTimeout(OPENAI_EDITS, { method: "POST", redirect: "error", headers: { Authorization: "Bearer " + Deno.env.get("OPENAI_API_KEY")!.trim() }, body: fd, signal: ac.signal }, timeout + 5_000);
         } catch (e) {
           clearTimeout(timer);
-          const to = (e as Error)?.name === "AbortError";
+          const to = (e as Error)?.name === "AbortError" || isTimeout(e);
+          log.error("openai images request failed", to ? "timeout" : "network", { provider: "openai", reason: to ? "timeout" : "failed", timeout_ms: timeout });
           await finish("error", to ? "timeout" : "failed: network");
           return to ? "timeout" : "failed";
         }
         clearTimeout(timer);
-        const out: any = await r.json().catch(() => ({}));
+        // deno-lint-ignore no-explicit-any
+        let out: any = {};
+        try { out = await r.json(); } catch (e) {
+          // R154a: reading the answer ran past the deadline - that is a timeout, not "no images"
+          if (isTimeout(e)) { log.error("openai images answer too slow", "timeout", { provider: "openai", status: r.status, reason: "timeout" }); await finish("error", "timeout"); return "timeout"; }
+          out = {};
+        }
         if (!r.ok) {
           const oc = String(out?.error?.code || out?.error?.type || r.status).slice(0, 60);
-          log.error("openai images error", r.status, { kind: oc });
-          const kind = oc === "moderation_blocked" || oc.includes("safety") ? "blocked" : r.status === 429 ? "busy" : "failed";
+          const kind = providerKind(r.status, oc);
+          // R154a: one structured line with the provider status + code (never the message, never the key)
+          log.error("openai images error", oc, { provider: "openai", status: r.status, reason: kind, model });
           await finish("error", kind + ": openai " + r.status + " " + oc);
           return kind;
         }
@@ -194,7 +223,7 @@ Deno.serve(async (req) => {
           if (iErr || !row) { log.error("render insert failed", errTag(iErr)); continue; }
           renders.push({ id: String(row.id), mime, data: b64 });
         }
-        if (!renders.length) { await finish("error", "failed: no images"); return "failed"; }
+        if (!renders.length) { log.error("openai images answer had no usable photo", "no_images", { provider: "openai", status: r.status, reason: "failed" }); await finish("error", "failed: no images"); return "failed"; }
         await finish("ok", undefined, Math.round(costPer(quality) * renders.length * 10000) / 10000);
         return renders;
       } catch (e) {
@@ -211,7 +240,7 @@ Deno.serve(async (req) => {
     }
     // no background runtime (local tests): finish inline, same answer shape as a finished job
     const res = await work();
-    if (typeof res === "string") return json({ error: "render_" + res, job_id: usageId }, res === "timeout" ? 504 : res === "blocked" ? 422 : res === "busy" ? 503 : 502);
+    if (typeof res === "string") return json({ error: (res === "auth" || res === "billing" || res === "model" ? "render_provider_" : "render_") + res, job_id: usageId }, INLINE_STATUS[res] || 502);
     return json({ job_id: usageId, status: "ok", renders: res, used: begin.used, quota: begin.quota });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "request too large" }, 413);
