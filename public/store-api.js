@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=69"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=70"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -10784,6 +10784,10 @@ window.HelmUrl = HelmUrl;
     waConnect: (action) => (supa && fnUrl("wa-connect") ? callFn("wa-connect", { action: action }) : Promise.reject(new Error("Needs a signed-in studio."))),
     waDisconnect: () => (supa ? rpc("disconnect_org_whatsapp_account", {}) : Promise.reject(new Error("Needs a signed-in studio."))),
     waReady: () => (supa ? rpc("studio_whatsapp_ready", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+    // R156 (0354): the background template setup (admin only): { running, jobs: [...], health, ... }; null = server without 0354
+    waSetup: () => (supa ? rpc("my_wa_template_setup", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+    // R156: Fix and resubmit one rejected / failed template (the worker sends Helm's fixed wording to Meta)
+    waResubmit: (name) => (supa && fnUrl("wa-connect") ? callFn("wa-connect", { action: "resubmit", name: String(name || "") }) : Promise.reject(new Error("Needs a signed-in studio."))),
   };
 
   // R130 (0338): studio settings for WhatsApp task reminders (Settings -> Notifications). null = server without 0338.

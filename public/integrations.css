@@ -98,6 +98,13 @@ html[data-theme="dark"] .wac-status[data-state="pending"]{color:#f5c27a}
 html[data-theme="dark"] .wac-chip[data-state="on"]{background:rgba(24,165,88,.15);border-color:rgba(24,165,88,.4);color:#7ee2a8}
 html[data-theme="dark"] .wac-chip[data-state="wait"]{background:rgba(232,145,45,.15);border-color:rgba(232,145,45,.4);color:#f5c27a}
 html[data-theme="dark"] .wac-chip[data-state="off"]{background:rgba(192,57,43,.15);border-color:rgba(192,57,43,.4);color:#f4a39a}
+/* R156: background setup line, per-row Meta reason + Fix and resubmit, health warnings */
+.wac-bg{border-left:3px solid #e8912d;padding-left:8px}
+.wac-warn{border-left:3px solid #c0392b;padding-left:8px;color:var(--ink)}
+.wac-why{display:block;margin-top:4px;max-width:46ch;white-space:normal}
+.wac-why[data-state="off"]{color:#8a1c12}
+html[data-theme="dark"] .wac-why[data-state="off"]{color:#f4a39a}
+.wac-tbl td .btn{margin-top:6px;min-height:30px;font-size:12.5px}
 .btn.wac-danger{color:#b42318;border-color:#f5c2bd}
 html[data-theme="dark"] .btn.wac-danger{color:#f4a39a;border-color:rgba(192,57,43,.5)}
 .wac .itg-result{margin-top:10px}

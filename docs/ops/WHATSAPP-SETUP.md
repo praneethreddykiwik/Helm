@@ -29,6 +29,63 @@ with `WHATSAPP_APP_SECRET`. Check connection subscribes the account when the tok
 test number in Helm's app). A studio that uses its OWN Meta app sends without ticks / STOP until Helm becomes a Meta Tech
 Provider (Embedded Signup - a later step).
 
+## R156 (0354) - message templates set up in the background (read this before pressing Set up again)
+
+What changed for the studio admin (Integrations -> WhatsApp -> Message templates):
+- **Set up message templates** no longer creates all 21 templates inside one click. It reads the studio's templates once,
+  queues only the ones that are not there yet (same name + language - a template is never created twice) and says
+  "Setup is running in the background — you can leave this page; we'll notify you." with live progress.
+- The **wa-template-worker** edge function (pg_cron every 3 minutes) creates them one by one, stays under Meta's limit of
+  100 creates per hour per WhatsApp account, waits and retries a temporary problem (1 minute growing to 6 hours, 8 tries),
+  pauses for an hour after a Meta rate limit, and keeps **Meta's real error code + a short message** per template
+  (never a link or a token). The page shows it in plain words; "try again later" is gone.
+- It then polls the review (`GET /<WABA>/message_templates?fields=name,status,category,rejected_reason,quality_score`) until
+  every template is final, plus a **nightly reconciliation** at 02:30 IST for every connected studio.
+- **One bell notification** per round (admins only, kind `wa_templates`): "All WhatsApp message templates are approved", or
+  which ones were not approved and why. A rejected / failed row has **Fix and resubmit**: a rejected template is edited in
+  place (`POST /<template id>`, same name - a deleted name is locked for about 30 days), one that was never created is
+  created again with the fixed wording.
+- A **category change** (Meta moving a utility template to marketing, which costs about 8x more) is recorded and warned about.
+- **Number health** (read-only, about twice a day): quality rating, messaging limit tier, send health (`health_status`) and a
+  missing payment method are shown on the card; a new warning set = one bell notice.
+- The approval-code template (`proposal_approval_otp`, authentication) on an unverified business: the card says "Verify your
+  business in Meta Business Manager — approval codes go by e-mail meanwhile." (Business Settings -> Security Centre).
+- The 5 templates Meta refused (too many blanks for their length, error 2388293) are reworded with the same names and
+  blanks: `staff_shift_result`, `vendor_request`, `vendor_delivery_reminder`, `vendor_invoice_update`,
+  `crew_runsheet_reminder`. Every template now passes a wording check (at least 4.5 fixed words per blank, no blank first,
+  last or next to another, body at most 1024 characters - `lintTemplate` in `_shared/wa-studio.mjs`, tested in
+  `test/r156-wa-templates.test.mjs`). The other 16 have fuller wording too; templates already in a studio account keep the
+  wording Meta has (only new setups use the new text) and the senders are unchanged.
+- **Meta Template Library**: for `proposal_approval_otp`, `proposal_approved_pay` and `payment_received` the worker looks up
+  a library entry (`GET /message_template_library?topic=PAYMENTS&usecase=...`) and creates from it
+  (`library_template_name` + `library_template_button_inputs` / `library_template_body_inputs`) when every blank maps to a
+  field Helm has; otherwise (or when the library call fails) it uses Helm's own wording. Which one was created is stored
+  per template (`wa_template_jobs.variant` + `param_map`) and `wa-proposal` fills the blanks in that order.
+  `helm_event_reminder` / `helm_notice` are not library-fit: their senders have a single free-text line. Switch the
+  library off with the secret `HELM_WA_LIBRARY=off`. Docs:
+  https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/template-library and
+  https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account/message_templates/
+
+### R156 owner steps (staging first, then production - nothing is live until you do them)
+1. SQL editor: paste `supabase/APPLY-0354.sql`. Every VERIFY row must say `true`. A NOTICE "cron not scheduled" is expected
+   the first time (step 3).
+2. Secrets + deploy (the worker is called by pg_cron, so no JWT check at the gateway; it checks the shared secret itself):
+   ```bash
+   supabase secrets set --project-ref <ref> HELM_WA_TEMPLATE_SECRET="$(openssl rand -hex 32)"
+   supabase functions deploy wa-template-worker --no-verify-jwt --project-ref <ref>
+   supabase functions deploy wa-connect --project-ref <ref>      # JWT check stays ON (config.toml)
+   supabase functions deploy wa-proposal --project-ref <ref>     # JWT check stays ON
+   ```
+3. The same secret into Vault + the worker address, then run `supabase/APPLY-0354.sql` again (safe) to schedule the jobs:
+   ```sql
+   select vault.create_secret('<the same HELM_WA_TEMPLATE_SECRET value>', 'helm_wa_template_secret');
+   select vault.create_secret('https://<ref>.supabase.co/functions/v1/wa-template-worker', 'helm_wa_worker_url');
+   ```
+   Check: `select jobname, schedule from cron.job where jobname like 'helm-wa-templates%';` -> two rows
+   (`*/3 * * * *` and `0 21 * * *`). Nothing in the secrets is ever printed by Helm.
+4. Test once on staging with the test studio: press Set up message templates, leave the page, come back - progress moves;
+   the bell shows the result. To stop: `select cron.unschedule('helm-wa-templates');` (the queue rows stay as a record).
+
 ### Owner steps (staging first, then production)
 1. Run `supabase/APPLY-0337.sql` in the SQL editor. Every VERIFY row must say `ok = true` (row 06 needs Supabase Vault,
    which every Supabase project has).

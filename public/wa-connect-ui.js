@@ -13,11 +13,18 @@
      token_saved yes / no) and never goes to localStorage / sessionStorage / the URL / a log. A token Meta then refuses
      stays in the key store marked "not connected" (status error) - never used to send; a token the SAVE refused is kept
      only in this page and the card says plainly it was NOT saved. Typed but unsaved boxes ask before leaving the page.
+   R156 (0354): Set up message templates runs in the BACKGROUND: the button queues the missing templates and the card says
+     "Setup is running in the background - you can leave this page; we'll notify you" with live progress (my_wa_template_setup
+     every 20 s while it runs); one bell notice when Meta is done. Each row shows Meta's real reason in plain words, a
+     rejected / failed one has Fix and resubmit; a category change (utility -> marketing) and the number's health (quality
+     rating, messaging limit, payment / send problems) are warned about. The approval-code template on an unverified business
+     says: verify your business in Meta Business Manager - approval codes go by e-mail meanwhile.
    Only the studio admin sees the card (my_integration_accounts.is_admin). Members see the status line on the page.
    CSP-safe: DOM via createElement / textContent only, no inline styles or handlers. Pure helpers exported for tests. */
 (function (global) {
   "use strict";
   var DIGITS = /^[0-9]{5,30}$/;
+  var POLL_MS = 20000;
   // template name -> what it is for (same order as the server catalogue, _shared/wa-studio.mjs)
   var TPL = [
     ["proposal_sent", "Proposal shared with the client"], ["proposal_reminder", "Proposal reminder"],
@@ -105,6 +112,90 @@
     if (missing === rows.length) return { ready: false, text: "No message templates yet. Press Set up message templates - Meta must approve them before clients get messages." };
     return { ready: false, text: ok + " of " + rows.length + " templates approved" + (missing ? ", " + missing + " not created" : "") + (bad ? ", " + bad + " rejected" : "") + "." };
   }
+  // ---- R156: background setup, reasons, health ----------------------------------------------------------------------
+  var BG_TEXT = "Setup is running in the background \u2014 you can leave this page; we'll notify you.";
+  var OTP_VERIFY = "Verify your business in Meta Business Manager \u2014 approval codes go by e-mail meanwhile.";
+  var REASON = {
+    ratio: "Meta said the message has too many blanks for its length. Helm's wording is fixed - press Fix and resubmit.",
+    edge_variable: "Meta said the message starts or ends with a blank. Press Fix and resubmit.",
+    too_long: "Meta said the message is too long. Press Fix and resubmit.",
+    format: "Meta did not accept the template format. Press Fix and resubmit.",
+    auth_not_eligible: OTP_VERIFY,
+    rate_limit: "Meta is limiting template changes for a while. Helm waits and tries again by itself.",
+    token: "The access token stopped working. Paste a new permanent token, then press Check connection.",
+    permission: "The token is missing the whatsapp_business_management permission. Make a new token with it.",
+    other: "Meta refused it. Helm tries again by itself; if it stays like this press Fix and resubmit.",
+  };
+  // Meta's own rejection reasons (rejected_reason) in plain words
+  var REJECTED = { INVALID_FORMAT: "the format is not allowed", ABUSIVE_CONTENT: "Meta thinks the content breaks its rules",
+    INCORRECT_CATEGORY: "Meta thinks the category is wrong", TAG_CONTENT_MISMATCH: "the wording does not match the category",
+    SCAM: "Meta flagged it as a possible scam", PROMOTIONAL: "Meta thinks it is promotional (marketing)", NONE: "" };
+  function jobsByName(setup) {
+    var m = {};
+    (setup && Array.isArray(setup.jobs) ? setup.jobs : []).forEach(function (j) { if (j && j.name && (!j.language || j.language === "en")) m[j.name] = j; });
+    return m;
+  }
+  // one row's plain reason (empty = nothing to say)
+  function reasonOf(name, j) {
+    if (!j) return "";
+    var e = j.error && typeof j.error === "object" ? j.error : null;
+    if (name === "proposal_approval_otp" && e && e.reason === "auth_not_eligible") return OTP_VERIFY;
+    if (j.state === "rejected") {
+      var rr = String(j.rejected_reason || "").toUpperCase(), w = Object.prototype.hasOwnProperty.call(REJECTED, rr) ? REJECTED[rr] : String(j.rejected_reason || "").toLowerCase().replace(/_/g, " ");
+      return "Rejected by Meta" + (w ? ": " + w : "") + ". Press Fix and resubmit, or appeal in WhatsApp Manager.";
+    }
+    if (j.state === "failed" || (j.state === "queued" && e)) {
+      var base = REASON[(e && e.reason) || "other"] || REASON.other;
+      var meta = e && (e.title || e.message) ? " Meta: " + String(e.title || e.message).slice(0, 160) + (e.code ? " (code " + e.code + (e.subcode ? "/" + e.subcode : "") + ")" : "") : "";
+      return (j.state === "queued" ? "Will try again by itself. " : "") + base + meta;
+    }
+    if (j.state === "paused" || j.state === "disabled") return "Meta " + (j.state === "paused" ? "paused" : "turned off") + " this template (low quality from replies). Press Fix and resubmit or check WhatsApp Manager.";
+    return "";
+  }
+  var canResubmit = function (j) { return !!j && /^(rejected|failed|paused)$/.test(String(j.state || "")); };
+  // utility -> marketing and the like (Meta moves templates by itself since April 2025)
+  function categoryNote(name, j) {
+    if (!j || !j.prev_category || !j.category || j.prev_category === j.category) return "";
+    return "Meta moved " + name + " from " + String(j.prev_category).toLowerCase() + " to " + String(j.category).toLowerCase() +
+      (j.category === "MARKETING" ? " - marketing messages cost more and need opt-in." : ".");
+  }
+  // live progress of the background setup
+  function progressLine(setup) {
+    var jobs = setup && Array.isArray(setup.jobs) ? setup.jobs.filter(function (j) { return j.in_round; }) : [];
+    if (!jobs.length) return "";
+    var c = { creating: 0, pending: 0, approved: 0, bad: 0 };
+    jobs.forEach(function (j) {
+      if (j.state === "queued" || j.state === "creating") c.creating++; else if (j.state === "pending") c.pending++;
+      else if (j.state === "approved") c.approved++; else c.bad++;
+    });
+    return c.approved + " of " + jobs.length + " approved" + (c.pending ? ", " + c.pending + " waiting for Meta" : "") +
+      (c.creating ? ", " + c.creating + " being sent to Meta" : "") + (c.bad ? ", " + c.bad + " need attention" : "") + ".";
+  }
+  // the number's health -> warning lines
+  function healthLines(h) {
+    if (!h || typeof h !== "object") return [];
+    var out = [], w = Array.isArray(h.warnings) ? h.warnings : [];
+    if (w.indexOf("quality_red") >= 0) out.push("Quality rating is RED: Meta may lower your daily limit or stop the number. Send fewer messages and only to people who agreed.");
+    else if (w.indexOf("quality_yellow") >= 0) out.push("Quality rating is YELLOW: some people blocked or reported your messages.");
+    if (w.indexOf("payment") >= 0) out.push("Meta has no working payment method for this WhatsApp account - add one in WhatsApp Manager -> Payment settings, or messages stop.");
+    if (w.indexOf("limit_low") >= 0) out.push("Daily messaging limit is low (" + String(h.tier || "").replace("TIER_", "") + " people a day). Verify your business in Meta to raise it.");
+    if (w.indexOf("blocked") >= 0) out.push("Meta is blocking sends from this number right now" + (Array.isArray(h.errors) && h.errors[0] ? ": " + String(h.errors[0]) : "") + ".");
+    return out;
+  }
+  // the answer to Set up message templates (background, or an older server that created them in the request)
+  function setupResultText(r) {
+    if (!r || !r.ok) return "";
+    if (r.background) return (Number(r.queued) ? Number(r.queued) + " template(s) queued. " : "") + BG_TEXT + " Meta usually approves within a few hours.";
+    var f = Array.isArray(r.failed) ? r.failed : [];
+    var txt = (Number(r.created) || 0) + " template(s) sent to Meta for review. Approval usually takes minutes to a few hours.";
+    if (f.length) txt += " " + f.length + " not accepted by Meta: " + f.map(function (x) {
+      if (typeof x === "string") return x;
+      var why = x && x.name === "proposal_approval_otp" && x.reason === "auth_not_eligible" ? OTP_VERIFY : (REASON[(x && x.reason) || "other"] || REASON.other);
+      return x.name + " (" + why.replace(/\.$/, "") + ")";
+    }).join("; ") + ".";
+    return txt;
+  }
+
   function friendly(e) {
     if (e && e.cancelled) return "Not saved - this change needs your two-step code.";
     if (e && e.stepUp) return String(e.message || "");
@@ -287,40 +378,81 @@
       });
     }
 
-    function templatesBlock(w, m) {
+    var pollGen = 0;
+    function templatesBlock(w, m, setup) {
       var box = el("div", "wac-tpl");
       box.appendChild(el("h4", null, "Message templates"));
       var line = templateLine(w.templates);
       box.appendChild(el("p", "itg-note", line.text));
+      var jobs = jobsByName(setup);
+      if (setup && setup.running) {
+        var bg = el("p", "itg-note wac-bg", BG_TEXT); bg.id = "wacBg"; bg.setAttribute("data-state", "wait"); box.appendChild(bg);
+        var pl = progressLine(setup); if (pl) { var pr = el("p", "itg-note", pl); pr.id = "wacProgress"; pr.setAttribute("aria-live", "polite"); box.appendChild(pr); }
+        if (setup.paused_until) box.appendChild(el("p", "itg-note", "Meta asked Helm to slow down - setup continues by itself after a short pause."));
+      }
+      healthLines(setup && setup.health).forEach(function (t) { var p = el("p", "itg-note wac-warn", t); p.setAttribute("data-state", "off"); box.appendChild(p); });
       var tbl = el("table", "itg-tbl wac-tbl"), th = el("thead"), tr = el("tr");
       ["Template", "Used for", "State"].forEach(function (h) { var c = el("th", null, h); c.scope = "col"; tr.appendChild(c); });
       th.appendChild(tr); tbl.appendChild(th);
       var tb = el("tbody");
       templateRows(w.templates).forEach(function (r) {
+        var j = jobs[r.name];
         var row = el("tr"), c1 = el("td"), code = el("code", null, r.name); c1.appendChild(code); row.appendChild(c1);
         row.appendChild(el("td", null, r.use));
-        var c3 = el("td"), chip = el("span", "wac-chip", r.label); chip.setAttribute("data-state", r.state === "APPROVED" ? "on" : r.state ? (/^(REJECTED|DISABLED|PAUSED)$/.test(r.state) ? "off" : "wait") : "none");
-        c3.appendChild(chip); row.appendChild(c3); tb.appendChild(row);
+        var c3 = el("td"), label = r.label, st = r.state;
+        if (j && (j.state === "queued" || j.state === "creating") && !r.state) label = "Being sent to Meta";
+        if (j && j.state === "failed" && !r.state) { label = "Not accepted"; st = "REJECTED"; }
+        var chip = el("span", "wac-chip", label); chip.setAttribute("data-state", st === "APPROVED" ? "on" : st ? (/^(REJECTED|DISABLED|PAUSED)$/.test(st) ? "off" : "wait") : (j && /^(queued|creating)$/.test(j.state) ? "wait" : "none"));
+        c3.appendChild(chip);
+        var why = reasonOf(r.name, j), cn = categoryNote(r.name, j);
+        if (why) { var ws = el("small", "itg-hint wac-why", why); c3.appendChild(ws); }
+        if (cn) { var cs = el("small", "itg-hint wac-why", cn); cs.setAttribute("data-state", "off"); c3.appendChild(cs); }
+        if (canResubmit(j)) {
+          var rb = btn("Fix and resubmit"); rb.id = "wacFix_" + r.name; c3.appendChild(rb);
+          rb.addEventListener("click", function () {
+            rb.disabled = true; say(m, "Sending the fixed wording to Meta in the background...", "wait");
+            I.waResubmit(r.name).then(function (x) {
+              say(m, x && x.ok ? r.name + ": resubmitted. " + BG_TEXT : friendly({ message: x && x.error }), x && x.ok ? "on" : "off");
+              return render();
+            }).catch(function (e) { say(m, friendly(e), "off"); rb.disabled = false; });
+          });
+        }
+        row.appendChild(c3); tb.appendChild(row);
       });
       tbl.appendChild(tb);
       var sc = el("div", "itg-scroll"); sc.appendChild(tbl); box.appendChild(sc);
       var row2 = el("div", "itg-row");
-      var anyMissing = templateRows(w.templates).some(function (r) { return !r.state; });
-      var setup = btn(anyMissing ? "Set up message templates" : "Refresh template states", anyMissing ? "btn-pri" : ""); setup.id = "wacTpl";
-      row2.appendChild(setup); box.appendChild(row2);
-      setup.addEventListener("click", function () {
-        setup.disabled = true; say(m, anyMissing ? "Creating the templates in your WhatsApp account (this can take a minute)..." : "Asking Meta...", "wait");
+      var anyMissing = templateRows(w.templates).some(function (r) { var j = jobs[r.name]; return !r.state && !(j && /^(queued|creating)$/.test(j.state)); });
+      var setupBtn = btn(anyMissing ? "Set up message templates" : "Refresh template states", anyMissing ? "btn-pri" : ""); setupBtn.id = "wacTpl";
+      row2.appendChild(setupBtn); box.appendChild(row2);
+      setupBtn.addEventListener("click", function () {
+        setupBtn.disabled = true; say(m, anyMissing ? "Starting the setup..." : "Asking Meta...", "wait");
         I.waConnect(anyMissing ? "templates" : "status").then(function (r) {
-          var f = r && Array.isArray(r.failed) ? r.failed.length : 0;
-          say(m, (r && r.ok ? (anyMissing ? (Number(r.created) || 0) + " template(s) sent to Meta for review." + (f ? " " + f + " could not be created - try again later." : "") + " Approval usually takes minutes to a few hours." : "Template states updated.") : friendly({ message: r && r.error })), r && r.ok && !f ? "on" : "off");
+          var txt = r && r.ok ? (anyMissing ? setupResultText(r) : "Template states updated.") : friendly({ message: r && r.error });
+          var bad = r && Array.isArray(r.failed) && r.failed.length;
+          say(m, txt, r && r.ok && !bad ? "on" : "off");
           return render();
-        }).catch(function (e) { say(m, friendly(e), "off"); }).then(function () { setup.disabled = false; });
+        }).catch(function (e) { say(m, friendly(e), "off"); }).then(function () { setupBtn.disabled = false; });
       });
+      // live progress while the background setup runs (stops when it is done or the card is re-drawn)
+      if (setup && setup.running && typeof I.waSetup === "function" && global.setTimeout) {
+        var gen = ++pollGen;
+        global.setTimeout(function () {
+          if (gen !== pollGen || !container.firstChild || container.hidden) return;
+          render();
+        }, POLL_MS);
+      }
       return box;
     }
 
+    var setup = null;
     function render() {
+      pollGen++;
       return Promise.resolve().then(function () { return I.mine(); }).catch(function () { return null; }).then(function (M) {
+        if (!M || M.is_admin !== true || !M.whatsapp || M.whatsapp.status !== "connected" || typeof I.waSetup !== "function") return [M, null];
+        return Promise.resolve(I.waSetup()).catch(function () { return null; }).then(function (s2) { return [M, s2]; });
+      }).then(function (pair) {
+        var M = pair && pair[0]; setup = pair && pair[1];
         clear(container);
         if (guard) { try { guard.dispose(); } catch (e) {} guard = null; }
         if (!M || M.is_admin !== true) { container.hidden = true; return false; }
@@ -355,7 +487,7 @@
           });
           row.appendChild(dis); container.appendChild(row);
         }
-        if (st === "connected") container.appendChild(templatesBlock(w, m));
+        if (st === "connected") container.appendChild(templatesBlock(w, m, setup));
         container.appendChild(detailsForm(w));
         container.appendChild(m);
         return true;
@@ -364,7 +496,9 @@
     return render();
   }
 
-  var api = { mount: mount, stateOf: stateOf, validate: validate, validateIds: validateIds, tokenSaved: tokenSaved, statusLine: statusLine, codeHelp: codeHelp, isDirty: isDirty, templateRows: templateRows, templateLine: templateLine, friendly: friendly, TEMPLATES: TPL };
+  var api = { mount: mount, stateOf: stateOf, validate: validate, validateIds: validateIds, tokenSaved: tokenSaved, statusLine: statusLine, codeHelp: codeHelp, isDirty: isDirty, templateRows: templateRows, templateLine: templateLine, friendly: friendly, TEMPLATES: TPL,
+    reasonOf: reasonOf, categoryNote: categoryNote, progressLine: progressLine, healthLines: healthLines, setupResultText: setupResultText,
+    canResubmit: canResubmit, jobsByName: jobsByName, BG_TEXT: BG_TEXT, OTP_VERIFY: OTP_VERIFY };
   global.HelmWaConnect = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

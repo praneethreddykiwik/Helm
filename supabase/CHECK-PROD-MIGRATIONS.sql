@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (305 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (306 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3871 objects): body 176, bucket 9, col 221, con 402, cron 19, exec 2, fn 1762, idx 394, marker 3, pol 179, polexpr 4, pre 90, pub 5, seq 1, tbl 259, trg 343, view 2.
+-- What is checked (3905 objects): body 176, bucket 9, col 221, con 402, cron 19, exec 4, fn 1783, idx 395, marker 5, pol 184, polexpr 4, pre 91, pub 5, seq 1, tbl 261, trg 343, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3895,7 +3895,41 @@ with o(m, k, s, n, x) as (values
   ('0353_r154h_wa_details', 'pre', null, '__pre0353', null),
   ('0353_r154h_wa_details', 'marker', 'public', 'save_org_whatsapp_account', 'text,text,text,text|r154h-0353'),
   ('0353_r154h_wa_details', 'marker', 'public', 'my_integration_accounts', '|r154h-0353'),
-  ('0353_r154h_wa_details', 'exec', 'public', 'save_org_whatsapp_account', 'text,text,text,text|authenticated')
+  ('0353_r154h_wa_details', 'exec', 'public', 'save_org_whatsapp_account', 'text,text,text,text|authenticated'),
+  ('0354_r156_wa_template_jobs', 'tbl', 'public.wa_template_jobs', null, null),
+  ('0354_r156_wa_template_jobs', 'idx', 'public.wa_template_jobs_due_ix354', null, null),
+  ('0354_r156_wa_template_jobs', 'tbl', 'public.wa_template_setup', null, null),
+  ('0354_r156_wa_template_jobs', 'pol', 'public.wa_template_jobs', 'r354_jobs_admin_read', null),
+  ('0354_r156_wa_template_jobs', 'pol', 'public.wa_template_setup', 'r354_setup_admin_read', null),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', '_r354_state_of', 'text'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', '_r354_backoff', 'integer'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', '_r354_safe_text', 'text,integer'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', '_r354_clean_error', 'jsonb'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', '_r354_upper_word', 'text,integer'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', '_r354_setup_row', 'uuid'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', '_r354_start_round', 'uuid,uuid'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', '_r354_creates_last_hour', 'uuid'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'wa_template_enqueue', 'uuid,jsonb,uuid'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'wa_template_resubmit', 'text,text'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'wa_template_due_orgs', 'boolean,integer'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'wa_template_claim', 'uuid,integer'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'wa_template_record', 'uuid,jsonb'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'wa_template_sync', 'uuid,jsonb,boolean'),
+  ('0354_r156_wa_template_jobs', 'pol', 'public.notifications', 'r354_wa_read', null),
+  ('0354_r156_wa_template_jobs', 'pol', 'public.notifications', 'r354_wa_ins', null),
+  ('0354_r156_wa_template_jobs', 'pol', 'public.notifications', 'r354_wa_upd', null),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', '_r354_bell', 'uuid,text,text,jsonb'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'wa_template_finish', 'uuid'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'wa_template_category_notice', 'uuid,text,text,text'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'wa_health_record', 'uuid,jsonb'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'my_wa_template_setup', ''),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', 'wa_template_variant', 'uuid,text,text'),
+  ('0354_r156_wa_template_jobs', 'fn', 'public', '_r354_kick', 'text'),
+  ('0354_r156_wa_template_jobs', 'pre', null, '__pre0354', null),
+  ('0354_r156_wa_template_jobs', 'marker', 'public', 'notification_catalog', '|r156-0354'),
+  ('0354_r156_wa_template_jobs', 'marker', 'public', 'notify_default', 'uuid,text,text,text|r156-0354'),
+  ('0354_r156_wa_template_jobs', 'exec', 'public', 'my_wa_template_setup', '|authenticated'),
+  ('0354_r156_wa_template_jobs', 'exec', 'public', 'wa_template_resubmit', 'text,text|authenticated')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4202,7 +4236,8 @@ mig(ord, m, ov, note) as (values
   (302, '0343_r148_rls_initplan', null, 'ALTER POLICY only (calls wrapped as (select ...)); besides the kept helpers, 4 sample policies are checked for the wrapped form - run select * from public._r343_unwrapped() for the full list (0 rows expected)'),
   (303, '0344_r149_missing_indexes', null, null),
   (304, '0346_r154_slug_skeleton_execute', null, 'EXECUTE grant only: signed-in users may run the look-alike helper used by the organizations / org_slug_history indexes (studio settings save)'),
-  (305, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)')
+  (305, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)'),
+  (306, '0354_r156_wa_template_jobs', null, 'WhatsApp template setup in the background (two tables, worker functions, bell kind wa_templates). The two cron jobs are scheduled only once the Vault secrets exist (owner step), so they are not expected here - check them with select jobname from cron.job where jobname like helm-wa-templates%')
 ),
 env as (
   select

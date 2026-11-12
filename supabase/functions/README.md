@@ -374,6 +374,14 @@ supabase secrets set --project-ref <project-ref> \
 ```
 Unset → falls back to `COMMS_WHATSAPP_TEMPLATE`, then session text if `WHATSAPP_ALLOW_TEXT=1`.
 
+## WhatsApp template setup in the background (`wa-template-worker`, R156 / migration 0354) - DORMANT until scheduled
+Creates each studio's WhatsApp templates one by one, follows Meta's review, sends one bell notice per round, records
+category changes and the number's health. Called by pg_cron (every 3 minutes + nightly 21:00 UTC) through `_r354_kick`
+(pg_net) with header `x-helm-cron-secret: <HELM_WA_TEMPLATE_SECRET>`; unset secret = every call 401.
+Deploy: `supabase functions deploy wa-template-worker --no-verify-jwt --project-ref <ref>` (config.toml says false too).
+Owner steps (Vault secrets `helm_wa_template_secret` + `helm_wa_worker_url`, then re-run APPLY-0354.sql):
+`docs/ops/WHATSAPP-SETUP.md` section R156. Optional: `HELM_WA_LIBRARY=off` skips Meta's Template Library.
+
 ## client-mailer (client "Send by email")
 E-mails the approval link / client booklet link to the client e-mail saved on the quote
 (staff JWT verified in code; deploy with `--no-verify-jwt`). Delivery via `_shared/mailer.ts`:

@@ -125,3 +125,74 @@ Deno.test("wa-connect: templates before a passed check -> 409 not_checked", asyn
     assertEquals(fetchLog().length, 0);
   } finally { rF(); rEnv(); }
 });
+
+// ---- R156 (0354): Set up message templates in the background -------------------------------------------------------------
+function connectedDb(extra: (name: string, args: any, key: string) => unknown = () => undefined) {
+  db({ creds: { org_id: ORG, waba_id: WABA, phone_number_id: PHONE, status: "connected", token: TOKEN } });
+  const base = g.__supaRpc;
+  g.__supaRpc = (name: string, args: any, key: string) => { const x = extra(name, args, key); return x === undefined ? base(name, args, key) : x; };
+}
+async function action(body: Record<string, unknown>, list: unknown[], creates: (b: any) => [number, unknown] = () => [200, { id: "1", status: "PENDING" }]) {
+  const rEnv = setEnv(ENV);
+  const rF = installFetch((url, init) => {
+    if (!url.startsWith("https://graph.facebook.com/")) throw new Error("unexpected host " + url);
+    if (url.startsWith(G + WABA + "/message_templates?")) return jsonResponse({ data: list });
+    if (url === G + WABA + "/message_templates" && init?.method === "POST") { const [s, b] = creates(JSON.parse(String(init.body))); return jsonResponse(b, s); }
+    throw new Error("unexpected Meta call " + url);
+  });
+  try {
+    const { result: res, logs } = await captureConsoleError(async () => await (await loadHandler(FN))(post(body, AUTH)));
+    const text = await res.text();
+    return { status: res.status, body: JSON.parse(text), text, logs, calls: fetchLog().slice() };
+  } finally { rF(); rEnv(); }
+}
+
+Deno.test("wa-connect templates (0354): queues ONLY the missing names and answers at once - no create inside the request", async () => {
+  resetSupaMock();
+  let queued: any = null;
+  connectedDb((name, args) => {
+    if (name === "wa_template_enqueue") { queued = args; return { data: { ok: true, queued: args.p_items.length, batch_id: "b" }, error: null }; }
+    if (name === "my_wa_template_setup") return { data: { running: true, jobs: [] }, error: null };
+  });
+  const r = await action({ action: "templates" }, [{ name: "proposal_sent", language: "en", status: "APPROVED", category: "UTILITY", id: "9" }]);
+  assertEquals(r.status, 200);
+  assertEquals([r.body.ok, r.body.background, r.body.setup.running], [true, true, true]);
+  assert(!r.calls.some((c: any) => c.init?.method === "POST"), "nothing created in the request");
+  const names = queued.p_items.map((x: any) => x.name);
+  assert(!names.includes("proposal_sent"), "a template already in the account is never queued");
+  assertEquals(names.length, 20);
+  assert(queued.p_items.every((x: any) => x.language === "en"));
+  assertEquals(queued.p_user, "u-admin");
+  assert(supaLog().some((e) => e.rpc === "wa_template_sync" && e.key === "service-role-secret"), "review facts recorded");
+  noSecret(r);
+});
+
+Deno.test("wa-connect templates on a database without 0354: created here, Meta's real reason per template (no 'try again later')", async () => {
+  resetSupaMock();
+  connectedDb((name) => { if (name === "wa_template_enqueue") return { data: null, error: { code: "PGRST202", message: "not found" } }; });
+  const r = await action({ action: "templates" }, [], (b) => b.name === "vendor_request"
+    ? [400, { error: { code: 100, error_subcode: 2388293, error_user_title: "Too many variables", error_user_msg: "Too many variables for its length " + TOKEN } }]
+    : b.name === "proposal_approval_otp" ? [400, { error: { code: 200, message: "This WhatsApp business account does not have permission to create message template" } }]
+    : [200, { id: "1", status: "PENDING" }]);
+  assertEquals(r.body.ok, true);
+  assertEquals(r.body.created, 19);
+  const byName = Object.fromEntries(r.body.failed.map((f: any) => [f.name, f]));
+  assertEquals([byName.vendor_request.reason, byName.vendor_request.code, byName.vendor_request.subcode], ["ratio", 100, 2388293]);
+  assertEquals(byName.proposal_approval_otp.reason, "auth_not_eligible");
+  assert(!byName.vendor_request.message.includes(TOKEN.slice(0, 20)), "Meta's message is cleaned");
+  noSecret(r);
+});
+
+Deno.test("wa-connect resubmit: as the caller (the database checks admin + own studio), the worker does the Meta call", async () => {
+  resetSupaMock();
+  connectedDb((name, args, key) => {
+    if (name === "wa_template_resubmit") return key === "anon-key" && args.p_name === "vendor_request" ? { data: { ok: true, name: "vendor_request" }, error: null } : { data: null, error: { code: "22023", message: "not_resubmittable" } };
+  });
+  const r = await action({ action: "resubmit", name: "vendor_request" }, []);
+  assertEquals([r.status, r.body.ok, r.body.background, r.body.resubmitted], [200, true, true, "vendor_request"]);
+  assertEquals(r.calls.length, 0, "no Meta call in the request");
+  const r2 = await action({ action: "resubmit", name: "proposal_sent" }, []);
+  assertEquals([r2.status, r2.body.code], [409, "not_resubmittable"]);
+  const r3 = await action({ action: "resubmit", name: "Bad Name" }, []);
+  assertEquals(r3.status, 400);
+});

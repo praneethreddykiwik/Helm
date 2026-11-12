@@ -374,7 +374,8 @@
       { sel: "#itgEmail", title: "E-mail invites", desc: "The sender name and reply-to address on e-mails Helm sends for you. Changing the reply-to address needs two-step sign-in; the sender name does not." },
       { sel: "#itgEmailTest", title: "Test it", desc: "Send yourself a test e-mail to see how it looks." },
       { sel: "#itgWa", title: "WhatsApp", desc: "Your studio's own WhatsApp Business number. Proposals, approval codes, reminders and crew tasks go out from it." },
-      { sel: "#itgWaConnect", title: "Connect your number", desc: "Paste your WhatsApp IDs and token, check the connection, then set up the message templates for Meta to approve. Save details keeps the two IDs without the token; the token is never shown again (Replace token puts in a new one)." },
+      { sel: "#itgWaConnect", title: "Connect your number", desc: "Paste your WhatsApp IDs and token, then check the connection. Save details keeps the two IDs without the token; the token is never shown again (Replace token puts in a new one)." },
+      { sel: "#itgWaConnect", title: "Message templates", desc: "Template setup runs in the background - leave the page; a bell notice says when Meta is done. Rejected ones show why, with Fix and resubmit." },
     ],
     "client.html": [
       { sel: "#c_name", title: "One client, everything", desc: "This client's name, contact details and status." },

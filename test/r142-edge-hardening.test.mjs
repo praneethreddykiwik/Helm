@@ -37,7 +37,7 @@ await t("1a no edge source calls fetch() directly (only _shared/http.ts does)", 
     if (/(^|[^\w.$])fetch\s*\(/.test(s) || /globalThis\.fetch\s*\(/.test(s)) bad.push(f);
   }
   assert.deepEqual(bad, [], "raw fetch( outside the helper");
-  assert.ok(SRC.length > 40 && FUNCS.length === 25, "scanned " + SRC.length + " files / " + FUNCS.length + " functions");
+  assert.ok(SRC.length > 40 && FUNCS.length === 26, "scanned " + SRC.length + " files / " + FUNCS.length + " functions");
 });
 await t("1b every file that talks to a provider or Storage uses fetchWithTimeout from _shared/http.ts", () => {
   let users = 0;
@@ -126,7 +126,7 @@ await t("2a every function entry reports unexpected failures to Sentry (top-leve
       viaOnce.push(f);
     }
   }
-  assert.equal(viaServerError.length + viaOnce.length, 24);
+  assert.equal(viaServerError.length + viaOnce.length, 25);   // R156: + wa-template-worker
   for (const f of ["comms-dispatch", "razorpay-webhook", "razorpay-subscription-webhook", "billing-reminder", "welcome-mailer", "invite-mailer",
     "verify-upload", "wa-webhook", "booklet-snapshot", "create-subscription-checkout", "email-unsubscribe", "pkg-client-notify", "security-alert-mailer"])
     assert.ok(viaOnce.includes(f), f + " (one of the 13 that never reported) now reports");
@@ -205,7 +205,7 @@ await t("4c store-api cache-buster bumped on every page (one consistent version)
   const pages = readdirSync("public").filter((f) => f.endsWith(".html"));
   const vs = new Set();
   for (const p of pages) for (const m of r("public/" + p).matchAll(/store-api\.js\?v=(\d+)/g)) vs.add(m[1]);
-  assert.deepEqual([...vs], ["344"]);
+  assert.deepEqual([...vs], ["345"]);
 });
 
 console.log(`r142-edge-hardening: ${n} checks passed`);

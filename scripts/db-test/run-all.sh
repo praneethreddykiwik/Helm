@@ -385,6 +385,8 @@ run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests
 run "r154-slug-skeleton-0346" "R154-SLUG-SKELETON-0346: ALL PASS \(16/16\)" psql -q -f tests/db/r154-slug-skeleton-0346.sql
 # r154h (0353): WhatsApp IDs kept without the token - the old body refused them (typed IDs lost), now the studio admin saves + reads them back (token_saved yes / no, never the token); members / other studio / anon refused; bad IDs + one number per studio; with a token as before; same IDs keep connected, new IDs need the check, paused stays paused; after Disconnect; re-applies itself twice, rolled back
 run "r154h-wa-details-0353" "R154H-WA-DETAILS-0353: ALL PASS \(35/35\)" psql -q -f tests/db/r154h-wa-details-0353.sql
+# r156 (0354): WhatsApp templates in the background - idempotent enqueue, claim within the hourly Meta budget (leased rows never twice), retry with a growing wait / 8 tries / clean Meta error (no link, no token) / rate-limit pause, sync (category change, older templates), ONE bell notice per round (admins only), Fix and resubmit (admin, own studio, rejected / failed only), row security (admins read own rows, nobody writes), health notice once per set, sender variant, cron kick without secrets; re-applies itself twice, rolled back
+run "r156-wa-template-jobs-0354" "R156-WA-TEMPLATE-JOBS-0354: ALL PASS \(48/48\)" psql -q -f tests/db/r156-wa-template-jobs-0354.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
