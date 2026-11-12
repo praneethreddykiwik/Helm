@@ -4692,6 +4692,7 @@ window.__helmPhotoCtx = function(){
     // render context (data only; never shown as text in the photo)
     client: currentClient || {}, menuPackage: PRICING.menuPackageName || '', venueSettingSet: !!(store.venue && store.venue.setting),
     planBlob: (o) => planBlob(o),
+    logosReady: () => screenLogosReady(),   // R160: the photo render waits for screen logos like the client images do (R154)
     // the builder tab can be older than the flow's last save: re-read the quote's event type / date / guests
     refreshMeta: async () => {
       if(!currentQuoteId || !BPStore.quotes || !BPStore.quotes.get) return null;

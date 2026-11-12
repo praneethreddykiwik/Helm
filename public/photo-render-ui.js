@@ -104,6 +104,50 @@
     return new Promise(function (res) { cv.toBlob(function (b) { res(b || null); }, 'image/png'); });
   }
 
+  /* R160: what the stage / LED screens show. specs = HelmScreen.photoSpecs (plain data); the logos are loaded first
+     (R154 wait, <= 6 s) so the 3D capture and the artwork show the picture, not the brand letter. */
+  function screenSpecs(items) {
+    var S = window.HelmScreen; if (!S || !S.photoSpecs) return [];
+    try { return S.photoSpecs(items, 4); } catch (e) { return []; }
+  }
+  async function logosReady(c, specs) {
+    var S = window.HelmScreen, refs = specs.filter(function (s) { return s.logoRef; }).map(function (s) { return s.logoRef; });
+    if (!refs.length || !S) return;
+    try { if (c && typeof c.logosReady === 'function') await c.logosReady(); else if (S.whenLogos) await S.whenLogos(refs, 6000); } catch (e) {}
+  }
+  function logoOk(ref) { var S = window.HelmScreen; return !!(ref && S && S.logoState && S.logoState(ref) === 'ok'); }
+  // the data render-photo gets (never the logo's storage path): logo = true only when its picture really loaded
+  function screenPayload(specs) {
+    return specs.map(function (s) {
+      return { kind: s.kind, type: s.type, count: s.count, layout: s.layout, theme: s.theme, bg: s.bg, ink: s.ink, sub: s.sub, accent: s.accent, accent2: s.accent2,
+        customBg: !!s.customBg, title: s.title, brand: s.brand, tagline: s.tagline, subtitle: s.subtitle, dateLine: s.dateLine, logo: !!s.logo && logoOk(s.logoRef), mirrored: !!s.mirrored };
+    });
+  }
+  // a flat picture of one screen face, drawn exactly like the 3D texture (HelmScreen.draw); portrait for side screens
+  function drawScreenArt(spec) {
+    var S = window.HelmScreen; if (!S || !S.draw || typeof document === 'undefined') return Promise.resolve(null);
+    var side = spec.kind === 'side', W = side ? 720 : 1536, H = side ? 1280 : (spec.layout === 'wide' ? 640 : 864);
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    var g = cv.getContext('2d'); if (!g) return Promise.resolve(null);
+    var logo = spec.logoRef && S.logoImage ? S.logoImage(spec.logoRef) : null;
+    try { S.draw(g, W, H, spec.content, { side: side, logo: logo }); } catch (e) { return Promise.resolve(null); }
+    return new Promise(function (res) { try { cv.toBlob(function (b) { res(b || null); }, 'image/jpeg', 0.9); } catch (e) { res(null); } });   // a tainted canvas -> null (left out)
+  }
+  async function screenImages(specs) {
+    var out = [], S = window.HelmScreen;
+    for (var i = 0; i < specs.length && out.length < 2; i++) {
+      var b = await drawScreenArt(specs[i]); if (!b) continue;
+      try { var e = await encode(b); out.push({ mime: e.mime, data: e.data, role: 'screen', screen: i }); } catch (er) {}
+    }
+    var lg = specs.filter(function (s) { return s.logo && logoOk(s.logoRef); })[0];
+    var u = lg && S && S.logoSnapshot ? S.logoSnapshot(lg.logoRef) : '';
+    var m = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(u || '');
+    if (m && m[1].length < 2700000) out.push({ mime: 'image/png', data: m[1], role: 'logo' });
+    return out;
+  }
+  // a render-photo older than R160 accepts only the 4 base pictures: it refuses before anything is charged
+  function oldServerRefusal(e) { return !!e && e.status === 400 && /reference pictures/i.test(String(e.code || e.message || '')); }
+
   function setStep(text, pct) {
     $('phStep').textContent = text;
     var f = $('phBarFill'); f.className = 'w' + pct;
@@ -152,32 +196,76 @@
     $('photoSetup').hidden = !admin;
   }
 
+  /* R160: a past render is loaded from the database by its id (photo_render_image) each time it is shown - never a
+     cached link - with one automatic retry; it is shown through a blob: link (Download works for large photos too).
+     Until then a placeholder sits where the picture goes (no broken-image icon); a failure offers "Reload", and a
+     photo that no longer exists says so. */
+  var IMG_RETRY_MS = 700;
+  function dataUrlToBlob(u) {
+    var m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(String(u || ''));
+    if (!m) return null;
+    try { var bin = atob(m[2]), b = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); return new Blob([b], { type: m[1] }); } catch (e) { return null; }
+  }
+  async function fetchImage(id, A, wait) {
+    A = A || api(); wait = wait == null ? IMG_RETRY_MS : wait;
+    var last = null;
+    for (var t = 0; t < 2; t++) {
+      try { var u = await A.image(id); if (u) return u; last = new Error('empty'); }
+      catch (e) { last = e; if (e && e.code === 'P0002') break; }   // that photo no longer exists: retrying will not help
+      if (t === 0) await new Promise(function (ok) { setTimeout(ok, wait); });
+    }
+    var err = new Error('That photo could not be loaded'); err.code = last && last.code === 'P0002' ? 'missing' : 'failed'; throw err;
+  }
   function card(r, src, opts) {
     var c = el('div', 'ph-card');
     var img = el('img'); img.alt = 'Photo render of the event plan'; img.loading = 'lazy';
-    if (src) img.src = src;
-    c.appendChild(img);
+    var ph = null;
+    if (src) { img.src = src; c.appendChild(img); }
+    else { img.hidden = true; c.appendChild(img); ph = el('div', 'ph-ph', 'Photo not shown yet'); ph.setAttribute('role', 'img'); ph.setAttribute('aria-label', 'Photo not shown yet'); c.appendChild(ph); }
     var when = r.created_at ? new Date(r.created_at) : new Date();
     c.appendChild(el('div', 'ph-meta', [r.style, r.camera, r.quality].filter(Boolean).join(' · ') + ' · ' + when.toLocaleString()));
     var acts = el('div', 'ph-acts');
     var dl = el('a', 'tbtn', 'Download'); dl.download = 'event-photo-' + String(r.id || '').slice(0, 8) + '.jpg';
     var use = el('button', 'tbtn', 'Use in client booklet'); use.type = 'button';
-    async function ensureSrc() {
-      if (img.src) return img.src;
-      var u = await api().image(r.id); if (!u) throw new Error('That photo could not be loaded');
-      img.src = u; return u;
+    var loaded = src || '', pending = null, show = null;
+    function failed(e) {
+      var gone = e && e.code === 'missing';
+      if (ph) { ph.textContent = gone ? 'This photo is no longer available.' : 'This photo couldn’t be loaded.'; ph.setAttribute('aria-label', ph.textContent); ph.hidden = false; }
+      img.hidden = true; img.removeAttribute('src'); loaded = '';
+      if (gone) { if (show) show.remove(); dl.hidden = true; use.hidden = true; }
+      else if (show) { show.textContent = 'Reload'; show.disabled = false; }
+      toast(gone ? 'That photo is no longer available.' : 'That photo couldn’t be loaded — please try again.', { type: 'err' });
+    }
+    function ensureSrc() {
+      if (loaded) return Promise.resolve(loaded);
+      if (pending) return pending;
+      if (ph) ph.textContent = 'Loading the photo…';
+      pending = fetchImage(r.id).then(function (u) {
+        var b = dataUrlToBlob(u), href = b && window.URL && URL.createObjectURL ? URL.createObjectURL(b) : u;
+        return new Promise(function (ok, no) {
+          img.onload = function () { img.hidden = false; if (ph) ph.hidden = true; ok(href); };
+          img.onerror = function () { no(Object.assign(new Error('decode'), { code: 'failed' })); };
+          img.src = href;
+        });
+      }).then(function (href) { loaded = href; dl.href = href; return href; })
+        .finally(function () { pending = null; });
+      return pending;
     }
     if (src) dl.href = src;
     else {
-      var show = el('button', 'tbtn', 'Show'); show.type = 'button';
-      show.addEventListener('click', async function () { try { var u = await ensureSrc(); dl.href = u; show.remove(); } catch (e) { toast('That photo couldn’t be loaded — please try again.', { type: 'err' }); } });
+      show = el('button', 'tbtn', 'Show'); show.type = 'button';
+      show.addEventListener('click', function () { show.disabled = true; ensureSrc().then(function () { show.remove(); show = null; }, failed); });
       acts.appendChild(show);
-      dl.addEventListener('click', async function (ev) { if (dl.href) return; ev.preventDefault(); try { dl.href = await ensureSrc(); dl.click(); } catch (e) { toast('That photo couldn’t be loaded — please try again.', { type: 'err' }); } });
+      dl.addEventListener('click', function (ev) { if (loaded) return; ev.preventDefault(); ensureSrc().then(function () { dl.click(); }, failed); });
     }
     use.addEventListener('click', async function () {
       use.disabled = true;
       try { await api().useInBooklet(r.id); toast('Added to the client booklet as its own photo (shown in the 3D section)', { type: 'ok' }); }
-      catch (e) { toast('The photo couldn’t be added to the booklet — please try again.', { type: 'err' }); }
+      catch (e) {
+        var m = e && e.code === '22023' && /1\.5 MB/.test(String(e.message || '')) ? 'This photo is too large for the booklet — download it and add it by hand.'
+          : e && e.code === 'P0002' ? 'That photo is no longer available.' : 'The photo couldn’t be added to the booklet — please try again.';
+        toast(m, { type: 'err' });
+      }
       finally { use.disabled = false; }
     });
     acts.appendChild(dl); acts.appendChild(use);
@@ -186,15 +274,18 @@
     return c;
   }
 
+  // R160: every open re-lists the renders from the database (fresh rows, no URLs kept between opens)
+  var histSeq = 0;
   async function loadHistory() {
-    var c = ctx(), list = $('phHistList');
+    var c = ctx(), list = $('phHistList'), seq = ++histSeq;
     list.replaceChildren();
     if (!c || !c.quoteId || !api()) return;
     try {
       var rows = await api().list(c.quoteId);
+      if (seq !== histSeq) return;   // a newer open / render already redrew the list
       if (!rows.length) { list.appendChild(el('p', 'ph-meta', 'No photo renders for this event yet.')); return; }
       rows.forEach(function (r) { list.appendChild(card(r, null, { readOnly: c.readOnly })); });
-    } catch (e) { list.appendChild(el('p', 'ph-meta', 'Past renders could not be loaded.')); }
+    } catch (e) { if (seq === histSeq) list.appendChild(el('p', 'ph-meta', 'Past renders could not be loaded.')); }
   }
 
   async function refreshSettings() {
@@ -221,7 +312,9 @@
     showBusy(true);
     try {
       var evening = false; try { evening = !!(window.__helm3D && __helm3D.isEvening && __helm3D.isEvening()); } catch (e) {}
-      var P = window.HelmPhotoPrompt.build({ items: c.items, world: c.world, eventType: c.eventType, guests: c.guests, setting: c.setting,
+      var specs = screenSpecs(c.items);
+      if (specs.length) { setStep('Loading the screen logo…', 5); await logosReady(c, specs); if (state.cancelled) return; }
+      var P = window.HelmPhotoPrompt.build({ screens: specs, items: c.items, world: c.world, eventType: c.eventType, guests: c.guests, setting: c.setting,
         evening: evening, style: params.style, images: 4, camera: params.camera, weather: params.weather, quality: params.quality, eventDate: c.eventDate, themeKey: params.themeKey, theme: params.theme, focus: params.focus, country: c.country,
         eventName: c.title, venueName: cl.venueName || cl.venue || '', city: cl.city || '', menuPackage: c.menuPackage || '' });
       setStep('Capturing the 3D view…', 10);
@@ -234,13 +327,20 @@
       if (state.cancelled) return;
       var bsem = await drawSemantic(c.items, c.world, MAX_W);
       var images = [await encode(b3), await encode(b2), await encode(b2m), await encode(bsem)];
+      var extra = specs.length ? await screenImages(specs) : [];   // R160: screen artwork + logo (same single render, no extra cost per photo)
       setStep('Creating the photo… this takes about a minute' + (params.n > 1 ? ' (' + params.n + ' photos)' : ''), 40);
       state.ac = new AbortController();
       var slow = setTimeout(function () { if (state.busy) setStep('Still working — high quality photos can take up to 3 minutes…', 60); }, 45000);
       var res;
       try {
-        res = await A.render({ quote_id: c.quoteId, prompt: P.prompt, n: params.n, quality: params.quality === 'high' ? 'high' : 'standard',
-          size: outputSize(params.camera, c.world), style: P.style, camera: P.camera + (P.focus ? ':' + P.focus : ''), theme: P.theme || 'none', images: images }, state.ac.signal);
+        var payload = { quote_id: c.quoteId, prompt: P.prompt, n: params.n, quality: params.quality === 'high' ? 'high' : 'standard',
+          size: outputSize(params.camera, c.world), style: P.style, camera: P.camera + (P.focus ? ':' + P.focus : ''), theme: P.theme || 'none',
+          images: images.concat(extra), screens: screenPayload(specs) };
+        try { res = await A.render(payload, state.ac.signal); }
+        catch (e1) {
+          if (!extra.length || !oldServerRefusal(e1)) throw e1;
+          payload.images = images; res = await A.render(payload, state.ac.signal);   // R160 fallback: an older render-photo (not yet redeployed)
+        }
       } finally { clearTimeout(slow); }
       setStep('Done', 100);
       var g = $('phGallery'); g.replaceChildren();
@@ -357,6 +457,6 @@
     try { window.addEventListener('helm:trial', syncTitle); } catch (e) {}
     try { new MutationObserver(syncTitle).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
   }
-  window.HelmPhotoRenderUI = { renderContext: renderContext, effective: effective, withFresh: withFresh, fitThemes: fitThemes, drawSemantic: drawSemantic, open: open, close: close, outputSize: outputSize, cameraOpts: cameraOpts, plainError: plainError, readForm: readForm };
+  window.HelmPhotoRenderUI = { card: card, loadHistory: loadHistory, fetchImage: fetchImage, screenSpecs: screenSpecs, screenPayload: screenPayload, screenImages: screenImages, oldServerRefusal: oldServerRefusal, renderContext: renderContext, effective: effective, withFresh: withFresh, fitThemes: fitThemes, drawSemantic: drawSemantic, open: open, close: close, outputSize: outputSize, cameraOpts: cameraOpts, plainError: plainError, readForm: readForm };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 })();

@@ -401,7 +401,33 @@
     line(ctx, (c.subtitle || '').toUpperCase(), cx, H * 0.66, W * 0.8, Math.round(H * 0.055), '600', sans, T.sub);
     line(ctx, c.dateLine, cx, H * 0.8, W * 0.7, Math.round(H * 0.05), '500', sans, T.sub);
   }
+  /* R160: what every screen of a layout shows, for the photo render (render-photo builds its SCREEN CONTENT
+     section from this, and the dialog draws each spec as a flat artwork reference picture). Identical contents
+     (mirrored side screens, copies) are merged with a count; screens with nothing on them are left out; the main
+     stage screen comes first. Plain data only: cleaned text, validated #rrggbb colours, whitelisted keys, and
+     logo = true/false (the reference itself stays in the browser as logoRef and is never sent). At most `max` (4). */
+  function photoSpecs(items, max) {
+    var list = Array.isArray(items) ? items : [], out = [], byKey = {}, main = mainScreen(list);
+    var ordered = list.filter(function (it) { return it && isScreenType(it.type); });
+    if (main) ordered = [main].concat(ordered.filter(function (it) { return it !== main; }));
+    ordered.forEach(function (it) {
+      var c = contentOf(it, list); if (!c || !hasContent(c)) return;
+      var stage = it.type === 'stage', lay = stage ? layoutOf(c) : '';
+      if (lay === 'none') return;                               // a plain backdrop: no screen to show anything on
+      var kind = stage ? 'stage' : (SCREEN_TYPES[it.type] === 'side' ? 'side' : 'screen');
+      var T = paletteOf(c);
+      var k = [kind, it.type, lay, c.theme, c.bg, c.logo, c.title, c.brand, c.tagline, c.subtitle, c.dateLine].join('\u0001');
+      if (own.call(byKey, k)) { byKey[k].count++; return; }
+      var s = { kind: kind, type: String(it.type), count: 1, layout: lay === 'legacy' ? 'single' : lay, theme: c.theme, themeName: themeOf(c.theme).name,
+        bg: T.bg, ink: T.ink, sub: T.sub, accent: cleanHex(T.accent), accent2: cleanHex(T.accent2 || ''), customBg: !!c.bg,
+        title: c.title, brand: c.brand, tagline: c.tagline, subtitle: c.subtitle, dateLine: c.dateLine,
+        logo: !!c.logo, logoRef: c.logo, mirrored: !!c.mirrored, content: c };
+      byKey[k] = s; out.push(s);
+    });
+    return out.slice(0, Math.max(1, Math.min(4, +max || 4)));
+  }
   return Object.freeze({
+    photoSpecs: photoSpecs,
     MAX: MAX, FIELDS: FIELDS, THEMES: THEMES, THEME_ORDER: THEME_ORDER, SCREEN_TYPES: SCREEN_TYPES, PLACEHOLDER: PLACEHOLDER,
     LAYOUTS: LAYOUTS, BG_SWATCHES: BG_SWATCHES, LOGO_MAX_BYTES: LOGO_MAX_BYTES, LOGO_MAX_PX: LOGO_MAX_PX, LOGO_PATH_RE: LOGO_PATH_RE,
     cleanText: cleanText, cleanHex: cleanHex, cleanLogo: cleanLogo, cleanLayout: cleanLayout, isScreenType: isScreenType, themeOf: themeOf,

@@ -367,6 +367,15 @@
     return (lay ? 'with ' + lay + ', ' : '') + what + (th ? ' in ' + th : '') + (ex ? ' ' + ex : '') + (words.length ? ' showing exactly the words ' + words.join(', ') : '');
   }
   function anyScreenWords(items) { return (items || []).some(function (it) { return it && SCREEN_TYPES[it.type] && screenWords(screenProps(it)).length; }); }
+  // R160: a screen that shows something (theme, words, colour or logo) - the photo must then show that content
+  function screenHasContent(it) {
+    if (!it || !Object.prototype.hasOwnProperty.call(SCREEN_TYPES, it.type) || stageLayoutPhrase(it) === SCREEN_LAYOUTS.none) return false;
+    var p = screenProps(it);
+    return !!((typeof p.screenTheme === 'string' && p.screenTheme && Object.prototype.hasOwnProperty.call(SCREEN_THEMES, p.screenTheme)) || screenWords(p).length || screenExtras(p, it));
+  }
+  // R160: "no readable text / logos" rules keep their force everywhere EXCEPT on the planned screens
+  var SCREEN_EXCEPT = ' (except the planned stage / LED screen content in the SCREEN CONTENT section)';
+  function exceptScreens(list) { return list.map(function (x) { return /readable text|logos|\btext\b/i.test(x) ? x + SCREEN_EXCEPT : x; }); }
   /* a group may mix variants (e.g. 2 hexagon arches + 1 ring arch): describe every distinct variant, not just the first item's */
   function groupVariantPhrase(list) {
     var seen = {}, order = [];
@@ -803,6 +812,9 @@
     items.forEach(function (it) { if (it.type !== 'stage') return; var p = it.properties || {};
       if (!MAIN_SCREEN || (!(MAIN_SCREEN.properties || {}).screenTheme && !screenWords(MAIN_SCREEN.properties || {}).length && (p.screenTheme || screenWords(p).length))) MAIN_SCREEN = it; });
     var screenText = anyScreenWords(items);
+    // R160: screens with content (or the dialog's screen specs) -> a SCREEN CONTENT section is appended by render-photo
+    var screenOn = (Array.isArray(input.screens) && input.screens.length > 0) || items.some(screenHasContent);
+    var LIM = PROMPT_LIMIT - (screenOn ? 3500 : 0);   // room for that section inside the 32,000-character limit
     var setting = inferSetting(input.setting, items);
     var style = STYLES[input.style] ? input.style : defaultStyle(setting, !!input.evening);
     var env = envFor(style, setting);
@@ -815,13 +827,18 @@
     var themeKey = input.themeKey && THEMES[input.themeKey] ? input.themeKey : null;
     if (themeKey && themeKey !== 'none' && prof.themes.indexOf(themeKey) < 0) themeKey = 'none';   // a theme that does not fit this event type is ignored
     var theme = themeKey ? THEMES[themeKey].text : clean(input.theme, 160);
-    function descOf(t) { return (prof.desc && prof.desc[t]) || DESC[t] || NAMES[t] || clean(t, 30); }
+    function descOf(t, list) {
+      var d = (prof.desc && prof.desc[t]) || DESC[t] || NAMES[t] || clean(t, 30);
+      // R160: a screen with planned content shows THAT content, not an abstract visual without text
+      if (screenOn && list && list.some(screenHasContent)) d = d.replace(/\s*\(no readable text\)/g, '').replace(/glowing with (?:an abstract|a soft floral \/ abstract) visual/, 'glowing with the planned screen design').replace(/abstract graphics/, 'the planned screen design');
+      return d;
+    }
     var focus = input.focus && FOCUS[input.focus] ? input.focus : null;
     var eventType = clean(input.eventType, 40) || { wedding: 'wedding', political: 'political rally', corporate: 'corporate event', concert: 'concert', exhibition: 'exhibition', birthday: 'birthday party', iftar: 'iftar' }[pk];
     var nImages = Math.max(1, Math.min(4, num(input.images, 4)));
     // extra quote context (styling cues only - names are NEVER rendered as text)
     var cx = [];
-    if (clean(input.eventName, 60)) cx.push('event name "' + clean(input.eventName, 60) + '" (context only - never write it anywhere in the photo)');
+    if (clean(input.eventName, 60)) cx.push('event name "' + clean(input.eventName, 60) + '" (context only - never write it anywhere in the photo' + (screenOn ? ', except where it is one of the quoted screen words in SCREEN CONTENT' : '') + ')');
     if (clean(input.venueName, 60)) cx.push('venue: ' + clean(input.venueName, 60));
     var place = [clean(input.city, 40), REGIONS[region] && input.country ? REGIONS[region].name : ''].filter(Boolean).join(', ');
     if (place) cx.push('location: ' + place);
@@ -895,9 +912,9 @@
       var gw = Math.round(g.box.x1 - g.box.x0), gh = Math.round(g.box.y1 - g.box.y0);
       var size = n > 1 ? 'each about ' + ft(num(it0.width, 0)) + ' x ' + ft(num(it0.height, 0)) + ', group spans ' + gw + ' x ' + gh + ' ft' : 'about ' + ft(num(it0.width, 0)) + ' x ' + ft(num(it0.height, 0));
       var extra = t === 'sofa' && stageItem ? ', facing the ' + (NAMES[stageItem.type] || 'stage') : '';
-      lines.push('- ' + g.id + ': ' + what + ' - ' + descOf(t) + vp + '; ' + where.join(', ') + '; ' + size + extra + '.');
-      tinyLines.push('- ' + g.id + ': ' + what + ' - ' + descOf(t) + vp + '; ' + where[0] + '.');
-      shortLines.push('- ' + g.id + ': ' + what + ' - ' + descOf(t) + vp + '; ' + where.slice(0, 2).join(', ') + '.');
+      lines.push('- ' + g.id + ': ' + what + ' - ' + descOf(t, g.items) + vp + '; ' + where.join(', ') + '; ' + size + extra + '.');
+      tinyLines.push('- ' + g.id + ': ' + what + ' - ' + descOf(t, g.items) + vp + '; ' + where[0] + '.');
+      shortLines.push('- ' + g.id + ': ' + what + ' - ' + descOf(t, g.items) + vp + '; ' + where.slice(0, 2).join(', ') + '.');
       check.push('- ' + g.id + ' ' + shortName(g).replace(/^the /, '') + ': ' + (t === 'seatblock' || t === 'chairrow' ? total : (n > 1 && rows.length > 1 && rows.some(function (r) { return r > 1; }) ? rows.length + ' rows, ' + total : (n > 1 && rows.length === 1 ? '1 row, ' : '') + total)));
     });
 
@@ -942,6 +959,7 @@
       'Image 3: the same plan with labels and measurements - use it ONLY to identify objects and read their sizes / scale; never draw any of it.',
     ];
     if (nImages >= 4) roles.push('Image 4: colour-coded semantic map (top-down, same orientation as Image 2): every flat colour patch is exactly one real object - use it to verify exact positions, rows and counts. Colour key: ' + legendText + '. White = empty ground. Never reproduce these flat colours.');
+    if (screenOn) roles.push('Any further images (Image 5 onward) are screen references - the flat artwork of a planned LED screen and / or the client\'s logo - described in the SCREEN CONTENT section at the end; use them ONLY for what that section says.');
     roles.push('No style reference image is supplied - do not imagine or copy one.');
 
     var head = [
@@ -956,11 +974,11 @@
       '- Colour palette: ' + (prof.palette || tf.palette) + '.',
       '- Materials: ' + prof.materials + '.',
       '- Florals: ' + (prof.florals ? (prof.floral || 'allowed on the existing floral objects, per the decor theme') : prof.floral) + '.',
-      '- Signage and flags: ' + prof.signage + '.',
+      '- Signage and flags: ' + prof.signage + (screenOn ? SCREEN_EXCEPT : '') + '.',
       '- Lighting design: ' + prof.lighting + '.',
       '- Stage dressing: ' + prof.stage + '.',
       '- Style descriptors: ' + vs.descriptors + '.',
-      '- FORBIDDEN / NEGATIVE PROMPT (must NOT appear anywhere in the photo): ' + vs.negative.join('; ') + '.',
+      '- FORBIDDEN / NEGATIVE PROMPT (must NOT appear anywhere in the photo): ' + (screenOn ? exceptScreens(vs.negative) : vs.negative).join('; ') + '.',
       '',
       roles.join('\n'),
     ].join('\n');
@@ -1018,6 +1036,7 @@
       '- Preserve the venue boundaries and footprint exactly.',
     ].join('\n');
 
+    var forbidden = screenOn ? exceptScreens(prof.forbidden) : prof.forbidden;
     var s6 = [
       '6. EVENT STYLING',
       '- Event type: ' + F.EVENT_TYPE + '.',
@@ -1028,7 +1047,7 @@
       '- Lighting design: ' + F.LIGHTING_DESIGN + '.',
       prof.regional ? '- Regional finish: ' + REGIONS[region].text : '',
       '- Event-type decor: ' + prof.decor + '.',
-      '- FORBIDDEN for this event type: ' + prof.forbidden.join('; ') + '.',
+      '- FORBIDDEN for this event type: ' + forbidden.join('; ') + '.',
       '- Use believable materials, fabrics, florals and finishes. Decorate the existing objects without moving them. Do not introduce unselected arches, furniture, flower stands, screens, chandeliers, signs, water features or any other objects.',
     ].join('\n');
 
@@ -1061,8 +1080,9 @@
 
     var s9 = [
       '9. TEXT AND SCREEN CONTENT',
-      '- No text, letters, numbers, labels, captions, badges, legends, logos, watermarks, measurement lines, dimension arrows, grid lines, colour-coded patches, plan symbols or UI elements anywhere in the photo' + (screenText ? ', EXCEPT the exact screen words listed below.' : '.'),
-      screenText ? '- SCREEN WORDS: a stage backdrop screen or LED screen described above as "showing exactly the words ..." shows ONLY those words, spelled exactly as given, large and centred, in its stated theme colours. No other words, logos or numbers on any screen.' : '- LED screens may show tasteful visuals that match the theme, without readable or misleading text.',
+      '- No text, letters, numbers, labels, captions, badges, legends, logos, watermarks, measurement lines, dimension arrows, grid lines, colour-coded patches, plan symbols or UI elements anywhere in the photo' + (screenOn ? ', EXCEPT the planned screen content (words, colours and logo) on the stage / LED screens.' : screenText ? ', EXCEPT the exact screen words listed below.' : '.'),
+      screenOn ? '- SCREENS: every stage backdrop / LED screen shows exactly its planned content - the SCREEN CONTENT section at the end of this prompt is authoritative (theme, colours, every word, logo placement and any screen artwork image). If that section is missing, a screen described above as "showing exactly the words ..." shows ONLY those words, spelled exactly as given, in its stated theme colours, with the client logo only where stated. No other words or numbers on any screen.'
+        : screenText ? '- SCREEN WORDS: a stage backdrop screen or LED screen described above as "showing exactly the words ..." shows ONLY those words, spelled exactly as given, large and centred, in its stated theme colours. No other words, logos or numbers on any screen.' : '- LED screens may show tasteful visuals that match the theme, without readable or misleading text.',
     ].join('\n');
 
     var totals = 'TOTALS BY TYPE: ' + order.map(function (t) { var n = counts[t], nm = NAMES[t] || clean(t, 30), x = '';
@@ -1071,10 +1091,10 @@
     var s10head = [
       '10. FINAL VALIDATION',
       'Before finalising, check: the layout is preserved; every seating block is in place; every facing direction is correct; aisles and gaps are intact; screens, stage and tables are where planned; the venue is ' + (outdoor ? 'outdoor (open-air)' : 'indoor') + ' as selected; the lighting matches the time of day; the decor was applied without redesigning anything and fits a ' + prof.label.toLowerCase() + '; there are no annotations.'
-      + '\n- FORBIDDEN check - none of these appear: ' + prof.forbidden.join('; ') + '.\nIf an exact constraint cannot be guaranteed, preserve the supplied scene - do not invent.',
+      + '\n- FORBIDDEN check - none of these appear: ' + forbidden.join('; ') + '.\nIf an exact constraint cannot be guaranteed, preserve the supplied scene - do not invent.',
     ].join('\n');
     var verify = 'Before finalising, verify every count, every row and every group in the checklist against Image 2' + (nImages >= 4 ? ' and Image 4' : '') + '; if anything is missing, merged or extra, fix it.';
-    var finalOut = 'FINAL OUTPUT: ONE photorealistic event photograph with the same arrangement, the same orientation and the same camera. No plan, no collage, no alternatives, no text.';
+    var finalOut = 'FINAL OUTPUT: ONE photorealistic event photograph with the same arrangement, the same orientation and the same camera. No plan, no collage, no alternatives, no text' + (screenOn ? ' other than the planned screen content' : '') + '.';
 
     var names = {}; order.forEach(function (t) { names[t] = NAMES[t] || clean(t, 30); });
     var jctx = { groups: groups, W: W, H: H, edge: o.edge, stage: stageItem, stageName: front || 'stage', names: names, where: env.where,
@@ -1108,15 +1128,15 @@
     }
     var out = assemble(0, null);
     var nObj = groups.reduce(function (a, g) { return a + g.items.length; }, 0);
-    if (nObj > 300 || out.json.length > JSON_TARGET || out.prompt.length > PROMPT_LIMIT) out = assemble(1, null);
-    if (out.json.length > JSON_TARGET || out.prompt.length > PROMPT_LIMIT) out = assemble(2, null);
-    if (out.json.length > JSON_TARGET || out.prompt.length > PROMPT_LIMIT) out = assemble(3, null);
-    if (out.prompt.length > PROMPT_LIMIT) out = assemble(3, null, true);   // sizes are in the JSON: drop them from the inventory first
-    if (out.prompt.length > PROMPT_LIMIT) out = assemble(3, null, 2);
-    for (var ml = 120; out.prompt.length > PROMPT_LIMIT && ml >= 0; ml = ml > 20 ? ml - 20 : ml - 5) out = assemble(3, Math.max(0, ml), 2);
-    if (out.prompt.length > PROMPT_LIMIT) {   // last resort: cut the middle of the data, never the end
+    if (nObj > 300 || out.json.length > JSON_TARGET || out.prompt.length > LIM) out = assemble(1, null);
+    if (out.json.length > JSON_TARGET || out.prompt.length > LIM) out = assemble(2, null);
+    if (out.json.length > JSON_TARGET || out.prompt.length > LIM) out = assemble(3, null);
+    if (out.prompt.length > LIM) out = assemble(3, null, true);   // sizes are in the JSON: drop them from the inventory first
+    if (out.prompt.length > LIM) out = assemble(3, null, 2);
+    for (var ml = 120; out.prompt.length > LIM && ml >= 0; ml = ml > 20 ? ml - 20 : ml - 5) out = assemble(3, Math.max(0, ml), 2);
+    if (out.prompt.length > LIM) {   // last resort: cut the middle of the data, never the end
       var tail = '\n\n' + [s10head, totals.slice(0, 2000), verify, env.remind, finalOut].join('\n');
-      out.prompt = out.prompt.slice(0, PROMPT_LIMIT - tail.length) + tail;
+      out.prompt = out.prompt.slice(0, LIM - tail.length) + tail;
     }
     return { profile: pk, negative: vs.negative.slice(), descriptors: vs.descriptors, style: style, camera: camera, region: region, theme: theme, focus: focus, environment: env.where, weather: weather, season: F.SEASON, fields: F,
       system: out.system, layout: out.layout, prompt: out.prompt, json: out.json, jsonLevel: out.level,
