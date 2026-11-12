@@ -47,7 +47,8 @@
 // WhatsApp, R129 / 0337: the row's studio has connected its OWN WhatsApp number on the Integrations page).
 // E-MAIL TRANSPORT (release 1018): SMTP first - the same shared mailer (_shared/mailer.ts + smtp.ts)
 // as client-mailer / invite-mailer / welcome-mailer, e.g. Gmail smtp.gmail.com:465 + an App Password.
-// Resend only when SMTP is NOT set and RESEND_API_KEY + RESEND_FROM are. Neither -> e-mail rows are "skipped".
+// Resend only when SMTP is NOT set and RESEND_API_KEY + RESEND_FROM are. Neither -> e-mail lanes are not claimed /
+// e-mail rows are released for retry (R154g), never "skipped".
 // Both transports get the identical body + compliance footer + List-Unsubscribe headers (0165).
 // Kill switch: HELM_COMMS_ENABLED="false" -> every request is a no-op 200 and nothing is
 // claimed (rows stay queued). Invoked ONLY by a cron / service caller presenting a
@@ -66,7 +67,8 @@
 //                                     the studio's sender name (0150) or "<Studio> via Helm Events".
 //   RESEND_API_KEY, RESEND_FROM       fallback transport, used only when SMTP is not set; same display-name rule
 //                                     (EMAIL_BRAND_MODE) as SMTP - R154g. No fallback sender: RESEND_FROM must be set.
-//   Neither set -> e-mail rows are marked "skipped". Reply-To = the studio's reply-to (0150), else (R107) the
+//   Neither set -> R154g: e-mail-only lanes are not claimed (rows wait untouched); e-mail rows of comms_outbox are
+//                                     released for retry. Nothing is marked "skipped" for a missing provider. Reply-To = the studio's reply-to (0150), else (R107) the
 //                                     studio's business e-mail, else the studio owner's e-mail - never Helm's
 //                                     own sending address (a client reply there is lost); both transports.
 //   WHATSAPP_API_VERSION (default v21.0). R129 (0337): WhatsApp rows go out from the row's STUDIO's own connected
@@ -121,7 +123,7 @@ export async function secretMatches(given: string, expected: string): Promise<bo
   return diff === 0;
 }
 
-type Res = "sent" | "skipped" | "failed";
+type Res = "sent" | "skipped" | "failed" | "no_provider";
 
 function appOrigin(): string {
   const v = (Deno.env.get("APP_URL") || "https://www.helm.events").trim();
@@ -301,7 +303,13 @@ Deno.serve(async (req) => {
     if (error) { log.error("claim failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
     const origin = appOrigin();
-    const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
+    const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0, no_provider: 0 };
+    // R154g: no e-mail provider (or no valid sender) -> nothing e-mail is lost: the e-mail-only lanes below are NOT
+    // claimed at all (rows stay queued untouched, no attempt used up), and an e-mail row of the mixed comms_outbox
+    // lane (it also carries WhatsApp rows, so it is still claimed) is released for retry - never marked "skipped".
+    const mailOn = !!emailTransport();
+    if (!mailOn) log.warn("no e-mail provider - e-mail lanes not claimed", undefined, { why: mailConfig(env, "smtp").note ? "sender" : "unset" });
+    const NOCLAIM = { data: [] as any[], error: null as any };
     // R107: a studio row's Reply-To - its own reply-to (0150), else business e-mail, else the owner's (one lookup per studio)
     const rtCache = new Map<string, string>();
     const withReply = async (lane: string, rowId: string, ident: Identity): Promise<Identity> =>
@@ -314,6 +322,7 @@ Deno.serve(async (req) => {
       const msg = messageFor(purpose, payload, origin);
       let res: Res = "skipped";
       if (!trialRowAllowed(purpose, channel, payload)) res = "skipped";   // 0212: free trial = link e-mails only
+      else if (channel === "email" && purpose !== "wa_forward" && !mailOn) res = "no_provider";   // R154g: retry later
       else if (channel === "email" && purpose !== "wa_forward") {
         // 0150: sender name / reply-to of the row's studio (a database without 0150 -> defaults)
         let ident: Identity = {};
@@ -330,7 +339,7 @@ Deno.serve(async (req) => {
       }
       else if (channel === "whatsapp") res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text, purpose === "wa_forward" && String(payload.type ?? "") === "event_reminder" ? "event_reminder" : "general",
         await waSenderOf(await orgOfRow(admin, "comms_outbox", id)));
-      const { error: mErr } = await admin.rpc("comms_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const { error: mErr } = await admin.rpc("comms_outbox_mark", { p_id: id, p_status: res === "failed" || res === "no_provider" ? "retry" : res });
       if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -339,7 +348,7 @@ Deno.serve(async (req) => {
     let retention: { delete_enabled?: boolean; retention_days?: number } | null = null;
     try { const { data, error } = await admin.rpc("trial_retention_mail_settings"); if (!error && data && typeof data === "object") retention = data; } catch (_) { retention = null; }
     // 0120: free-trial reminder e-mails (a database without 0120 just has nothing to claim)
-    const { data: trows, error: tErr } = await admin.rpc("trial_reminder_email_claim", { p_limit: batch });
+    const { data: trows, error: tErr } = mailOn ? await admin.rpc("trial_reminder_email_claim", { p_limit: batch }) : NOCLAIM;
     if (tErr) log.error("trial claim skipped", errTag(tErr));
     for (const r of (Array.isArray(trows) ? trows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
@@ -361,10 +370,10 @@ Deno.serve(async (req) => {
     }
     // 0184: post-trial mails to the studio owner (a database without 0184 just has nothing to claim).
     // Deletion warnings are service notices (transactional footer); the follow-ups are nudges (Helm unsubscribe).
-    const { data: rrows, error: rErr } = await admin.rpc("trial_retention_email_claim", { p_limit: batch });
+    const { data: rrows, error: rErr } = mailOn ? await admin.rpc("trial_retention_email_claim", { p_limit: batch }) : NOCLAIM;
     if (rErr) log.error("retention claim skipped", errTag(rErr));
     // R124 (0333): Day 0 / 2 / 14 have their own claim, so an older dispatcher can never mark them skipped; same mark.
-    const { data: frows, error: fErr } = await admin.rpc("trial_followup_email_claim", { p_limit: batch });
+    const { data: frows, error: fErr } = mailOn ? await admin.rpc("trial_followup_email_claim", { p_limit: batch }) : NOCLAIM;
     if (fErr) log.error("follow-up claim skipped", errTag(fErr));
     for (const r of [...(Array.isArray(rrows) ? rrows : []), ...(Array.isArray(frows) ? frows : [])]) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? ""), kind = String(r?.kind ?? "");
@@ -443,7 +452,7 @@ Deno.serve(async (req) => {
       counts[st === "sent" ? "sent" : st === "retry" || st === "failed" ? "failed" : "skipped"]++;
     }
     // 0241: delivery / arrival reminders (a database without 0241 just has nothing to claim). E-mail only.
-    const { data: drows, error: dErr } = await admin.rpc("delivery_reminder_claim", { p_limit: batch });
+    const { data: drows, error: dErr } = mailOn ? await admin.rpc("delivery_reminder_claim", { p_limit: batch }) : NOCLAIM;
     if (dErr) log.error("delivery claim skipped", errTag(dErr));
     for (const r of (Array.isArray(drows) ? drows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
@@ -458,7 +467,7 @@ Deno.serve(async (req) => {
     }
     // 0256: vendor requests + "still waiting" reminders (e-mail lane only; WhatsApp rows stay queued for a future
     // lane; a database without 0256 just has nothing to claim). The claim re-checks each row and mints a fresh link.
-    const { data: vrows, error: vErr } = await admin.rpc("vendor_request_claim", { p_limit: batch, p_channel: "email" });
+    const { data: vrows, error: vErr } = mailOn ? await admin.rpc("vendor_request_claim", { p_limit: batch, p_channel: "email" }) : NOCLAIM;
     if (vErr) log.error("vendor request claim skipped", errTag(vErr));
     for (const r of (Array.isArray(vrows) ? vrows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
@@ -472,7 +481,7 @@ Deno.serve(async (req) => {
       counts[res]++;
     }
     // 0269: run-sheet reminders (e-mail lane; a database without 0269 just has nothing to claim)
-    const { data: rsrows, error: rsErr } = await admin.rpc("runsheet_reminder_claim", { p_limit: batch });
+    const { data: rsrows, error: rsErr } = mailOn ? await admin.rpc("runsheet_reminder_claim", { p_limit: batch }) : NOCLAIM;
     if (rsErr) log.error("run-sheet claim skipped", errTag(rsErr));
     for (const r of (Array.isArray(rsrows) ? rsrows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
@@ -486,7 +495,7 @@ Deno.serve(async (req) => {
       counts[res]++;
     }
     // 0269: instant replies to the public enquiry form (a database without 0269 has nothing to claim)
-    const { data: eqrows, error: eqErr } = await admin.rpc("enquiry_reply_claim", { p_limit: batch });
+    const { data: eqrows, error: eqErr } = mailOn ? await admin.rpc("enquiry_reply_claim", { p_limit: batch }) : NOCLAIM;
     if (eqErr) log.error("enquiry reply claim skipped", errTag(eqErr));
     for (const r of (Array.isArray(eqrows) ? eqrows : [])) {
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
@@ -501,7 +510,7 @@ Deno.serve(async (req) => {
     }
     // 0244: Helm's own notices - a plan request to sales@helm.events, "Ask my admin to upgrade" to the studio's
     // admins (recipients resolved by the claim, never from the row; a database without 0244 has nothing to claim)
-    const { data: hrows, error: hErr } = await admin.rpc("helm_notice_outbox_claim", { p_limit: batch });
+    const { data: hrows, error: hErr } = mailOn ? await admin.rpc("helm_notice_outbox_claim", { p_limit: batch }) : NOCLAIM;
     if (hErr) log.error("notice claim skipped", errTag(hErr));
     for (const r of (Array.isArray(hrows) ? hrows : [])) {
       const id = String(r?.id ?? ""), kind = String(r?.kind ?? "");
@@ -524,7 +533,7 @@ Deno.serve(async (req) => {
     }
     // R119 (0327): welcome e-mails - only while the database switch is on; a database without 0327 -> nothing claimed.
     // R154g: HELM_WELCOME_EMAILS_ENABLED set to anything but "true" -> the lane is off (nothing claimed, rows stay queued).
-    if (welcomeLaneOn(Deno.env.get("HELM_WELCOME_EMAILS_ENABLED"))) try {
+    if (mailOn && welcomeLaneOn(Deno.env.get("HELM_WELCOME_EMAILS_ENABLED"))) try {   // R154g: no provider -> not claimed
       const w = await runWelcomeBatch(admin, batch, { env });
       if (w.error) log.error("welcome claim skipped", errTag(w.error));
       counts.sent += w.counts.sent; counts.skipped += w.counts.skipped; counts.failed += w.counts.failed; counts.invalid += w.counts.invalid;

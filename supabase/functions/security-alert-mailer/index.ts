@@ -11,7 +11,8 @@
 //   RESEND_API_KEY + RESEND_FROM, or SMTP_HOST + SMTP_USER + SMTP_PASS (+ SMTP_PORT, SMTP_FROM) - the shared mailer
 //                                         (R154g). Neither (or no valid sender address) → the run stops BEFORE claiming:
 //                                         no row is touched (no attempt used up), alerts wait until e-mail is set up.
-//   HELM_SECURITY_ALERT_HQ_TO             HQ inbox for HQ-level alerts (unset → HQ rows skipped)
+//   HELM_SECURITY_ALERT_HQ_TO             HQ inbox for HQ-level alerts (comma-separated). Unset / no valid address →
+//                                         R154g: nothing is claimed, rows wait (never marked skipped for it)
 //   SECURITY_ALERT_BATCH                  rows per run, 1..100 (default 25)
 //
 // The database decides WHO gets mail (security_alert_outbox_claim; since 0250 every row is
@@ -97,13 +98,16 @@ Deno.serve(async (req) => {
     // row as failed). Rows stay queued untouched and are sent once e-mail is set up.
     const mc = mailConfig((k: string) => Deno.env.get(k));
     if (!mc.provider) { log.warn("no e-mail provider - nothing claimed", undefined, { why: mc.note ? "sender" : "unset" }); return json({ status: "no_provider" }); }
+    // R154g: no HQ inbox configured -> do not claim either (since 0250 every row is an HQ row; claiming would use up an
+    // attempt and the row used to be marked "skipped" for good). Rows wait until HELM_SECURITY_ALERT_HQ_TO is set.
+    const hqTo = String(Deno.env.get("HELM_SECURITY_ALERT_HQ_TO") || "").split(",").map((s) => s.trim()).filter((s) => EMAIL.test(s));
+    if (!hqTo.length) { log.warn("HELM_SECURITY_ALERT_HQ_TO is not set - nothing claimed"); return json({ status: "no_recipient" }); }
     const batch = Math.min(100, Math.max(1, Number(Deno.env.get("SECURITY_ALERT_BATCH")) || 25));
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
     const { data: rows, error } = await admin.rpc("security_alert_outbox_claim", { p_limit: batch });
     if (error) { log.error("claim failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
-    const hqTo = String(Deno.env.get("HELM_SECURITY_ALERT_HQ_TO") || "").split(",").map((s) => s.trim()).filter(Boolean);
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
     for (const r of (Array.isArray(rows) ? rows : [])) {
       const id = String(r?.id ?? "");

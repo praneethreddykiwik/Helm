@@ -16,7 +16,7 @@
 //                                        `x-helm-cron-secret` header. Unset → every call 401.
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (injected)
 //   SMTP_HOST / SMTP_USER / SMTP_PASS (+ SMTP_PORT, SMTP_FROM) or RESEND_API_KEY + RESEND_FROM - the shared mailer;
-//                                        neither set → rows are marked "skipped"
+//                                        neither set → nothing is claimed (R154g), rows wait - never "skipped"
 //   WELCOME_EMAIL_BATCH                  rows per run, 1..100 (default 25)
 //
 // The database decides WHO gets mail (one row per person per kind, queued by triggers, re-checked at claim).
@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
 
     const w = await runWelcomeBatch(admin, batch);
     if (w.error) { log.error("claim failed", errTag(w.error)); report.error(w.error); return json({ error: "internal error" }, 500); }
+    if (w.noProvider) { log.warn("no e-mail provider - nothing claimed"); return json({ status: "no_provider" }); }   // R154g
     if (w.off) return json({ status: "switched_off" });   // 0327 switch off: nothing claimed
     const counts = w.counts;
     log.info("run", counts);

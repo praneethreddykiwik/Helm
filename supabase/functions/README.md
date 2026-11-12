@@ -269,7 +269,7 @@ and the HQ "Security" panel work without it.
    ```bash
    supabase secrets set \
      HELM_SECURITY_ALERT_SECRET="<long random string>" \
-     HELM_SECURITY_ALERT_HQ_TO="security@helm.events"
+     HELM_SECURITY_ALERT_HQ_TO="security@helm.events"   # required: unset -> nothing is claimed (R154g)
    # optional: SECURITY_ALERT_BATCH=25. E-mail through the shared mailer (R154g): RESEND_API_KEY + RESEND_FROM,
    # or the SMTP_* secrets. Without a provider nothing is claimed (no attempt used up) - alerts wait, never skipped.
    ```

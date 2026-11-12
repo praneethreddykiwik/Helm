@@ -50,8 +50,11 @@ Every automatic message is a row in `comms_outbox` with a UNIQUE `dedupe_key`, s
   other value (`false`, `off`, ...) turns that lane off. In both "on" cases the database switch
   `helm_welcome_mail_settings.enabled` (0327) still decides - off there means nothing is claimed.
 - Wrong / missing `x-helm-cron-secret` -> 401.
-- No SMTP secrets and no `RESEND_API_KEY` + `RESEND_FROM` -> e-mail rows marked `skipped` (there is no fallback sender:
-  `RESEND_API_KEY` without `RESEND_FROM` counts as not set up, R154g). No WhatsApp token / phone id / template -> WhatsApp rows `skipped`.
+- No SMTP secrets and no `RESEND_API_KEY` + `RESEND_FROM` (there is no fallback sender: `RESEND_API_KEY` without
+  `RESEND_FROM` counts as not set up) -> R154g: nothing e-mail is marked `skipped`. The e-mail-only lanes (trial
+  reminders / follow-ups, delivery, vendor, run-sheet, enquiry, Helm notices, welcome) are not claimed at all; an e-mail
+  row of `comms_outbox` (claimed together with its WhatsApp rows) is released for retry - the database still counts that
+  attempt, so set e-mail up promptly. No WhatsApp token / phone id / template -> WhatsApp rows `skipped`.
 - No studio WhatsApp number -> nothing is queued for WhatsApp and queued WhatsApp rows are skipped.
 - Rows older than 3 days are skipped instead of sent late; 5 failed attempts -> `failed`.
 

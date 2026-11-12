@@ -367,3 +367,46 @@ Deno.test("R154g comms-dispatch: welcome lane - HELM_WELCOME_EMAILS_ENABLED 'tru
     } finally { f(); r(); }
   }
 });
+
+// ======================= leftovers: comms-dispatch / welcome-mailer with no provider =======================
+const EMAIL_LANES = ["trial_reminder_email_claim", "trial_retention_email_claim", "trial_followup_email_claim", "delivery_reminder_claim",
+  "vendor_request_claim", "runsheet_reminder_claim", "enquiry_reply_claim", "helm_notice_outbox_claim", "welcome_email_switch", "welcome_email_outbox_claim"];
+
+Deno.test("R154g comms-dispatch: no provider -> e-mail-only lanes NOT claimed; comms_outbox e-mail row -> retry (never skipped); WhatsApp lanes still run", async () => {
+  for (const env of [{}, { RESEND_API_KEY: "re_test" }]) {   // nothing set / key without RESEND_FROM
+    const rpcs: string[] = [];
+    const marks = commsDb(rpcs);
+    const r = setEnv({ ...BASE, HELM_COMMS_SECRET: "cron-comms", ...env }); const f = noFetch();
+    try {
+      const { result } = await captureConsoleError(async () => await (await loadHandler(COMMS))(cron("cron-comms")));
+      const out = await result.json();
+      assertEquals(out.no_provider, 1); assertEquals(out.skipped, 0);
+      assertEquals(marks[C1], "retry");
+      for (const lane of EMAIL_LANES) assert(!rpcs.includes(lane), lane + " must not be claimed");
+      assert(rpcs.includes("comms_outbox_claim") && rpcs.includes("assign_notify_claim") && rpcs.includes("task_wa_claim"), "WhatsApp lanes still claimed");
+      assertEquals(fetchLog().length, 0);
+    } finally { f(); r(); }
+  }
+});
+
+Deno.test("R154g comms-dispatch: provider set -> e-mail lanes claimed as before", async () => {
+  const rpcs: string[] = [];
+  commsDb(rpcs);
+  const r = setEnv(COMMS_ENV); const f = resendOk();
+  try {
+    await (await loadHandler(COMMS))(cron("cron-comms"));
+    for (const lane of EMAIL_LANES.slice(0, 9)) assert(rpcs.includes(lane), lane + " claimed");
+  } finally { f(); r(); }
+});
+
+Deno.test("R154g welcome-mailer: no provider -> no_provider, switch + claim never called (nothing marked skipped)", async () => {
+  resetSupaMock();
+  const rpcs: string[] = [];
+  g.__supaRpc = (name: string) => { rpcs.push(name); return name === "welcome_email_switch" ? { data: true, error: null } : { data: [], error: null }; };
+  const r = setEnv({ ...BASE, HELM_WELCOME_EMAILS_ENABLED: "true", HELM_WELCOME_EMAIL_SECRET: "cron-w", RESEND_API_KEY: "re_test" }); const f = noFetch();
+  try {
+    const { result } = await captureConsoleError(async () => await (await loadHandler("../../supabase/functions/welcome-mailer/index.ts"))(cron("cron-w")));
+    assertEquals((await result.json()).status, "no_provider");
+    assertEquals(rpcs, []);
+  } finally { f(); r(); }
+});

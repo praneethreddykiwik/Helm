@@ -109,7 +109,7 @@ Deno.test("delivery reminders over SMTP: vendor gets the one-tap link, the copy 
   } finally { f(); smtp.restore(); }
 });
 
-Deno.test("delivery reminders over Resend: idempotency key = row id; no secrets -> skipped; provider error -> retry", async () => {
+Deno.test("delivery reminders over Resend: idempotency key = row id; no secrets -> not claimed (R154g); provider error -> retry", async () => {
   let marks = wireDb([DROWS[0]]);
   let smtp = installFakeSmtp();
   let f = installFetch((url) => { if (url === "https://api.resend.com/emails") return jsonResponse({ id: "e1" }); throw new Error("unexpected " + url); });
@@ -122,7 +122,8 @@ Deno.test("delivery reminders over Resend: idempotency key = row id; no secrets 
   marks = wireDb([DROWS[0]]); smtp = installFakeSmtp(); f = installFetch((url) => { throw new Error("unexpected fetch " + url); });
   try {
     const { out } = await run({});
-    assertEquals(out.skipped, 1); assertEquals(marks[D1], "skipped"); assertEquals(smtp.connects.length, 0);
+    // R154g: no provider -> the e-mail-only lane is not claimed at all: no mark, nothing lost
+    assertEquals(out.skipped, 0); assertEquals(marks[D1], undefined); assertEquals(smtp.connects.length, 0);
   } finally { f(); smtp.restore(); }
   marks = wireDb([DROWS[0]]); smtp = installFakeSmtp(); f = installFetch((url) => { if (url === "https://api.resend.com/emails") return jsonResponse({ error: "x" }, 500); throw new Error("unexpected " + url); });
   try {

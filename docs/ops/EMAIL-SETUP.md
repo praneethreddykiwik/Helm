@@ -80,8 +80,10 @@ directly and silently did nothing on an SMTP-only setup).
 - **No fallback sender.** The old `onboarding@resend.dev` default is gone. `RESEND_API_KEY` without a valid
   `RESEND_FROM` (or SMTP without `SMTP_FROM` / an address in `SMTP_USER`) counts as *not set up*: nothing is sent and
   the log says which setting is missing (names only, never a value).
-- **No provider is not a skip.** `billing-reminder` leaves reminders unsent and `security-alert-mailer` claims nothing
-  (answer `{"status":"no_provider"}`) - both send once e-mail is set up. `pkg-client-notify` releases the e-mail row for a
+- **No provider is not a skip.** `billing-reminder` leaves reminders unsent, `security-alert-mailer` and `welcome-mailer`
+  claim nothing (answer `{"status":"no_provider"}`; `security-alert-mailer` also claims nothing while
+  `HELM_SECURITY_ALERT_HQ_TO` is unset: `{"status":"no_recipient"}`), `comms-dispatch` does not claim its e-mail-only
+  lanes and releases `comms_outbox` e-mail rows for retry - all send once e-mail is set up. `pkg-client-notify` releases the e-mail row for a
   later try (`retry`; the database gives up after 8 tries with backoff, so set e-mail up promptly). `razorpay-webhook`
   logs the receipt as `simulated` (the payment itself is always settled).
 - **Display name** follows `EMAIL_BRAND_MODE` on both transports (default "Helm Events"; `studio` -> the studio's sender
