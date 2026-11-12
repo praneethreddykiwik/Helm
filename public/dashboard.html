@@ -196,7 +196,7 @@
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="trial-terms.css?v=4">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=69" id="shellProto"></script>
+<script src="/shell-proto.js?v=70" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -328,10 +328,10 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=344"></script><script src="flow-resume.js?v=6" data-mount></script>
+<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=345"></script><script src="flow-resume.js?v=7" data-mount></script>
 <script src="event-reminders.js?v=6"></script>
-<script src="page-tours.js?v=26"></script>
-<script src="tour.js?v=46"></script>
+<script src="page-tours.js?v=27"></script>
+<script src="tour.js?v=47"></script>
 <script src="getting-started.js?v=14"></script>
 <script src="onboarding-wizard.js?v=11"></script>
 <script src="trial-facts.js?v=9"></script>
@@ -862,6 +862,8 @@
     {sel:'[data-tour="customize"]', title:"Make the dashboard yours", desc:"Click Customize to arrange your dashboard. Drag any card by its ⋮⋮ handle to change the order, tap the eye on a card to hide it, and use Reset to bring back the default layout. Press Done to save it — your layout follows your account to any computer."},
     {sel:'[data-tour="kpis"]', uses:"finance", alt:(can)=>can("finance")?null:{desc:"Your headline counts at a glance. The cards below cover your month, what needs attention and the pipeline."}, title:"Key numbers", desc:"Your headline counts at a glance. The cards below cover your month, what needs attention, revenue and the pipeline."},
     // r47 (#286): "My events & tasks" (my_pending) - best-effort; hidden (and this step skipped) when it cannot load
+    // r154c: "Continue quotes" - every open quote of mine (skipped when there is none, or for a role without quotes)
+    {sel:'#hdResume', need:"quotes", uses:"edit:quotes", alt:(can)=>can("edit:quotes")?null:{desc:"Quotes you worked on that are not confirmed yet, newest first. Open takes you to the event; Hide takes one off this list (the quote is not deleted)."}, title:"Continue quotes", desc:"Every quote you started and have not got confirmed yet, newest first: the client, the step you reached and when you last edited it. Continue takes you straight back to that step; Hide takes one off this list until you work on it again (the quote itself is never deleted). See all opens Quotes › In progress."},
     {sel:'#myworkSection', title:"My events & tasks", desc:"The events you are on, with your tasks for each and a badge for anything new. If it can't load for a moment it simply stays hidden - the rest of the dashboard carries on."},
     // 4 · checklist (not in a free trial: its studio is ready-made), then wrap-up
     {sel:['[data-tour="setup"]','[data-tour="checklist"]','#hdGetSet'], trial:false, title:"Getting started checklist", desc:"A short list of first steps, like adding your logo and sending your first quote. Click it to see what's left; it ticks itself off as you go."},

@@ -204,7 +204,7 @@ await t("4c store-api cache-buster bumped on every page (one consistent version)
   const pages = readdirSync("public").filter((f) => f.endsWith(".html"));
   const vs = new Set();
   for (const p of pages) for (const m of r("public/" + p).matchAll(/store-api\.js\?v=(\d+)/g)) vs.add(m[1]);
-  assert.deepEqual([...vs], ["344"]);
+  assert.deepEqual([...vs], ["345"]);
 });
 
 console.log(`r142-edge-hardening: ${n} checks passed`);

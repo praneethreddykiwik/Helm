@@ -76,11 +76,12 @@
     ],
     "quotes.html": [
       { sel: "#tabs", title: "Find confirmed fast", desc: "Active · Quotes · Confirmed · Archive · Deleted. Confirmed events rise to the top and are highlighted so you never scroll to find them." },
+      { sel: "#tab_inprogress", title: "In progress", desc: "Every quote that is not confirmed yet - still being prepared, or shared and waiting for the client - with the step it reached and who worked on it last. Continue picks it up right there." },
       { sel: "#search", title: "Search", desc: "Jump to any quote by client name or quote code." },
       { sel: "#typeFilter", title: "Filter", desc: "Show only one event type, or quotes from a date range." },
       { sel: "#newBtn", need: ["create", "edit:quotes"], title: "Start a new quote", desc: "Price a fresh event here. It becomes the event everything else hangs off." },
       { sel: "#rows", uses: "edit:quotes", alt: (can) => can("edit:quotes") ? null : { desc: "Click a row to open the event and see its details." },
-        title: "Your quotes", desc: "Click a row to open it, confirm it, re-price it, or take client approval by OTP / consent / payment link." },
+        title: "Your quotes", desc: "Click a row to open it, confirm it, re-price it, or take client approval by OTP / consent / payment link. A quote that is not confirmed yet has a Continue button that takes you back to the step you left." },
     ],
     "flow.html": [
       { sel: "#code", title: "The event workspace", desc: "Every stage of this one event lives here, top to bottom — fill it in order and nothing gets missed." },

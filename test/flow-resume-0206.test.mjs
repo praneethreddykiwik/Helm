@@ -104,13 +104,13 @@ await t('mount waits for BPStore.init() before reading who the user is (v2 read 
   const go = box.all().find((x) => x.tagName === 'A' && x.textContent === 'Continue'); assert.equal(go.href, 'flow.html?quote=' + Q1 + '#sec-venue');
 });
 
-await t('dashboard: fills the #hdResume block (never lands below the whole dashboard); Dismiss hides it for me', async () => {
+await t('dashboard: fills the #hdResume block (never lands below the whole dashboard); Hide (r154c, was Dismiss) hides it for me', async () => {
   const env = makeWin('/dashboard.html'); const S = fakeStore({ list: () => ({ total: 1, rows: [row()], can_edit: true }) }); env.win.BPStore = S;
   const block = new El('section', env.doc); block.id = 'hdResume'; block.hidden = true; block.setAttribute('data-block', 'resume');
   const body = new El('div', env.doc); body.className = 'hd-body'; body.appendChild(new El('div', env.doc)); block.appendChild(body); env.doc.body.appendChild(block);
   load(env, FR_SRC); env.win.HelmFlowResume.mount(); await until(() => !block.hidden);
   assert.equal(block.hidden, false, 'shown'); assert.equal(env.doc.getElementById('flowResume'), null, 'no second card at the top of #main');
-  const x = block.all().find((n) => n.tagName === 'BUTTON' && n.textContent === 'Dismiss'); assert.ok(x);
+  const x = block.all().find((n) => n.tagName === 'BUTTON' && n.textContent === 'Hide'); assert.ok(x);
   assert.ok(block.all().some((n) => n.tagName === 'A' && n.cls.has('hd-primary')), 'dashboard button style');
   S.flowProgress.list = async () => ({ total: 0, rows: [], can_edit: true });
   x.click(); await until(() => S.calls.dismiss.length > 0);
@@ -239,8 +239,8 @@ await t('pages: Quotes "In progress (N)" tab, dashboard block, workspace banner,
   assert.match(q, /HelmFlowResume\.load\(BPStore, ipUid\(\), \{ scope:"studio", limit:100 \}\)/);
   assert.match(q, /get\("view"\)==="inprogress"/);
   assert.match(q, /loadInProgressCount\(\);/);
-  assert.match(d, /var cResume = card\("hdResume", "Continue where you left off", IC\.doc, \{ skel: 1, span: "hd-s-full", block: "resume" \}\); cResume\.hidden = true;/);
-  assert.match(d, /\[cResume, cShift, cCal,/); assert.match(d, /resume: "Continue where you left off"/);
+  assert.match(d, /var cResume = card\("hdResume", "Continue quotes", IC\.doc, \{ skel: 1, span: "hd-s-full", block: "resume" \}\); cResume\.hidden = true;/);
+  assert.match(d, /\[cResume, cShift, cCal,/); assert.match(d, /resume: "Continue quotes"/);
   assert.match(e, /<script src="flow-resume\.js\?v=\d+"><\/script>/);
   assert.match(e, /BPStore\.flowProgress\.list\(\{ scope:"studio", quote:ev\.id\|\|id, limit:1 \}\)/);
   assert.match(e, /HelmFlowResume\.renderBanner\(host, r\?HelmFlowResume\.fromServer\(r,true\):null, \{ canEdit:canEdit && !!d && d\.can_edit!==false, before:\$\("#evHead"\) \}\)/);
@@ -249,7 +249,7 @@ await t('pages: Quotes "In progress (N)" tab, dashboard block, workspace banner,
   assert.match(s, /const flowProgress = \{/); assert.match(s, /rpc\("mark_flow_step", \{ p_quote: String\(quoteId\), p_step: step \}\)/);
   assert.match(s, /rpc\("mark_flow_resume_dismissed", \{ p_quote: String\(quoteId\) \}\)/); assert.match(s, /rpc\("my_unfinished_quotes", args\)/);
   assert.match(s, /auth, quotes, flowProgress, recents,/);
-  assert.match(s, /\|privacy_pin_status\|my_unfinished_quotes\)\(\\\?\|\$\)\/;/, 'the list is a read (does not drop shared reads)');
+  assert.match(s, /\|privacy_pin_status\|my_unfinished_quotes\|my_open_quotes\)\(\\\?\|\$\)\/;/, 'the lists are reads (do not drop shared reads)');
   // mark_ keeps the cached reads (SWR_KEEP_RPCS): frequent step saves don't throw the cache away
   assert.match(s, /const SWR_KEEP_RPCS = [^\n]*\|mark_\|/);
   assert.match(FR_SRC, /root\.addEventListener\("pageshow", function \(e\) \{ if \(e && e\.persisted\) mount\(\); \}\);/);

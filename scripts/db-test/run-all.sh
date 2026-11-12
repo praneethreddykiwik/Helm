@@ -381,6 +381,8 @@ run "r143-outbox-backoff-0342" "R143-OUTBOX-BACKOFF-0342: ALL PASS \(55/55\)" ps
 run "r148-rls-initplan-0343" "R148-RLS-INITPLAN-0343: ALL PASS \(21/21\)" psql -q -f tests/db/r148-rls-initplan-0343.sql
 # r149 (0344): 34 missing indexes (row-security org_id tables, quote -> lead sync, Live Status, every-minute task reminders, outboxes, booking links) all there + valid + used by the planner; comms_outbox_unsub back with the 0165 body, service role only, ok / opted_out / token as comms-dispatch reads them; a prod-like database without it is fixed by 0344 alone; re-applies itself 3x (no index, function or row count changed), rolled back
 run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests/db/r149-indexes-0344.sql
+# r154c (0350): Continue quote list - every open quote of mine until Confirmed (building / quotation saved / locked / sent), not only the newest; approved / paid / cancelled / confirmed / shelved / sample data out; Hide hides only (quote untouched); other studio sees nothing; view-only = can_edit false; 0206 list unchanged; rolled back
+run "r154c-open-quotes-0350" "R154C-OPEN-QUOTES-0350: ALL PASS \(21/21\)" psql -q -f tests/db/r154c-open-quotes-0350.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
