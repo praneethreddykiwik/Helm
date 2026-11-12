@@ -81,6 +81,26 @@ await t('copy: the owner case "step 8 of 8 (Quotation). 2 of 8 steps done" is no
   assert.equal(R.bannerText(R.fromServer(row({ phase: 'sent', steps_done: ['client', 'quote'] }), true)).note, 'Discovery, Requirements, Venue, Menu, Proposal and Layout skipped');
 });
 
+await t('r162 copy: "Next" names the first not-done step at or after where they left off (never a step already done); Continue still lands on the left-off step', () => {
+  // owner quirk: left off at Client, Client already done -> was "Next: Client (step 1 of 8) · 1 of 8 steps done"
+  const v = R.fromServer(row({ my_step: 'client', last_step: 'client', steps_done: ['client'] }), true);
+  assert.equal(R.nextStepOf(v), 'discovery');
+  assert.deepEqual(R.bannerText(v), { next: 'Next: Discovery (step 2 of 8)', note: '1 of 8 steps done' });
+  assert.equal(R.href(v), 'flow.html?quote=' + Q1 + '#sec-client', 'Continue lands on the step they left off at');
+  // left off at Venue, Venue + Menu done, Discovery not done (skipped before) -> Next: Proposal, Discovery skipped
+  const w = R.fromServer(row({ my_step: 'venue', steps_done: ['client', 'reqs', 'venue', 'menu'] }), true);
+  assert.deepEqual(R.bannerText(w), { next: 'Next: Proposal (step 6 of 8)', note: 'Discovery skipped' });
+  assert.equal(R.href(w), 'flow.html?quote=' + Q1 + '#sec-venue');
+  // every step from the left-off one on is done -> fallback: the left-off step
+  const z = R.fromServer(row({ my_step: 'layout', steps_done: ['client', 'layout', 'quote'] }), true);
+  assert.equal(R.nextStepOf(z), 'layout');
+  assert.equal(R.bannerText(z).next, 'Next: Layout (step 7 of 8)');
+  // past step 8: unchanged
+  const q = R.fromServer(row({ phase: 'quoted', steps_done: ['client', 'quote'] }), true);
+  assert.equal(R.bannerText(q).next, 'Next: Share with client & approval (step 9)');
+  assert.equal(R.nextStepOf(null), null);
+});
+
 await t('banner: shown for an open quote, above the event header, Continue goes to the exact step, phase pill, last worked by', async () => {
   const { env, H, app, head } = page(); const S = fakeStore({ row: { my_step: null, last_step: 'quote', last_by_me: false, last_user_name: 'Priya', last_step_at: ago(0.17), steps_done: ['client', 'reqs', 'venue', 'menu', 'layout'] } });
   const b = await H.mountBanner({ host: app, before: head, quote: OPEN, store: S });
@@ -177,7 +197,7 @@ await t('pages: every quote entry point mounts the shared banner; the flow saves
   assert.match(f, /loading=true;\n\s*earlyLand\(\);\n\s*await loadAll\(\);/, 'the opening step is saved before loadAll');
   assert.match(f, /resumeP\.then\(info=>\{ if\(resumeLanded \|\| flowTrack\.last\(\)\) return; flowTrack\.land\(info && H\.STEPS\[info\.step\] \? info\.step : "client"\)/);
   for (const p of ['dashboard', 'quotes', 'event', 'flow', 'discovery', 'proposal']) assert.match(read('public/' + p + '.html'), /flow-resume\.js\?v=8/, p);
-  assert.match(FR_SRC, /mountBanner: mountBanner, bannerText: bannerText, skippedOf: skippedOf, sortRows: sortRows/);
+  assert.match(FR_SRC, /mountBanner: mountBanner, bannerText: bannerText, skippedOf: skippedOf, nextStepOf: nextStepOf, sortRows: sortRows/);
   assert.match(FR_SRC, /rows: sortRows\(d\.rows\.map\(function \(r\) \{ return fromServer\(r, mine\); \}\)\)/);
   assert.match(FR_SRC, /function sstore\(\) \{ try \{ return root\.sessionStorage \|\| null; \} catch \(e\) \{ return null; \} \}/);
   // the banner is built with textContent only (no HTML sink)

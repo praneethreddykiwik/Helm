@@ -173,7 +173,17 @@
     return out;
   }
   function andList(a) { return a.length < 2 ? (a[0] || "") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]; }
-  function nextText(v) { return "Next: " + v.stepLabel + (v.stepNo > TOTAL ? " (step " + v.stepNo + ")" : " (step " + v.stepNo + " of " + TOTAL + ")"); }
+  /* r162: "Next" names the first step at or after where they left off that is not done yet (steps before it are the skipped ones),
+     so a left-off step that is already done no longer reads "Next: Client (step 1 of 8) · 1 of 8 steps done". Fallback: the left-off step.
+     Continue still lands on the left-off step (href). */
+  function nextStepOf(v) {
+    if (!v) return null;
+    var at = ORDER.indexOf(v.step); if (at < 0 || !Array.isArray(v.doneKeys)) return v.step;
+    var d = {}; v.doneKeys.forEach(function (k) { d[k] = 1; });
+    for (var i = at; i < ORDER.length; i++) if (!d[ORDER[i]]) return ORDER[i];
+    return v.step;
+  }
+  function nextText(v) { var s = nextStepOf(v) || v.step, n = stepNo(s); return "Next: " + LABELS[s] + (n > TOTAL ? " (step " + n + ")" : " (step " + n + " of " + TOTAL + ")"); }
   // { next: "Next: Quotation (step 8 of 8)", note: "Discovery and Proposal skipped" | "3 of 8 steps done" | "" }
   function bannerText(v) {
     var sk = skippedOf(v), note = "";
@@ -549,7 +559,7 @@
     ago: ago, fromServer: fromServer, fromLocal: fromLocal, stepText: stepText, progressText: progressText, label: label, href: href, lastBy: lastBy,
     ready: ready, whoami: whoami, load: load, dismiss: dismiss, resumeStep: resumeStep, track: track,
     renderCard: renderCard, renderHome: renderHome, renderList: renderList, isOpen: isOpen, phaseOf: phaseOf, LAND: LAND, PHASES: PHASES, HOME_MAX: HOME_MAX, landStep: landStep, renderBanner: renderBanner, renderNotice: renderNotice, mount: mount,
-    mountBanner: mountBanner, bannerText: bannerText, skippedOf: skippedOf, sortRows: sortRows, bannerHidden: bannerHidden, hideBanner: hideBanner, HIDE_KEY: HIDE_KEY };
+    mountBanner: mountBanner, bannerText: bannerText, skippedOf: skippedOf, nextStepOf: nextStepOf, sortRows: sortRows, bannerHidden: bannerHidden, hideBanner: hideBanner, HIDE_KEY: HIDE_KEY };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HelmFlowResume = api;
   if (root.document && root.document.currentScript && root.document.currentScript.hasAttribute("data-mount")) autoMount();
