@@ -34,7 +34,7 @@
   // neutralised — text fields are never numbers.
   function neutralise(v) {
     const s = cleanText(v);
-    return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+    return /^[\s\u00a0\u3000]*[=+\-@\t\r\uff1d\uff0b\uff0d\uff20]/.test(s) ? "'" + s : s;
   }
   // Strip tags / angle brackets from stored text. Rendering still goes through esc(),
   // this just keeps junk like <script> out of the database in the first place.
@@ -139,7 +139,7 @@
   // Template CSV text; values that start with a formula char are not present, but go through the same escape.
   function csvEscapeCell(v) {
     let s = String(v == null ? "" : v);
-    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    if (/^[\s\u00a0\u3000]*[=+\-@\t\r\uff1d\uff0b\uff0d\uff20]/.test(s)) s = "'" + s; // R139: also leading spaces + full-width signs
     return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
 

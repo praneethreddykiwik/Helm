@@ -1,5 +1,6 @@
 -- APPLY-0165.sql - paste into the Supabase SQL editor (staging first, then production).
 -- Additive + idempotent: e-mail unsubscribe (new tables email_optouts + email_unsub_secret, new functions, two BEFORE INSERT triggers created only if missing). No existing table, column or row is changed or removed. Safe to run twice.
+-- R149: regenerated to match migrations/0165 exactly (the earlier copy left out comms_outbox_unsub, so follow-up e-mails were skipped). A database that already ran the earlier copy only needs APPLY-0344.
 begin;
 -- 0165_email_unsubscribe.sql
 -- E-mail opt-out (unsubscribe) for NON-transactional mail: sales follow-ups, nurture greetings
@@ -13,7 +14,8 @@ begin;
 --   3  email_unsub_token(org, email): service role only -> "v1.<org>.<email hex>.<hmac>".
 --      email_unsub_status(token) / email_unsub_set(token, opt_out, source): service role only
 --      (called by the public email-unsubscribe edge function; a forged token is refused).
---      email_is_opted_out(org, email): service role only (senders re-check before sending).
+--      email_is_opted_out(org, email) + comms_outbox_unsub(id): service role only (senders
+--      re-check right before sending and get the token for the visible link + headers).
 --   4  BEFORE INSERT triggers: a comms_outbox follow_up e-mail to an opted-out address is
 --      stored as 'skipped'; a nurture_* e-mail notification as 'suppressed'. Nothing is sent.
 --      Transactional mail (codes, invites, approval links, receipts, payment reminders,
@@ -156,6 +158,19 @@ begin
   return public.email_unsub_status(p_token);
 end $$;
 
+-- the comms dispatcher's view of one outbox row: is the recipient opted out of this studio, and
+-- the signed token for its unsubscribe link (claim output carries no org id, so look it up here)
+create or replace function public.comms_outbox_unsub(p_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+-- email-unsub-0165
+declare v_org uuid; v_to text;
+begin
+  select c.org_id, c.recipient into v_org, v_to from public.comms_outbox c where c.id = p_id;
+  if v_org is null then return jsonb_build_object('ok', false); end if;
+  return jsonb_build_object('ok', true, 'opted_out', public.email_is_opted_out(v_org, v_to),
+                            'token', public.email_unsub_token(v_org, v_to));
+end $$;
+
 -- ---- 4) send-path gates ---------------------------------------------------------------------------
 create or replace function public._eu165_tg_comms()
 returns trigger language plpgsql security definer set search_path = '' as $$
@@ -196,14 +211,14 @@ begin
     'public._eu165_key(uuid)', 'public._eu165_norm(text)', 'public._eu165_sig(uuid, text)', 'public._eu165_parse(text)',
     'public._eu165_sender(uuid)', 'public._eu165_tg_comms()', 'public._eu165_tg_notification()',
     'public.email_unsub_token(uuid, text)', 'public.email_is_opted_out(uuid, text)',
-    'public.email_unsub_status(text)', 'public.email_unsub_set(text, boolean, text)'] loop
+    'public.email_unsub_status(text)', 'public.email_unsub_set(text, boolean, text)', 'public.comms_outbox_unsub(uuid)'] loop
     execute format('revoke all on function %s from public', f);
     if exists (select 1 from pg_roles where rolname = 'anon') then execute format('revoke all on function %s from anon', f); end if;
     if exists (select 1 from pg_roles where rolname = 'authenticated') then execute format('revoke all on function %s from authenticated', f); end if;
   end loop;
   if exists (select 1 from pg_roles where rolname = 'service_role') then
     foreach f in array array['public.email_unsub_token(uuid, text)', 'public.email_is_opted_out(uuid, text)',
-                             'public.email_unsub_status(text)', 'public.email_unsub_set(text, boolean, text)'] loop
+                             'public.email_unsub_status(text)', 'public.email_unsub_set(text, boolean, text)', 'public.comms_outbox_unsub(uuid)'] loop
       execute format('grant execute on function %s to service_role', f);
     end loop;
   end if;
@@ -227,5 +242,6 @@ select item, ok from (values
   ('12 notifications opt-out trigger', exists (select 1 from pg_trigger where tgrelid = to_regclass('public.notifications') and tgname = 'zzzz_eu165_optout')),
   ('13 token round-trip', (public.email_unsub_status(public.email_unsub_token(null, 'verify@example.com')) ->> 'ok') = 'true'),
   ('14 forged token refused', (public.email_unsub_status('v1.' || repeat('0', 32) || '.' || encode('a@b.co', 'hex') || '.' || repeat('0', 64)) ->> 'ok') = 'false'),
-  ('15 0165 marker', position('email-unsub-0165' in (select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.email_unsub_set(text, boolean, text)'))) > 0)
+  ('15 0165 marker', position('email-unsub-0165' in (select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.email_unsub_set(text, boolean, text)'))) > 0),
+  ('16 comms_outbox_unsub for the dispatcher only', coalesce(has_function_privilege('service_role', to_regprocedure('public.comms_outbox_unsub(uuid)'), 'execute') and not has_function_privilege('anon', to_regprocedure('public.comms_outbox_unsub(uuid)'), 'execute') and not has_function_privilege('authenticated', to_regprocedure('public.comms_outbox_unsub(uuid)'), 'execute'), false))
 ) v(item, ok) order by item;

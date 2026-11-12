@@ -114,18 +114,25 @@ t('trial intent: ?trial=1 on, ?trial=0 off, stored for 2 days', () => {
   assert.equal(signup.intentFrom('?code=abc', String(now - 3 * 86400e3), now), false);
   assert.equal(signup.intentFrom('', 'junk', now), false);
 });
-t('login wiring: trial-signup.js loaded, every studio creation goes through makeStudio', () => {
-  assert.match(LOGIN, /<script src="\/trial-signup\.js\?v=9"><\/script>/);
+t('login wiring: trial-signup.js loaded, makeStudio is the one trial-or-direct switch', () => {
+  // the cache-buster moves on with every trial-signup.js change and the tag is deferred now; pin the wiring, not ?v=
+  assert.match(LOGIN, /<script src="\/trial-signup\.js\?v=\d+"(?: defer)?><\/script>/);
   assert.ok(!/BPStore\.org\.createStudio\((studio|name),\s*\{/.test(LOGIN), 'no direct createStudio left');
-  assert.equal((LOGIN.match(/await makeStudio\(/g) || []).length, 3);
-  assert.match(LOGIN, /BPTrialSignup\.apply\(m, JOINING\)/);
+  // r22 create-studio (23587cd9, SQL 0255): ONE 4-step sign-up flow (signup-flow.js + plan cards) now creates the
+  // studio, so the three old in-page "await makeStudio(" call sites are gone (covered by test/r22-create-studio.test.mjs).
+  // makeStudio stays the single trial-or-direct switch, and the trial banner hook still reads the joining state.
+  assert.match(LOGIN, /const makeStudio=\(name,opts\)=>TRIAL\(\)\? BPTrialSignup\.start\(name,opts\|\|\{\}\) : BPStore\.org\.createStudio\(name,opts\|\|\{\}\)/);
+  assert.match(LOGIN, /BPTrialSignup\.apply\(m, J\(\)\)/);
 });
 t('store-api: trialOrg namespace + banner loader', () => {
   assert.match(API, /start: \(loc\) => \(loc && \(loc\.timezone \|\| loc\.currency\) \? rpc\("start_trial", \{ p_timezone: loc\.timezone \|\| null, p_currency: loc\.currency \|\| null \}\) : rpc\("start_trial", \{\}\)\)/);
   // 0118: the sign-up page sends the visitor's zone + a currency guessed from it
   const SIGN = readFileSync(new URL('../public/trial-signup.js', import.meta.url), 'utf8');
   // 0119: the unified trial sends the visitor's zone + currency to startSelfServe
-  assert.match(SIGN, /trialOrg\.startSelfServe\(\{/); assert.match(SIGN, /timezone: opts\.timezone \|\| loc\.timezone, currency: opts\.currency \|\| loc\.currency/);
+  // 0177 (trial is India only): the zone + currency sent are the fixed trial locale (visitorLocale() -> TRIAL_TZ /
+  // TRIAL_CUR), no longer whatever the caller or browser passes; the server enforces the same
+  assert.match(SIGN, /trialOrg\.startSelfServe\(\{/); assert.match(SIGN, /timezone: loc\.timezone, currency: loc\.currency \}\)/);
+  assert.match(SIGN, /function visitorLocale\(\) \{ return \{ timezone: TRIAL_TZ, currency: TRIAL_CUR \}; \}/);
   const M118 = readFileSync(new URL('../supabase/migrations/0118_trial_locale.sql', import.meta.url), 'utf8');
   assert.match(M118, /pg_timezone_names/);
   assert.match(M118, /revoke all on function public\.start_trial\(text, text\) from public, anon;/);

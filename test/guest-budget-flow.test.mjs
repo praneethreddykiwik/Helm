@@ -20,9 +20,13 @@ t("budget saves to Discovery storage but autosaves with step 1", () => {
   const sd = f.slice(f.indexOf("async function saveDiscovery"), f.indexOf("async function saveVenue"));
   assert.match(sd, /discFields\(discRow\)/); assert.doesNotMatch(sd, /#d_bmax/);
 });
-t("legacy client.budget is read into the range when Discovery has no budget", () => {
+// budget-single-source (0199, commit 0dbbbce1): the quote's own client.budget is THE budget and wins over the
+// Discovery copy whenever it is set (Discovery is only a fallback) - no longer "only when Discovery has none".
+t("client.budget wins over the Discovery copy; Discovery is only the fallback", () => {
   const ld = f.slice(f.indexOf("async function loadDiscovery"), f.indexOf("async function loadPlan"));
-  assert.match(ld, /d\.budget_min==null && d\.budget_max==null\)\) && cl\.budget!=null\)\{ \$\("#d_bmax"\)\.value=cl\.budget/);
+  assert.match(ld, /\$\("#d_bmax"\)\.value=d\.budget_max!=null\?d\.budget_max:/);
+  assert.match(ld, /if\(cl\.budget!=null && cl\.budget!==""\)\{ \$\("#d_bmax"\)\.value=cl\.budget; \}/);
+  assert.ok(ld.indexOf('$("#d_bmax").value=cl.budget') > ld.indexOf('$("#d_bmax").value=d.budget_max'), 'quote budget applied last');
 });
 t("client.budget is preserved until the range is edited, then mirrors max (or min)", () => {
   const fn = f.slice(f.indexOf("function budgetFromRange(){"), f.indexOf('["#d_bmin","#d_bmax"].forEach(s=>{ const el=$(s); if(el) el.addEventListener("input",()=>'));

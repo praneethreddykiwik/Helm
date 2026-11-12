@@ -509,8 +509,26 @@ try{ let _privWas=document.documentElement.classList.contains('hb-priv-on');
 async function persistSizing(patch){
   if(!currentQuoteId || !window.HelmSizing) return;
   try{ currentClient = HelmSizing.merge(currentClient, patch);
-    await BPStore.quotes.updateMeta(currentQuoteId, { client: currentClient }); }
+    await saveClientFields(c => HelmSizing.merge(c, patch)); }
   catch(e){ /* non-fatal */ }
+}
+// R147 (R79 lost-update lock): the builder's client writes (guests / chairs / tables / hall size / venue) no longer write the
+// page-load copy of the client record back whole - a name, phone or date edited in the quote flow meanwhile was overwritten.
+// Each write re-reads the LATEST saved client, applies ONLY its own fields, and is conditioned on that row's updated_at
+// (updateMeta's expectedUpdatedAt), the same pattern as this file's pricing sync and event.html's date save. A concurrent
+// edit landing in between gives CONFLICT: retried once on the fresh record (only our own fields are applied, so a retry can
+// never clobber), then told the same way as every other screen. No auto-reload here: the layout may hold unsaved work.
+async function saveClientFields(apply){
+  for(let attempt=0; attempt<2; attempt++){
+    let base=currentClient||{}, lock=null;
+    try{ const fresh=await BPStore.quotes.get(currentQuoteId); if(fresh){ if(fresh.client) base=fresh.client; lock=fresh.updatedAt||null; } }catch(_){}
+    const next=apply(Object.assign({}, base));
+    try{ await BPStore.quotes.updateMeta(currentQuoteId, { client: next }, lock); currentClient=next; return next; }
+    catch(e){
+      if(!(e && e.code==='CONFLICT')) throw e;
+      if(attempt===1){ try{ await BPUI.alert(e.message, { title:'This quote was changed elsewhere' }); }catch(_){} throw e; }
+    }
+  }
 }
 // 0085: the venue picked in Custom Event is linked on the quote's client JSON (id + name + setting)
 window.HelmBuilderVenue = {
@@ -524,7 +542,9 @@ window.HelmBuilderVenue = {
           // 0096: the venue's full size (ft) is kept for reference; hallLen/hallWid stay the usable area
           venueLen: (window.HelmVenues && HelmVenues.mToFt(v.length_m)) || null, venueWid: (window.HelmVenues && HelmVenues.mToFt(v.width_m)) || null }
       : { venueId: null, venueName: null });
-    try{ await BPStore.quotes.updateMeta(currentQuoteId, { client: currentClient }); }catch(e){ /* non-fatal */ }
+    const fields = Object.assign({}, currentClient);   // r147: only the venue keys set above are applied to the latest record
+    const keys = v ? ['venueId','venueName','setting','venueLen','venueWid'] : ['venueId','venueName'];
+    try{ await saveClientFields(c => { keys.forEach(k => { c[k] = fields[k]; }); return c; }); }catch(e){ /* non-fatal */ }
   },
   // QA-B27: the saved venue this event points at, for pre-selecting the venue pickers: the linked id when it is
   // in the list, else the venue the quote names (client.venueName / client.venue, e.g. the sample events) matched
@@ -541,8 +561,9 @@ window.HelmBuilderVenue = {
 };
 async function persistGuests(){
   if(!currentQuoteId || PRICING.guests==null) return;
-  try{ currentClient = window.HelmSizing ? HelmSizing.merge(currentClient, { guests: PRICING.guests }) : Object.assign({}, currentClient, { guests: PRICING.guests });
-    await BPStore.quotes.updateMeta(currentQuoteId, { client: currentClient }); }
+  const gp = { guests: PRICING.guests };
+  try{ currentClient = window.HelmSizing ? HelmSizing.merge(currentClient, gp) : Object.assign({}, currentClient, gp);
+    await saveClientFields(c => window.HelmSizing ? HelmSizing.merge(c, gp) : Object.assign(c, gp)); }
   catch(e){ /* non-fatal */ }
   try{ renderPrice(); syncChairsPanel(); }catch(e){}   // R9: chairs follow guests only while not hand-set
   syncQuotePricing();

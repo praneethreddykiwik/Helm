@@ -37,14 +37,27 @@ function one(b) {
   };
 }
 
+// R151: known third-party noise - Google Sign-In (accounts.google.com/gsi/...) injects an inline style that our CSP
+// blocks in Firefox (3 reports per /login visit; the button still renders). Dropped before logging - ONLY that pair:
+// a GSI blocked-uri / source-file AND a style-src-attr / style-src-elem directive. Everything else is still logged.
+function isGsi(v) {
+  try { const u = new URL(String(v || "")); return u.hostname === "accounts.google.com" && u.pathname.startsWith("/gsi/"); } catch (e) { return false; }
+}
+export function isGsiStyleNoise(b) {
+  const r = b && typeof b === "object" ? b : {};
+  const directive = String(r["effective-directive"] || r.effectiveDirective || r["violated-directive"] || r.violatedDirective || "").split(" ")[0];
+  if (directive !== "style-src-attr" && directive !== "style-src-elem") return false;
+  return isGsi(r["blocked-uri"] || r.blockedURL || r.blockedUrl) || isGsi(r["source-file"] || r.sourceFile);
+}
+
 // raw JSON (any of the two formats) -> [{directive, blocked, page, disposition}] (max 10)
 export function summarize(raw) {
   let j;
   try { j = typeof raw === "string" ? JSON.parse(raw) : raw; } catch (e) { return []; }
   if (Array.isArray(j)) {
-    return j.filter((x) => x && typeof x === "object" && (x.type === "csp-violation" || x.body)).slice(0, 10).map((x) => one(x.body));
+    return j.filter((x) => x && typeof x === "object" && (x.type === "csp-violation" || x.body) && !isGsiStyleNoise(x.body)).slice(0, 10).map((x) => one(x.body));
   }
-  if (j && typeof j === "object" && j["csp-report"]) return [one(j["csp-report"])];
+  if (j && typeof j === "object" && j["csp-report"]) return isGsiStyleNoise(j["csp-report"]) ? [] : [one(j["csp-report"])];
   return [];
 }
 

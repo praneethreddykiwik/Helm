@@ -20,12 +20,16 @@ const ENV = {
 };
 const AUTH = { Authorization: "Bearer user-jwt", Origin: "https://helm.events" };
 
-// trial = true: trial_send_blocked answers true; every other RPC would allow the send
+// trial = true: trial_send_blocked answers true; every other RPC would allow the send - including R129 (0337): the
+// studio HAS its own connected WhatsApp number (org_whatsapp_creds), so only the trial guard can stop a trial send
+const STUDIO_PHONE_ID = "1098765432";
 function db(trial: boolean) {
   g.__supaGetUser = (jwt: string) => ({ data: { user: jwt === "user-jwt" ? { id: "u1" } : null } });
-  g.__supaRpc = (name: string) => {
+  g.__supaRpc = (name: string, args: any, key: string) => {
     if (name === "client_mailer_check") return { data: { ok: true, link_live: true }, error: null };   // r56 (0297)
     if (name === "trial_send_blocked") return { data: trial, error: null };
+    if (name === "org_whatsapp_creds") return key === "service-role-secret" && args?.p_org === ORG
+      ? { data: { token: "studio-wa-token-0123456789abcdef", phone_number_id: STUDIO_PHONE_ID }, error: null } : { data: null, error: null };
     if (name === "otp_send_authorize") return { data: { quote_id: QUOTE, org_id: ORG, mobile: "919800000001" }, error: null };
     if (name === "wa_otp_begin") return { data: { quote_id: QUOTE, phone_key: "9800000001", to: "919800000001", email: "c@example.com", masked: "x" }, error: null };
     if (name === "whatsapp_authorize") return { data: { ok: true, to: "919800000001", org_id: ORG }, error: null };
@@ -150,7 +154,7 @@ Deno.test("send-whatsapp: trial studio -> 403 trial, Meta never called; DB hint 
   } finally { rF(); rEnv(); }
 });
 
-Deno.test("send-whatsapp: paid studio still sends", async () => {
+Deno.test("send-whatsapp: paid studio still sends (from its own connected number)", async () => {
   resetSupaMock(); db(false);
   const rEnv = setEnv(ENV); const rF = providers();
   try {
@@ -158,6 +162,7 @@ Deno.test("send-whatsapp: paid studio still sends", async () => {
     const res = await h(post({ quote_id: QUOTE, number: "919800000001", template: "event_update" }, AUTH));
     assertEquals(res.status, 200);
     assertEquals(providerCalls(), 1);
+    assert(g.__fetchLog[0].url.includes("/" + STUDIO_PHONE_ID + "/messages"), "the studio's number, never Helm's WHATSAPP_PHONE_ID");
   } finally { rF(); rEnv(); }
 });
 
@@ -176,7 +181,7 @@ Deno.test("wa-proposal: trial studio -> simulated prepare (p_simulate true), Met
   } finally { rF(); rEnv(); }
 });
 
-Deno.test("wa-proposal: paid studio still sends for real", async () => {
+Deno.test("wa-proposal: paid studio still sends for real (from its own connected number)", async () => {
   resetSupaMock(); db(false);
   const rEnv = setEnv(ENV); const rF = providers();
   try {
@@ -186,5 +191,23 @@ Deno.test("wa-proposal: paid studio still sends for real", async () => {
     assertEquals(j.sent, true, JSON.stringify(j));
     assertEquals(supaLog().find((e) => e.rpc === "wa_proposal_prepare").args.p_simulate, false);
     assertEquals(providerCalls(), 1);
+    assert(g.__fetchLog[0].url.includes("/" + STUDIO_PHONE_ID + "/messages"), "the studio's number, never Helm's WHATSAPP_PHONE_ID");
+  } finally { rF(); rEnv(); }
+});
+
+// R129 (0337): a paid studio WITHOUT its own connected number -> 409 not_connected; nothing recorded, nothing sent
+// (Helm's WHATSAPP_TOKEN / WHATSAPP_PHONE_ID are set in ENV and must never be used as a fallback)
+Deno.test("wa-proposal: paid studio, number not connected -> 409 not_connected, nothing recorded, Meta never called", async () => {
+  resetSupaMock(); db(false);
+  const base = g.__supaRpc;
+  g.__supaRpc = (n: string, a: unknown, k: string) => n === "org_whatsapp_creds" ? { data: null, error: null } : base(n, a, k);
+  const rEnv = setEnv(ENV); const rF = providers();
+  try {
+    const h = await loadHandler(WAP);
+    const res = await h(post({ quote_id: QUOTE, kind: "proposal_sent", phone: "+919800000001", opt_in: true, consent_text: "ok" }, AUTH));
+    assertEquals(res.status, 409);
+    assertEquals((await res.json()).not_connected, true);
+    assert(!supaLog().some((e) => e.rpc === "wa_proposal_prepare"), "nothing recorded");
+    assertEquals(providerCalls(), 0);
   } finally { rF(); rEnv(); }
 });

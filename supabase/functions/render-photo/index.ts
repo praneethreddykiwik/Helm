@@ -20,9 +20,11 @@
 // Secrets / env: OPENAI_API_KEY (switches it on), OPENAI_IMAGE_MODEL (default gpt-image-2.5-sunburst),
 //   RENDER_TIMEOUT_MS (default 140000; max 380000 on paid plans), RENDER_COST_USD_LOW / _MEDIUM / _HIGH (per image estimate),
 //   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (injected).
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { bearer, errTag, responders, UUID_RE } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
+import { logger } from "../_shared/log.ts";
+import { fetchWithTimeout } from "../_shared/http.ts";   // R142: also bounds reading OpenAI's answer
 
 const OPENAI_EDITS = "https://api.openai.com/v1/images/edits";
 const BODY_LIMIT = 11 * 1024 * 1024;          // four reference pictures (base64) + prompt
@@ -55,6 +57,7 @@ const clip = (v: unknown, n: number) => String(v ?? "").replace(/[\u0000-\u001f]
 export function notConfigured(): boolean { return !(Deno.env.get("OPENAI_API_KEY") || "").trim(); }
 
 Deno.serve(async (req) => {
+  const log = logger("render-photo", req);   // R142: JSON log lines with the request id
   const { cors, json, serverError } = responders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -117,7 +120,7 @@ Deno.serve(async (req) => {
       if (code === "42501") return json({ error: "not_allowed", message: "You don't have permission to make photo renders for this event" }, 403);
       if (code === "P0002") return json({ error: "not_found", message: "Event not found" }, 404);
       if (code === "22023") return json({ error: "bad_request", message: String(bErr?.message || "invalid request") }, 400);
-      console.error("photo_render_begin failed", errTag(bErr));
+      log.error("photo_render_begin failed", errTag(bErr));
       return json({ error: "could not start the render" }, 500);
     }
     usageId = String(begin.usage_id);
@@ -127,7 +130,7 @@ Deno.serve(async (req) => {
       const patch: Record<string, unknown> = { status, finished_at: new Date().toISOString(), error: error ? error.slice(0, 200) : null };
       if (realCost != null) patch.cost_usd = realCost;
       const { error: e } = await admin!.from("photo_render_usage").update(patch).eq("id", usageId);
-      if (e) console.error("usage update failed", errTag(e));
+      if (e) log.error("usage update failed", errTag(e));
     };
 
     // ---- OpenAI Images API: edits with several reference images ----
@@ -159,7 +162,9 @@ Deno.serve(async (req) => {
         const timer = setTimeout(() => ac.abort(), timeout);
         let r: Response;
         try {
-          r = await fetch(OPENAI_EDITS, { method: "POST", redirect: "error", headers: { Authorization: "Bearer " + Deno.env.get("OPENAI_API_KEY")!.trim() }, body: fd, signal: ac.signal });
+          // R142: the render's own timer (ac, RENDER_TIMEOUT_MS) still decides "timeout"; the helper's deadline is 5 s later
+          // and only matters for reading the answer, which used to have no limit at all
+          r = await fetchWithTimeout(OPENAI_EDITS, { method: "POST", redirect: "error", headers: { Authorization: "Bearer " + Deno.env.get("OPENAI_API_KEY")!.trim() }, body: fd, signal: ac.signal }, timeout + 5_000);
         } catch (e) {
           clearTimeout(timer);
           const to = (e as Error)?.name === "AbortError";
@@ -170,7 +175,7 @@ Deno.serve(async (req) => {
         const out: any = await r.json().catch(() => ({}));
         if (!r.ok) {
           const oc = String(out?.error?.code || out?.error?.type || r.status).slice(0, 60);
-          console.error("openai images error", r.status, oc);
+          log.error("openai images error", r.status, { kind: oc });
           const kind = oc === "moderation_blocked" || oc.includes("safety") ? "blocked" : r.status === 429 ? "busy" : "failed";
           await finish("error", kind + ": openai " + r.status + " " + oc);
           return kind;
@@ -186,14 +191,14 @@ Deno.serve(async (req) => {
             org_id: orgId, quote_id: quoteId, usage_id: usageId, created_by: user.id, ...meta,
             quality, model, size, prompt, mime, bytes: bytes.byteLength, data: "\\x" + Array.from(bytes, (x) => x.toString(16).padStart(2, "0")).join(""),
           }).select("id").single();
-          if (iErr || !row) { console.error("render insert failed", errTag(iErr)); continue; }
+          if (iErr || !row) { log.error("render insert failed", errTag(iErr)); continue; }
           renders.push({ id: String(row.id), mime, data: b64 });
         }
         if (!renders.length) { await finish("error", "failed: no images"); return "failed"; }
         await finish("ok", undefined, Math.round(costPer(quality) * renders.length * 10000) / 10000);
         return renders;
       } catch (e) {
-        console.error("render background failed", errTag(e));
+        log.error("render background failed", errTag(e));
         await finish("error", "failed: internal");
         return "failed";
       }

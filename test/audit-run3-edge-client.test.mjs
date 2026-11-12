@@ -82,12 +82,12 @@ t('secret-bearing PR jobs are bound to the staging-tests Environment', () => {
 });
 
 // ---- supply-chain/telemetry/sentry-cdn-script-no-sri -----------------------------------
-t('Sentry bundle carries SRI (R138: self-hosted copy of the Sentry-published 8.55.2 bundle)', () => {
+t('Sentry bundle carries SRI (R138: self-hosted copy of the Sentry-published bundle, 10.78.0 since R140)', () => {
   const s = r('public/telemetry.js');
-  assert.match(s, /var SENTRY_SRI = 'sha384-2pQ5FCOlRmRkz8BBZIW\/Yf2pGbnZHHaCCriaUbTwegcr\+6Jh0tJKqvi31rfm39XF';/);
+  assert.match(s, /var SENTRY_SRI = 'sha384-0hZhlJ3au\+QHKyEFlFRSWB9AzzkYTyqT\+obBPo2Sjxy\/us6VDdbKsJ8v2\+3DAqoh';/);
   assert.match(s, /sc\.integrity = SENTRY_SRI;/);
   assert.match(s, /sc\.crossOrigin = 'anonymous';/);
-  assert.match(s, /SENTRY_SRC = '\/vendor\/sentry-8\.55\.2\.bundle\.min\.js'/);
+  assert.match(s, /SENTRY_SRC = '\/vendor\/sentry-10\.78\.0\.bundle\.min\.js'/);
   const { SCRIPT_SRC_BASE } = require('../scripts/csp-hashes.cjs');
   assert.deepEqual(SCRIPT_SRC_BASE, ["'self'"], 'no outside script host once Sentry is self-hosted');
 });
@@ -107,10 +107,17 @@ t('Trusted Types: report-only on the staging site; trusted-types.js mode follows
   const v = JSON.parse(r('vercel.json'));
   const rule = v.headers.find((x) => x.has && x.has.some((c) => c.value === 'helm-v01.vercel.app') && x.headers[0].key === 'Content-Security-Policy');
   const ro = rule.headers.find((h) => h.key === 'Content-Security-Policy-Report-Only');
-  if (!TRUSTED_TYPES_ENFORCE) assert.equal(ro && ro.value, TT_DIRECTIVES.join('; '));
-  // production hosts / the catch-all never carry Trusted Types yet
-  for (const x of v.headers) if (!(x.has && x.has.some((c) => c.value === 'helm-v01.vercel.app')))
-    for (const h of x.headers) assert.doesNotMatch(h.value, /require-trusted-types-for/, x.source);
+  if (!TRUSTED_TYPES_ENFORCE) {
+    assert.equal(ro && ro.value, TT_DIRECTIVES.join('; '));
+    // production hosts / the catch-all never carry Trusted Types before enforcement
+    for (const x of v.headers) if (!(x.has && x.has.some((c) => c.value === 'helm-v01.vercel.app')))
+      for (const h of x.headers) assert.doesNotMatch(h.value, /require-trusted-types-for/, x.source);
+  } else {
+    // R139: enforced everywhere - every CSP carries it, and the staging report-only header is gone
+    assert.equal(ro, undefined, 'no report-only Trusted Types header once enforced');
+    for (const x of v.headers) for (const h of x.headers)
+      if (h.key === 'Content-Security-Policy') assert.match(h.value, /require-trusted-types-for 'script'/, x.source);
+  }
 });
 
 // ---- deploy/vercel/helm-v01-union-csp-overrides-per-page -------------------------------

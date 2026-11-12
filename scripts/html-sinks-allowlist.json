@@ -1054,7 +1054,13 @@
   {
    "file": "public/trusted-types.js",
    "expr": "raw.createHTML(String(html))",
-   "why": "the sanitizer itself: parses into an inert <template> (no script runs, nothing loads) and then strips everything not on the allowlist"
+   "why": "the sanitizer itself: parses into an inert <template> (no script runs, nothing loads) and then strips everything not on the allowlist; R139: HelmPrintDoc parses the print markup the same way, then cleans it before importing the nodes into the pop-up",
+   "max": 2
+  },
+  {
+   "file": "public/trusted-types.js",
+   "expr": "html",
+   "why": "R139 HelmPrintDoc fallback for browsers WITHOUT Trusted Types (same document.write as before); every caller's markup is checked at its own HelmPrintDoc(w, html) site (quotes.html / flow.html entries)"
   },
   {
    "file": "public/onboarding.js",

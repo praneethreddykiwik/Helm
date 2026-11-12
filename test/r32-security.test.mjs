@@ -25,7 +25,7 @@ await t('hq.js csvCell: formula guard matches reports.html (leading spaces, full
   assert.equal(csvCell(-500), '"-500"', 'a real number is not prefixed');
   assert.equal(csvCell('Studio "A"'), '"Studio ""A"""');
   assert.equal(csvCell(null), '""');
-  assert.match(rd('public/hq.html'), /hq\.js\?v=37/);
+  assert.match(rd('public/hq.html'), /hq\.js\?v=38/);
 });
 
 await t('CLI-01 check-html-sinks: map(cb).join() needs a visibly safe callback', async () => {
@@ -66,7 +66,7 @@ await t('CLI-02 telemetry: stack frames lose ?token= and link refs; booklet link
   assert.equal(f[1].abs_path, 'https://www.helm.events/store-api.js?v=286', 'asset version kept');
   assert.match(T.redact('/login?invite=abc&k=' + 'cd'.repeat(24)), /k=\[REDACTED\]/);
   for (const p of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = rd('public/' + p).match(/telemetry\.js\?v=(\d+)/); if (m) assert.equal(m[1], '10', p);
+    const m = rd('public/' + p).match(/telemetry\.js\?v=(\d+)/); if (m) assert.equal(m[1], '11', p);   // R140: telemetry.js changed (Sentry 10.78.0)
   }
 });
 
@@ -105,9 +105,9 @@ await t('AUTH-1 the join page sends the e-mailed mail key (&k=) to invite-signup
   const TPL = rd('supabase/functions/invite-mailer/templates.ts');
   assert.match(TPL, /invite_mail_key_set/); assert.match(TPL, /p_hash: await sha256Hex\(key\)/);
 });
-await t('store-api cache-buster: every page loads store-api.js?v=342', () => {
+await t('store-api cache-buster: every page loads store-api.js?v=344', () => {
   for (const p of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = rd('public/' + p).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '342', p);
+    const m = rd('public/' + p).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '344', p);
   }
 });
 

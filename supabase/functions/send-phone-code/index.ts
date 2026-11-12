@@ -29,9 +29,11 @@
 //         PHONE_CODE_HOME_COUNTRY_PER_DAY (default 1500),
 //       - optional allowlist          PHONE_CODE_ALLOWED_CC="91,971"   (others refused).
 //     Also set a spend alert in Meta Business Manager (owner action).
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { bearer, errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
+import { fetchWithTimeout, isTimeout } from "../_shared/http.ts";   // R142: Meta call has a deadline
+import { logger } from "../_shared/log.ts";
 
 const DAY_MS = 86_400_000;
 // ITU-T E.164 country calling codes: 1 and 7 are one digit; this set is every two-digit
@@ -72,6 +74,7 @@ function requestFailure(code: string, msg: string): [number, string, number?] {
 
 Deno.serve(async (req) => {
   const { cors, json, serverError } = responders(req);
+  const log = logger("send-phone-code", req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   try {
@@ -110,13 +113,13 @@ Deno.serve(async (req) => {
     }
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const { data: prof, error: pErr } = await admin.from("profiles").select("org_id").eq("id", user.id).maybeSingle();
-    if (pErr) { console.error("profile lookup failed", errTag(pErr)); return json({ error: "could not send a code — please try again later" }, 500); }
+    if (pErr) { log.error("profile lookup failed", errTag(pErr)); return json({ error: "could not send a code — please try again later" }, 500); }
     // r57 (A-10): a member deactivated by their studio (0283 team_member_status) gets no codes either
     if ((prof as any)?.org_id) {
       const { data: tms, error: tErr } = await admin.from("team_member_status").select("status")
         .eq("user_id", user.id).eq("org_id", (prof as any).org_id).maybeSingle();
       if (tErr && !/team_member_status|PGRST205|42P01/i.test(String(tErr.message || "") + " " + String((tErr as any).code || ""))) {
-        console.error("member status lookup failed", errTag(tErr)); return json({ error: "could not send a code — please try again later" }, 500);
+        log.error("member status lookup failed", errTag(tErr)); return json({ error: "could not send a code — please try again later" }, 500);
       }
       if ((tms as any)?.status === "deactivated") return json({ error: "sign in first" }, 401);
     }
@@ -140,26 +143,34 @@ Deno.serve(async (req) => {
     }
     const to = String(issued.phone).replace(/^\+/, "");
     // Meta AUTHENTICATION template: the code goes in the body AND the copy-code button.
-    const r = await fetch(`${GRAPH}/${VER}/${encodeURIComponent(PHONE_ID)}/messages`, { redirect: "error",
-      method: "POST",
-      headers: { "Authorization": "Bearer " + TOKEN, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messaging_product: "whatsapp", to, type: "template",
-        template: {
-          name: TEMPLATE, language: { code: LANG },
-          components: [
-            { type: "body", parameters: [{ type: "text", text: String(issued.code) }] },
-            { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: String(issued.code) }] },
-          ],
-        },
-      }),
-    });
-    await r.text();
-    if (!r.ok) { console.error("phone code send failed", r.status); return json({ error: "could not send the WhatsApp message — try again later" }, 502); }
+    // R142: a Meta call that passes its 10 s deadline is answered like Meta refusing it (502, try again later)
+    let r: Response;
+    try {
+      r = await fetchWithTimeout(`${GRAPH}/${VER}/${encodeURIComponent(PHONE_ID)}/messages`, { redirect: "error",
+        method: "POST",
+        headers: { "Authorization": "Bearer " + TOKEN, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messaging_product: "whatsapp", to, type: "template",
+          template: {
+            name: TEMPLATE, language: { code: LANG },
+            components: [
+              { type: "body", parameters: [{ type: "text", text: String(issued.code) }] },
+              { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: String(issued.code) }] },
+            ],
+          },
+        }),
+      });
+      await r.text();
+    } catch (e) {
+      if (!isTimeout(e)) throw e;
+      log.error("phone code send timed out", errTag(e));
+      return json({ error: "could not send the WhatsApp message — try again later" }, 502);
+    }
+    if (!r.ok) { log.error("phone code send failed", r.status); return json({ error: "could not send the WhatsApp message — try again later" }, 502); }
     return json({ sent: true, expires_in: Number(issued.expires_in) || 600, resend_after: Number(issued.resend_after) || 60 });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
-    console.error("send-phone-code error", errTag(e));
+    log.error("send-phone-code error", errTag(e));
     return serverError(e);
   }
 });

@@ -67,7 +67,7 @@ t('in-page links: sections on the way render first, then a settle-and-correct pa
 });
 
 t('cache-busters bumped', () => {
-  assert.match(html, /\/home\.css\?v=38"/);
-  assert.match(html, /\/home\.js\?v=39"/);
+  assert.match(html, /\/home\.css\?v=39"/);
+  assert.match(html, /\/home\.js\?v=40"/);
 });
 console.log(`r43-landing-speed: ${n} passed`);

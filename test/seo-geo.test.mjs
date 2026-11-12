@@ -20,7 +20,7 @@ for (const p of PAGES) {
     const url = 'https://www.helm.events' + (p === 'index' ? '/' : '/' + p);
     assert.ok(head.includes(`<link rel="canonical" href="${url}">`), `${p}: canonical`);
     assert.ok(head.includes(`<meta property="og:url" content="${url}">`));
-    assert.ok(head.includes('content="https://www.helm.events/og/helm-og.png"'), `${p}: og image`);
+    assert.ok(head.includes('content="https://www.helm.events/og/helm-og-v2.png"'), `${p}: og image`);
     assert.ok(head.includes('<meta name="twitter:card" content="summary_large_image">'));
     assert.ok(head.includes('<link rel="manifest" href="/site.webmanifest">'));
     assert.ok(head.includes('<link rel="icon" href="/favicon.svg" type="image/svg+xml">'));
@@ -39,9 +39,9 @@ for (const p of PAGES) {
   });
 }
 t('assets + manifest', () => {
-  for (const f of ['og/helm-og.png', 'favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'])
+  for (const f of ['og/helm-og-v2.png', 'favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'])
     assert.ok(existsSync(new URL('public/' + f, root)), f);
-  const png = readFileSync(new URL('public/og/helm-og.png', root));
+  const png = readFileSync(new URL('public/og/helm-og-v2.png', root));
   assert.equal(png.readUInt32BE(16), 1200); assert.equal(png.readUInt32BE(20), 630);
   const m = JSON.parse(rd('public/site.webmanifest'));
   assert.equal(m.name, 'Helm Events'); assert.equal(m.theme_color, '#0d8a5c');

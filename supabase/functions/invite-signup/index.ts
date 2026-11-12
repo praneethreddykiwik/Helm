@@ -61,12 +61,14 @@
 //   default https://www.helm.events). Kill switch: HELM_INVITE_DIRECT_SIGNUP="false" →
 //   { fallback: true } for every call.
 // Logs carry only error tags — never an address, a name, a password or a token.
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { clean, inviteEmail, MAIL_KEY_RE, mintMailKey, newLinkEmail, roleLabel, sha256Hex } from "../invite-mailer/templates.ts";
 import { mailConfig, sendMail } from "../_shared/mailer.ts";
 import { isReservedEmail, RESERVED_EMAIL_MESSAGE } from "../_shared/reserved-email.mjs";
+import { logger } from "../_shared/log.ts";
+const L = logger("invite-signup");
 
 const TOKEN = /^[0-9a-f]{48}$/;
 const EMAIL = /^[^\s@<>"',;:\\]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/;
@@ -219,12 +221,13 @@ async function byEmail(mode: "lookup" | "send", email: string, ip: string, json:
     const { error: oErr } = await admin.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: link } });
     if (!oErr) return json({ ok: true, sent: true });
     if (isRateLimited(oErr)) return json({ error: "We sent it a moment ago - check your inbox (and spam), or try again in a minute.", code: "rate_limited" }, 429);
-    console.error("invite-signup: email_send magic link failed", errTag(oErr));
-  } else console.error("invite-signup: email_send invite failed", errTag(iErr));
+    L.error("email_send magic link failed", errTag(oErr));
+  } else L.error("email_send invite failed", errTag(iErr));
   return json({ error: "We couldn't send the e-mail just now - open the invitation e-mail you already have, or ask the studio to re-send it.", code: "send_failed" }, 502);
 }
 
 Deno.serve(async (req) => {
+  const log = logger("invite-signup", req);   // R142: JSON log lines with the request id
   const { cors, json, serverError } = responders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -357,7 +360,7 @@ Deno.serve(async (req) => {
         if (!error) return json({ ok: true, sent: true });
       }
       if (isRateLimited(sendErr)) return json({ error: "A new link was sent a moment ago — check your inbox (and spam), or try again in a minute.", code: "rate_limited" }, 429);
-      console.error("invite-signup: resend failed", errTag(sendErr));
+      log.error("resend failed", errTag(sendErr));
       return json({ error: "We couldn't send the e-mail just now — try again in a minute, or ask your studio admin to re-send the invitation.", code: "send_failed" }, 502);
     }
 
@@ -397,13 +400,13 @@ Deno.serve(async (req) => {
       const uid = String(made?.user?.id ?? "");
       if (/^[0-9a-f-]{36}$/i.test(uid)) {
         const { error: rErr } = await admin.rpc("invite_signup_record", { p_token: token, p_user: uid });
-        if (rErr) console.error("invite-signup: record failed", errTag(rErr));
+        if (rErr) log.error("record failed", errTag(rErr));
       }
     } catch (_) { /* 0282 not applied */ }
     return json({ ok: true });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
-    console.error("invite-signup:", errTag(e));
+    log.error("invite-signup error", errTag(e));
     return serverError(e);
   }
 });

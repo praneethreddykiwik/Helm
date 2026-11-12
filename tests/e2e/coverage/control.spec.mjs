@@ -6,7 +6,9 @@ import { openScreen, assertNotRedirectedToLogin, assertScreenRendered, assertNoC
 test.beforeAll(() => requireStagingEnv());
 
 test('@coverage control center loads authenticated, clean console, coupon add validates', async ({ browser }) => {
-  const { context, page, consoleErrors } = await openScreen(browser, 'admin', '/control.html');
+  // Settings opens on "General" now; coupons live in the "Pricing & coupons" section (public/control-split.js
+  // SECTIONS key "pricing", hash #pricing), so deep-link straight to it.
+  const { context, page, consoleErrors } = await openScreen(browser, 'admin', '/control.html#pricing');
   try {
     assertNotRedirectedToLogin(page);
     await assertScreenRendered(page);

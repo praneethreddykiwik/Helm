@@ -1750,7 +1750,8 @@
       rows.push([p.paid_on, p.studio, p.invoice_no, p.amount, p.currency, p.net_amount, p.gst_amount, p.method, p.reference, p.period_start, p.period_end, p.voided ? "void" : "paid", p.void_reason]);
     });
     var csv = rows.map(function (x) { return x.map(csvCell).join(","); }).join("\r\n");
-    var url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    // r147: UTF-8 BOM first (same as reports / smart import / onboarding exports) so Excel reads Hindi studio names right
+    var url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
     var a = el("a", { href: url, download: "helm-billing-" + (r.from || "") + "-to-" + (r.to || "") + ".csv" });
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
   }

@@ -86,13 +86,16 @@ function computeHashes(publicDir) {
 //                                                    attribute cannot load or run script)
 //
 // Trusted Types: public/trusted-types.js installs a `default` policy (allowlist
-// sanitizer) plus the `helm` policy. Enforcement is a FLAG, off until every page
-// has been exercised logged-in with zero violations (see docs in that file):
+// sanitizer) plus the `helm` policy. Enforcement is a FLAG:
 //   TRUSTED_TYPES_ENFORCE = true  → every policy gets
-//     require-trusted-types-for 'script'; trusted-types helm default
-// HELM_TRUSTED_TYPES=1 turns it on for the local server only (verification runs).
-const TRUSTED_TYPES_ENFORCE = false;
+//     require-trusted-types-for 'script'; trusted-types helm default [goog#html on Google sign-in pages]
+// R139: ON - a logged-in Playwright pass over every page (signed out + admin, manager, sales, coordinator,
+// crew, and the client-link pages) found zero violations. Set it back to false to roll back (one line +
+// MODE in public/trusted-types.js; test/audit-run3-edge-client.test.mjs keeps the two in step).
+// HELM_TRUSTED_TYPES=1 turns it on for the local server only when the flag is off (verification runs).
+const TRUSTED_TYPES_ENFORCE = true;
 const TT_DIRECTIVES = ["require-trusted-types-for 'script'", 'trusted-types helm default'];
+const GIS_TT_POLICY = 'goog#html';
 const ttOn = () => TRUSTED_TYPES_ENFORCE || process.env.HELM_TRUSTED_TYPES === '1';
 const isHash = (s) => /^'sha(256|384|512)-/.test(s);
 function withHashes(csp, hashes, styleHashes) {
@@ -116,7 +119,12 @@ function withHashes(csp, hashes, styleHashes) {
       out.push("style-src-attr 'unsafe-inline'");
     } else out.push(d.trim());
   }
-  if (ttOn()) out.push(...TT_DIRECTIVES);
+  if (ttOn()) {
+    // Google's sign-in library (GIS) creates its own Closure policy 'goog#html'; allow that name only where the
+    // page may load GIS (script-src lists it), so the library uses its own policy instead of a refused-policy report.
+    const gis = out.some((d) => d.split(/\s+/)[0] === 'script-src' && d.split(/\s+/).includes(GIS_SCRIPT));
+    out.push(TT_DIRECTIVES[0], gis ? TT_DIRECTIVES[1] + ' ' + GIS_TT_POLICY : TT_DIRECTIVES[1]);
+  }
   return out.join('; ');
 }
 
@@ -126,7 +134,7 @@ function withHashes(csp, hashes, styleHashes) {
 // lets an attacker who finds any HTML injection load an old gadget library from
 // the same CDN and run script despite the hash-based policy. So:
 //   • every page: 'self' only - R138 moved the Sentry bundle to /vendor/ (self-hosted, SRI-pinned;
-//     telemetry.js loads /vendor/sentry-8.55.2.bundle.min.js, dormant until a DSN is set);
+//     telemetry.js loads /vendor/sentry-10.78.0.bundle.min.js (R140), dormant until a DSN is set);
 //   • the 3D builder: nothing extra any more - three.js r186 is self-hosted under
 //     public/vendor/three-0.186.1/ and loaded as same-origin ES modules (public/three-boot.js),
 //     so 'self' covers it. SCRIPT_SRC_BUILDER is kept (= base) so a future builder-only
@@ -238,7 +246,7 @@ function withReporting(csp, opts) {
 }
 module.exports = {
   CSP_REPORTS, cspReportUri, sentryIngestOrigin, withReporting, reportingEndpoints, REPORT_GROUP,
-  TRUSTED_TYPES_ENFORCE, TT_DIRECTIVES,
+  TRUSTED_TYPES_ENFORCE, TT_DIRECTIVES, GIS_TT_POLICY,
   computeHashes, computeStyleHashes, inlineScripts, inlineStyles, htmlFiles, withHashes,
   SCRIPT_SRC_BASE, SCRIPT_SRC_BUILDER, BUILDER_SOURCES, RAZORPAY_SCRIPT, scriptHosts, scriptSrcProblem, FRAME_SELF_ROUTES, frameAncestorsProblem,
   GIS_SCRIPT, GIS_ORIGIN_PATH, GIS_STYLE, GIS_INLINE_STYLE_HASH, AUTH_COOP,

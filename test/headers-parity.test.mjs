@@ -294,7 +294,7 @@ t('microphone: only /chat and the crew work link may use it (voice notes), self 
 
 console.log(`headers-parity: ${n} assertion group(s) passed.`);
 
-/* ---- INF-02 (R64): ACAO is asset-scoped (pinned on assets, absent on documents),
+/* ---- INF-02 (R64) + R147: ACAO pinned to the exact origin on every response (assets and documents),
         never a wildcard; legacy *.vercel.app aliases are noindex ---- */
 {
   const ACAO = 'https://www.helm.events';
@@ -309,15 +309,26 @@ console.log(`headers-parity: ${n} assertion group(s) passed.`);
     assert.equal(netlifyHeaders(a)['access-control-allow-origin'], ACAO, '_headers asset ACAO ' + a);
     assert.equal(serverHeaders(a)['access-control-allow-origin'], ACAO, 'server.js asset ACAO ' + a);
   }
-  // same-origin HTML documents get NO Access-Control-* header (the INF-02 fix)
-  for (const d of ['/', '/dashboard', '/login', '/approve', '/index.html', '/dashboard.html']) {
-    assert.equal(vercelHeaders(d)['access-control-allow-origin'], undefined, 'vercel.json doc ACAO ' + d);
-    assert.equal(netlifyHeaders(d)['access-control-allow-origin'], undefined, '_headers doc ACAO ' + d);
-    assert.equal(serverHeaders(d.replace(/\.html$/, ''))['access-control-allow-origin'], undefined, 'server.js doc ACAO ' + d);
+  // R147: HTML documents carry the SAME pinned origin + Vary: Origin (Vercel's CDN otherwise answers ACAO:* on pages);
+  // token pages, /i/* and the branded links included - no rule there overrides it with anything else
+  for (const d of ['/', '/dashboard', '/login', '/approve', '/index.html', '/dashboard.html', '/enquiry', '/delivery', '/vendor-request',
+    '/i/some-slug', '/aurora-events/quote/tok-123', '/aurora-events/invite/tok-123', '/builder', '/capture']) {
+    assert.equal(vercelHeaders(d)['access-control-allow-origin'], ACAO, 'vercel.json doc ACAO ' + d);
+    assert.equal(vercelHeaders(d)['vary'], 'Origin', 'vercel.json doc Vary ' + d);
+    assert.equal(netlifyHeaders(d)['access-control-allow-origin'], ACAO, '_headers doc ACAO ' + d);
+    assert.equal(netlifyHeaders(d)['vary'], 'Origin', '_headers doc Vary ' + d);
+    const sh = serverHeaders(d.replace(/\.html$/, ''));
+    assert.equal(sh['access-control-allow-origin'], ACAO, 'server.js doc ACAO ' + d);
+    assert.equal(sh['vary'], 'Origin', 'server.js doc Vary ' + d);
   }
+  // the catch-all is the only place ACAO can differ - every vercel.json ACAO value is the pinned origin
+  for (const r of vercel.headers) for (const h of r.headers)
+    if (h.key.toLowerCase() === 'access-control-allow-origin') assert.equal(h.value, ACAO, 'vercel.json ACAO ' + r.source);
+  // server.js sends ONE Vary listing both compression and Origin
+  assert.match(readFileSync(join(ROOT, 'server.js'), 'utf8'), /'Vary': 'Accept-Encoding, Origin'/);
   for (const host of ['helm-v01.vercel.app', 'helm-alpha-nine.vercel.app']) {
     const r = vercel.headers.find((x) => x.has && x.has.some((c) => c.type === 'host' && c.value === host));
     assert.ok(r && r.source === '/(.*)' && /noindex/.test(r.headers.find((h) => h.key === 'X-Robots-Tag').value), host + ' must be noindex');
   }
-  console.log('ok — ACAO asset-scoped (pinned on assets, absent on documents); no wildcard; legacy aliases noindex');
+  console.log('ok — ACAO pinned to https://www.helm.events on assets AND documents (+ Vary: Origin); no wildcard; legacy aliases noindex');
 }

@@ -102,7 +102,7 @@ t('login: sign in only - no tab switcher; "New to Helm? Create your studio" link
   assert.match(LOGIN, /id="haveAcct" hidden>Already have a Helm account\?/);
   assert.match(LOGIN, /BPSignupFlow\.intent\(\)\.signup\)\)\{ setMode\("signup"\); \}/);
   assert.match(LOGIN, /<script src="\/plan-cards\.js\?v=\d+"( defer)?><\/script>\n<script src="\/signup-flow\.js\?v=\d+"( defer)?><\/script>/);
-  assert.match(LOGIN, /<link rel="stylesheet" href="\/plan-cards\.css\?v=\d+">/);
+  assert.match(LOGIN, /<link rel="stylesheet" href="\/plan-cards\.css\?v=\d+"( media="print" data-lazy-css)?>/);   // R146: non-blocking, switched on at DOMContentLoaded
   assert.match(TSU, /setText\("#formTitle", "Create your Helm account"\);/);
 });
 t('login step 1: Terms checkbox required (e-mail and Google), the account carries the "agreed" note, no studio name', () => {

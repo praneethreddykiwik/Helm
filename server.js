@@ -253,13 +253,11 @@ function securityHeadersFor(req, filePath) {
   const h = { ...SECURITY_HEADERS };
   const rel = filePath ? relFromPublic(filePath) : '';
   const page = rel.includes('/') ? null : pageName(rel);
-  // INF-02 (R64): the pinned, exact-origin CORS header is sent ONLY on static asset
-  // responses a cross-origin page could legitimately fetch (and where Vercel's CDN
-  // would otherwise default to ACAO:*). Same-origin HTML documents get no
-  // Access-Control-* header. Mirrors the asset-scoped rule in vercel.json / _headers.
-  if (/\.(?:js|mjs|css|map|json|webmanifest|woff2?|ttf|otf|eot|svg|png|jpe?g|gif|webp|avif|ico|bmp|mp4|webm|ogg|mp3|wav|m4a|wasm)$/i.test(rel)) {
-    h['Access-Control-Allow-Origin'] = 'https://www.helm.events';
-  }
+  // INF-02 (R64) + R147: the pinned, exact-origin CORS header goes on EVERY response - documents too (Vercel's
+  // CDN answered ACAO:* on HTML pages, which vercel.json only pinned on assets). Same value + Vary: Origin as
+  // the catch-all rule in vercel.json / _headers (test/headers-parity.test.mjs).
+  h['Access-Control-Allow-Origin'] = 'https://www.helm.events';
+  h['Vary'] = 'Origin';
   const variant = page && CSP_BY_PAGE[page];
   if (variant) h['Content-Security-Policy'] = CSP[variant];
   if (page === 'login' || page === 'reset-password') h['Cross-Origin-Opener-Policy'] = AUTH_COOP;   // r26: Google sign-in pop-up, sign-in pages only (same as vercel.json / _headers)
@@ -316,9 +314,9 @@ function sendFileRes(res, filePath, buf, req, status = 200) {
   res.writeHead(status, {
     'Content-Type': type,
     'Cache-Control': status === 200 ? cacheControlFor(filePath, query) : 'no-cache',
-    'Vary': 'Accept-Encoding',
     ...(gz ? { 'Content-Encoding': 'gzip' } : {}),
     ...securityHeadersFor(req, filePath),
+    'Vary': 'Accept-Encoding, Origin',   // r147: both (the security headers' Vary: Origin + compression)
   });
   res.end(body);
 }

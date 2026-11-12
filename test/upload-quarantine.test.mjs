@@ -45,7 +45,7 @@ t('verify-upload: dormant by default, secret-gated, body-capped, no caller-suppl
 });
 t('verify-upload: AV only to an https allowlisted host with a timeout; no hard delete', () => {
   assert.match(fn, /u\.protocol !== "https:"[^\n]*!hosts\.includes/);
-  assert.match(fn, /AbortController/);
+  assert.match(fn, /fetchWithTimeout\(cfg\.url\.toString\(\), \{[^\n]*\}, cfg\.timeout\)/);   // R142: the shared deadline helper (was a local AbortController)
   assert.doesNotMatch(fn, /method: "DELETE"|\.remove\(/);
 });
 t('client: scanStatus is best-effort and event files show Scanning…', () => {

@@ -84,7 +84,10 @@ t('trial.js: CSP-safe DOM, localStorage guarded, checkout link, version bumped',
   assert.match(TJS, /function seen\(key\) \{ try \{/); assert.match(TJS, /function markSeen\(key\) \{ try \{/);
   assert.match(TJS, /checkout\.html\?next=/);
   assert.match(TJS, /renderReminder\(reminderSpec\(t, Date\.now\(\)\)\)/);
-  assert.match(API, /const TRIAL_BANNER_VERSION = "11";/);
+  // the banner cache-buster is bumped on every trial.js change since (it is "21"+ now); pin that it is bumped
+  // past the version this feature shipped with, not the exact number
+  const tbv = /const TRIAL_BANNER_VERSION = "(\d+)";/.exec(API); assert.ok(tbv, 'TRIAL_BANNER_VERSION');
+  assert.ok(Number(tbv[1]) >= 11, 'TRIAL_BANNER_VERSION bumped (>= 11)');
 });
 
 t('SQL milestone mirror + labels match the card', () => {
@@ -167,11 +170,13 @@ t('APPLY = migration + VERIFY; MANIFEST line', () => {
   assert.match(read('supabase/migrations/MANIFEST'), /forward\s+supabase\/migrations\/0120_trial_reminders\.sql/);
 });
 console.log(`\n${n} passed`);
-t('0123: demo-mode admins get "Start my own studio"; Choose a plan offers start-fresh first', () => {
-  assert.equal(trial.bannerSpec({ is_trial_org: true, days_left: 5, is_admin: true, trial_mode: 'demo' }).fresh, 'Start my own studio');
-  assert.equal(trial.bannerSpec({ is_trial_org: true, days_left: 5, is_admin: false, trial_mode: 'demo' }).fresh, null);
-  assert.equal(trial.bannerSpec({ is_trial_org: true, days_left: 5, is_admin: true, trial_mode: 'own' }).fresh, null);
-  assert.equal(trial.planHref({ is_admin: true, trial_mode: 'demo' }, 'leads'), 'dashboard.html?demo=fresh&then=checkout');
+// Trial 0180 (3c6acc72) replaced the 0123 "Start my own studio" / start-fresh-first idea: the trial strip is only
+// "Free trial - N days left" + "Choose a plan", which ALWAYS goes straight to /checkout (no sample-removal detour).
+t('0180: no "Start my own studio"; Choose a plan always goes straight to checkout', () => {
+  for (const mode of ['demo', 'own']) for (const is_admin of [true, false])
+    assert.ok(!trial.bannerSpec({ is_trial_org: true, days_left: 5, is_admin, trial_mode: mode }).fresh, mode + '/' + is_admin);
+  assert.ok(!/Start my own studio/.test(TJS.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')), 'no "Start my own studio" left in trial.js code');
+  assert.equal(trial.planHref({ is_admin: true, trial_mode: 'demo' }, 'leads'), 'checkout.html?next=leads.html');
   assert.equal(trial.planHref({ is_admin: true, trial_mode: 'demo', ended: true }, 'leads'), 'checkout.html?next=leads.html');
   assert.equal(trial.planHref({ is_admin: true, trial_mode: 'own' }, 'leads'), 'checkout.html?next=leads.html');
 });

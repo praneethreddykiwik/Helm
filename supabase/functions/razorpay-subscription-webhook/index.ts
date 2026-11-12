@@ -34,8 +34,11 @@
 //
 // Responses: 401 bad/missing signature · 400 stale or malformed · 200 ignored/unmatched/ok ·
 // 500 DB error (Razorpay retries). Logs never contain payload contents.
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
-import { errTag, UUID_RE } from "../_shared/cors.ts";
+// R142: every 500 also reaches Sentry when SENTRY_DSN is set (one event per delivery; function name + error tag only);
+// logs are JSON lines with the request id (_shared/log.ts).
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
+import { errTag, sentryOnce, UUID_RE } from "../_shared/cors.ts";
+import { logger } from "../_shared/log.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped, WEBHOOK_BODY_LIMIT } from "../_shared/limits.ts";
 
 const enc = new TextEncoder();
@@ -62,6 +65,8 @@ const KNOWN = new Set(["subscription.activated", "subscription.authenticated", "
   "subscription.cancelled", "subscription.paused", "subscription.resumed", "subscription.completed", "subscription.updated"]);
 
 Deno.serve(async (req) => {
+  const log = logger("razorpay-subscription-webhook", req);
+  const report = sentryOnce(req);
   try {
     if (Deno.env.get("HELM_RAZORPAY_SUBSCRIPTIONS_ENABLED") !== "true") return text("dormant");
     if (req.method !== "POST") return text("method not allowed", 405);
@@ -96,11 +101,11 @@ Deno.serve(async (req) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const { data: row, error: sErr } = await admin.from("studio_subscriptions")
       .select("org_id").eq("provider_subscription_id", subId).maybeSingle();
-    if (sErr) { console.error("sub-webhook: lookup failed", errTag(sErr)); return text("error", 500); }
+    if (sErr) { report.error(sErr); log.error("lookup failed", errTag(sErr)); return text("error", 500); }
     const org = row?.org_id ? String(row.org_id) : null;
-    if (!org || !UUID_RE.test(org)) { console.error("sub-webhook: subscription matched no studio"); return text("unmatched", 200); }
+    if (!org || !UUID_RE.test(org)) { log.error("subscription matched no studio"); return text("unmatched", 200); }
     if (noteOrg !== null && String(noteOrg).toLowerCase() !== org.toLowerCase()) {
-      console.error("sub-webhook: notes.org_id disagrees with subscription owner");
+      log.error("notes.org_id disagrees with subscription owner");
       return text("org mismatch", 200);
     }
 
@@ -115,12 +120,13 @@ Deno.serve(async (req) => {
       // Helm attached to the studio - the same activation step as HQ "Activate plan"
       p_provider_subscription_id: subId,
     });
-    if (rErr) { console.error("sub-webhook: settle failed", errTag(rErr)); return text("error", 500); }
+    if (rErr) { report.error(rErr); log.error("settle failed", errTag(rErr)); return text("error", 500); }
     if (out && typeof out === "object" && out.result === "replay") return text("already recorded (idempotent)");
     return text("ok");
   } catch (e) {
     if (e instanceof BodyTooLarge) return text("payload too large", 413);
-    console.error("sub-webhook error", errTag(e));
+    log.error("sub-webhook error", errTag(e));
+    report.error(e);
     return text("error", 500);
   }
 });

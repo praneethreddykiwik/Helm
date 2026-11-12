@@ -8,7 +8,7 @@ or network calls, no deploy, no DB, no git.**
 - `_shared/cors.ts` is imported directly (pure functions).
 - The 4 functions call `Deno.serve(handler)` at module top level. `harness.ts`
   stubs `Deno.serve` to **capture the handler**, then invokes it with crafted `Request`s.
-- `import_map.json` redirects `npm:@supabase/supabase-js@2.118.0` to a
+- `import_map.json` redirects `npm:@supabase/supabase-js@2.119.0` to a
   local programmable mock (`mocks/supabase-js.ts`) — the real SDK is **never fetched**.
 - `Deno.env`, `fetch` (MSG91 / Meta Graph / Razorpay / Resend) are all stubbed.
   The mock `fetch` **throws** on any URL a test did not explicitly allow.
@@ -23,9 +23,12 @@ call went to the mock and **zero real network calls happened**.
 ## Run
 ```
 cd tests/edge
-deno test --allow-env --allow-read --no-check --import-map=import_map.json
+DENO_NO_PACKAGE_JSON=1 deno test --lock=../../deno.lock --frozen --allow-env --allow-read --no-check --import-map=import_map.json
 ```
-Result: **47 passed | 0 failed** (audit Phase 8 rewrite; also run by `test/edge-functions-hardening.test.mjs`). (Runtime-verified; no `--allow-net`.)
+Result: **341 passed | 0 failed** (R145, Deno 2.9.8; also run by `test/edge-functions-hardening.test.mjs`
+and by the `edge-tests` job in `.github/workflows/ci.yml` on every push / PR). (Runtime-verified; no `--allow-net`.)
+`DENO_NO_PACKAGE_JSON=1` + `--lock=../../deno.lock` keep the lock independent of package.json (npm packages are
+never resolved here); after adding a new remote import, refresh the lock by running the same command without `--frozen`.
 
 ## Per-function matrix
 

@@ -6,6 +6,9 @@
 // "Needs attention"), so the studio reconnects instead of messages failing quietly. Tokens are never logged.
 import { errTag } from "./cors.ts";
 import { graphError, graphVersion } from "./wa-studio.mjs";
+import { fetchWithTimeout } from "./http.ts";   // R142: Meta call has a deadline (timeout = "could not reach WhatsApp")
+import { logger } from "./log.ts";
+const log = logger("wa-sender");
 
 export type WaSender = { source: "studio" | "helm"; orgId: string | null; phoneId: string; token: string; wabaId: string };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -23,7 +26,7 @@ export async function studioSender(admin: any, orgId: string | null | undefined)
     const token = String(data.token || ""), phoneId = String(data.phone_number_id || "");
     if (token.length < 20 || !DIGITS.test(phoneId)) return null;
     return { source: "studio", orgId: org, phoneId, token, wabaId: String(data.waba_id || "") };
-  } catch (e) { console.error("wa-sender: lookup failed", errTag(e)); return null; }
+  } catch (e) { log.error("lookup failed", errTag(e)); return null; }
 }
 
 // a studio sender per org, looked up once per run (background senders)
@@ -77,28 +80,28 @@ export type WaResult = { ok: boolean; status: number; wamid: string | null; kind
 // deno-lint-ignore no-explicit-any
 export async function waPost(admin: any, sender: WaSender, payload: Record<string, unknown>): Promise<WaResult> {
   const url = `https://graph.facebook.com/${graphVersion(env)}/${encodeURIComponent(sender.phoneId)}/messages`;
-  let r: Response;
+  let r: Response, raw: string;
   try {
-    r = await fetch(url, {
+    r = await fetchWithTimeout(url, {
       method: "POST", redirect: "error",
       headers: { "Authorization": "Bearer " + sender.token, "Content-Type": "application/json" },
       body: JSON.stringify({ messaging_product: "whatsapp", ...payload }),
     });
+    raw = await r.text();   // R142: inside the deadline - a stalled answer is the same "could not reach" failure
   } catch (e) {
-    console.error("wa-sender: network", errTag(e));
+    log.error("network", errTag(e));
     return { ok: false, status: 0, wamid: null, kind: "other", text: "could not reach WhatsApp" };
   }
-  const raw = await r.text();
   // deno-lint-ignore no-explicit-any
   let body: any = null;
   try { body = JSON.parse(raw); } catch (_) { body = null; }
   if (r.ok) return { ok: true, status: r.status, wamid: body?.messages?.[0]?.id ?? null, kind: "", text: "" };
   const g = graphError(r.status, body);
-  console.error("wa-sender: meta refused", r.status, g.kind, sender.source);
+  log.error("meta refused", r.status, { kind: g.kind, source: sender.source });
   if (sender.source === "studio" && sender.orgId && (g.kind === "token" || g.kind === "permission")) {
     try {
       await admin.rpc("mark_org_integration", { p_org: sender.orgId, p_kind: "whatsapp", p_status: "error", p_error: g.text });
-    } catch (e) { console.error("wa-sender: mark failed", errTag(e)); }
+    } catch (e) { log.error("mark failed", errTag(e)); }
   }
   return { ok: false, status: r.status, wamid: null, kind: g.kind, text: g.text };
 }

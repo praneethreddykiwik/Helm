@@ -45,6 +45,9 @@ jobs:
         run: node scripts/build-dist.mjs --check
       - name: Migration-canon consistency guard (repo-only, no DB)
         run: node scripts/check-migration-canon.mjs
+      # R150: the owner's prod checker is generated from MANIFEST - every new migration must appear in it
+      - name: Prod migration checker current (CHECK-PROD-MIGRATIONS.sql vs MANIFEST)
+        run: node scripts/gen-check-prod.mjs --check && node test/r150-check-prod.test.mjs
       - name: OTP-safety guard (no hardcoded PIN, repo-only)
         run: node scripts/check-otp-safety.mjs
       - name: Deferred integrations stay disabled (Razorpay/WhatsApp)
@@ -73,3 +76,31 @@ jobs:
         run: node scripts/check-deploy-static.mjs
         env:
           DEPLOY_CHECK_URL: ${{ vars.DEPLOY_CHECK_URL }}
+
+  # R145: the Deno edge-function suite (tests/edge, mocks only). Supabase and every provider (Meta, Resend, MSG91,
+  # Razorpay, Turnstile) are stubbed in-process; the test run gets NO --allow-net, so a real call fails the run.
+  # No secrets. Only the locked test helpers (deno.land/std, jsr @std/assert) are downloaded, checked against deno.lock.
+  edge-tests:
+    runs-on: ubuntu-24.04          # pinned like the DB jobs (R136b: ubuntu-latest 26.04 DNS failures)
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      NO_COLOR: '1'
+      # npm packages are never resolved here (supabase-js -> tests/edge/mocks); keeps deno.lock independent of package.json
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.8
+          cache: true               # DENO_DIR cached, keyed on deno.lock
+      - name: Fetch locked test dependencies (frozen deno.lock)
+        run: deno cache --lock=deno.lock --frozen --import-map=tests/edge/import_map.json tests/edge/*.test.ts supabase/functions/_shared/smtp_test.ts
+      - name: Edge-function tests (tests/edge) - no network permission, cached dependencies only
+        working-directory: tests/edge
+        run: deno test --lock=../../deno.lock --frozen --cached-only --allow-env --allow-read --no-check --import-map=import_map.json
+      - name: SMTP client test (fake server on 127.0.0.1 only)
+        run: deno test --lock=deno.lock --frozen --cached-only --allow-net=127.0.0.1 --allow-env --allow-read --no-check supabase/functions/_shared/smtp_test.ts

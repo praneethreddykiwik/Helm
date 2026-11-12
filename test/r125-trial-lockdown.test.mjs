@@ -121,7 +121,13 @@ t('the frame script does nothing on any other address', () => {
   assert.match(FR, /var m = \/\^\\\/trial-preview-\(\[a-z\]\+\)\\\/\?\$\/\.exec\(w\.location\.pathname\);\s+if \(!m\) return;/);
   assert.match(FR, /if \(!bridge\) return;/);
   assert.match(FR, /w\.parent\.location\.origin === w\.location\.origin/);
-  for (const f of ['approve', 'portal', 'booklet', 'proposal-view', 'invite', 'work', 'vendor-request', 'enquiry']) assert.match(rd('public/' + f + '.html'), /<script src="\/trial-preview-frame\.js\?v=\d+"><\/script>\n<script src="\/?trusted-types\.js/, f);
+  // R139: trusted-types.js (Trusted Types, enforced) runs first (or right after this sink-free frame script); the frame
+  // script still runs before the page's own scripts (console-warning / telemetry / config / store-api).
+  for (const f of ['approve', 'portal', 'booklet', 'proposal-view', 'invite', 'work', 'vendor-request', 'enquiry']) {
+    const h = rd('public/' + f + '.html');
+    assert.match(h, /<script src="\/trial-preview-frame\.js\?v=\d+"><\/script>\n<script src="\/?(?:trusted-types|console-warning)\.js/, f);
+    assert.ok(h.indexOf('/trusted-types.js?v=') < h.indexOf('/console-warning.js?v='), f + ': trusted-types.js before the page scripts');
+  }
   assert.doesNotMatch(FR, /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[1-9a-f][0-9a-f]{11}/, 'the only token in the address is the one that cannot exist');
 });
 t('the frame routes: no token in the address, same-origin only, in vercel.json + server.js + the CSP list', () => {

@@ -53,6 +53,7 @@
         .replace(/eyJ[A-Za-z0-9._-]{10,}/g, '[JWT_REDACTED]')
         .replace(/(access_token|refresh_token|apikey|api_key|authorization|bearer)["':=\s]+[^\s"'&]+/gi, '$1=[REDACTED]')
         .replace(/\b\d{6}\b(?=.*\botp\b)/gi, '[OTP_REDACTED]')
+        .replace(/(\botp\b[\s"':=]{1,3})\d{4,8}\b/gi, '$1[OTP_REDACTED]')   // R140: "otp=123456" / "OTP: 123456" (code AFTER the word)
         .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[EMAIL_REDACTED]')
         .replace(MONEY, '[AMOUNT_REDACTED]')
         .replace(/\b(?:\+?\d[ -]?){9,13}\d\b/g, '[PHONE_REDACTED]');
@@ -70,17 +71,27 @@
     return redact(m[1]) + q;
   }
   var URL_KEYS = /^(url|from|to|href)$/i;
+  // R140: console breadcrumbs keep what was logged in crumb.data.arguments (an ARRAY), and extra can hold
+  // arrays / objects - so every string INSIDE them is scrubbed too (bounded: 3 levels, 20 items, 50 keys).
+  function scrub(v, depth) {
+    if (typeof v === 'string') return redact(v);
+    if (typeof v === 'number') return redact(String(v)) === String(v) ? v : '[REDACTED]';
+    if (!v || typeof v !== 'object') return v;
+    if (depth >= 3) return '[object]';
+    if (Array.isArray(v)) return v.slice(0, 20).map(function (x) { return scrub(x, depth + 1); });
+    var o = {};
+    Object.keys(v).slice(0, 50).forEach(function (k) {
+      o[redact(k)] = (typeof v[k] === 'string' && URL_KEYS.test(k)) ? stripUrl(v[k]) : scrub(v[k], depth + 1);
+    });
+    return o;
+  }
   // Breadcrumbs (navigation from/to, fetch/xhr url, console/ui messages) carry
   // URLs with client-link tokens — scrub every string field of crumb.data.
   function redactBreadcrumb(crumb) {
     try {
       if (!crumb) return crumb;
       if (crumb.message) crumb.message = redact(crumb.message);
-      if (crumb.data && typeof crumb.data === 'object') {
-        Object.keys(crumb.data).forEach(function (k) {
-          if (typeof crumb.data[k] === 'string') crumb.data[k] = URL_KEYS.test(k) ? stripUrl(crumb.data[k]) : redact(crumb.data[k]);
-        });
-      }
+      if (crumb.data && typeof crumb.data === 'object') crumb.data = scrub(crumb.data, 0);   // R140: arrays / objects too
     } catch (e) {}
     return crumb;
   }
@@ -106,7 +117,7 @@
       if (ev.transaction) ev.transaction = stripUrl(ev.transaction);
       // r26: no person on an event - at most an opaque id, never e-mail / name / IP
       if (ev.user) ev.user = ev.user.id ? { id: String(ev.user.id).slice(0, 64) } : undefined;
-      if (ev.extra && typeof ev.extra === 'object') Object.keys(ev.extra).forEach(function (k) { if (typeof ev.extra[k] === 'string') ev.extra[k] = redact(ev.extra[k]); });
+      if (ev.extra && typeof ev.extra === 'object') ev.extra = scrub(ev.extra, 0);   // R140: arrays / objects too
       if (ev.request) {
         if (ev.request.url) ev.request.url = stripUrl(ev.request.url);
         if (ev.request.data) ev.request.data = '[REDACTED]';
@@ -188,8 +199,8 @@
   // connect-src allows ONLY the DSN's exact ingest host (audit run-3 client/csp: a
   // *.ingest.sentry.io wildcard lets any Sentry org receive data). scripts/gen-csp.mjs reads
   // the DSN from config.js and writes that one host into vercel.json + public/_headers.
-  var SENTRY_SRC = '/vendor/sentry-8.55.2.bundle.min.js';   // R138: self-hosted copy (no outside CDN)
-  var SENTRY_SRI = 'sha384-2pQ5FCOlRmRkz8BBZIW/Yf2pGbnZHHaCCriaUbTwegcr+6Jh0tJKqvi31rfm39XF';
+  var SENTRY_SRC = '/vendor/sentry-10.78.0.bundle.min.js';  // R138: self-hosted copy (no outside CDN); R140: 8.55.2 -> 10.78.0
+  var SENTRY_SRI = 'sha384-0hZhlJ3au+QHKyEFlFRSWB9AzzkYTyqT+obBPo2Sjxy/us6VDdbKsJ8v2+3DAqoh';
   var sentryArmed = false, sentryReady = false;
   function loadSentry() {
     refresh();
@@ -199,9 +210,9 @@
       var sc = document.createElement('script');
       // Pinned, self-hosted bundle WITH Subresource Integrity (audit run-3
       // supply-chain/telemetry/sentry-cdn-script-no-sri): the browser refuses to run
-      // the file unless its bytes hash to this value. The sha384 is Sentry's own
-      // R138: the CDN file was downloaded 2026-11-11 and matched Sentry's published sha384
-      // (lNMClDek...); only its last line ("//# sourceMappingURL=bundle.min.js.map") was removed so
+      // the file unless its bytes hash to this value.
+      // R140: the 10.78.0 CDN file was downloaded 2026-11-11 and matched Sentry's published sha384
+      // (5/nIGpua...); only its last line ("//# sourceMappingURL=bundle.min.js.map") was removed so
       // DevTools stops asking for a map we do not ship. This hash is of that self-hosted file.
       // Changing the version means a new vendor file + this hash (public/vendor/README.md).
       sc.src = SENTRY_SRC;
@@ -215,8 +226,9 @@
               environment: CFG.env || 'production',
               release: CFG.release || undefined,
               sampleRate: 1.0,                                  // every error
-              tracesSampleRate: traceRate(CFG.tracesSampleRate), // 0 .. 0.1
-              sendDefaultPii: false,
+              // R140: SDK v9+ treats ANY defined tracesSampleRate (even 0) as "tracing on"; leave it out when off
+              tracesSampleRate: traceRate(CFG.tracesSampleRate) || undefined, // undefined (off) or (0 .. 0.1]
+              sendDefaultPii: false,                            // v10: also means no IP-address inference
               maxBreadcrumbs: 30,
               // r26: noise that is never a Helm bug (browser quirks, add-ons, the visitor's own network)
               ignoreErrors: ['ResizeObserver loop limit exceeded', 'ResizeObserver loop completed with undelivered notifications',

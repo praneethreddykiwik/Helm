@@ -22,8 +22,8 @@
 // codes - never an address, a phone number, a name or a code. Outbound HTTP goes only to a
 // FIXED host allowlist; no URL is ever taken from the database except the approval path,
 // which must match /approve?token=<uuid> and is joined to the fixed site origin.
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
-import { errTag } from "../_shared/cors.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
+import { errTag, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/limits.ts";
 import { render } from "./templates.ts";
 import { postalAddress, txFooter, withFooter } from "../_shared/email-compliance.mjs";
@@ -31,6 +31,9 @@ import { brandMode, cleanName, HELM_BRAND } from "../_shared/mailer.ts";
 import { orgOfRow, senderCache, waPost, type WaSender } from "../_shared/wa-sender.ts";   // R129 (0337)
 import { noticeContent } from "../_shared/wa-studio.mjs";
 import { rowReplyTo } from "../_shared/reply-to.mjs";   // R107: Reply-To = business e-mail, else the studio owner's
+import { logger } from "../_shared/log.ts";
+import { fetchWithTimeout } from "../_shared/http.ts";   // R142: the Resend call has a 10 s deadline (timeout = failed -> retry)
+const L = logger("pkg-client-notify");
 
 const enc = new TextEncoder();
 const ALLOWED_HOSTS = new Set(["api.resend.com", "graph.facebook.com"]);
@@ -50,7 +53,7 @@ export async function secretMatches(given: string, expected: string): Promise<bo
 async function safeFetch(url: string, init: RequestInit): Promise<Response> {
   const u = new URL(url);
   if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname)) throw new Error("host not allowed");
-  return await fetch(u.toString(), { ...init, redirect: "error" });
+  return await fetchWithTimeout(u.toString(), { ...init, redirect: "error" });
 }
 
 type Res = "sent" | "skipped" | "failed";
@@ -74,9 +77,9 @@ async function sendEmail(id: string, to: string, subject: string, html: string, 
       body: JSON.stringify({ from, to: [to], subject, html: _f.html, text: _f.text, ...(replyTo && EMAIL.test(replyTo) ? { reply_to: replyTo } : {}) }),
     });
     await r.text();
-    if (!r.ok) console.error("pkg-client-notify: email status", r.status);
+    if (!r.ok) L.error("email status", r.status);
     return r.ok ? "sent" : "failed";
-  } catch (e) { console.error("pkg-client-notify: email error", errTag(e)); return "failed"; }
+  } catch (e) { L.error("email error", errTag(e)); return "failed"; }
 }
 
 // R129 (0337): from the row's STUDIO's own connected number (helm_notice template in the studio's account, one body
@@ -97,14 +100,16 @@ async function sendWhatsApp(to: string, text: string, sender: WaSender | null, a
 async function waStopped(admin: any, to: string): Promise<Res | null> {
   try {
     const { data, error } = await admin.rpc("wa_recipient_opted_out", { p_phone: to });
-    if (error) { console.error("pkg-client-notify: stop check failed", errTag(error)); return "failed"; }
+    if (error) { L.error("stop check failed", errTag(error)); return "failed"; }
     return data === true ? "skipped" : null;
-  } catch (e) { console.error("pkg-client-notify: stop check error", errTag(e)); return "failed"; }
+  } catch (e) { L.error("stop check error", errTag(e)); return "failed"; }
 }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
+  const log = logger("pkg-client-notify", req);   // R142: JSON log lines with the request id
+  const report = sentryOnce(req);   // R142: one Sentry event per run at most (function name + tag only)
   try {
     if (Deno.env.get("HELM_PKG_NOTIFY_ENABLED") !== "true") return json({ status: "dormant" });
     if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -117,7 +122,7 @@ Deno.serve(async (req) => {
     const batch = Math.min(100, Math.max(1, Number(Deno.env.get("PKG_NOTIFY_BATCH")) || 25));
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const { data: rows, error } = await admin.rpc("pkg_outbox_claim", { p_limit: batch });
-    if (error) { console.error("pkg-client-notify: claim failed", errTag(error)); return json({ error: "internal error" }, 500); }
+    if (error) { log.error("claim failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
     const rtCache = new Map<string, string>();
@@ -135,14 +140,16 @@ Deno.serve(async (req) => {
       }
       else if (msg && channel === "whatsapp") res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text, await waSenderOf(await orgOfRow(admin, "pkg_outbox", id)), admin);
       const { error: mErr } = await admin.rpc("pkg_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
-      if (mErr) { console.error("pkg-client-notify: mark failed", errTag(mErr)); counts.failed++; continue; }
+      if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
-    console.log("pkg-client-notify: run", JSON.stringify(counts));
+    log.info("run", counts);
+    if (counts.failed > 0) report.fail("send_failed");   // failed sends (retried next run) or rows not marked
     return json({ status: "ok", ...counts });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
-    console.error("pkg-client-notify error", errTag(e));
+    log.error("pkg-client-notify error", errTag(e));
+    report.error(e);
     return json({ error: "internal error" }, 500);
   }
 });

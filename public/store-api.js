@@ -1212,10 +1212,30 @@ window.HelmUrl = HelmUrl;
       return k ? String(h[k]) : "";
     } catch (e) { return ""; }
   }
+  /* R142: a Supabase call that never answers (a stalled network, a captive portal, a proxy holding the connection) used
+     to leave its caller waiting forever - a guarded Save button stayed disabled for good. Calls made through this
+     wrapper now give up after FETCH_TIMEOUT_MS and fail like any other network error, so the page shows the usual
+     "Couldn't reach the server - check your connection and try again" (BPUI.isNetworkError / friendlyError).
+     Not applied when the caller passed its own signal (it decides), when the request is not a plain URL string, or
+     to Storage (photo / document uploads and downloads can take longer on a slow line) and Edge Functions (they have
+     their own deadlines; renders use their own fetch). */
+  const FETCH_TIMEOUT_MS = 30000;
+  const NO_FETCH_TIMEOUT = /\/(storage|functions)\/v1\//;
+  function timedFetch(input, init) {
+    if ((init && init.signal) || typeof input !== "string" || NO_FETCH_TIMEOUT.test(input) ||
+        typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function") return global.fetch(input, init);
+    const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+    return global.fetch(input, Object.assign({}, init || {}, { signal })).catch((err) => {
+      if (signal.aborted && err && (err.name === "TimeoutError" || err.name === "AbortError")) {
+        const e = new TypeError("Failed to fetch: the server did not answer in time"); e.timeout = true; throw e;
+      }
+      throw err;
+    });
+  }
   function coalescedFetch(input, init) {
     let u = "", method = "GET";
     try { u = typeof input === "string" ? input : (input && input.url) || ""; method = String((init && init.method) || (input && input.method) || "GET").toUpperCase(); } catch (e) {}
-    if (!/\/rest\/v1\//.test(u)) return global.fetch(input, init);
+    if (!/\/rest\/v1\//.test(u)) return timedFetch(input, init);
     /* never answer a data read from the browser's HTTP cache: a Back/Forward navigation makes the browser prefer
        cached responses, which re-showed minutes-old rows (dashboard "Recent activity" said "14m ago" while the
        Audit log page, opened fresh, was current). Oct 2026. */
@@ -1225,7 +1245,7 @@ window.HelmUrl = HelmUrl;
     if (!isRead) {
       readCache.clear(); memoClear(); if (!SWR_KEEP_RPCS.test(u)) swrClear();
       // a list read that started while this write was running must not be kept as the fresh answer
-      const wp = global.fetch(input, init); const after = () => { readCache.clear(); memoClear(); };
+      const wp = timedFetch(input, init); const after = () => { readCache.clear(); memoClear(); };
       wp.then(after, after); return wp;
     }
     const key = [method, u, (init && init.body) || "", hdrOf(init, input, "Authorization"), hdrOf(init, input, "Accept"),
@@ -1233,7 +1253,7 @@ window.HelmUrl = HelmUrl;
     const now = Date.now();
     const hit = readCache.get(key);
     if (hit && now - hit.t < READ_TTL_MS) return hit.p.then((r) => r.clone());
-    const p = global.fetch(input, init);
+    const p = timedFetch(input, init);
     readCache.set(key, { t: now, p });
     p.then((r) => { if (!r.ok) readCache.delete(key); }, () => readCache.delete(key));
     if (readCache.size > 200) { for (const [k, v] of readCache) if (now - v.t >= READ_TTL_MS) readCache.delete(k); }
@@ -1732,9 +1752,9 @@ window.HelmUrl = HelmUrl;
   /* ---------------- Supabase tier ---------------- */
   // Pinned supabase-js build — update together with public/vendor/README.md.
   const SUPABASE_JS = {
-    version: "2.118.0",
-    file: "vendor/supabase-js-2.118.0.min.js",
-    integrity: "sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK",
+    version: "2.119.0",
+    file: "vendor/supabase-js-2.119.0.min.js",
+    integrity: "sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O",
   };
   function vendorUrl(rel) {
     try { if (SELF_SRC) return new URL(rel, SELF_SRC).href; } catch (e) {}
@@ -11864,6 +11884,8 @@ window.HelmUrl = HelmUrl;
     var m = errMsg(e), n = (e && e.name) || "";
     if (n === "AuthRetryableFetchError" || n === "NetworkError") return true;
     if (/failed to fetch|networkerror|network request failed|load failed|network error|fetch failed|err_internet_disconnected|err_network/i.test(m)) return true;
+    // R142: a request that passed its deadline (store fetch wrapper: 30 s) - also when it stalled while reading the answer
+    if (n === "TimeoutError" || /\bTimeoutError\b|signal timed out/i.test(m)) return true;
     return (n === "TypeError" || e instanceof TypeError) && /fetch|network/i.test(m);
   }
   function isPermissionError(e) {

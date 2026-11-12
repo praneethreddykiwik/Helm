@@ -30,7 +30,7 @@
 //
 // Limits: 20 status / 5 tests per user per 10 minutes, 60 per IP per minute, WhatsApp tests 5 per studio per day.
 // Logs carry only status codes - never an address, a phone number or a key.
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { bearer, errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { postalAddress, txFooter, withFooter } from "../_shared/email-compliance.mjs";
@@ -38,6 +38,8 @@ import { TRIAL_NO_SEND_MSG, trialSendBlocked } from "../_shared/trial-guard.ts";
 import { channelStatus, fromHeader, maskEmail, maskPhone, PHONE_RE, EMAIL_RE, replyToOf, testEmail, waTargetRefusal, optOutTableMissing, waTestPerDay, TEST_TEXT } from "./logic.mjs";
 import { studioSender, waPost } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
 import { noticeContent } from "../_shared/wa-studio.mjs";
+import { logger } from "../_shared/log.ts";
+import { fetchWithTimeout, isTimeout } from "../_shared/http.ts";   // R142: the Resend test call has a deadline
 
 const DAY_MS = 86_400_000;
 
@@ -45,11 +47,12 @@ const ALLOWED_HOSTS = new Set(["api.resend.com", "graph.facebook.com"]);
 async function safeFetch(url: string, init: RequestInit): Promise<Response> {
   const u = new URL(url);
   if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname)) throw new Error("host not allowed");
-  return await fetch(u.toString(), { ...init, redirect: "error" });
+  return await fetchWithTimeout(u.toString(), { ...init, redirect: "error" });
 }
 const env = (k: string) => Deno.env.get(k);
 
 Deno.serve(async (req) => {
+  const log = logger("integrations-test", req);   // R142: JSON log lines with the request id
   const { cors, json, serverError } = responders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -87,7 +90,7 @@ Deno.serve(async (req) => {
     const { data: t, error: tErr } = await asCaller.rpc("integrations_test_target", {});
     if (tErr || !t) {
       if (String(tErr?.code || "") === "42501") return json({ error: "only people who can edit Settings can send a test" }, 403);
-      console.error("integrations-test: target failed", errTag(tErr));
+      log.error("target failed", errTag(tErr));
       return json({ error: "apply APPLY-0150.sql first" }, 503);
     }
     const off = String(env("HELM_INTEGRATIONS_TEST_ENABLED") ?? "").trim().toLowerCase() === "false";
@@ -100,13 +103,21 @@ Deno.serve(async (req) => {
       const shown = { to: maskEmail(to), from: st.email.live ? from : fromHeader("", t.from_name, t.studio_name).replace(/<[^>]*>/, "<Helm's sending address>"), reply_to: reply || null };
       if (!st.email.live || off) return json({ mode: "simulated", sent: false, reason: off ? "test sending is switched off" : "RESEND_API_KEY is not set yet", ...shown });
       const msg = testEmail(t.studio_name);
-      const r = await safeFetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + (env("RESEND_API_KEY") || ""), "Content-Type": "application/json" },
-        body: JSON.stringify({ from, to: [to], subject: msg.subject, text: withFooter({ text: msg.text }, txFooter("test", { app: Deno.env.get("APP_URL"), address: postalAddress((k: string) => Deno.env.get(k)) })).text, ...(reply ? { reply_to: reply } : {}) }),
-      });
-      await r.text();
-      if (!r.ok) { console.error("integrations-test: email status", r.status); return json({ mode: "live", sent: false, error: "the e-mail provider refused it (status " + r.status + ") - check the sending domain is verified", ...shown }); }
+      // R142: a provider that passes its 10 s deadline gets the same "not sent" answer as a refusal, in plain words
+      let r: Response;
+      try {
+        r = await safeFetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + (env("RESEND_API_KEY") || ""), "Content-Type": "application/json" },
+          body: JSON.stringify({ from, to: [to], subject: msg.subject, text: withFooter({ text: msg.text }, txFooter("test", { app: Deno.env.get("APP_URL"), address: postalAddress((k: string) => Deno.env.get(k)) })).text, ...(reply ? { reply_to: reply } : {}) }),
+        });
+        await r.text();
+      } catch (e) {
+        if (!isTimeout(e)) throw e;
+        log.error("email timed out", errTag(e));
+        return json({ mode: "live", sent: false, error: "the e-mail provider did not answer in time - try again in a minute", ...shown });
+      }
+      if (!r.ok) { log.error("email status", r.status); return json({ mode: "live", sent: false, error: "the e-mail provider refused it (status " + r.status + ") - check the sending domain is verified", ...shown }); }
       return json({ mode: "live", sent: true, ...shown });
     }
 
@@ -116,7 +127,7 @@ Deno.serve(async (req) => {
       const c = String(wtErr.code || "");
       if (c === "42501") return json({ error: "only a studio admin can send a test WhatsApp" }, 403);
       if (c === "PGRST202" || c === "42883") return json({ error: "apply APPLY-0300.sql first" }, 503);
-      console.error("integrations-test: whatsapp target failed", errTag(wtErr));
+      log.error("whatsapp target failed", errTag(wtErr));
       return json({ error: "could not check the number - try again" }, 500);
     }
     const refused = waTargetRefusal(wt);
@@ -139,7 +150,7 @@ Deno.serve(async (req) => {
     if (await trialSendBlocked(admin, { org: orgId })) return json({ error: TRIAL_NO_SEND_MSG, trial: true }, 403);
     const { data: optOut, error: ooErr } = await admin.from("whatsapp_opt_outs").select("id")
       .eq("phone", to).eq("opted_out", true).or("org_id.is.null,org_id.eq." + orgId).limit(1).maybeSingle();
-    if (ooErr && !optOutTableMissing(ooErr)) { console.error("integrations-test: opt-out lookup failed", errTag(ooErr)); return json({ error: "could not check the recipient" }, 500); }
+    if (ooErr && !optOutTableMissing(ooErr)) { log.error("opt-out lookup failed", errTag(ooErr)); return json({ error: "could not check the recipient" }, 500); }
     if (optOut) return json({ error: "this number replied STOP to WhatsApp messages - no test was sent", ...shown }, 409);
     const dayWait = await checkLimits([["itest:wa:day:" + orgId, waTestPerDay(env), DAY_MS]]);
     if (dayWait) {

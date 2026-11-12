@@ -145,10 +145,16 @@ t('calendar: cancelled/closed events and done tasks make no staff conflicts', as
   const r = await e.S.calendar.load();
   assert.equal(r.conflicts.filter((c) => c.type === 'staff').length, 0);
 });
-t('source: local-date floor, prefilled past date kept, max logout global, BroadcastChannel kept, NEXT_PAGES', () => {
+t('source: local-date floor, prefilled past date kept, max logout this browser only, BroadcastChannel kept, NEXT_PAGES', () => {
   assert.doesNotMatch(SRC, /el\.setAttribute\("min", new Date\(\)\.toISOString/);
-  assert.match(SRC, /win === "future" \? isoDay\(new Date\(\)\)/); assert.match(SRC, /function isoDay\(d\) \{ return d\.getFullYear\(\)/);
-  assert.match(SRC, /reason === "max" && !fromOtherTab\) \? "global" : "local"/);
+  // studio time zone (02fbbf60): the "future" floor is the STUDIO's today (todayIso -> BPStore.todayLocal), still a
+  // local-date isoDay() fallback - never a UTC toISOString() day
+  assert.match(SRC, /win === "future" \? todayIso\(\)/); assert.match(SRC, /function isoDay\(d\) \{ return d\.getFullYear\(\)/);
+  assert.match(SRC, /function todayIso\(\) \{[^\n]*BPStore\.todayLocal\(\)[^\n]*return isoDay\(new Date\(\)\); \}/);
+  // r20 coord #33 (0848e796): the max-age logout signs out THIS browser only - never "global" (one browser hitting
+  // its cap must not sign the account out everywhere)
+  const lo = SRC.slice(SRC.indexOf('async function limitLogout('), SRC.indexOf('location.replace("login.html?next="', SRC.indexOf('async function limitLogout(')));
+  assert.match(lo, /supa\.auth\.signOut\(\{ scope: "local" \}\)/); assert.doesNotMatch(lo.replace(/\/\/[^\n]*/g, ''), /"global"/);
   assert.match(SRC, /bc\.postMessage\(\{ type: "logout"/);
 });t('reserve() prefers the atomic RPC and falls back when it is not deployed', () => {
   assert.match(SRC, /supa\.rpc\("reserve_inventory"/);

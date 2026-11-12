@@ -86,3 +86,19 @@ export async function assertEmptyAlertRejected(page, trigger) {
   await expect.poll(() => dialogMsg, 'empty submit must raise a validation alert').not.toBeNull();
   return dialogMsg;
 }
+
+// Item 4 (toast screens) — click add with empty required input, expect a BPUI error toast (.bpui-toast) whose text
+// matches `text`. Screens that moved from alert() to BPUI.toast() (e.g. settlement.html addExpense) use this one;
+// assertEmptyAlertRejected stays for screens that still raise a native alert().
+export async function assertEmptyToastRejected(page, trigger, text) {
+  let dialogMsg = null;
+  const onDialog = async (d) => { dialogMsg = d.message(); await d.dismiss().catch(() => {}); };
+  page.on('dialog', onDialog);
+  try {
+    await page.locator(trigger).click();
+    const toast = page.locator('.bpui-toast').filter({ hasText: text }).first();
+    await expect(toast, 'empty submit must surface a validation toast').toBeVisible();
+    expect(dialogMsg, 'validation is a toast now, not a native alert()').toBeNull();
+    return (await toast.textContent()) || '';
+  } finally { page.off('dialog', onDialog); }
+}

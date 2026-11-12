@@ -16,13 +16,14 @@
 // role asks trial_send_blocked first and the request runs exactly like the SIMULATED path (prepare with
 // p_simulate = true, nothing sent, answer { simulated: true, trial: true }). The database refuses a real
 // prepare for a trial studio too (42501 / hint trial_no_send).
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { bearer, errTag, responders, UUID_RE } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { KINDS, templateMessage } from "./logic.mjs";
 import { NOT_CONNECTED_MSG, studioSender, waPost } from "../_shared/wa-sender.ts";
 import { STUDIO_LANG } from "../_shared/wa-studio.mjs";
 import { isTrialNoSend, TRIAL_NO_SEND_MSG, trialSendBlocked } from "../_shared/trial-guard.ts";
+import { logger } from "../_shared/log.ts";
 
 
 function prepFailure(code: string): [number, string] {
@@ -34,6 +35,7 @@ function prepFailure(code: string): [number, string] {
 }
 
 Deno.serve(async (req) => {
+  const log = logger("wa-proposal", req);   // R142: JSON log lines with the request id
   const { cors, json, serverError } = responders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -60,7 +62,7 @@ Deno.serve(async (req) => {
     if (!KINDS.includes(kind)) return json({ error: "unknown message" }, 400);
     // R129: the caller's studio must own the quote (RLS) - its OWN connected number sends it
     const { data: q, error: qErr } = await asCaller.from("quotes").select("id, org_id").eq("id", quoteId).maybeSingle();
-    if (qErr) { console.error("wa-proposal: quote lookup failed", errTag(qErr)); return json({ error: "could not check the event" }, 500); }
+    if (qErr) { log.error("quote lookup failed", errTag(qErr)); return json({ error: "could not check the event" }, 500); }
     if (!q) return json({ error: "you can't send WhatsApp messages for this event" }, 403);
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     // 0179: a free-trial studio never sends for real -> the simulated path
@@ -79,7 +81,7 @@ Deno.serve(async (req) => {
       const [status, msg] = prepFailure(String(pErr?.code || ""));
       return json({ error: msg }, status);
     }
-    if (!live) { console.log("wa-proposal: simulated", kind); return json({ simulated: true, status: "simulated", ...(trial ? { trial: true } : {}) }); }
+    if (!live) { log.info("simulated", { kind }); return json({ simulated: true, status: "simulated", ...(trial ? { trial: true } : {}) }); }
 
     // deno-lint-ignore no-explicit-any
     let msg: any;
@@ -89,11 +91,11 @@ Deno.serve(async (req) => {
     const r = await waPost(admin, sender!, payload);
     const wamid = r.wamid;
     const { error: mErr } = await admin.rpc("wa_proposal_mark", { p_audit_id: prep.audit_id, p_status: r.ok ? "sent" : "failed", p_wamid: wamid });
-    if (mErr) console.error("wa-proposal: mark failed", errTag(mErr));
+    if (mErr) log.error("mark failed", errTag(mErr));
     const { error: lErr } = await admin.from("notifications").insert({
       quote_id: quoteId, channel: "whatsapp", recipient: String(prep.to), kind, status: r.ok ? "sent" : "failed",
     });
-    if (lErr) console.error("wa-proposal: log failed", errTag(lErr));
+    if (lErr) log.error("log failed", errTag(lErr));
     if (!r.ok) return json({ error: "WhatsApp send failed: " + r.text, status: "failed", reason: r.kind }, 502);
     return json({ sent: true, status: "sent", id: wamid });
   } catch (e) {

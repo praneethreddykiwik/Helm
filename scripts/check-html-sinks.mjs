@@ -5,6 +5,7 @@
  * Scans public/**\/*.js and every inline <script> in public/**\/*.html for HTML
  * sinks:   el.innerHTML = / +=     el.outerHTML = / +=
  *          el.insertAdjacentHTML(pos, …)     document.write(…) / writeln(…)
+ *          HelmPrintDoc(win, …)  (R139: print pop-ups, public/trusted-types.js)
  * For each sink it takes the assigned expression and checks EVERY value that
  * is interpolated into markup:
  *   - each ${…} inside a template literal (at any nesting depth, including
@@ -216,7 +217,9 @@ function valuesOf(rhs) {
 
 // audit run-3 ci/check-html-sinks: also srcdoc (iframe HTML), DOMParser.parseFromString
 // and Range.createContextualFragment (both build live DOM from a markup string).
-const SINK = /(?:\.(innerHTML|outerHTML|srcdoc)\s*(\+?=)(?!=)|\.insertAdjacentHTML\s*\(|\bdocument\.write(?:ln)?\s*\(|\.parseFromString\s*\(|\.createContextualFragment\s*\()/g;
+// R139: + HelmPrintDoc(win, html) (public/trusted-types.js: builds a print pop-up from a markup string), so the
+// markup each caller hands it is checked exactly like a document.write().
+const SINK = /(?:\.(innerHTML|outerHTML|srcdoc)\s*(\+?=)(?!=)|\.insertAdjacentHTML\s*\(|\bHelmPrintDoc\s*\(|\bdocument\.write(?:ln)?\s*\(|\.parseFromString\s*\(|\.createContextualFragment\s*\()/g;
 function scan(code, file, baseLine) {
   const hits = [];
   CUR_FILE = file;
@@ -224,7 +227,7 @@ function scan(code, file, baseLine) {
   SINK.lastIndex = 0;
   while ((m = SINK.exec(code))) {
     let start = m.index + m[0].length, rhs;
-    if (m[0].includes('insertAdjacentHTML')) { const comma = skipBalanced(code, start, null); start = comma + 1; rhs = code.slice(start, skipBalanced(code, start, ')')); }
+    if (m[0].includes('insertAdjacentHTML') || m[0].includes('HelmPrintDoc')) { const comma = skipBalanced(code, start, null); start = comma + 1; rhs = code.slice(start, skipBalanced(code, start, ')')); }
     else if (m[0].includes('write') || m[0].includes('createContextualFragment')) rhs = code.slice(start, skipBalanced(code, start, ')'));
     else if (m[0].includes('parseFromString')) rhs = code.slice(start, skipBalanced(code, start, null));   // first argument only
     else rhs = code.slice(start, skipBalanced(code, start, null));

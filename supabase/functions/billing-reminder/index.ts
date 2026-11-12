@@ -29,12 +29,17 @@
 //
 // Logs carry only counts, SQLSTATE codes and HTTP status — never addresses or names.
 // Outbound HTTP goes only to a FIXED host allowlist (no URL is ever taken from input).
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
-import { errTag, escHtml } from "../_shared/cors.ts";
+// R142: the Resend call has a 10 s deadline (_shared/http.ts) - a timeout is a failed send, left unsent and retried next
+// run. A run with failures (or a crash) sends ONE Sentry event (function name + tag only, only with SENTRY_DSN).
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
+import { errTag, escHtml, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/limits.ts";
 import { isTrialKind, trialMessage } from "./trial-email.ts";
 import { studioBillingEmail } from "../_shared/billing-email.ts";
 import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks, withFooter } from "../_shared/email-compliance.mjs";
+import { logger } from "../_shared/log.ts";
+import { fetchWithTimeout } from "../_shared/http.ts";
+const L = logger("billing-reminder");
 
 const enc = new TextEncoder();
 const ALLOWED_HOSTS = new Set(["api.resend.com"]);
@@ -57,7 +62,7 @@ export async function secretMatches(given: string, expected: string): Promise<bo
 async function safeFetch(url: string, init: RequestInit): Promise<Response> {
   const u = new URL(url);
   if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname)) throw new Error("host not allowed");
-  return await fetch(u.toString(), { ...init, redirect: "error" });
+  return await fetchWithTimeout(u.toString(), { ...init, redirect: "error" });
 }
 
 type SendResult = "sent" | "skipped" | "failed";
@@ -81,10 +86,10 @@ async function sendEmail(to: string, subject: string, html: string, extra?: Extr
       body: JSON.stringify({ from, to, subject, html: _f.html, ...(extra?.headers && Object.keys(extra.headers).length ? { headers: extra.headers } : {}) }),
     });
     await r.text();
-    if (!r.ok) console.error("billing-reminder: provider status", r.status);
+    if (!r.ok) L.error("provider status", r.status);
     return r.ok ? "sent" : "failed";
   } catch (e) {
-    console.error("billing-reminder: provider error", errTag(e));
+    L.error("provider error", errTag(e));
     return "failed";
   }
 }
@@ -109,6 +114,8 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
+  const log = logger("billing-reminder", req);   // R142: JSON log lines with the request id
+  const report = sentryOnce(req);                // R142: one Sentry event per run at most
   try {
     if (Deno.env.get("HELM_BILLING_REMINDERS_ENABLED") !== "true") return json({ status: "dormant" });
     if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -129,7 +136,7 @@ Deno.serve(async (req) => {
     if (error && String((error as { code?: string }).code || "") === "42703") {
       ({ data: rows, error } = await due().order("period_end", { ascending: true }).limit(batch));
     }
-    if (error) { console.error("billing-reminder: load failed", errTag(error)); return json({ error: "internal error" }, 500); }
+    if (error) { log.error("load failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
     for (const r of (Array.isArray(rows) ? rows : [])) {
@@ -137,14 +144,14 @@ Deno.serve(async (req) => {
       if (!UUIDISH.test(id) || !(["due_soon", "past_due"].includes(kind) || isTrialKind(kind))) { counts.invalid++; continue; }
       // R119 (0327): still due? (too old / paid since / plan moved on -> closed by the database, never sent)
       const { data: chk, error: cErr } = await admin.rpc("billing_reminder_recheck", { p_id: id });
-      if (cErr) { console.error("billing-reminder: recheck failed", errTag(cErr)); counts.failed++; continue; }
+      if (cErr) { log.error("recheck failed", errTag(cErr)); counts.failed++; continue; }
       if (chk !== "send") { counts.skipped++; continue; }
       const { data: org, error: oErr } = await admin.from("organizations").select("name").eq("id", r.org_id).maybeSingle();
-      if (oErr) { console.error("billing-reminder: studio load failed", errTag(oErr)); counts.failed++; continue; }
+      if (oErr) { log.error("studio load failed", errTag(oErr)); counts.failed++; continue; }
       const msg = message(kind, String(org?.name || "there"), String(r.period_end ?? ""));
       // r59 (audit E-03): the studio e-mail only once confirmed, else the studio owner's login e-mail
       const billTo = await studioBillingEmail(admin, String(r.org_id));
-      if (billTo === null) { console.error("billing-reminder: studio e-mail lookup failed"); counts.failed++; continue; }
+      if (billTo === null) { log.error("studio e-mail lookup failed"); counts.failed++; continue; }
       const to = billTo;
       let res: SendResult;
       if (isTrialKind(kind)) {
@@ -165,14 +172,16 @@ Deno.serve(async (req) => {
       const { error: uErr } = await admin.from("billing_reminders")
         .update({ sent_at: new Date().toISOString(), channel: res === "sent" ? "email" : "skipped" })
         .eq("id", id).is("sent_at", null);                                  // idempotent mark
-      if (uErr) { console.error("billing-reminder: mark failed", errTag(uErr)); counts.failed++; continue; }
+      if (uErr) { log.error("mark failed", errTag(uErr)); report.error(uErr); counts.failed++; continue; }
       counts[res]++;
     }
-    console.log("billing-reminder: run", JSON.stringify(counts));
+    log.info("run", counts);
+    if (counts.failed > 0) report.fail("send_failed");   // failed sends / checks (left unsent, retried next run)
     return json({ status: "ok", ...counts });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);
-    console.error("billing-reminder error", errTag(e));
+    log.error("billing-reminder error", errTag(e));
+    report.error(e);
     return json({ error: "internal error" }, 500);
   }
 });

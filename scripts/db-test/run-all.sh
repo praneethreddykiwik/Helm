@@ -23,15 +23,22 @@ export PGDATABASE=helm_runall
 # direct (system) change and keeps quiet. Suites expect normal sends, so pin the override off;
 # system-quiet-0164.sql clears it to test the real detection.
 # 0290: the older suites run as if every message were inside the studio send window; r41-send-window-0290.sql turns it on
+# 0342: the older suites expect a failed send to be retried at once and to give up after 5 tries; r143-outbox-backoff-0342.sql turns the backoff on
 # 0296: fixtures / cleanups delete events and vendors as the superuser; the older suites run with the purge mark on
 # (it never helps a delete made AS anon / authenticated). r55-no-hard-delete-0296.sql + the 0184 re-run below turn it off.
-export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
+export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off -c helm.retry_backoff=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
 dropdb --if-exists helm_runall >/dev/null 2>&1; createdb helm_runall
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/00-supabase-shim.sql >/dev/null 2>&1
 
 fail=0
 echo "== clean install =="; bash scripts/db-migrate.sh --apply 2>&1 | grep -oE "applied=[0-9]+ skipped=[0-9]+" || fail=1
 echo "== idempotent 2nd run =="; R2="$(bash scripts/db-migrate.sh --apply 2>&1 | grep -oE 'applied=[0-9]+')"; echo "$R2"; [ "$R2" = "applied=0" ] || { echo "NOT idempotent"; fail=1; }
+# R150: the owner's prod checker (CHECK-PROD-MIGRATIONS.sql, generated from MANIFEST) on this fully migrated DB must find
+# every migration: no "missing" / "partial" row. A new migration that fails here makes something conditionally / with dynamic
+# SQL the parser misreads -> fix it in supabase/check-prod-overrides.json ("ignore" / "add"), then node scripts/gen-check-prod.mjs
+echo "== prod migration checker (fresh DB) =="; CHK="$(psql -X -q -A -t -F '|' -v ON_ERROR_STOP=1 -f supabase/CHECK-PROD-MIGRATIONS.sql 2>&1)" || { echo "$CHK" | tail -3; fail=1; }
+echo "$CHK" | awk -F'|' '{c[$2]++} END {for (s in c) printf "%s=%d ", s, c[s]; print ""}'
+if echo "$CHK" | grep -qE '^[^|]+\|(missing|partial)\|'; then echo "  ✗ prod checker:"; echo "$CHK" | grep -E '^[^|]+\|(missing|partial)\|' | head -5; fail=1; else echo "  ✓ prod checker: no missing / partial"; fi
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1
 
 reseed() { psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1; }
@@ -366,6 +373,14 @@ run "r129-studio-whatsapp-0337" "R129-STUDIO-WHATSAPP-0337: ALL PASS \(42/42\)" 
 run "r130-task-reminders-0338" "R130-TASK-REMINDERS-0338: ALL PASS \(40/40\)" psql -q -f tests/db/r130-task-reminders-0338.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
 run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f tests/db/r136-audit-via-0340.sql
+# r139 (0341): per-network limits on the approval link (240), client portal (240) and invitation (600) per 10 minutes - same answers as before, call N+1 from one network refused with a clean 22023 sentence, other networks / no address / read-only calls never blocked, kept __pre0341 copies with no app privilege, crew links untouched (0154), _tl173_trial_locked closed to anon; re-applies itself twice, rolled back
+run "r139-token-limits-0341" "R139-TOKEN-LIMITS-0341: ALL PASS \(25/25\)" psql -q -f tests/db/r139-token-limits-0341.sql
+# r143 (0342): a failed send waits 1/2/4/8/16/30/60 min before the next try (claim skips it meanwhile, send window still holds it), 8 tries on every message queue (package codes 5), expiry + 10 min lease unchanged, task / run-sheet / delivery reminders + codes unchanged; WhatsApp STOP / START newest wins, replay ignored, old 3-argument call works; re-applies itself twice, rolled back
+run "r143-outbox-backoff-0342" "R143-OUTBOX-BACKOFF-0342: ALL PASS \(55/55\)" psql -q -f tests/db/r143-outbox-backoff-0342.sql
+# r148 (0343): RLS speed-up - per-query helpers (has_area / current_org_id / auth.uid / is_admin ...) in 265 policies written as (select ...); same rows + same UPDATE / DELETE / INSERT outcome + same per-row answer pre vs 0343 for admin / manager / sales / coordinator / crew / client / outsider / other studio / anon, nothing left bare, InitPlan in EXPLAIN, faster; re-applies itself (pre -> 0343, second run no change, drift left alone), rolled back
+run "r148-rls-initplan-0343" "R148-RLS-INITPLAN-0343: ALL PASS \(21/21\)" psql -q -f tests/db/r148-rls-initplan-0343.sql
+# r149 (0344): 34 missing indexes (row-security org_id tables, quote -> lead sync, Live Status, every-minute task reminders, outboxes, booking links) all there + valid + used by the planner; comms_outbox_unsub back with the 0165 body, service role only, ok / opted_out / token as comms-dispatch reads them; a prod-like database without it is fixed by 0344 alone; re-applies itself 3x (no index, function or row count changed), rolled back
+run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests/db/r149-indexes-0344.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

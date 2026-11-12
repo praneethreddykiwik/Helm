@@ -29,7 +29,7 @@ import { test, expect } from '@playwright/test';
 import { requireStagingEnv } from '../helpers/env.mjs';
 import { authedPage } from '../helpers/session.mjs';
 import { reStoreOtp, signIn, stubOtpDelivery } from '../helpers/fixtures.mjs';
-import { newRunId, bootstrapCanonicalLead, rpcAs, svcGet, continuityChain } from '../helpers/lifecycle.mjs';
+import { newRunId, bootstrapCanonicalLead, rpcAs, patchAs, svcGet, continuityChain } from '../helpers/lifecycle.mjs';
 
 test.beforeAll(() => requireStagingEnv());
 test.describe.configure({ mode: 'serial', timeout: 120_000 });
@@ -166,6 +166,33 @@ test.describe('@lifecycle continuous single-event journey', () => {
   test('10 Settlement/Closure — manager (W16-02) settles and closes the SAME event', async () => {
     // W16-02 (product decision): manager now has can_edit authority, so manager may
     // settle and close. Prove it end-to-end as manager (any denial throws → fail).
+    //
+    // The 0049/0198 close gate (_a49_close_blockers) rightly refuses to close an event that has no date, whose
+    // event day is not over (studio time zone) or that still owes a balance. Bring the canonical event to a
+    // closable state the way a real studio does, through the same calls the app makes:
+    //   a) the event happened: planner sets the event date to the day before "studio today" (the quotes PATCH
+    //      that store-api.js updateMeta sends - column-level UPDATE grant, RLS applies);
+    //   b) the client paid the rest: manager reads the balance from close_event_blockers (what settlement.html
+    //      and closure.html show) and records it with record_settlement_payment (BPStore.milestones.recordSettlement).
+    const before = await rpcAs('manager', 'close_event_blockers', { p_quote_id: RUN.quoteId });
+    expect(before.studio_today, 'close gate reports the studio day').toBeTruthy();
+    const d = new Date(before.studio_today + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - 1);
+    const eventDay = d.toISOString().slice(0, 10);
+    const dated = await patchAs('planner', `quotes?id=eq.${RUN.quoteId}`, { event_date: eventDay });
+    expect(dated.event_date, 'event date saved on the canonical quote').toBe(eventDay);
+
+    const owed = await rpcAs('manager', 'close_event_blockers', { p_quote_id: RUN.quoteId });
+    expect(owed.no_event_date, 'event now has a date').toBe(false);
+    expect(owed.too_early, 'event day is over').toBe(false);
+    expect(Number(owed.balance_owed), 'a balance is still owed after the advance').toBeGreaterThan(0);
+    await rpcAs('manager', 'record_settlement_payment', {
+      p_quote: RUN.quoteId, p_amount: Number(owed.balance_owed), p_method: 'cash', p_receipt_no: null,
+      p_milestone: null, p_note: 'settlement balance', p_idempotency_key: RUN.id + '-settle1',
+    });
+    const ready = await rpcAs('manager', 'close_event_blockers', { p_quote_id: RUN.quoteId });
+    expect(Number(ready.balance_owed), 'balance fully paid').toBe(0);
+    expect(ready.blocked, 'nothing blocks closing now: ' + JSON.stringify(ready)).toBe(false);
+
     await rpcAs('manager', 'set_closure', {
       p_quote_id: RUN.quoteId, p_rating: 5, p_feedback: RUN.id, p_testimonial: '', p_media_consent: false, p_lessons: '',
     });
