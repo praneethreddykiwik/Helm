@@ -9,9 +9,9 @@
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
-<link rel="stylesheet" href="integrations.css?v=9">
+<link rel="stylesheet" href="integrations.css?v=10">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=72" id="shellProto"></script>
+<script src="/shell-proto.js?v=73" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -111,7 +111,7 @@
         <ol>
           <li>Under <b>Your WhatsApp number</b>, paste the two IDs and the token and press <b>Connect WhatsApp</b>. No token yet? Press <b>Save details</b> – the two IDs stay saved and are filled in next time. Helm stores the token in its secure key store and never shows it again (<b>Replace token</b> puts in a new one) – never paste it anywhere else (not in chat or e-mail).</li>
           <li>Helm checks the number with Meta straight away. <b>Connected</b> shows your name and number; otherwise the line says what to fix.</li>
-          <li>Press <b>Set up message templates</b>. Helm creates its 21 message templates in your WhatsApp account. Meta reviews each one (minutes to a few hours); press <b>Refresh template states</b> to see them turn <b>Approved</b>.</li>
+          <li>Press <b>Set up message templates</b>. Setup runs in the background – you can leave the page. Helm creates its 21 message templates in your WhatsApp account (using Meta's ready-made library wording where it fits), Meta reviews each one (minutes to a few hours) and you get one bell notification when they are all approved, or when one is rejected – with Meta's reason and a <b>Fix and resubmit</b> button. The approval-code template needs a verified business: verify it in Meta Business Manager; approval codes go by e-mail meanwhile.</li>
           <li>Save your <b>studio WhatsApp number</b> below and press <b>Send test WhatsApp</b> – it arrives from your connected number.</li>
           <li>In <a href="control.html#notify">Settings → Notifications → Automatic client messages &amp; WhatsApp</a>, switch on the messages you want (payment reminders, follow-ups, WhatsApp copies of notifications). Each crew member can tick <b>Also send my Helm notifications to my WhatsApp</b> in their profile.</li>
         </ol>
@@ -153,8 +153,8 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=347"></script>
-<script src="wa-connect-ui.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=348"></script>
+<script src="wa-connect-ui.js?v=4"></script>
 <script src="integrations.js?v=10"></script>
 </body>
 </html>
