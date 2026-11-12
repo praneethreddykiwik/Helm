@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <base href="/">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
 <title>Try the Event Layout Planner — Helm Events</title>
 <meta name="description" content="Try the Helm Events layout planner free: move tables, stages and decor on a ready-made wedding plan, measure in metres or feet, then view it in 3D. No sign-up.">
 <link rel="canonical" href="https://www.helm.events/try">
@@ -43,6 +43,7 @@
 <link rel="stylesheet" href="/builder-v2.css?v=13">
 <link rel="stylesheet" href="/try.css?v=10">
 <link rel="stylesheet" href="/shell-b-privacy.css?v=134"><!-- QA-B27: "Hide amounts" privacy screen (same as the app pages) -->
+<link rel="stylesheet" href="/builder-landscape.css?v=1"><!-- R154i: phone held sideways + "turn your phone" card -->
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -563,7 +564,7 @@
 <script src="/shell-b-privacy.js?v=137"></script>
 <script src="event-name.js?v=9"></script>
 <script src="country-profile.js?v=7"></script><script src="store-api.js?v=345"></script>
-<script src="page-tours.js?v=26"></script>
+<script src="page-tours.js?v=27"></script>
 <script src="tour.js?v=46"></script>
 <script src="flow-layout-sync.js?v=6"></script>
 <script src="event-sizing.js?v=5"></script>
@@ -571,7 +572,7 @@
 <script src="quote-state.js?v=4"></script>
 <script src="reprice-guard.js?v=1"></script>
 <script src="stage-screen.js?v=3"></script>
-<script src="builder.js?v=89"></script>
+<script src="builder.js?v=90"></script>
 <script src="builder-back.js?v=1" defer></script>
 <script src="venues-core.js?v=11"></script>
 <script src="venue-picker.js?v=8"></script>
@@ -582,11 +583,12 @@
 <!-- ================= 3D RENDERED VIEW (Three.js, lazy-loaded on first use) ================= -->
 <script src="dancers-3d.js?v=1"></script>
 <script src="capture-frame.js?v=15"></script>
-<script src="builder-3d.js?v=33"></script>
+<script src="builder-3d.js?v=34"></script>
 <script src="walkthrough.js?v=11"></script>
 <script src="layout-wizard.js?v=18"></script>
 <script src="fullscreen.js?v=5"></script>
 <script src="builder-tooltip.js?v=2"></script><!-- r21: the builder's own tooltip (replaces the native title box) -->
 <script src="builder-inspector-ui.js?v=1" defer></script><!-- R71: inspector number steppers + drag-to-resize section dividers -->
+<script src="builder-orient.js?v=1"></script><!-- R154i: portrait "turn your phone" card, two-finger zoom + re-fit on rotation (phones only) -->
 </body>
 </html>

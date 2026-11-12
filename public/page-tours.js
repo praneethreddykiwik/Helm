@@ -68,9 +68,11 @@
       { sel: "#moreMenu", title: "More", desc: "Download the floor as a PNG picture or a JSON file, or import a JSON layout." },
       { sel: ".hg-cap", title: "Capacity & seats", desc: "Type the venue's capacity; the chip shows the seats placed against it and warns when a block is packed too tight to walk through." },
       { sel: [".bp-priv-slot .hbp-btn", ".bp-priv-slot"], title: "Hide amounts", desc: "The eye hides every price on the screen - handy when a client is looking over your shoulder. Showing them again asks for your PIN." },
-      { sel: "#toolbox", side: "right", title: "Drag any asset", desc: "Drag stages, chairs, tables, bars, exits - anything - onto the floor. Every object can be moved, resized and rotated." },
+      // R154i: on a phone (upright or sideways) the toolbox and the price / inspector panel are drawers that are off screen until
+      // opened, so these two steps fall back to their Tools / Inspector buttons there
+      { sel: ["#toolbox", "#toolsToggle"], side: "right", title: "Drag any asset", desc: "Drag stages, chairs, tables, bars, exits - anything - onto the floor. Every object can be moved, resized and rotated. On a phone, tap Tools to slide the toolbox in." },
       { sel: "#fabStack", title: "Zoom & move around", desc: "Zoom out / in, FIT the whole floor, the arrows to pan and fullscreen. These sit under the floor so they never cover it. To hide them, press the down arrow (⌄); the small “⊕ View” button brings them back." },
-      { sel: "#rightPanel", side: "left", title: "Price & inspector", desc: "The menu package, guests and live price for this floor. Select an object to edit its size, position, rotation and colour here." },
+      { sel: ["#rightPanel", "#inspToggle"], side: "left", title: "Price & inspector", desc: "The menu package, guests and live price for this floor. Select an object to edit its size, position, rotation and colour here. On a phone, tap Inspector to open it." },
       // R135 + R137: the stage screen (layout, theme, colour, logo, words) + stairs, shown once a stage or a screen is selected
       { sel: ["#inspector .isec.screen", "#rightPanel"], side: "left", title: "Stage screen, steps & stairs", desc: "Select the stage or a screen: pick Screen layout (Single, Triple, Wide wall, None), one of 8 themes or your own colour, Add logo (PNG/JPG/WebP, 2 MB) and type the words. Stages also get steps." },
     ],
