@@ -204,6 +204,12 @@ aside{background:var(--panel);flex:0 0 auto;display:flex;flex-direction:column;m
 .ifield .numwrap>input[type=number]{padding-right:26px}          /* room for the stepper */
 .ifield .unit.has-step>input[type=number]{padding-right:46px}    /* stepper + unit label */
 .ifield .unit.has-step::after{right:28px}                        /* unit label sits left of the stepper */
+/* R157: number inputs in the menu box (.pfield: Guests / plates, Chairs (priced)) get a .numwrap too, but it had no
+   position, so the absolute stepper stretched down the whole panel's right edge. Anchor it to the input like .ifield. */
+.pfield .numwrap{position:relative;display:block;align-self:flex-start;width:fit-content;max-width:100%}
+.pfield .numwrap>input[type=number]{display:block;max-width:100%;padding-right:26px;-moz-appearance:textfield;appearance:textfield}
+.pfield .numwrap>input[type=number]::-webkit-outer-spin-button,
+.pfield .numwrap>input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .nstep{position:absolute;top:3px;bottom:3px;right:4px;width:18px;display:flex;flex-direction:column;
   border:1px solid var(--line);border-radius:5px;overflow:hidden;background:var(--panel)}
 .nstep-btn{flex:1 1 50%;min-height:0;margin:0;padding:0;border:0;background:var(--panel);color:var(--ink-3);

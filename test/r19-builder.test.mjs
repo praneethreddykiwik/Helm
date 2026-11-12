@@ -103,7 +103,8 @@ t('header: the r19 two-row header is gone again (r20 owner revert)', () => {
 t('tour: every toolbar control in screen order, auto-started once', () => {
   const tour = read('public/tour.js'), pt = read('public/page-tours.js');   // R46: the steps live in page-tours.js
   const blk = pt.slice(pt.indexOf('"builder.html": ['), pt.indexOf('"quotes.html": ['));
-  const sels = [...blk.matchAll(/sel: (\[[^\]]*\]|"[^"]*")/g)].map((m) => m[1]);
+  // R154i: a step may list fallbacks (["#toolbox", "#toolsToggle"]) - its first selector is the one on a computer
+  const sels = [...blk.matchAll(/sel: (\[[^\]]*\]|"[^"]*")/g)].map((m) => m[1]).map((x) => (/^\["#(toolbox|rightPanel)"/.test(x) ? x.slice(1, x.indexOf(',')) : x));
   assert.ok(sels.length >= 20, 'steps ' + sels.length);
   for (const s of ['"#projName"', '"#saveBtn"', '"#loadBtn"', '"#moreMenu"', '".hg-edit"', '".hg-cap"', '"#preset"', '"#refField"', '"#customBtn"', '"#viewSeg"', '"#measureBtn"', '"#unitSel"', '"#toolbox"', '"#fabStack"', '"#rightPanel"'])
     assert.ok(sels.includes(s), s);

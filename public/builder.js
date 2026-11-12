@@ -5203,7 +5203,7 @@ function builderTourBusy(){
 }
 function scheduleBuilderTour(){
   if(RO || CAPTURE_HOST || !window.HelmTour || !HelmTour.hasSteps) return;
-  if(window.matchMedia && matchMedia('(max-width:720px)').matches) return;
+  if(window.matchMedia && matchMedia('(max-width:720px), (orientation:landscape) and (max-height:500px) and (pointer:coarse)').matches) return;   // phones (R154i: also sideways): the ? button starts it
   try{ if(localStorage.getItem(BUILDER_TOUR_SEEN)) return; }catch(_){ return; }   // no storage: never nag on every visit
   let tries=0;
   const attempt=function(){
@@ -5219,7 +5219,8 @@ function scheduleBuilderTour(){
    Toggled from the toolbar; close on Escape, on an outside tap, or after
    dropping an asset. On wider screens they are ordinary side panels.
    =================================================================== */
-const DRAWER_MQ = window.matchMedia('(max-width:720px)');
+// R154i: a phone held sideways (short, wide, touch) uses the same drawers - see builder-landscape.css
+const DRAWER_MQ = window.matchMedia('(max-width:720px), (orientation:landscape) and (max-height:500px) and (pointer:coarse)');
 const DRAWERS = [ { btn:'#toolsToggle', panel:'#leftPanel' }, { btn:'#inspToggle', panel:'#rightPanel' } ];
 function drawersOpen(){ return DRAWER_MQ.matches && DRAWERS.some(d=>$(d.panel).classList.contains('open')); }
 function setDrawer(d, open, focusBack){
