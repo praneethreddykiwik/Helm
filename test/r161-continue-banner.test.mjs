@@ -187,7 +187,7 @@ await t('pages: every quote entry point mounts the shared banner; the flow saves
   assert.doesNotMatch(e, /HelmFlowResume\.renderBanner\(/, 'the old one-off banner code is gone');
   assert.match(di, /HelmFlowResume\.mountBanner\(\{ host:\$\("#app"\), quote:ev, quoteId:ev\.id\|\|id, current:"discovery", store:BPStore \}\)/);
   assert.match(pr, /HelmFlowResume\.mountBanner\(\{ host:\$\("#app"\), quote:ev, quoteId:ev\.id\|\|id, current:"proposal", store:BPStore \}\)/);
-  for (const h of [di, pr]) assert.match(h, /<script src="flow-resume\.js\?v=8"><\/script>/);
+  for (const h of [di, pr]) assert.match(h, /<script src="flow-resume\.js\?v=(8|9)"><\/script>/);
   assert.match(q, /HelmFlowResume\.mountBanner\(\{ host:sh, before:sh\.querySelector\("\.seclabel"\), quote:full, quoteId:id, canEdit:canEdit\|\|false, store:BPStore,/);
   assert.match(q, /onContinue:async\(v\)=>\{ if\(!\(await BPUI\.confirmDiscard\(cmDirty\)\)\) return; location\.href=HelmFlowResume\.href\(v\); \}/, 'Confirm dialog: leaving asks first when edited');
   assert.match(f, /const banner=resumeP\.then\(info=>flowBanner\(fromB, info\)\)\.catch\(\(\)=>null\);/, 'flow: the banner is asked for before this open saves its step');
@@ -196,7 +196,7 @@ await t('pages: every quote entry point mounts the shared banner; the flow saves
   assert.match(f, /if\(!H \|\| !ev \|\| !canEdit\) return Promise\.resolve\(null\);/, 'flow: editors only');
   assert.match(f, /loading=true;\n\s*earlyLand\(\);\n\s*await loadAll\(\);/, 'the opening step is saved before loadAll');
   assert.match(f, /resumeP\.then\(info=>\{ if\(resumeLanded \|\| flowTrack\.last\(\)\) return; flowTrack\.land\(info && H\.STEPS\[info\.step\] \? info\.step : "client"\)/);
-  for (const p of ['dashboard', 'quotes', 'event', 'flow', 'discovery', 'proposal']) assert.match(read('public/' + p + '.html'), /flow-resume\.js\?v=8/, p);
+  for (const p of ['dashboard', 'quotes', 'event', 'flow', 'discovery', 'proposal']) assert.match(read('public/' + p + '.html'), /flow-resume\.js\?v=(8|9)/, p);
   assert.match(FR_SRC, /mountBanner: mountBanner, bannerText: bannerText, skippedOf: skippedOf, nextStepOf: nextStepOf, sortRows: sortRows/);
   assert.match(FR_SRC, /rows: sortRows\(d\.rows\.map\(function \(r\) \{ return fromServer\(r, mine\); \}\)\)/);
   assert.match(FR_SRC, /function sstore\(\) \{ try \{ return root\.sessionStorage \|\| null; \} catch \(e\) \{ return null; \} \}/);

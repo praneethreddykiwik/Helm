@@ -95,7 +95,8 @@ t('per-page steps follow each toolbar left to right, then the content below', ()
   assert.deepEqual(sels('staff.html'), ['#search', '#deptFilter', '#importBtn', '#newBtn', '#grid']);
   assert.deepEqual(sels('inventory.html'), ['#eventPanel', '#search', '#seedBtn', '#newBtn', '#pane-loans', '#lossRows']);
   // r20: the builder's first-run tour walks the one-row header left to right (the r19 two-row header was reverted), then the panels
-  assert.deepEqual(sels('builder.html'), ['header .brand', '#preset', '#refField', '#customBtn', '#unitSel', '.seg:has(#snapBtn)', '#viewSeg',
+  // R164: + More / App bar (phone only, skipped elsewhere) right after Back home
+  assert.deepEqual(sels('builder.html'), ['header .brand', '#bimMore', '#bimNav', '#preset', '#refField', '#customBtn', '#unitSel', '.seg:has(#snapBtn)', '#viewSeg',
     '.wt-field', '#wtStart', '#measureBtn', '.hg-edit', '#projName', '#verSel', '#designChip', '#backToFlowBtn', '#saveBtn', '#loadBtn', '#clientImgBtn',
     '#moreMenu', '.hg-cap', '.bp-priv-slot .hbp-btn', '#toolbox', '#fabStack', '#rightPanel', '#inspector .isec.screen']);
   // and that is the DOM order of those elements on the page

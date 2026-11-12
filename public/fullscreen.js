@@ -7,6 +7,11 @@
  * 2D / 3D toggle, walkthrough, exit. Zoom (+ − FIT) and the walkthrough's own prev/next stay visible.
  * F toggles, Esc exits (native fullscreen exits on Esc by itself). The 3D renderer and 2D rulers resize.
  *
+ * R164: on a PHONE (builder-immersive.css / .js) the WHOLE page goes full screen instead of the canvas box, so the
+ * floating controls, the Tools / Inspector drawers and the 2D / 3D / Walkthrough switch keep working there; where the
+ * browser has no element fullscreen (iPhone Safari) the same app-level immersive mode is used (html.fs-phone + 100dvh,
+ * every Helm bar hidden). The floating "✕ Exit" button (builder-immersive.js) leaves it.
+ *
  *   HelmFullscreen.fsKey(event, typing)  → 'toggle' | 'exit' | null   (pure, tested)
  *   HelmFullscreen.api(doc)              → { request(el), exit(), element(), native }  (vendor-prefix shim)
  */
@@ -41,9 +46,12 @@
 
   const doc = G.document;
   const el = (tag, cls, text, attrs) => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; if (attrs) Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); return e; };
-  let vp = null, pseudo = false, opener = null;
+  let vp = null, pseudo = false, opener = null, target = null;
   const F = api(doc);
-  const isOn = () => pseudo || (!!F.element() && F.element() === vp);
+  // R164: phones (same query as builder-immersive.css) take the whole page full screen; elsewhere the canvas box
+  const PHONE_Q = '(pointer:coarse) and (orientation:landscape) and (max-height:500px), (pointer:coarse) and (orientation:portrait) and (max-width:599px)';
+  const onPhone = () => { try { return !!(G.matchMedia && G.matchMedia(PHONE_Q).matches) && !doc.documentElement.classList.contains('helm-sandbox'); } catch (_) { return false; } };
+  const isOn = () => pseudo || (!!F.element() && F.element() === (target || vp));
 
   // header button (beside the View switch) + a floating button on the canvas
   const bHead = el('button', 'tbtn fs-btn', '⛶ Fullscreen', { type: 'button', id: 'fsBtn', title: 'Fullscreen (F)', 'aria-pressed': 'false' });
@@ -74,12 +82,14 @@
   function settle() { relayout(); [350, 800].forEach((ms) => { try { (G.setTimeout || setTimeout)(relayout, ms); } catch (_) {} }); }
   function apply(on) {
     doc.body.classList.toggle('fs-on', on);
-    if (vp) vp.classList.toggle('fs-pseudo', on && pseudo);
+    const whole = !!target && target === doc.documentElement;
+    if (vp) vp.classList.toggle('fs-pseudo', on && pseudo && !whole);
+    try { doc.documentElement.classList.toggle('fs-phone', on && whole); } catch (_) {}
     bHead.setAttribute('aria-pressed', String(on)); bHead.textContent = on ? '⛶ Exit fullscreen' : '⛶ Fullscreen';
     bFab.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Enter fullscreen'); bFab.setAttribute('aria-pressed', String(on));
     bFab.title = on ? 'Exit fullscreen (Esc)' : 'Fullscreen (F)'; bFab.textContent = on ? '✕' : '⛶';
     bar.hidden = !on; syncView(); settle();
-    if (on) { try { bX.focus({ preventScroll: true }); } catch (_) {} }
+    if (on) { const x = whole && doc.getElementById('bimExit'); try { (x || bX).focus({ preventScroll: true }); } catch (_) {} }
     else if (opener && opener.focus && doc.contains(opener)) { try { opener.focus({ preventScroll: true }); } catch (_) {} }
   }
   function enter(e) {
@@ -89,16 +99,17 @@
     try { doc.querySelectorAll('#leftPanel.open,#rightPanel.open').forEach((p) => p.classList.remove('open')); } catch (_) {}
     // some embedded browsers neither grant nor reject the request: fall back to full-window after 1s
     let done = false;
+    target = onPhone() ? doc.documentElement : vp;
     const fallback = () => { if (done) return; done = true; if (!F.element()) { pseudo = true; apply(true); } };
     try { (G.setTimeout || setTimeout)(fallback, 1000); } catch (_) {}
-    F.request(vp).then(() => { done = true; if (pseudo) { pseudo = false; apply(false); } }).catch(fallback);
+    F.request(target).then(() => { done = true; if (pseudo) { pseudo = false; apply(false); } }).catch(fallback);
   }
   function exit() {
     if (pseudo) { pseudo = false; apply(false); return; }
     if (F.element()) F.exit();
   }
   function toggle(e) { if (isOn()) exit(); else enter(e); }
-  ['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => doc.addEventListener(ev, () => { if (!pseudo) apply(F.element() === vp && !!vp); }));
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => doc.addEventListener(ev, () => { if (!pseudo) apply(!!vp && F.element() === (target || vp)); }));
 
   bHead.addEventListener('click', toggle);
   bFab.addEventListener('click', toggle);

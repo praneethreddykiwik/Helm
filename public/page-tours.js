@@ -35,6 +35,8 @@
    ========================================================================= */
 (function (root) {
   "use strict";
+  // R164: the builder on a phone (builder-immersive.js) - its floating controls describe themselves differently
+  function phoneView() { try { return !!(window.__helmImmersive && window.__helmImmersive.isPhone()); } catch (_) { return false; } }
   function inTrial() { try { return document.documentElement.classList.contains("helm-trial"); } catch (_) { return false; } }
 
   const TOURS = {
@@ -45,13 +47,17 @@
       // r20: the header is the one-row header again (left to right: logo, start a floor, units / grid / view /
       // measure, undo / redo / clear, this layout, capacity, hide amounts), then the toolbox, the view dock and the
       // price panel. Controls that are hidden here (outside a quote, in a free trial, for this role or screen) are skipped.
-      { sel: "header .brand", title: "Back home", desc: "The Helm logo takes you back to your events. Tip: press H (when you are not typing) to jump home to the dashboard from any screen." },
+      // R164: on a phone the top bar is folded away and the controls float over the floor (builder-immersive.js); the
+      // floating steps below exist only there, and the top-bar steps are skipped there (hidden) - and the other way round
+      { sel: ["header .brand", "#bimBack"], title: "Back home", desc: "The Helm logo (on a phone: the ← button) takes you back to your events. Tip: press H (when you are not typing) to jump home to the dashboard from any screen." },
+      { sel: "#bimMore", side: "left", title: "More", desc: "On a phone the top bar is folded away: More opens it (template, Create layout, units, grid, Render, Measure, undo, name, Open, capacity). Tap outside it or Close to fold it." },
+      { sel: "#bimNav", side: "left", title: "App bar", desc: "The app's bottom bar (Home, Search, +, Alerts, Profile) is folded away in the builder. This handle brings it up or down." },
       { sel: "#preset", title: "Start from a template", desc: "Want a head start? Pick a ready-made layout (wedding, conference, concert...) or one of your own templates, then tweak it." },
       { sel: "#refField", title: "Reuse a past event", desc: "Copies the floor of one of your earlier events onto this canvas, at today's prices." },
       { sel: "#customBtn", title: "...or create your own floor", desc: "Type your hall length x breadth and guest count; Helm sizes the canvas to your hall and arranges the seating." },
       { sel: "#unitSel", title: "Units", desc: "Work in feet or metres." },
       { sel: [".seg:has(#snapBtn)", "#snapBtn"], title: "Snap and Grid", desc: "Snap makes objects jump to the grid lines when you move them; Grid shows or hides the lines." },
-      { sel: "#viewSeg", title: "2D, 3D and Render", get desc() { return inTrial()
+      { sel: ["#viewSeg", "#bimRail"], title: "2D, 3D and Render", get desc() { return inTrial()
         ? "Edit in the 2D plan, walk around it in 3D, or press Render for a realistic 3D look of the same floor. AI photos of the plan come with a paid plan."
         : "Edit in the 2D plan, walk around it in 3D, or press Render to make a photo-like picture of the plan. All three show the same floor."; } },
       { sel: [".wt-field", "#wtStart"], title: "Explore in 3D", desc: "Quick 3D views of the venue: Overview, Floor plan and Evening lighting, plus the guided Walkthrough." },
@@ -62,7 +68,7 @@
       { sel: "#verSel", title: "Versions", desc: "Every Save keeps a numbered version. Pick an older one to look at it; saved versions are never changed." },
       { sel: "#designChip", title: "Design stage", desc: "Opens the Design Studio for this event." },
       { sel: "#backToFlowBtn", title: "Save & back to the quote", desc: "Saves this floor as a new version and takes you back to the quotation. If the quote was already sent to the client, you are asked first before its price changes (Update quote / Keep quote)." },
-      { sel: "#saveBtn", title: "Save", desc: "Saves a new version of this floor (⌘S / Ctrl+S). The chair count flows straight into the price breakdown on the right." },
+      { sel: ["#saveBtn", "#bimSave"], title: "Save", desc: "Saves a new version of this floor (⌘S / Ctrl+S). The chair count flows straight into the price breakdown on the right." },
       { sel: "#loadBtn", title: "Open", desc: "Open another saved layout." },
       { sel: "#clientImgBtn", trial: false, title: "Client images", desc: "Captures a clean 2D plan and 3D view of this floor for the client booklet." },
       { sel: "#moreMenu", title: "More", desc: "Download the floor as a PNG picture or a JSON file, or import a JSON layout." },
@@ -70,9 +76,11 @@
       { sel: [".bp-priv-slot .hbp-btn", ".bp-priv-slot"], title: "Hide amounts", desc: "The eye hides every price on the screen - handy when a client is looking over your shoulder. Showing them again asks for your PIN." },
       // R154i: on a phone (upright or sideways) the toolbox and the price / inspector panel are drawers that are off screen until
       // opened, so these two steps fall back to their Tools / Inspector buttons there
-      { sel: ["#toolbox", "#toolsToggle"], side: "right", title: "Drag any asset", desc: "Drag stages, chairs, tables, bars, exits - anything - onto the floor. Every object can be moved, resized and rotated. On a phone, tap Tools to slide the toolbox in." },
-      { sel: "#fabStack", title: "Zoom & move around", desc: "Zoom out / in, FIT the whole floor, the arrows to pan and fullscreen. These sit under the floor so they never cover it. To hide them, press the down arrow (⌄); the small “⊕ View” button brings them back." },
-      { sel: ["#rightPanel", "#inspToggle"], side: "left", title: "Price & inspector", desc: "The menu package, guests and live price for this floor. Select an object to edit its size, position, rotation and colour here. On a phone, tap Inspector to open it." },
+      { sel: ["#toolbox", "#toolsToggle", "#bimTools"], side: "right", title: "Drag any asset", desc: "Drag stages, chairs, tables, bars, exits - anything - onto the floor. Every object can be moved, resized and rotated. On a phone, tap Tools to slide the toolbox in." },
+      { sel: "#fabStack", title: "Zoom & move around", get desc() { return phoneView()
+        ? "Zoom in (+), zoom out (−) and FIT the whole floor, full screen (⛶) and this tour. One finger moves the floor, two fingers zoom it. In full screen everything keeps working; ✕ Exit (top left) leaves it."
+        : "Zoom out / in, FIT the whole floor, the arrows to pan and fullscreen. These sit under the floor so they never cover it. To hide them, press the down arrow (⌄); the small “⊕ View” button brings them back."; } },
+      { sel: ["#rightPanel", "#inspToggle", "#bimInsp"], side: "left", title: "Price & inspector", desc: "The menu package, guests and live price for this floor. Select an object to edit its size, position, rotation and colour here. On a phone, tap Inspector to open it." },
       // R135 + R137: the stage screen (layout, theme, colour, logo, words) + stairs, shown once a stage or a screen is selected
       { sel: ["#inspector .isec.screen", "#rightPanel"], side: "left", title: "Stage screen, steps & stairs", desc: "Select the stage or a screen: pick Screen layout (Single, Triple, Wide wall, None), one of 8 themes or your own colour, Add logo (PNG/JPG/WebP, 2 MB) and type the words. Stages also get steps." },
     ],
