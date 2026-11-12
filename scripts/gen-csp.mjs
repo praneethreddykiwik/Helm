@@ -40,8 +40,8 @@ export const PROD_HOSTS = ['www.helm.events', 'helm.events', 'helm-alpha-nine.ve
 export const STAGING_CSP_HOSTS = ['helm-v01.vercel.app'];
 export function isStagingCspRule(r) {
   return Array.isArray(r.has) && r.has.length === 1 && r.has[0].type === 'host' && STAGING_CSP_HOSTS.includes(r.has[0].value) &&
-    r.source === '/(.*)' && (r.headers || []).length >= 1 && (r.headers || []).length <= 2 && r.headers[0].key.toLowerCase() === 'content-security-policy' &&
-    (r.headers.length === 1 || ['x-frame-options', 'content-security-policy-report-only'].includes(r.headers[1].key.toLowerCase()));
+    r.source === '/(.*)' && (r.headers || []).length >= 1 && (r.headers || []).length <= 3 && r.headers[0].key.toLowerCase() === 'content-security-policy' &&
+    r.headers.slice(1).every((h) => ['x-frame-options', 'content-security-policy-report-only', 'reporting-endpoints'].includes(h.key.toLowerCase()));
 }
 function unionPolicy(values) {
   const m = new Map();
@@ -140,7 +140,10 @@ if (!cspCount) { console.error('  ✗ vercel.json has no Content-Security-Policy
       // site only, so the logged-in pass can collect violations before enforcement.
       // public/trusted-types.js runs in observe mode (logs, never rewrites markup) while
       // TRUSTED_TYPES_ENFORCE is false. Production hosts get no Trusted Types header yet.
-      ...(!TRUSTED_TYPES_ENFORCE ? [{ key: 'Content-Security-Policy-Report-Only', value: TT_DIRECTIVES.join('; ') }] : [])] });
+      ...(!TRUSTED_TYPES_ENFORCE ? [{ key: 'Content-Security-Policy-Report-Only', value: TT_DIRECTIVES.join('; ') }] : []),
+      // R154f: the catch-all rule names the PRODUCTION csp-report endpoint; on the staging site that group points
+      // at the STAGING project instead (its CSP carries no report-to, so nothing is sent there today either)
+      ...(STAGING_REF && reportingEndpoints(cspReportUri(STAGING_REF)) ? [{ key: 'Reporting-Endpoints', value: reportingEndpoints(cspReportUri(STAGING_REF)) }] : [])] });
 }
 const stagingFree = (v) => JSON.stringify({ ...v, headers: (v.headers || []).filter((r) => !isStagingCspRule(r)) });
 const vNext = JSON.stringify(vercel, null, 2) + '\n';

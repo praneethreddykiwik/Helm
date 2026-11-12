@@ -391,6 +391,8 @@ run "r154-slug-skeleton-0346" "R154-SLUG-SKELETON-0346: ALL PASS \(16/16\)" psql
 run "r154h-wa-details-0353" "R154H-WA-DETAILS-0353: ALL PASS \(35/35\)" psql -q -f tests/db/r154h-wa-details-0353.sql
 # r154e (0351): Suggestion box v2 - admin / sales / crew send (server records the studio), own list + studio-shared rows only (never who), +1 kept (never deleted), another studio sees nothing, anon refused, 20 a day per person on every route, HQ list masked + Planned / Not now + reply (audited), sender reads + marks the reply; re-applies itself, rolled back
 run "r154e-suggestion-box-0351" "R154E-SUGGESTION-BOX-0351: ALL PASS \(50/50\)" psql -q -f tests/db/r154e-suggestion-box-0351.sql
+# r154f (0352): sign-up staff check + sign-in Google-only hint - same answers as the kept bodies, 20 asks per 10 minutes per network and per address then false (fail closed, the answer the pages treat as no), another network / address unaffected, no address = one shared bucket, counter that cannot be written = false, address stored only as a hash, kept __pre0352 copies with no app privilege, anon + signed-in can still call; re-applies itself twice, rolled back
+run "r154f-email-probe-0352" "R154F-EMAIL-PROBE-0352: ALL PASS \(21/21\)" psql -q -f tests/db/r154f-email-probe-0352.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

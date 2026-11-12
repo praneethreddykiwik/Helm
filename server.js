@@ -284,7 +284,8 @@ function securityHeadersFor(req, filePath) {
 
 // Cache policy (mirrors vercel.json): marketing HTML revalidates every time; app,
 // auth and client-link pages are never stored (no-store); /vendor/ and
-// ?v=-versioned assets are immutable; config.js is short-lived; unversioned
+// ?v=-versioned assets are immutable (R154f: vercel.json too, has query v, so an un-versioned or mistyped .js / .css is
+// no-cache there as well); config.js is short-lived; unversioned
 // images / crawler files get an hour.
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 const SHORT = 'public, max-age=3600, must-revalidate';
@@ -296,7 +297,7 @@ function cacheControlFor(filePath, query) {
   if (ext === '.html') return (!rel.includes('/') && !INDEXABLE_PAGES.has(pageName(rel))) ? 'no-store' : 'no-cache';
   if (rel === 'config.js') return 'public, max-age=300, stale-while-revalidate=3600';
   if (rel.startsWith('home-assets/') && ['.mp4', '.webm', '.jpg'].includes(ext)) return MEDIA;   // r26: landing film + posters
-  if (rel.startsWith('vendor/')) return IMMUTABLE;
+  if (rel.startsWith('vendor/') || rel.startsWith('fonts/g/')) return IMMUTABLE;   // R154f: names carry the version (vendor) or a content hash (fonts/g)
   if (/[?&]v=/.test(query || '') && ['.js', '.css', '.png', '.webp', '.svg', '.woff2'].includes(ext)) return IMMUTABLE;
   if (['.js', '.css'].includes(ext)) return 'no-cache';   // unversioned script/style: always revalidate locally
   if (['.png', '.webp', '.svg', '.woff2', '.ico', '.txt', '.xml'].includes(ext)) return SHORT;

@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (308 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (309 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3896 objects): body 174, bucket 9, col 226, con 402, cron 19, exec 2, fn 1775, idx 397, marker 5, pol 179, polexpr 4, pre 92, pub 5, seq 1, tbl 260, trg 344, view 2.
+-- What is checked (3901 objects): body 176, bucket 9, col 226, con 402, cron 19, exec 2, fn 1777, idx 397, marker 5, pol 179, polexpr 4, pre 93, pub 5, seq 1, tbl 260, trg 344, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3913,6 +3913,11 @@ with o(m, k, s, n, x) as (values
   ('0351_r154e_suggestion_box', 'pre', null, '__pre0351', null),
   ('0351_r154e_suggestion_box', 'marker', 'public', 'hq_suggestions', 'text|r154e-0351'),
   ('0351_r154e_suggestion_box', 'marker', 'public', 'hq_set_suggestion', 'uuid,text,text|r154e-0351'),
+  ('0352_r154f_email_probe_limits', 'body', 'public', 'signup_email_preauthorised', 'text|80893820defa7dd899dd8649b80b088e'),
+  ('0352_r154f_email_probe_limits', 'body', 'public', 'staff_google_only_for', 'text|1ae39048bcbf8a5bb92764ba21185bdb'),
+  ('0352_r154f_email_probe_limits', 'fn', 'public', '_r352_keep', 'text'),
+  ('0352_r154f_email_probe_limits', 'fn', 'public', '_r352_allow', 'text,text'),
+  ('0352_r154f_email_probe_limits', 'pre', null, '__pre0352', null),
   ('0353_r154h_wa_details', 'fn', 'public', 'save_org_whatsapp_account__pre0353', 'text,text,text,text'),
   ('0353_r154h_wa_details', 'fn', 'public', 'my_integration_accounts__pre0353', ''),
   ('0353_r154h_wa_details', 'body', 'public', 'save_org_whatsapp_account', 'text,text,text,text|0e008c23b247c5be0a921927b8147129'),
@@ -4230,7 +4235,8 @@ mig(ord, m, ov, note) as (values
   (305, '0346_r154_slug_skeleton_execute', null, 'EXECUTE grant only: signed-in users may run the look-alike helper used by the organizations / org_slug_history indexes (studio settings save)'),
   (306, '0350_r154c_open_quotes', null, null),
   (307, '0351_r154e_suggestion_box', null, 'hq_suggestions + hq_set_suggestion re-issued in place (same names), checked by the 0351 marker in their bodies'),
-  (308, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)')
+  (308, '0352_r154f_email_probe_limits', null, null),
+  (309, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)')
 ),
 env as (
   select
