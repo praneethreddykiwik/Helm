@@ -187,7 +187,7 @@ await t('Quotes page: an open row leads with "▶ Continue" (editors only), safe
   const q = read('public/quotes.html');
   assert.ok(q.includes('if(cont&&ra0){ const cb=document.createElement("button"); cb.type="button"; cb.className="ic confirm"; cb.setAttribute("data-act","continue");'), 'Continue built as DOM (no HTML sink)');
   assert.ok(q.includes('cb.textContent="▶ Continue"; ra0.insertBefore(cb, ra0.firstChild); }'), 'first in the row, text only');
-  assert.match(q, /if\(!canEdit \|\| ip\.canEdit===false \|\| !H \|\| sh\(x\) \|\| !H\.isOpen\(x\)\) return null;/, 'view-only roles / read-only studio / shelved: no Continue');
+  assert.match(q, /if\(!canEdit \|\| ip\.canEdit===false \|\| !H \|\| shelf\.byId\[x\.id\] \|\| !H\.isOpen\(x\)\) return null;/, 'view-only roles / read-only studio / shelved: no Continue');
   assert.ok(q.includes('if(act==="continue"){ const h=b.getAttribute("data-href")||""; if(/^flow\\.html\\?quote=[0-9a-f-]{36}(#sec-[a-z]+)?$/i.test(h)) location.href=h; }'), 'only a flow.html?quote=<uuid>#sec-step link is followed');
   assert.match(q, /d=await HelmFlowResume\.load\(BPStore, ipUid\(\), \{ scope:"studio", limit:100 \}\); \}catch\(_\)\{ d=null; \}\n\s*if\(d && d\.source==="server"\)/);
   // Continue is inserted first, before the 4th+ actions fold into the ⋯ menu, so it stays visible

@@ -372,7 +372,7 @@
   // else the flow itself lands on my last step. Editors only (quotes edit, studio not read-only).
   const continueOf=(x)=>{
     const H=window.HelmFlowResume;
-    if(!canEdit || ip.canEdit===false || !H || sh(x) || !H.isOpen(x)) return null;
+    if(!canEdit || ip.canEdit===false || !H || shelf.byId[x.id] || !H.isOpen(x)) return null;   // r158: shelf.byId (sh is local to render)
     const v=ip.byId&&ip.byId[x.id];
     if(v){ // my own step first (the studio list says where the TEAM stopped)
       const mine=v.phase==="building"&&v.myStep ? Object.assign({}, v, { step:v.myStep, stepNo:H.stepNo(v.myStep), stepLabel:H.LABELS[v.myStep] }) : v;
