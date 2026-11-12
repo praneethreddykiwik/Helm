@@ -80,7 +80,7 @@ await t('page: never stores the token in the browser; versions bumped; guide + t
   assert.match(h, /wa-connect-ui\.js\?v=3/); assert.match(h, /integrations\.js\?v=10/); assert.match(h, /integrations\.css\?v=9/);
   assert.match(h, /Press <b>Save details<\/b> – the two IDs stay saved/);
   assert.match(r('public/page-tours.js'), /Save details keeps the two IDs without the token/);
-  assert.match(r('public/tour.js'), /const PT_V = "30";/);
+  assert.match(r('public/tour.js'), /const PT_V = "31";/);
 });
 
 await t('pure helpers: tokenSaved, statusLine, codeHelp, validateIds, isDirty', () => {

@@ -23,7 +23,7 @@
      section). This engine reads it; it never keeps steps of its own. Pages that
      include tour.js include page-tours.js just before it; anything else (the
      app shell's "Tour this page") loads it on demand (ensureData below). */
-  const PT_V = "30";
+  const PT_V = "31";
   function PT() { return window.HelmPageTours || null; }
   function ensureData(cb) {
     if (PT()) { cb(); return; }
@@ -135,10 +135,27 @@
         if (!present(t)) continue;
         // an off-canvas drawer (phone sidebar) is "present" but parked off-screen: skip it
         const r = t.getBoundingClientRect(), vw = document.documentElement.clientWidth || window.innerWidth;
-        if (r.right <= 0 || r.left >= vw) continue;
+        // R157: ...unless it is only scrolled out of a horizontally scrolling bar that is itself on screen (the
+        // builder's one-row toolbar on a landscape phone) - place() scrolls it into the bar's view before measuring
+        if ((r.right <= 0 || r.left >= vw) && !xScroller(t, vw)) continue;
         return t;
       }
     }
+    return null;
+  }
+  // R157: the nearest ancestor that scrolls sideways (overflow-x auto/scroll AND wider content than its box) and is
+  // itself on screen; null when there is none. A plain desktop layout has no such bar, so nothing changes there.
+  function xScroller(t, vw) {
+    try {
+      for (let a = t.parentElement; a && a !== document.body && a !== document.documentElement; a = a.parentElement) {
+        const cs = getComputedStyle(a);
+        if (/(auto|scroll)/.test(cs.overflowX) && a.scrollWidth > a.clientWidth + 1) {
+          const ar = a.getBoundingClientRect();
+          return (ar.right > 0 && ar.left < vw && ar.width > 1 && ar.height > 1) ? a : null;
+        }
+        if (cs.position === "fixed") return null;
+      }
+    } catch (_) {}
     return null;
   }
   function usable(step) { return !step.sel || !!pick(step); }
@@ -474,6 +491,20 @@
     tip.style.left = L.tip.left + "px"; tip.style.top = L.tip.top + "px";
   }
 
+  // R157: a target clipped by a sideways-scrolling bar (top-bar items on a landscape phone) is scrolled to the middle
+  // of that bar - instantly, block:"nearest" so the page itself does not jump - BEFORE it is measured. A no-op when the
+  // target is not inside such a bar or is already fully inside it (so desktop is unchanged).
+  function revealInXScroller(t) {
+    try {
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      const a = xScroller(t, vw); if (!a) return false;
+      const r = t.getBoundingClientRect(), ar = a.getBoundingClientRect();
+      if (r.left >= Math.max(0, ar.left) - 0.5 && r.right <= Math.min(vw, ar.right) + 0.5) return false;
+      t.scrollIntoView({ block: "nearest", inline: "center", behavior: "auto" });
+      return true;
+    } catch (_) { return false; }
+  }
+
   // r20 (live QA): a target inside a scrolled box (the sidebar list after you scrolled it) was ringed at its visible
   // 18px sliver. Bring it fully inside its nearest scrolling ancestor first - instantly, the box only - before the
   // page-level scrollIntoView below. A no-op when the target already fits.
@@ -503,6 +534,7 @@
     if (tgt) {
       revealInScroller(tgt);
       // Scroll the target into view BEFORE measuring (only when not already fully on screen).
+      revealInXScroller(tgt);   // R157: a top-bar item scrolled out of a sideways toolbar (landscape phone)
       const r = tgt.getBoundingClientRect();
       const vr = visibleRect(tgt);   // also catches a pill clipped inside a scrolling nav bar
       if (!vr || vr.width < r.width - 1 || vr.height < r.height - 1 ||

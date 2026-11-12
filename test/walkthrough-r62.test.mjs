@@ -95,7 +95,7 @@ for (const c of cands.filter((x) => x.type !== 'edge')) {
 // ---- 3. 3D gizmo wiring (builder-3d.js / builder.html) ----
 const b3 = rd('public/builder-3d.js'), bh = rd('public/builder.html');
 assert.match(b3, /transform\.traverse\(o=>\{ o\.renderOrder=999; \}\)/, 'handles drawn over the name tags');
-assert.match(b3, /transform\.setSize\(1\.1\)/, 'a bigger gizmo');
+assert.match(b3, /transform\.setSize\([^;]*1\.1\)/, 'a bigger gizmo (R154i: 1.5 for a finger, 1.1 with a mouse)');
 assert.match(b3, /walkKeep \|\| \(typeof RO!=='undefined' && RO\)\)\{ transform\.detach\(\)/, 'no edit handles for view-only roles');
 assert.match(b3, /b\.setAttribute\('aria-pressed', on\?'true':'false'\)/, 'mode buttons expose the pressed state');
 assert.match(b3, /Select an object first, then drag its handles/, 'a mode click with nothing selected says what to do');

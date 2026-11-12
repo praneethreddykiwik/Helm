@@ -1,0 +1,163 @@
+/* R154i - the floor builder on a PHONE held SIDEWAYS (landscape) + the "turn your phone" card in portrait.
+   Every layout rule below sits inside ONE media query - a touch screen that is wider than tall and at most 500px
+   high (iPhone SE..Pro Max, Pixel / Galaxy phones on their side) - so laptops, desktops and tablets (taller than
+   500px) are not touched, and phones held upright keep the r22 layout (drawers + two-row header) exactly as before.
+   The public /try sandbox (html.helm-sandbox) has its own phone design and is left alone.
+     - one compact header row (scrolls sideways; Tools / Inspector stay pinned at the left), 40px touch targets
+     - toolbox and inspector / price panel become slide-over drawers (builder.js DRAWER_MQ includes this query)
+     - the canvas takes the rest of the screen; the zoom dock and the status line share the strip under the floor
+     - dialogs fit the short screen and scroll inside; notch / home-bar safe areas are respected
+     - one finger on the floor pans it, two fingers zoom it (builder-orient.js), objects drag by touch */
+
+/* the notch / rounded corners: the page itself stays inside the safe area (env() is 0 everywhere else) */
+html:not(.helm-sandbox) body{padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
+
+/* ---------- "Turn your phone sideways" card (builder-orient.js shows it; portrait phones only) ---------- */
+.orient-card{position:fixed;inset:0;z-index:2147482000;display:flex;align-items:center;justify-content:center;
+  padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px));
+  background:color-mix(in srgb,var(--bg,#f4f8f6) 94%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.orient-card[hidden]{display:none}
+.orient-box{width:min(340px,100%);max-height:100%;overflow:auto;text-align:center;background:var(--panel,#fff);color:var(--ink,#0b2a22);
+  border:1px solid var(--line,#e0eae5);border-radius:16px;box-shadow:0 12px 32px -14px rgba(11,42,34,.35);padding:22px 20px 18px}
+.orient-ico{display:block;width:64px;height:64px;margin:0 auto 10px;color:var(--accent,#047857)}
+.orient-ico .oi-phone{transform-origin:32px 32px;animation:orientTurn 2.4s ease-in-out infinite}
+@keyframes orientTurn{0%,25%{transform:rotate(0)}55%,85%{transform:rotate(-90deg)}100%{transform:rotate(0)}}
+.orient-box h2{margin:0 0 6px;font-size:17px;line-height:1.3;font-weight:700}
+.orient-box p{margin:0 0 16px;font-size:13.5px;line-height:1.45;color:var(--ink-2,#2f4a42)}
+.orient-acts{display:flex;flex-direction:column;gap:8px}
+.orient-acts button{min-height:44px;border-radius:10px;font:600 14px/1.2 inherit;cursor:pointer;padding:0 14px}
+.orient-acts .oc-lock{background:var(--accent,#047857);color:#fff;border:1px solid transparent}
+.orient-acts .oc-go{background:var(--panel-2,#f7faf9);color:var(--ink,#0b2a22);border:1px solid var(--line,#e0eae5)}
+.orient-acts button[hidden]{display:none}
+.orient-acts button:focus-visible{outline:2px solid var(--accent,#047857);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){ .orient-ico .oi-phone{animation:none;transform:rotate(-90deg)} }
+
+/* =============================== PHONE IN LANDSCAPE =============================== */
+@media (orientation:landscape) and (max-height:500px) and (pointer:coarse){
+  html:not(.helm-sandbox),html:not(.helm-sandbox) body{height:100%;height:100dvh;overscroll-behavior:none}
+
+  /* ---- header: one compact row, scrolls sideways; most-used controls first ---- */
+  html:not(.helm-sandbox) header{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:6px;row-gap:0;column-gap:6px;
+    padding:4px 8px;min-height:0;height:auto;align-items:center;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain}
+  html:not(.helm-sandbox) header::-webkit-scrollbar{display:none}
+  html:not(.helm-sandbox) header::after{display:none}
+  html:not(.helm-sandbox) header>*{flex:0 0 auto}
+  html:not(.helm-sandbox) header .hgroup{flex-wrap:nowrap;gap:6px;min-width:0;max-width:none}
+  html:not(.helm-sandbox) header>.hsep,html:not(.helm-sandbox) header .brand-txt,html:not(.helm-sandbox) header .kbd,
+  html:not(.helm-sandbox) header>.s-97445a8{display:none}
+  html:not(.helm-sandbox) .drawer-btns{display:flex;position:sticky;left:-8px;z-index:3;gap:6px;background:var(--panel);margin-left:-8px;padding:0 6px 0 8px;order:-10}
+  html:not(.helm-sandbox) .drawer-btns .tbtn[aria-expanded="true"]{background:var(--accent);color:var(--acc-ink,#fff);border-color:transparent}
+  html:not(.helm-sandbox) header .brand{order:-9;padding:0;margin:0}
+  /* reading order on a short screen: drawers, view (2D / 3D / Render), undo / redo, save, then the rest */
+  /* (the Units / Grid / View / Explore / Measure group is unwrapped so its fields can be ordered one by one) */
+  html:not(.helm-sandbox) header .hgroup:has(#viewSeg){display:contents}
+  html:not(.helm-sandbox) header .field:has(#viewSeg){order:-8}
+  html:not(.helm-sandbox) header .hg-edit{order:-7}
+  html:not(.helm-sandbox) header .hgroup:has(#saveBtn){order:-6}
+  html:not(.helm-sandbox) header .hgroup:has(#saveBtn) #projName{max-width:150px;min-width:96px}
+  html:not(.helm-sandbox) header .field:has(#measureBtn){order:-5}
+  html:not(.helm-sandbox) header .wt-field{order:-5}
+  html:not(.helm-sandbox) header .hgroup:has(#preset){order:-4}
+  html:not(.helm-sandbox) header .hgroup:has(#preset) select{max-width:140px}
+  html:not(.helm-sandbox) header .field:has(#unitSel),html:not(.helm-sandbox) header .field:has(#snapBtn){order:-3}
+  /* 40px touch targets, one height for every control in the row */
+  html:not(.helm-sandbox) header :is(select,.tbtn,.nameinput,.capmeter,.capinput){height:40px;min-height:40px;font-size:13px}
+  html:not(.helm-sandbox) header .tbtn.icon,html:not(.helm-sandbox) header .bp-priv-slot .hbp-btn{width:40px;min-width:40px;height:40px}
+  html:not(.helm-sandbox) header .seg{height:auto;padding:0;box-sizing:border-box;align-items:center}
+  html:not(.helm-sandbox) header .seg button{height:40px;min-height:40px;padding:0 10px}
+  html:not(.helm-sandbox) header .brand .mark{width:28px;height:28px}
+  html:not(.helm-sandbox) header .brand{min-width:40px;min-height:40px;justify-content:center}
+  /* the header scrolls sideways, so its pop-up menus float on the page instead of being clipped */
+  html:not(.helm-sandbox) .hmenu[open] .hmenu-pop{position:fixed;top:calc(52px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));
+    max-height:calc(100dvh - 64px);overflow:auto}
+  html:not(.helm-sandbox) .capbanner,html:not(.helm-sandbox) .verbanner{padding:3px 10px;font-size:12px}
+
+  /* ---- side panels -> slide-over drawers ---- */
+  html:not(.helm-sandbox) main{position:relative;overflow:hidden}
+  html:not(.helm-sandbox) aside.left,html:not(.helm-sandbox) aside.right{position:absolute;top:0;bottom:0;z-index:40;box-shadow:var(--shadow);
+    visibility:hidden;transition:transform .2s ease,visibility 0s linear .2s;overscroll-behavior:contain}
+  html:not(.helm-sandbox) aside.left{left:0;width:min(300px,48vw);transform:translateX(-102%);border-width:0 1px 0 0}
+  html:not(.helm-sandbox) aside.right{right:0;width:min(340px,52vw);transform:translateX(102%);border-width:0 0 0 1px;
+    padding-bottom:env(safe-area-inset-bottom,0px)}
+  html:not(.helm-sandbox) aside.left.collapsed{width:min(300px,48vw);overflow:visible}
+  html:not(.helm-sandbox) aside.right.collapsed{width:min(340px,52vw);overflow:visible}
+  html:not(.helm-sandbox) aside.left.open,html:not(.helm-sandbox) aside.right.open{transform:none;visibility:visible;transition:transform .2s ease,visibility 0s}
+  html:not(.helm-sandbox) aside.left{padding-bottom:env(safe-area-inset-bottom,0px)}
+  html:not(.helm-sandbox) aside .panel-head{padding:8px 14px 6px}
+  html:not(.helm-sandbox) aside.right .pricebox{max-height:none}
+  html:not(.helm-sandbox) aside.right{overflow-y:auto;-webkit-overflow-scrolling:touch}
+  html:not(.helm-sandbox) aside.right>.scroller{flex:0 0 auto;min-height:160px;overflow:visible}
+  html:not(.helm-sandbox) aside.right .insp-resizer{display:none}
+  /* R71 number steppers on inputs outside the inspector fields (guests / plates in the menu box) had no positioned
+     wrapper, so in the drawer they stretched down the panel's right edge over the content */
+  html:not(.helm-sandbox) aside.right .numwrap{position:relative;display:inline-block;width:fit-content;max-width:100%;vertical-align:middle}
+  html:not(.helm-sandbox) aside.right .numwrap>input[type=number]{padding-right:38px}
+  html:not(.helm-sandbox) aside.right .nstep{width:30px}
+  html:not(.helm-sandbox) .ptoggle{display:none}
+  html:not(.helm-sandbox) .viewport{width:100%}
+  html:not(.helm-sandbox) .tool{min-height:56px}
+  html:not(.helm-sandbox) .tsearch-in{height:40px;font-size:16px}   /* 16px: iOS does not zoom the page on focus */
+  html:not(.helm-sandbox) aside :is(input[type="text"],input[type="number"],input:not([type]),select,textarea){font-size:16px}
+  html:not(.helm-sandbox) .hint.hint1{display:none}
+
+  /* ---- the floor: one finger pans (native scroll), two fingers zoom (builder-orient.js), objects drag ---- */
+  html:not(.helm-sandbox) .scroll,html:not(.helm-sandbox) .scroll svg{touch-action:pan-x pan-y;overscroll-behavior:contain}
+  html:not(.helm-sandbox) .scroll svg :is(.obj,[data-handle],[data-margin]){touch-action:none}
+
+  /* ---- the strip under the floor: status (left) + zoom dock (right), never on top of each other ---- */
+  html:not(.helm-sandbox) .viewport{--dock-h:calc(48px + env(safe-area-inset-bottom,0px))}
+  html:not(.helm-sandbox) .viewport:not(.dock-min) .scroll,html:not(.helm-sandbox) .viewport:not(.dock-min) #rulerLeft,
+  html:not(.helm-sandbox) .viewport:not(.dock-min) .stage3d{bottom:var(--dock-h)}
+  html:not(.helm-sandbox) .viewport:not(.dock-min)::after{content:"";position:absolute;left:0;right:0;bottom:0;height:var(--dock-h);z-index:6;
+    pointer-events:none;background:var(--ruler,var(--panel));border-top:1px solid var(--line)}
+  html:not(.helm-sandbox) .fabstack,html:not(.helm-sandbox) .viewport:not(.dock-min) .fabstack{left:auto;right:6px;
+    bottom:calc(4px + env(safe-area-inset-bottom,0px));max-width:none;justify-content:flex-end;gap:4px;opacity:1}
+  html:not(.helm-sandbox) .fabstack .zoombar{padding:0;gap:0}
+  html:not(.helm-sandbox) .fabstack .zoombar button,html:not(.helm-sandbox) .fabstack .fs-fab{width:40px;min-width:40px;height:40px;min-height:40px;padding:0}
+  html:not(.helm-sandbox) .fabstack .zoombar .z{min-width:40px;font-size:12px}
+  html:not(.helm-sandbox) .fabstack .htour-fab.in-stack{width:40px;min-width:40px;height:40px;padding:0;font-size:0;border-radius:50%;
+    display:inline-flex;align-items:center;justify-content:center;overflow:hidden}
+  html:not(.helm-sandbox) .fabstack .htour-fab.in-stack::before{content:"?";font-size:16px;font-weight:700;line-height:1}
+  html:not(.helm-sandbox) .fabstack .dock-open{height:40px}
+  html:not(.helm-sandbox) .fabstack .navpad{bottom:calc(100% + 8px)}
+  html:not(.helm-sandbox) .viewport.is3d .navpad{bottom:calc(100% + 8px)}
+  html:not(.helm-sandbox) .statusbar,html:not(.helm-sandbox) .viewport:not(.dock-min) .statusbar{left:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));
+    top:auto;box-shadow:none;padding:4px 10px;max-width:calc(100% - 380px);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block}
+  html:not(.helm-sandbox) .viewport.dock-min .statusbar{max-width:calc(100% - 130px)}
+  html:not(.helm-sandbox) .toast{top:8px;max-width:calc(100% - 24px)}
+  /* pop-up notices drop in under the header instead of covering the zoom buttons in the strip under the floor */
+  html:not(.helm-sandbox) body :is(.hs-toasts,.bpui-toasts){top:calc(56px + env(safe-area-inset-top,0px));bottom:auto}
+
+  /* ---- 3D: a compact Move / Rotate / Scale bar; the legend stays above the dock ---- */
+  html:not(.helm-sandbox) .tools3d{left:8px;top:8px;right:auto;flex-wrap:nowrap;gap:2px;padding:3px;max-width:calc(100% - 16px);overflow-x:auto;scrollbar-width:none}
+  html:not(.helm-sandbox) .tools3d::-webkit-scrollbar{display:none}
+  html:not(.helm-sandbox) .tools3d button{min-height:40px;height:40px;padding:0 9px;flex:0 0 auto}
+  html:not(.helm-sandbox) .tools3d .l3-lbl{display:none}
+  html:not(.helm-sandbox) .labels3d{margin-left:2px;padding-left:4px}
+  html:not(.helm-sandbox) .legend3d{top:56px;bottom:auto;right:8px;max-height:calc(100% - 72px);max-width:200px}
+  html:not(.helm-sandbox) .hint3d{display:none}
+
+  /* ---- empty-floor card: fits the short screen ---- */
+  html:not(.helm-sandbox) .emptystate .es-card{max-height:calc(100% - 16px);overflow:auto;padding:14px 16px}
+  html:not(.helm-sandbox) .emptystate .es-icon{display:none}
+
+  /* ---- dialogs: fit the height, scroll inside, clear of the notch ---- */
+  html:not(.helm-sandbox) .modal,html:not(.helm-sandbox) .hs-overlay{align-items:center;
+    padding:max(6px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) max(6px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px))}
+  html:not(.helm-sandbox) .modal .sheet,html:not(.helm-sandbox) .modal .lw-sheet{max-height:calc(100dvh - 12px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));height:auto;border-radius:12px}
+  html:not(.helm-sandbox) .modal .sheet-head{padding:6px 10px 6px 14px;flex:0 0 auto}
+  html:not(.helm-sandbox) .modal .sheet-body{flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  html:not(.helm-sandbox) .modal .sheet-body.pad14{padding:10px 14px}
+  html:not(.helm-sandbox) .modal :is(input[type="text"],input[type="number"],input:not([type]),select,textarea){font-size:16px}
+  html:not(.helm-sandbox) .sheet-photo{width:min(760px,100%)}
+  html:not(.helm-sandbox) .ph-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  html:not(.helm-sandbox) .ph-grid2{grid-template-columns:1fr 1fr}
+  html:not(.helm-sandbox) .ph-note{margin-bottom:6px}
+  html:not(.helm-sandbox) .bpui-overlay{padding:6px max(10px,env(safe-area-inset-right,0px)) 6px max(10px,env(safe-area-inset-left,0px))}
+  html:not(.helm-sandbox) .bpui-overlay .bpui-dialog{max-height:calc(100dvh - 12px);overflow:auto}
+}
+/* the narrowest landscape phones (iPhone SE 667x375): the status line gives way to the zoom dock */
+@media (orientation:landscape) and (max-height:500px) and (pointer:coarse) and (max-width:700px){
+  html:not(.helm-sandbox) .statusbar,html:not(.helm-sandbox) .viewport:not(.dock-min) .statusbar{max-width:calc(100% - 360px)}
+  html:not(.helm-sandbox) .ph-grid{grid-template-columns:1fr 1fr}
+}

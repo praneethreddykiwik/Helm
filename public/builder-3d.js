@@ -1821,7 +1821,7 @@
 
     // ---- TransformControls: drag / rotate / scale the selected object in 3D ----
     gizmo=new THREE.Object3D(); scene.add(gizmo);
-    transform=new THREE.TransformControls(camera, cv); transform.setSize(1.1);
+    transform=new THREE.TransformControls(camera, cv); transform.setSize((window.matchMedia && matchMedia('(pointer:coarse)').matches) ? 1.5 : 1.1);   // R154i: bigger handles for a finger
     const transformHelper=transform.getHelper();   // r169+: TransformControls is no longer an Object3D - its gizmo is the helper (traverse/add/visible go through this)
     // R62: the handles are drawn LAST (after the name tags / badges, which are depth-test-free sprites too) - the
     // tags used to paint over a small gizmo sitting at the item's base, so Move / Rotate / Scale looked dead
