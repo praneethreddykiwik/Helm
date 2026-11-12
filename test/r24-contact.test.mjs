@@ -49,7 +49,7 @@ t('suggestions: profile menu item for every role, lazy dialog, store method, pub
   assert.ok(a.includes('{ id: "suggest", label: "Send a suggestion" }') && /"\/suggest\.js\?v=\d+"/.test(a));
   assert.ok(rd('public/store-api.js').includes('suggest: (p) => rpc("submit_suggestion", { p: p || {} })'));
   const s = rd('public/suggest.js');
-  assert.ok(s.includes('window.HelmSuggest = { open: openDialog }') && s.includes('/rest/v1/rpc/submit_suggestion'));
+  assert.ok(s.includes('window.HelmSuggest = { open: openDialog') && s.includes('/rest/v1/rpc/submit_suggestion'));
   assert.ok(!/innerHTML/.test(s));
   const h = rd('public/suggest.html');
   for (const id of ['sg-form', 'sg-kind', 'sg-message', 'sg-email', 'sg-website', 'sg-done']) assert.ok(h.includes(`id="${id}"`), id);

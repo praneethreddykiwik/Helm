@@ -496,7 +496,8 @@
       { sel: "#gSearch", title: "Search studios and people", desc: "Find a studio by name or link, or a person by e-mail. A studio's client logins are never listed. Invoices are under Billing." },
       { sel: "#kpis", title: "Key numbers", desc: "New studios, monthly income, plan mix and the trial funnel." },
       { sel: "#attList", title: "Needs attention", desc: "Studios and requests waiting on HQ. Trial ends show the studio's own day. System health beside it says why if job history can't be read." },
-      { sel: "#tab-requests", side: "right", title: "Requests", desc: "Plan requests, sales enquiries and suggestions from studios." },
+      // R154e (0351): Suggestions = the in-app Suggestion box (status, +1, a reply the sender reads in the app)
+      { sel: "#tab-requests", side: "right", title: "Requests", desc: "Plan requests, sales enquiries and suggestions from studios. Under Suggestions, filter by status, kind or text, see the +1 count, mark New / Planned / Done / Not now and write a reply the sender reads under My suggestions." },
       { sel: "#tab-staff", side: "right", title: "Staff access", desc: "Who on the Helm team can use HQ, and with which rights." },
       // r123a (0332): every HQ person - their own sign-ins
       { sel: "#tab-account", side: "right", title: "Where you're logged in", desc: "Every device signed in to HQ with your account: device, rough location, last active. Sign out one, or log out of all other devices." },

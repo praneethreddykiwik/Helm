@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (307 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (308 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3872 objects): body 174, bucket 9, col 221, con 402, cron 19, exec 2, fn 1764, idx 394, marker 3, pol 179, polexpr 4, pre 91, pub 5, seq 1, tbl 259, trg 343, view 2.
+-- What is checked (3896 objects): body 174, bucket 9, col 226, con 402, cron 19, exec 2, fn 1775, idx 397, marker 5, pol 179, polexpr 4, pre 92, pub 5, seq 1, tbl 260, trg 344, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3889,6 +3889,30 @@ with o(m, k, s, n, x) as (values
   ('0345_r153_prod_catchup', 'pre', null, '__pre0345', null),
   ('0346_r154_slug_skeleton_execute', 'exec', 'public', '_r23_slug_skeleton', 'text|authenticated'),
   ('0350_r154c_open_quotes', 'fn', 'public', 'my_open_quotes', 'text,integer,integer,uuid,integer'),
+  ('0351_r154e_suggestion_box', 'fn', 'public', '_r351_keep', 'text'),
+  ('0351_r154e_suggestion_box', 'col', 'public.suggestions', 'reply', null),
+  ('0351_r154e_suggestion_box', 'col', 'public.suggestions', 'replied_at', null),
+  ('0351_r154e_suggestion_box', 'col', 'public.suggestions', 'replied_by', null),
+  ('0351_r154e_suggestion_box', 'col', 'public.suggestions', 'reply_seen_at', null),
+  ('0351_r154e_suggestion_box', 'col', 'public.suggestions', 'share_with_studio', null),
+  ('0351_r154e_suggestion_box', 'idx', 'public.suggestions_user_created_0351', null, null),
+  ('0351_r154e_suggestion_box', 'idx', 'public.suggestions_studio_shared_0351', null, null),
+  ('0351_r154e_suggestion_box', 'tbl', 'public.suggestion_votes', null, null),
+  ('0351_r154e_suggestion_box', 'idx', 'public.suggestion_votes_user_0351', null, null),
+  ('0351_r154e_suggestion_box', 'fn', 'public', '_r351_tg_suggestion_guard', ''),
+  ('0351_r154e_suggestion_box', 'trg', 'public.suggestions', 'zz_r351_suggestion_guard', null),
+  ('0351_r154e_suggestion_box', 'fn', 'public', '_r351_row', 'suggestions,uuid'),
+  ('0351_r154e_suggestion_box', 'fn', 'public', '_r351_org', ''),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'suggestion_submit', 'jsonb'),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'my_suggestions', ''),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'my_suggestion_unread', ''),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'suggestion_replies_seen', ''),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'suggestion_vote', 'uuid,boolean'),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'suggestion_share', 'uuid,boolean'),
+  ('0351_r154e_suggestion_box', 'fn', 'public', 'hq_reply_suggestion', 'uuid,text,text'),
+  ('0351_r154e_suggestion_box', 'pre', null, '__pre0351', null),
+  ('0351_r154e_suggestion_box', 'marker', 'public', 'hq_suggestions', 'text|r154e-0351'),
+  ('0351_r154e_suggestion_box', 'marker', 'public', 'hq_set_suggestion', 'uuid,text,text|r154e-0351'),
   ('0353_r154h_wa_details', 'fn', 'public', 'save_org_whatsapp_account__pre0353', 'text,text,text,text'),
   ('0353_r154h_wa_details', 'fn', 'public', 'my_integration_accounts__pre0353', ''),
   ('0353_r154h_wa_details', 'body', 'public', 'save_org_whatsapp_account', 'text,text,text,text|0e008c23b247c5be0a921927b8147129'),
@@ -4205,7 +4229,8 @@ mig(ord, m, ov, note) as (values
   (304, '0345_r153_prod_catchup', null, null),
   (305, '0346_r154_slug_skeleton_execute', null, 'EXECUTE grant only: signed-in users may run the look-alike helper used by the organizations / org_slug_history indexes (studio settings save)'),
   (306, '0350_r154c_open_quotes', null, null),
-  (307, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)')
+  (307, '0351_r154e_suggestion_box', null, 'hq_suggestions + hq_set_suggestion re-issued in place (same names), checked by the 0351 marker in their bodies'),
+  (308, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)')
 ),
 env as (
   select

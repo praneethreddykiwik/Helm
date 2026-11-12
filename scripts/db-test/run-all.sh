@@ -389,6 +389,8 @@ run "r154c-open-quotes-0350" "R154C-OPEN-QUOTES-0350: ALL PASS \(21/21\)" psql -
 run "r154-slug-skeleton-0346" "R154-SLUG-SKELETON-0346: ALL PASS \(16/16\)" psql -q -f tests/db/r154-slug-skeleton-0346.sql
 # r154h (0353): WhatsApp IDs kept without the token - the old body refused them (typed IDs lost), now the studio admin saves + reads them back (token_saved yes / no, never the token); members / other studio / anon refused; bad IDs + one number per studio; with a token as before; same IDs keep connected, new IDs need the check, paused stays paused; after Disconnect; re-applies itself twice, rolled back
 run "r154h-wa-details-0353" "R154H-WA-DETAILS-0353: ALL PASS \(35/35\)" psql -q -f tests/db/r154h-wa-details-0353.sql
+# r154e (0351): Suggestion box v2 - admin / sales / crew send (server records the studio), own list + studio-shared rows only (never who), +1 kept (never deleted), another studio sees nothing, anon refused, 20 a day per person on every route, HQ list masked + Planned / Not now + reply (audited), sender reads + marks the reply; re-applies itself, rolled back
+run "r154e-suggestion-box-0351" "R154E-SUGGESTION-BOX-0351: ALL PASS \(50/50\)" psql -q -f tests/db/r154e-suggestion-box-0351.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

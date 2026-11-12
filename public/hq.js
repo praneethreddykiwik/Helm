@@ -1465,7 +1465,9 @@
   }
   /* ---------------- r24 (0271) sales enquiries + suggestions + their e-mail settings ---------------- */
   var SE_STATUS = { new: ["New", "warn"], contacted: ["Contacted", ""], won: ["Won", "ok"], lost: ["Lost", "bad"] };
-  var SG_STATUS = { new: ["New", "warn"], reviewed: ["Reviewed", ""], done: ["Done", "ok"] };
+  // R154e (0351): New / Planned / Done / Not now (the 0271 "reviewed" rows show as Seen, no button for it any more)
+  var SG_STATUS = { new: ["New", "warn"], planned: ["Planned", ""], done: ["Done", "ok"], not_now: ["Not now", "bad"] };
+  var SG_SHOW = { new: SG_STATUS.new, reviewed: ["Seen", ""], planned: SG_STATUS.planned, done: SG_STATUS.done, not_now: SG_STATUS.not_now };
   var SE_PLAN = { starter: "Starter", studio: "Studio", enterprise: "Enterprise", not_sure: "Not sure yet" };
   var SE_TEAM = { "1": "Just me", "2-5": "2–5 people", "6-15": "6–15 people", "16-50": "16–50 people", "51+": "51+ people" };
   var SG_KIND = { idea: "Idea", problem: "Problem", other: "Other" };
@@ -1524,29 +1526,73 @@
     });
     if (!tb.firstChild) tb.appendChild(el("tr", null, [el("td", { colspan: "6", cls: "empty", text: "No sales enquiries here." })]));
   }
+  // R154e (0351): the reply the sender reads in the app (My suggestions); visitors from /suggest only by e-mail
+  function sgReplyBox(x, reload) {
+    var wrap = el("div", { cls: "sgreply" });
+    wrap.appendChild(el("h4", { text: "Reply in the app" }));
+    if (!x.in_app) { wrap.appendChild(el("p", { cls: "muted", text: "Sent from the public website - this visitor cannot see an in-app reply. Use Reply by email." })); return wrap; }
+    if (x.reply) wrap.appendChild(el("p", { cls: "muted", text: "Sent " + ist(x.replied_at) + (x.reply_seen_at ? " · read by the sender " + ist(x.reply_seen_at) : " · not read yet") }));
+    if (!can("inbox.write")) { wrap.appendChild(el("div", { cls: "msgbox", text: x.reply || "No reply yet." })); return wrap; }
+    var id = "sgr-" + x.id;
+    var ta = el("textarea", { id: id, rows: "3", maxlength: "1000", "aria-label": "Reply the sender sees in the app" });
+    ta.value = x.reply || "";
+    var cnt = el("span", { cls: "muted", text: ta.value.length + " / 1000" });
+    ta.addEventListener("input", function () { cnt.textContent = ta.value.length + " / 1000"; });
+    var st = el("select", { "aria-label": "Status with this reply" });
+    [["", "Keep the status"]].concat(Object.keys(SG_STATUS).map(function (k) { return [k, "Mark " + SG_STATUS[k][0].toLowerCase()]; })).forEach(function (o) {
+      var op = el("option", { value: o[0], text: o[1] }); st.appendChild(op); });
+    var save = el("button", { cls: "btn primary", type: "button", text: x.reply ? "Update reply" : "Send reply" });
+    save.addEventListener("click", function () {
+      var v = ta.value.replace(/[<>]/g, "").trim();
+      if (v.length > 1000) { showErr(new Error("Keep the reply to 1000 characters or fewer.")); return; }
+      if (!v && !x.reply) { showErr(new Error("Write a reply first.")); ta.focus(); return; }
+      busy(save, function () { return call("hq_reply_suggestion", { p_id: x.id, p_reply: v, p_status: st.value || null })
+        .then(function () { okMsg(v ? "Reply saved. The sender sees it under My suggestions." : "Reply removed."); reload().catch(showErr); }); });
+    });
+    wrap.appendChild(ta);
+    wrap.appendChild(el("div", { cls: "actions" }, [st, save, cnt]));
+    return wrap;
+  }
+  var SG_ROWS = [];
   async function loadSuggestions() {
     var r = await call("hq_suggestions", { p_status: $("#fSg").value || null }); r = r && !Array.isArray(r) ? r : {};
     var c = r.counts || {};
     REQ_NEW.sugg = num(c.new); paintReqCounts();
-    $("#sgCounts").textContent = Object.keys(SG_STATUS).map(function (k) { return SG_STATUS[k][0] + ": " + int(c[k] || 0); }).join(" · ");
+    $("#sgCounts").textContent = Object.keys(SG_SHOW).filter(function (k) { return k !== "reviewed" || c[k]; })
+      .map(function (k) { return SG_SHOW[k][0] + ": " + int(c[k] || 0); }).join(" · ");
+    SG_ROWS = Array.isArray(r.rows) ? r.rows : [];
+    paintSuggestions();
+  }
+  // the kind + text filters work on the loaded list (the status filter asks the database)
+  function paintSuggestions() {
+    var kind = ($("#fSgKind") && $("#fSgKind").value) || "", q = (($("#fSgQ") && $("#fSgQ").value) || "").trim().toLowerCase();
     var tb = clear($("#tSg"));
-    (Array.isArray(r.rows) ? r.rows : []).forEach(function (x) {
+    SG_ROWS.filter(function (x) {
+      if (kind && x.category !== kind) return false;
+      if (!q) return true;
+      return [x.message, x.studio, x.who, x.page, x.reply].some(function (v) { return String(v || "").toLowerCase().indexOf(q) >= 0; });
+    }).forEach(function (x) {
       var who = x.who || (x.source === "app" ? "A Helm user" : "A visitor");
+      var stc = statusCell(x, SG_SHOW);
+      if (x.reply) stc.appendChild(el("div", { cls: "muted", text: x.reply_seen_at ? "replied · read" : "replied" }));
       var tr = el("tr", null, [
         el("td", { text: ist(x.created_at) }),
         el("td", null, [who, el("div", { cls: "muted", text: [x.studio, x.source === "app" ? "in the app" + (x.page ? " (" + x.page + ")" : "") : "website"].filter(Boolean).join(" · ") }),
           x.email ? el("div", null, [masked(x.email, "email", "suggestion", x.id, "email")]) : null]),
         el("td", { text: SG_KIND[x.category] || "—" }),
         msgCell(x.message),
-        statusCell(x, SG_STATUS)]);
-      rowWithDetail(tb, tr, 5, function (td) {
+        el("td", { text: num(x.votes) ? "+" + int(x.votes) : (x.shared ? "shared" : "—"), title: x.shared ? "Shared with the studio: people there can +1 it" : "Not shared" }),
+        stc]);
+      rowWithDetail(tb, tr, 6, function (td) {
         detailBox(td, [["From", who], ["Studio", x.studio], ["E-mail", masked(x.email, "email", "suggestion", x.id, "email")], ["Kind", SG_KIND[x.category]],
-          ["Where", x.source === "app" ? "in the app" + (x.page ? " (" + x.page + ")" : "") : "website"], ["Sent", ist(x.created_at)]],
+          ["Where", x.source === "app" ? "in the app" + (x.page ? " (" + x.page + ")" : "") : "website"], ["Sent", ist(x.created_at)],
+          ["Shared with studio", x.shared ? "Yes · +" + int(x.votes || 0) : "No"]],
           x.message, replyTo(x.email, "Thanks for your Helm suggestion", x.who), rowActions(x, SG_STATUS, "hq_set_suggestion", loadSuggestions), ["suggestion", x.id]);
+        td.appendChild(sgReplyBox(x, loadSuggestions));
         td.appendChild(noteBlock(x));
       });
     });
-    if (!tb.firstChild) tb.appendChild(el("tr", null, [el("td", { colspan: "5", cls: "empty", text: "No suggestions here." })]));
+    if (!tb.firstChild) tb.appendChild(el("tr", null, [el("td", { colspan: "6", cls: "empty", text: SG_ROWS.length ? "No suggestions match these filters." : "No suggestions here." })]));
   }
   function saveSalesSettings() {
     var em = $("#seEmail").value.trim();
@@ -2378,7 +2424,7 @@
   }
   function loadDemo() {
     return new Promise(function (resolve, reject) {
-      var sc = document.createElement("script"); sc.src = "hq-demo.js?v=3";
+      var sc = document.createElement("script"); sc.src = "hq-demo.js?v=4";
       sc.addEventListener("load", resolve); sc.addEventListener("error", reject); document.head.appendChild(sc);
     });
   }
@@ -2485,6 +2531,8 @@
     on("#fSe", "change", function () { loadSales().catch(showErr); });
     on("#btnSg", "click", function () { loadSuggestions().catch(showErr); });
     on("#fSg", "change", function () { loadSuggestions().catch(showErr); });
+    on("#fSgKind", "change", paintSuggestions);
+    on("#fSgQ", "input", paintSuggestions);
     on("#btnSeSet", "click", saveSalesSettings);
     on("#btnSettings", "click", saveSettings);
     on("#btnPlan", "click", savePlan);
