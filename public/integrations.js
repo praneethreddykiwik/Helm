@@ -57,6 +57,8 @@
     var w = (ov && ov.whatsapp) || null, acct = w && w.status;
     var num = w && w.display_phone ? String(w.display_phone) : "";
     if (acct === "connected") return { state: "on", label: "Live", meta: "Messages go out from your studio's own WhatsApp number" + (num ? " " + num : "") + "." };
+    // R154h (0353): the two IDs can be saved before the token - say which part is still missing
+    if (acct === "pending" && w.token_saved === false) return { state: "wait", label: "Not connected yet", meta: "Your WhatsApp Business Account ID and Phone number ID are saved. Add the access token below and press Connect WhatsApp." };
     if (acct === "pending") return { state: "wait", label: "Not checked", meta: "Your WhatsApp details are saved. Press Check connection below." };
     if (acct === "error") return { state: "off", label: "Needs attention", meta: "The last connection check failed - see below, fix it and press Check connection." };
     if (acct === "disabled" && w && w.phone_number_id) return { state: "off", label: "Paused", meta: "Nothing is sent on WhatsApp from your studio while it is paused." };
@@ -148,7 +150,7 @@
     var wac = doc.getElementById("itgWaConnect");
     if (wac && global.HelmWaConnect) global.HelmWaConnect.mount(wac, { store: S, onChange: function (x) {
       var w = x && x.w;
-      state.ov.whatsapp = w ? { status: w.status, display_phone: w.display_phone, phone_number_id: w.phone_number_id, connected_at: w.connected_at } : null;
+      state.ov.whatsapp = w ? { status: w.status, display_phone: w.display_phone, phone_number_id: w.phone_number_id, connected_at: w.connected_at, token_saved: w.token_saved } : null;
       repaint();
     } }).catch(function () {});
     // online payments are not offered yet (liveChannels.pay off) - no card that cannot be used

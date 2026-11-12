@@ -26,7 +26,7 @@ t('0346: MANIFEST once, after 0344 (and after 0257), plain words, nothing droppe
   assert.ok(mf.indexOf('forward  supabase/migrations/0257_studio_name_link.sql') < mf.indexOf(line));
   assert.ok(mf.indexOf('forward  supabase/migrations/0344_r149_missing_indexes.sql') < mf.indexOf(line));
   assert.match(mf, /# 0346 \(R154[^\n]*Nothing dropped or deleted\. Safe to run twice\./);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0344', '0346'\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(r(f), /'0344', '0346'(, '\d{4}')*\]/, f);
 });
 
 t('0346: grants only - EXECUTE to authenticated + service_role, revoked from PUBLIC + anon, no body / table touched', () => {

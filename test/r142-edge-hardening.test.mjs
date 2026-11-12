@@ -92,7 +92,7 @@ await t("1e a timeout takes the provider-failure path (never a saved error state
   const otp = r(join(FN, "send-otp/index.ts"));
   assert.match(otp, /if \(!isTimeout\(e\)\) throw e;[\s\S]{0,120}return json\(\{ error: "could not send the SMS, please try again" \}, 502\);/);
   const wc = r(join(FN, "wa-connect/index.ts"));
-  assert.match(wc, /if \(isTimeout\(e\)\) \{[^\n]*return json\(\{ error: "WhatsApp \(Meta\) did not answer in time - try again" \}, 502\); \}\s*return serverError\(e\);/);
+  assert.match(wc, /if \(isTimeout\(e\)\) \{[^\n]*return json\(\{ error: "WhatsApp \(Meta\) did not answer in time - try again"(, code: "timeout")? \}, 502\); \}\s*return serverError\(e\);/);
   const csc = r(join(FN, "create-subscription-checkout/index.ts"));
   assert.equal((csc.match(/if \(!isTimeout\(e\)\) throw e;/g) || []).length, 2);
   // a payment-link CREATE that times out is not marked failed (it may exist at Razorpay): generic 500, 2-minute reservation

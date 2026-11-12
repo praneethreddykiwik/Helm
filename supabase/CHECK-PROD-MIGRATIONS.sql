@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (304 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (305 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3864 objects): body 175, bucket 9, col 221, con 402, cron 19, exec 1, fn 1760, idx 394, marker 1, pol 179, polexpr 4, pre 89, pub 5, seq 1, tbl 259, trg 343, view 2.
+-- What is checked (3871 objects): body 176, bucket 9, col 221, con 402, cron 19, exec 2, fn 1762, idx 394, marker 3, pol 179, polexpr 4, pre 90, pub 5, seq 1, tbl 259, trg 343, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -1809,7 +1809,6 @@ with o(m, k, s, n, x) as (values
   ('0117_integration_accounts', 'pol', 'public.integration_webhook_events', 'integration_webhook_events_admin_read', null),
   ('0117_integration_accounts', 'fn', 'public', '_integ_vault_put', 'uuid,text,text'),
   ('0117_integration_accounts', 'fn', 'public', '_integ_vault_get', 'uuid'),
-  ('0117_integration_accounts', 'fn', 'public', 'save_org_whatsapp_account', 'text,text,text,text'),
   ('0117_integration_accounts', 'fn', 'public', 'org_razorpay_creds', 'uuid'),
   ('0117_integration_accounts', 'fn', 'public', 'org_whatsapp_creds', 'uuid'),
   ('0117_integration_accounts', 'fn', 'public', 'mark_org_integration', 'uuid,text,text,text'),
@@ -1818,6 +1817,7 @@ with o(m, k, s, n, x) as (values
   ('0117_integration_accounts', 'fn', 'public', 'wa_record_event', 'text,text,text,text,text,text,jsonb'),
   ('0117_integration_accounts', 'fn', 'public', 'save_org_payment_account', 'text,text,text'),
   ('0117_integration_accounts', 'fn', 'public', 'set_org_integration_status', 'text,text'),
+  ('0117_integration_accounts', 'fn', 'public', 'save_org_whatsapp_account', 'text,text,text,text'),
   ('0117_integration_accounts', 'fn', 'public', 'my_integration_accounts', ''),
   ('0116_trial_orgs', 'col', 'public.organizations', 'trial_ends_at', null),
   ('0116_trial_orgs', 'idx', 'public.organizations_trial_ends_idx116', null, null),
@@ -3791,7 +3791,6 @@ with o(m, k, s, n, x) as (values
   ('0337_r129_studio_whatsapp', 'fn', 'public', 'public_quote_ready__pre0337', 'uuid'),
   ('0337_r129_studio_whatsapp', 'body', 'public', 'public_quote_ready', 'uuid|053aab223d3438d065a3a8e8bf07567a'),
   ('0337_r129_studio_whatsapp', 'fn', 'public', 'my_integration_accounts__pre0337', ''),
-  ('0337_r129_studio_whatsapp', 'body', 'public', 'my_integration_accounts', '|ff862832cdbb5de8f41391926e28f14b'),
   ('0337_r129_studio_whatsapp', 'pre', null, '__pre0337', null),
   ('0338_r130_task_reminders', 'tbl', 'public.task_reminder_settings', null, null),
   ('0338_r130_task_reminders', 'col', 'public.event_tasks', 'remind_before', null),
@@ -3888,7 +3887,15 @@ with o(m, k, s, n, x) as (values
   ('0344_r149_missing_indexes', 'idx', 'public.ix_lead_enquiries_lead_id_0344', null, null),
   ('0344_r149_missing_indexes', 'idx', 'public.ix_welcome_email_outbox_org_id_0344', null, null),
   ('0344_r149_missing_indexes', 'idx', 'public.ix_event_tasks_planned_start_0344', null, null),
-  ('0346_r154_slug_skeleton_execute', 'exec', 'public', '_r23_slug_skeleton', 'text|authenticated')
+  ('0346_r154_slug_skeleton_execute', 'exec', 'public', '_r23_slug_skeleton', 'text|authenticated'),
+  ('0353_r154h_wa_details', 'fn', 'public', 'save_org_whatsapp_account__pre0353', 'text,text,text,text'),
+  ('0353_r154h_wa_details', 'fn', 'public', 'my_integration_accounts__pre0353', ''),
+  ('0353_r154h_wa_details', 'body', 'public', 'save_org_whatsapp_account', 'text,text,text,text|0e008c23b247c5be0a921927b8147129'),
+  ('0353_r154h_wa_details', 'body', 'public', 'my_integration_accounts', '|8ffdde81d6dacb155d93f2431145cd4f'),
+  ('0353_r154h_wa_details', 'pre', null, '__pre0353', null),
+  ('0353_r154h_wa_details', 'marker', 'public', 'save_org_whatsapp_account', 'text,text,text,text|r154h-0353'),
+  ('0353_r154h_wa_details', 'marker', 'public', 'my_integration_accounts', '|r154h-0353'),
+  ('0353_r154h_wa_details', 'exec', 'public', 'save_org_whatsapp_account', 'text,text,text,text|authenticated')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4194,7 +4201,8 @@ mig(ord, m, ov, note) as (values
   (301, '0342_r143_outbox_backoff', null, null),
   (302, '0343_r148_rls_initplan', null, 'ALTER POLICY only (calls wrapped as (select ...)); besides the kept helpers, 4 sample policies are checked for the wrapped form - run select * from public._r343_unwrapped() for the full list (0 rows expected)'),
   (303, '0344_r149_missing_indexes', null, null),
-  (304, '0346_r154_slug_skeleton_execute', null, 'EXECUTE grant only: signed-in users may run the look-alike helper used by the organizations / org_slug_history indexes (studio settings save)')
+  (304, '0346_r154_slug_skeleton_execute', null, 'EXECUTE grant only: signed-in users may run the look-alike helper used by the organizations / org_slug_history indexes (studio settings save)'),
+  (305, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)')
 ),
 env as (
   select
