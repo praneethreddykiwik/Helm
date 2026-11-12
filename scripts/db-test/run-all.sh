@@ -381,6 +381,8 @@ run "r143-outbox-backoff-0342" "R143-OUTBOX-BACKOFF-0342: ALL PASS \(55/55\)" ps
 run "r148-rls-initplan-0343" "R148-RLS-INITPLAN-0343: ALL PASS \(21/21\)" psql -q -f tests/db/r148-rls-initplan-0343.sql
 # r149 (0344): 34 missing indexes (row-security org_id tables, quote -> lead sync, Live Status, every-minute task reminders, outboxes, booking links) all there + valid + used by the planner; comms_outbox_unsub back with the 0165 body, service role only, ok / opted_out / token as comms-dispatch reads them; a prod-like database without it is fixed by 0344 alone; re-applies itself 3x (no index, function or row count changed), rolled back
 run "r149-indexes-0344" "R149-INDEXES-0344: ALL PASS \(20/20\)" psql -q -f tests/db/r149-indexes-0344.sql
+# r153 (0345): prod catch-up - a production-shaped database (PROD-DIAG-1111 gaps rebuilt in the test transaction) brought in line with canonical by 0345 applied twice: same triggers / bodies / grants as canonical, exactly one pricing trigger, nothing duplicated, kept __pre0345 bodies without privilege; overpayment / approval link end date / code limit / plan-save area check / return_reservation behaviour; duplicate inventory names -> index skipped, rows untouched; no-op on canonical; rolled back
+run "r153-prod-catchup-0345" "R153-PROD-CATCHUP-0345: ALL PASS \(19/19\)" psql -q -f tests/db/r153-prod-catchup-0345.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
