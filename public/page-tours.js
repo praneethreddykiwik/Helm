@@ -86,7 +86,7 @@
         title: "Your quotes", desc: "Click a row to open it, confirm it, re-price it, or take client approval by OTP / consent / payment link. A quote that is not confirmed yet has a Continue button that takes you back to the step you left." },
     ],
     "flow.html": [
-      { sel: "#code", title: "The event workspace", desc: "Every stage of this one event lives here, top to bottom — fill it in order and nothing gets missed." },
+      { sel: "#code", title: "The event workspace", desc: "Every stage of this one event lives here, top to bottom — fill it in order and nothing gets missed. Opened on another step? A Continue where you left off note takes you to the step that is next." },
       { sel: "#sec-client", title: "1 · Client", desc: "Who the event is for. Saved here, reused everywhere." },
       { sel: "#sec-discovery", title: "2 · Discovery", desc: "Capture requirements and the budget range before you price." },
       { sel: "#sec-proposal", title: "3 · Proposal", desc: "Your pitch to the client — it sits above the floor layout so you sell first, then plan." },
@@ -317,7 +317,7 @@
       { sel: "#closeBtn", title: "Close & archive", desc: "Once all equipment is returned, close the event. It moves to the Archive tab with a clean P&L." },
     ],
     "event.html": [
-      { sel: "#evHead", title: "This event", desc: "The event code, status, client approval and total at a glance. Free trial: the approval link is a preview - nothing is sent to the client." },
+      { sel: "#evHead", title: "This event", desc: "Code, status, approval and total at a glance. Not confirmed yet? The note above says what is next - Continue where you left off goes there. Free trial: the approval link is a preview, nothing is sent." },
       { sel: "#nextStepBar", title: "What to do next", desc: "Helm tells you the next step and why. Tap it to go straight there." },
       { sel: "#steps", title: "The event lifecycle", desc: "Every stage of this event, from proposal to settlement. Click a step to jump straight to it." },
       { sel: "#advBtn", title: "Advance the stage", desc: "Move the event forward — discovery → proposal → quote → confirmed → planning, and on." },
@@ -387,6 +387,7 @@
       { sel: "#timeline", title: "Timeline", desc: "Everything that happened with this client, newest first." },
     ],
     "discovery.html": [
+      { sel: "#flowResumeBanner", need: "edit:quotes", title: "Continue where you left off", desc: "Shown while this quote is not confirmed yet: what is next (and which steps were skipped). Continue where you left off takes you to that step; Not now hides it for the rest of this session." },
       { sel: "#d_date", title: "The discovery meeting", desc: "When you met the client, how, and who was there." },
       { sel: "#d_bmax", title: "Budget", desc: "The client's budget range. One budget per event, set in step 1." },
       { sel: "#d_notes", title: "Notes", desc: "What the client wants, in their words." },
@@ -395,6 +396,7 @@
       { sel: "#reqRows", title: "The list", desc: "The requirements so far. Resource planning pulls from this list." },
     ],
     "proposal.html": [
+      { sel: "#flowResumeBanner", need: "edit:quotes", title: "Continue where you left off", desc: "Shown while this quote is not confirmed yet: what is next (and which steps were skipped). Continue where you left off takes you to that step; Not now hides it for the rest of this session." },
       { sel: "#p_concept", title: "The concept", desc: "Your idea for the event in a few lines: the story you are selling." },
       { sel: "#p_color", title: "Colours", desc: "Add the colour palette as swatches." },
       { sel: "#p_img", title: "Mood board", desc: "Add inspiration images by link." },

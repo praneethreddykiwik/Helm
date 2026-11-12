@@ -215,7 +215,8 @@ await t('workspace banner + flow notice', () => {
   const v = H.fromServer(row({ my_step: null, last_step: 'venue', last_by_me: false, last_user_name: 'Priya', last_step_at: new Date(Date.now() - 600e3).toISOString() }), true);
   const b = H.renderBanner(app, v, { canEdit: true, before: head });
   assert.equal(app.childNodes.indexOf(b), app.childNodes.indexOf(head) - 1, 'right above the event header');
-  assert.match(b.textContent, /This quote is at step 4 of 8 \(Venue\)\. 3 of 8 steps done\./); assert.match(b.textContent, /Last worked on by Priya, 10 min ago/);
+  // r161: clearer copy - "Next: Venue (step 4 of 8) · 3 of 8 steps done" (skipped steps named when there are any)
+  assert.match(b.textContent, /Not confirmed yet/); assert.match(b.textContent, /Next: Venue \(step 4 of 8\) · 3 of 8 steps done/); assert.match(b.textContent, /Last worked on by Priya, 10 min ago/);
   assert.ok(b.all().some((x) => x.textContent === 'Continue where you left off'));
   H.renderBanner(app, null); assert.equal(env.doc.getElementById('flowResumeBanner'), null, 'finished: banner removed');
   const sec = new El('section', env.doc); let top = 0; const n = H.renderNotice(sec, { step: 'venue', mine: true }, () => { top++; });
@@ -242,8 +243,8 @@ await t('pages: Quotes "In progress (N)" tab, dashboard block, workspace banner,
   assert.match(d, /var cResume = card\("hdResume", "Continue quotes", IC\.doc, \{ skel: 1, span: "hd-s-full", block: "resume" \}\); cResume\.hidden = true;/);
   assert.match(d, /\[cResume, cShift, cCal,/); assert.match(d, /resume: "Continue quotes"/);
   assert.match(e, /<script src="flow-resume\.js\?v=\d+"><\/script>/);
-  assert.match(e, /BPStore\.flowProgress\.list\(\{ scope:"studio", quote:ev\.id\|\|id, limit:1 \}\)/);
-  assert.match(e, /HelmFlowResume\.renderBanner\(host, r\?HelmFlowResume\.fromServer\(r,true\):null, \{ canEdit:canEdit && !!d && d\.can_edit!==false, before:\$\("#evHead"\) \}\)/);
+  // r161: the shared banner (my_open_quotes for this one quote, editors only) - see test/r161-continue-banner.test.mjs
+  assert.match(e, /HelmFlowResume\.mountBanner\(\{ host:\$\("#app"\), before:\$\("#evHead"\), quote:ev, quoteId:ev\.id\|\|id, canEdit, store:BPStore \}\)/);
   assert.match(f, /flowTrack\.land\(st\)/); assert.match(f, /window\.addEventListener\("pagehide",\(\)=>\{ if\(flowTrack\) flowTrack\.flush\(\)/);
   assert.match(f, /window\.addEventListener\("hashchange"/); assert.doesNotMatch(f, /HelmFlowResume\.record\(/, 'the flow no longer writes the old single slot');
   assert.match(s, /const flowProgress = \{/); assert.match(s, /rpc\("mark_flow_step", \{ p_quote: String\(quoteId\), p_step: step \}\)/);
