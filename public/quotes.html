@@ -281,9 +281,9 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=347"></script><script src="flow-resume.js?v=7" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=5"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=3"></script>
+<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=347"></script><script src="flow-resume.js?v=8" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=5"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=3"></script>
 <script src="event-sizing.js?v=5"></script><script src="quote-smart-filter.js?v=2"></script><script src="approval-watch.js?v=2"></script><script src="event-group-picker.js?v=5"></script><script src="link-views.js?v=4"></script>
-<script src="page-tours.js?v=31"></script>
+<script src="page-tours.js?v=32"></script>
 <script src="tour.js?v=50"></script>
 <script>
   const $ = (s)=>document.querySelector(s);
@@ -840,6 +840,9 @@
     recalc();
     cmDirty.clean();
     $("#confirmModal").hidden=false;
+    // r161: a quote not yet Confirmed also says what is next in its flow (shared banner; editors only; leaving asks first when edited)
+    if(window.HelmFlowResume){ const sh=$("#confirmModal .sheet"); if(sh) HelmFlowResume.mountBanner({ host:sh, before:sh.querySelector(".seclabel"), quote:full, quoteId:id, canEdit:canEdit||false, store:BPStore,
+      onContinue:async(v)=>{ if(!(await BPUI.confirmDiscard(cmDirty))) return; location.href=HelmFlowResume.href(v); } }); }
   }
   const cmDirty=BPUI.trackDirty($("#confirmModal"));
   function closeConfirm(){ $("#confirmModal").hidden=true; cmDirty.clean(); }

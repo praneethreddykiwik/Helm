@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (309 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (310 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3900 objects): body 175, bucket 9, col 226, con 402, cron 19, exec 2, fn 1778, idx 397, marker 5, pol 179, polexpr 4, pre 92, pub 5, seq 1, tbl 260, trg 344, view 2.
+-- What is checked (3903 objects): body 176, bucket 9, col 226, con 402, cron 19, exec 2, fn 1779, idx 397, marker 5, pol 179, polexpr 4, pre 93, pub 5, seq 1, tbl 260, trg 344, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3924,7 +3924,10 @@ with o(m, k, s, n, x) as (values
   ('0353_r154h_wa_details', 'pre', null, '__pre0353', null),
   ('0353_r154h_wa_details', 'marker', 'public', 'save_org_whatsapp_account', 'text,text,text,text|r154h-0353'),
   ('0353_r154h_wa_details', 'marker', 'public', 'my_integration_accounts', '|r154h-0353'),
-  ('0353_r154h_wa_details', 'exec', 'public', 'save_org_whatsapp_account', 'text,text,text,text|authenticated')
+  ('0353_r154h_wa_details', 'exec', 'public', 'save_org_whatsapp_account', 'text,text,text,text|authenticated'),
+  ('0356_r161_open_quotes_order', 'fn', 'public', 'my_open_quotes__pre0356', 'text,integer,integer,uuid,integer'),
+  ('0356_r161_open_quotes_order', 'body', 'public', 'my_open_quotes', 'text,integer,integer,uuid,integer|d3a9b119446602d4fbafc7866cfd2f2d'),
+  ('0356_r161_open_quotes_order', 'pre', null, '__pre0356', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4235,7 +4238,8 @@ mig(ord, m, ov, note) as (values
   (306, '0350_r154c_open_quotes', null, null),
   (307, '0351_r154e_suggestion_box', null, 'hq_suggestions + hq_set_suggestion re-issued in place (same names), checked by the 0351 marker in their bodies'),
   (308, '0352_r154f_email_probe_limits', null, null),
-  (309, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)')
+  (309, '0353_r154h_wa_details', null, 'WhatsApp IDs saved without the token + token_saved yes / no on the Integrations page (two re-issued functions, old bodies kept as __pre0353)'),
+  (310, '0356_r161_open_quotes_order', null, null)
 ),
 env as (
   select
