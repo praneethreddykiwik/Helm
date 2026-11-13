@@ -147,9 +147,13 @@ Deno.serve(async (req) => {
     let admin: any = null;
     const db = () => admin ||= createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     if (orgParam) {
+      // R167: a bad/unknown ?org (or a prod where org_razorpay_creds is not yet applied) must fail
+      // CLOSED as a signature failure (401), never a 500. Before, any lookup error returned 500
+      // BEFORE the signature check, so an unsigned stranger could flood 500s / Sentry with ?org=<uuid>.
+      // We still log the error for real diagnosis; Razorpay retries a 401 the same as a 500.
       const { data: cr, error: cErr } = await db().rpc("org_razorpay_creds", { p_org: orgParam });
-      if (cErr) { report.error(cErr); log.error("org_razorpay_creds failed", errTag(cErr)); return new Response("error", { status: 500 }); }
-      secret = typeof cr?.webhook_secret === "string" ? cr.webhook_secret : "";
+      if (cErr) { report.error(cErr); log.error("org_razorpay_creds failed", errTag(cErr)); secret = ""; }
+      else secret = typeof cr?.webhook_secret === "string" ? cr.webhook_secret : "";
     } else {
       secret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") || "";
     }
