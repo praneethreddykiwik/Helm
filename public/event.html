@@ -228,7 +228,7 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=349"></script><script src="/trial-sim.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=350"></script><script src="/trial-sim.js?v=3"></script>
 <script src="flow-resume.js?v=9"></script>
 <script src="event-reminders.js?v=6"></script>
 <script src="page-tours.js?v=34"></script>
@@ -322,6 +322,10 @@
     await BPStore.init(); id=await HelmUrl.get("id", id); await renderAccount(); try{await BPStore.bell.mount(document.querySelector("#bell"));}catch{}
     if(!id){ $("#notfound").hidden=false; return; }
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
+    // R163: the event row is asked for NOW, at the same time as the access checks below (each its own round trip on a
+    // busy database), instead of after them. Row security still decides what comes back; the answer is only used once
+    // the checks have passed. A failure is handled exactly as before (not found / error card with Retry).
+    const evFirst=BPStore.quotes.get(id); evFirst.catch(()=>{});
     // crew-1020: crew assigned to this event open their own view (run-sheet + my tasks) instead of a dead end
     if(!(await BPStore.auth.canView("quotes")) && BPStore.ops.crew){ try{ if(await BPStore.ops.crew.eventBrief(id)){ location.replace("runsheet.html?id="+encodeURIComponent(id)); return; } }catch(e){} }
     if(!(await BPStore.auth.requireView("quotes"))) return;   // crew/client don't see the workspace
@@ -336,7 +340,7 @@
       cardDenied=new Set(keys.filter((k,i)=>!ok[i])); }
     // "not found" only when the event truly doesn't exist; any other failure → error card with Retry
     $("#loadErr").innerHTML=""; $("#notfound").hidden=true;
-    try{ ev=await BPStore.quotes.get(id); }
+    try{ ev=await evFirst; }
     catch(e){ if(BPUI.isNotFound(e)) $("#notfound").hidden=false; else BPUI.loadError($("#loadErr"), e, load, {what:"this event"}); return; }
     try{ evTax=BPStore.quoteTax(ev); }catch(_){ evTax=null; }
     // Pretty URLs (/studio/events/<code>) carry no ?id=, so hand the resolved quote id to the

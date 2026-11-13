@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const ev = readFileSync(new URL('../public/event.html', import.meta.url), 'utf8');
-const i = ev.indexOf('ev=await BPStore.quotes.get(id)');
+const i = ev.indexOf('ev=await evFirst;');   // R163: the read starts early (evFirst = BPStore.quotes.get(id)), awaited here
 const j = ev.indexOf('bk.setAttribute("data-quote", ev.id)');
 assert.ok(i > 0 && j > i, 'event.html sets data-quote on #bkShare after loading the quote');
 assert.match(ev, /HelmBookletShare\.reveal\(bk\)/);
