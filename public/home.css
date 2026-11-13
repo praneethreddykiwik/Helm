@@ -496,7 +496,7 @@ body[data-tone=mint]{background:#e4f1e9}body[data-tone=cream]{background:#f6f1e6
 .film[data-c="2"] .film-glow i:first-child,.film[data-c="5"] .film-glow i:first-child{transform:translate(20vw,10vw) scale(1.1)}
 .film[data-c="3"] .film-glow i:last-child,.film[data-c="6"] .film-glow i:last-child{transform:translate(-25vw,-15vw) scale(1.2)}
 .film-rail{position:relative;z-index:2;list-style:none;margin:0 auto 26px;padding:0 24px;display:flex;gap:6px;max-width:1240px;width:100%}
-.film-rail li{flex:1;display:flex;flex-direction:column;gap:8px;font-size:12px;font-weight:600;color:rgba(255,255,255,.4);transition:color .5s var(--out)}
+.film-rail li{flex:1;display:flex;flex-direction:column;gap:8px;font-size:12px;font-weight:600;color:rgba(255,255,255,.62);transition:color .5s var(--out)} /* R167: .4->.62 for WCAG AA 4.5:1 on #0b1510 */
 .film-rail li i{display:block;height:3px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;position:relative}
 .film-rail li i::after{content:"";position:absolute;inset:0;background:var(--acc-l);transform:scaleX(var(--f,0));transform-origin:left}
 .film-rail li.on,.film-rail li.past{color:#fff}
@@ -590,7 +590,7 @@ body[data-tone=mint]{background:#e4f1e9}body[data-tone=cream]{background:#f6f1e6
 .bal{background:var(--ink);color:#fff;border-radius:14px;padding:16px}.bal small{display:block;font-size:12px;opacity:.7}.bal b{font-size:34px;letter-spacing:-.03em}
 .pl{display:grid;gap:6px;background:#fff;border-radius:14px;padding:12px 14px;font-size:12.5px;box-shadow:0 0 0 1px var(--line)}
 .pl span{display:flex;justify-content:space-between}.pm{color:var(--acc-d);font-weight:700}
-.film-note{font-size:12px;color:rgba(255,255,255,.45);text-align:right;margin:12px 0 0}
+.film-note{font-size:12px;color:rgba(255,255,255,.64);text-align:right;margin:12px 0 0} /* R167: .45->.64 for WCAG AA */
 .film-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.08)}
 .film-bar i{display:block;height:100%;background:var(--acc-l);transform:scaleX(0);transform-origin:left}
 
