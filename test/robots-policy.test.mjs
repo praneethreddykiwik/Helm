@@ -79,12 +79,23 @@ t('marketing pages + their assets stay crawlable', () => {
     assert.equal(allowed(star.rules, u), true, `${u} must stay crawlable`);
 });
 
-t('AI crawler groups stay marketing-only', () => {
-  for (const g of groups(txt).filter((x) => !x.agents.includes('*'))) {
-    assert.equal(allowed(g.rules, '/dashboard'), false, `${g.agents} can crawl /dashboard`);
-    assert.equal(allowed(g.rules, '/login'), false, `${g.agents} can crawl /login`);
-    assert.equal(allowed(g.rules, '/about'), true, `${g.agents} blocked from /about`);
+t('AI search crawlers: marketing pages only; AI training crawlers: blocked everywhere (R165)', () => {
+  const SEARCH = ['oai-searchbot', 'chatgpt-user', 'claude-searchbot', 'claude-user', 'perplexitybot', 'perplexity-user'];
+  const TRAIN = ['gptbot', 'claudebot', 'anthropic-ai', 'claude-web', 'google-extended', 'ccbot', 'applebot-extended', 'meta-externalagent', 'bytespider'];
+  const gs = groups(txt).filter((x) => !x.agents.includes('*'));
+  const of = (a) => gs.find((g) => g.agents.includes(a));
+  for (const a of SEARCH) {
+    const g = of(a); assert.ok(g, `no group for ${a}`);
+    assert.equal(allowed(g.rules, '/about'), true, `${a} blocked from /about`);
+    assert.equal(allowed(g.rules, '/pricing'), true, `${a} blocked from /pricing`);
+    assert.equal(allowed(g.rules, '/dashboard'), false, `${a} can crawl /dashboard`);
+    assert.equal(allowed(g.rules, '/login'), false, `${a} can crawl /login`);
   }
+  for (const a of TRAIN) {
+    const g = of(a); assert.ok(g, `no group for ${a}`);
+    for (const u of ['/', '/about', '/pricing', '/llms.txt', '/dashboard']) assert.equal(allowed(g.rules, u), false, `${a} may crawl ${u}`);
+  }
+  for (const g of gs) assert.equal(allowed(g.rules, '/dashboard'), false, `${g.agents} can crawl /dashboard`);
 });
 
 t('sitemap only lists marketing URLs', () => {
