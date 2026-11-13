@@ -114,7 +114,8 @@
     var vb = $("#vBlocked"); if (vb) vb.hidden = true;
     var ve = $("#vLoadErr"); if (!ve) { notFound(); return; }
     ve.hidden = false; document.title = "Helm HQ";
-    var m = $("#leDetail"); if (m) m.textContent = (e && e.message) ? "Details: " + String(e.message).slice(0, 200) : "";
+    // R167: plain words via friendlyError (hides technical/DB internals) instead of the raw message
+    var m = $("#leDetail"); if (m) m.textContent = (window.BPUI && BPUI.friendlyError) ? BPUI.friendlyError(e, { action: "load this page" }) : ((e && e.message) ? "Details: " + String(e.message).slice(0, 200) : "");
     var r = $("#leRetry"); if (r && !r.dataset.wired) { r.dataset.wired = "1"; r.addEventListener("click", function () { try { location.reload(); } catch (x) {} }); }
     var o = $("#leOut"); if (o && !o.dataset.wired) { o.dataset.wired = "1"; o.addEventListener("click", function () { signOutThen("login.html"); }); }
   }
