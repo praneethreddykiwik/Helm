@@ -51,7 +51,8 @@
     if (S.busy) return; S.busy = true;
     var list = $("#ibxList"); list.setAttribute("aria-busy", "true");
     try {
-      var r = await BPStore.inbox.feed({ tab: S.tab, filter: S.filter || null, quote: S.quote, limit: 50, cursor: more ? S.cursor : null });
+      // R163 (owner): 10 at a time; the next 10 load by themselves when the end of the list scrolls into view (keyset cursor)
+      var r = await BPStore.inbox.feed({ tab: S.tab, filter: S.filter || null, quote: S.quote, limit: 10, cursor: more ? S.cursor : null });
       if (r === null) { $("#ibxApp").hidden = true; $("#ibxMissing").hidden = false; return; }
       var items = Array.isArray(r.items) ? r.items : [];
       S.items = more ? S.items.concat(items) : items;
@@ -333,6 +334,12 @@
     });
     $("#ibxReadAll").addEventListener("click", function () { readAll(null); });
     $("#ibxMore").addEventListener("click", function () { load(true); });
+    // R163: infinite scroll - the "Load more" button stays as the keyboard / no-observer fallback
+    try {
+      if (window.IntersectionObserver) new window.IntersectionObserver(function (es) {
+        es.forEach(function (e) { if (e.isIntersecting && S.cursor && !S.busy && !$("#ibxMore").hidden) load(true); });
+      }, { rootMargin: "200px 0px" }).observe($("#ibxMore"));
+    } catch (e) {}
     $("#ibxMail").addEventListener("click", openMail);
     $("#ibxMailSave").addEventListener("click", saveMail);
     $("#ibxMailCancel").addEventListener("click", function () { $("#ibxMailDlg").close(); });

@@ -201,6 +201,15 @@
      Until then a placeholder sits where the picture goes (no broken-image icon); a failure offers "Reload", and a
      photo that no longer exists says so. */
   var IMG_RETRY_MS = 700;
+  /* R163: a slow database never leaves "Loading the photo…" up for ever - each fetch and the picture decode give up after
+     a while and offer Reload (the same "couldn't be loaded" path as an error). */
+  var IMG_FETCH_MS = 30000, IMG_DECODE_MS = 20000;
+  function inTime(p, ms) {
+    return new Promise(function (ok, no) {
+      var t = setTimeout(function () { no(Object.assign(new Error('timeout'), { code: 'timeout' })); }, ms);
+      Promise.resolve(p).then(function (v) { clearTimeout(t); ok(v); }, function (e) { clearTimeout(t); no(e); });
+    });
+  }
   function dataUrlToBlob(u) {
     var m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(String(u || ''));
     if (!m) return null;
@@ -210,7 +219,7 @@
     A = A || api(); wait = wait == null ? IMG_RETRY_MS : wait;
     var last = null;
     for (var t = 0; t < 2; t++) {
-      try { var u = await A.image(id); if (u) return u; last = new Error('empty'); }
+      try { var u = await inTime(A.image(id), IMG_FETCH_MS); if (u) return u; last = new Error('empty'); }
       catch (e) { last = e; if (e && e.code === 'P0002') break; }   // that photo no longer exists: retrying will not help
       if (t === 0) await new Promise(function (ok) { setTimeout(ok, wait); });
     }
@@ -218,7 +227,9 @@
   }
   function card(r, src, opts) {
     var c = el('div', 'ph-card');
-    var img = el('img'); img.alt = 'Photo render of the event plan'; img.loading = 'lazy';
+    // R163: lazy loading only for a picture shown at once. A hidden lazy <img> is never fetched by Chrome, Safari or
+    // Firefox, so its onload never fired and a past render sat on "Loading the photo…" for ever.
+    var img = el('img'); img.alt = 'Photo render of the event plan'; if (src) img.loading = 'lazy';
     var ph = null;
     if (src) { img.src = src; c.appendChild(img); }
     else { img.hidden = true; c.appendChild(img); ph = el('div', 'ph-ph', 'Photo not shown yet'); ph.setAttribute('role', 'img'); ph.setAttribute('aria-label', 'Photo not shown yet'); c.appendChild(ph); }
@@ -242,11 +253,12 @@
       if (ph) ph.textContent = 'Loading the photo…';
       pending = fetchImage(r.id).then(function (u) {
         var b = dataUrlToBlob(u), href = b && window.URL && URL.createObjectURL ? URL.createObjectURL(b) : u;
-        return new Promise(function (ok, no) {
+        return inTime(new Promise(function (ok, no) {
+          img.removeAttribute('loading');   // eager: the picture is still hidden until it has loaded
           img.onload = function () { img.hidden = false; if (ph) ph.hidden = true; ok(href); };
           img.onerror = function () { no(Object.assign(new Error('decode'), { code: 'failed' })); };
           img.src = href;
-        });
+        }), IMG_DECODE_MS).catch(function (e) { throw Object.assign(new Error('decode'), { code: e && e.code === 'P0002' ? 'missing' : 'failed' }); });
       }).then(function (href) { loaded = href; dl.href = href; return href; })
         .finally(function () { pending = null; });
       return pending;
