@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (313 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (314 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (3950 objects): body 175, bucket 9, col 226, con 402, cron 19, exec 4, fn 1806, idx 398, marker 12, pol 184, polexpr 4, pre 96, pub 5, seq 1, tbl 263, trg 344, view 2.
+-- What is checked (3952 objects): body 175, bucket 9, col 226, con 402, cron 20, exec 4, fn 1807, idx 398, marker 12, pol 184, polexpr 4, pre 96, pub 5, seq 1, tbl 263, trg 344, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3974,7 +3974,9 @@ with o(m, k, s, n, x) as (values
   ('0358_r163_catalog_tz_speed', 'fn', 'public', '_r23_tz__pre0358', 'uuid'),
   ('0358_r163_catalog_tz_speed', 'pre', null, '__pre0358', null),
   ('0358_r163_catalog_tz_speed', 'marker', 'public', 'notification_catalog', '|r163-0358'),
-  ('0358_r163_catalog_tz_speed', 'marker', 'public', '_r23_tz', 'uuid|r163-0358')
+  ('0358_r163_catalog_tz_speed', 'marker', 'public', '_r23_tz', 'uuid|r163-0358'),
+  ('0359_r167_cron_log_trim', 'fn', 'public', '_r359_trim_cron_log', ''),
+  ('0359_r167_cron_log_trim', 'cron', null, 'helm-cron-log-trim', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4289,7 +4291,8 @@ mig(ord, m, ov, note) as (values
   (310, '0354_r156_wa_template_jobs', null, 'WhatsApp template setup in the background (two tables, worker functions, bell kind wa_templates). The two cron jobs are scheduled only once the Vault secrets exist (owner step), so they are not expected here - check them with select jobname from cron.job where jobname like helm-wa-templates%'),
   (311, '0356_r161_open_quotes_order', null, null),
   (312, '0357_r163_bell_type_once', null, 'bell / inbox / pending + Continue quotes speed fix: _r23_visible + bell_feed__pre0042 + my_open_quotes re-issued in place (built with dynamic SQL), checked by the r163-0357 marker; kept bodies as __pre0357'),
-  (313, '0358_r163_catalog_tz_speed', null, 'notification_catalog + _r23_tz re-issued in place (built with dynamic SQL), checked by the r163-0358 marker; kept bodies as __pre0358; new table _r358_tz_names')
+  (313, '0358_r163_catalog_tz_speed', null, 'notification_catalog + _r23_tz re-issued in place (built with dynamic SQL), checked by the r163-0358 marker; kept bodies as __pre0358; new table _r358_tz_names'),
+  (314, '0359_r167_cron_log_trim', null, null)
 ),
 env as (
   select

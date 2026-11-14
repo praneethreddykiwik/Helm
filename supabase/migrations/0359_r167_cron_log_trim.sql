@@ -36,9 +36,13 @@ do $$ begin
   end if;
 end $$;
 
+-- NOTE: the VERIFY lines below must not NAME cron.job / cron.job_run_details as a relation,
+-- because Postgres parses a plain SELECT fully before running it, so a direct reference would
+-- error on a database without pg_cron (staging and the CI canonical build). We use to_regclass
+-- (a text argument) and call the guarded function instead.
 -- VERIFY 01: function exists
 select to_regprocedure('public._r359_trim_cron_log()') is not null as fn_ok;
--- VERIFY 02: job scheduled where pg_cron exists (true on prod; also true on staging because cron is absent)
-select (to_regnamespace('cron') is null) or exists (select 1 from cron.job where jobname = 'helm-cron-log-trim') as job_ok;
--- VERIFY 03: current run-history row count (informational; -1 where pg_cron is absent)
-select case when to_regclass('cron.job_run_details') is null then -1 else (select count(*) from cron.job_run_details) end as cron_log_rows;
+-- VERIFY 02: is pg_cron present here (true on prod; false on staging / CI, which is fine)
+select to_regclass('cron.job') is not null as pg_cron_present;
+-- VERIFY 03: run the cleanup once now - returns rows deleted (0 where pg_cron is absent; a real count on prod)
+select public._r359_trim_cron_log() as rows_trimmed_now;
