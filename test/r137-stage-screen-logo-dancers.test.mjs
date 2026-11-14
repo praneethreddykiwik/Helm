@@ -193,7 +193,9 @@ t('dancers: dance style option, old layouts unchanged in shape (same item, new o
   assert.match(d2, /small dancer figures/); assert.ok((d2.match(/el\('path'/g) || []).length >= 2 && /el\('circle'/.test(d2));
   assert.match(b3, /const HD=typeof window!=='undefined' && window\.HelmDancers;\n\s+if\(HD && typeof HD\.build==='function'\)\{ try\{ if\(HD\.build\(THREE, g, it\)\) break; \}catch\(_\)\{\} \}/);
   for (const f of ['public/builder.html', 'public/try.html', 'public/capture.html'])
-  { const h = read(f), i = h.indexOf('<script src="dancers-3d.js?v='); assert.ok(i > 0 && i < h.indexOf('<script src="builder-3d.js?v='), f + ': dancers-3d.js before builder-3d.js'); }
+  // R168: /try loads the 3D bundle lazily (<script type="text/plain" data-try-lazy src=...>), so match the
+  // filename rather than the "<script src=" prefix; the dancers-before-builder load order must still hold.
+  { const h = read(f), i = h.indexOf('dancers-3d.js?v='); assert.ok(i > 0 && i < h.indexOf('builder-3d.js?v='), f + ': dancers-3d.js before builder-3d.js'); }
   assert.ok(!/innerHTML|document\.|fetch\(/.test(dsrc), 'pure 3D builder');
   const pr = P.build({ items: [{ id: 'd', type: 'dancers', x: 50, y: 50, width: 12, height: 8, rotation: 0, properties: { danceStyle: 'classical' } }], world: { w: 200, h: 140 } }).prompt;
   assert.match(pr, /Indian classical dance/);
