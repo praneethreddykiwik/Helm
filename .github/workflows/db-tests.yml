@@ -39,7 +39,13 @@ permissions:
   contents: read
 jobs:
   gate:
+    name: DB-tests gate (did the suite actually run?)
     # Secrets cannot be used in a job-level `if:`, so surface presence as output.
+    #
+    # VISIBILITY: a green tick on this gate does NOT mean the DB tests passed — it
+    # only means the gate ran. When the secret is absent the gate emits a
+    # ::warning:: annotation and a job summary so the skip is legible in the PR
+    # Checks UI, instead of being buried in this step's log behind a success tick.
     runs-on: ubuntu-latest
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
@@ -48,10 +54,26 @@ jobs:
         run: |
           if [ -n "${{ secrets.HELM_TEST_DB_URL }}" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
-            echo "HELM_TEST_DB_URL present — DB tests will run."
+            echo "::notice title=DB tests will run::HELM_TEST_DB_URL present — the DB test suite will execute."
+            {
+              echo "### DB tests (payment/OTP/RLS hardening, staging)"
+              echo ""
+              echo "✅ **HELM_TEST_DB_URL present — the DB test suite will run.** See the \`db-tests\` job for results."
+            } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "HELM_TEST_DB_URL absent — skipping DB tests (expected for forks/external PRs)."
+            echo "::warning title=DB tests SKIPPED — not run::HELM_TEST_DB_URL is not configured, so the DB test suite was SKIPPED (it did NOT run and did NOT pass). This is expected for forks/external PRs. Owner: add the HELM_TEST_DB_* secrets to enable it."
+            {
+              echo "### DB tests (payment/OTP/RLS hardening, staging) — ⚠️ SKIPPED, did NOT run"
+              echo ""
+              echo "The DB test suite was **skipped** because \`HELM_TEST_DB_URL\` is not configured."
+              echo ""
+              echo "- A green tick on this gate means only that the gate ran — **not** that the DB tests passed."
+              echo "- The \`db-tests\` job below shows as *skipped* (it did not execute)."
+              echo "- Expected for forks/external PRs; secrets are never exposed to them."
+              echo ""
+              echo "**Owner action:** add \`HELM_TEST_DB_URL\` (and the related \`HELM_TEST_*\` secrets) under Settings → Secrets and variables → Actions, pointing ONLY at staging or a throwaway project, to run this suite."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
   db-tests:
