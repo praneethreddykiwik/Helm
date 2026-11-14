@@ -46,3 +46,4 @@ supabase/staging-seed-admin.sql
 
 # Internal audit/comparison reports — keep local, never commit
 AUDIT-CURRENT-STATE-*
+.trytest/
