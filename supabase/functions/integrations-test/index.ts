@@ -37,7 +37,7 @@ import { bearer, errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { postalAddress, txFooter } from "../_shared/email-compliance.mjs";
 import { TRIAL_NO_SEND_MSG, trialSendBlocked } from "../_shared/trial-guard.ts";
-import { channelStatus, EMAIL_NOT_SET_REASON, fromHeader, maskEmail, maskPhone, PHONE_RE, EMAIL_RE, replyToOf, testEmail, waTargetRefusal, optOutTableMissing, waTestPerDay, TEST_TEXT } from "./logic.mjs";
+import { channelStatus, emailSetupHints, EMAIL_NOT_SET_REASON, fromHeader, maskEmail, maskPhone, PHONE_RE, EMAIL_RE, replyToOf, testEmail, waTargetRefusal, optOutTableMissing, waTestPerDay, TEST_TEXT } from "./logic.mjs";
 import { studioSender, waPost } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
 import { noticeContent } from "../_shared/wa-studio.mjs";
 import { logger } from "../_shared/log.ts";
@@ -75,7 +75,8 @@ Deno.serve(async (req) => {
       if (error) return json({ error: "only people who can open Settings can see this" }, 403);
       // R129: WhatsApp is live for THIS studio when its own number is connected
       const connected = !!(ov && ov.whatsapp && ov.whatsapp.status === "connected");
-      return json({ email: st.email, whatsapp: { live: connected, credentials: connected, template: connected, webhook: st.whatsapp.webhook, studio_number: true } });
+      // R169: value-free setup hints (names of settings only, never a secret) - a dry-run advisory, nothing is sent.
+      return json({ email: { ...st.email, hints: emailSetupHints(env) }, whatsapp: { live: connected, credentials: connected, template: connected, webhook: st.whatsapp.webhook, studio_number: true } });
     }
     if (action !== "test") return json({ error: "unknown action" }, 400);
     const channel = String(body.channel || "");
