@@ -117,9 +117,19 @@ t('razorpay-webhook: every supabase-js call checks its error (500 → Razorpay r
   assert.match(hook, /razorpay_settle failed[\s\S]{0,80}status: 500/);
 });
 t('razorpay-webhook: a payment that cannot settle is RECORDED (reconcile), not dropped', () => {
-  assert.match(hook, /out\.result === "reconcile"/);
+  assert.match(hook, /effResult === "reconcile"/);
   assert.match(mig, /insert into public\.payment_reconciliation/);
   assert.match(mig, /if q\.approval_status = 'paid' then v_reason := 'already_paid'/);
+});
+t('razorpay-webhook: R168 - a replay (re)sends the receipt only if it was never sent, never re-records the payment', () => {
+  // on a replay we look up whether a receipt/reconcile notice for THIS payment already exists; if so -> idempotent 200
+  assert.match(hook, /out\.result === "replay"/);
+  assert.match(hook, /\.in\("kind", \["payment_receipt", "payment_reconcile"\]\)\.eq\("detail->>payment_ref", payId\)/);
+  // a genuine duplicate still returns 200 without e-mailing, and no settle RPC is called on the replay branch
+  assert.match(hook, /already recorded \(idempotent\)/);
+  // new receipt/reconcile notifications carry the payment ref so a later replay can detect them
+  assert.match(hook, /kind: "payment_receipt", status: clientStatus, detail: payId \? \{ payment_ref: payId \} : \{\}/);
+  assert.match(hook, /kind: "payment_reconcile", status: st, detail: payId \? \{ payment_ref: payId \} : \{\}/);
 });
 t('razorpay-webhook: per-studio branding/recipients; MANAGER_EMAIL gets no tenant data', () => {
   assert.doesNotMatch(hook, /Blueprint Stage/);
