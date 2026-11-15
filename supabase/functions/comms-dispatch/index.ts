@@ -296,6 +296,13 @@ Deno.serve(async (req) => {
     if (!ok) return json({ error: "unauthorized" }, 401);
 
     const batch = Math.min(100, Math.max(1, Number(Deno.env.get("COMMS_BATCH")) || 25));
+    // R168: overall soft time budget (100 s, matching wa-template-worker). Checked BETWEEN messages (each lane's
+    // loop) and BETWEEN lanes (before each claim): once exceeded we stop cleanly and return a normal 200 summary.
+    // Rows already claimed but not yet processed are simply left unmarked - comms_outbox_claim's 10-minute lease
+    // hands them out again on the next tick, so nothing is marked sent and nothing is lost. Per-lane batch sizes
+    // are unchanged - this only stops starting new work when the run is close to the platform's wall-clock limit.
+    const started = Date.now();
+    const overBudget = () => Date.now() - started > 100_000;
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     waAdmin = admin;
     const waSenderOf = senderCache(admin);   // R129: one studio-number lookup per studio per run
@@ -315,6 +322,7 @@ Deno.serve(async (req) => {
     const withReply = async (lane: string, rowId: string, ident: Identity): Promise<Identity> =>
       ({ ...ident, reply_to: (await rowReplyTo(admin, lane, rowId, ident.reply_to, { env, cache: rtCache })) || null });
     for (const r of (Array.isArray(rows) ? rows : [])) {
+      if (overBudget()) break;   // R168: stop cleanly - the rest stay claimed (lease) and go out next tick
       const id = String(r?.id ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const purpose = String(r?.purpose ?? ""), channel = String(r?.channel ?? ""), to = String(r?.to ?? "");
@@ -348,9 +356,10 @@ Deno.serve(async (req) => {
     let retention: { delete_enabled?: boolean; retention_days?: number } | null = null;
     try { const { data, error } = await admin.rpc("trial_retention_mail_settings"); if (!error && data && typeof data === "object") retention = data; } catch (_) { retention = null; }
     // 0120: free-trial reminder e-mails (a database without 0120 just has nothing to claim)
-    const { data: trows, error: tErr } = mailOn ? await admin.rpc("trial_reminder_email_claim", { p_limit: batch }) : NOCLAIM;
+    const { data: trows, error: tErr } = mailOn && !overBudget() ? await admin.rpc("trial_reminder_email_claim", { p_limit: batch }) : NOCLAIM;
     if (tErr) log.error("trial claim skipped", errTag(tErr));
     for (const r of (Array.isArray(trows) ? trows : [])) {
+      if (overBudget()) break;   // R168
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const msg = trialReminderEmail(String(r?.milestone ?? ""), String(r?.studio ?? ""), String(r?.ends_at ?? ""), String(r?.timezone ?? ""), origin, retention);
@@ -370,12 +379,13 @@ Deno.serve(async (req) => {
     }
     // 0184: post-trial mails to the studio owner (a database without 0184 just has nothing to claim).
     // Deletion warnings are service notices (transactional footer); the follow-ups are nudges (Helm unsubscribe).
-    const { data: rrows, error: rErr } = mailOn ? await admin.rpc("trial_retention_email_claim", { p_limit: batch }) : NOCLAIM;
+    const { data: rrows, error: rErr } = mailOn && !overBudget() ? await admin.rpc("trial_retention_email_claim", { p_limit: batch }) : NOCLAIM;
     if (rErr) log.error("retention claim skipped", errTag(rErr));
     // R124 (0333): Day 0 / 2 / 14 have their own claim, so an older dispatcher can never mark them skipped; same mark.
-    const { data: frows, error: fErr } = mailOn ? await admin.rpc("trial_followup_email_claim", { p_limit: batch }) : NOCLAIM;
+    const { data: frows, error: fErr } = mailOn && !overBudget() ? await admin.rpc("trial_followup_email_claim", { p_limit: batch }) : NOCLAIM;
     if (fErr) log.error("follow-up claim skipped", errTag(fErr));
     for (const r of [...(Array.isArray(rrows) ? rrows : []), ...(Array.isArray(frows) ? frows : [])]) {
+      if (overBudget()) break;   // R168
       const id = String(r?.id ?? ""), to = String(r?.to ?? ""), kind = String(r?.kind ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const msg = trialRetentionEmail(kind, String(r?.studio ?? ""), { deleteOn: String(r?.delete_on ?? ""), expiredAt: String(r?.expired_at ?? ""),
@@ -398,9 +408,10 @@ Deno.serve(async (req) => {
       counts[res]++;
     }
     // 0132: "you've been assigned ..." WhatsApp to staff (a database without 0132 has nothing to claim)
-    const { data: arows, error: aErr } = await admin.rpc("assign_notify_claim", { p_limit: batch });
+    const { data: arows, error: aErr } = overBudget() ? NOCLAIM : await admin.rpc("assign_notify_claim", { p_limit: batch });
     if (aErr) log.error("assign claim skipped", errTag(aErr));
     for (const r of (Array.isArray(arows) ? arows : [])) {
+      if (overBudget()) break;   // R168
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const text = assignMessage(String(r?.text ?? ""), String(r?.link_path ?? ""), origin);
@@ -430,9 +441,10 @@ Deno.serve(async (req) => {
     // R130 (0338): task reminders, late reminders and office alerts (task_reminder_tick queues them every minute).
     // From the studio's own number only; not connected -> "not_set_up" (the Live Status line says so). A database
     // without 0338 just has nothing to claim.
-    const { data: rmRows, error: trErr } = await admin.rpc("task_wa_claim", { p_limit: batch });
+    const { data: rmRows, error: trErr } = overBudget() ? NOCLAIM : await admin.rpc("task_wa_claim", { p_limit: batch });
     if (trErr && !/PGRST202|42883/.test(String(trErr.code || ""))) log.error("reminder claim skipped", errTag(trErr));
     for (const r of (Array.isArray(rmRows) ? rmRows : [])) {
+      if (overBudget()) break;   // R168
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const sender = await waSenderOf(String(r?.org_id ?? ""));
@@ -452,9 +464,10 @@ Deno.serve(async (req) => {
       counts[st === "sent" ? "sent" : st === "retry" || st === "failed" ? "failed" : "skipped"]++;
     }
     // 0241: delivery / arrival reminders (a database without 0241 just has nothing to claim). E-mail only.
-    const { data: drows, error: dErr } = mailOn ? await admin.rpc("delivery_reminder_claim", { p_limit: batch }) : NOCLAIM;
+    const { data: drows, error: dErr } = mailOn && !overBudget() ? await admin.rpc("delivery_reminder_claim", { p_limit: batch }) : NOCLAIM;
     if (dErr) log.error("delivery claim skipped", errTag(dErr));
     for (const r of (Array.isArray(drows) ? drows : [])) {
+      if (overBudget()) break;   // R168
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const msg = deliveryMessage(r, origin);
@@ -467,9 +480,10 @@ Deno.serve(async (req) => {
     }
     // 0256: vendor requests + "still waiting" reminders (e-mail lane only; WhatsApp rows stay queued for a future
     // lane; a database without 0256 just has nothing to claim). The claim re-checks each row and mints a fresh link.
-    const { data: vrows, error: vErr } = mailOn ? await admin.rpc("vendor_request_claim", { p_limit: batch, p_channel: "email" }) : NOCLAIM;
+    const { data: vrows, error: vErr } = mailOn && !overBudget() ? await admin.rpc("vendor_request_claim", { p_limit: batch, p_channel: "email" }) : NOCLAIM;
     if (vErr) log.error("vendor request claim skipped", errTag(vErr));
     for (const r of (Array.isArray(vrows) ? vrows : [])) {
+      if (overBudget()) break;   // R168
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const msg = vendorRequestMessage(r, origin);
@@ -481,9 +495,10 @@ Deno.serve(async (req) => {
       counts[res]++;
     }
     // 0269: run-sheet reminders (e-mail lane; a database without 0269 just has nothing to claim)
-    const { data: rsrows, error: rsErr } = mailOn ? await admin.rpc("runsheet_reminder_claim", { p_limit: batch }) : NOCLAIM;
+    const { data: rsrows, error: rsErr } = mailOn && !overBudget() ? await admin.rpc("runsheet_reminder_claim", { p_limit: batch }) : NOCLAIM;
     if (rsErr) log.error("run-sheet claim skipped", errTag(rsErr));
     for (const r of (Array.isArray(rsrows) ? rsrows : [])) {
+      if (overBudget()) break;   // R168
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const msg = runsheetReminderMessage(r, origin);
@@ -495,9 +510,10 @@ Deno.serve(async (req) => {
       counts[res]++;
     }
     // 0269: instant replies to the public enquiry form (a database without 0269 has nothing to claim)
-    const { data: eqrows, error: eqErr } = mailOn ? await admin.rpc("enquiry_reply_claim", { p_limit: batch }) : NOCLAIM;
+    const { data: eqrows, error: eqErr } = mailOn && !overBudget() ? await admin.rpc("enquiry_reply_claim", { p_limit: batch }) : NOCLAIM;
     if (eqErr) log.error("enquiry reply claim skipped", errTag(eqErr));
     for (const r of (Array.isArray(eqrows) ? eqrows : [])) {
+      if (overBudget()) break;   // R168
       const id = String(r?.id ?? ""), to = String(r?.to ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const msg = enquiryReplyMessage(r);
@@ -510,9 +526,10 @@ Deno.serve(async (req) => {
     }
     // 0244: Helm's own notices - a plan request to sales@helm.events, "Ask my admin to upgrade" to the studio's
     // admins (recipients resolved by the claim, never from the row; a database without 0244 has nothing to claim)
-    const { data: hrows, error: hErr } = mailOn ? await admin.rpc("helm_notice_outbox_claim", { p_limit: batch }) : NOCLAIM;
+    const { data: hrows, error: hErr } = mailOn && !overBudget() ? await admin.rpc("helm_notice_outbox_claim", { p_limit: batch }) : NOCLAIM;
     if (hErr) log.error("notice claim skipped", errTag(hErr));
     for (const r of (Array.isArray(hrows) ? hrows : [])) {
+      if (overBudget()) break;   // R168
       const id = String(r?.id ?? ""), kind = String(r?.kind ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const data = (r?.data && typeof r.data === "object") ? r.data : {};
@@ -533,7 +550,7 @@ Deno.serve(async (req) => {
     }
     // R119 (0327): welcome e-mails - only while the database switch is on; a database without 0327 -> nothing claimed.
     // R154g: HELM_WELCOME_EMAILS_ENABLED set to anything but "true" -> the lane is off (nothing claimed, rows stay queued).
-    if (mailOn && welcomeLaneOn(Deno.env.get("HELM_WELCOME_EMAILS_ENABLED"))) try {   // R154g: no provider -> not claimed
+    if (mailOn && !overBudget() && welcomeLaneOn(Deno.env.get("HELM_WELCOME_EMAILS_ENABLED"))) try {   // R154g: no provider -> not claimed; R168: skip when over budget
       const w = await runWelcomeBatch(admin, batch, { env });
       if (w.error) log.error("welcome claim skipped", errTag(w.error));
       counts.sent += w.counts.sent; counts.skipped += w.counts.skipped; counts.failed += w.counts.failed; counts.invalid += w.counts.invalid;
