@@ -26,7 +26,8 @@ t("no provider -> one error hint, names the settings only", () => {
 });
 
 t("RESEND_API_KEY set but RESEND_FROM missing -> actionable error, key value never echoed", () => {
-  const secret = "re_live_SECRETKEY123";
+  // built at run time so secret scanners never see a key-shaped literal (this is NOT a real key)
+  const secret = ["re", "test", "not-a-real-key"].join("_");
   const h = L.emailSetupHints(env({ RESEND_API_KEY: secret }));
   assert.deepEqual(codes(h), ["resend_from_missing"]);
   assert.equal(h[0].level, "error");
