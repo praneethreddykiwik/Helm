@@ -73,6 +73,27 @@
   var state = { mode: '2d', unit: 'm' };
   function api() { return W.__helmSandbox; }
   function $(id) { return document.getElementById(id); }
+
+  /* ---- 3D bundle: not needed for first paint, so gen-try.mjs marks it <script type="text/plain" data-try-lazy>
+     (never fetched). We inject the real scripts, in order, the first time the viewer reaches for 3D / Render.
+     This keeps ~300KB+ of JS (builder-3d, walkthrough, dancers, capture-frame) off the initial load. ---- */
+  var threeDReady = false, load3D = null;
+  function ensure3D() {
+    if (load3D) return load3D;
+    var els = [].slice.call(document.querySelectorAll('script[data-try-lazy]'));
+    load3D = els.reduce(function (pr, s) {
+      return pr.then(function () {
+        return new Promise(function (res, rej) {
+          var el = document.createElement('script');
+          el.src = s.getAttribute('src'); el.defer = false; el.async = false;
+          el.onload = function () { res(); };
+          el.onerror = function () { rej(new Error('Sandbox: failed to load ' + el.src)); };
+          (document.head || document.documentElement).appendChild(el);
+        });
+      });
+    }, Promise.resolve());
+    return load3D;
+  }
   function reduced() { try { return W.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
   function loadDemo() { var A = api(); if (!A) return false; A.load(DEMO, HALL); A.unit(state.unit); return true; }
   function swapFx() {
@@ -83,6 +104,8 @@
   function setMode(m) {
     var A = api(); if (!A || (m !== '2d' && m !== '3d' && m !== 'measure')) return;
     if (m === state.mode) return;
+    // 3D needs its bundle: load it (once) before switching, so keyboard / programmatic entry works too
+    if (m === '3d' && !threeDReady) { ensure3D().then(function () { threeDReady = true; setMode('3d'); }, function () {}); return; }
     swapFx();
     var seg = document.getElementById('viewSeg');
     var want = m === '3d' ? '3d' : '2d';
@@ -111,9 +134,25 @@
   if (typeof W.addEventListener !== 'function') return;   // not a browser (unit tests)
   W.addEventListener('beforeunload', function (e) { e.stopImmediatePropagation(); }, true);
   W.__trySandbox = { setMode: setMode, setUnit: setUnit, reset: loadDemo };
+  // the real builder's own 3D controls (header "3D View" / "Render", the phone's floating 3D button) click
+  // #viewSeg buttons directly — builder-3d.js binds those, and it isn't loaded yet. Intercept the first such
+  // click, load the bundle, then replay the click so the now-present handler runs.
+  document.addEventListener('click', function (e) {
+    if (threeDReady || !e.target.closest) return;
+    var t = e.target.closest('#viewSeg [data-v="3d"],#viewSeg [data-v="render"]');
+    if (!t) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    ensure3D().then(function () { threeDReady = true; setTimeout(function () { t.click(); }, 0); }, function () {});
+  }, true);
   W.addEventListener('load', function () {
     if (!loadDemo()) return;
     document.documentElement.setAttribute('data-try-mode', '2d');
+    // CLS: the demo is loaded + sized; fit it, then reveal the floor on the next frame (try.css hides #svg until
+    // .try-ready) so its 0→full-size growth never shifts the page.
+    try { api().fit(); } catch (e) {}
+    var reveal = function () { document.documentElement.classList.add('try-ready'); };
+    if (typeof W.requestAnimationFrame === 'function') W.requestAnimationFrame(function () { W.requestAnimationFrame(reveal); });
+    else setTimeout(reveal, 60);
     var modes = $('tryModes');
     modes.addEventListener('click', function (e) { var b = e.target.closest('[data-m]'); if (b) setMode(b.getAttribute('data-m')); });
     modes.addEventListener('keydown', function (e) {

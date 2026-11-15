@@ -446,6 +446,10 @@ window.HelmUrl = HelmUrl;
   // Early, friendly check only - the DATABASE is the real gate (Before User Created hook + auth.users /
   // invitations guards, which also know HQ's look-alike domains and the staff allowlist). Same rule as
   // supabase/functions/_shared/reserved-email.mjs.
+  // r166: strip invisible control chars (incl. the null byte \u0000) and trim, before any email
+  // reaches Supabase Auth. A crafted null byte otherwise reaches Postgres and returns a raw 500
+  // "Database error" instead of a clean rejection. Normal addresses are unchanged.
+  function scrubEmail(v) { return String(v == null ? "" : v).replace(/[\u0000-\u001f\u007f]/g, "").trim(); }
   const RESERVED_EMAIL_DOMAINS = ["helm.events", "helm.com"];
   const RESERVED_EMAIL_MESSAGE = "Addresses on helm.events are reserved for the Helm team. Please use your own e-mail address.";
   function reservedEmailDomain(email) {
@@ -2210,6 +2214,7 @@ window.HelmUrl = HelmUrl;
     // first, and per-user browser state is cleared when the account changes.
     async signIn(email, password, opts) {
       if (!supa) throw new Error("Supabase not configured");
+      email = scrubEmail(email);   // r166: no control chars reach Supabase Auth
       const captchaToken = opts && opts.captchaToken;
       if (CAPTCHA && !captchaToken) {
         // in-page sign-in boxes have no CAPTCHA widget → send them to the sign-in page
@@ -2241,6 +2246,7 @@ window.HelmUrl = HelmUrl;
     // Phase 58 — self-serve sign-up (studio created via create_studio once a session exists)
     async signUp(email, password, opts) {
       if (!supa) throw new Error("Supabase not configured");
+      email = scrubEmail(email);   // r166: no control chars reach Supabase Auth
       if (reservedEmailDomain(email) && !(await preauthorisedHqEmail(email))) throw reservedEmailError();   // r21 0248 (the server refuses it too); r27: HQ staff pass
       if (await staffGoogleOnlyFor(email)) throw staffGoogleError();   // r39 (0288): new Helm staff logins are made with Google
       const bad = passwordProblem(password); if (bad) throw new Error(bad);
@@ -2443,7 +2449,7 @@ window.HelmUrl = HelmUrl;
       if (await staffGoogleOnlyFor(email)) throw staffGoogleError();   // r39 (0288): no reset link for Helm staff (the server never stores one)
       const o = { redirectTo: (opts && opts.redirectTo) || (location.origin + "/reset-password") };
       if (captchaToken) o.captchaToken = captchaToken;
-      const { error } = await supa.auth.resetPasswordForEmail(String(email || "").trim(), o);
+      const { error } = await supa.auth.resetPasswordForEmail(scrubEmail(email), o);   // r166: strip control chars
       if (error) {
         const st = Number(error.status) || 0, m = String(error.message || "");
         if (st === 429 || /rate limit|too many/i.test(m)) { const e = new Error("Too many requests — please wait a few minutes and try again."); e.code = "rate_limited"; throw e; }

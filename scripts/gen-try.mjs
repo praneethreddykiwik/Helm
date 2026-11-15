@@ -16,7 +16,7 @@ function stripComments(s) { let prev; do { prev = s; s = s.replace(/<!--[\s\S]*?
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'public', 'builder.html');
 const OUT = join(ROOT, 'public', 'try.html');
-const TRY_JS_V = 11, TRY_CSS_V = 10;
+const TRY_JS_V = 12, TRY_CSS_V = 11;
 
 // SEO head for /try (title, description, canonical, icons, Open Graph, JSON-LD)
 const TRY_HEAD = "<title>Try the Event Layout Planner — Helm Events</title>\n<meta name=\"description\" content=\"Try the Helm Events layout planner free: move tables, stages and decor on a ready-made wedding plan, measure in metres or feet, then view it in 3D. No sign-up.\">\n<link rel=\"canonical\" href=\"https://www.helm.events/try\">\n<link rel=\"icon\" href=\"/favicon.ico\" sizes=\"48x48\">\n<link rel=\"icon\" href=\"/favicon.svg\" type=\"image/svg+xml\">\n<link rel=\"apple-touch-icon\" href=\"/apple-touch-icon.png\">\n<link rel=\"manifest\" href=\"/site.webmanifest\">\n<meta name=\"theme-color\" content=\"#0d8a5c\">\n<meta property=\"og:type\" content=\"website\">\n<meta property=\"og:site_name\" content=\"Helm Events\">\n<meta property=\"og:locale\" content=\"en_IN\">\n<meta property=\"og:title\" content=\"Try the Event Layout Planner — Helm Events\">\n<meta property=\"og:description\" content=\"Try the Helm Events layout planner free: move tables, stages and decor on a ready-made wedding plan, measure in metres or feet, then view it in 3D. No sign-up.\">\n<meta property=\"og:url\" content=\"https://www.helm.events/try\">\n<meta property=\"og:image\" content=\"https://www.helm.events/og/helm-og-v2.png\">\n<meta property=\"og:image:width\" content=\"1200\">\n<meta property=\"og:image:height\" content=\"630\">\n<meta property=\"og:image:alt\" content=\"Helm Events — event management software\">\n<meta name=\"twitter:card\" content=\"summary_large_image\">\n<meta name=\"twitter:title\" content=\"Try the Event Layout Planner — Helm Events\">\n<meta name=\"twitter:description\" content=\"Try the Helm Events layout planner free: move tables, stages and decor on a ready-made wedding plan, measure in metres or feet, then view it in 3D. No sign-up.\">\n<meta name=\"twitter:image\" content=\"https://www.helm.events/og/helm-og-v2.png\">\n<script type=\"application/ld+json\">{\"@context\": \"https://schema.org\", \"@graph\": [{\"@type\": \"Organization\", \"@id\": \"https://www.helm.events/#org\", \"name\": \"Helm Events\", \"alternateName\": [\"Helm\", \"HELM\", \"helm.events\"], \"url\": \"https://www.helm.events/\", \"logo\": {\"@type\": \"ImageObject\", \"url\": \"https://www.helm.events/icon-512.png\", \"width\": 512, \"height\": 512}, \"image\": \"https://www.helm.events/og/helm-og-v2.png\", \"email\": \"info@helm.events\", \"sameAs\": [], \"contactPoint\": [{\"@type\": \"ContactPoint\", \"contactType\": \"sales\", \"email\": \"sales@helm.events\"}, {\"@type\": \"ContactPoint\", \"contactType\": \"customer support\", \"email\": \"support@helm.events\"}]}, {\"@type\": \"WebSite\", \"@id\": \"https://www.helm.events/#website\", \"name\": \"Helm Events\", \"alternateName\": \"Helm\", \"url\": \"https://www.helm.events/\", \"publisher\": {\"@id\": \"https://www.helm.events/#org\"}, \"inLanguage\": \"en\"}, {\"@type\": \"BreadcrumbList\", \"itemListElement\": [{\"@type\": \"ListItem\", \"position\": 1, \"name\": \"Home\", \"item\": \"https://www.helm.events/\"}, {\"@type\": \"ListItem\", \"position\": 2, \"name\": \"Try the planner\", \"item\": \"https://www.helm.events/try\"}]}]}</script>";
@@ -42,6 +42,23 @@ export function buildTry(src) {
   must(/<script src="config\.js\?v=\d+"><\/script>\n/, '', 'config.js');
   must(/<script src="photo-render-prompt\.js\?v=\d+"><\/script>\n/, '', 'photo-render-prompt.js');
   must(/<script src="photo-render-ui\.js\?v=\d+"><\/script>\n/, '', 'photo-render-ui.js');
+  // R168 phone speed: operate on the body only (head scripts — trusted-types, theme, try.js — must stay blocking + early)
+  const headEnd = h.indexOf('</head>');
+  if (headEnd < 0) throw new Error('gen-try: no </head>');
+  let head = h.slice(0, headEnd), body = h.slice(headEnd);
+  // the 3D-only bundle is never needed for first paint: mark it text/plain (not fetched, not run) so try.js can
+  // inject it on the first 3D / Render interaction. type/data-* first keeps `src` out of the "<script src=" defer match.
+  const LAZY3D = ['dancers-3d', 'capture-frame', 'builder-3d', 'walkthrough'];
+  for (const name of LAZY3D) {
+    const re = new RegExp('<script src="(' + name + '\\.js\\?v=\\d+)"></script>');
+    if (!re.test(body)) throw new Error('gen-try: cannot find 3D bundle script ' + name);
+    body = body.replace(re, '<script type="text/plain" data-try-lazy src="$1"></script>');
+  }
+  // every remaining executable body script loads with `defer`: non-blocking download, document order preserved,
+  // runs after parse and before DOMContentLoaded (so builder.js init is unchanged). Scripts already defer/async,
+  // and the text/plain lazy ones above, are left alone.
+  body = body.replace(/<script src="([^"]+)"><\/script>/g, '<script src="$1" defer></script>');
+  h = head + body;
   if (/<script>(?!<\/script>)/.test(h)) throw new Error('gen-try: an inline <script> slipped into try.html');
   if (/config\.js|telemetry\.js|photo-render/.test(stripComments(h))) throw new Error('gen-try: a blocked script is still referenced');
   return '<!-- GENERATED by scripts/gen-try.mjs from builder.html — do not edit by hand -->\n' + h;
@@ -55,6 +72,7 @@ const banner = () => `<div class="try-top" id="tryTop" role="region" aria-label=
   <a class="try-signin" href="/login">Sign in</a>
   <a class="try-cta" href="/signup?mode=trial"><span class="try-cta-l">Start your 8-day free trial</span><span class="try-cta-s" aria-hidden="true">8-day free trial</span><span class="try-cta-i" aria-hidden="true">→</span></a>
 </div>
+<nav class="try-controls" aria-label="Planner view and tools">
 <div class="try-modes" id="tryModes" role="radiogroup" aria-label="View">
   <span class="try-pill" aria-hidden="true"></span>
   <button type="button" role="radio" data-m="2d" aria-checked="true">2D plan</button>
@@ -78,7 +96,8 @@ const banner = () => `<div class="try-top" id="tryTop" role="region" aria-label=
   <button type="button" class="try-btn" id="tryReset">Reset</button>
 </div>
 <p class="try-hint" id="tryHint">Drag any item to move it · R or the round handle to rotate</p>
-<p class="try-legal">© 2026 Helm Events. All rights reserved. By using this demo you agree to our <a href="/terms">Terms</a> and <a href="/acceptable-use">Acceptable Use Policy</a>.</p>
+</nav>
+<footer class="try-foot"><p class="try-legal">© 2026 Helm Events. All rights reserved. By using this demo you agree to our <a href="/terms">Terms</a> and <a href="/acceptable-use">Acceptable Use Policy</a>.</p></footer>
 <svg class="try-defs" aria-hidden="true" focusable="false"><defs>
   <pattern id="tryFloor" patternUnits="userSpaceOnUse" width="96" height="18"><rect width="96" height="18" fill="#f7f2e8"/><rect y="9" width="96" height="9" fill="#f4eee2"/><path d="M0 17.5H96M0 8.5H96M40 0V9M88 9V18" stroke="#e8dfcd" stroke-width="1"/></pattern>
   <pattern id="tryFloorDark" patternUnits="userSpaceOnUse" width="96" height="18"><rect width="96" height="18" fill="#141a17"/><rect y="9" width="96" height="9" fill="#161d19"/><path d="M0 17.5H96M0 8.5H96M40 0V9M88 9V18" stroke="#1f2823" stroke-width="1"/></pattern>

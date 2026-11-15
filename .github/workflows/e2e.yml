@@ -23,8 +23,14 @@ permissions:
   contents: read
 jobs:
   gate:
+    name: E2E gate (did the suite actually run?)
     # Publishes whether the required secrets exist. Secrets cannot be referenced
     # in job-level `if:`, so we surface presence as an output here.
+    #
+    # VISIBILITY: a green tick on this gate does NOT mean E2E passed — it only
+    # means the gate ran. When secrets are absent the gate emits a ::warning::
+    # annotation and a job summary so the skip is legible in the PR Checks UI,
+    # instead of being buried in this step's log behind a success tick.
     runs-on: ubuntu-latest
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
@@ -36,10 +42,26 @@ jobs:
              && [ -n "${{ secrets.HELM_E2E_EMAIL }}" ] \
              && [ -n "${{ secrets.HELM_E2E_PASSWORD }}" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
-            echo "E2E secrets present — tests will run."
+            echo "::notice title=E2E will run::E2E secrets present — the Playwright suite will execute."
+            {
+              echo "### E2E (Playwright, staging)"
+              echo ""
+              echo "✅ **Secrets present — the Playwright E2E suite will run.** See the \`e2e\` job for results."
+            } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "E2E secrets absent — skipping E2E (this is expected for forks/external PRs)."
+            echo "::warning title=E2E SKIPPED — not run::E2E secrets are not configured, so the Playwright suite was SKIPPED (it did NOT run and did NOT pass). This is expected for forks/external PRs. Owner: add the HELM_E2E_* repository secrets to enable it."
+            {
+              echo "### E2E (Playwright, staging) — ⚠️ SKIPPED, did NOT run"
+              echo ""
+              echo "The Playwright E2E suite was **skipped** because the \`HELM_E2E_*\` secrets are not configured."
+              echo ""
+              echo "- A green tick on this gate means only that the gate ran — **not** that E2E passed."
+              echo "- The \`e2e\` job below shows as *skipped* (it did not execute)."
+              echo "- Expected for forks/external PRs; secrets are never exposed to them."
+              echo ""
+              echo "**Owner action:** add \`HELM_E2E_STAGING_URL\`, \`HELM_E2E_STAGING_ANON\`, \`HELM_E2E_EMAIL\`, \`HELM_E2E_PASSWORD\` under Settings → Secrets and variables → Actions to run this suite."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
   e2e:

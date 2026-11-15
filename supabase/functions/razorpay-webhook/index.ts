@@ -210,8 +210,39 @@ Deno.serve(async (req) => {
     }
     if (out.result === "org_mismatch") { log.error("payment belongs to another studio - ignored", undefined, { event: type }); return new Response("ignored", { status: 200 }); }
     if (out.result === "unmatched") { log.error("payment matched no quote", undefined, { event: type }); return new Response("no quote", { status: 200 }); }
-    // IDEMPOTENCY: a replayed delivery returns 200 WITHOUT re-notifying
-    if (out.result === "replay") return new Response("already recorded (idempotent)", { status: 200 });
+    // IDEMPOTENCY: a replayed delivery was already recorded by razorpay_settle (the same payment id is applied
+    // exactly once), so the payment is NEVER re-recorded here. Normally there is nothing more to do. BUT if the
+    // FIRST delivery recorded the payment and then failed with a 500 (a quote / studio / billing-email lookup error,
+    // or a crash) BEFORE the receipt e-mails were sent, this used to return 200 and the client + studio receipt was
+    // lost for good. R168: on a replay we (re)send the receipt ONLY when no receipt notification for THIS exact
+    // payment exists yet - an idempotent "emails_sent" guard keyed on the payment ref - so a genuine duplicate never
+    // re-mails and nothing is re-recorded or double-charged.
+    let resendResult: "settled" | "reconcile" | null = null;
+    if (out.result === "replay") {
+      const quoteId = String(out.quote_id || "");
+      // a replay always carries the matched quote + payment id (settle returns 'replay' only when the payment ref
+      // matched an existing row). Without them we cannot tie a resend to this payment, so behave exactly as before.
+      if (!UUID_RE.test(quoteId) || !payId) return new Response("already recorded (idempotent)", { status: 200 });
+      const { data: already, error: nLookErr } = await admin.from("notifications").select("id")
+        .eq("quote_id", quoteId).in("kind", ["payment_receipt", "payment_reconcile"]).eq("detail->>payment_ref", payId).limit(1);
+      if (nLookErr) { report.error(nLookErr); log.error("receipt lookup failed", errTag(nLookErr)); return new Response("error", { status: 500 }); }
+      if (Array.isArray(already) && already.length) return new Response("already recorded (idempotent)", { status: 200 });
+      // the receipt never went out: find whether the first delivery SETTLED or RECONCILED this payment, then resend that mail
+      const { data: paidRow, error: pLookErr } = await admin.from("quote_payments").select("id")
+        .eq("quote_id", quoteId).eq("provider", "razorpay").eq("provider_payment_ref", payId).eq("status", "paid").limit(1);
+      if (pLookErr) { report.error(pLookErr); log.error("payment lookup failed", errTag(pLookErr)); return new Response("error", { status: 500 }); }
+      if (Array.isArray(paidRow) && paidRow.length) resendResult = "settled";
+      else {
+        const { data: recRow, error: rLookErr } = await admin.from("payment_reconciliation").select("id")
+          .eq("quote_id", quoteId).eq("provider", "razorpay").eq("provider_payment_ref", payId).limit(1);
+        if (rLookErr) { report.error(rLookErr); log.error("reconciliation lookup failed", errTag(rLookErr)); return new Response("error", { status: 500 }); }
+        resendResult = (Array.isArray(recRow) && recRow.length) ? "reconcile" : null;
+      }
+      // recorded as neither paid nor reconciled (should not happen) -> nothing to resend, plain idempotent 200
+      if (!resendResult) return new Response("already recorded (idempotent)", { status: 200 });
+    }
+    // which e-mail to (re)send: a resend uses the outcome we just looked up, a first delivery uses settle's result
+    const effResult = resendResult ?? out.result;
 
     // per-studio details for the emails
     const { data: q, error: qErr } = await admin.from("quotes").select("id, code, title, client, pricing, org_id, currency, tax_snapshot").eq("id", out.quote_id).maybeSingle();
@@ -227,12 +258,12 @@ Deno.serve(async (req) => {
     const from = fromName(studio);
     const subjCode = oneLine(q.code);
 
-    if (out.result === "reconcile") {
+    if (effResult === "reconcile") {
       // money arrived that could not settle the quote: tell the studio (refund / match by hand)
-      const html = `<h2>Payment needs your attention — ${escHtml(q.code)}</h2><p>A Razorpay payment for <b>${escHtml(q.title || q.code)}</b> could not be applied automatically (${escHtml(out.reason)}). It is listed under payment reconciliation; refund or match it in Razorpay.</p>`;
+      const html = `<h2>Payment needs your attention — ${escHtml(q.code)}</h2><p>A Razorpay payment for <b>${escHtml(q.title || q.code)}</b> could not be applied automatically (${escHtml(String(out.reason ?? "please check"))}). It is listed under payment reconciliation; refund or match it in Razorpay.</p>`;
       const st = await sendEmail(studioEmail, `Payment needs attention — ${subjCode}`, html, fromName("Helm"));
       const { error: nErr } = await admin.from("notifications").insert(
-        { quote_id: q.id, channel: "email", recipient: studioEmail || null, kind: "payment_reconcile", status: st });
+        { quote_id: q.id, channel: "email", recipient: studioEmail || null, kind: "payment_reconcile", status: st, detail: payId ? { payment_ref: payId } : {} });
       if (nErr) log.error("notification log failed", errTag(nErr));
       return new Response("recorded for reconciliation", { status: 200 });
     }
@@ -259,8 +290,8 @@ Deno.serve(async (req) => {
       ? await sendEmail(studioEmail, `Event confirmed (paid) — ${subjCode}`, html, from)
       : "suppressed";
     const { error: nErr } = await admin.from("notifications").insert([
-      { quote_id: q.id, channel: "email", recipient: clientEmail || null, kind: "payment_receipt", status: clientStatus },
-      { quote_id: q.id, channel: "email", recipient: studioEmail || null, kind: "payment_receipt", status: studioStatus },
+      { quote_id: q.id, channel: "email", recipient: clientEmail || null, kind: "payment_receipt", status: clientStatus, detail: payId ? { payment_ref: payId } : {} },
+      { quote_id: q.id, channel: "email", recipient: studioEmail || null, kind: "payment_receipt", status: studioStatus, detail: payId ? { payment_ref: payId } : {} },
     ]);
     if (nErr) log.error("notification log failed", errTag(nErr));
 

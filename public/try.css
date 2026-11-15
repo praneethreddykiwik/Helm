@@ -39,6 +39,12 @@ html.helm-sandbox .scroll::-webkit-scrollbar{display:none}
 html.helm-sandbox .scroll{display:flex}
 html.helm-sandbox #svg{background:transparent;margin:auto;flex:none}
 html.helm-sandbox #svg .margins{display:none}
+/* R168 CLS: the floor SVG grows from 0 to its fitted size ~1s after load; while centred (margin:auto) that moves
+   its box and shifts the page (CLS ~0.13 on desktop). Keep it out of the visible/shift calculation until builder.js
+   has sized AND fitted it — try.js flips <html> to .try-ready on the first frame after the demo loads. The .scroll
+   container already reserves the full stage area, so nothing around it moves. */
+html.helm-sandbox #svg{visibility:hidden}
+html.helm-sandbox.try-ready #svg{visibility:visible}
 html.helm-sandbox .stage3d{background:radial-gradient(120% 120% at 50% 0%,#fbf8f1 0%,#efe9dc 70%)}
 html.helm-sandbox[data-theme="dark"] .stage3d{background:radial-gradient(120% 120% at 50% 0%,#18201b 0%,#0a0f0c 70%)}
 
@@ -50,6 +56,11 @@ html.helm-sandbox[data-theme="dark"] #svg > rect[fill="none"]{stroke:#c9d3cc}
 html.helm-sandbox #svg .obj .body{filter:drop-shadow(0 2px 2.5px rgba(40,32,16,.22))}
 html.helm-sandbox #svg .obj:hover .body{filter:drop-shadow(0 4px 6px rgba(40,32,16,.26))}
 html.helm-sandbox #svg .lbl{font-size:8px;font-weight:600;letter-spacing:.02em;fill:var(--try-ink);stroke:var(--try-ivory);stroke-width:2.4px}
+/* R168 a11y: the LED-screen "Tap to add name & brand" hint sits INSIDE the stage's role=button group, so its words
+   become visible text that the group's accessible name ("Stage — Main Stage") doesn't contain
+   (label-content-name-mismatch). The sandbox can't save a screen name anyway, so drop the hint here — the stage's
+   own label stays, and visible text now matches the accessible name. */
+html.helm-sandbox #svg .scr-ph{display:none}
 html.helm-sandbox .measure{color:var(--try-em)}
 html.helm-sandbox .measure .wall{color:#b0703a}
 html.helm-sandbox .measure .mbg{fill:var(--try-ivory)}
@@ -64,7 +75,7 @@ html.helm-sandbox .measure .mbg{fill:var(--try-ivory)}
 .try-lockup .hl-ink{fill:#0b5d44}.try-lockup .hl-acc{fill:#2fcf98;stroke:#2fcf98}.try-lockup .hl-ring{fill:none;stroke:#1aa37a}
 html.helm-sandbox[data-theme="dark"] .try-lockup .hl-ink{fill:#eef2ee}
 .try-logo{min-height:44px}
-.try-signin{flex:none;color:inherit;text-decoration:none;font-weight:600;font-size:14px;padding:8px 6px;white-space:nowrap}
+.try-signin{flex:none;display:inline-flex;align-items:center;min-height:44px;color:inherit;text-decoration:none;font-weight:600;font-size:14px;padding:8px 10px;white-space:nowrap}
 .try-signin:hover{color:var(--try-em)}
 .try-signin:focus-visible{outline:2px solid var(--try-em);outline-offset:2px;border-radius:6px}
 .try-mark{width:22px;height:22px;border-radius:7px;background:linear-gradient(140deg,#1a7a5c,var(--try-em-2));box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
@@ -101,7 +112,7 @@ html[data-try-mode="measure"] .try-pill{transform:translateX(200%)}
 html[data-try-mode="3d"] #tryRotate{display:none}
 .try-units{display:inline-flex;padding:3px}
 .try-units[hidden],.try-tray[hidden]{display:none}
-.try-units button{min-width:40px;border:0;border-radius:999px;background:none;font-weight:700;font-size:13px;color:var(--try-ink-2);transition:background .3s var(--try-ease),color .3s var(--try-ease)}
+.try-units button{min-width:40px;min-height:32px;border:0;border-radius:999px;background:none;font-weight:700;font-size:13px;color:var(--try-ink-2);transition:background .3s var(--try-ease),color .3s var(--try-ease)}
 .try-units button[aria-checked="true"]{background:var(--try-ink);color:var(--try-ivory)}
 .try-tray{position:absolute;right:0;bottom:48px;display:grid;gap:2px;min-width:200px;padding:8px;border-radius:20px;background:var(--try-ivory);
   box-shadow:0 24px 48px -16px rgba(22,32,27,.28),inset 0 0 0 1px var(--try-hair);animation:tryUp .45s var(--try-ease)}
