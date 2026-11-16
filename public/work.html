@@ -154,7 +154,8 @@
 <script src="/telemetry.js?v=11"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=353"></script>
+<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=354"></script>
+<script src="/staff-home.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s||"").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -208,6 +209,8 @@
     $("#sub").innerHTML=`Hi <b>${esc(data.worker.name||"there")}</b> — your tasks for <span class="code">${esc(data.event.code)}</span>${when?` · <b>${esc(when)}</b>`:""}. The office tracks progress live.`;
   }
   async function load(){
+    // R172 (0363): work.html?staff=<link> is the person's permanent link (staff-home.js)
+    if(window.HelmStaffHome&&HelmStaffHome.wants()) return HelmStaffHome.start();
     if(!token){ $("#loading").hidden=true; $("#badlink").hidden=false; return; }
     if(LINK){                                // studio name must own this crew link (offline: fall through to cache)
       try{ if(!(await BPStore.links.verify(LINK))){ $("#loading").hidden=true; $("#badlink").hidden=false; return; } }catch(e){}
@@ -460,7 +463,7 @@
   $("#evCancel").addEventListener("click",()=>{ evClose(); });
   $("#evSheet").addEventListener("click",(e)=>{ if(e.target.id==="evSheet") evClose(); });
   document.addEventListener("keydown",(e)=>{ if(e.key==="Escape" && ev && !$("#evSheet").hidden) evClose(); });
-  $("#refreshBtn").addEventListener("click",(ev)=>{ setMsg(""); BPUI.guard(ev.currentTarget,()=>refresh(false)).catch(()=>{}); });
+  $("#refreshBtn").addEventListener("click",(ev)=>{ setMsg(""); BPUI.guard(ev.currentTarget,()=>(window.HelmStaffHome&&HelmStaffHome.wants())?HelmStaffHome.start():refresh(false)).catch(()=>{}); });
   $("#retryFirst").addEventListener("click",(ev)=>{ BPUI.guard(ev.currentTarget,()=>refresh(true)).catch(()=>{}); });
   BPUI.boot(load);
 </script>

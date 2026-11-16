@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=76"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=77"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -3940,6 +3940,10 @@ window.HelmUrl = HelmUrl;
     // R171 (0362): "Send on WhatsApp" - the studio's own number; answer { ok, name?, reason? }
     // (reason: wa_not_set_up | no_phone | just_sent | trial | not_live | vendor | closed). Nothing is sent when not set up.
     whatsappTasks: (taskId) => rpc("staff_whatsapp_send", { p_task: taskId }),
+    // R172 (0363): the person's PERMANENT task link (one per staff member, all their events). Answer { ok, path?, reason? }
+    // (reason: trial | inactive | unavailable). path is "work.html?staff=<64 hex>"; staffLinkNew stops the old link at once.
+    staffLink: (crewId) => rpc("staff_link_get", { p_crew: crewId }),
+    staffLinkNew: (crewId) => rpc("staff_link_regenerate", { p_crew: crewId }),
     reassign: (taskId, crewId, name, phone) => rpc("reassign_task",
       { p_task_id: taskId, p_crew_id: crewId || null, p_name: name, p_phone: phone }),
     // r96 (0312): the office cancels an assigned / accepted / in-progress task; a reason (3-300 chars) is required
@@ -4012,6 +4016,13 @@ window.HelmUrl = HelmUrl;
     // ---- worker (no login; token-scoped) ----
     worker: {
       getTasks: (token) => wrpc("worker_get_tasks", { p_token: token }),
+      // R172 (0363): the permanent link page (work.html?staff=<64 hex>): that person's open tasks across their upcoming
+      // events, each with its per-event link. A malformed link never reaches the server.
+      staffHome: (staffToken) => {
+        const t = String(staffToken || "").trim();
+        if (!/^[0-9a-f]{64}$/.test(t)) { const e = new Error("invalid link"); e.code = "P0001"; return Promise.reject(e); }
+        return rpc("staff_link_view", { p_token: t });
+      },
       // 0132 — what changed for me ("Updated" badges) + my run-sheet lines
       updates: (token) => wrpc("worker_assignment_updates", { p_token: token }),
       respond: (token, taskId, action) => wrpc("worker_respond", { p_token: token, p_task_id: taskId, p_action: action }).then(taskAnswer),
