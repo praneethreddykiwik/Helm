@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (318 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (319 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4080 objects): body 174, bucket 9, col 227, con 402, cron 20, exec 4, fn 1839, idx 474, marker 12, pol 184, polexpr 4, pre 99, pub 5, seq 1, tbl 266, trg 358, view 2.
+-- What is checked (4087 objects): body 174, bucket 9, col 228, con 403, cron 20, exec 4, fn 1842, idx 474, marker 12, pol 184, polexpr 4, pre 100, pub 5, seq 1, tbl 266, trg 359, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3809,7 +3809,6 @@ with o(m, k, s, n, x) as (values
   ('0338_r130_task_reminders', 'fn', 'public', 'task_reminder_settings_set', 'jsonb'),
   ('0338_r130_task_reminders', 'fn', 'public', 'set_task_reminders', 'uuid,integer[]'),
   ('0338_r130_task_reminders', 'fn', 'public', '_r338_queue', 'event_tasks,uuid,text,text,text,text,text,text,jsonb,text,timestamp with time zone,text,text'),
-  ('0338_r130_task_reminders', 'fn', 'public', 'task_reminder_tick', 'timestamp with time zone'),
   ('0338_r130_task_reminders', 'fn', 'public', 'task_wa_claim', 'integer'),
   ('0338_r130_task_reminders', 'fn', 'public', 'task_wa_mark', 'uuid,text,text,text'),
   ('0338_r130_task_reminders', 'fn', 'public', 'assign_notify_wamid', 'uuid,text,text'),
@@ -3820,6 +3819,7 @@ with o(m, k, s, n, x) as (values
   ('0338_r130_task_reminders', 'trg', 'public.integration_webhook_events', 'zz_r338_wa_tick', null),
   ('0338_r130_task_reminders', 'fn', 'public', 'task_wa_status', 'uuid'),
   ('0338_r130_task_reminders', 'cron', null, 'helm-task-reminders', null),
+  ('0338_r130_task_reminders', 'fn', 'public', 'task_reminder_tick', 'timestamp with time zone'),
   ('0340_r136_audit_via', 'body', 'public', 'sync_quote_to_lead', '|8ccf6daf0d9c0420c0d4a06d8f4ab940'),
   ('0340_r136_audit_via', 'body', 'public', 'tg_audit', '|44a5d2f34204ade8d038cef2a27ef6b8'),
   ('0340_r136_audit_via', 'fn', 'public', '_r340_keep', 'text'),
@@ -4104,7 +4104,14 @@ with o(m, k, s, n, x) as (values
   ('0363_r172_update_notices_staff_link', 'fn', 'public', 'staff_update_claim', 'integer'),
   ('0363_r172_update_notices_staff_link', 'fn', 'public', 'staff_update_mark', 'uuid,text'),
   ('0363_r172_update_notices_staff_link', 'fn', 'public', 'staff_email_claim__pre0363', 'integer'),
-  ('0363_r172_update_notices_staff_link', 'pre', null, '__pre0363', null)
+  ('0363_r172_update_notices_staff_link', 'pre', null, '__pre0363', null),
+  ('0364_r173_task_timing', 'col', 'public.event_tasks', 'remind_at', null),
+  ('0364_r173_task_timing', 'con', 'public.event_tasks', 'event_tasks_remind_at_chk364', null),
+  ('0364_r173_task_timing', 'fn', 'public', 'set_task_reminder_times', 'uuid,timestamp with time zone[]'),
+  ('0364_r173_task_timing', 'fn', 'public', 'task_reminder_tick__pre0364', 'timestamp with time zone'),
+  ('0364_r173_task_timing', 'fn', 'public', '_r364_tg_email_only', ''),
+  ('0364_r173_task_timing', 'trg', 'public.task_wa_outbox', 'zzz_r364_email_only', null),
+  ('0364_r173_task_timing', 'pre', null, '__pre0364', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4424,7 +4431,8 @@ mig(ord, m, ov, note) as (values
   (315, '0360_r167_fk_indexes', null, 'index-only migration: adds FK/tenant btree indexes, each created only if the table exists; checked here by index name'),
   (316, '0361_r170_staff_email', null, null),
   (317, '0362_r171_staff_reminders', null, null),
-  (318, '0363_r172_update_notices_staff_link', null, null)
+  (318, '0363_r172_update_notices_staff_link', null, null),
+  (319, '0364_r173_task_timing', null, null)
 ),
 env as (
   select

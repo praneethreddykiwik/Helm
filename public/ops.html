@@ -109,6 +109,24 @@
   .trow .creason{flex-basis:100%;font-size:12px;color:var(--ink-3);padding-left:98px;overflow-wrap:anywhere}
   .btn.sm.tcancel{color:var(--bad,#b42318);border-color:#f1c4bf}
   #ct_reason{width:100%;min-height:80px;resize:vertical}
+  /* R173: task row actions with words (not icons only), reminders chip, legend, assign with a start time, date notes */
+  .trow .tt{flex:1 1 160px;min-width:0}
+  .tacts{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto;justify-content:flex-end}
+  .tacts .btn.sm{white-space:nowrap}
+  .remchip{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:#eef4fb;color:#24476b;border:1px solid #cfe0f1;white-space:nowrap}
+  .ops-legend{margin:4px 0 12px;font-size:12px;line-height:1.55}
+  .ops-legend b{color:var(--ink-2)}
+  .assign-time{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .as-box{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2)}
+  .as-when{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .as-when label{font-size:12px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em}
+  .as-when input{flex:0 1 240px;min-width:0}
+  .when-quick{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 8px}
+  .when-warn{background:#fff6e6;border:1px solid #f3d9a6;color:#6e4800;border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.45;margin:6px 0 10px;text-align:left}
+  .when-warn.block{background:#fdecec;border-color:#f5c6c6;color:#b42318}
+  #schedForm.lsheet{width:min(520px,94vw);max-height:92vh;overflow:auto}
+  @media(max-width:1100px){.tacts{flex-basis:100%;justify-content:flex-start;margin-left:0;padding-left:98px}}
+  @media(max-width:640px){.tacts{padding-left:0}.tacts .btn.sm{flex:1 1 auto}}
   /* r92: tablet (641-1024px) */
   @media (min-width:641px) and (max-width:1024px){
     .crewrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -124,11 +142,11 @@
     .titem input,input[type=checkbox]{min-height:0;width:22px;height:22px}
   }
 </style>
-<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="task-reminders.css?v=1"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="task-reminders.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=4">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=77" id="shellProto"></script>
+<script src="/shell-proto.js?v=78" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -175,6 +193,20 @@
         <input id="tpl_title" maxlength="120" placeholder="New task (e.g. Venue recce)" aria-label="New template task">
         <button type="button" class="btn" id="tpl_add">+ Add to template</button>
       </div>
+      <!-- R173 (0364): give the selected tasks a start time and reminders while assigning (optional) -->
+      <div class="assign-time" id="assignTime">
+        <label class="assign-mail" title="Give every selected task the same start time and reminders as you assign them"><input type="checkbox" id="asTimeOn"> ⏱ Add a start time &amp; reminders to these tasks</label>
+        <div class="as-box" id="asTimeBox" hidden>
+          <div class="as-when">
+            <label for="as_when">Start time</label>
+            <input type="datetime-local" id="as_when" aria-describedby="as_warn">
+            <button type="button" class="btn sm" id="as_evday" title="Put the event's date in the start time">Event day</button>
+            <button type="button" class="btn sm" id="as_daybefore" title="Put the day before the event in the start time (set-up the evening before)">Day before</button>
+          </div>
+          <p class="when-warn" id="as_warn" role="status" hidden></p>
+          <fieldset class="trm-set" id="as_rem" hidden></fieldset>
+        </div>
+      </div>
       <div class="assignbar">
         <span class="muted"><b id="selCount">0</b> selected →</span>
         <select class="s-b62dc2d" id="assignKind" aria-label="Assignment type">
@@ -203,6 +235,7 @@
       <!-- R130 (0338): reminders go out on their own every minute (WhatsApp, the studio's own number) - no Remind / Fire buttons -->
       <div id="waSetupNote" hidden></div>
       <p class="muted trm-line" id="trmLine"></p>
+      <p class="muted ops-legend" id="opsLegend"><b>Buttons on each task:</b> ⏱ <b>Schedule</b> = start time and reminders (minutes before, or an exact time like 5:32 PM) · ✉ <b>Email</b> / 💬 <b>WhatsApp</b> = send this task to the person now · 🔔 <b>Mark special</b> = flag an important task so the team sees it (it does not send anything by itself) · <b>Reassign</b> / <b>Cancel</b>. ⏰ shows the reminders a task has.</p>
       <div class="opsfilter" id="opsFilter" role="search" aria-label="Filter tasks">
         <input type="search" id="of_q" maxlength="80" placeholder="Search tasks" aria-label="Search task titles">
         <select id="of_person" aria-label="Filter by person"></select>
@@ -246,8 +279,10 @@
     <h3 id="sc_title">Schedule task</h3>
     <p class="muted s-249d010" id="sc_task"></p>
     <label for="sc_when">Start time</label>
-    <input type="datetime-local" id="sc_when">
+    <input type="datetime-local" id="sc_when" aria-describedby="sc_warn">
+    <div class="when-quick"><button type="button" class="btn sm" id="sc_evday" title="Put the event's date in the start time">Event day</button><button type="button" class="btn sm" id="sc_daybefore" title="Put the day before the event in the start time (set-up the evening before)">Day before</button></div>
     <p class="muted hint">Leave blank for no start time.</p>
+    <p class="when-warn" id="sc_warn" role="status" hidden></p>
     <label for="sc_dep">Depends on (prerequisite task)</label>
     <select id="sc_dep"></select>
     <fieldset class="trm-set" id="sc_rem"></fieldset>
@@ -282,7 +317,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=354"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=355"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -293,7 +328,7 @@
   let waRows={}, trmSettings=null, scRem=null;
   async function loadWa(){ try{ const r=await BPStore.ops.waStatus(quoteId); if(!r) return; trmSettings=r.settings||null; waRows={};
       (r.tasks||[]).forEach(x=>{ if(x&&x.task_id) waRows[x.task_id]=x; });
-      const ln=$("#trmLine"); if(ln && window.HelmTaskReminders && trmSettings) ln.textContent=trmSettings.enabled===false?"Task reminders are switched off for your studio (Settings → Notifications).":HelmTaskReminders.explain(trmSettings)+" Reminders are also emailed to staff who have an email address.";
+      const ln=$("#trmLine"); if(ln && window.HelmTaskReminders && trmSettings) ln.textContent=trmSettings.enabled===false?"Task reminders are switched off for your studio (Settings → Notifications).":HelmTaskReminders.explain(trmSettings);
     }catch{} }
   function waChip(t){ const c=window.HelmTaskReminders && HelmTaskReminders.chip(waRows[t.id]); return c?`<span class="wachip" data-state="${esc(c.state)}"${c.title?` title="${esc(c.title)}"`:""}>💬 ${esc(c.text)}</span>`:""; }
 
@@ -423,11 +458,41 @@
   function updateSel(){ $("#selCount").textContent=$("#taskList").querySelectorAll(".tk:checked").length; }
   $("#selAll") && $("#selAll").addEventListener("change",e=>{ $("#taskList").querySelectorAll(".tk").forEach(c=>c.checked=e.target.checked); updateSel(); });
 
+  // R173 (0364): "Add a start time & reminders to these tasks" - optional, for our own staff (vendors get no reminders)
+  let asRem=null;
+  const asStartISO=()=>{ const v=$("#as_when")&&$("#as_when").value; const d=v?fromLocalInput(v):null; return d&&!isNaN(d.getTime())?d.toISOString():null; };
+  function asSync(){
+    const on=$("#asTimeOn")&&$("#asTimeOn").checked, inHouse=$("#assignKind").value!=="outsourced";
+    $("#assignTime").hidden=!inHouse; $("#asTimeBox").hidden=!(on&&inHouse);
+    if(!(on&&inHouse)) return;
+    if(!$("#as_when").value){ const E=evDateStr(); if(E){ const et=evTimeHM(); $("#as_when").value=(et&&+et.slice(0,2)<6?dayShift(E,-1)+"T18:00":E+"T"+(et||"09:00")); } }
+    $("#as_when").min=toLocalInput(new Date()).slice(0,10)+"T00:00";
+    if(!asRem && window.HelmTaskReminders && trmSettings){ $("#as_rem").hidden=false;
+      asRem=HelmTaskReminders.schedFields($("#as_rem"), {remind_before:null, remind_at:[]}, trmSettings, remOpts(asStartISO, "as")); }
+    showWhen($("#as_warn"), $("#as_when").value);
+  }
+  $("#asTimeOn") && $("#asTimeOn").addEventListener("change", asSync);
+  $("#assignKind").addEventListener("change", asSync);
+  $("#as_when") && $("#as_when").addEventListener("input",()=>showWhen($("#as_warn"), $("#as_when").value));
+  $("#as_evday") && $("#as_evday").addEventListener("click",()=>quickDate($("#as_when"),"day"));
+  $("#as_daybefore") && $("#as_daybefore").addEventListener("click",()=>quickDate($("#as_when"),"before"));
+  // read the start time + reminders for the assign step: null = not used; throws (message shown) when not valid
+  function asRead(){
+    if(!($("#asTimeOn")&&$("#asTimeOn").checked) || $("#assignKind").value==="outsourced") return null;
+    const v=$("#as_when").value;
+    if(!v){ setMsg("err","Pick the start time, or untick \"Add a start time & reminders\"."); $("#as_when").focus(); throw new Error("no start"); }
+    const c=whenCheck(v); if(c.block){ setMsg("err",c.block); $("#as_when").focus(); throw new Error(c.block); }
+    let mins, at=[];
+    try{ mins=asRem?asRem.value():undefined; at=asRem?asRem.times():[]; }catch(e){ setMsg("err","Check the reminders below the start time."); throw e; }
+    return { start: fromLocalInput(v).toISOString(), mins, at };
+  }
   $("#assignBtn") && $("#assignBtn").addEventListener("click",()=>BPUI.guard($("#assignBtn"),async()=>{
     setMsg();
     const titles=[...$("#taskList").querySelectorAll(".tk:checked")].map(c=>c.value);
     if(!titles.length){ setMsg("err","Select at least one task."); return; }
     const outsource=$("#assignKind").value==="outsourced";
+    let when=null; try{ when=asRead(); }catch(e){ return; }
+    const before=new Set(tasks.map(x=>x.id));
     try{
       if(outsource){
         const vId=$("#assignVendor").value;
@@ -445,6 +510,20 @@
         const clash=await BPStore.calendar.wouldClash({date:quote.eventDate, crewId:c.id, excludeQuote:quoteId}).catch(()=>({clash:false}));
         if(clash.clash && !(await BPUI.confirm(c.name+" is "+clash.detail+". Assign anyway?",{title:"Scheduling clash",okLabel:"Assign anyway",danger:true}))){ return; }
         const r=await BPStore.ops.assignTasks(quoteId, activeCat, titles, c.id, c.name, c.phone);
+        // R173 (0364): the start time + reminders go on the NEW tasks first, so the e-mail below already shows the time
+        let timeNote="";
+        if(when){
+          try{ const fresh=await BPStore.ops.listTasks(quoteId); tasks=fresh||tasks;
+            const mine=(fresh||[]).filter(x=>!before.has(x.id) && x.crew_id===c.id && titles.includes(x.title));
+            for(const x of mine){
+              await BPStore.ops.setSchedule(x.id, when.start, null, x.depends_on||null);
+              if(when.mins!==undefined && trmSettings) await BPStore.ops.setReminders(x.id, when.mins);
+              await saveRemTimes(x.id, when.at, false);
+            }
+            if(mine.length){ const s=window.HelmTaskReminders?HelmTaskReminders.summary(Object.assign({}, mine[0], {planned_start:when.start, remind_before:when.mins===undefined?mine[0].remind_before:when.mins, remind_at:when.at}), trmSettings, clockOf):"";
+              timeNote=` Starts ${fmtTime(when.start)}${s?", reminders "+s:""}.`; }
+          }catch(e){ timeNote=" The start time could not be saved on every task - set it with ⏱ Schedule. ("+(e&&e.message?String(e.message).slice(0,120):"error")+")"; }
+        }
         // R170 (0361): "Send by email" ticked -> e-mail their task list now; unticked -> the automatic e-mail is cancelled
         let mailNote="";
         if($("#assignEmail") && !$("#assignEmail").checked){ try{ await BPStore.ops.emailHold(quoteId, c.id); }catch(e){} mailNote=" No email sent."; }
@@ -464,7 +543,7 @@
               waNote=t2? " "+waText(await BPStore.ops.whatsappTasks(t2.id), c.name) : ""; }
           }catch(e){ waNote=" The WhatsApp could not be queued - use 💬 Send on WhatsApp below."; }
         }
-        setMsg("ok", `Assigned ${r.tasks_created} ${activeCat} task(s) to ${c.name}.${window.HelmTrialPreview?"":" Worker link ready below."}${mailNote}${waNote}`);
+        setMsg("ok", `Assigned ${r.tasks_created} ${activeCat} task(s) to ${c.name}.${timeNote}${window.HelmTrialPreview?"":" Worker link ready below."}${mailNote}${waNote}`);
       }
       $("#selAll").checked=false; await refresh(); await renderTasks();
     }catch(e){ setMsg("err",BPUI.friendlyError(e,{action:"assign the tasks"})); }
@@ -496,19 +575,38 @@
       <span class="cat">${esc(label||"")}</span><span class="tt">${esc(t.title)}</span>
       <span class="st ${esc(stS)}">${STATUS_LABEL[stS]||esc(stS)}</span>
       ${t.assignee_kind==='outsourced'?`<span class="qc" style="background:var(--accent-soft);color:var(--accent)" title="Done by the vendor ${esc(t.assignee_name||'')}">🤝 vendor</span>`:''}
-      ${t.is_special?'<span class="gate special" title="Special task — recurring reminder">🔔 special</span>':''}
+      ${t.is_special?'<span class="gate special" title="Marked special: an important task, highlighted for the team. Its reminders are the times set with Schedule.">🔔 Special</span>':''}
       ${gateChip(t,byId)}
+      ${remChip(t)}
       ${verifyChip(t)}
       ${typeof waChip==="function"?waChip(t):""}
       ${evidenceBtn(t)}
-      ${canEditOps?`<button type="button" class="btn sm sched" title="Set start time & prerequisite" aria-label="Schedule ${tn}">⏱</button>`:""}
-      ${canEditOps?`<button type="button" class="btn sm spc" title="Toggle recurring reminder" aria-label="${t.is_special?"Turn off recurring reminder for":"Turn on recurring reminder for"} ${tn}">${t.is_special?'🔕':'🔔'}</button>`:""}
-      ${canEditOps&&t.assignee_kind!=='outsourced'&&(t.crew_id||t.assignee_phone)&&['assigned','accepted','in_progress'].includes(t.status)?`<button type="button" class="btn sm temail" title="Send this task by email" aria-label="Send ${tn} by email">✉</button><button type="button" class="btn sm twa" title="Send this task on WhatsApp" aria-label="Send ${tn} on WhatsApp">💬</button>`:""}
-      ${canEditOps&&['rejected','assigned'].includes(t.status)?`<button type="button" class="btn sm reassign" aria-label="Reassign ${tn}">Reassign</button>`:""}
-      ${canEditOps&&['accepted','in_progress','completed'].includes(t.status)?`<button type="button" class="btn sm reassign-locked" disabled title="Locked: task accepted" aria-label="Reassign ${tn} - locked: task accepted">Reassign</button>`:""}
-      ${canEditOps&&CANCELLABLE.includes(t.status)?`<button type="button" class="btn sm danger tcancel" title="Cancel this task (a reason is required)" aria-label="Cancel ${tn}">Cancel</button>`:""}
-      ${canVerify && t.status==='completed' && t.verify_status==='pending' ? `<button type="button" class="btn sm vpass" aria-label="Pass QC for ${tn}">✓ Pass</button><button type="button" class="btn sm vrej" aria-label="Reject QC for ${tn}">✗ Reject</button>`:""}
+      ${rowActs(t, tn)}
       ${t.status==='cancelled'?`<div class="creason">Cancelled${t.cancel_reason?": "+esc(t.cancel_reason):""}${t.cancelled_at?" · "+esc(fmtTime(t.cancelled_at)):""}</div>`:""}</div>`;
+  }
+  // R173: every task action has a word next to its icon (the owner could not tell the icon-only buttons apart);
+  // grouped in one wrapping block: Schedule, Email, WhatsApp, Mark special, then Reassign / Cancel / QC
+  function rowActs(t, tn){
+    const open=['assigned','accepted','in_progress'].includes(t.status);
+    const send=canEditOps&&t.assignee_kind!=='outsourced'&&(t.crew_id||t.assignee_phone)&&open;
+    const a=[
+      canEditOps?`<button type="button" class="btn sm sched" title="Set the start time and reminders (minutes before, or an exact time)" aria-label="Schedule ${tn}: start time and reminders">⏱ Schedule</button>`:"",
+      send?`<button type="button" class="btn sm temail" title="Email this task to the person now (the address on their staff record)" aria-label="Email ${tn} to the person">✉ Email</button><button type="button" class="btn sm twa" title="Send this task on WhatsApp now (needs your studio's WhatsApp number connected)" aria-label="Send ${tn} on WhatsApp">💬 WhatsApp</button>`:"",
+      canEditOps?`<button type="button" class="btn sm spc" title="${t.is_special?"Remove the special mark":"Mark as special: an important task, highlighted for the team (it does not send anything by itself)"}" aria-label="${t.is_special?"Remove the special mark from":"Mark as special:"} ${tn}">${t.is_special?'🔕 Unmark special':'🔔 Mark special'}</button>`:"",
+      canEditOps&&['rejected','assigned'].includes(t.status)?`<button type="button" class="btn sm reassign" title="Give this task to someone else" aria-label="Reassign ${tn}">Reassign</button>`:"",
+      canEditOps&&['accepted','in_progress','completed'].includes(t.status)?`<button type="button" class="btn sm reassign-locked" disabled title="Locked: task accepted" aria-label="Reassign ${tn} - locked: task accepted">Reassign</button>`:"",
+      canEditOps&&CANCELLABLE.includes(t.status)?`<button type="button" class="btn sm danger tcancel" title="Cancel this task (a reason is required)" aria-label="Cancel ${tn}">Cancel</button>`:"",
+      canVerify && t.status==='completed' && t.verify_status==='pending' ? `<button type="button" class="btn sm vpass" aria-label="Pass QC for ${tn}">✓ Pass</button><button type="button" class="btn sm vrej" aria-label="Reject QC for ${tn}">✗ Reject</button>`:"",
+    ].join("");
+    return a?`<span class="tacts" role="group" aria-label="Actions for ${tn}">${a}</span>`:"";
+  }
+  // R173 (0364): the reminders this task has ("10 & 5 min before · 5:32 PM"), only when it has a start time
+  const clockOf=(iso)=>{ try{ const o=BPStore.fmtStudioDate(iso,{fmt:{hour:'numeric',minute:'2-digit'}}); if(o) return o; }catch{} try{ return new Date(iso).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); }catch{ return ""; } };
+  function remChip(t){
+    if(!t||!t.planned_start||!['assigned','accepted'].includes(t.status)||t.assignee_kind==='outsourced'||!window.HelmTaskReminders) return "";
+    if(trmSettings && trmSettings.enabled===false) return "";
+    const s=HelmTaskReminders.summary(t, trmSettings, clockOf);
+    return s?`<span class="remchip" title="Reminders for this task (email; WhatsApp once connected)">⏰ ${esc(s)}</span>`:"";
   }
   // R170 (0361): "Send by email" - the server reads the address from the staff record (never from this page)
   function personMailBtn(phone, name){
@@ -516,8 +614,8 @@
     const t=tasks.find(x=>x.assignee_phone===phone && x.assignee_kind!=='outsourced' && ['assigned','accepted','in_progress'].includes(x.status));
     // R171 (0362): Send on WhatsApp beside it (the studio's own number; a clear note when it is not set up)
     // R172 (0363): Permanent link - one link per staff member that always shows their current tasks on every event
-    const pl=t&&t.crew_id?`<button type="button" class="btn sm splink" data-crew="${esc(t.crew_id)}" aria-label="Copy the permanent task link for ${esc(name)}">🔗 Permanent link</button>`:"";
-    return t?`<button type="button" class="btn sm semail" data-task="${esc(t.id)}" aria-label="Send ${esc(name)} their tasks by email">✉ Send by email</button><button type="button" class="btn sm swa" data-task="${esc(t.id)}" aria-label="Send ${esc(name)} their tasks on WhatsApp">💬 Send on WhatsApp</button>${pl}`:"";
+    const pl=t&&t.crew_id?`<button type="button" class="btn sm splink" data-crew="${esc(t.crew_id)}" title="One link for this person that always shows all their tasks on every event" aria-label="Copy the permanent task link for ${esc(name)}">🔗 Copy permanent link</button>`:"";
+    return t?`<button type="button" class="btn sm semail" data-task="${esc(t.id)}" title="Email this person all their tasks for this event" aria-label="Send ${esc(name)} their tasks by email">✉ Email tasks</button><button type="button" class="btn sm swa" data-task="${esc(t.id)}" title="Send this person their tasks on WhatsApp (needs your studio's WhatsApp number connected)" aria-label="Send ${esc(name)} their tasks on WhatsApp">💬 WhatsApp tasks</button>${pl}`:"";
   }
   function mailText(r, name){
     const who=(r&&r.name)||name||"They";
@@ -580,9 +678,9 @@
     const seen=new Set(), rows=[];
     tasks.forEach(t=>{ const ph=t.assignee_phone; if(!ph||seen.has(ph)) return; seen.add(ph); const link=workerLinkFor(ph); if(!link) return;
       const name=t.assignee_name||ph;
-      rows.push(`<div class="linkline"><b>${esc(name)}</b><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" aria-label="Copy worker link for ${esc(name)}">Copy link</button>${personMailBtn(ph,name)}</div>`); });
+      rows.push(`<div class="linkline"><b>${esc(name)}</b><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" title="This person's link for this event only" aria-label="Copy the event link for ${esc(name)}">Copy event link</button>${personMailBtn(ph,name)}</div>`); });
     if(!rows.length) return "";
-    return `<div class="grp" id="workerLinks"><div class="gh"><b>🔗 Worker links</b><span class="muted">one per person - sent to them by email (and on WhatsApp from your studio's number once it is connected); if a message isn't delivered, copy the link and share it</span></div>${rows.join("")}</div>`;
+    return `<div class="grp" id="workerLinks"><div class="gh"><b>🔗 Worker links</b><span class="muted">Event link = this event only. Permanent link = one link per person that always shows all their tasks. Both are sent in their emails (and on WhatsApp once your studio's number is connected); if a message doesn't arrive, copy a link and share it.</span></div>${rows.join("")}</div>`;
   }
   function renderDashboard(){
     if(!renderDashboard._s){ renderDashboard._s=1; BPStore.links.studio().then(s=>{ if(s) renderDashboard(); }).catch(()=>{}); }   // re-render once the branded studio link name is known
@@ -598,7 +696,7 @@
         const blocked=ts.filter(t=>gateChip(t,byId).includes('blocked')).length;
         const pend=ts.filter(t=>t.verify_status==='pending').length;
         const spec=ts.filter(t=>t.is_special).length;
-        const badges=[blocked?`<span class="gate blocked">${blocked} blocked</span>`:"",pend?`<span class="qc pend">${pend} QC pending</span>`:"",spec?`<span class="gate special">${spec} 🔔</span>`:""].join(" ");
+        const badges=[blocked?`<span class="gate blocked">${blocked} blocked</span>`:"",pend?`<span class="qc pend">${pend} QC pending</span>`:"",spec?`<span class="gate special" title="Tasks marked special (important) in this section">🔔 ${spec} special</span>`:""].join(" ");
         return `<div class="grp"><div class="gh"><b>📋 ${esc(cat)}</b><span class="muted">${done}/${ts.length} done</span> ${badges}</div>
           ${ts.map(t=>taskRow(t,byId,t.assignee_name||"—")).join("")}</div>`;
       }).join("") || '<div class="empty">No tasks yet.</div>';
@@ -614,7 +712,7 @@
         const rows=ts.map(t=>taskRow(t,byId,t.category)).join("");
         return `<div class="grp"><div class="gh"><b>${esc(name)}</b><span class="ph">${esc(phone)}</span>
           <span class="muted">${done}/${ts.length} done</span></div>${rows}
-          ${link?`<div class="linkline"><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" aria-label="Copy worker link for ${esc(name)}">Copy link</button>${personMailBtn(phone,name)}</div>
+          ${link?`<div class="linkline"><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" title="This person's link for this event only" aria-label="Copy the event link for ${esc(name)}">Copy event link</button>${personMailBtn(phone,name)}</div>
             <div class="muted" style="margin-top:4px">Sent by email, and on WhatsApp from your studio's number to ${esc(phone)} once it is connected. If it shows Not sent or Failed, copy the link and share it.</div>`:""}</div>`;
       }).join("");
     }
@@ -649,7 +747,7 @@
     host.querySelectorAll(".spc").forEach(b=>b.addEventListener("click",()=>rowGuard(b,async()=>{
       const id=b.closest(".trow").dataset.id, t=tasks.find(x=>x.id===id);
       try{ await BPStore.ops.setSpecial(id, !(t&&t.is_special), 5);
-        BPUI.toast((t&&t.is_special)?"No longer marked special.":"Marked special. Its WhatsApp reminders follow the times on the task and Settings → Notifications.",{type:"ok"}); await refreshDashboard(); }
+        BPUI.toast((t&&t.is_special)?"No longer marked special.":"Marked special - it is highlighted for the team. Set its start time and reminders with ⏱ Schedule.",{type:"ok"}); await refreshDashboard(); }
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the reminder"}),{type:"err"}); }
     })));
     applyOpsFilter();
@@ -819,6 +917,48 @@
     const want=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5]); let t=want;
     try{ for(let i=0;i<2;i++){ const c=BPStore.studioClock(new Date(t)); if(!c) break; t=t-(Date.UTC(c.y,c.mo-1,c.d,c.h,c.mi)-want); } }catch{ return new Date(v); }
     return new Date(t); };
+  // R173: light date checks for a start time (studio clock "YYYY-MM-DDTHH:MM"): a time in the past is refused; more than a
+  // day away from the event date is a warning (not a block); an event that starts before 6 AM gets a "set-up is usually the
+  // evening before" note with a one-tap Day before button. The full date-intelligence plan is separate.
+  const evDateStr=()=>{ const v=String((quote&&quote.eventDate)||"").slice(0,10); return /^\d{4}-\d{2}-\d{2}$/.test(v)?v:""; };
+  function evTimeHM(){ const m=/^(\d{1,2})[:.](\d{2})\s*([AaPp][Mm])?/.exec(String((quote&&quote.eventTime)||"").trim()); if(!m) return null;
+    let h=+m[1]; const mi=+m[2]; if(m[3]){ const pm=/p/i.test(m[3]); if(h===12) h=pm?12:0; else if(pm) h+=12; }
+    return h<=23&&mi<=59 ? pad2(h)+":"+pad2(mi) : null; }
+  function dayShift(ymd, n){ const d=new Date(ymd+"T00:00:00Z"); if(isNaN(d)) return ""; d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+  function whenCheck(v){
+    const out={notes:[]}; const et=evTimeHM();
+    if(et && +et.slice(0,2)<6) out.notes.push(`This event starts early (${et}) - set-up tasks are usually the evening before. "Day before" puts that date in.`);
+    if(!v) return out;
+    const d=fromLocalInput(v); if(isNaN(d.getTime())){ out.block="Couldn't read that date/time."; return out; }
+    if(v.slice(0,10) < toLocalInput(new Date()).slice(0,10) || d.getTime() < Date.now()-5*60000){ out.block="Pick a time from now on - a task can't be scheduled to start in the past."; return out; }
+    const E=evDateStr();
+    if(E){ const diff=Math.round((Date.parse(v.slice(0,10)+"T00:00:00Z")-Date.parse(E+"T00:00:00Z"))/86400000);
+      if(diff<-1) out.notes.unshift(`Check the date: this is ${-diff} days before the event (${E}).`);
+      else if(diff>1) out.notes.unshift(`Check the date: this is ${diff} days after the event (${E}).`); }
+    return out;
+  }
+  function showWhen(el, v){ if(!el) return; const c=whenCheck(v); const t=c.block||c.notes.join(" "); el.textContent=t; el.classList.toggle("block",!!c.block); el.hidden=!t; }
+  function quickDate(input, which){
+    const E=evDateStr(); if(!E){ BPUI.toast("This event has no date yet - set the event date first.",{type:"info"}); return; }
+    const cur=String(input.value||""); const tm=cur.length>=16?cur.slice(11,16):(which==="before"?"18:00":(evTimeHM()||"09:00"));
+    input.value=(which==="before"?dayShift(E,-1):E)+"T"+tm;
+    input.dispatchEvent(new Event("input",{bubbles:true})); input.dispatchEvent(new Event("change",{bubbles:true})); input.focus();
+  }
+  // the server refusals of set_task_reminder_times (0364), in plain words
+  function remTimesError(e){ const m=String((e&&(e.message||e.details))||"");
+    if(/no_start_time/.test(m)) return "Set a start time first - a reminder at an exact time needs one.";
+    if(/after_start/.test(m)) return "A reminder time must be at or before the start time.";
+    if(/too_early/.test(m)) return "A reminder time can be at most 24 hours before the start.";
+    if(/in_past/.test(m)) return "One of the reminder times has already passed - pick a later time.";
+    if(/invalid_times/.test(m)) return "At most 8 reminder times at an exact time.";
+    return null; }
+  // save the exact reminder times; nothing to do (and no call) when there are none now and none before
+  async function saveRemTimes(id, times, had){
+    if(!times.length && !had) return;
+    try{ await BPStore.ops.setReminderTimes(id, times); }
+    catch(e){ const t=remTimesError(e); if(t) throw new Error(t); throw e; }
+  }
+  const remOpts=(startFn, idp)=>({ toLocal:(iso)=>toLocalInput(iso), fromLocal:(v)=>fromLocalInput(v), start:startFn, idp:idp });
   let scTaskId=null; const scDirty=BPUI.trackDirty($("#schedForm"));
   // would making `depId` a prerequisite of `id` create a cycle of any length? (walk depId's chain; bounded)
   function wouldCycle(id, depId){
@@ -837,12 +977,17 @@
     $("#sc_dep").value=t.depends_on && others.some(x=>x.id===t.depends_on) ? t.depends_on : "";
     // R130: WhatsApp reminder times for this task (studio default unless changed)
     $("#sc_rem").hidden = !(window.HelmTaskReminders && trmSettings);   // before 0338: no reminder fields
-    scRem = window.HelmTaskReminders && trmSettings ? HelmTaskReminders.schedFields($("#sc_rem"), t, trmSettings) : null;
+    scRem = window.HelmTaskReminders && trmSettings ? HelmTaskReminders.schedFields($("#sc_rem"), t, trmSettings,
+      remOpts(()=>{ const v=$("#sc_when").value; const d=v?fromLocalInput(v):null; return d&&!isNaN(d.getTime())?d.toISOString():null; }, "sc")) : null;
+    showWhen($("#sc_warn"), $("#sc_when").value);
     if(window.HelmWaSetupNote) HelmWaSetupNote.mount($("#sc_waNote"), { what: "reminders" });
     $("#sc_err").hidden=true; scDirty.clean(); $("#schedModal").hidden=false;
   }
   async function closeSched(force){ if(!force && !(await BPUI.confirmDiscard(scDirty))) return; $("#schedModal").hidden=true; scTaskId=null; scDirty.clean(); }
   $("#sc_cancel").addEventListener("click",()=>closeSched());
+  $("#sc_when").addEventListener("input",()=>showWhen($("#sc_warn"), $("#sc_when").value));
+  $("#sc_evday").addEventListener("click",()=>quickDate($("#sc_when"),"day"));
+  $("#sc_daybefore").addEventListener("click",()=>quickDate($("#sc_when"),"before"));
   $("#schedModal").addEventListener("click",e=>{ if(e.target.id==="schedModal") closeSched(); });
   $("#schedForm").addEventListener("submit",e=>{ e.preventDefault();
     const when=$("#sc_when").value;
@@ -857,11 +1002,13 @@
       const dep=tasks.find(x=>x.id===depId);
       if(startISO && dep && dep.planned_start && Date.parse(startISO) < Date.parse(dep.planned_start)){ $("#sc_err").textContent="This task can't start before its prerequisite does ("+fmtTime(dep.planned_start)+"). Pick a later start or a different prerequisite."; $("#sc_err").hidden=false; return; }
     }
-    let remMins;
-    try{ remMins = scRem ? scRem.value() : undefined; }catch(err){ return; }   // the field shows its own error
+    let remMins, remAt=[];
+    try{ remMins = scRem ? scRem.value() : undefined; remAt = scRem ? scRem.times() : []; }catch(err){ return; }   // the field shows its own error
+    const hadAt=(()=>{ const t0=tasks.find(x=>x.id===scTaskId); return !!(t0&&Array.isArray(t0.remind_at)&&t0.remind_at.length); })();
     BPUI.guard($("#schedForm"),async()=>{
       try{ await BPStore.ops.setSchedule(scTaskId, startISO, null, depId);
         if(remMins!==undefined && trmSettings) await BPStore.ops.setReminders(scTaskId, remMins);
+        if(scRem) await saveRemTimes(scTaskId, startISO?remAt:[], hadAt);
         await closeSched(true); BPUI.toast("Schedule updated.",{type:"ok"}); await refreshDashboard(); }
       catch(err){ $("#sc_err").textContent=BPUI.friendlyError(err,{action:"save the schedule"}); $("#sc_err").hidden=false; }
     });
@@ -888,7 +1035,7 @@
   setInterval(()=>{ if(document.hidden || $("#app").hidden) return; if(!$("#reassignModal").hidden || !$("#cancelTaskModal").hidden || !$("#schedModal").hidden || !$("#evModal").hidden) return; if(document.querySelector("#dashboard [data-busy]")) return; refreshDashboard(); }, 7000);
   BPUI.boot(load);
 </script>
-<script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=2"></script>
+<script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=3"></script>
 <script src="crew-shifts.js?v=7"></script>
 </body>
 </html>

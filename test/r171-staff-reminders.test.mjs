@@ -61,7 +61,7 @@ t("APPLY-0362 + MANIFEST + DB suite + prod checker", () => {
 
 t("Operations page: 💬 next to every ✉ (task row + worker-link row), assign-form box, clear not-set-up text", () => {
   assert.match(OPS, /class="btn sm temail"[^`]*<\/button><button type="button" class="btn sm twa"/);
-  assert.match(OPS, /class="btn sm semail" data-task="\$\{esc\(t\.id\)\}"[^`]*<\/button><button type="button" class="btn sm swa" data-task="\$\{esc\(t\.id\)\}" aria-label="Send \$\{esc\(name\)\} their tasks on WhatsApp">/);
+  assert.match(OPS, /class="btn sm semail" data-task="\$\{esc\(t\.id\)\}"[^`]*<\/button><button type="button" class="btn sm swa" data-task="\$\{esc\(t\.id\)\}"[^>]* aria-label="Send \$\{esc\(name\)\} their tasks on WhatsApp">/);
   assert.match(OPS, /id="assignWaWrap"[^>]*><input type="checkbox" id="assignWa">/);
   assert.match(OPS, /const WA_NOT_SET_UP="WhatsApp is not set up yet - connect your studio's WhatsApp number in Integrations\. Nothing was sent\.";/);
   assert.match(OPS, /if\(\(await waConnected\(\)\)===false\)\{ BPUI\.toast\(WA_NOT_SET_UP/);
@@ -80,7 +80,7 @@ t("staff picker: 'no email' when there is no staff e-mail and no linked login; S
 });
 t("reminder wording: email + WhatsApp, 'At the start time' explained as due now", () => {
   assert.match(TR, /"Reminders \(email \+ WhatsApp\)"/);
-  assert.match(TR, /gets a reminder by email \(and WhatsApp once your number is connected\)/);
+  assert.match(TR, /gets a reminder by email \(to the address on their staff record\) and on WhatsApp \(once your studio number is connected\)/);   // R173 wording
   assert.match(TR, /Tick \\"At the start time\\" for a \\"due now\\" reminder/);
   assert.match(TR, /var CHOICES = \[30, 15, 10, 5, 3, 1, 0\];/);
 });

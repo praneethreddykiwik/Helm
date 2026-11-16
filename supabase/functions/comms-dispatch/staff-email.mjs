@@ -75,9 +75,11 @@ export function staffEmailMessage(row, origin) {
     const s = soon(row.minutes);
     // R171 (owner: "this task is due in 10 minutes / 5 minutes / your task is due now")
     const due = s === "now" ? "Due now" : "Due " + s;
+    // R173: a reminder 6+ hours ahead (e.g. the evening before a 2 AM start) names the day too
+    const at2 = Number(row.minutes) >= 360 ? when(row.start, row.day) : clip(row.start, 12);
     return {
-      subject: due + ": " + task + " at " + clip(row.start, 12) + " - " + event,
-      text: hi + "A reminder from " + studio + ": " + task + " for " + event + (s === "now" ? " is due now" : " is due " + s) + ", at " + clip(row.start, 12) + ".\n\n" +
+      subject: due + ": " + task + " at " + at2 + " - " + event,
+      text: hi + "A reminder from " + studio + ": " + task + " for " + event + (s === "now" ? " is due now" : " is due " + s) + ", at " + at2 + ".\n\n" +
         (link ? "Mark it started on your task page:\n" + link : "Please get ready to start it.") + replyLine + sign,
     };
   }
