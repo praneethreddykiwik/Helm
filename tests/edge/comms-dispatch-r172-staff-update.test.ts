@@ -106,6 +106,8 @@ Deno.test("R172 change notices: lines + open tasks + permanent link over SMTP; c
     assert(ravi.text.includes("Sparkle Events changed something on your work for Rao Wedding on 01 Dec 2026 at Palace Grounds:"), ravi.text);
     assert(ravi.text.includes("  - Sound check: start time changed from 12:00 PM on 01 Dec 2026 to 12:30 PM on 01 Dec 2026"), ravi.text);
     assert(ravi.text.includes("  - and 2 more changes"), ravi.text);
+    // R185: designed html with before -> after rows
+    assert(ravi.html.includes("Your tasks changed") && ravi.html.includes("&rarr;") && ravi.html.includes("See all my tasks"), "designed html");
     assert(ravi.text.includes("Your tasks for this event now:\n  - Sound check - starts 12:30 PM on 01 Dec 2026"), ravi.text);
     assert(ravi.text.includes("https://www.helm.events/work.html?staff=" + TOK), "permanent link on APP_URL");
     assert(ravi.text.includes("You received this because you are on the staff list of this studio"), "staff footer");

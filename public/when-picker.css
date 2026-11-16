@@ -1,8 +1,28 @@
 /* when-picker.css - R179 date + time picker (when-picker.js). Helm green light theme; no inline styles. */
 .whenp { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
 .whenp-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; }
-.whenp .whenp-date, .whenp .whenp-time { width: 100%; margin: 0 !important; min-height: 40px; font-size: 15px; }
-.whenp .whenp-time.whenp-bad { border-color: var(--danger, #b42318); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger, #b42318) 14%, transparent); }
+.whenp .whenp-date { width: 100%; margin: 0 !important; min-height: 40px; font-size: 15px; }
+.whenp-row { align-items: start; }
+/* R183: iOS-style time - big hour : minute segments, AM | PM toggle, quick minutes */
+.whenp-tp { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; }
+.whenp-clock { display: flex; align-items: center; justify-content: center; gap: 2px; padding: 6px 8px; border-radius: 14px;
+  background: var(--surface-2, #f2f6f4); border: 1px solid var(--line, #d5ded9); }
+.whenp-clock.whenp-bad { border-color: var(--danger, #b42318); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger, #b42318) 14%, transparent); }
+.whenp .whenp-seg { box-sizing: content-box; width: 2.1ch; min-width: 2.1ch; margin: 0 !important; padding: 2px 6px; border: 0; border-radius: 10px; background: transparent;
+  font-size: 30px; line-height: 1.15; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; color: var(--ink, #101828);
+  box-shadow: none; caret-color: transparent; }
+.whenp .whenp-seg::placeholder { color: var(--ink-3, #98a2b3); }
+.whenp .whenp-seg:focus, .whenp .whenp-seg:focus-visible { outline: none; background: var(--accent, #0b6b4f); color: #fff; }
+.whenp .whenp-seg:focus::placeholder { color: color-mix(in srgb, #fff 70%, transparent); }
+.whenp-colon { font-size: 28px; font-weight: 600; color: var(--ink-2, #344054); padding: 0 1px; user-select: none; }
+.whenp-ampm { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; border-radius: 12px; background: var(--surface-2, #f2f6f4); border: 1px solid var(--line, #d5ded9); }
+.whenp-ap { min-height: 32px; border: 0; border-radius: 9px; background: transparent; font-weight: 700; font-size: 14px; color: var(--ink-2, #344054); cursor: pointer; }
+.whenp-ap.on { background: var(--accent, #0b6b4f); color: #fff; box-shadow: 0 1px 2px rgba(16, 24, 40, .12); }
+.whenp-ap:focus-visible, .whenp-q:focus-visible { outline: 2px solid var(--accent, #0b6b4f); outline-offset: 2px; }
+.whenp-quick { display: flex; gap: 4px; justify-content: space-between; }
+.whenp-q { flex: 1; min-height: 28px; padding: 2px 0; border: 1px solid var(--line, #d5ded9); border-radius: 999px; background: #fff;
+  font-size: 12.5px; font-weight: 600; color: var(--ink-2, #344054); cursor: pointer; }
+.whenp-q:hover { border-color: var(--accent, #0b6b4f); color: var(--accent, #0b6b4f); }
 .whenp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .whenp-chips .btn.sm { border-radius: 999px; padding: 4px 12px; font-weight: 600; }
 .whenp-words { margin: 0; font-size: 13px; font-weight: 600; color: var(--accent, #0b6b4f); min-height: 18px; }
@@ -10,9 +30,13 @@
 .whenp-words.whenp-need { color: var(--ink-3, #667085); font-weight: 500; }
 .whenp-compact { margin: 0; gap: 4px; }
 .whenp-compact .whenp-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
-.whenp-compact .whenp-date, .whenp-compact .whenp-time { min-height: 36px; font-size: 14px; }
+.whenp-compact .whenp-date { min-height: 36px; font-size: 14px; }
+.whenp-compact .whenp-seg { font-size: 22px; }
+.whenp-compact .whenp-colon { font-size: 20px; }
+.whenp-compact .whenp-ap { min-height: 28px; font-size: 13px; }
+.whenp-compact .whenp-quick { display: none; }
 @media (max-width: 420px) {
-  .whenp-row { grid-template-columns: 1fr 1fr; }
+  .whenp-row, .whenp-compact .whenp-row { grid-template-columns: 1fr; }
 }
 .whenp-row > .uip-date-wrap, .whenp-row > .uip-list-wrap { width: 100%; min-width: 0; display: block; }
 .whenp-row .uip-date-face { width: 100%; min-height: 40px; margin: 0; }

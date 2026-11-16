@@ -105,7 +105,7 @@ await t("e-mail: fails closed (unknown kind, no tasks, no task title, reminder w
 
 await t("comms-dispatch: the staff lane - claimed only with an e-mail provider, studio reply-to, footer by kind, every row marked", () => {
   const cd = read("supabase/functions/comms-dispatch/index.ts");
-  assert.match(cd, /import \{ staffEmailMessage, (?:staffUpdateMessage, )?STAFF_TX_REASON, OFFICE_TX_REASON \} from "\.\/staff-email\.mjs";/);
+  assert.match(cd, /import \{ staffEmailMessage, (?:staffUpdateMessage, )?(?:staffEmailHtml, staffUpdateHtml, )?STAFF_TX_REASON, OFFICE_TX_REASON \} from "\.\/staff-email\.mjs";/);
   assert.match(cd, /mailOn && !overBudget\(\) \? await admin\.rpc\("staff_email_claim", \{ p_limit: batch \}\) : NOCLAIM;/);
   assert.match(cd, /const ident: Identity = await withReply\("staff", id,/);
   assert.match(cd, /=== "office_alert" \? OFFICE_TX_REASON : STAFF_TX_REASON/);
@@ -115,7 +115,7 @@ await t("comms-dispatch: the staff lane - claimed only with an e-mail provider, 
 
 await t("Operations page: Send by email box on the assign form, per-task and per-person buttons, plain-words answers", () => {
   const h = read("public/ops.html");
-  assert.match(h, /<label class="assign-mail" id="assignEmailWrap"[^>]*><input type="checkbox" id="assignEmail" checked> ✉ Send by email<\/label>/);
+  assert.match(h, /<label class="assign-mail" id="assignEmailWrap"[^>]*><input type="checkbox" id="assignEmail" checked(?: autocomplete="off")?> ✉ Send by email<\/label>/);
   assert.match(h, /if\(\$\("#assignEmailWrap"\)\) \$\("#assignEmailWrap"\)\.hidden = outsource;/);
   assert.match(h, /await BPStore\.ops\.emailHold\(quoteId, c\.id\)/);
   assert.match(h, /await BPStore\.ops\.emailTasks\(t\.id, true\)/);
