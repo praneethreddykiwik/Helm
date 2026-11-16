@@ -97,13 +97,15 @@
     var err = el("div", "lerr"); err.setAttribute("role", "alert"); err.hidden = true; container.appendChild(err);
     var at = exactTimes(container, task, opts, P, err);
     container.appendChild(err);   // the error line under the exact times (it covers both parts)
-    container.appendChild(el("p", "muted hint", "Reminders need a start time on the task. The email goes to the address on the person's staff record (no email on file = no email). WhatsApp also needs a phone number on the staff record and your studio's WhatsApp number connected in Integrations. Tick \"At the start time\" for a \"due now\" reminder. Late reminders and the office alert follow Settings → Notifications → Task reminders."));
-    function sync() { var off = dflt.input.checked; boxes.forEach(function (b) { b.input.disabled = off; }); ci.disabled = off; }
+    container.appendChild(el("p", "muted hint trm-hint", "Needs a start time. Email goes to the staff record address; WhatsApp also needs a phone number on the staff record and your studio's WhatsApp number connected in Integrations. Tick \"At the start time\" for a \"due now\" reminder."));
+    // R179: the minute ticks and the custom box are never locked. Changing any of them switches "Use the studio default" off
+    // (the owner could not type a custom time while the default was ticked); ticking the default again puts its times back.
+    function untickDefault() { if (dflt.input.checked) dflt.input.checked = false; }
+    boxes.forEach(function (b) { b.input.disabled = false; b.input.addEventListener("change", untickDefault); });
+    ci.disabled = false; ci.addEventListener("input", untickDefault);
     dflt.input.addEventListener("change", function () {
       if (dflt.input.checked) { boxes.forEach(function (b) { b.input.checked = def.indexOf(Number(b.input.value)) >= 0; }); ci.value = def.filter(function (m) { return CHOICES.indexOf(m) < 0; }).join(", "); }
-      sync();
     });
-    sync();
     return {
       value: function () {
         err.hidden = true;
@@ -150,7 +152,7 @@
     var add = el("button", "btn sm trm-at-add", "+ Add a time"); add.type = "button";
     add.setAttribute("aria-label", "Add a reminder at an exact time");
     box.appendChild(add);
-    box.appendChild(el("p", "muted hint", "For example 5:32 PM. It must be at or before the start time, at most 24 hours before it."));
+    box.appendChild(el("p", "muted hint", "For example 5:32 PM - at or before the start time, up to 24 hours before it."));
     container.appendChild(box);
     var n = 0;
     function startMs() { var s = typeof opts.start === "function" ? opts.start() : null; var t = s ? Date.parse(s) : NaN; return isFinite(t) ? t : null; }
@@ -165,6 +167,8 @@
       var rm = el("button", "btn sm trm-at-rm", "Remove"); rm.type = "button"; rm.setAttribute("aria-label", "Remove this reminder time");
       rm.addEventListener("click", function () { list.removeChild(r); if (add) add.disabled = list.children.length >= 8; add.focus(); });
       r.appendChild(lb); r.appendChild(inp); r.appendChild(rm); list.appendChild(r);
+      // R179: the clear date + time picker (when-picker.js); the input stays the value holder
+      if (global.HelmWhen && typeof global.HelmWhen.attach === "function") global.HelmWhen.attach(inp, { compact: true, label: "Reminder" });
       add.disabled = list.children.length >= 8;
       return inp;
     }

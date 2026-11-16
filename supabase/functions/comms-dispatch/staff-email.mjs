@@ -7,7 +7,8 @@
 //   * office_alert               to the event manager: "<worker> has not started <task>", with the Live Status link
 //   * task_update (R172, 0363)    "Update: your tasks for <event> changed" - the change lines collected for that person
 //                                and event (staff_update_claim), their open tasks now, and their permanent link
-// Links: APP_URL + the row's own path only (work.html?staff=<64 hex> = the person's permanent link (R172),
+// Links: APP_URL + the row's own path only (work.html?staff=<64 hex> = the person's permanent link (R172); R179 adds
+// &event=<event id> for an e-mail about one event, so it opens that event inside the same link,
 // work.html?token=<uuid> = the per-event link, ops.html?quote=<uuid> for the office);
 // the host never comes from the database. Anything unexpected -> empty text and comms-dispatch marks the row skipped.
 export const STAFF_TX_REASON = "you are on the staff list of this studio and work was given to you";
@@ -15,12 +16,19 @@ export const OFFICE_TX_REASON = "you are the manager of this event";
 export const STAFF_KINDS = ["task_assigned", "task_list", "task_one", "task_reminder", "task_late", "office_alert"];
 
 const ORIGIN = /^https:\/\/[A-Za-z0-9.-]{1,190}(?::[0-9]{1,5})?$/;
-const PATH = /^(?:(?:work\.html\?token=|ops\.html\?quote=)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|work\.html\?staff=[0-9a-f]{64})$/;
+const PATH = /^(?:(?:work\.html\?token=|ops\.html\?quote=)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|work\.html\?staff=[0-9a-f]{64}(?:&event=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?)$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const STAFF_PATH = /^work\.html\?staff=[0-9a-f]{64}$/;
+// R179: e-mails about one event open that event INSIDE the person's permanent link (work.html?staff=..&event=<id>);
+// the "your tasks changed" notice and the office alert keep their own links
+const EVENT_KINDS = ["task_assigned", "task_list", "task_one", "task_reminder", "task_late"];
 const clip = (v, n) => String(v == null ? "" : v).replace(/[\r\n\t<>]+/g, " ").replace(/\s+/g, " ").trim().slice(0, n);
 
 export function staffLink(row, origin) {
   const o = String(origin || "").replace(/\/+$/, "");
-  const p = String((row && row.link_path) || "");
+  let p = String((row && row.link_path) || "");
+  const q = String((row && row.quote_id) || "").toLowerCase();
+  if (STAFF_PATH.test(p) && UUID_RE.test(q) && EVENT_KINDS.includes(String(row && row.kind))) p += "&event=" + q;
   if (!ORIGIN.test(o) || !PATH.test(p)) return "";
   return o + "/" + p;
 }

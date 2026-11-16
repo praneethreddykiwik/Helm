@@ -36,6 +36,8 @@
   a.btn:hover{text-decoration:none;filter:brightness(1.05)} a.btn:focus-visible{outline:3px solid var(--accent-2);outline-offset:2px}
   .staff-ev h1{margin-bottom:2px} .staff-ev > .sub{margin:0 0 14px}
   .staff-ev .acts{margin-top:14px} .staff-ev .acts .btn{flex:1 1 auto}
+  /* R179: "All my tasks" bar above an event opened from the permanent link */
+  .backbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px} .backbar .btn.back{flex:0 0 auto;min-width:0;height:38px} .backbar .muted{font-size:12.5px}
   .staff-ev .task .muted{font-size:13px;color:var(--ink-3)}
   .btn{height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;flex:1;min-width:120px}
   .btn.primary{background:linear-gradient(120deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff}
@@ -160,13 +162,13 @@
 <script src="/telemetry.js?v=11"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=356"></script>
-<script src="/staff-home.js?v=1"></script>
+<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=357"></script>
+<script src="/staff-home.js?v=2"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s||"").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const LINK=BPStore.links.parse("work");   // branded /<studio>/work/<token> (server-verified below)
-  const token=LINK?LINK.ref:new URLSearchParams(location.search).get("token");
+  let token=LINK?LINK.ref:new URLSearchParams(location.search).get("token");   // R179: may be set from the permanent link (event view)
   const LABEL={assigned:"Assigned",accepted:"Accepted",in_progress:"In progress",completed:"Completed",rejected:"Rejected",cancelled:"Cancelled"};
   let data=null, equip=[], upd=null;
   // 0132: an item assigned/changed in the last 24 hours gets an "Updated" badge
@@ -216,7 +218,14 @@
   }
   async function load(){
     // R172 (0363): work.html?staff=<link> is the person's permanent link (staff-home.js)
-    if(window.HelmStaffHome&&HelmStaffHome.wants()) return HelmStaffHome.start();
+    // R179 (0367): work.html?staff=<link>&event=<id> opens that event inside the same link (its task link behind the scenes)
+    if(window.HelmStaffHome&&HelmStaffHome.wants()){
+      if(!HelmStaffHome.inEvent()) return HelmStaffHome.start();
+      let t=null; try{ t=await HelmStaffHome.resolveEvent(); }catch(e){ t=null; }
+      if(!t) return HelmStaffHome.start();   // event gone / finished: show all their tasks instead
+      token=t; HelmStaffHome.backBar();
+      window.__helmWorkToken=t; if(window.HelmCrewSelf&&HelmCrewSelf.useToken) HelmCrewSelf.useToken(t);   // check-in / shifts / availability
+    }
     if(!token){ $("#loading").hidden=true; $("#badlink").hidden=false; return; }
     if(LINK){                                // studio name must own this crew link (offline: fall through to cache)
       try{ if(!(await BPStore.links.verify(LINK))){ $("#loading").hidden=true; $("#badlink").hidden=false; return; } }catch(e){}
@@ -469,10 +478,10 @@
   $("#evCancel").addEventListener("click",()=>{ evClose(); });
   $("#evSheet").addEventListener("click",(e)=>{ if(e.target.id==="evSheet") evClose(); });
   document.addEventListener("keydown",(e)=>{ if(e.key==="Escape" && ev && !$("#evSheet").hidden) evClose(); });
-  $("#refreshBtn").addEventListener("click",(ev)=>{ setMsg(""); BPUI.guard(ev.currentTarget,()=>(window.HelmStaffHome&&HelmStaffHome.wants())?HelmStaffHome.start():refresh(false)).catch(()=>{}); });
+  $("#refreshBtn").addEventListener("click",(ev)=>{ setMsg(""); BPUI.guard(ev.currentTarget,()=>(window.HelmStaffHome&&HelmStaffHome.wants()&&!HelmStaffHome.inEvent())?HelmStaffHome.start():refresh(false)).catch(()=>{}); });
   $("#retryFirst").addEventListener("click",(ev)=>{ BPUI.guard(ev.currentTarget,()=>refresh(true)).catch(()=>{}); });
   BPUI.boot(load);
 </script>
-<script src="/crew-self.js?v=2"></script>
+<script src="/crew-self.js?v=3"></script>
 </body>
 </html>

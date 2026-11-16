@@ -444,12 +444,12 @@
     ],
     "ops.html": [
       { sel: "#crewChips", title: "Crew for this event", desc: "Who is working this event. Add someone with their phone number." },
-      { sel: "#catTabs", title: "Task categories", desc: "Tasks grouped by department: stage, lighting, catering and more." },
-      { sel: "#taskList", title: "Tasks", desc: "Tick tasks to select them. Each one shows who has it and when it is due." },
+      { sel: ["#catTabs", "#taskList"], title: "Tasks", desc: "Pick a department tab (stage, lighting, catering...), then tick tasks to select them. Each one shows who has it and when it is due." },
       { sel: "#assignBtn", title: "Assign", desc: "Give the selected tasks to a crew member or a vendor. Tick \"Add a start time & reminders\" first to set a start time and reminders (minutes before, or an exact time like 5:32 PM)." },
       { sel: "#assignEmailWrap", title: "Send by email or WhatsApp", desc: "Ticked: the person gets their tasks by email. Tick 💬 Send on WhatsApp to send from your studio number too - if it isn't connected, Helm says so and nothing is sent. ✉ / 💬 on a task or worker link sends again." },
-      { sel: "#trmLine", title: "Task reminders and buttons", desc: "Reminders go by email to each staff record address (no phone needed) and on WhatsApp once connected. Schedule = start time and reminders; Email / WhatsApp = send now; the ⏰ chip shows a task's reminders." },
+      { sel: "#trmLine", title: "Task reminders and buttons", desc: "Reminders go by email to each staff record address (no phone needed) and on WhatsApp once connected. Schedule = start time and reminders; Email / WhatsApp = send now; Mark special = extra reminders until started." },
       { sel: "#opsFilter", title: "Find a task", desc: "Search task names, or show only one person, section or status (QC pending too). Your filter is remembered for this event." },
+      { sel: "#workerLinks", title: "Permanent links", desc: "Share each person's permanent link: one link for all their events, and each event opens inside it. The event-only link is there too." },
       { sel: ["#liveSummary", "#dashboard"], title: "Progress", desc: "Top: done, started, accepted, waiting and late tasks (start time passed, not started) and the latest activity. Below: every task. Once accepted, Reassign locks - use Cancel (a reason is required)." },
     ],
     "teardown.html": [

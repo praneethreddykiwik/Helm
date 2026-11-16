@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="en" data-theme="light" class="auth-pending">
 <head>
-<style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}</style>
+<style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}  .copy-ta{position:fixed;top:-1000px;left:-1000px;width:1px;height:1px;opacity:0}
+</style>
 <meta charset="utf-8">
 <base href="/"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Staff Directory — Helm Events</title>
@@ -94,7 +95,7 @@
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=4">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=79" id="shellProto"></script>
+<script src="/shell-proto.js?v=80" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -195,12 +196,12 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=356"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=357"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=39"></script>
-<script src="tour.js?v=58"></script>
+<script src="page-tours.js?v=40"></script>
+<script src="tour.js?v=59"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -614,15 +615,40 @@
   function staffChanged(){ try{ document.dispatchEvent(new CustomEvent("helm:staff-changed")); }catch(_){} }
   // R172 (0363): the person's permanent task link (one per staff member; it always shows their current tasks on every
   // event and is in their task e-mails). "New task link" stops the old one at once.
+  // R179: copying that works in Safari - the copy is started inside the click itself (Safari forgets the click after an
+  // await): a clipboard item whose text arrives when the link is ready; else a hidden textarea + copy; else show the link.
+  function copyNow(text){
+    let ok=false;
+    try{ const ta=document.createElement("textarea"); ta.value=String(text||""); ta.setAttribute("readonly",""); ta.className="copy-ta";
+      document.body.appendChild(ta); ta.focus(); ta.select(); ok=!!(document.execCommand && document.execCommand("copy")); ta.remove(); }catch(_){ ok=false; }
+    return ok;
+  }
+  function linkFor(s){ return BPStore.ops.staffLink(s.id).then(r=>({ r, url: r&&r.ok&&r.path ? location.origin+"/"+r.path : "" })); }
+  function linkMiss(r){ return r&&r.reason==="trial"?"In the free trial no staff links are made.":r&&r.reason==="inactive"?"Reactivate this person first.":"Couldn't make the link right now - please try again."; }
+  function copyTaskLink(s,btn){
+    const okMsg=()=>BPUI.toast("Task link copied - send it to "+(s.name||"them")+". It always shows their current tasks.",{type:"ok",timeout:6000});
+    const show=(u)=>BPUI.prompt("Copy this task link and send it to "+(s.name||"them")+":",{title:"Permanent task link",label:"Task link",value:u,okLabel:"Done"});
+    const p=linkFor(s); btn.disabled=true; p.finally(()=>{ btn.disabled=false; });
+    if(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write){
+      try{ navigator.clipboard.write([new ClipboardItem({"text/plain": p.then(x=>{ if(!x.url) throw new Error("no link"); return new Blob([x.url],{type:"text/plain"}); })})])
+        .then(okMsg, ()=>p.then(x=>{ if(x.url) show(x.url); else BPUI.toast(linkMiss(x.r),{type:"info",timeout:6000}); }, e=>BPUI.toast(BPUI.friendlyError(e,{action:"get the task link"}),{type:"err"})));
+        return; }catch(_){}
+    }
+    p.then(x=>{ if(!x.url){ BPUI.toast(linkMiss(x.r),{type:"info",timeout:6000}); return; } if(copyNow(x.url)) okMsg(); else show(x.url); },
+      e=>BPUI.toast(BPUI.friendlyError(e,{action:"get the task link"}),{type:"err"}));
+  }
   async function taskLink(s,btn,fresh){
+    if(!fresh){ copyTaskLink(s,btn); return; }
     if(fresh && !(await BPUI.confirm(`Make a new task link for ${s.name||"this person"}? The old link stops working at once - send them the new one.`,{title:"New task link?",okLabel:"Make new link"}))) return;
     await BPUI.guard(btn, async()=>{
       try{
         const r=fresh?await BPStore.ops.staffLinkNew(s.id):await BPStore.ops.staffLink(s.id);
         if(!r||!r.ok||!r.path){ BPUI.toast(r&&r.reason==="trial"?"In the free trial no staff links are made.":r&&r.reason==="inactive"?"Reactivate this person first.":"Couldn't make the link right now - please try again.",{type:"info",timeout:6000}); return; }
         const url=location.origin+"/"+r.path;
-        try{ await navigator.clipboard.writeText(url); BPUI.toast((fresh?"New task link made and copied":"Task link copied")+" - send it to "+(s.name||"them")+". It always shows their current tasks.",{type:"ok",timeout:6000}); }
-        catch{ await BPUI.prompt("Copy this task link and send it to "+(s.name||"them")+":",{title:"Permanent task link",label:"Task link",value:url,okLabel:"Done"}); }
+        let copied=copyNow(url);
+        if(!copied){ try{ await navigator.clipboard.writeText(url); copied=true; }catch(_){ copied=false; } }
+        if(copied) BPUI.toast((fresh?"New task link made and copied":"Task link copied")+" - send it to "+(s.name||"them")+". It always shows their current tasks.",{type:"ok",timeout:6000});
+        else await BPUI.prompt("Copy this task link and send it to "+(s.name||"them")+":",{title:"Permanent task link",label:"Task link",value:url,okLabel:"Done"});
       }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"get the task link"}),{type:"err"}); }
     },{busyLabel:"Getting link…"});
   }
@@ -653,7 +679,8 @@
   $("#inviteModal").addEventListener("click",e=>{ if(e.target.id==="inviteModal") closeInvite(); });
   $("#iv_link").addEventListener("click",e=>e.target.select());
   $("#iv_resend").addEventListener("click",()=>{ if(ivCurrent) resendInviteEmail(ivCurrent.email,$("#iv_resend")); });
-  $("#iv_copy").addEventListener("click",async()=>{ try{ await navigator.clipboard.writeText($("#iv_link").value); $("#iv_copy").textContent="Copied"; }catch(_){ $("#iv_link").select(); } });
+  $("#iv_copy").addEventListener("click",()=>{ const v=$("#iv_link").value; if(copyNow(v)){ $("#iv_copy").textContent="Copied"; return; }   // R179: Safari-safe copy
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(()=>{ $("#iv_copy").textContent="Copied"; },()=>$("#iv_link").select()); else $("#iv_link").select(); });
   // B5: refresh the list as soon as the import dialog closes after an import (no reload needed)
   let importRefreshing=null;
   async function refreshAfterImport(){ if(importRefreshing) return importRefreshing;

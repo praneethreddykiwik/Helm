@@ -89,6 +89,19 @@
   .lerr{background:#fdecec;color:#b42318;border:1px solid #f5c6c6;border-radius:8px;padding:8px 11px;font-size:12px;margin-bottom:12px}
   /* crew evidence (0038): reject reason / voice note / proof photos */
   .lsheet.evsheet{width:min(640px,94vw);max-height:88vh;overflow:auto}
+  /* R179: Schedule task - the sheet never grows past the screen; the body scrolls and the Save / Cancel footer stays visible */
+  .lmodal > #schedForm.schedsheet{width:min(560px,96vw);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);padding:0;display:flex;flex-direction:column;overflow:hidden !important}
+  #schedForm .sch-head{padding:20px 24px 8px;flex:none} #schedForm .sch-head h3{margin:0 0 2px}
+  #schedForm .sch-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:4px 24px 16px;display:flex;flex-direction:column;gap:14px}
+  #schedForm .sch-sec{display:flex;flex-direction:column;gap:6px}
+  #schedForm .sch-h{margin:0;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+  #schedForm .sch-sec select{margin:0}
+  #schedForm .sch-body .hint{margin:0}
+  #schedForm .trm-set{margin:0}
+  #schedForm .foot{flex:none;position:sticky;bottom:0;margin:0;padding:12px 24px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--panel);flex-wrap:wrap;align-items:center}
+  #schedForm .foot .lerr{flex:1 1 100%;margin:0 0 4px}
+  #schedForm label.sr-only{margin:-1px}
+  @media (max-width:480px){ #schedForm .sch-head{padding:16px 16px 6px} #schedForm .sch-body{padding:4px 16px 14px} #schedForm .foot{padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))} }
   .evitem{border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:var(--panel-2)}
   .evitem .evq{white-space:pre-wrap;word-break:break-word;font-size:14px;margin-top:4px}
   .evitem audio{width:100%;margin-top:6px}
@@ -121,7 +134,16 @@
   .as-when{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .as-when label{font-size:12px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em}
   .as-when input{flex:0 1 240px;min-width:0}
-  .when-quick{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 8px}
+  .when-quick{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 8px} .when-quick:empty{display:none}
+  /* R179: copy helper (off-screen) + worker links: the permanent link first, the event-only link second */
+  .copy-ta{position:fixed;top:-1000px;left:-1000px;width:1px;height:1px;opacity:0}
+  .wl-row{display:grid;grid-template-columns:minmax(90px,auto) minmax(0,1fr);gap:6px 12px;align-items:start;padding:10px 0;border-top:1px solid var(--line)}
+  .wl-row:first-of-type{border-top:0}
+  .wl-main{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+  .wl-main input{flex:1 1 260px;min-width:0;margin:0}
+  .wl-tag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);flex:1 1 100%}
+  .wl-ev{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px}
+  @media (max-width:560px){.wl-row{grid-template-columns:1fr}.wl-ev{grid-column:1}}
   .when-warn{background:#fff6e6;border:1px solid #f3d9a6;color:#6e4800;border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.45;margin:6px 0 10px;text-align:left}
   .when-warn.block{background:#fdecec;border-color:#f5c6c6;color:#b42318}
   #schedForm.lsheet{width:min(520px,94vw);max-height:92vh;overflow:auto}
@@ -142,12 +164,12 @@
     .titem input,input[type=checkbox]{min-height:0;width:22px;height:22px}
   }
 </style>
-<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="task-reminders.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="task-reminders.css?v=3"><link rel="stylesheet" href="when-picker.css?v=1"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=4">
 <link rel="stylesheet" href="live-board.css?v=1">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=79" id="shellProto"></script>
+<script src="/shell-proto.js?v=80" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -238,7 +260,7 @@
       <!-- R130 (0338): reminders go out on their own every minute (WhatsApp, the studio's own number) - no Remind / Fire buttons -->
       <div id="waSetupNote" hidden></div>
       <p class="muted trm-line" id="trmLine"></p>
-      <p class="muted ops-legend" id="opsLegend"><b>Buttons on each task:</b> ⏱ <b>Schedule</b> = start time and reminders (minutes before, or an exact time like 5:32 PM) · ✉ <b>Email</b> / 💬 <b>WhatsApp</b> = send this task to the person now · 🔔 <b>Mark special</b> = flag an important task so the team sees it (it does not send anything by itself) · <b>Reassign</b> / <b>Cancel</b>. ⏰ shows the reminders a task has.</p>
+      <p class="muted ops-legend" id="opsLegend"><b>Buttons on each task:</b> ⏱ <b>Schedule</b> = start time and reminders (minutes before, or an exact time like 5:32 PM) · ✉ <b>Email</b> / 💬 <b>WhatsApp</b> = send this task to the person now · 🔔 <b>Mark special</b> = an important task: extra reminders 10 and 5 min before, then every 5 min until it is started (up to 6) · <b>Reassign</b> / <b>Cancel</b>. ⏰ shows the reminders a task has.</p>
       <div class="opsfilter" id="opsFilter" role="search" aria-label="Filter tasks">
         <input type="search" id="of_q" maxlength="80" placeholder="Search tasks" aria-label="Search task titles">
         <select id="of_person" aria-label="Filter by person"></select>
@@ -278,20 +300,27 @@
 </div>
 
 <div class="lmodal" id="schedModal" hidden role="dialog" aria-modal="true" aria-labelledby="sc_title">
-  <form class="lsheet form" id="schedForm" novalidate>
-    <h3 id="sc_title">Schedule task</h3>
-    <p class="muted s-249d010" id="sc_task"></p>
-    <label for="sc_when">Start time</label>
-    <input type="datetime-local" id="sc_when" aria-describedby="sc_warn">
-    <div class="when-quick"><button type="button" class="btn sm" id="sc_evday" title="Put the event's date in the start time">Event day</button><button type="button" class="btn sm" id="sc_daybefore" title="Put the day before the event in the start time (set-up the evening before)">Day before</button></div>
-    <p class="muted hint">Leave blank for no start time.</p>
-    <p class="when-warn" id="sc_warn" role="status" hidden></p>
-    <label for="sc_dep">Depends on (prerequisite task)</label>
-    <select id="sc_dep"></select>
-    <fieldset class="trm-set" id="sc_rem"></fieldset>
-    <div id="sc_waNote" hidden></div>
-    <div class="lerr" id="sc_err" role="alert" hidden></div>
-    <div class="foot"><button type="button" class="btn" id="sc_cancel" data-close>Cancel</button><button type="submit" class="btn primary" id="sc_save">Save schedule</button></div>
+  <form class="lsheet form schedsheet" id="schedForm" novalidate>
+    <div class="sch-head"><h3 id="sc_title">Schedule task</h3>
+    <p class="muted s-249d010" id="sc_task"></p></div>
+    <div class="sch-body">
+      <section class="sch-sec" aria-labelledby="sc_whenH">
+        <h4 class="sch-h" id="sc_whenH">Start time</h4>
+        <label for="sc_when" class="sr-only">Start time</label>
+        <input type="datetime-local" id="sc_when" aria-describedby="sc_warn">
+        <div class="when-quick"><button type="button" class="btn sm" id="sc_evday" title="Put the event's date in the start time">Event day</button><button type="button" class="btn sm" id="sc_daybefore" title="Put the day before the event in the start time (set-up the evening before)">Day before</button></div>
+        <p class="muted hint">Leave the date empty for no start time.</p>
+        <p class="when-warn" id="sc_warn" role="status" hidden></p>
+      </section>
+      <section class="sch-sec" aria-labelledby="sc_depH">
+        <h4 class="sch-h" id="sc_depH">Depends on</h4>
+        <label for="sc_dep" class="sr-only">Prerequisite task</label>
+        <select id="sc_dep"></select>
+      </section>
+      <fieldset class="trm-set" id="sc_rem"></fieldset>
+      <div id="sc_waNote" hidden></div>
+    </div>
+    <div class="foot"><div class="lerr" id="sc_err" role="alert" hidden></div><button type="button" class="btn" id="sc_cancel" data-close>Cancel</button><button type="submit" class="btn primary" id="sc_save">Save schedule</button></div>
   </form>
 </div>
 
@@ -320,7 +349,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=356"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=357"></script>
 <script src="live-board.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -479,6 +508,7 @@
     if(!(on&&inHouse)) return;
     if(!$("#as_when").value){ const E=evDateStr(); if(E){ const et=evTimeHM(); $("#as_when").value=(et&&+et.slice(0,2)<6?dayShift(E,-1)+"T18:00":E+"T"+(et||"09:00")); } }
     $("#as_when").min=toLocalInput(new Date()).slice(0,10)+"T00:00";
+    startPicker($("#as_when"), [$("#as_evday"), $("#as_daybefore")]);   // R179: date + time picker
     if(!asRem && window.HelmTaskReminders && trmSettings){ $("#as_rem").hidden=false;
       asRem=HelmTaskReminders.schedFields($("#as_rem"), {remind_before:null, remind_at:[]}, trmSettings, remOpts(asStartISO, "as")); }
     showWhen($("#as_warn"), $("#as_when").value);
@@ -594,7 +624,7 @@
       <span class="cat">${esc(label||"")}</span><span class="tt">${esc(t.title)}</span>
       <span class="st ${esc(stS)}">${STATUS_LABEL[stS]||esc(stS)}</span>${isLate(t)?'<span class="st late" title="The start time has passed and the task has not started">Late</span>':''}
       ${t.assignee_kind==='outsourced'?`<span class="qc" style="background:var(--accent-soft);color:var(--accent)" title="Done by the vendor ${esc(t.assignee_name||'')}">🤝 vendor</span>`:''}
-      ${t.is_special?'<span class="gate special" title="Marked special: an important task, highlighted for the team. Its reminders are the times set with Schedule.">🔔 Special</span>':''}
+      ${t.is_special?'<span class="gate special" title="Marked special: extra reminders 10 and 5 min before the start, then every 5 min until it is started (up to 6). Needs a start time (Schedule).">🔔 Special</span>':''}
       ${gateChip(t,byId)}
       ${remChip(t)}
       ${verifyChip(t)}
@@ -613,7 +643,7 @@
     const a=[
       canEditOps?`<button type="button" class="btn sm sched" title="Set the start time and reminders (minutes before, or an exact time)" aria-label="Schedule ${tn}: start time and reminders">⏱ Schedule</button>`:"",
       send?`<button type="button" class="btn sm temail" title="Email this task to the person now (the address on their staff record)" aria-label="Email ${tn} to the person">✉ Email</button><button type="button" class="btn sm twa" title="Send this task on WhatsApp now (needs your studio's WhatsApp number connected)" aria-label="Send ${tn} on WhatsApp">💬 WhatsApp</button>`:"",
-      canEditOps?`<button type="button" class="btn sm spc" title="${t.is_special?"Remove the special mark":"Mark as special: an important task, highlighted for the team (it does not send anything by itself)"}" aria-label="${t.is_special?"Remove the special mark from":"Mark as special:"} ${tn}">${t.is_special?'🔕 Unmark special':'🔔 Mark special'}</button>`:"",
+      canEditOps?`<button type="button" class="btn sm spc" title="${t.is_special?"Remove the special mark":"Mark as special: extra reminders 10 and 5 min before the start, then every 5 min until it is started"}" aria-label="${t.is_special?"Remove the special mark from":"Mark as special:"} ${tn}">${t.is_special?'🔕 Unmark special':'🔔 Mark special'}</button>`:"",
       canEditOps&&['rejected','assigned'].includes(t.status)?`<button type="button" class="btn sm reassign" title="Give this task to someone else" aria-label="Reassign ${tn}">Reassign</button>`:"",
       canEditOps&&['accepted','in_progress','completed'].includes(t.status)?`<button type="button" class="btn sm reassign-locked" disabled title="Locked: task accepted" aria-label="Reassign ${tn} - locked: task accepted">Reassign</button>`:"",
       canEditOps&&CANCELLABLE.includes(t.status)?`<button type="button" class="btn sm danger tcancel" title="Cancel this task (a reason is required)" aria-label="Cancel ${tn}">Cancel</button>`:"",
@@ -630,12 +660,12 @@
     return s?`<span class="remchip" title="Reminders for this task (email; WhatsApp once connected)">⏰ ${esc(s)}</span>`:"";
   }
   // R170 (0361): "Send by email" - the server reads the address from the staff record (never from this page)
-  function personMailBtn(phone, name){
+  function personMailBtn(phone, name, noPerm){
     if(!canEditOps) return "";
     const t=tasks.find(x=>x.assignee_phone===phone && x.assignee_kind!=='outsourced' && ['assigned','accepted','in_progress'].includes(x.status));
     // R171 (0362): Send on WhatsApp beside it (the studio's own number; a clear note when it is not set up)
     // R172 (0363): Permanent link - one link per staff member that always shows their current tasks on every event
-    const pl=t&&t.crew_id?`<button type="button" class="btn sm splink" data-crew="${esc(t.crew_id)}" title="One link for this person that always shows all their tasks on every event" aria-label="Copy the permanent task link for ${esc(name)}">🔗 Copy permanent link</button>`:"";
+    const pl=t&&t.crew_id&&!noPerm?`<button type="button" class="btn sm splink" data-crew="${esc(t.crew_id)}" title="One link for this person that always shows all their tasks on every event" aria-label="Copy the permanent task link for ${esc(name)}">🔗 Copy permanent link</button>`:"";
     return t?`<button type="button" class="btn sm semail" data-task="${esc(t.id)}" title="Email this person all their tasks for this event" aria-label="Send ${esc(name)} their tasks by email">✉ Email tasks</button><button type="button" class="btn sm swa" data-task="${esc(t.id)}" title="Send this person their tasks on WhatsApp (needs your studio's WhatsApp number connected)" aria-label="Send ${esc(name)} their tasks on WhatsApp">💬 WhatsApp tasks</button>${pl}`:"";
   }
   function mailText(r, name){
@@ -682,26 +712,64 @@
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"send the email"}),{type:"err"}); }
     },{busyLabel:"Sending…"});
   }
-  // R172 (0363): copy a staff member's permanent task link (made on first use)
-  async function copyStaffLink(b, crewId){
-    await BPUI.guard(b, async()=>{
-      try{
-        const r=await BPStore.ops.staffLink(crewId);
-        if(!r||!r.ok||!r.path){ BPUI.toast(r&&r.reason==="trial"?"In the free trial no staff links are made.":r&&r.reason==="inactive"?"This staff member is deactivated - reactivate them on the Staff page first.":"Couldn't make the link right now - please try again.",{type:"info",timeout:6000}); return; }
-        const url=location.origin+"/"+r.path;
-        try{ await navigator.clipboard.writeText(url); BPUI.toast("Permanent link copied - it always shows this person's current tasks on every event.",{type:"ok",timeout:5000}); }
-        catch{ await BPUI.prompt("Copy this permanent link:",{title:"Permanent task link",label:"Permanent task link",value:url,okLabel:"Done"}); }
-      }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"get the permanent link"}),{type:"err"}); }
-    },{busyLabel:"Getting link…"});
+  // R179: copying that also works in Safari. The text must be in hand at the click: no await before the copy (Safari drops
+  // the click permission after an await). 1) a hidden textarea + execCommand("copy") (synchronous); 2) the Clipboard API;
+  // 3) select the link so the person can press Cmd/Ctrl+C. Returns true when copied for sure.
+  function copyNow(text, inp){
+    let ok=false;
+    try{ const ta=document.createElement("textarea"); ta.value=String(text||""); ta.setAttribute("readonly",""); ta.className="copy-ta";
+      document.body.appendChild(ta); ta.focus(); ta.select(); try{ ta.setSelectionRange(0, ta.value.length); }catch(_){}
+      ok=!!(document.execCommand && document.execCommand("copy")); ta.remove(); }catch(_){ ok=false; }
+    if(!ok && navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(String(text||"")).then(()=>{},()=>{ if(inp){ try{ inp.focus(); inp.select(); }catch(_){} } }); return true; }
+    if(!ok && inp){ try{ inp.focus(); inp.select(); }catch(_){} }
+    return ok;
+  }
+  // R172 (0363) / R179: the permanent task link of each staff member, fetched before anyone clicks Copy (made on first use)
+  const permLinks=new Map();   // crew id -> url | "" (not available) ; a pending promise while it loads
+  const permReason=new Map();
+  function permLink(crewId){
+    if(!crewId || !canEditOps) return Promise.resolve("");
+    const have=permLinks.get(crewId); if(typeof have==="string") return Promise.resolve(have); if(have) return have;
+    const p=BPStore.ops.staffLink(crewId).then(r=>{ const u=r&&r.ok&&r.path?location.origin+"/"+r.path:""; if(!u) permReason.set(crewId, r&&r.reason||""); permLinks.set(crewId,u); return u; })
+      .catch(()=>{ permLinks.delete(crewId); return ""; });
+    permLinks.set(crewId,p); return p;
+  }
+  function permMissText(crewId){ const r=permReason.get(crewId); return r==="trial"?"In the free trial no staff links are made.":r==="inactive"?"This staff member is deactivated - reactivate them on the Staff page first.":"Couldn't make the link right now - please try again."; }
+  // fill the permanent-link boxes on the page once their links are known
+  function fillPermInputs(){
+    document.querySelectorAll(".splink[data-crew]").forEach(b=>{ permLink(b.dataset.crew); });   // ready before the click
+    document.querySelectorAll("input.wl-plink[data-crew]").forEach(inp=>{ const c=inp.dataset.crew;
+      permLink(c).then(u=>{ inp.value=u||""; inp.placeholder=u?"":permMissText(c); }); });
+  }
+  function copyStaffLink(b, crewId){
+    const have=permLinks.get(crewId), row=b.closest(".linkline,.wl-row"), inp=row?row.querySelector("input.wl-plink"):null;
+    const done=()=>BPUI.toast("Permanent link copied - it always shows this person's current tasks on every event.",{type:"ok",timeout:5000});
+    if(typeof have==="string"){
+      if(!have){ BPUI.toast(permMissText(crewId),{type:"info",timeout:6000}); return; }
+      if(copyNow(have, inp)) done(); else BPUI.toast("Select the link and press Cmd+C (Ctrl+C) to copy it.",{type:"info",timeout:6000});
+      return;
+    }
+    // not loaded yet: Safari accepts a clipboard item whose text arrives a moment later
+    const p=permLink(crewId);
+    if(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write){
+      try{ navigator.clipboard.write([new ClipboardItem({"text/plain": p.then(u=>{ if(!u) throw new Error("no link"); return new Blob([u],{type:"text/plain"}); })})])
+        .then(done, ()=>p.then(u=>{ if(u){ if(inp){ inp.value=u; try{ inp.focus(); inp.select(); }catch(_){} } BPUI.toast("Select the link and press Cmd+C (Ctrl+C) to copy it.",{type:"info",timeout:6000}); } else BPUI.toast(permMissText(crewId),{type:"info",timeout:6000}); }));
+        return; }catch(_){}
+    }
+    p.then(u=>{ if(!u){ BPUI.toast(permMissText(crewId),{type:"info",timeout:6000}); return; }
+      BPUI.prompt("Copy this permanent link:",{title:"Permanent task link",label:"Permanent task link",value:u,okLabel:"Done"}); });
   }
   function workerLinkFor(phone){ const w=tokens.find(x=>x.phone===phone); return w? BPStore.links.url("work", w.token, location.origin+"/work.html?token="+w.token) : null; }
   function workerLinksBlock(){
     const seen=new Set(), rows=[];
     tasks.forEach(t=>{ const ph=t.assignee_phone; if(!ph||seen.has(ph)) return; seen.add(ph); const link=workerLinkFor(ph); if(!link) return;
       const name=t.assignee_name||ph;
-      rows.push(`<div class="linkline"><b>${esc(name)}</b><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" title="This person's link for this event only" aria-label="Copy the event link for ${esc(name)}">Copy event link</button>${personMailBtn(ph,name)}</div>`); });
+      const t0=tasks.find(x=>x.assignee_phone===ph && x.crew_id); const crew=t0?t0.crew_id:"";
+      // R179: the permanent link is the one to share (all their events, opens each event inside the same link);
+      // the per-event link stays available as a second option
+      rows.push(`<div class="wl-row linkline"><b>${esc(name)}</b><div class="wl-main">${crew&&canEditOps?`<span class="wl-tag">Permanent link (all their events)</span><input readonly class="wl-plink" data-crew="${esc(crew)}" placeholder="Making the link…" aria-label="Permanent task link for ${esc(name)}"><button type="button" class="btn sm primary splink" data-crew="${esc(crew)}" title="One link for this person that always shows all their tasks on every event" aria-label="Copy the permanent task link for ${esc(name)}">🔗 Copy link</button>`:`<input readonly value="${esc(link)}" aria-label="Event link for ${esc(name)}">`}${personMailBtn(ph,name,true)}</div><div class="wl-ev muted">Event-only link (this event only): <button type="button" class="btn sm copy" data-l="${esc(link)}" title="This person's link for this event only" aria-label="Copy the event-only link for ${esc(name)}">Copy event link</button></div></div>`); });
     if(!rows.length) return "";
-    return `<div class="grp" id="workerLinks"><div class="gh"><b>🔗 Worker links</b><span class="muted">Event link = this event only. Permanent link = one link per person that always shows all their tasks. Both are sent in their emails (and on WhatsApp once your studio's number is connected); if a message doesn't arrive, copy a link and share it.</span></div>${rows.join("")}</div>`;
+    return `<div class="grp" id="workerLinks"><div class="gh"><b>🔗 Worker links</b><span class="muted">Share the permanent link - one link per person that always shows all their tasks on every event (each event opens inside it). It is in every task email, and on WhatsApp once your studio's number is connected.</span></div>${rows.join("")}</div>`;
   }
   function renderDashboard(){
     if(!renderDashboard._s){ renderDashboard._s=1; BPStore.links.studio().then(s=>{ if(s) renderDashboard(); }).catch(()=>{}); }   // re-render once the branded studio link name is known
@@ -738,7 +806,10 @@
             <div class="muted" style="margin-top:4px">Sent by email, and on WhatsApp from your studio's number to ${esc(phone)} once it is connected. If it shows Not sent or Failed, copy the link and share it.</div>`:""}</div>`;
       }).join("");
     }
-    host.querySelectorAll(".copy").forEach(b=>b.addEventListener("click",async()=>{ try{await navigator.clipboard.writeText(b.dataset.l); b.textContent="Copied ✓"; BPUI.toast("Worker link copied.",{type:"ok",timeout:2000}); setTimeout(()=>b.textContent="Copy link",1400);}catch{ BPUI.toast("Couldn't copy — select the link and copy it manually.",{type:"err"}); } }));
+    host.querySelectorAll(".copy").forEach(b=>b.addEventListener("click",()=>{ const row=b.closest(".linkline,.wl-row"); const inp=row?row.querySelector("input:not(.wl-plink)"):null;
+      if(copyNow(b.dataset.l, inp)){ const t0=b.textContent; b.textContent="Copied ✓"; BPUI.toast("Event link copied.",{type:"ok",timeout:2000}); setTimeout(()=>{ b.textContent=t0; },1400); }
+      else BPUI.toast("Select the link and press Cmd+C (Ctrl+C) to copy it.",{type:"info",timeout:6000}); }));
+    fillPermInputs();
     host.querySelectorAll(".reassign").forEach(b=>b.addEventListener("click",()=>openReassign(b.closest(".trow").dataset.id)));
     host.querySelectorAll(".temail").forEach(b=>b.addEventListener("click",()=>sendMail(b, b.closest(".trow").dataset.id, false)));
     host.querySelectorAll(".semail").forEach(b=>b.addEventListener("click",()=>sendMail(b, b.dataset.task, true)));
@@ -769,7 +840,7 @@
     host.querySelectorAll(".spc").forEach(b=>b.addEventListener("click",()=>rowGuard(b,async()=>{
       const id=b.closest(".trow").dataset.id, t=tasks.find(x=>x.id===id);
       try{ await BPStore.ops.setSpecial(id, !(t&&t.is_special), 5);
-        BPUI.toast((t&&t.is_special)?"No longer marked special.":"Marked special - it is highlighted for the team. Set its start time and reminders with ⏱ Schedule.",{type:"ok"}); await refreshDashboard(); }
+        BPUI.toast((t&&t.is_special)?"No longer marked special.":"Marked special - it gets reminders 10 and 5 min before its start, then every 5 min until started. Set the start time with ⏱ Schedule.",{type:"ok"}); await refreshDashboard(); }
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the reminder"}),{type:"err"}); }
     })));
     applyOpsFilter();
@@ -947,6 +1018,16 @@
     let h=+m[1]; const mi=+m[2]; if(m[3]){ const pm=/p/i.test(m[3]); if(h===12) h=pm?12:0; else if(pm) h+=12; }
     return h<=23&&mi<=59 ? pad2(h)+":"+pad2(mi) : null; }
   function dayShift(ymd, n){ const d=new Date(ymd+"T00:00:00Z"); if(isNaN(d)) return ""; d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+  // R179: the clear date + time picker (when-picker.js) on a start-time input; the input keeps the studio clock value.
+  // Quick chips: Today / Tomorrow, plus the page's own Event day / Day before buttons (adopted, their handlers stay).
+  function startPicker(inp, adopt){
+    if(!inp || !window.HelmWhen) return null;
+    const today=()=>toLocalInput(new Date()).slice(0,10);
+    const p=HelmWhen.attach(inp, { label:"Start", defaultTime: evTimeHM()||"09:00", adopt: adopt||[],
+      chips:[{label:"Today", title:"Start today", ymd:today}, {label:"Tomorrow", title:"Start tomorrow", ymd:()=>dayShift(today(),1)}] });
+    if(p){ p.setMinMax(today(), null); p.refresh(); }
+    return p;
+  }
   function whenCheck(v){
     const out={notes:[]}; const et=evTimeHM();
     if(et && +et.slice(0,2)<6) out.notes.push(`This event starts early (${et}) - set-up tasks are usually the evening before. "Day before" puts that date in.`);
@@ -994,6 +1075,7 @@
     $("#sc_task").textContent=t.title||"Task";
     $("#sc_when").value=t.planned_start?toLocalInput(t.planned_start):"";
     $("#sc_when").min=toLocalInput(new Date()).slice(0,10)+"T00:00";   // r20: datetime-local holds the STUDIO's wall clock (toLocalInput/fromLocalInput)
+    startPicker($("#sc_when"), [$("#sc_evday"), $("#sc_daybefore")]);   // R179: date + time picker (refreshes to the value above)
     const others=tasks.filter(x=>x.id!==id && !wouldCycle(id,x.id));   // no self / any-length cycle prerequisites
     $("#sc_dep").innerHTML=`<option value="">— none —</option>`+others.map(x=>`<option value="${esc(x.id)}">${esc(x.category||"")} — ${esc(x.title||"task")}${x.assignee_name?" ("+esc(x.assignee_name)+")":""}</option>`).join("");
     $("#sc_dep").value=t.depends_on && others.some(x=>x.id===t.depends_on) ? t.depends_on : "";
@@ -1057,7 +1139,7 @@
   setInterval(()=>{ if(document.hidden || $("#app").hidden) return; if(!$("#reassignModal").hidden || !$("#cancelTaskModal").hidden || !$("#schedModal").hidden || !$("#evModal").hidden) return; if(document.querySelector("#dashboard [data-busy]")) return; refreshDashboard(); }, 7000);
   BPUI.boot(load);
 </script>
-<script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=3"></script>
+<script src="wa-setup-note.js?v=1"></script><script src="when-picker.js?v=1"></script><script src="task-reminders-ui.js?v=4"></script>
 <script src="crew-shifts.js?v=7"></script>
 </body>
 </html>

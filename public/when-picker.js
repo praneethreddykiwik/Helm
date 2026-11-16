@@ -1,0 +1,169 @@
+/* when-picker.js - R179: a clear date + time picker for task start times and exact reminder times.
+ *
+ * HelmWhen.attach(input, opts) turns an <input type="datetime-local"> into
+ *   [ date field ]  [ time field ]      <- the date field is a normal type=date (ui-pickers.js gives it the rounded
+ *   (Today) (Tomorrow) (Event day) ...      calendar); the time field takes 6:32 PM / 18:32 / 632p and offers a 15-minute list
+ *   "Mon 16 Nov, 2:30 PM"                   <- the result in words
+ * The original input stays the source of truth: it becomes type=hidden and keeps the STUDIO wall clock "YYYY-MM-DDTHH:MM"
+ * (or "" when empty), so every caller that reads input.value keeps working. When a caller sets input.value and fires
+ * input/change, the picker shows it. A hidden input is never part of browser form validation, so a min/max can not
+ * silently block a submit any more (R179 schedule bug class).
+ * opts: chips      [{ label, title?, ymd: () => "YYYY-MM-DD" | "" , time?: "HH:MM" }]   quick date buttons
+ *       adopt      [button elements] existing quick buttons moved into the chip row (their own click handlers stay)
+ *       compact    smaller layout (exact reminder rows)
+ *       label      accessible name prefix, e.g. "Start" or "Reminder"
+ *       defaultTime "HH:MM" used when a date is picked and no time is set yet (default "09:00")
+ * CSP: DOM API only (no HTML strings), no inline styles; classes live in when-picker.css.
+ */
+(function (global) {
+  "use strict";
+  if (typeof document === "undefined") return;
+  var doc = document;
+  var uid = 0;
+  var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+
+  // "6:32 pm" "6.32pm" "18:32" "1832" "632p" "6pm" "6 PM" "12am" -> "HH:MM" | null
+  function parseTime(v) {
+    var s = String(v == null ? "" : v).trim().toLowerCase().replace(/\s+/g, "");
+    if (!s) return null;
+    var m = /^(\d{1,2})(?:[:.]?(\d{2}))?(a|am|p|pm)?$/.exec(s);
+    if (!m) return null;
+    var h = +m[1], mi = m[2] != null ? +m[2] : 0, ap = m[3];
+    if (m[2] == null && !ap && m[1].length > 2) return null;
+    if (mi > 59) return null;
+    if (ap) {
+      if (h < 1 || h > 12) return null;
+      var pm = ap.charAt(0) === "p";
+      if (h === 12) h = pm ? 12 : 0; else if (pm) h += 12;
+    } else if (h > 23) return null;
+    return pad(h) + ":" + pad(mi);
+  }
+  // also take "1832" / "0632" (4 digits, 24-hour) when no am/pm
+  function parseTimeLoose(v) {
+    var s = String(v == null ? "" : v).trim();
+    var m4 = /^(\d{2})(\d{2})$/.exec(s);
+    if (m4 && +m4[1] <= 23 && +m4[2] <= 59) return m4[1] + ":" + m4[2];
+    return parseTime(v);
+  }
+  function label12(hm) {
+    var m = /^(\d{2}):(\d{2})$/.exec(String(hm || "")); if (!m) return "";
+    var h = +m[1], ap = h >= 12 ? "PM" : "AM", h12 = h % 12 === 0 ? 12 : h % 12;
+    return h12 + ":" + m[2] + " " + ap;
+  }
+  function words(value) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/.exec(String(value || ""));
+    if (!m) return "";
+    var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    var day = "";
+    try { day = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).replace(",", ""); }
+    catch (e) { day = m[3] + "/" + m[2]; }
+    return day + ", " + label12(m[4]);
+  }
+  function el(tag, cls, text) { var n = doc.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function fire(node, type) { node.dispatchEvent(new Event(type, { bubbles: true })); }
+  var LIST_ID = "helmWhenTimes";
+  function timeList() {
+    if (doc.getElementById(LIST_ID)) return LIST_ID;
+    var dl = el("datalist"); dl.id = LIST_ID;
+    for (var i = 0; i < 96; i++) { var hm = pad(Math.floor(i / 4)) + ":" + pad((i % 4) * 15); var o = el("option"); o.value = label12(hm); dl.appendChild(o); }
+    (doc.body || doc.documentElement).appendChild(dl);
+    return LIST_ID;
+  }
+
+  function attach(input, opts) {
+    if (!input || input.__helmWhen) return input && input.__helmWhen;
+    opts = opts || {};
+    uid += 1;
+    var base = input.id || ("hw" + uid);
+    var start = String(input.value || "");
+    var minDate = String(input.min || "").slice(0, 10), maxDate = String(input.max || "").slice(0, 10);
+    try { input.type = "hidden"; } catch (e) { /* very old browsers: leave it */ }
+    input.value = start;
+    var wrap = el("div", "whenp" + (opts.compact ? " whenp-compact" : ""));
+    var row = el("div", "whenp-row");
+    var who = opts.label ? String(opts.label) + " " : "";
+    var date = el("input", "whenp-date"); date.type = "date"; date.id = base + "_d"; date.setAttribute("aria-label", who + "date");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(minDate)) date.min = minDate;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(maxDate)) date.max = maxDate;
+    var time = el("input", "whenp-time"); time.type = "text"; time.id = base + "_t"; time.autocomplete = "off"; time.spellcheck = false;
+    time.placeholder = "e.g. 6:30 PM"; time.maxLength = 9; time.inputMode = "text";
+    time.setAttribute("aria-label", who + "time (for example 6:30 PM)"); time.setAttribute("list", timeList());
+    row.appendChild(date); row.appendChild(time);
+    wrap.appendChild(row);
+    var chipsRow = null;
+    var chips = Array.isArray(opts.chips) ? opts.chips : [];
+    var adopt = Array.isArray(opts.adopt) ? opts.adopt.filter(Boolean) : [];
+    if (chips.length || adopt.length) {
+      chipsRow = el("div", "whenp-chips");
+      chips.forEach(function (c) {
+        var b = el("button", "btn sm whenp-chip", String(c.label || "")); b.type = "button"; if (c.title) b.title = String(c.title);
+        b.addEventListener("click", function () {
+          var ymd = typeof c.ymd === "function" ? c.ymd() : "";
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(String(ymd || ""))) return;
+          date.value = ymd;
+          if (!parseTimeLoose(time.value)) { var dt = c.time || opts.defaultTime || "09:00"; time.value = label12(dt); }
+          commit(); time.focus();
+        });
+        chipsRow.appendChild(b);
+      });
+      adopt.forEach(function (b) { b.classList.add("whenp-chip"); chipsRow.appendChild(b); });
+      wrap.appendChild(chipsRow);
+    }
+    var out = el("p", "whenp-words"); out.setAttribute("aria-live", "polite"); out.id = base + "_w";
+    wrap.appendChild(out);
+    input.parentNode.insertBefore(wrap, input.nextSibling);
+    var lbl = input.id ? doc.querySelector('label[for="' + input.id + '"]') : null;
+    if (lbl) lbl.htmlFor = date.id;
+    var desc = input.getAttribute("aria-describedby");
+    if (desc) { date.setAttribute("aria-describedby", desc); time.setAttribute("aria-describedby", desc); }
+
+    var busy = false;
+    function show() {
+      var v = String(input.value || "");
+      var m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(v);
+      if (m) { if (date.value !== m[1]) date.value = m[1]; var hm = parseTimeLoose(time.value); if (hm !== m[2]) time.value = label12(m[2]); }
+      else if (!v) { /* keep a half-typed value in the fields */ }
+      var w = words(v);
+      out.textContent = w ? w : (date.value && !parseTimeLoose(time.value) ? "Pick a time" : "");
+      out.classList.toggle("whenp-need", !w && !!date.value);
+      time.classList.toggle("whenp-bad", !!String(time.value).trim() && !parseTimeLoose(time.value));
+    }
+    function commit() {
+      var hm = parseTimeLoose(time.value);
+      var d = /^\d{4}-\d{2}-\d{2}$/.test(date.value) ? date.value : "";
+      var next = d && hm ? d + "T" + hm : "";   // a half-filled picker means "no time yet" (the words line says what is missing)
+      if (next !== input.value) { busy = true; input.value = next; fire(input, "input"); fire(input, "change"); busy = false; }
+      show();
+    }
+    date.addEventListener("change", commit);
+    date.addEventListener("input", commit);
+    time.addEventListener("change", function () { var hm = parseTimeLoose(time.value); if (hm) time.value = label12(hm); commit(); });
+    time.addEventListener("input", function () { if (parseTimeLoose(time.value) || !String(time.value).trim()) commit(); else show(); });
+    time.addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      var hm = parseTimeLoose(time.value) || "09:00"; e.preventDefault();
+      var mins = +hm.slice(0, 2) * 60 + +hm.slice(3); mins = (mins + (e.key === "ArrowUp" ? 15 : -15) + 1440) % 1440;
+      time.value = label12(pad(Math.floor(mins / 60)) + ":" + pad(mins % 60)); commit();
+    });
+    // a caller set input.value (Event day / Day before / reset): show it
+    input.addEventListener("input", function () { if (!busy) show(); });
+    input.addEventListener("change", function () { if (!busy) show(); });
+    var api = {
+      wrap: wrap, date: date, time: time,
+      refresh: show,
+      setMinMax: function (min, max) {
+        var a = String(min || "").slice(0, 10), b = String(max || "").slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(a)) date.min = a; else date.removeAttribute("min");
+        if (/^\d{4}-\d{2}-\d{2}$/.test(b)) date.max = b; else date.removeAttribute("max");
+      },
+      focus: function () { (date.value ? time : date).focus(); },
+    };
+    input.__helmWhen = api;
+    // a caller's input.focus() (it is hidden now) lands on the picker
+    try { input.focus = function () { api.focus(); }; } catch (e) { /* read-only in some engines */ }
+    show();
+    return api;
+  }
+
+  global.HelmWhen = { attach: attach, parseTime: parseTimeLoose, words: words, label12: label12 };
+})(typeof window !== "undefined" ? window : globalThis);
