@@ -408,8 +408,9 @@
     salesSending = false; b.disabled = false; b.removeAttribute("aria-busy");
     if (!r || r.status !== "received") {
       // not saved (older server / network / refused): say so and offer the e-mail fallback link
-      $("#sdErr").textContent = (err && err.message ? String(err.message).slice(0, 200) + ". " : "We couldn't save your request just now. ")
-        + "You can e-mail our sales team instead.";
+      // R167: plain words via friendlyError (hides technical/DB internals) instead of the raw server message
+      $("#sdErr").textContent = ((window.BPUI && BPUI.friendlyError ? BPUI.friendlyError(err, { action: "save your request" }) : "We couldn't save your request just now.")
+        + " You can e-mail our sales team instead.");
       salesFallback(v.clean);
       return;
     }

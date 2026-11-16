@@ -664,7 +664,7 @@ async function syncQuotePricingNow(opts){
       currentPricing = pricing; _lastAutoOther = pricing.otherAuto;
       updateQuoteBadge && updateQuoteBadge();
       return true;
-    }catch(e){ /* non-fatal */ if(interactive) toast('Couldn\u2019t update the quote price: '+String((e&&e.message)||'please try again').slice(0,160)); return false; }
+    }catch(e){ /* non-fatal */ if(interactive) toast((window.BPUI&&BPUI.friendlyError)?BPUI.friendlyError(e,{action:'update the quote price'}):'Couldn\u2019t update the quote price \u2014 please try again.'); return false; }
 }
 // r19: "No package / decide later" was picked - the quote's synced pricing drops the package name it was priced
 // with (pricing._packageName), so reopening the builder does not show the old package again (QA-B10)
@@ -679,7 +679,7 @@ async function onPickPackage(){
     if(!currentQuoteId){ PRICING.appliedPkgId=''; PRICING.menuPlatePrice=null; PRICING.menuPackageName=null; renderAll(); return; }
     try{ await BPStore.menuTemplates.clear(currentQuoteId); }
     catch(e){ const sel=$('#bPkg'); if(sel) sel.value=prev.id||'';
-      toast((e && e.message) ? 'Couldn\'t remove the package: '+String(e.message).slice(0,160) : 'Couldn\'t remove the package — price left unchanged'); return; }
+      toast((window.BPUI&&BPUI.friendlyError)?BPUI.friendlyError(e,{action:'remove the package'}):'Couldn\'t remove the package — price left unchanged'); return; }
     PRICING.appliedPkgId=''; PRICING.menuPackageName=null;
     PRICING.menuPlatePrice = PRICING.platePrice!=null ? +PRICING.platePrice : null;   // the default plate price, never the old package's
     pkgCleared=true;

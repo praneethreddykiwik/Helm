@@ -681,7 +681,8 @@
         catch (e) {
           // R4: legacy .xls stays rejected (security) - say so plainly, with a one-click template right there
           if (e && e.code === "xls_legacy") return showXlsHelp(e.message);
-          BPUI.toast((e && e.message) || "Could not read that Excel file.", { type: "err" });
+          // R167: plain words via friendlyError (hides technical parser internals)
+          BPUI.toast((BPUI.friendlyError ? BPUI.friendlyError(e, { action: "read that Excel file" }) : "Could not read that Excel file."), { type: "err" });
         }
         return;
       }

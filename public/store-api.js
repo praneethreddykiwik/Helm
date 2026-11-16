@@ -7430,10 +7430,17 @@ window.HelmUrl = HelmUrl;
       }
       try {
         // R163: closed while the tab is hidden; back = one catch-up refresh (cb)
+        // R167: scope each table to THIS studio (org_id), like leads-rt. Row security already
+        // decides what is returned; this stops every studio's chat writes waking every other
+        // studio's open chat subscriber on the shared Realtime server. org_id exists + is indexed
+        // on all three chat tables (migration 0016).
+        const coid = currentUser ? swrOrg(currentUser.id) : null;
+        const cflt = (coid && /^[0-9a-f-]{36}$/i.test(String(coid))) ? ("org_id=eq." + coid) : undefined;
+        const cspec = (table) => cflt ? { event: "*", schema: "public", table: table, filter: cflt } : { event: "*", schema: "public", table: table };
         return rtLive(() => supa.channel(chanName || "chat-rt")
-          .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, () => cb && cb())
-          .on("postgres_changes", { event: "*", schema: "public", table: "chat_reactions" }, () => cb && cb())
-          .on("postgres_changes", { event: "*", schema: "public", table: "chat_conversations" }, () => cb && cb())
+          .on("postgres_changes", cspec("chat_messages"), () => cb && cb())
+          .on("postgres_changes", cspec("chat_reactions"), () => cb && cb())
+          .on("postgres_changes", cspec("chat_conversations"), () => cb && cb())
           .subscribe((status) => { if (onStatus) onStatus(status); }), () => { try { cb && cb(); } catch (e) {} });
       } catch (e) { if (onStatus) onStatus("ERROR"); return { unsubscribe() {} }; }
     },
