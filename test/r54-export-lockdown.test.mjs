@@ -8,6 +8,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import { checkOwnerFile } from './_owner-file.mjs';
 const rd = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 let n = 0;
 const t = async (name, fn) => { try { await fn(); n++; console.log('  ok ' + name); } catch (e) { console.error('  FAIL ' + name + '\n' + (e && e.stack || e)); process.exitCode = 1; } };
@@ -148,7 +149,7 @@ await t('SQL 0295: registered (MANIFEST, run-all, release lists), APPLY verbatim
   assert.doesNotMatch(APPLY, /create\s+temp|pg_temp/i, 'no temp tables / session state in the paste file');
   assert.match(rd('package.json'), /node test\/r54-export-lockdown\.test\.mjs/);
   const owner = new URL('file:///Users/koushikgoudshaganti/Desktop/Agency/Helm/APPLY-0295.sql');
-  if (existsSync(owner)) assert.equal(readFileSync(owner, 'utf8'), APPLY, 'owner paste file = repo APPLY');
+  checkOwnerFile(owner, APPLY, assert, 'owner paste file = repo APPLY');   // R175: skips an iCloud-offloaded copy
 });
 
 await t('DB suite covers: admin ok, manager / coordinator / crew / sales refused, deny-list, audit row, other studio', () => {

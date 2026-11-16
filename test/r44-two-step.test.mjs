@@ -14,6 +14,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 
+import { checkOwnerFile } from './_owner-file.mjs';
 const root = new URL('..', import.meta.url);
 const read = (p) => readFileSync(new URL(p, root), 'utf8');
 const AUTHUI = read('public/auth-ui.js'), API = read('public/store-api.js'), CC = read('public/control.html');
@@ -328,7 +329,7 @@ t('D2 APPLY-0291: migration verbatim between begin / commit + VERIFY rows; MANIF
   assert.match(read('scripts/db-test/run-all.sh'), /R44-TWO-STEP-0291: ALL PASS \\\(22\/22\\\)/);
   assert.match(read('test/release-1019.test.mjs'), /'0285', '0291'[,\]]/); assert.match(read('test/release-1020.test.mjs'), /'0285', '0291'[,\]]/);
   const owner = new URL('file:///Users/koushikgoudshaganti/Desktop/Agency/Helm/APPLY-0291.sql');
-  if (existsSync(owner)) assert.equal(readFileSync(owner, 'utf8'), APPLY);
+  checkOwnerFile(owner, APPLY, assert);   // R175: skips an iCloud-offloaded copy
 });
 
 let pass = 0, fail = 0;
