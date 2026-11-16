@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (322 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (323 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4096 objects): body 168, bucket 9, col 228, con 403, cron 19, exec 4, fn 1848, idx 475, marker 19, pol 184, polexpr 4, pre 101, pub 5, seq 1, tbl 267, trg 359, view 2.
+-- What is checked (4108 objects): body 168, bucket 9, col 228, con 403, cron 19, exec 4, fn 1852, idx 478, marker 19, pol 184, polexpr 4, pre 101, pub 5, seq 1, tbl 268, trg 363, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4120,7 +4120,19 @@ with o(m, k, s, n, x) as (values
   ('0367_r179_special_reminders_staff_link_event', 'fn', 'public', 'staff_link_view__pre0367', 'text'),
   ('0367_r179_special_reminders_staff_link_event', 'pre', null, '__pre0367', null),
   ('0367_r179_special_reminders_staff_link_event', 'marker', 'public', 'task_reminder_tick', 'timestamp with time zone|r179-0367'),
-  ('0367_r179_special_reminders_staff_link_event', 'marker', 'public', 'staff_link_view', 'text|r179-0367')
+  ('0367_r179_special_reminders_staff_link_event', 'marker', 'public', 'staff_link_view', 'text|r179-0367'),
+  ('0368_r184_event_activity', 'tbl', 'public.event_task_log', null, null),
+  ('0368_r184_event_activity', 'idx', 'public.event_task_log_quote_idx', null, null),
+  ('0368_r184_event_activity', 'idx', 'public.event_task_log_org_idx', null, null),
+  ('0368_r184_event_activity', 'idx', 'public.event_task_log_task_idx', null, null),
+  ('0368_r184_event_activity', 'trg', 'public.event_task_log', 'zz_quote_org_match', null),
+  ('0368_r184_event_activity', 'trg', 'public.event_task_log', 'zzz_studio_read_only', null),
+  ('0368_r184_event_activity', 'fn', 'public', '_r368_actor_kind', ''),
+  ('0368_r184_event_activity', 'fn', 'public', '_r368_task_log', ''),
+  ('0368_r184_event_activity', 'trg', 'public.event_tasks', 'zzz_r368_task_log', null),
+  ('0368_r184_event_activity', 'fn', 'public', '_r368_checkin_log', ''),
+  ('0368_r184_event_activity', 'trg', 'public.crew_checkins', 'zzz_r368_checkin_log', null),
+  ('0368_r184_event_activity', 'fn', 'public', 'event_day_activity', 'uuid,integer')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4444,7 +4456,8 @@ mig(ord, m, ov, note) as (values
   (319, '0364_r173_task_timing', null, null),
   (320, '0365_r174_event_day_board', null, null),
   (321, '0366_r174b_presence', null, 'The two realtime.messages policies (own studio private presence channel) are created only where the Supabase realtime schema exists; local and CI databases have none. On prod check them with: select policyname from pg_policies where schemaname = realtime and policyname like helm_presence_%'),
-  (322, '0367_r179_special_reminders_staff_link_event', null, 'special-task reminders + the permanent staff link opens each event inside it: task_reminder_tick and staff_link_view wrapped once (old bodies kept as __pre0367), checked by the r179-0367 marker')
+  (322, '0367_r179_special_reminders_staff_link_event', null, 'special-task reminders + the permanent staff link opens each event inside it: task_reminder_tick and staff_link_view wrapped once (old bodies kept as __pre0367), checked by the r179-0367 marker'),
+  (323, '0368_r184_event_activity', null, null)
 ),
 env as (
   select

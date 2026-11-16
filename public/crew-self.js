@@ -198,25 +198,65 @@
       var isOff = !!off[d], isWork = !!work[d];
       var b = h("button", { type: "button", cls: "cs-day" + (isOff ? " off" : "") + (isWork ? " work" : ""), "data-day": d,
         "aria-pressed": isOff ? "true" : "false",
-        "aria-label": weekday(d) + " " + fmtDay(d) + (isOff ? ", marked can't work" : ", free") + (isWork ? ", you are working" : "")
+        title: isOff ? ("Can't work" + (off[d].note ? ": " + off[d].note : "") + " - tap to mark free") : "Tap if you can't work this day",
+        "aria-label": weekday(d) + " " + fmtDay(d) + (isOff ? ", marked can't work" + (off[d].note ? ", reason: " + off[d].note : "") : ", free") + (isWork ? ", you are working" : "")
           + (isOff && off[d].by_office ? ", set by the office" : "") }, [
         h("span", { cls: "w", text: weekday(d) }), h("b", { text: String(+d.slice(8, 10)) })]);
       b.addEventListener("click", (function (day, wasOff, isW, btn) { return function () { toggleDay(day, wasOff, isW, btn, card); }; })(d, isOff, isWork, b));
       grid.appendChild(b);
     }
     card.appendChild(grid);
+    // R184: the days I marked, each with its reason (the office sees it on the Team calendar) - change the reason or free the day
+    var mine = Object.keys(off).sort();
+    if (mine.length) {
+      var lst = h("div", { cls: "cs-offlist", role: "list", "aria-label": "Days you can't work" });
+      lst.appendChild(h("p", { cls: "cs-offlist-h", text: "Days you can't work" }));
+      mine.forEach(function (d) {
+        var a = off[d], row = h("div", { cls: "cs-offrow", role: "listitem" });
+        row.appendChild(h("div", { cls: "cs-offrow-d" }, [h("b", { text: weekday(d) + " " + fmtDay(d) }),
+          h("span", { cls: a.note ? "cs-offrow-r" : "cs-offrow-r none", text: a.note ? a.note : "No reason given" }),
+          a.by_office ? h("small", { text: "set by the office" }) : null]));
+        var acts = h("div", { cls: "cs-offrow-a" });
+        if (!a.by_office) {
+          var eb = h("button", { type: "button", cls: "cs-btn", text: a.note ? "Change reason" : "Add a reason" });
+          eb.addEventListener("click", function () { editReason(d, a.note || "", eb, card); });
+          acts.appendChild(eb);
+        }
+        var fb = h("button", { type: "button", cls: "cs-btn ghost", text: "I can work" });
+        fb.addEventListener("click", function () { toggleDay(d, true, !!work[d], fb, card); });
+        acts.appendChild(fb);
+        row.appendChild(acts); lst.appendChild(row);
+      });
+      card.appendChild(lst);
+    }
     box.appendChild(card);
+  }
+  function cleanReason(r) { return String(r == null ? "" : r).replace(/[\u0000-\u001f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120); }
+  async function askReason(day, isWork, current) {
+    var B = global.BPUI; if (!(B && B.prompt)) return current || "";
+    var r = await B.prompt((isWork ? "You are already working on " + fmtDay(day) + " - the office will be told. " : "") +
+      "Why can't you work? (optional - e.g. Family function, exam, travelling; the office sees it)",
+      { title: "Can't work on " + fmtDay(day) + "?", label: "Reason", value: current || "", okLabel: current != null && current !== "" ? "Save reason" : "Mark as can't work", required: false });
+    return r === null ? null : cleanReason(r);
+  }
+  async function editReason(day, current, btn, card) {
+    if (busy) return;
+    var reason = await askReason(day, false, current); if (reason === null) return;
+    busy = true; btn.disabled = true; note(card, "");
+    try {
+      await S().ops.shifts.setAvailability(token, day, "unavailable", reason || null);
+      try { global.BPUI.toast(reason ? "Reason saved for " + fmtDay(day) : "Reason removed for " + fmtDay(day), { type: "ok" }); } catch (e) {}
+      await load(true);
+    } catch (e) { btn.disabled = false; note(card, errText(e)); }
+    finally { busy = false; }
   }
   async function toggleDay(day, wasOff, isWork, btn, card) {
     if (busy) return;
     var want = wasOff ? "available" : "unavailable", reason = null;
     if (!wasOff) {
-      var B = global.BPUI;
-      if (B && B.prompt) {
-        reason = await B.prompt((isWork ? "You are already working on " + fmtDay(day) + " - the office will be told. " : "") + "Reason (optional, only the office sees it):",
-          { title: "Can't work on " + fmtDay(day) + "?", label: "Reason", okLabel: "Mark as can't work", required: false });
-        if (reason === null) return;
-      }
+      reason = await askReason(day, isWork, "");
+      if (reason === null) return;
+      reason = reason || null;
     }
     busy = true; btn.disabled = true; note(card, "");
     try {

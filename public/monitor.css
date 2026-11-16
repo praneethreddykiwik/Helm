@@ -99,6 +99,41 @@
 .mon-empty{background:var(--m-panel);border:1px dashed var(--m-line);border-radius:14px;padding:28px 16px;text-align:center;color:var(--m-ink-3)}
 .mon-dot{width:11px;height:11px;border-radius:50%;border:2px solid #fff}
 
+/* R184: attendance, check-in tab, activity timeline */
+.mon-att{display:flex!important;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px!important}
+.mon-att.is-in span:first-child{color:var(--m-acc);font-weight:600}.mon-att.is-out span:first-child{color:var(--m-ink-2)}
+.mon-offnote{display:block;margin-top:3px!important;color:var(--m-late)!important;font-weight:600}
+.mon-factbtn{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline;text-decoration-color:var(--m-line);text-underline-offset:3px}
+.mon-factbtn:hover,.mon-factbtn:focus-visible{text-decoration-color:currentColor}
+.mon-ci-list{display:grid;border-top:1px solid var(--m-line-2);margin-top:8px}
+.mon-ci-row{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--m-line-2)}
+.mon-ci-row:last-child{border-bottom:0}.mon-ci-row.is-late{background:linear-gradient(90deg,var(--m-late-soft),transparent 70%)}
+.mon-ci-who{grid-column:1/-1;display:flex;align-items:center;gap:10px;min-width:0}.mon-ci-who b{display:block;font-size:14px}.mon-ci-who small{display:block;font-size:12px}
+.mon-ci-cell{display:flex;flex-direction:column;font-size:14px}.mon-ci-cell small{font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.mon-ci-st{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.mon-act-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+.mon-tl{list-style:none;margin:0;padding:0}
+.mon-tl-day{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--m-ink-3);padding:14px 0 6px;border-bottom:1px solid var(--m-line-2)}
+.mon-tl-day:first-child{padding-top:0}
+.mon-tl-i{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 2px;border-bottom:1px solid var(--m-line-2);font-size:14px}
+.mon-tl-i small{display:block;font-size:12px;margin-top:2px}
+.mon-tl-ic{width:28px;height:28px;border-radius:50%;background:var(--m-line-2);display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+.mon-tl-i.is-progress .mon-tl-ic{background:var(--m-acc-soft)}.mon-tl-i.is-reply .mon-tl-ic{background:var(--m-blue-soft)}
+.mon-tl-i.is-checkin .mon-tl-ic{background:var(--m-warn-soft)}.mon-tl-i.is-warn .mon-tl-ic{background:var(--m-late-soft)}
+.mon-feed-i{display:grid;grid-template-columns:22px 1fr;gap:2px 8px;align-items:start}.mon-feed-i>.mon-tl-ic{width:22px;height:22px;font-size:12px;grid-row:span 2}
+.mon-feed-i>small,.mon-feed-i>.mon-code{grid-column:2}
+.mon-feed-i.is-progress{border-left-color:var(--m-acc)}.mon-feed-i.is-reply{border-left-color:var(--m-blue)}.mon-feed-i.is-checkin{border-left-color:#f59e0b}
+.mon-feed-more{list-style:none}
+.mon-alerts{background:var(--m-late-soft);border:1px solid #f3c4bf;border-left:5px solid var(--m-late);border-radius:14px;padding:12px 14px;margin:0 0 14px}
+.mon-alerts-h{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:14px;font-weight:700;color:var(--m-late)}
+.mon-alerts-h .mon-n{background:var(--m-late);color:#fff;border-radius:99px;padding:1px 8px;font-size:12px}
+.mon-alerts-list{display:grid;gap:8px}
+.mon-alert{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;background:var(--m-panel);border:1px solid #f3c4bf;border-radius:10px;padding:8px 10px}
+.mon-alert-main{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1 1 200px;font-size:13px}
+.mon-alert-main b{font-size:14px}.mon-alert-main small{color:var(--m-late);font-weight:600;font-size:12px}
+.mon-latest{display:block;text-align:left;overflow-wrap:anywhere}
+@media (min-width:720px){ .mon-ci-row{grid-template-columns:minmax(0,1.6fr) 90px 90px minmax(0,1.2fr)} .mon-ci-who,.mon-ci-st{grid-column:auto} }
+
 @media (min-width:720px){
   .mon-page{padding:0 24px 64px}
   .mon-top{grid-template-columns:minmax(260px,420px) 1fr;align-items:end}

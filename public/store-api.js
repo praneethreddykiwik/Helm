@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=81"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=82"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -4024,6 +4024,10 @@ window.HelmUrl = HelmUrl;
     // latest activity (home card + Calendar "Live today"). null before 0365 (the card / tab then stay hidden).
     live: {
       async today(hours) { if (!supa) return null; try { return await rpc("live_events_today", { p_hours: hours || 24 }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+      // R184 (0368): every update on one event, newest first (given out / given to someone else / accepted / turned down /
+      // started / done / new start time / special / check-in / check-out / e-mails sent). null before 0368 (the page then
+      // falls back to the task step times it already has).
+      async activity(quoteId, limit) { if (!supa || !quoteId) return null; try { return await rpc("event_day_activity", { p_quote: quoteId, p_limit: limit || 200 }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
     },
     // ---- worker (no login; token-scoped) ----
     worker: {

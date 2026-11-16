@@ -88,3 +88,16 @@
 .cs-sitebar .cs-offnote{margin-top:2px}
 /* r92: touch screens - bigger day cells and form fields */
 @media (pointer:coarse){.cs-cell{width:40px;height:40px;line-height:38px}.cs-form input,.cs-form select,.cs-edit input{height:44px;font-size:16px}}
+/* R184: my "can't work" days with their reason (change the reason / free the day) */
+.cs-offlist{margin-top:14px;border-top:1px solid var(--line,#e8e3db);padding-top:10px;display:grid;gap:8px}
+.cs-offlist-h{margin:0;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3,#6b6577)}
+.cs-offrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid #f5c6c6;background:#fdf5f5;border-radius:12px}
+.cs-offrow-d{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 160px}
+.cs-offrow-d b{font-size:14px}
+.cs-offrow-r{font-size:13px;color:#7a2e2e;overflow-wrap:anywhere}.cs-offrow-r.none{color:var(--ink-3,#6b6577);font-style:italic}
+.cs-offrow-d small{font-size:11px;color:var(--ink-3,#6b6577)}
+.cs-offrow-a{display:flex;gap:6px;flex-wrap:wrap}
+.cs-offrow-a .cs-btn{min-height:36px;padding:6px 14px;border-radius:99px;border:1px solid var(--line,#e8e3db);background:var(--panel,#fff);color:var(--ink,#1f1d24);font:600 13px/1 inherit;font-family:inherit;cursor:pointer}
+.cs-offrow-a .cs-btn:hover{border-color:#9fd3bd}
+.cs-offrow-a .cs-btn.ghost{background:transparent}
+.cs-offrow-a .cs-btn:disabled{opacity:.6;cursor:wait}
