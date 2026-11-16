@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (316 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (317 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4044 objects): body 175, bucket 9, col 227, con 402, cron 20, exec 4, fn 1821, idx 467, marker 12, pol 184, polexpr 4, pre 97, pub 5, seq 1, tbl 264, trg 350, view 2.
+-- What is checked (4047 objects): body 174, bucket 9, col 227, con 402, cron 20, exec 4, fn 1824, idx 467, marker 12, pol 184, polexpr 4, pre 98, pub 5, seq 1, tbl 264, trg 350, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3426,7 +3426,6 @@ with o(m, k, s, n, x) as (values
   ('0287_studio_timezone_today', 'body', 'public', 'hq_settle_provider_payment', 'text,uuid,numeric,date,date,date,text,text,text,numeric|976fe97440fc8881fc51f222d393587d'),
   ('0287_studio_timezone_today', 'body', 'public', '_r21_event_money', 'uuid,uuid,boolean|3c29b48b9a763c1fa9148921f91e2d56'),
   ('0287_studio_timezone_today', 'body', 'public', 'studio_cost_breakdown', 'date,date|caa4e8fdda3d9b006c1caae0b8aecf29'),
-  ('0287_studio_timezone_today', 'body', 'public', '_assign132_enqueue__pre0274', 'uuid,uuid,text,uuid,text,text,text,text,text|617f0b03b022d999e029a046cf882f01'),
   ('0287_studio_timezone_today', 'fn', 'public', 'studio_timezone', 'uuid'),
   ('0287_studio_timezone_today', 'fn', 'public', 'studio_today', 'uuid,timestamp with time zone'),
   ('0287_studio_timezone_today', 'fn', 'public', 'payment_reminder_send_now__pre0181', 'uuid'),
@@ -4064,11 +4063,15 @@ with o(m, k, s, n, x) as (values
   ('0361_r170_staff_email', 'trg', 'public.task_wa_outbox', 'zzz_r361_reminder_email', null),
   ('0361_r170_staff_email', 'fn', 'public', 'staff_email_send', 'uuid,boolean'),
   ('0361_r170_staff_email', 'fn', 'public', 'staff_email_hold', 'uuid,uuid'),
-  ('0361_r170_staff_email', 'fn', 'public', 'staff_email_claim', 'integer'),
   ('0361_r170_staff_email', 'fn', 'public', 'staff_email_mark', 'uuid,text'),
   ('0361_r170_staff_email', 'fn', 'public', 'automation_overview__pre0361', ''),
   ('0361_r170_staff_email', 'fn', 'public', 'automation_switch__pre0361', 'text,boolean'),
-  ('0361_r170_staff_email', 'pre', null, '__pre0361', null)
+  ('0361_r170_staff_email', 'pre', null, '__pre0361', null),
+  ('0361_r170_staff_email', 'fn', 'public', 'staff_email_claim', 'integer'),
+  ('0362_r171_staff_reminders', 'fn', 'public', 'staff_whatsapp_send', 'uuid'),
+  ('0362_r171_staff_reminders', 'fn', 'public', 'staff_email_claim__pre0362', 'integer'),
+  ('0362_r171_staff_reminders', 'fn', 'public', '_r362_dispatch_schedule', ''),
+  ('0362_r171_staff_reminders', 'pre', null, '__pre0362', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4386,7 +4389,8 @@ mig(ord, m, ov, note) as (values
   (313, '0358_r163_catalog_tz_speed', null, 'notification_catalog + _r23_tz re-issued in place (built with dynamic SQL), checked by the r163-0358 marker; kept bodies as __pre0358; new table _r358_tz_names'),
   (314, '0359_r167_cron_log_trim', null, null),
   (315, '0360_r167_fk_indexes', null, 'index-only migration: adds FK/tenant btree indexes, each created only if the table exists; checked here by index name'),
-  (316, '0361_r170_staff_email', null, null)
+  (316, '0361_r170_staff_email', null, null),
+  (317, '0362_r171_staff_reminders', null, null)
 ),
 env as (
   select
