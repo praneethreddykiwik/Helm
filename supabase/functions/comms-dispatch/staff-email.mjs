@@ -11,6 +11,10 @@
 // &event=<event id> for an e-mail about one event, so it opens that event inside the same link,
 // work.html?token=<uuid> = the per-event link, ops.html?quote=<uuid> for the office);
 // the host never comes from the database. Anything unexpected -> empty text and comms-dispatch marks the row skipped.
+// R185: every staff e-mail also gets a designed HTML part on the shared Helm layout (_shared/email-layout.mjs: logo,
+// card, button, footer with the compliance line). The plain-text part is EXACTLY the R170-R179 text (unchanged).
+import * as L from "../_shared/email-layout.mjs";
+
 export const STAFF_TX_REASON = "you are on the staff list of this studio and work was given to you";
 export const OFFICE_TX_REASON = "you are the manager of this event";
 export const STAFF_KINDS = ["task_assigned", "task_list", "task_one", "task_reminder", "task_late", "office_alert"];
@@ -134,4 +138,143 @@ export function staffUpdateMessage(row, origin) {
       (link ? "\n\nSee all your tasks (this link stays the same):\n" + link : "") +
       "\n\nQuestions? Just reply to this e-mail - it goes to " + studio + "." + "\n\nThank you,\n" + studio,
   };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// R185: designed HTML for the staff e-mails. Pure. Every dynamic value is HTML-escaped here (L.escHtml); links are the
+// already-validated staffLink() URLs. Light design on the shared layout (which also carries its dark-mode rules).
+// The owner can swap the logo by adding a new PNG and pointing L.LOGO_URL (_shared/email-layout.mjs) at it.
+const e = (v) => L.escHtml(v);
+const TONE = {
+  soon: ["#fff4e0", "#8a5a00"], now: ["#fdecec", "#b42318"], late: ["#fdecec", "#b42318"],
+  info: [L.C.brandSoft, L.C.brand], muted: ["#eef1ef", L.C.muted],
+};
+const eyebrow = (studio) =>
+  `<tr><td style="padding:0 0 14px;"><span class="codebox" style="display:inline-block;background:${L.C.brandSoft};color:${L.C.brand};font-family:${L.FONT};font-size:12px;line-height:16px;font-weight:700;letter-spacing:.04em;border-radius:999px;padding:5px 12px;">${e(studio)} via Helm</span></td></tr>`;
+const chip = (text, tone = "info") => {
+  const [bg, fg] = TONE[tone] || TONE.info;
+  return `<span style="display:inline-block;background:${bg};color:${fg};font-family:${L.FONT};font-size:13px;line-height:18px;font-weight:700;border-radius:999px;padding:5px 12px;">${e(text)}</span>`;
+};
+// big clock + countdown chip (reminders)
+const timeHero = (time, chipText, tone) =>
+  `<tr><td style="padding:2px 0 22px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+<td class="ink" valign="middle" style="font-family:${L.FONT};font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.02em;color:${L.C.ink};padding-right:14px;">${e(time)}</td>
+<td valign="middle">${chip(chipText, tone)}</td></tr></table></td></tr>`;
+// task rows: title + section on the left, start time on the right
+const taskRows = (tasks) =>
+  `<tr><td style="padding:0 0 22px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="rule" style="border:1px solid ${L.C.rule};border-radius:12px;">${tasks.map((t, i) => {
+    const top = i ? `border-top:1px solid ${L.C.rule};` : "";
+    return `<tr><td class="${i ? "rule" : ""}" style="padding:12px 16px;${top}font-family:${L.FONT};"><div class="ink" style="font-size:15px;line-height:21px;font-weight:600;color:${L.C.ink};">${e(t.title)}</div>${t.cat ? `<div class="muted" style="font-size:13px;line-height:18px;color:${L.C.muted};">${e(t.cat)}</div>` : ""}</td>` +
+      `<td align="right" valign="top" class="${i ? "rule " : ""}${t.at ? "ink" : "muted"}" style="padding:12px 16px;${top}font-family:${L.FONT};font-size:14px;line-height:21px;font-weight:${t.at ? 600 : 400};color:${t.at ? L.C.ink : L.C.faint};">${t.at ? e(t.at) : "No time yet"}</td></tr>`;
+  }).join("")}</table></td></tr>`;
+// change lines: "X: start time changed from A to B" -> label + A (struck) -> B; other lines as they are
+const CHANGE_RE = /^(.{1,170}?): (.{1,80}?) changed from (.{1,120}?) to (.{1,160})$/;
+const changeRows = (lines, more) =>
+  `<tr><td style="padding:0 0 22px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="rule" style="border:1px solid ${L.C.rule};border-radius:12px;">${lines.map((l, i) => {
+    const top = i ? `border-top:1px solid ${L.C.rule};` : "";
+    const m = CHANGE_RE.exec(l);
+    const body = m
+      ? `<div class="ink" style="font-size:15px;line-height:21px;font-weight:600;color:${L.C.ink};">${e(m[1])}</div><div class="muted" style="font-size:13px;line-height:19px;color:${L.C.muted};">${e(m[2])}: <span style="text-decoration:line-through;">${e(m[3])}</span> &rarr; <strong class="ink" style="color:${L.C.ink};">${e(m[4])}</strong></div>`
+      : `<div class="ink" style="font-size:15px;line-height:21px;color:${L.C.ink};">${e(l)}</div>`;
+    return `<tr><td class="${i ? "rule" : ""}" style="padding:12px 16px;${top}font-family:${L.FONT};">${body}</td></tr>`;
+  }).join("")}${more ? `<tr><td class="rule muted" style="padding:10px 16px;border-top:1px solid ${L.C.rule};font-family:${L.FONT};font-size:13px;color:${L.C.muted};">and ${more} more ${more === 1 ? "change" : "changes"}</td></tr>` : ""}</table></td></tr>`;
+const banner = (text) =>
+  `<tr><td style="padding:0 0 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#fdecec;border-radius:12px;padding:14px 16px;font-family:${L.FONT};font-size:15px;line-height:22px;font-weight:600;color:#b42318;">${e(text)}</td></tr></table></td></tr>`;
+const facts = (rows) => L.facts(rows.filter(([, v]) => v).map(([k, v]) => [e(k), e(v)]));
+const cta = (link, label) => link ? L.button(e(link), e(label)) + L.fallback(e(link)) : "";
+const replyNote = (studio) => L.note(`Questions? Just reply to this e-mail &mdash; it goes to ${L.strong(e(studio))}.`);
+
+function staffDoc(subject, pre, inner, reason, opts) {
+  const o = opts || {};
+  const site = /^https:\/\/[A-Za-z0-9.-]{1,190}(?::[0-9]{1,5})?$/.test(String(o.site || "")) ? o.site : L.SITE;
+  return L.layout(subject, pre, inner, { site, reason, address: o.address, sub: "" });
+}
+
+// { html } for staffEmailMessage rows ("" when the text is empty - same rule)
+export function staffEmailHtml(row, origin, opts = {}) {
+  const msg = staffEmailMessage(row, origin);
+  if (!msg.text) return "";
+  const kind = String(row.kind);
+  const studio = clip(row.studio, 80) || "your studio", event = clip(row.event, 120) || "the event";
+  const date = clip(row.event_date, 20), venue = clip(row.venue, 100);
+  const name = first(row.name);
+  const hello = L.para("Hello" + (name ? " " + L.strong(e(name)) : "") + ",", "0 0 14px");
+  const link = staffLink(row, origin);
+  const site = { site: String(origin || "").replace(/\/+$/, ""), address: opts.address };
+  const eventFacts = [["Event", event], ["Date", date], ["Venue", venue]];
+
+  if (kind === "task_assigned" || kind === "task_list") {
+    const tasks = (Array.isArray(row.tasks) ? row.tasks : []).slice(0, 25)
+      .map((t) => ({ title: clip(t && t.title, 160), cat: clip(t && t.category, 60), at: when(t && t.start, t && t.day) }))
+      .filter((t) => t.title);
+    const n = tasks.length;
+    const inner = eyebrow(studio) + L.h1(e(kind === "task_assigned" ? "New work for you" : "Your tasks")) + hello +
+      L.para(L.strong(e(studio)) + (kind === "task_assigned" ? " has given you " : " sent you ") + e(n === 1 ? "1 task" : n + " tasks") + " for " + L.strong(e(event)) + ".") +
+      facts(eventFacts) + taskRows(tasks) +
+      cta(link, "Open my tasks") + L.para("Accept the work and mark each task as you go.", "0 0 20px") + replyNote(studio);
+    return staffDoc(msg.subject, (n === 1 ? "1 task" : n + " tasks") + " for " + event + (date ? " on " + date : ""), inner, STAFF_TX_REASON, site);
+  }
+  const task = clip(row.task, 160);
+  const at = when(row.start, row.day);
+  if (kind === "task_one") {
+    const inner = eyebrow(studio) + L.h1("A task for you") + hello +
+      L.para(L.strong(e(studio)) + " sent you this task for " + L.strong(e(event)) + ".") +
+      taskRows([{ title: task, cat: "", at }]) + facts(eventFacts) +
+      cta(link, "Open my task") + replyNote(studio);
+    return staffDoc(msg.subject, task + " - " + event, inner, STAFF_TX_REASON, site);
+  }
+  if (kind === "task_reminder") {
+    const s = soon(row.minutes);
+    const now = s === "now";
+    const at2 = Number(row.minutes) >= 360 ? when(row.start, row.day) : clip(row.start, 12);
+    const inner = eyebrow(studio) + L.h1(e(now ? "Your task is due now" : "Coming up: " + task)) + hello +
+      timeHero(at2, now ? "Due now" : "Due " + s, now ? "now" : "soon") +
+      facts([["Task", task], ["Event", event], ["Venue", venue]]) +
+      (link ? cta(link, "Mark it started") : L.para("Please get ready to start it.")) + replyNote(studio);
+    return staffDoc(msg.subject, (now ? "Due now: " : "Due " + s + ": ") + task + " at " + at2, inner, STAFF_TX_REASON, site);
+  }
+  if (kind === "task_late") {
+    const inner = eyebrow(studio) + L.h1("Not started yet") + hello +
+      timeHero(at || "Due", "Not started", "late") +
+      L.para(L.strong(e(task)) + " for " + L.strong(e(event)) + " " + (at ? "was due to start at " + e(at) : "was due to start") + " and is not marked as started yet.") +
+      (link ? cta(link, "Open my task page") + L.para("If something is stopping you, reply to this e-mail.") : L.para("If something is stopping you, reply to this e-mail.")) +
+      L.note(`Sent by ${L.strong(e(studio))} with Helm.`);
+    return staffDoc(msg.subject, task + " has not been started yet", inner, STAFF_TX_REASON, site);
+  }
+  // office_alert
+  const worker = clip(row.worker, 80) || "A staff member";
+  const inner = eyebrow(studio) + L.h1("Task not started") + hello +
+    banner(worker + " has not started " + task + ".") +
+    facts([["Task", task], ["Person", worker], ["Was due", at], ["Event", event], ["Date", date], ["Venue", venue]]) +
+    L.para("The reminders have gone out. Check the live status and reassign if needed.") +
+    (link ? cta(link, "See live status") : L.para("Open the event in Helm to reassign if needed.")) +
+    L.note(`Helm, for ${L.strong(e(studio))}.`);
+  return staffDoc(msg.subject, worker + " has not started " + task, inner, OFFICE_TX_REASON, site);
+}
+
+// { html } for staffUpdateMessage rows ("" when the text is empty - same rule)
+export function staffUpdateHtml(row, origin, opts = {}) {
+  const msg = staffUpdateMessage(row, origin);
+  if (!msg.text) return "";
+  const lines = (Array.isArray(row.changes) ? row.changes : []).map((x) => clip(x, 200)).filter(Boolean).slice(0, 30);
+  const studio = clip(row.studio, 80) || "your studio", event = clip(row.event, 120) || "the event";
+  const date = clip(row.event_date, 20), venue = clip(row.venue, 100);
+  const more = Math.max(0, Math.round(Number(row.more) || 0));
+  const cancelled = row.cancelled === true;
+  const name = first(row.name);
+  const link = staffLink(row, origin);
+  const tasks = (Array.isArray(row.tasks) ? row.tasks : []).slice(0, 25)
+    .map((t) => ({ title: clip(t && t.title, 160), cat: "", at: when(t && t.start, t && t.day) })).filter((t) => t.title);
+  const inner = eyebrow(studio) + L.h1(e(cancelled ? "Event cancelled" : "Your tasks changed")) +
+    L.para("Hello" + (name ? " " + L.strong(e(name)) : "") + ",", "0 0 14px") +
+    (cancelled ? banner(studio + " has cancelled " + event + (date ? " on " + date : "") + ".")
+               : L.para(L.strong(e(studio)) + " changed something on your work for " + L.strong(e(event)) + ".")) +
+    facts([["Event", event], ["Date", date], ["Venue", venue]]) +
+    L.para(L.strong("What changed"), "0 0 10px") + changeRows(lines, more) +
+    (cancelled ? "" : tasks.length ? L.para(L.strong("Your tasks for this event now"), "0 0 10px") + taskRows(tasks)
+                                    : L.para("You have no open tasks for this event now.")) +
+    cta(link, "See all my tasks") + (link ? L.para("This link stays the same for all your tasks.", "0 0 20px") : "") +
+    replyNote(studio);
+  return staffDoc(msg.subject, (cancelled ? "Cancelled: " : "Changed: ") + event + (date ? " on " + date : ""), inner, STAFF_TX_REASON,
+    { site: String(origin || "").replace(/\/+$/, ""), address: opts.address });
 }

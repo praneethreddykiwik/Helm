@@ -109,6 +109,10 @@ Deno.test("R170 staff e-mails: task list, reminder, office alert over SMTP; link
     assert(alert.text.includes("Ravi Kumar has not started Stage lights"), alert.text);
     assert(alert.text.includes("https://www.helm.events/ops.html?quote=" + QID));
     assert(alert.text.includes("you are the manager of this event"), "manager footer");
+    // R185: the HTML part is the designed layout (logo, studio eyebrow, button), footer once, text footer still in the text part
+    assert(list.html.includes("helm-logo-v") && list.html.includes("Sparkle Events via Helm") && list.html.includes("Open my tasks"), "designed html");
+    assertEquals((list.html.match(/You received this because/g) || []).length, 1, "compliance line once in the html");
+    assert(rem.html.includes(">Due in 10 min</span>"), "reminder countdown chip");
     assert(!logs.join(" ").includes("ravi@studio.test") && !logs.join(" ").includes("boss@studio.test"), "no address in logs");
     assert(out.sent >= 3);
   } finally { f(); smtp.restore(); }
