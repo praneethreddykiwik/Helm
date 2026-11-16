@@ -35,6 +35,57 @@ export function channelStatus(env) {
 // R154: why the e-mail test was only simulated (names of settings only, never a value)
 export const EMAIL_NOT_SET_REASON = "no e-mail provider is set up yet: RESEND_API_KEY + RESEND_FROM, or SMTP_HOST + SMTP_USER + SMTP_PASS";
 
+// R169: free mailbox providers whose From address can never be SPF/DKIM aligned with helm.events.
+const FREE_MAIL_DOMAINS = /@(gmail|googlemail|yahoo|ymail|outlook|hotmail|live|icloud|me|aol|proton(mail)?|protonmail|zoho)\.[a-z.]+$/i;
+
+// R169: a pure, value-free "why isn't my e-mail landing well?" diagnostic for the Integrations page /
+// the EMAIL-WORKING.md setup guide. It reads env NAMES only (never a secret value) and returns plain-words
+// hints. It sends nothing and makes no network call - purely a dry-run advisory. Levels: "error" (nothing
+// will send), "warn" (will send but deliverability/platform risk), "info" (context / next step).
+export function emailSetupHints(env) {
+  const g = (k) => String(env(k) || "").trim();
+  const out = [];
+  const provider = emailProvider(env);
+  const resendKey = g("RESEND_API_KEY"), resendFrom = g("RESEND_FROM");
+  const smtpHost = g("SMTP_HOST"), smtpUser = g("SMTP_USER"), smtpPass = g("SMTP_PASS");
+  const smtpFrom = g("SMTP_FROM") || smtpUser;
+  const port = g("SMTP_PORT");
+
+  if (!provider) {
+    if (resendKey && !senderAddress(resendFrom)) {
+      out.push({ level: "error", code: "resend_from_missing", message: "RESEND_API_KEY is set but RESEND_FROM is missing or is not an e-mail address - set RESEND_FROM (e.g. \"Helm <mail@helm.events>\")." });
+    } else if (smtpHost && smtpUser && smtpPass && !senderAddress(smtpFrom)) {
+      out.push({ level: "error", code: "smtp_from_missing", message: "SMTP_HOST / SMTP_USER / SMTP_PASS are set but SMTP_FROM (or SMTP_USER) is not an e-mail address - set SMTP_FROM to the login or an allowed alias." });
+    } else {
+      out.push({ level: "error", code: "not_configured", message: EMAIL_NOT_SET_REASON + "." });
+    }
+    return out;
+  }
+
+  if (provider === "smtp") {
+    // Supabase Edge blocks outbound 25 and 587; only implicit-TLS 465 connects. The built-in client
+    // CAN STARTTLS on 587, but the platform never lets that connection open, so flag it as an error.
+    if (port === "587" || port === "25") {
+      out.push({ level: "error", code: "smtp_port_blocked", message: "SMTP_PORT is " + port + ", but Supabase Edge Functions block outbound ports 25 and 587 - the connection will time out. Use SMTP_PORT 465 (implicit TLS)." });
+    }
+    const host = smtpHost.toLowerCase();
+    if (/(^|\.)gmail\.com$|(^|\.)googlemail\.com$/.test(host)) {
+      if (port && port !== "465") {
+        out.push({ level: "warn", code: "gmail_use_465", message: "For smtp.gmail.com on Supabase Edge, use SMTP_PORT 465 with a 16-character App Password." });
+      }
+      out.push({ level: "info", code: "gmail_testing_only", message: "Gmail SMTP is for testing only: deliverability is limited and a personal Gmail address cannot be SPF/DKIM aligned with your own domain (~500 messages/day on a personal account)." });
+    }
+    if (FREE_MAIL_DOMAINS.test(smtpFrom)) {
+      out.push({ level: "warn", code: "free_from_not_aligned", message: "The SMTP From address is a free mailbox (e.g. gmail.com) - it cannot be DKIM-signed for helm.events, so mail is more likely to land in spam. For production, send from a verified helm.events sender." });
+    }
+  }
+
+  if (provider === "resend" && FREE_MAIL_DOMAINS.test(resendFrom)) {
+    out.push({ level: "warn", code: "free_from_not_aligned", message: "RESEND_FROM is a free-mailbox address - verify your own domain (helm.events) in Resend and send From that domain for SPF/DKIM alignment." });
+  }
+  return out;
+}
+
 // the bare address out of RESEND_FROM / SMTP_FROM ('Helm <hello@helm.events>' or 'hello@helm.events'), or "" when it
 // is missing / not an address. R154g: no fallback sender (the old "onboarding@resend.dev" default is gone) - "" means
 // e-mail is not set up and nothing is sent.

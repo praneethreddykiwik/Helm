@@ -175,7 +175,7 @@ export async function smtpSend(cfg: SmtpConn["cfg"], mail: RawMail, opts: { time
 export function smtpReason(e: unknown): string {
   const err = e as SmtpError; const code = err?.code ?? null;
   switch (err?.stage) {
-    case "connect": return "could not connect to the mail server (check SMTP_HOST / SMTP_PORT; use 465)";
+    case "connect": return "could not connect to the mail server - on Supabase Edge ports 25 and 587 are blocked, so use SMTP_PORT 465 (implicit TLS; e.g. smtp.gmail.com:465); also check SMTP_HOST";
     case "greeting": case "ehlo": return "the mail server did not accept the connection";
     case "tls": return "the mail server did not offer a secure connection (use SMTP_PORT 465, or a server with STARTTLS)";
     case "auth": return code === 535 || code === 534
