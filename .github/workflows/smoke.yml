@@ -1,0 +1,163 @@
+# R176 smoke tests: a 1-3 minute "is the live site OK?" check of a DEPLOYED Helm site.
+# Read-only. Never signs up, never saves, never deletes, never renders.
+#
+# When it runs (owner defaults, 16 Nov 2026 - change the cron lines / inputs below):
+#   - after every successful Vercel deploy of a KNOWN host (staging helm-v01 / www.helm.events); previews are skipped
+#   - every 3 hours: QUICK anonymous HTTP checks of production (no browser)
+#   - once a day:    FULL checks of production + staging (browser; signed-in too when the smoke-account secrets exist)
+#   - by hand:       Actions -> Smoke -> Run workflow (pick target; optional signed-in and channel checks)
+# A failure turns the run red and GitHub e-mails you. It blocks nothing (warn only).
+# Channel checks (a real test e-mail / WhatsApp) run ONLY by hand with include_channel_check, and only to the owner.
+#
+# Every job is guarded to the DEV repo (koushik1133/Helm): the same files are pushed to the public prod repo,
+# where this workflow must not run or use minutes. Production is still covered by the schedule below.
+name: Smoke
+
+on:
+  deployment_status:
+  schedule:
+    - cron: '17 */3 * * *'   # quick: prod anonymous HTTP checks every 3 hours
+    - cron: '43 3 * * *'     # full: prod + staging once a day (09:13 IST)
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which site'
+        type: choice
+        options: [prod, staging, url]
+        default: staging
+      url:
+        description: 'Only when target = url: https://host'
+        type: string
+        default: ''
+      include_browser:
+        description: 'Browser checks (login page, console errors)'
+        type: boolean
+        default: true
+      include_signed_in:
+        description: 'Signed-in read-only checks (needs SMOKE_<TARGET>_EMAIL / _PASSWORD secrets)'
+        type: boolean
+        default: true
+      include_channel_check:
+        description: 'Send a REAL test e-mail / WhatsApp to the owner only (manual runs only)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    # DEV repo only; deploy events only for a successful deploy of a known host (not previews)
+    if: >-
+      github.repository == 'koushik1133/Helm' &&
+      (github.event_name != 'deployment_status' ||
+       (github.event.deployment_status.state == 'success' &&
+        (contains(github.event.deployment_status.environment_url, 'helm-v01.vercel.app') ||
+         contains(github.event.deployment_status.environment_url, 'helm.events'))))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Plan (what to check this run)
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          DEPLOY_URL: ${{ github.event.deployment_status.environment_url }}
+          IN_TARGET: ${{ inputs.target }}
+          IN_URL: ${{ inputs.url }}
+          IN_BROWSER: ${{ inputs.include_browser }}
+          IN_SIGNED: ${{ inputs.include_signed_in }}
+          IN_CHANNEL: ${{ inputs.include_channel_check }}
+        run: |
+          set -euo pipefail
+          targets=""; browser=0; signed=0; channel=0; compare=0
+          case "$EVENT" in
+            deployment_status)
+              if [[ "$DEPLOY_URL" == *helm-v01.vercel.app* ]]; then targets="staging"; else targets="prod"; fi
+              browser=1; signed=1; compare=1 ;;
+            schedule)
+              if [[ "$SCHEDULE" == "17 */3 * * *" ]]; then targets="prod"; else targets="prod staging"; browser=1; signed=1; fi ;;
+            workflow_dispatch)
+              if [[ "$IN_TARGET" == "url" ]]; then
+                [[ "$IN_URL" =~ ^https://[A-Za-z0-9.-]+/?$ ]] || { echo "::error::target=url needs an https://host URL"; exit 1; }
+                targets="${IN_URL%/}"
+              else targets="$IN_TARGET"; fi
+              [[ "$IN_BROWSER" == "true" ]] && browser=1
+              [[ "$IN_SIGNED" == "true" ]] && signed=1
+              [[ "$IN_CHANNEL" == "true" ]] && channel=1 && browser=1 && signed=1 ;;
+          esac
+          # channel checks are NEVER allowed outside a manual run
+          [[ "$EVENT" == "workflow_dispatch" ]] || channel=0
+          { echo "targets=$targets"; echo "browser=$browser"; echo "signed=$signed"; echo "channel=$channel"; echo "compare=$compare"; } >> "$GITHUB_OUTPUT"
+          echo "Smoke plan: targets=[$targets] browser=$browser signed_in=$signed channel=$channel compare_version=$compare" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Anonymous HTTP checks (A1-A3, A6-A8)
+        id: anon
+        continue-on-error: true
+        env:
+          TARGETS: ${{ steps.plan.outputs.targets }}
+          SMOKE_COMPARE_REPO: ${{ steps.plan.outputs.compare }}
+        run: |
+          rc=0
+          for t in $TARGETS; do node tests/smoke/anon.mjs --target="$t" || rc=1; done
+          exit $rc
+
+      - name: Install the browser (chromium only)
+        if: steps.plan.outputs.browser == '1'
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+
+      - name: Browser checks (A4-A5; B1-B7 signed-in read-only; C1-C2 manual channel check)
+        id: browser
+        if: steps.plan.outputs.browser == '1'
+        continue-on-error: true
+        working-directory: tests/smoke
+        env:
+          TARGETS: ${{ steps.plan.outputs.targets }}
+          SMOKE_SIGNED_IN: ${{ steps.plan.outputs.signed }}
+          SMOKE_CHANNEL_CHECK: ${{ steps.plan.outputs.channel }}
+          SMOKE_PROD_EMAIL: ${{ secrets.SMOKE_PROD_EMAIL }}
+          SMOKE_PROD_PASSWORD: ${{ secrets.SMOKE_PROD_PASSWORD }}
+          SMOKE_STAGING_EMAIL: ${{ secrets.SMOKE_STAGING_EMAIL }}
+          SMOKE_STAGING_PASSWORD: ${{ secrets.SMOKE_STAGING_PASSWORD }}
+          SMOKE_OWNER_EMAIL: ${{ secrets.SMOKE_OWNER_EMAIL }}
+          SMOKE_OWNER_PHONE: ${{ secrets.SMOKE_OWNER_PHONE }}
+        run: |
+          rc=0
+          for t in $TARGETS; do
+            echo "### Smoke - browser checks - $t" >> "$GITHUB_STEP_SUMMARY"
+            SMOKE_TARGET="$t" npx playwright test -c playwright.smoke.config.mjs || rc=1
+            node -e 'const r=require("./out/browser-results.json");const rows=[];(function walk(s){for(const x of s.suites||[])walk(x);for(const sp of s.specs||[])for(const t of sp.tests||[]){const st=(t.results.at(-1)||{}).status||t.status;const icon=st==="passed"?"✅":st==="skipped"?"⏭️":"❌";const why=(t.annotations||[]).map(a=>a.description).filter(Boolean).join("; ");rows.push(`| ${icon} | ${sp.title} | ${st}${why?" - "+why:""} |`)}})(r);console.log(["","| | Check | Result |","|---|---|---|",...rows,""].join("\n"))' >> "$GITHUB_STEP_SUMMARY" || true
+          done
+          exit $rc
+
+      - name: Keep failure screenshots
+        if: steps.anon.outcome == 'failure' || steps.browser.outcome == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smoke-failure-${{ github.run_id }}
+          path: tests/smoke/out/
+          retention-days: 7
+
+      - name: Result (red run = GitHub e-mails you; nothing is blocked)
+        env:
+          ANON: ${{ steps.anon.outcome }}
+          BROWSER: ${{ steps.browser.outcome }}
+        run: |
+          echo "anonymous=$ANON browser=${BROWSER:-skipped}"
+          if [[ "$ANON" == "failure" || "$BROWSER" == "failure" ]]; then
+            echo "::error::Smoke check failed - see the summary table and the smoke-failure artifact"; exit 1
+          fi
