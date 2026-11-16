@@ -13,6 +13,11 @@
  *       compact    smaller layout (exact reminder rows)
  *       label      accessible name prefix, e.g. "Start" or "Reminder"
  *       defaultTime "HH:MM" used when a date is picked and no time is set yet (default "09:00")
+ *       tz         studio IANA zone (string or function); default BPStore.studioTimezone()
+ *       zoneNote   false = no "times are in the studio's time zone" note (exact-reminder rows: the modal shows one already)
+ * R182: when the device's clock differs from the studio's, a note under the picker says which zone the times are in and
+ * what time it is there now, and the words line adds the zone + the device-time equivalent ("= 3:00 AM, Mon 16 Nov on
+ * your device"). Needs studio-time.js (HelmStudioTime); without it the picker behaves as before.
  * CSP: DOM API only (no HTML strings), no inline styles; classes live in when-picker.css.
  */
 (function (global) {
@@ -61,6 +66,16 @@
   }
   function el(tag, cls, text) { var n = doc.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
   function fire(node, type) { node.dispatchEvent(new Event(type, { bubbles: true })); }
+  // R182: task times are the STUDIO's wall clock (BPStore.studioTimezone), not the device's. When the device shows a different
+  // clock (an owner abroad), the picker says so plainly and spells out the time in both zones - never silent.
+  function zoneOf(opts) {
+    var tz = "";
+    try { tz = typeof opts.tz === "function" ? opts.tz() : (opts.tz || ""); } catch (e) { tz = ""; }
+    if (!tz) { try { tz = global.BPStore && typeof global.BPStore.studioTimezone === "function" ? global.BPStore.studioTimezone() : ""; } catch (e) { tz = ""; } }
+    var T = global.HelmStudioTime;
+    return T && T.validTz(tz) ? tz : "";
+  }
+  function zoneDiffers(tz) { var T = global.HelmStudioTime; return !!(tz && T && !T.sameClock(tz, new Date())); }
   var LIST_ID = "helmWhenTimes";
   function timeList() {
     if (doc.getElementById(LIST_ID)) return LIST_ID;
@@ -111,6 +126,21 @@
     }
     var out = el("p", "whenp-words"); out.setAttribute("aria-live", "polite"); out.id = base + "_w";
     wrap.appendChild(out);
+    var zone = null, zoneTimer = null;
+    if (opts.zoneNote !== false && global.HelmStudioTime) {
+      zone = el("p", "whenp-zone"); zone.id = base + "_z"; zone.hidden = true;
+      wrap.appendChild(zone);
+    }
+    function zoneUpdate() {
+      if (!zone) return;
+      if (!doc.contains(wrap)) { if (zoneTimer) { clearInterval(zoneTimer); zoneTimer = null; } }
+      var tz = zoneOf(opts), T = global.HelmStudioTime;
+      if (!zoneDiffers(tz)) { zone.hidden = true; zone.textContent = ""; return; }
+      var lb = T.zoneLabel(tz), now = new Date();
+      zone.textContent = "\uD83C\uDF10 Times here are in the studio's time zone - " + lb.long + " (" + lb.abbr + "). It's " +
+        T.fmt(now, tz) + " there now (your device: " + T.fmtDevice(now) + ").";
+      zone.hidden = false;
+    }
     input.parentNode.insertBefore(wrap, input.nextSibling);
     var lbl = input.id ? doc.querySelector('label[for="' + input.id + '"]') : null;
     if (lbl) lbl.htmlFor = date.id;
@@ -124,6 +154,13 @@
       if (m) { if (date.value !== m[1]) date.value = m[1]; var hm = parseTimeLoose(time.value); if (hm !== m[2]) time.value = label12(m[2]); }
       else if (!v) { /* keep a half-typed value in the fields */ }
       var w = words(v);
+      if (w) {
+        var tz = zoneOf(opts), T = global.HelmStudioTime;
+        if (zoneDiffers(tz) && m) {
+          var at = T.wallToUtc(m[1], m[2], tz);
+          w += " " + T.zoneLabel(tz, at).abbr + (isNaN(at.getTime()) ? "" : " (= " + T.fmtDevice(at) + " on your device)");
+        }
+      }
       out.textContent = w ? w : (date.value && !parseTimeLoose(time.value) ? "Pick a time" : "");
       out.classList.toggle("whenp-need", !w && !!date.value);
       time.classList.toggle("whenp-bad", !!String(time.value).trim() && !parseTimeLoose(time.value));
@@ -162,6 +199,8 @@
     // a caller's input.focus() (it is hidden now) lands on the picker
     try { input.focus = function () { api.focus(); }; } catch (e) { /* read-only in some engines */ }
     show();
+    zoneUpdate();
+    if (zone) zoneTimer = setInterval(zoneUpdate, 30000);
     return api;
   }
 
