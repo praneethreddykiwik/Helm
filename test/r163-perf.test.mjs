@@ -147,7 +147,8 @@ await t('Realtime: the bell opens no channel off the Chat page; every channel cl
   assert.match(STORE, /kicked = true; liveRefresh\(\);\n[^\n]*\n[^\n]*\n\s+if \(pageKey\(\) !== "chat"\) return;\n\s+try \{ if \(chat && chat\.subscribe\) \{ csub = chat\.subscribe\(/);
   assert.match(STORE, /const RT_IDLE_MS = 60000;\n  function rtLive\(make, onBack\) \{/);
   assert.equal((STORE.match(/return rtLive\(\(\) => supa\.channel\(/g) || []).length, 3, 'versions, leads, chat');
-  assert.equal((STORE.match(/supa\.channel\(/g) || []).length, 3, 'no channel outside rtLive');
+  assert.equal((STORE.match(/supa\.channel\(/g) || []).length, 4, 'no channel outside rtLive (R174b: + the presence channel)');
+  assert.match(STORE, /rtLive\(\(\) => \{\n\s+const c = supa\.channel\("presence:org:"/, 'R174b presence channel goes through rtLive');
   assert.match(STORE, /spec\.filter = "org_id=eq\." \+ oid;/);
 });
 

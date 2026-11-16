@@ -128,6 +128,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0361_r170_staff_email.sql
 -- 0363 (R172) adds staff_update_outbox + staff_links to the purge list after 0361
 \ir ../../supabase/migrations/0363_r172_update_notices_staff_link.sql
+-- 0366 (R174b) adds member_presence (chat online status) to the purge list after 0363
+\ir ../../supabase/migrations/0366_r174b_presence.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

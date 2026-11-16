@@ -341,7 +341,7 @@
       { sel: "#convSearch", title: "Find a chat", desc: "Search people, groups and event chats." },
       { sel: "#chips", title: "Filters", desc: "Show all chats, only unread, groups or event chats." },
       { sel: "#plusBtn", title: "Start a chat", desc: "Message one teammate or make a group." },
-      { sel: "#convList", title: "Your chats", desc: "Every conversation, newest first. A dot means something unread." },
+      { sel: "#convList", title: "Your chats", desc: "Every conversation, newest first. The small dot on a photo: green = online now, amber = away, grey = offline (hover for last active). Turn yours off in the ⋮ menu." },
       { sel: "#composer", title: "Write a message", desc: "Type, attach a photo or file, or record a voice note. @name tags a teammate." },
       { sel: "#searchBtn", title: "Search this chat", desc: "Find an old message in the open conversation." },
     ],

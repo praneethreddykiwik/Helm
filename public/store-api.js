@@ -1947,6 +1947,8 @@ window.HelmUrl = HelmUrl;
             mode = "supabase";
             await runPageGate();          // protected page: confirm session + studio before it shows
             if (await toolQuoteRef()) await HANG();
+            // R174b (0366): "who is online" - one presence channel per tab, started after the page shows (studio app pages only)
+            try { setTimeout(() => { try { presence.autoStart(); } catch (e) {} }, 1500); } catch (e) {}
             return mode;
           }
         } catch (e) { console.warn("[BPStore] Supabase init error, falling back:", e && e.message); }
@@ -10933,11 +10935,143 @@ window.HelmUrl = HelmUrl;
     simulatePayment: (quoteId, name) => rpc("trial_member_simulate_payment", { p_quote: quoteId, p_client_name: name || null,
       p_user_agent: (typeof navigator !== "undefined" && navigator.userAgent) || null }),
   };
+  /* ---------------- R174b (0366): who is online in my studio ----------------
+     Live: Supabase Realtime presence on ONE private channel per tab, "presence:org:<studio id>" (0366 realtime policies let
+     a signed-in person join only their own studio's channel). Each tab tracks only { u: user id, s: "online" | "away" }.
+     Away = tab hidden, or no mouse / key / touch / scroll for 5 minutes. After a minute hidden, or when the tab closes, the
+     channel closes (rtLive, like every channel) and I show as offline with my last active time.
+     Last active: presence_touch() at most every 3 minutes while active (the server also writes at most once per 2 minutes);
+     presence_list() (own studio, people who chose to be shown) is read at most every 2 minutes, and only while a page shows
+     dots. "Show when I am online" off (presence_set_visible): this tab stops tracking and the server hides my last active time.
+     Pages mark a dot with <span data-presence-uid="<user id>"></span>; paint() styles it (CSSOM only, no HTML strings). */
+  const presence = (() => {
+    const IDLE_MS = 5 * 60000, TOUCH_MS = 3 * 60000, LIST_MS = 2 * 60000, TICK_MS = 60000;
+    let ch = null, started = false, live = {}, seen = {}, hidden = new Set(), meShow = true, myState = "", lastAct = Date.now(),
+      lastTouch = 0, listAt = 0, listing = null, timer = null, liveOk = false, listOk = true;
+    const subs = new Set();
+    const uid = () => (currentUser && currentUser.id) || "";
+    const emit = () => { subs.forEach((fn) => { try { fn(); } catch (e) {} }); try { paint(); } catch (e) {} };
+    function stateNow() { return (typeof document !== "undefined" && document.hidden) || Date.now() - lastAct > IDLE_MS ? "away" : "online"; }
+    async function track(force) {
+      if (!ch || !liveOk || !meShow) return;
+      const st = stateNow(); if (!force && st === myState) return; myState = st;
+      try { await ch.track({ u: uid(), s: st }); } catch (e) {}
+    }
+    function readLive() {
+      const out = {}; let ps = {}; try { ps = ch ? ch.presenceState() : {}; } catch (e) { ps = {}; }
+      Object.keys(ps || {}).forEach((k) => (ps[k] || []).forEach((m) => { const u = m && m.u; if (!u) return;
+        if (out[u] !== "online") out[u] = m.s === "online" ? "online" : "away"; }));
+      live = out; emit();
+    }
+    async function touch(force) {
+      if (!meShow || !supa || !uid()) return;
+      if (!force && Date.now() - lastTouch < TOUCH_MS) return; lastTouch = Date.now();
+      try { await supa.rpc("presence_touch"); } catch (e) {}
+    }
+    async function refreshList(force) {
+      if (!supa || !uid() || !listOk) return;
+      if (!force && Date.now() - listAt < LIST_MS) return listing; listAt = Date.now();
+      listing = (async () => {
+        const { data, error } = await supa.rpc("presence_list");
+        if (error) { if (rpcMissing(error)) listOk = false; return; }
+        const d = data || {}; meShow = d.me_show !== false; seen = {}; hidden = new Set((d.hidden || []).map(String));
+        (d.people || []).forEach((p) => { if (p && p.user_id) seen[p.user_id] = p.last_seen_at || null; });
+        emit();
+      })().catch(() => {});
+      return listing;
+    }
+    function hasDots() { try { return typeof document !== "undefined" && !!document.querySelector("[data-presence-uid]"); } catch (e) { return false; } }
+    function tick() {
+      track(false); if (stateNow() === "online") touch(false);
+      if (hasDots()) refreshList(false);
+    }
+    async function startLive(orgId) {
+      if (!supa || typeof supa.channel !== "function") return;   // joined even when I am hidden: I still see others (I just do not track)
+      // rtLive (as every channel): closed after a minute in a hidden tab (I then show as offline), reopened when it is back
+      try {
+        rtLive(() => {
+          const c = supa.channel("presence:org:" + orgId, { config: { private: true, presence: { key: uid() } } });
+          c.on("presence", { event: "sync" }, readLive).on("presence", { event: "join" }, readLive).on("presence", { event: "leave" }, readLive);
+          c.subscribe((status) => {
+            if (status === "SUBSCRIBED") { liveOk = true; myState = ""; track(true); }
+            else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") { liveOk = false; live = {}; emit(); }   // no live dots: last active times still show
+          });
+          ch = c; return c;
+        }, () => { myState = ""; });
+      } catch (e) { ch = null; }
+    }
+    function bump() { const was = stateNow(); lastAct = Date.now(); if (was !== "online") { track(false); touch(false); } }
+    async function autoStart() {
+      if (started || mode !== "supabase" || !supa || !uid()) return;
+      if (typeof document === "undefined" || document.documentElement.getAttribute("data-shell") !== "b") return;   // studio app pages only
+      let orgId = null; try { orgId = swrOrg(uid()) || (await orgIdStrict()); } catch (e) { orgId = null; }
+      if (!orgId || !/^[0-9a-f-]{36}$/i.test(String(orgId))) return;
+      started = true;
+      await refreshList(true);
+      if (meShow) touch(true);
+      await startLive(orgId);
+      ["mousemove", "keydown", "touchstart", "scroll", "click"].forEach((ev) => { try { global.addEventListener(ev, bump, { passive: true }); } catch (e) {} });
+      try { document.addEventListener("visibilitychange", () => { if (!document.hidden) lastAct = Date.now(); track(false); if (!document.hidden) { touch(false); if (hasDots()) refreshList(false); } }); } catch (e) {}
+      timer = setInterval(tick, TICK_MS);
+    }
+    // { status: "online" | "away" | "offline" | "hidden", lastSeen, label }
+    function status(u) {
+      u = String(u || ""); if (!u) return { status: "offline", lastSeen: null, label: "" };
+      if (u === uid()) return { status: meShow ? (stateNow() === "online" ? "online" : "away") : "hidden", lastSeen: null, label: meShow ? "You" : "You (hidden)" };
+      if (hidden.has(u)) return { status: "hidden", lastSeen: null, label: "" };
+      const lv = live[u], ls = seen[u] || null;
+      if (lv === "online") return { status: "online", lastSeen: ls, label: "Online now" };
+      if (lv === "away") return { status: "away", lastSeen: ls, label: "Away" };
+      return { status: "offline", lastSeen: ls, label: lastSeenLabel(ls) };
+    }
+    function lastSeenLabel(ts) {
+      const t = ts ? new Date(ts).getTime() : NaN; if (!isFinite(t)) return "Offline";
+      const m = Math.max(0, Math.round((Date.now() - t) / 60000));
+      if (m < 3) return "Active just now"; if (m < 60) return "Active " + m + " min ago";
+      const h = Math.floor(m / 60); if (h < 24) return "Last seen " + h + " h ago";
+      if (h < 48) return "Last seen yesterday";
+      try { return "Last seen " + new Date(t).toLocaleDateString("en-IN", { day: "numeric", month: "short" }); } catch (e) { return "Offline"; }
+    }
+    const COLORS = { online: "#22a35a", away: "#f0a020", offline: "#aab3ae" };
+    // style every [data-presence-uid] under root: a dot (green online / amber away / grey offline), title + aria-label
+    function paint(root) {
+      if (typeof document === "undefined") return;
+      const host = root || document; let els = [];
+      try { els = Array.prototype.slice.call(host.querySelectorAll("[data-presence-uid]")); } catch (e) { return; }
+      els.forEach((el) => {
+        const s = status(el.getAttribute("data-presence-uid"));
+        if (s.status === "hidden" || !started) { el.hidden = true; return; }
+        el.hidden = false; el.setAttribute("data-presence", s.status);
+        el.setAttribute("role", "img"); el.setAttribute("aria-label", s.label); el.setAttribute("title", s.label);
+        const st = el.style; st.display = "inline-block"; st.width = st.height = el.getAttribute("data-presence-size") || "11px";
+        st.borderRadius = "50%"; st.background = COLORS[s.status] || COLORS.offline; st.boxShadow = "0 0 0 2px #fff"; st.flex = "none";
+        if (el.hasAttribute("data-presence-corner")) { st.position = "absolute"; st.right = "0"; st.bottom = "0"; st.zIndex = "1"; }
+      });
+    }
+    return {
+      autoStart, status, paint, lastSeenLabel,
+      onChange(fn) { if (typeof fn === "function") subs.add(fn); return () => subs.delete(fn); },
+      // load last active times now (pages that show dots call this once after rendering)
+      refresh: () => refreshList(true),
+      showingMe: () => meShow,
+      // my own "Show when I am online" switch
+      async setVisible(on) {
+        if (mode !== "supabase" || !supa) return { ok: false };
+        const { data, error } = await supa.rpc("presence_set_visible", { p_show: !!on });
+        if (error) { if (rpcMissing(error)) return { ok: false, missing: true }; throw error; }
+        meShow = !!on;
+        if (ch && liveOk) { try { if (meShow) { myState = ""; await track(true); } else await ch.untrack(); } catch (e) {} }
+        if (meShow) touch(true);
+        emit(); return data || { ok: true };
+      },
+    };
+  })();
+
   const BPStore = {
     reservedEmailDomain, RESERVED_EMAIL_MESSAGE, preauthorisedHqEmail,
     isStaffEmail, STAFF_GOOGLE_MESSAGE, staffGoogleOnlyFor, staffGoogleSessionCheck,
     taskReminders,   // R130 (0338)
-    activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
+    activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
     // User manual (migration 0031): lives in the PRIVATE storage bucket "helm-manual",
     // readable only by signed-in users. Returns { html, files: { "screenshots/x.webp": signedUrl } }
     // or throws { code: "manual_missing" } when the owner hasn't uploaded it yet.
