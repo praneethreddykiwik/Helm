@@ -9,8 +9,9 @@
 # A failure turns the run red and GitHub e-mails you. It blocks nothing (warn only).
 # Channel checks (a real test e-mail / WhatsApp) run ONLY by hand with include_channel_check, and only to the owner.
 #
-# Every job is guarded to the DEV repo (koushik1133/Helm): the same files are pushed to the public prod repo,
-# where this workflow must not run or use minutes. Production is still covered by the schedule below.
+# Dev repo (koushik1133/Helm): deploys of staging, the schedule and manual runs.
+# Public prod repo (praneethreddykiwik/Helm, Actions are free there): R180 - ONLY right after a production deploy
+# of www.helm.events, or by hand; never the schedule (the dev repo covers prod) and never the channel check.
 name: Smoke
 
 on:
@@ -55,13 +56,21 @@ jobs:
     # R178: Vercel reports each deploy at its own unique address (helm-v01-<hash>-<team>.vercel.app), so a
     # dev-repo deploy is recognised by its environment name 'Production' (= the helm-v01 staging site);
     # 'Preview' deploys (pull requests) are still skipped.
+    # R180: the PUBLIC prod repo (praneethreddykiwik/Helm, Actions are free there) now also runs it, but ONLY
+    # right after a successful production deploy of www.helm.events, or by hand - never on the schedule (the dev
+    # repo's schedule already covers prod) and never the channel check (its logs are public).
     if: >-
-      github.repository == 'koushik1133/Helm' &&
-      (github.event_name != 'deployment_status' ||
-       (github.event.deployment_status.state == 'success' &&
-        (github.event.deployment.environment == 'Production' ||
-         contains(github.event.deployment_status.environment_url, 'helm-v01.vercel.app') ||
-         contains(github.event.deployment_status.environment_url, 'helm.events'))))
+      (github.repository == 'koushik1133/Helm' &&
+       (github.event_name != 'deployment_status' ||
+        (github.event.deployment_status.state == 'success' &&
+         (github.event.deployment.environment == 'Production' ||
+          contains(github.event.deployment_status.environment_url, 'helm-v01.vercel.app') ||
+          contains(github.event.deployment_status.environment_url, 'helm.events'))))) ||
+      (github.repository == 'praneethreddykiwik/Helm' &&
+       (github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'deployment_status' &&
+         github.event.deployment_status.state == 'success' &&
+         github.event.deployment.environment == 'Production')))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -77,6 +86,7 @@ jobs:
         id: plan
         env:
           EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
           SCHEDULE: ${{ github.event.schedule }}
           DEPLOY_URL: ${{ github.event.deployment_status.environment_url }}
           IN_TARGET: ${{ inputs.target }}
@@ -90,7 +100,8 @@ jobs:
           case "$EVENT" in
             deployment_status)
               # the dev repo deploys only staging (helm-v01); prod (www.helm.events) is deployed from the prod repo
-              if [[ "$DEPLOY_URL" == *helm.events* && "$DEPLOY_URL" != *vercel.app* ]]; then targets="prod"; else targets="staging"; fi
+              # the dev repo deploys only staging (helm-v01); the prod repo deploys www.helm.events
+              if [[ "$REPO" == "praneethreddykiwik/Helm" ]] || [[ "$DEPLOY_URL" == *helm.events* && "$DEPLOY_URL" != *vercel.app* ]]; then targets="prod"; else targets="staging"; fi
               sleep 45   # let the helm-v01 alias switch to the new deploy before checking it
               browser=1; signed=1; compare=1 ;;
             schedule)
@@ -106,6 +117,8 @@ jobs:
           esac
           # channel checks are NEVER allowed outside a manual run
           [[ "$EVENT" == "workflow_dispatch" ]] || channel=0
+          # never on the public prod repo (public logs, no owner secrets there)
+          [[ "$REPO" == "praneethreddykiwik/Helm" ]] && channel=0
           { echo "targets=$targets"; echo "browser=$browser"; echo "signed=$signed"; echo "channel=$channel"; echo "compare=$compare"; } >> "$GITHUB_OUTPUT"
           echo "Smoke plan: targets=[$targets] browser=$browser signed_in=$signed channel=$channel compare_version=$compare" | tee -a "$GITHUB_STEP_SUMMARY"
 
