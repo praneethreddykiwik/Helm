@@ -47,3 +47,6 @@ supabase/staging-seed-admin.sql
 # Internal audit/comparison reports — keep local, never commit
 AUDIT-CURRENT-STATE-*
 .trytest/
+
+# R176 smoke-test output (results JSON, failure screenshots)
+tests/smoke/out/

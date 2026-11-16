@@ -69,7 +69,15 @@ if (!base) {
   const leak = (b) => /\/var\/task|ENOENT|at\s+\w+\s+\(|\.js:\d+:\d+|filesystem/i.test(b);
 
   try {
-    for (const p of ["/api/health", "/api/layouts"]) {
+    // R168: /api/health is now the ONE intended function (api/health.js: trivial {ok:true}, no DB, no secrets).
+    // Every other /api/* path must still 404 (server.js is never executed in production).
+    {
+      const r = await get("/api/health");
+      let j = null; try { j = JSON.parse(r.body); } catch (_) { j = null; }
+      (r.status === 200 && j && j.ok === true) ? ok("/api/health -> 200 {ok:true} (R168 health function only)") : bad(`/api/health -> ${r.status} (expected the R168 health function: 200 {ok:true})`);
+      leak(r.body) ? bad("/api/health response leaks a path/stack/internal error") : ok("/api/health response has no path/stack leak");
+    }
+    for (const p of ["/api/layouts"]) {
       const r = await get(p);
       r.status === 404 ? ok(`${p} -> 404 (server.js not executing)`) : bad(`${p} -> ${r.status} (expected 404; server.js may still run)`);
       leak(r.body) ? bad(`${p} response leaks a path/stack/internal error`) : ok(`${p} response has no path/stack leak`);
