@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (322 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (321 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4092 objects): body 170, bucket 9, col 228, con 403, cron 19, exec 4, fn 1846, idx 475, marker 15, pol 184, polexpr 4, pre 101, pub 5, seq 1, tbl 267, trg 359, view 2.
+-- What is checked (4090 objects): body 168, bucket 9, col 228, con 403, cron 19, exec 4, fn 1845, idx 475, marker 17, pol 184, polexpr 4, pre 100, pub 5, seq 1, tbl 267, trg 359, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -904,6 +904,7 @@ with o(m, k, s, n, x) as (values
   ('0032_rescore2_fixes', 'fn', 'public', 'verify_and_consent__base', 'uuid,text,text,boolean,text,text,text,text'),
   ('0032_rescore2_fixes', 'fn', 'public', 'helm_otp_phone_on_file', 'jsonb'),
   ('0032_rescore2_fixes', 'trg', 'public.organizations', 'ab_mass_assign_guard', null),
+  ('0032_rescore2_fixes', 'marker', 'public', 'tg_refund_maker_checker', '|rescore2-0032'),
   ('0033_rescore3_fixes', 'body', 'public', '_flag', 'text|adfc7af6485f660ca3ac5cef66200b0f'),
   ('0033_rescore3_fixes', 'body', 'public', '_flag', 'text,uuid|32e57e7ec220ad14f1898c45528a1758'),
   ('0033_rescore3_fixes', 'fn', 'public', '_notify__base', 'uuid,text,text,text,jsonb'),
@@ -917,6 +918,7 @@ with o(m, k, s, n, x) as (values
   ('0033_rescore3_fixes', 'fn', 'public', 'export_tenant_organization_package__base', ''),
   ('0033_rescore3_fixes', 'trg', 'public.event_tasks', 'zz_ref_org_match_depends_on', null),
   ('0033_rescore3_fixes', 'trg', 'public.quotes', 'zz_ref_org_match_manager_id', null),
+  ('0033_rescore3_fixes', 'marker', 'public', 'tg_guard_task_verify', '|rescore3-0033'),
   ('0034_display_names', 'fn', 'public', '_clean_display_name', 'text'),
   ('0034_display_names', 'fn', 'public', 'set_my_display_name', 'text'),
   ('0034_display_names', 'fn', 'public', 'admin_set_display_name', 'uuid,text'),
@@ -1327,6 +1329,7 @@ with o(m, k, s, n, x) as (values
   ('0055_phone_verify', 'fn', 'public', 'phone_verify_request', 'uuid,text'),
   ('0055_phone_verify', 'fn', 'public', 'phone_verify_check', 'text'),
   ('0055_phone_verify', 'fn', 'public', 'phone_verify_status', ''),
+  ('0055_phone_verify', 'marker', 'public', '_mp_mobile', 'text,text|including the country code'),
   ('0056_onboarding_checkout', 'col', 'public.helm_billing_settings', 'allow_trial_bypass', null),
   ('0056_onboarding_checkout', 'col', 'public.helm_billing_settings', 'online_payments_live', null),
   ('0056_onboarding_checkout', 'col', 'public.helm_billing_settings', 'terms_version', null),
@@ -3812,10 +3815,10 @@ with o(m, k, s, n, x) as (values
   ('0338_r130_task_reminders', 'fn', 'public', 'task_wa_status', 'uuid'),
   ('0338_r130_task_reminders', 'cron', null, 'helm-task-reminders', null),
   ('0338_r130_task_reminders', 'fn', 'public', 'task_reminder_tick', 'timestamp with time zone'),
-  ('0340_r136_audit_via', 'body', 'public', 'sync_quote_to_lead', '|8ccf6daf0d9c0420c0d4a06d8f4ab940'),
-  ('0340_r136_audit_via', 'body', 'public', 'tg_audit', '|44a5d2f34204ade8d038cef2a27ef6b8'),
   ('0340_r136_audit_via', 'fn', 'public', '_r340_keep', 'text'),
   ('0340_r136_audit_via', 'pre', null, '__pre0340', null),
+  ('0340_r136_audit_via', 'marker', 'public', 'sync_quote_to_lead', '|audit-via-0340'),
+  ('0340_r136_audit_via', 'marker', 'public', 'tg_audit', '|audit-via-0340'),
   ('0341_r139_token_lookup_limits', 'body', 'public', 'public_get_quote', 'uuid|fd1b9f962e5279864bffb2e43cc3b11c'),
   ('0341_r139_token_lookup_limits', 'body', 'public', 'public_get_portal', 'uuid|2d6ca88353cb08d1e2e138c226e3d333'),
   ('0341_r139_token_lookup_limits', 'body', 'public', 'public_event_site', 'text|2789864f30915c360419728ac90e3118'),
@@ -4111,12 +4114,7 @@ with o(m, k, s, n, x) as (values
   ('0366_r174b_presence', 'trg', 'public.member_presence', 'zzz_studio_read_only', null),
   ('0366_r174b_presence', 'fn', 'public', 'presence_touch', ''),
   ('0366_r174b_presence', 'fn', 'public', 'presence_list', ''),
-  ('0366_r174b_presence', 'fn', 'public', 'presence_set_visible', 'boolean'),
-  ('0367_r177_plain_dash_reissue', 'fn', 'public', '_r367_keep', 'text'),
-  ('0367_r177_plain_dash_reissue', 'pre', null, '__pre0367', null),
-  ('0367_r177_plain_dash_reissue', 'marker', 'public', 'tg_refund_maker_checker', '|r177-0367'),
-  ('0367_r177_plain_dash_reissue', 'marker', 'public', 'tg_guard_task_verify', '|r177-0367'),
-  ('0367_r177_plain_dash_reissue', 'marker', 'public', '_mp_mobile', 'text,text|r177-0367')
+  ('0366_r174b_presence', 'fn', 'public', 'presence_set_visible', 'boolean')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4151,8 +4149,8 @@ mig(ord, m, ov, note) as (values
   (30, '0029_platform_admin', null, null),
   (31, '0030_password_rule_symbols', null, null),
   (32, '0031_manual_private_bucket', null, null),
-  (33, '0032_rescore2_fixes', null, null),
-  (34, '0033_rescore3_fixes', null, null),
+  (33, '0032_rescore2_fixes', null, 'tg_refund_maker_checker checked by its rescore2-0032 marker: the live text differs only in punctuation (a long dash lost when the APPLY was pasted), same logic'),
+  (34, '0033_rescore3_fixes', null, 'tg_guard_task_verify checked by its rescore3-0033 marker: the live text differs only in punctuation (a long dash lost when the APPLY was pasted), same logic'),
   (35, '0034_display_names', null, null),
   (36, '0035_event_groups_mentions', null, null),
   (37, '0036_notification_prefs', null, null),
@@ -4174,7 +4172,7 @@ mig(ord, m, ov, note) as (values
   (53, '0052_lifecycle_reapproval', null, null),
   (54, '0053_password_lockout', null, null),
   (55, '0054_security_alerts', null, null),
-  (56, '0055_phone_verify', null, null),
+  (56, '0055_phone_verify', null, '_mp_mobile checked by its +country rule text: the live text differs only in punctuation (a long dash lost when the APPLY was pasted), same logic'),
   (57, '0056_onboarding_checkout', null, null),
   (58, '0057_welcome_email', null, null),
   (59, '0058_trial_reminders', null, null),
@@ -4417,7 +4415,7 @@ mig(ord, m, ov, note) as (values
   (296, '0336_r128_security_fixes', null, null),
   (297, '0337_r129_studio_whatsapp', null, null),
   (298, '0338_r130_task_reminders', null, null),
-  (299, '0340_r136_audit_via', null, null),
+  (299, '0340_r136_audit_via', null, 'tg_audit / sync_quote_to_lead checked by their audit-via-0340 marker (the live bodies can differ in text from the file, e.g. kept 0164 logic), kept bodies as __pre0340'),
   (300, '0341_r139_token_lookup_limits', null, null),
   (301, '0342_r143_outbox_backoff', null, null),
   (302, '0343_r148_rls_initplan', null, 'ALTER POLICY only (calls wrapped as (select ...)); besides the kept helpers, 4 sample policies are checked for the wrapped form - run select * from public._r343_unwrapped() for the full list (0 rows expected)'),
@@ -4439,8 +4437,7 @@ mig(ord, m, ov, note) as (values
   (318, '0363_r172_update_notices_staff_link', null, null),
   (319, '0364_r173_task_timing', null, null),
   (320, '0365_r174_event_day_board', null, null),
-  (321, '0366_r174b_presence', null, 'The two realtime.messages policies (own studio private presence channel) are created only where the Supabase realtime schema exists; local and CI databases have none. On prod check them with: select policyname from pg_policies where schemaname = realtime and policyname like helm_presence_%'),
-  (322, '0367_r177_plain_dash_reissue', null, 'three functions re-issued with plain dashes (built with dynamic SQL, only where the known body is live), checked by the r177-0367 marker; kept bodies as __pre0367')
+  (321, '0366_r174b_presence', null, 'The two realtime.messages policies (own studio private presence channel) are created only where the Supabase realtime schema exists; local and CI databases have none. On prod check them with: select policyname from pg_policies where schemaname = realtime and policyname like helm_presence_%')
 ),
 env as (
   select
