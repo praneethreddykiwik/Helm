@@ -10,6 +10,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import { checkOwnerFile } from './_owner-file.mjs';
 const rd = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const API = rd('public/store-api.js'), SET = rd('public/payment-schedule-settings.js'), CC = rd('public/control.html');
 const SQL = rd('supabase/migrations/0285_r35_payment_details_safety.sql'), APPLY = rd('supabase/APPLY-0285.sql');
@@ -265,6 +266,6 @@ await t('D4 APPLY-0285: migration verbatim between begin / commit + VERIFY rows;
   // 0285 sits after 0283 (it requires it) and before any later release
   for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0282', '0283', '0285'(, '0[23]\d\d')*\]/, f);
   const owner = new URL('file:///Users/koushikgoudshaganti/Desktop/Agency/Helm/APPLY-0285.sql');
-  if (existsSync(owner)) assert.equal(readFileSync(owner, 'utf8'), APPLY);
+  checkOwnerFile(owner, APPLY, assert);   // R175: skips an iCloud-offloaded copy
 });
 console.log(process.exitCode ? 'r35-paysafe: FAILED' : `r35-paysafe: ${n} passed`);

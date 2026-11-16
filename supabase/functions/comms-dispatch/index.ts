@@ -410,7 +410,8 @@ Deno.serve(async (req) => {
         extra = marketingExtra(u, "Helm", FOLLOWUP_REASON, origin);
       }
       const follow = FOLLOWUP_KINDS.includes(kind);
-      const html = msg && extra && msg.html ? placeFooter(msg.html, extra.footer) : undefined;
+      // R175: some retention kinds return text only; the `in` check narrows the union (same behaviour as before)
+      const html = msg && extra && "html" in msg && msg.html ? placeFooter(msg.html, extra.footer) : undefined;
       const res: Res = msg && extra ? await sendEmail(id, to, msg.subject, msg.text, "Helm", follow ? { reply_to: FOLLOWUP_REPLY_TO } : {}, extra, html) : "skipped";
       const { error: mErr } = await admin.rpc("trial_retention_email_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
       if (mErr) { log.error("retention mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
