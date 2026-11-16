@@ -105,6 +105,7 @@
 .mon-offnote{display:block;margin-top:3px!important;color:var(--m-late)!important;font-weight:600}
 .mon-factbtn{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline;text-decoration-color:var(--m-line);text-underline-offset:3px}
 .mon-factbtn:hover,.mon-factbtn:focus-visible{text-decoration-color:currentColor}
+.mon-ci>p,.mon-act-bar small{font-size:13px;margin:0}
 .mon-ci-list{display:grid;border-top:1px solid var(--m-line-2);margin-top:8px}
 .mon-ci-row{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--m-line-2)}
 .mon-ci-row:last-child{border-bottom:0}.mon-ci-row.is-late{background:linear-gradient(90deg,var(--m-late-soft),transparent 70%)}
