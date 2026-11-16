@@ -49,7 +49,7 @@ test("planner-1023: role gates match the server", () => {
   const ops = read("public/ops.html"), flow = read("public/flow.html"), shell = read("public/shell-b.js"), iss = read("public/issues.html");
   // R130 (0338): Remind due / Fire due are gone (reminders run on their own); view-only roles still get no edit buttons
   assert.doesNotMatch(ops, /id="remindDue"|id="fireDue"/);
-  assert.match(ops, /\$\{canEditOps&&\['rejected','assigned'\]\.includes\(t\.status\)/);
+  assert.match(ops, /canEditOps&&\['rejected','assigned'\]\.includes\(t\.status\)/);   // R173: inside rowActs (same gate)
   assert.match(flow, /if\(!canEdit\) \["#q_save","#sendApproval"\]\.forEach/);
   assert.match(shell, /while \(ref && ref\.parentNode !== admin\) ref = ref\.parentNode;/);
   assert.match(iss, /<base href="\/">/);

@@ -133,7 +133,7 @@ await t("Settings -> Automations lists the switch; the page tour explains the bo
   assert.match(a, /\{ key: "staff_email", group: "outside", name: "E-mail staff their tasks", sends: \["crew"\], how: "E-mail",/);
   const pt = read("public/page-tours.js");
   assert.match(pt, /\{ sel: "#assignEmailWrap", title: "Send by email(?: or WhatsApp)?",/);
-  assert.match(pt, /by email to staff with an email address/);
+  assert.match(pt, /by email to each staff record address/);   // R173 wording (no phone needed)
 });
 
 console.log(`\nr170-staff-email: ${pass} passed, ${fail} failed`);

@@ -4,8 +4,13 @@
    every 15 minutes up to 3 times, then the office is told; everything explained in Settings and the guide. Messages go
    out only from the studio's own WhatsApp number (wa-setup-note.js says when it is not set up).
    API (window.HelmTaskReminders):
-     schedFields(container, task, settings) -> { value() }   Schedule task popup: tick boxes + custom minutes
+     schedFields(container, task, settings[, opts]) -> { value(), times() }   Schedule task popup / Assign form:
+         tick boxes + custom minutes + R173 (0364) reminders at an exact clock time
          value(): null = "use the studio default", or a list of minutes (may be [] = no reminders for this task)
+         times(): the exact times as ISO strings ([] = none); throws (and shows the error) when one is not valid.
+         opts: { toLocal(iso) -> "YYYY-MM-DDTHH:MM" (studio clock), fromLocal(str) -> Date, start() -> ISO | null,
+                 idp: id prefix (two forms on one page) }
+     summary(task, settings, clock) -> string                    Live Status: "10 & 5 min before · 5:32 PM" 
      chip(row) -> { text, state, title } | null                 Live Status: the task's latest WhatsApp line
      settingsCard(host[, { store }])                            Settings -> Notifications -> Task reminders
      explain(settings) -> string                                 the plain-words rule shown in both places
@@ -40,7 +45,7 @@
     s = s || {};
     var before = sortMins(s.default_before == null ? [10, 5] : s.default_before);
     var every = Number(s.late_every_min) || 15, max = s.late_max == null ? 3 : Number(s.late_max);
-    var t = "When a task has a start time, the person on it gets a reminder by email (and WhatsApp once your number is connected) " + listText(before).replace(/^no reminders$/, "(no reminders)") + ". ";
+    var t = "When a task has a start time, the person on it gets a reminder by email (to the address on their staff record) and on WhatsApp (once your studio number is connected) " + listText(before).replace(/^no reminders$/, "(no reminders)") + ", plus any exact times set on the task. ";
     t += max > 0 ? "If it hasn't started by then, a late reminder goes every " + every + " minutes, up to " + max + " time" + (max === 1 ? "" : "s") + ". " : "Late reminders are off. ";
     if (s.alert_office !== false) t += "After that, the event manager is told (bell, email + WhatsApp). ";
     if (s.hold_waiting !== false) t += "A task that waits on an unfinished task gets its reminder once the earlier task is done. ";
@@ -52,6 +57,8 @@
   var WHAT = { assigned: "Task message", reminder: "Reminder", late: "Late reminder" };
   function chip(row) {
     if (!row || !row.status) return null;
+    // R173 (0364): no phone number on the task -> the reminder went by e-mail only
+    if (row.status === "skipped" && row.reason === "email_only") return { text: (WHAT[row.what] || "Reminder") + ": email only (no phone)", state: "none", title: "No phone number on this task, so the reminder went by email only." };
     var st = STATE[row.status] || [String(row.status), "none"];
     var text = (WHAT[row.what] || "WhatsApp") + ": " + st[0];
     var title = row.status === "failed" || row.status === "skipped" || row.status === "not_set_up" ? "Not delivered on WhatsApp - share the worker link by hand." : "";
@@ -67,25 +74,30 @@
   }
 
   // ---- Schedule task popup ---------------------------------------------------------------------------------------------
-  function schedFields(container, task, settings) {
-    if (!container) return { value: function () { return null; } };
+  function schedFields(container, task, settings, opts) {
+    if (!container) return { value: function () { return null; }, times: function () { return []; } };
+    opts = opts || {};
+    var P = /^[a-z]{1,8}$/.test(String(opts.idp || "")) ? String(opts.idp) : "trm";
     clear(container);
     var def = sortMins(settings && settings.default_before != null ? settings.default_before : [10, 5]);
     var own = task && Array.isArray(task.remind_before) ? sortMins(task.remind_before) : null;
     var useDef = own === null;
     var cur = own === null ? def : own;
     container.appendChild(el("legend", null, "Reminders (email + WhatsApp)"));
-    var dflt = checkbox("trm_def", "Use the studio default (" + listText(def) + ")", useDef);
+    var dflt = checkbox(P + "_def", "Use the studio default (" + listText(def) + ")", useDef);
     container.appendChild(dflt.wrap);
     var grid = el("div", "trm-grid");
-    var boxes = CHOICES.map(function (m) { var b = checkbox("trm_" + m, label(m), cur.indexOf(m) >= 0); b.input.value = String(m); grid.appendChild(b.wrap); return b; });
+    var boxes = CHOICES.map(function (m) { var b = checkbox(P + "_" + m, label(m), cur.indexOf(m) >= 0); b.input.value = String(m); grid.appendChild(b.wrap); return b; });
+    container.appendChild(el("p", "trm-sub", "Minutes before the start"));
     container.appendChild(grid);
-    var cw = el("div", "trm-custom"), cl = el("label", null, "Custom (minutes before)"); cl.htmlFor = "trm_custom";
-    var ci = el("input"); ci.id = "trm_custom"; ci.type = "text"; ci.inputMode = "numeric"; ci.maxLength = 30; ci.placeholder = "e.g. 45 or 20, 7";
+    var cw = el("div", "trm-custom"), cl = el("label", null, "Custom (minutes before)"); cl.htmlFor = P + "_custom";
+    var ci = el("input"); ci.id = P + "_custom"; ci.type = "text"; ci.inputMode = "numeric"; ci.maxLength = 30; ci.placeholder = "e.g. 45 or 20, 7";
     ci.value = cur.filter(function (m) { return CHOICES.indexOf(m) < 0; }).join(", ");
     cw.appendChild(cl); cw.appendChild(ci); container.appendChild(cw);
     var err = el("div", "lerr"); err.setAttribute("role", "alert"); err.hidden = true; container.appendChild(err);
-    container.appendChild(el("p", "muted hint", "Reminders go only when the task has a start time and the person has a phone number. The email goes to the address on their staff record (none on file = no email); WhatsApp goes once your studio number is connected. Tick \"At the start time\" for a \"due now\" reminder. Late reminders and the office alert follow Settings → Notifications → Task reminders."));
+    var at = exactTimes(container, task, opts, P, err);
+    container.appendChild(err);   // the error line under the exact times (it covers both parts)
+    container.appendChild(el("p", "muted hint", "Reminders need a start time on the task. The email goes to the address on the person's staff record (no email on file = no email). WhatsApp also needs a phone number on the staff record and your studio's WhatsApp number connected in Integrations. Tick \"At the start time\" for a \"due now\" reminder. Late reminders and the office alert follow Settings → Notifications → Task reminders."));
     function sync() { var off = dflt.input.checked; boxes.forEach(function (b) { b.input.disabled = off; }); ci.disabled = off; }
     dflt.input.addEventListener("change", function () {
       if (dflt.input.checked) { boxes.forEach(function (b) { b.input.checked = def.indexOf(Number(b.input.value)) >= 0; }); ci.value = def.filter(function (m) { return CHOICES.indexOf(m) < 0; }).join(", "); }
@@ -103,7 +115,87 @@
         if (mins.length > 8) { err.textContent = "At most 8 reminder times."; err.hidden = false; throw new Error("too many"); }
         return mins;
       },
+      times: function () { err.hidden = true; return at.read(); },
     };
+  }
+
+  // ---- R173 (0364): reminders at an exact clock time (e.g. 5:32 PM) ------------------------------------------------------------
+  // rows of <input type=datetime-local> holding the STUDIO clock (opts.toLocal / opts.fromLocal convert); checked against the
+  // start time read from the same form (opts.start). Server rules (set_task_reminder_times): at or before the start, at most
+  // 24 hours before it, a NEW time not in the past, at most 8.
+  var DAY_MS = 24 * 60 * 60 * 1000;
+  function checkTimes(list, startIso, saved, nowMs) {
+    var out = [], seen = {}, start = startIso ? Date.parse(startIso) : NaN, now = nowMs == null ? Date.now() : nowMs;
+    var keep = {}; (Array.isArray(saved) ? saved : []).forEach(function (x) { var t = Date.parse(x); if (isFinite(t)) keep[t] = 1; });
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      if (t == null || !isFinite(t)) return { ok: false, error: "Couldn't read one of the reminder times - pick a date and time." };
+      if (!isFinite(start)) return { ok: false, error: "Set a start time first - a reminder at an exact time needs one." };
+      if (t > start) return { ok: false, error: "A reminder time must be at or before the start time." };
+      if (t < start - DAY_MS) return { ok: false, error: "A reminder time can be at most 24 hours before the start." };
+      if (t < now - 60000 && !keep[t]) return { ok: false, error: "One of the reminder times has already passed - pick a later time." };
+      if (!seen[t]) { seen[t] = 1; out.push(t); }
+    }
+    if (out.length > 8) return { ok: false, error: "At most 8 reminder times at an exact time." };
+    out.sort(function (a, b) { return a - b; });
+    return { ok: true, times: out.map(function (t) { return new Date(t).toISOString(); }) };
+  }
+  function exactTimes(container, task, opts, P, err) {
+    var toLocal = typeof opts.toLocal === "function" ? opts.toLocal : null, fromLocal = typeof opts.fromLocal === "function" ? opts.fromLocal : null;
+    var saved = task && Array.isArray(task.remind_at) ? task.remind_at.slice() : [];
+    var box = el("div", "trm-at");
+    if (!toLocal || !fromLocal) return { read: function () { return saved; } };
+    box.appendChild(el("p", "trm-sub", "At an exact time"));
+    var list = el("div", "trm-at-list"); box.appendChild(list);
+    var add = el("button", "btn sm trm-at-add", "+ Add a time"); add.type = "button";
+    add.setAttribute("aria-label", "Add a reminder at an exact time");
+    box.appendChild(add);
+    box.appendChild(el("p", "muted hint", "For example 5:32 PM. It must be at or before the start time, at most 24 hours before it."));
+    container.appendChild(box);
+    var n = 0;
+    function startMs() { var s = typeof opts.start === "function" ? opts.start() : null; var t = s ? Date.parse(s) : NaN; return isFinite(t) ? t : null; }
+    function row(val) {
+      n += 1;
+      var r = el("div", "trm-at-row"), id = P + "_at" + n;
+      var lb = el("label", "trm-at-lbl", "Reminder at"); lb.htmlFor = id;
+      var inp = el("input"); inp.type = "datetime-local"; inp.id = id; inp.className = "trm-at-in";
+      var st = startMs();
+      if (st != null) { inp.max = toLocal(new Date(st).toISOString()); inp.min = toLocal(new Date(Math.max(st - DAY_MS, Date.now())).toISOString()); }
+      if (val) inp.value = val;
+      var rm = el("button", "btn sm trm-at-rm", "Remove"); rm.type = "button"; rm.setAttribute("aria-label", "Remove this reminder time");
+      rm.addEventListener("click", function () { list.removeChild(r); if (add) add.disabled = list.children.length >= 8; add.focus(); });
+      r.appendChild(lb); r.appendChild(inp); r.appendChild(rm); list.appendChild(r);
+      add.disabled = list.children.length >= 8;
+      return inp;
+    }
+    saved.forEach(function (x) { var v = toLocal(x); if (v) row(v); });
+    add.addEventListener("click", function () {
+      var st = startMs(), v = "";
+      if (st != null) { var t = st - 30 * 60000; if (t < Date.now()) t = st; v = toLocal(new Date(t).toISOString()); }
+      var inp = row(v); inp.focus();
+    });
+    return {
+      read: function () {
+        var vals = [], ins = list.querySelectorAll("input");
+        for (var i = 0; i < ins.length; i++) { var v = String(ins[i].value || "").trim(); if (!v) continue; var d = fromLocal(v); vals.push(d && isFinite(d.getTime()) ? d.getTime() : null); }
+        var c = checkTimes(vals, typeof opts.start === "function" ? opts.start() : null, saved);
+        if (!c.ok) { err.textContent = c.error; err.hidden = false; throw new Error(c.error); }
+        return c.times;
+      },
+    };
+  }
+
+  // Live Status: what reminders a task has, in a few words ("10 & 5 min before · 5:32 PM"); "" = none / no start time
+  function summary(task, settings, clock) {
+    if (!task || !task.planned_start) return "";
+    var mins = Array.isArray(task.remind_before) ? sortMins(task.remind_before) : sortMins(settings && settings.default_before != null ? settings.default_before : [10, 5]);
+    var parts = [];
+    var nums = mins.filter(function (x) { return x > 0; });
+    var head = nums.length ? (nums.length > 1 ? nums.slice(0, -1).join(", ") + " & " + nums[nums.length - 1] : String(nums[0])) + " min before" : "";
+    if (mins.indexOf(0) >= 0) head = head ? head + " & at start" : "at start";
+    if (head) parts.push(head);
+    (Array.isArray(task.remind_at) ? task.remind_at : []).forEach(function (x) { var t = typeof clock === "function" ? clock(x) : ""; if (t) parts.push(t); });
+    return parts.join(" · ");
   }
 
   // ---- Settings card ----------------------------------------------------------------------------------------------------------
@@ -159,7 +251,8 @@
     }, function () { host.hidden = true; return false; });
   }
 
-  var api = { schedFields: schedFields, chip: chip, settingsCard: settingsCard, explain: explain, parseCustom: parseCustom, sortMins: sortMins, listText: listText, CHOICES: CHOICES };
+  var api = { schedFields: schedFields, chip: chip, settingsCard: settingsCard, explain: explain, parseCustom: parseCustom, sortMins: sortMins, listText: listText, CHOICES: CHOICES,
+    checkTimes: checkTimes, summary: summary };
   global.HelmTaskReminders = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

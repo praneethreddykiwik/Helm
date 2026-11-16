@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=77"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=78"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -3960,6 +3960,9 @@ window.HelmUrl = HelmUrl;
     runReminders: (quoteId) => rpc("run_task_reminders", quoteId ? { p_quote: quoteId } : {}),
     // ---- R130 (0338): WhatsApp task reminders. setReminders(id, null) = the studio default; [] = none for this task ----
     setReminders: (taskId, mins) => rpc("set_task_reminders", { p_task: taskId, p_before: Array.isArray(mins) ? mins : null }),
+    // R173 (0364): reminders at an exact clock time (ISO strings; [] = none). Refusals (message): no_start_time | after_start |
+    // too_early | in_past | invalid_times. Staff edit, own studio.
+    setReminderTimes: (taskId, times) => rpc("set_task_reminder_times", { p_task: taskId, p_at: Array.isArray(times) && times.length ? times : null }),
     // { wa_ready, settings, tasks: [{ task_id, what, status, reason, at }] } or null (server without 0338)
     waStatus: (quoteId) => (supa && quoteId ? rpc("task_wa_status", { p_quote: quoteId }).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
     async setEventManager(quoteId, managerId) { const { error } = await supa.from("quotes").update({ manager_id: managerId }).eq("id", quoteId); if (error) throw error; return true; },
