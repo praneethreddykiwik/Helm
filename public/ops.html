@@ -128,7 +128,7 @@
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=4">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=75" id="shellProto"></script>
+<script src="/shell-proto.js?v=76" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -185,6 +185,7 @@
         <span class="crewwho" id="assignWho" aria-live="polite"></span>
         <select class="s-47b618f" id="assignVendor" hidden aria-label="Assign to vendor"></select>
         <label class="assign-mail" id="assignEmailWrap" title="E-mail the person their tasks for this event (sent from your studio name; replies come to your studio)"><input type="checkbox" id="assignEmail" checked> ✉ Send by email</label>
+        <label class="assign-mail" id="assignWaWrap" title="Send the person their tasks on WhatsApp from your studio's own number (needs WhatsApp connected in Integrations)"><input type="checkbox" id="assignWa"> 💬 Send on WhatsApp</label>
         <button type="button" class="btn primary" id="assignBtn">Assign selected →</button>
       </div>
       <div class="s-d2c171b" id="suggestBar"></div>
@@ -281,7 +282,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=352"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=353"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -350,7 +351,9 @@
     renderSuggestions();
     // R130: WhatsApp line per task + "not set up" note (never blocks the page)
     loadWa().then(()=>renderDashboard()).catch(()=>{});
-    if(window.HelmWaSetupNote) HelmWaSetupNote.mount($("#waSetupNote"), { what: "task messages and reminders" });
+    // R171: the same answer decides the assign form's "Send on WhatsApp" box (ticked only when the studio number is connected)
+    if(window.HelmWaSetupNote) HelmWaSetupNote.mount($("#waSetupNote"), { what: "task messages and reminders" }).then(ok=>{
+      if(ok===true||ok===false) waOk=ok; const x=$("#assignWa"); if(x && ok===true && !x.dataset.touched) x.checked=true; }).catch(()=>{});
   }
   function fetchOps(){
     return Promise.all([BPStore.ops.listCrew(), BPStore.ops.listTasks(quoteId), BPStore.ops.listTokens(quoteId),
@@ -387,10 +390,12 @@
   const crewInitials=(n)=>String(n||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase()||"?";
   function crewAv(c){ const m=c&&c.profile_id?memberDir[c.profile_id]:null, p=m&&m.avatar_path;
     return `<span class="cav"${p?` data-avatar-path="${esc(p)}"`:""} aria-hidden="true">${esc(crewInitials(c&&c.name))}</span>`; }
-  function crewOption(c){ return `<option value="${esc(c.id)}">${esc(c.name)}${c.department?" · "+esc(c.department):""} · ${esc(c.phone)}${c.profile_id?" · 🔗":""}</option>`; }
+  function crewOption(c){ return `<option value="${esc(c.id)}">${esc(c.name)}${c.department?" · "+esc(c.department):""} · ${esc(c.phone)}${c.profile_id?" · 🔗":""}${noMail(c)?" · no email":""}</option>`; }
+  // R171: no e-mail on the staff record and no linked Helm login = nothing to e-mail them
+  function noMail(c){ return !!c && !String(c.email||"").trim() && !c.profile_id; }
   // the picked person, with photo, beside a staff <select>
   function crewWho(sel, host){ if(!sel||!host) return; const c=crew.find(x=>x.id===sel.value);
-    host.innerHTML=c?`${crewAv(c)}<span><b>${esc(c.name)}</b> · ${esc(c.phone)}${c.profile_id?' <span title="Linked to a Helm account">🔗</span>':""}</span>`:"";
+    host.innerHTML=c?`${crewAv(c)}<span><b>${esc(c.name)}</b> · ${esc(c.phone)}${c.profile_id?' <span title="Linked to a Helm account">🔗</span>':""}${noMail(c)?' <span class="nomail" title="Add an email on the Staff page to email them">· no email on file</span>':""}</span>`:"";
     try{ BPStore.chat.paintAvatars(host); }catch(e){} }
   function renderCrew(){
     $("#crewChips").innerHTML = crew.length? crew.map(c=>`<span class="chip">${crewAv(c)}${esc(c.name)} <span class="dep">${esc(c.department||"")}</span> · ${esc(c.phone)}${c.profile_id?' <span class="lk" title="Linked to a Helm account">🔗</span>':""}</span>`).join("")
@@ -398,6 +403,7 @@
     try{ BPStore.chat.paintAvatars($("#crewChips")); }catch(e){}
   }
   $("#assignCrew").addEventListener("change",()=>crewWho($("#assignCrew"),$("#assignWho")));
+  $("#assignWa") && $("#assignWa").addEventListener("change",()=>{ $("#assignWa").dataset.touched="1"; });
   $("#ra_crew").addEventListener("change",()=>crewWho($("#ra_crew"),$("#raWho")));
   async function renderTasks(){
     let tpl; try{ tpl=await BPStore.ops.templates(activeCat); }catch(e){ BPUI.loadError($("#taskList"), e, renderTasks, {what:"task templates"}); return; }
@@ -448,7 +454,17 @@
             mailNote=t? " "+mailText(await BPStore.ops.emailTasks(t.id, true), c.name) : "";
           }catch(e){ mailNote=" The email could not be queued - use ✉ Send by email below."; }
         }
-        setMsg("ok", `Assigned ${r.tasks_created} ${activeCat} task(s) to ${c.name}.${window.HelmTrialPreview?"":" Worker link ready below."}${mailNote}`);
+        // R171 (0362): "Send on WhatsApp" ticked -> the studio's number sends it; not connected -> say so, nothing sent
+        let waNote="";
+        if($("#assignWa") && $("#assignWa").checked){
+          try{
+            if((await waConnected())===false) waNote=" "+WA_NOT_SET_UP;
+            else { const pick=(l)=>(l||[]).find(x=>x.crew_id===c.id && titles.includes(x.title) && !["completed","cancelled","rejected"].includes(x.status));
+              let t2=pick(tasks); if(!t2){ const fresh=await BPStore.ops.listTasks(quoteId); tasks=fresh||tasks; t2=pick(fresh); }
+              waNote=t2? " "+waText(await BPStore.ops.whatsappTasks(t2.id), c.name) : ""; }
+          }catch(e){ waNote=" The WhatsApp could not be queued - use 💬 Send on WhatsApp below."; }
+        }
+        setMsg("ok", `Assigned ${r.tasks_created} ${activeCat} task(s) to ${c.name}.${window.HelmTrialPreview?"":" Worker link ready below."}${mailNote}${waNote}`);
       }
       $("#selAll").checked=false; await refresh(); await renderTasks();
     }catch(e){ setMsg("err",BPUI.friendlyError(e,{action:"assign the tasks"})); }
@@ -487,7 +503,7 @@
       ${evidenceBtn(t)}
       ${canEditOps?`<button type="button" class="btn sm sched" title="Set start time & prerequisite" aria-label="Schedule ${tn}">⏱</button>`:""}
       ${canEditOps?`<button type="button" class="btn sm spc" title="Toggle recurring reminder" aria-label="${t.is_special?"Turn off recurring reminder for":"Turn on recurring reminder for"} ${tn}">${t.is_special?'🔕':'🔔'}</button>`:""}
-      ${canEditOps&&t.assignee_kind!=='outsourced'&&(t.crew_id||t.assignee_phone)&&['assigned','accepted','in_progress'].includes(t.status)?`<button type="button" class="btn sm temail" title="Send this task by email" aria-label="Send ${tn} by email">✉</button>`:""}
+      ${canEditOps&&t.assignee_kind!=='outsourced'&&(t.crew_id||t.assignee_phone)&&['assigned','accepted','in_progress'].includes(t.status)?`<button type="button" class="btn sm temail" title="Send this task by email" aria-label="Send ${tn} by email">✉</button><button type="button" class="btn sm twa" title="Send this task on WhatsApp" aria-label="Send ${tn} on WhatsApp">💬</button>`:""}
       ${canEditOps&&['rejected','assigned'].includes(t.status)?`<button type="button" class="btn sm reassign" aria-label="Reassign ${tn}">Reassign</button>`:""}
       ${canEditOps&&['accepted','in_progress','completed'].includes(t.status)?`<button type="button" class="btn sm reassign-locked" disabled title="Locked: task accepted" aria-label="Reassign ${tn} - locked: task accepted">Reassign</button>`:""}
       ${canEditOps&&CANCELLABLE.includes(t.status)?`<button type="button" class="btn sm danger tcancel" title="Cancel this task (a reason is required)" aria-label="Cancel ${tn}">Cancel</button>`:""}
@@ -498,7 +514,8 @@
   function personMailBtn(phone, name){
     if(!canEditOps) return "";
     const t=tasks.find(x=>x.assignee_phone===phone && x.assignee_kind!=='outsourced' && ['assigned','accepted','in_progress'].includes(x.status));
-    return t?`<button type="button" class="btn sm semail" data-task="${esc(t.id)}" aria-label="Send ${esc(name)} their tasks by email">✉ Send by email</button>`:"";
+    // R171 (0362): Send on WhatsApp beside it (the studio's own number; a clear note when it is not set up)
+    return t?`<button type="button" class="btn sm semail" data-task="${esc(t.id)}" aria-label="Send ${esc(name)} their tasks by email">✉ Send by email</button><button type="button" class="btn sm swa" data-task="${esc(t.id)}" aria-label="Send ${esc(name)} their tasks on WhatsApp">💬 Send on WhatsApp</button>`:"";
   }
   function mailText(r, name){
     const who=(r&&r.name)||name||"They";
@@ -509,6 +526,34 @@
     if(why==="trial") return "In the free trial nothing leaves Helm, so no email was sent.";
     if(why==="not_live") return "This event is cancelled or a sample, so no email was sent.";
     return "Nothing to email for this task.";
+  }
+  // R171 (0362): "Send on WhatsApp" - the studio's own number only; not connected -> say so, nothing is sent
+  const WA_NOT_SET_UP="WhatsApp is not set up yet - connect your studio's WhatsApp number in Integrations. Nothing was sent.";
+  function waText(r, name){
+    const who=(r&&r.name)||name||"They";
+    if(r&&r.ok) return `WhatsApp on its way to ${who}.`;
+    const why=r&&r.reason;
+    if(why==="wa_not_set_up") return WA_NOT_SET_UP;
+    if(why==="no_phone") return `${who} has no phone number on their staff record - add one on the Staff page.`;
+    if(why==="just_sent") return `A WhatsApp went to ${who} in the last 10 minutes.`;
+    if(why==="trial") return "In the free trial nothing leaves Helm, so no WhatsApp was sent.";
+    if(why==="not_live") return "This event is cancelled or a sample, so no WhatsApp was sent.";
+    return "Nothing to send on WhatsApp for this task.";
+  }
+  let waOk=null;   // null = not asked yet; true / false = the studio's WhatsApp number is connected / not
+  async function waConnected(){
+    if(waOk!==null) return waOk;
+    try{ const r=BPStore.integrations&&BPStore.integrations.waReady?await BPStore.integrations.waReady():null; waOk=r&&typeof r==="object"?r.connected===true:null; }catch(e){ waOk=null; }
+    return waOk;
+  }
+  async function sendWa(b, taskId){
+    await BPUI.guard(b, async()=>{
+      try{
+        if((await waConnected())===false){ BPUI.toast(WA_NOT_SET_UP,{type:"info", timeout: 8000}); return; }
+        const r=await BPStore.ops.whatsappTasks(taskId); if(r&&r.reason==="wa_not_set_up") waOk=false;
+        BPUI.toast(waText(r), {type: r&&r.ok?"ok":"info", timeout: 8000});
+      }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"send the WhatsApp"}),{type:"err"}); }
+    },{busyLabel:"Sending…"});
   }
   async function sendMail(b, taskId, all){
     await BPUI.guard(b, async()=>{
@@ -563,6 +608,8 @@
     host.querySelectorAll(".reassign").forEach(b=>b.addEventListener("click",()=>openReassign(b.closest(".trow").dataset.id)));
     host.querySelectorAll(".temail").forEach(b=>b.addEventListener("click",()=>sendMail(b, b.closest(".trow").dataset.id, false)));
     host.querySelectorAll(".semail").forEach(b=>b.addEventListener("click",()=>sendMail(b, b.dataset.task, true)));
+    host.querySelectorAll(".twa").forEach(b=>b.addEventListener("click",()=>sendWa(b, b.closest(".trow").dataset.id)));
+    host.querySelectorAll(".swa").forEach(b=>b.addEventListener("click",()=>sendWa(b, b.dataset.task)));
     host.querySelectorAll(".tcancel").forEach(b=>b.addEventListener("click",()=>openCancelTask(b.closest(".trow").dataset.id)));
     host.querySelectorAll(".evid").forEach(b=>b.addEventListener("click",()=>openEvidence(b.closest(".trow").dataset.id)));
     // QC / special buttons: guarded (no double-submit) — while one is in flight, its whole row is locked
@@ -826,7 +873,7 @@
   setInterval(()=>{ if(document.hidden || $("#app").hidden) return; if(!$("#reassignModal").hidden || !$("#cancelTaskModal").hidden || !$("#schedModal").hidden || !$("#evModal").hidden) return; if(document.querySelector("#dashboard [data-busy]")) return; refreshDashboard(); }, 7000);
   BPUI.boot(load);
 </script>
-<script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=1"></script>
+<script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=2"></script>
 <script src="crew-shifts.js?v=7"></script>
 </body>
 </html>

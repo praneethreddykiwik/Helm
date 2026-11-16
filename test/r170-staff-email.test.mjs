@@ -77,10 +77,10 @@ await t("e-mail: reminder / late / one task / office alert wording", () => {
   const base = { studio: "Sparkle Events", event: "Rao Wedding", task: "Stage lights", start: "12:30 PM", day: "01 Dec 2026", name: "Ravi Kumar",
     link_path: "work.html?token=" + TOK };
   const r = staffEmailMessage({ ...base, kind: "task_reminder", minutes: 10 }, ORIGIN);
-  assert.equal(r.subject, "Reminder: Stage lights at 12:30 PM - Rao Wedding");
-  assert.ok(r.text.includes("Stage lights for Rao Wedding starts in 10 min, at 12:30 PM."));
-  assert.ok(staffEmailMessage({ ...base, kind: "task_reminder", minutes: 90 }, ORIGIN).text.includes("starts in 1 hour 30 min"));
-  assert.equal(staffEmailMessage({ ...base, kind: "task_reminder", minutes: 0 }, ORIGIN).subject, "Starting now: Stage lights at 12:30 PM - Rao Wedding");
+  assert.equal(r.subject, "Due in 10 min: Stage lights at 12:30 PM - Rao Wedding");   // R171 wording
+  assert.ok(r.text.includes("Stage lights for Rao Wedding is due in 10 min, at 12:30 PM."));
+  assert.ok(staffEmailMessage({ ...base, kind: "task_reminder", minutes: 90 }, ORIGIN).text.includes("is due in 1 hour 30 min"));
+  assert.equal(staffEmailMessage({ ...base, kind: "task_reminder", minutes: 0 }, ORIGIN).subject, "Due now: Stage lights at 12:30 PM - Rao Wedding");
   const l = staffEmailMessage({ ...base, kind: "task_late" }, ORIGIN);
   assert.equal(l.subject, "Not started yet: Stage lights - Rao Wedding");
   assert.ok(l.text.includes("was due to start at 12:30 PM on 01 Dec 2026 and is not marked as started yet."));

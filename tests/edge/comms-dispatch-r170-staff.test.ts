@@ -105,7 +105,7 @@ Deno.test("R170 staff e-mails: task list, reminder, office alert over SMTP; link
     assert(list.text.includes("https://www.helm.events/work.html?token=" + TOK), "work link on APP_URL");
     assert(list.text.includes("You received this because you are on the staff list of this studio"), "staff footer");
     assert(/Reply-To: <ops@sparkle\.in>/.test(list.headers), "studio reply-to");
-    assert(rem.text.includes("Stage lights for Rao Wedding starts in 10 min, at 12:30 PM."), rem.text);
+    assert(rem.text.includes("Stage lights for Rao Wedding is due in 10 min, at 12:30 PM."), rem.text);
     assert(alert.text.includes("Ravi Kumar has not started Stage lights"), alert.text);
     assert(alert.text.includes("https://www.helm.events/ops.html?quote=" + QID));
     assert(alert.text.includes("you are the manager of this event"), "manager footer");

@@ -1,4 +1,5 @@
-/* task-reminders-ui.js - R130 (0338): WhatsApp task reminders on the Tasks & staff page and in Settings.
+/* task-reminders-ui.js - R130 (0338): task reminders on the Tasks & staff page and in Settings. R171 (0362): every reminder
+   also goes by e-mail to the address on the staff record (R170 / 0361), so the wording says "email and WhatsApp".
    Owner rules (9 Nov 2026): ticked by default 10 and 5 minutes before (custom allowed); when a task is late, a reminder
    every 15 minutes up to 3 times, then the office is told; everything explained in Settings and the guide. Messages go
    out only from the studio's own WhatsApp number (wa-setup-note.js says when it is not set up).
@@ -39,9 +40,9 @@
     s = s || {};
     var before = sortMins(s.default_before == null ? [10, 5] : s.default_before);
     var every = Number(s.late_every_min) || 15, max = s.late_max == null ? 3 : Number(s.late_max);
-    var t = "When a task has a start time, the person on it gets a WhatsApp " + listText(before).replace(/^no reminders$/, "(no reminders)") + ". ";
+    var t = "When a task has a start time, the person on it gets a reminder by email (and WhatsApp once your number is connected) " + listText(before).replace(/^no reminders$/, "(no reminders)") + ". ";
     t += max > 0 ? "If it hasn't started by then, a late reminder goes every " + every + " minutes, up to " + max + " time" + (max === 1 ? "" : "s") + ". " : "Late reminders are off. ";
-    if (s.alert_office !== false) t += "After that, the event manager is told (bell + WhatsApp). ";
+    if (s.alert_office !== false) t += "After that, the event manager is told (bell, email + WhatsApp). ";
     if (s.hold_waiting !== false) t += "A task that waits on an unfinished task gets its reminder once the earlier task is done. ";
     t += "Done, cancelled or started tasks get nothing more. A new time or a new person starts fresh. All times are in your studio's time zone.";
     return t;
@@ -73,7 +74,7 @@
     var own = task && Array.isArray(task.remind_before) ? sortMins(task.remind_before) : null;
     var useDef = own === null;
     var cur = own === null ? def : own;
-    container.appendChild(el("legend", null, "WhatsApp reminders"));
+    container.appendChild(el("legend", null, "Reminders (email + WhatsApp)"));
     var dflt = checkbox("trm_def", "Use the studio default (" + listText(def) + ")", useDef);
     container.appendChild(dflt.wrap);
     var grid = el("div", "trm-grid");
@@ -84,7 +85,7 @@
     ci.value = cur.filter(function (m) { return CHOICES.indexOf(m) < 0; }).join(", ");
     cw.appendChild(cl); cw.appendChild(ci); container.appendChild(cw);
     var err = el("div", "lerr"); err.setAttribute("role", "alert"); err.hidden = true; container.appendChild(err);
-    container.appendChild(el("p", "muted hint", "Reminders go only when the task has a start time and the person has a phone number. Late reminders and the office alert follow Settings → Notifications → Task reminders."));
+    container.appendChild(el("p", "muted hint", "Reminders go only when the task has a start time and the person has a phone number. The email goes to the address on their staff record (none on file = no email); WhatsApp goes once your studio number is connected. Tick \"At the start time\" for a \"due now\" reminder. Late reminders and the office alert follow Settings → Notifications → Task reminders."));
     function sync() { var off = dflt.input.checked; boxes.forEach(function (b) { b.input.disabled = off; }); ci.disabled = off; }
     dflt.input.addEventListener("change", function () {
       if (dflt.input.checked) { boxes.forEach(function (b) { b.input.checked = def.indexOf(Number(b.input.value)) >= 0; }); ci.value = def.filter(function (m) { return CHOICES.indexOf(m) < 0; }).join(", "); }
@@ -112,12 +113,12 @@
     return Promise.resolve().then(function () { return R.settings(); }).then(function (s) {
       if (!s || typeof s !== "object") { host.hidden = true; return false; }
       clear(host); host.hidden = false; host.classList.add("trm-card");
-      host.appendChild(el("h3", null, "Task reminders on WhatsApp"));
+      host.appendChild(el("h3", null, "Task reminders (email + WhatsApp)"));
       var note = el("div"); note.hidden = true; host.appendChild(note);
       if (global.HelmWaSetupNote) global.HelmWaSetupNote.mount(note, { store: S, what: "task reminders" });
       var ex = el("p", "trm-explain", explain(s)); host.appendChild(ex);
       var can = s.can_edit === true;
-      var on = checkbox("trs_on", "Send WhatsApp task reminders", s.enabled !== false); host.appendChild(on.wrap);
+      var on = checkbox("trs_on", "Send task reminders (email + WhatsApp)", s.enabled !== false); host.appendChild(on.wrap);
       host.appendChild(el("h4", null, "Ticked by default on every task"));
       var def = sortMins(s.default_before);
       var grid = el("div", "trm-grid");
@@ -133,7 +134,7 @@
       var mx = el("input"); mx.type = "number"; mx.min = "0"; mx.max = "10"; mx.id = "trs_max"; mx.value = String(s.late_max == null ? 3 : s.late_max);
       mx.setAttribute("aria-label", "Number of late reminders"); row.appendChild(mx); row.appendChild(el("span", null, " times (0 = no late reminders)"));
       host.appendChild(row);
-      var off = checkbox("trs_office", "Then tell the event manager (bell + WhatsApp)", s.alert_office !== false); host.appendChild(off.wrap);
+      var off = checkbox("trs_office", "Then tell the event manager (bell, email + WhatsApp)", s.alert_office !== false); host.appendChild(off.wrap);
       var hold = checkbox("trs_hold", "Hold a task's reminders while it waits on an unfinished task", s.hold_waiting !== false); host.appendChild(hold.wrap);
       host.appendChild(el("p", "muted hint", "Holding while a task waits is the suggested rule; the final rule is waiting for approval and may change."));
       var foot = el("div", "trm-foot"), save = el("button", "btn primary", "Save reminders"); save.type = "button";

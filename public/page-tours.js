@@ -446,7 +446,7 @@
       { sel: "#catTabs", title: "Task categories", desc: "Tasks grouped by department: stage, lighting, catering and more." },
       { sel: "#taskList", title: "Tasks", desc: "Tick tasks to select them. Each one shows who has it and when it is due." },
       { sel: "#assignBtn", title: "Assign", desc: "Give the selected tasks to a crew member or a vendor." },
-      { sel: "#assignEmailWrap", title: "Send by email", desc: "Ticked: the person gets an email with their tasks for this event. Untick it to skip the email this time. Use ✉ on a task, or ✉ Send by email next to a worker link, to send it again." },
+      { sel: "#assignEmailWrap", title: "Send by email or WhatsApp", desc: "Ticked: the person gets their tasks by email. Tick 💬 Send on WhatsApp to send from your studio number too - if it isn't connected, Helm says so and nothing is sent. ✉ / 💬 on a task or worker link sends again." },
       { sel: "#trmLine", title: "Task reminders", desc: "Reminders go out on their own: by email to staff with an email address, and from your studio's WhatsApp number once it is connected. Each task shows its last WhatsApp message: Queued, Sent, Delivered, Read or Failed." },
       { sel: "#opsFilter", title: "Find a task", desc: "Search task names, or show only one person, section or status (QC pending too). Your filter is remembered for this event." },
       { sel: "#dashboard", title: "Progress", desc: "How far each person and category has got. Once someone accepts a task, Reassign is locked - use Cancel (a reason is required) to take a task back; it stays greyed out with the reason and an open-shift place is freed." },
