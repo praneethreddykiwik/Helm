@@ -18,15 +18,15 @@ t('calendar.html: Events | Team tabs at the top (tablist, aria-selected / aria-c
 
 t('calendar.html: view remembered per user (key carries the user id), ?cv= / crew deep link pick the view, arrows switch tabs', () => {
   assert.match(CAL, /const prefKey=\(k\)=>"helm\.cal"\+k\+"\."\+\(\(\(BPStore\.auth\.user&&BPStore\.auth\.user\(\)\)\|\|\{\}\)\.id\|\|"local"\)/);
-  assert.match(CAL, /q==="team"\|\|q==="events"\?q:\(sp\.get\("staff"\)\|\|location\.hash==="#schedule"\)\?"team"/);
+  assert.match(CAL, /q==="team"\|\|q==="events"\|\|q==="live"\?q:\(sp\.get\("staff"\)\|\|location\.hash==="#schedule"\)\?"team"/);
   assert.match(CAL, /\["ArrowLeft","ArrowRight","Home","End"\]\.includes\(k\)/);
   assert.match(CAL, /prefSet\("View",t\.dataset\.cv\)/);
 });
 
 t('calendar.html: crew (no quotes) get only their schedule; team schedule mounts lazily on first Team view', () => {
   assert.match(CAL, /cvEventsOk=!!\(canQuotes&&!crewOnly&&window\.HelmEventsCalendar\)/);
-  assert.match(CAL, /\$\("#cvBar"\)\.hidden=!\(cvEventsOk&&cvTeamOk\)/);
-  assert.match(CAL, /if\(v==="events"\) mountEvents\(\); else if\(!schedUI\) mountSchedule\(\);/);
+  assert.match(CAL, /\$\("#cvBar"\)\.hidden=!\(\(cvEventsOk&&cvTeamOk\)\|\|cvLiveOk\)/);
+  assert.match(CAL, /if\(v==="events"\) mountEvents\(\); else if\(v==="live"\)\{ if\(!liveUI\) liveUI=HelmLiveBoard\.mountToday\([^;]*;[^}]*\} else if\(!schedUI\) mountSchedule\(\);/);
   assert.doesNotMatch(CAL, /\n\s*mountSchedule\(\);\n\s*await load\(\);/, 'no eager schedule mount at boot');
 });
 
@@ -46,7 +46,7 @@ t('calendar.html: items = dated, not-cancelled events (confirmed / tentative) + 
 t('assets pinned: events-calendar.css / .js, store-api bumped', () => {
   assert.match(CAL, /<link rel="stylesheet" href="events-calendar\.css\?v=\d+">/);
   assert.match(CAL, /<script src="events-calendar\.js\?v=\d+"><\/script>/);
-  assert.match(CAL, /store-api\.js\?v=355/);
+  assert.match(CAL, /store-api\.js\?v=356/);
 });
 
 t('events-calendar.js: month / week / day, "+N more", today, clash badge, legend filter, type filter, phone agenda, hover card', () => {

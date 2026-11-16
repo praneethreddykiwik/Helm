@@ -98,3 +98,9 @@
 .cs-grid tr.cs-evrow th.cs-who{color:var(--ink-2);font-weight:600}
 @media(max-width:600px){.csched{padding:12px}.cs-head{align-items:stretch}.cs-tools{width:100%;justify-content:space-between}.cs-pick{flex:1 1 100%}.cs-pick select{width:100%;max-width:none}
   .cs-range{font-size:17px}.cs-grid{min-width:640px}.cs-grid.cs-grid-3,.cs-grid.cs-grid-1{min-width:0}.cs-grid th.cs-who{width:92px}.cs-cell{min-height:46px;text-align:center}.cs-tg-scroll{max-height:62vh}}
+/* R174: days a person marked "can't work" (their own crew link or the Staff page) */
+.cs-off{background:repeating-linear-gradient(135deg,#fdf0ef 0 6px,#fbe5e3 6px 12px)}
+.cs-offtag{display:block;font-size:11px;font-weight:700;color:#b42318;background:#fdecea;border:1px solid #f3c2bd;border-radius:6px;padding:1px 6px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cs-lg-off{--cs-c:#e5534b}
+.cs-offsum{display:block;font-size:11px;font-weight:600;color:#b42318;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:600px){.cs-month .cs-offtag,.cs-month .cs-offsum{display:none}}

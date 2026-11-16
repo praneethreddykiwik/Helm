@@ -141,9 +141,9 @@
       { sel: "#grid", title: "Your partner list", desc: "Everyone you work with. Book them for the gaps your in-house team can't cover." },
     ],
     "calendar.html": [
-      { sel: "#cvBar", title: "Events or team", desc: "Switch between the events calendar and the team schedule (who works when)." },
-      { sel: ["#evcal", "#schedule"], title: "The month at a glance", desc: "Every dated event in one view. Click an event to open it." },
-      { sel: "#conflicts", title: "Clash detection", desc: "Helm flags staff or stock booked on two events at once — before it becomes a problem on the day." },
+      { sel: "#cvBar", title: "Events, team or live", desc: "Events = which event is on when. Team = who works when (days someone marked they can't work show in red). Live today = the progress of today's events right now." },
+      { sel: ["#evcal", "#schedule", "#liveToday"], title: "The month at a glance", desc: "Every dated event in one view. Click an event to open it. On Live today, each event shows how many tasks are done, started, accepted, waiting and late." },
+      { sel: "#conflicts", title: "Clash detection", desc: "Helm flags staff or stock booked on two events at once, and anyone given work on a day they marked they can't work — before it becomes a problem on the day." },
       { sel: "#agenda", title: "Every event, dated", desc: "A running schedule of all your events so nothing collides." },
       { sel: "#nodateWrap", title: "No date yet", desc: "Quotes without an event date wait here. Give them a date to put them on the calendar." },
     ],
@@ -450,7 +450,7 @@
       { sel: "#assignEmailWrap", title: "Send by email or WhatsApp", desc: "Ticked: the person gets their tasks by email. Tick 💬 Send on WhatsApp to send from your studio number too - if it isn't connected, Helm says so and nothing is sent. ✉ / 💬 on a task or worker link sends again." },
       { sel: "#trmLine", title: "Task reminders and buttons", desc: "Reminders go by email to each staff record address (no phone needed) and on WhatsApp once connected. Schedule = start time and reminders; Email / WhatsApp = send now; the ⏰ chip shows a task's reminders." },
       { sel: "#opsFilter", title: "Find a task", desc: "Search task names, or show only one person, section or status (QC pending too). Your filter is remembered for this event." },
-      { sel: "#dashboard", title: "Progress", desc: "How far each person and category has got. Once someone accepts a task, Reassign is locked - use Cancel (a reason is required) to take a task back; it stays greyed out with the reason and an open-shift place is freed." },
+      { sel: ["#liveSummary", "#dashboard"], title: "Progress", desc: "Top: done, started, accepted, waiting and late tasks (start time passed, not started) and the latest activity. Below: every task. Once accepted, Reassign locks - use Cancel (a reason is required)." },
     ],
     "teardown.html": [
       { sel: "#invRows", title: "Stock coming back", desc: "Every item that went out, and whether it is back." },

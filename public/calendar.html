@@ -37,7 +37,7 @@
   .conflict.acked{background:var(--panel-2);border-color:var(--line)} .conflict .cfev{text-decoration:underline;font-weight:600}
   .conflict .ctype.ack{background:#e7f6ee;color:#0f7a43}
   .ctype{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:20px;margin-left:8px}
-  .ctype.inventory{background:#e7f6ee;color:#0f7a43} .ctype.vendor{background:var(--accent-soft);color:var(--accent)} .ctype.staff{background:#eef1f0;color:#2f4a42} .ctype.venue{background:#fdecec;color:#b42318}
+  .ctype.inventory{background:#e7f6ee;color:#0f7a43} .ctype.vendor{background:var(--accent-soft);color:var(--accent)} .ctype.staff{background:#eef1f0;color:#2f4a42} .ctype.venue{background:#fdecec;color:#b42318} .ctype.unavailable{background:#fdecec;color:#b42318}
   .allclear{display:flex;align-items:center;gap:10px;padding:14px;border:1px solid #b6e3ca;background:#eefaf2;border-radius:11px;color:#0f7a43;font-weight:600;font-size:13px}
 
   /* agenda by date */
@@ -77,11 +77,12 @@
   .err{background:#fdecec;color:#b42318;border-radius:8px;padding:8px 12px;font-size:12px}
 </style>
 <link rel="stylesheet" href="calendar-polish.css?v=4">
-<link rel="stylesheet" href="crew-schedule.css?v=4">
+<link rel="stylesheet" href="crew-schedule.css?v=5">
+<link rel="stylesheet" href="live-board.css?v=1">
 <link rel="stylesheet" href="events-calendar.css?v=5">
 <link rel="stylesheet" href="capacity-shortage.css?v=5"><link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=78" id="shellProto"></script>
+<script src="/shell-proto.js?v=79" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -103,6 +104,7 @@
       <div class="cv-tabs" role="tablist" aria-label="Calendar view">
         <button type="button" role="tab" id="cvTabEvents" data-cv="events" aria-controls="cvEvents" aria-selected="true">Events</button>
         <button type="button" role="tab" id="cvTabTeam" data-cv="team" aria-controls="cvTeam" aria-selected="false" tabindex="-1">Team</button>
+        <button type="button" role="tab" id="cvTabLive" data-cv="live" aria-controls="cvLive" aria-selected="false" tabindex="-1" hidden>Live today</button>
       </div>
       <p class="cv-hint" id="cvHint">Which event is on when</p>
     </div>
@@ -110,6 +112,7 @@
     <div id="cvTeam" role="tabpanel" aria-labelledby="cvTabTeam">
     <section id="schedule" class="csched" hidden aria-labelledby="schedTitle"></section>
     </div>
+    <div id="cvLive" role="tabpanel" aria-labelledby="cvTabLive" hidden><section id="liveToday" class="lb-wrap" aria-label="Live today: event-day progress"></section></div>
     <h2 id="conflictsH">Conflicts</h2>
     <div id="conflicts"><p class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></p></div>
 
@@ -131,10 +134,11 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=355"></script>
-<script src="page-tours.js?v=38"></script>
-<script src="tour.js?v=57"></script>
-<script src="crew-schedule.js?v=6"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=356"></script>
+<script src="page-tours.js?v=39"></script>
+<script src="tour.js?v=58"></script>
+<script src="crew-schedule.js?v=7"></script>
+<script src="live-board.js?v=1"></script>
 <script src="events-calendar.js?v=7"></script>
 <script>
 (function(){function hy(r){if(!r||!r.querySelectorAll)return;var l=r.matches&&r.matches("[data-st]")?[r]:[];l=l.concat([].slice.call(r.querySelectorAll("[data-st]")));l.forEach(function(e){e.style.cssText+=";"+e.getAttribute("data-st");e.removeAttribute("data-st");});}new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(hy);});}).observe(document.documentElement,{childList:true,subtree:true});})();
@@ -151,7 +155,7 @@
   /* HelmUI empty state (guarded: falls back to the plain message if the kit isn't loaded) */
   const hEmpty=(host,o,cols)=>{ const H=window.HelmUI; if(!(H&&H.emptyState)||!host) return false; const n=H.emptyState(o); if(cols){ const tr=document.createElement("tr"),td=document.createElement("td"); td.colSpan=cols; td.className="hs-empty-cell"; td.appendChild(n); tr.appendChild(td); host.replaceChildren(tr); } else host.replaceChildren(n); return true; };
   let agendaType="";   // R20: the Events calendar's event-type filter (lower-case; "" = all types)
-  let schedUI=null, canEdit=false, data=null, leadDates=[], canLeads=false, canQuotes=true, evUI=null, sampleIds=new Set(), cvTeamOk=false, cvEventsOk=false;
+  let schedUI=null, canEdit=false, data=null, leadDates=[], canLeads=false, canQuotes=true, evUI=null, sampleIds=new Set(), cvTeamOk=false, cvEventsOk=false, cvLiveOk=false, liveUI=null, canStaffView=false;
   // B30: ONE status word with the dashboard / Quotes list (BPStore.quoteStatus): a settled event reads Closed, a
   // locked quote the client has not approved yet is still Tentative (it used to read Confirmed here)
   const qStat=(e)=>{ try{ return BPStore.quoteStatus?BPStore.quoteStatus(e||{}):null; }catch(_){ return null; } };
@@ -169,7 +173,7 @@
     // 0197: open stock shortages ("Short: 10 × Air Cooler — sourcing from Cool Rentals" / "— unsourced")
     const sh=(data.shortages||[]).slice().sort((a,b)=>(a.date||"").localeCompare(b.date||""));
     if(!cs.length && !sh.length){ $("#conflicts").innerHTML='<div class="allclear">✓ No conflicts — every commitment fits.</div>'; return; }
-    const ico={inventory:"📦",vendor:"🤝",staff:"👷",venue:"📍"};
+    const ico={inventory:"📦",vendor:"🤝",staff:"👷",venue:"📍",unavailable:"🚫"};
     // 0198: each clashing event is a link to its workspace (where the clash is listed with its fixes);
     // a clash the team marked acknowledged says so (cancelled / closed events never clash)
     const acks=data.acks||{};
@@ -270,6 +274,13 @@
     const pSample=(canQuotes&&BPStore.calendar.sampleIds)?BPStore.calendar.sampleIds().catch(()=>[]):Promise.resolve([]);
     try{ data=await BPStore.calendar.load(); }
     catch(e){ $("#conflicts").innerHTML=""; $("#nodateWrap").hidden=true; BPUI.loadError($("#agenda"), e, load, {what:"the calendar"}); return; }
+    // R174 (0365): people given work on a day they marked "can't work" (their own task link or the Staff page)
+    if(canStaffView&&BPStore.ops&&BPStore.ops.shifts&&BPStore.ops.shifts.unavailableConflicts){ try{
+      const t0=BPStore.todayLocal(), t1=new Date(t0+"T12:00:00Z"); t1.setUTCDate(t1.getUTCDate()+90);
+      const uc=await BPStore.ops.shifts.unavailableConflicts(t0, t1.toISOString().slice(0,10));
+      (uc||[]).forEach(u=>{ if(!u||!u.day) return; data.conflicts.push({ key:"unavail|"+u.crew_id+"|"+u.day, type:"unavailable", date:String(u.day).slice(0,10),
+        label:u.name||"Staff member", detail:"marked this day as can't work"+(u.note?" ("+u.note+")":"")+" but has tasks on", events:(u.events||[]).map(e=>({id:e.id,code:e.code})) }); });
+    }catch(_){} }
     try{ data.acks=await BPStore.calendar.acks((data.conflicts||[]).map(c=>c.key)); }catch(_){ data.acks=null; }   // 0198: advisory
     leadDates=await pLeads; $("#lgLead").hidden=!canLeads; sampleIds=new Set(await pSample);
     render(); if(schedUI&&schedUI.refresh) schedUI.refresh(); if(evUI) evUI.refresh();
@@ -302,7 +313,9 @@
       // cal-1018: every dated, not-cancelled event is on the team schedule, crew or not
       events:()=>((data&&data.agenda)||[]).filter(a=>a&&a.event&&validDate(a.event.eventDate)&&String(a.event.status||"").toLowerCase()!=="cancelled")
         .map(a=>({quote_id:a.event.id,day:a.event.eventDate,title:a.event.title&&a.event.title!==a.event.code?a.event.title:"",code:a.event.code||"",venue:(a.event.client&&a.event.client.venue)||"",time:a.event.eventTime||""})),
-      leadLegend:canLeads });
+      leadLegend:canLeads,
+      // R174: days people marked "can't work" (Staff view only)
+      availability: canStaff&&BPStore.ops.shifts&&BPStore.ops.shifts.availability ? (f,t,sid)=>BPStore.ops.shifts.availability(f,t,sid) : null });
     schedUI=ui;
     if(team&&canStaff){ try{ const ppl=await BPStore.staff.list(); ui.setPeople((ppl||[]).map(p=>({id:p.id,name:p.name}))); }catch(e){} }
     if(sp.get("staff")&&location.hash==="#schedule") el.scrollIntoView({block:"start"});
@@ -345,24 +358,30 @@
   }
   let cvNow="";
   function showView(v,focus){
+    if(v==="live"&&!cvLiveOk) v="events";
     if(v==="team"&&!cvTeamOk) v="events"; if(v==="events"&&!cvEventsOk) v="team";
     cvNow=v;
     document.querySelectorAll("#cvBar [role=tab]").forEach(t=>{ const on=t.dataset.cv===v; t.setAttribute("aria-selected",String(on)); t.tabIndex=on?0:-1; if(on&&focus) t.focus(); });
-    $("#cvEvents").hidden=v!=="events"; $("#cvTeam").hidden=v!=="team";
-    $("#cvHint").textContent=v==="events"?"Which event is on when":"Who is working when";
-    if(v==="events") mountEvents(); else if(!schedUI) mountSchedule();
+    $("#cvEvents").hidden=v!=="events"; $("#cvTeam").hidden=v!=="team"; $("#cvLive").hidden=v!=="live";
+    $("#cvHint").textContent=v==="events"?"Which event is on when":v==="live"?"Progress of today's events, right now":"Who is working when";
+    // R174: the conflicts and the event list belong to the calendar views, not the live board
+    ["conflictsH","conflicts"].forEach(id=>{ const n=$("#"+id); if(n) n.hidden=v==="live"; });
+    if(v==="events") mountEvents(); else if(v==="live"){ if(!liveUI) liveUI=HelmLiveBoard.mountToday($("#liveToday"),{hours:24}); } else if(!schedUI) mountSchedule();
     if(data&&agendaType) render();   // R20: the type filter only applies under the Events view
   }
   async function setupViews(){
     const role=String((await BPStore.auth.role().catch(()=>""))||"").toLowerCase(), crewOnly=role==="crew"||role==="worker";
     cvEventsOk=!!(canQuotes&&!crewOnly&&window.HelmEventsCalendar);
     cvTeamOk=!!(window.HelmCrewSchedule&&BPStore.ops&&BPStore.ops.crew&&BPStore.ops.crew.schedule);
+    cvLiveOk=!!(!crewOnly&&window.HelmLiveBoard&&BPStore.ops&&BPStore.ops.live);   // R174: event-day progress (office roles)
+    canStaffView=crewOnly?false:await BPStore.auth.canView("staff").catch(()=>false);
     if(!cvEventsOk&&!cvTeamOk){ $("#cvTeam").hidden=true; return; }
-    $("#cvBar").hidden=!(cvEventsOk&&cvTeamOk);
+    $("#cvTabLive").hidden=!cvLiveOk;
+    $("#cvBar").hidden=!((cvEventsOk&&cvTeamOk)||cvLiveOk);
     const sp=new URLSearchParams(location.search), q=sp.get("cv");
-    const want=q==="team"||q==="events"?q:(sp.get("staff")||location.hash==="#schedule")?"team":(prefGet("View")||"events");
+    const want=q==="team"||q==="events"||q==="live"?q:(sp.get("staff")||location.hash==="#schedule")?"team":(prefGet("View")||"events");
     showView(want);
-    const tabs=[...document.querySelectorAll("#cvBar [role=tab]")];
+    const tabs=[...document.querySelectorAll("#cvBar [role=tab]")].filter(t=>!t.hidden);
     tabs.forEach((t,i)=>{
       t.addEventListener("click",()=>{ if(t.dataset.cv!==cvNow){ prefSet("View",t.dataset.cv); showView(t.dataset.cv); } });
       t.addEventListener("keydown",(e)=>{ const k=e.key; if(!["ArrowLeft","ArrowRight","Home","End"].includes(k)) return; e.preventDefault();

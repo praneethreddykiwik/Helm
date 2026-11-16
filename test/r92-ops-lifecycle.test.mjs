@@ -93,7 +93,7 @@ await t('3 locked Reassign + QC buttons', async () => {
 await t('4 CSS + no inline style on suggestions', async () => {
   const sugg = ops.slice(ops.indexOf('async function renderSuggestions'), ops.indexOf('async function refresh('));
   assert.ok(!/style=/.test(sugg), 'no style= in renderSuggestions');
-  assert.match(sugg, /class="btn sm sugg\$\{s\.available\?'':' busy'\}"/);
+  assert.match(sugg, /class="btn sm sugg\$\{s\.off\?' off':\(s\.available\?'':' busy'\)\}"/);   // R174: "can't work" shown apart from "busy"
   assert.match(ops, /\.sugg\{margin:0 6px 6px 0\} \.sugg\.busy\{opacity:\.6\}/);
   const coarse = ops.slice(ops.indexOf('@media (pointer:coarse)'));
   assert.match(coarse, /\.btn,\.btn\.sm,\.account button,\.tabs button\{min-height:44px/);

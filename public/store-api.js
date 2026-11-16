@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=78"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=79"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -4015,6 +4015,13 @@ window.HelmUrl = HelmUrl;
       async availability(from, to, crewId) { if (!supa) return null; try { return await rpc("crew_availability_range", { p_from: from, p_to: to, p_crew: crewId || null }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
       setCrewAvailability: (crewId, day, status, note) => rpc("crew_availability_set", { p_crew: crewId, p_day: day, p_status: status, p_note: note || null }),
       async dayStatus(date, excludeQuote) { if (!supa || !date) return null; try { return await rpc("crew_day_status", { p_date: date, p_exclude_quote: excludeQuote || null }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+      // R174 (0365): work given on a day the person marked "can't work" (Calendar conflicts); null before 0365 / without Staff view
+      async unavailableConflicts(from, to) { if (!supa || !from || !to) return null; try { return await rpc("crew_unavailable_conflicts", { p_from: from, p_to: to }); } catch (e) { if (rpcMissing(e) || (e && e.code === "42501")) return null; throw e; } },
+    },
+    // R174 (0365): event-day progress - events happening today / in the next hours with task counts, late tasks and the
+    // latest activity (home card + Calendar "Live today"). null before 0365 (the card / tab then stay hidden).
+    live: {
+      async today(hours) { if (!supa) return null; try { return await rpc("live_events_today", { p_hours: hours || 24 }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
     },
     // ---- worker (no login; token-scoped) ----
     worker: {
@@ -5184,7 +5191,7 @@ window.HelmUrl = HelmUrl;
       const crew = await this.list(false);
       const cat = (category || "").toLowerCase();
       // who is busy on this date? (assigned to another event on the same day)
-      let busy = new Set();
+      let busy = new Set(); const off = new Map();   // R174: off = marked "can't work" that day (note kept)
       if (date && mode === "supabase" && supa) {
         try {
           const { data: evs } = await supa.from("quotes").select("id").eq("event_date", date);
@@ -5194,7 +5201,7 @@ window.HelmUrl = HelmUrl;
             (ts || []).forEach((t) => busy.add(t.crew_id));
           }
         } catch {}
-        try { const st = await ops.shifts.dayStatus(date, excludeQuote); (st || []).forEach((x) => { if (x && x.unavailable) busy.add(x.crew_id); }); } catch {}   // r23: days off count as busy
+        try { const st = await ops.shifts.dayStatus(date, excludeQuote); (st || []).forEach((x) => { if (x && x.unavailable) { busy.add(x.crew_id); off.set(x.crew_id, x.note || ""); } }); } catch {}   // r23: days off count as busy; R174: and say so
       }
       const scored = crew.map((c) => {
         const dept = (c.department || "").toLowerCase();
@@ -5204,7 +5211,7 @@ window.HelmUrl = HelmUrl;
         const available = !busy.has(c.id);
         const score = (available ? 100 : 0) + (deptMatch ? 20 : 0) + (skillMatch ? 15 : 0);
         return { id: c.id, name: c.name, phone: c.phone, department: c.department, skills: c.skills || [],
-          available, match: !!(deptMatch || skillMatch), score };
+          available, match: !!(deptMatch || skillMatch), score, off: off.has(c.id), offNote: off.get(c.id) || "" };
       }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
       return scored.slice(0, limit || 5);
     },

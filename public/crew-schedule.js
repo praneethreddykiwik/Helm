@@ -98,7 +98,9 @@
     var statusFor = opts.statusFor || function () { return ""; };
     var extra = opts.extra || function () { return []; };
     var events = opts.events || function () { return []; };              // cal-1018: [{quote_id, day, title, code, venue, time}]
-    var st = { view: VIEWS.indexOf(opts.view) >= 0 ? opts.view : "week", staff: opts.staff || "", anchor: nowW(), rows: [] };
+    // R174: days people marked "can't work" (crew_availability_range; null / error = not shown, e.g. no Staff view)
+    var availability = opts.availability || null;
+    var st = { view: VIEWS.indexOf(opts.view) >= 0 ? opts.view : "week", staff: opts.staff || "", anchor: nowW(), rows: [], off: {}, offDay: {} };
     var seq = 0, pop = null, lastFocus = null;
     var narrow = function () { try { return !!(window.matchMedia && window.matchMedia("(max-width: 600px)").matches); } catch (e) { return false; } };
     var allCrew = function () { return team && !st.staff; };
@@ -110,7 +112,7 @@
       (team ? '<label class="cs-pick"><span class="cs-sr">Crew member</span><select id="csStaff" aria-label="Crew member"><option value="">All crew</option></select></label>' : "") +
       '<div class="cs-seg" role="group" aria-label="View"><button type="button" data-v="day">Day</button><button type="button" data-v="week">Week</button><button type="button" data-v="month">Month</button></div>' +
       '<div class="cs-nav"><button type="button" class="cs-arrow" data-n="-1" aria-label="Previous">‹</button><button type="button" class="cs-todaybtn" data-n="0">Today</button><button type="button" class="cs-arrow" data-n="1" aria-label="Next">›</button></div>' +
-      '</div></div><div class="cs-legend" aria-hidden="true"><span class="cs-lg cs-s-confirmed">Confirmed</span><span class="cs-lg cs-s-tentative">Tentative</span>' + (team && opts.leadLegend !== false ? '<span class="cs-lg cs-s-lead">Lead</span>' : "") + '</div>' +
+      '</div></div><div class="cs-legend" aria-hidden="true"><span class="cs-lg cs-s-confirmed">Confirmed</span><span class="cs-lg cs-s-tentative">Tentative</span>' + (team && opts.leadLegend !== false ? '<span class="cs-lg cs-s-lead">Lead</span>' : "") + (availability ? '<span class="cs-lg cs-lg-off" title="Days a person marked they cannot work (from their own task link or the Staff page)">Can\u2019t work</span>' : "") + '</div>' +
       '<div class="cs-body" id="csBody"></div>';
     var $ = function (s) { return root.querySelector(s); };
 
@@ -222,8 +224,8 @@
         ds.map(function (d) { return '<th scope="col" class="' + (iso(d) === today ? "cs-today" : "") + '">' + DOW[(d.getDay() + 6) % 7] + " <b>" + d.getDate() + "</b></th>"; }).join("") +
         "</tr></thead><tbody>" + evRow + ppl.map(function (p) {
           return '<tr><th scope="row" class="cs-who"><a href="calendar.html?staff=' + encodeURIComponent(p.id) + '#schedule" data-pick="' + esc(p.id) + '">' + esc(p.name || "Unnamed") + "</a></th>" +
-            ds.map(function (d) { var k = iso(d), here = (byDay[k] || []).filter(function (b) { return b.crew_id === p.id; });
-              return '<td class="' + (k === today ? "cs-today" : "") + '">' + here.map(function (b) { return chip(b, ""); }).join("") + "</td>"; }).join("") + "</tr>";
+            ds.map(function (d) { var k = iso(d), here = (byDay[k] || []).filter(function (b) { return b.crew_id === p.id; }), offN = st.off[p.id + "|" + k];
+              return '<td class="' + (k === today ? "cs-today" : "") + (offN != null ? " cs-off" : "") + '">' + (offN != null ? '<span class="cs-offtag" title="' + esc(p.name + " marked this day as can\u2019t work" + (offN ? ": " + offN : "")) + '">Can\u2019t work' + (here.length ? " \u00b7 booked" : "") + "</span>" : "") + here.map(function (b) { return chip(b, ""); }).join("") + "</td>"; }).join("") + "</tr>";
         }).join("") + "</tbody></table></div>" +
         (ppl.length ? "" : '<p class="cs-empty">No crew yet. Add people on the Staff page and assign them to event tasks.</p>');
     }
@@ -234,8 +236,9 @@
       var head = '<div class="cs-tg-head" data-st="' + cols + '"><span></span>' + ds.map(function (d) { var k = iso(d);
         return '<span class="cs-tg-dh' + (k === today ? " cs-today" : "") + '">' + DOW[(d.getDay() + 6) % 7] + ' <b>' + d.getDate() + "</b></span>"; }).join("") + "</div>";
       var allday = '<div class="cs-tg-all" data-st="' + cols + '"><span class="cs-tg-lbl">all-day</span>' + ds.map(function (d) {
-        var l = (byDay[iso(d)] || []).filter(function (b) { return b.start == null; });
-        return "<div>" + l.map(function (b) { return chip(b, "cs-allday"); }).join("") + "</div>"; }).join("") + "</div>";
+        var k = iso(d), l = (byDay[k] || []).filter(function (b) { return b.start == null; }), offs = st.offDay[k] || [], mine = st.staff ? st.off[st.staff + "|" + k] : undefined;
+        return '<div class="' + (st.staff && mine != null ? "cs-off" : "") + '">' + (st.staff ? (mine != null ? '<span class="cs-offtag" title="' + esc("Marked can\u2019t work" + (mine ? ": " + mine : "")) + '">Can\u2019t work</span>' : "")
+          : (offs.length ? '<span class="cs-offsum" title="' + esc("Can\u2019t work: " + offs.join(", ")) + '">' + offs.length + " can\u2019t work</span>" : "")) + l.map(function (b) { return chip(b, "cs-allday"); }).join("") + "</div>"; }).join("") + "</div>";
       var hours = ""; for (var h = 0; h < 24; h++) hours += '<span class="cs-hr" data-st="top:' + h * HOUR + 'px">' + (h ? pad(h) + ":00" : "") + "</span>";
       var now = nowW(), nowTop = (now.getHours() + now.getMinutes() / 60) * HOUR;
       var colsHtml = ds.map(function (d) {
@@ -257,16 +260,28 @@
       var max = nar ? 0 : 3;
       var html = '<div class="cs-month"><div class="cs-dow">' + DOW.map(function (x) { return "<span>" + x + "</span>"; }).join("") + '</div><div class="cs-cells">' +
         days(rg).map(function (d) {
-          var k = iso(d), list = byDay[k] || [];
+          var k = iso(d), list = byDay[k] || [], offs = st.offDay[k] || [], mine = st.staff ? st.off[st.staff + "|" + k] : undefined;
           var dots = nar ? '<span class="cs-dots">' + list.slice(0, 3).map(function (b) { return '<i class="cs-s-' + sKind(b) + '"></i>'; }).join("") + "</span>" : "";
-          return '<div class="cs-cell' + (d.getMonth() !== mo ? " cs-out" : "") + (k === today ? " cs-today" : "") + (list.length ? " cs-has" : "") + (st.sel === k ? " cs-sel" : "") + '" data-day="' + k + '" role="button" tabindex="0" aria-label="' + esc(d.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long" }) + (list.length ? ", " + list.length + " events" : "")) + '"><span class="cs-num">' + d.getDate() + "</span>" + dots +
+          return '<div class="cs-cell' + (st.staff && mine != null ? " cs-off" : "") + (d.getMonth() !== mo ? " cs-out" : "") + (k === today ? " cs-today" : "") + (list.length ? " cs-has" : "") + (st.sel === k ? " cs-sel" : "") + '" data-day="' + k + '" role="button" tabindex="0" aria-label="' + esc(d.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long" }) + (list.length ? ", " + list.length + " events" : "")) + '"><span class="cs-num">' + d.getDate() + "</span>" + dots +
+            (st.staff ? (mine != null ? '<span class="cs-offtag" title="' + esc("Marked can\u2019t work" + (mine ? ": " + mine : "")) + '">Can\u2019t work</span>' : "")
+              : (offs.length ? '<span class="cs-offsum" title="' + esc("Can\u2019t work: " + offs.join(", ")) + '">' + offs.length + " can\u2019t work</span>" : "")) +
             list.slice(0, max).map(function (b) { return chip(b, "cs-mchip"); }).join("") + (!nar && list.length > max ? '<span class="cs-more">+' + (list.length - max) + " more</span>" : "") + "</div>";
         }).join("") + "</div></div>";
       var inMo = all.filter(function (b) { var d = parse(b.day); return d && d.getMonth() === mo && (!nar || !st.sel || b.day === st.sel); });
       if (nar) html += '<div class="cs-agenda"><h3>' + (st.sel ? esc(parse(st.sel).toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "short" })) : "This month") + "</h3>" +
-        (inMo.length ? inMo.map(function (b) { var d = parse(b.day); return '<div class="cs-arow"><span class="cs-adate">' + esc(d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric" })) + "</span>" + chip(b, "cs-achip") + "</div>"; }).join("") : '<p class="cs-empty">Nothing scheduled.</p>') + "</div>";
+        (inMo.length ? inMo.map(function (b) { var d = parse(b.day); return '<div class="cs-arow"><span class="cs-adate">' + esc(d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric" })) + "</span>" + chip(b, "cs-achip") + "</div>"; }).join("") : '<p class="cs-empty">Nothing scheduled.</p>') +
+        // R174: on phones the month cells only show the red hatching - list the person's "can't work" days here
+        (st.staff ? Object.keys(st.off).filter(function (k) { var dd = parse(k.split("|")[1]); return k.indexOf(st.staff + "|") === 0 && dd && dd.getMonth() === mo && (!st.sel || k.split("|")[1] === st.sel); }).sort().map(function (k) { var dd = parse(k.split("|")[1]), nt = st.off[k];
+          return '<div class="cs-arow"><span class="cs-adate">' + esc(dd.toLocaleDateString(LOC(), { weekday: "short", day: "numeric" })) + '</span><span class="cs-offtag">' + esc("Can\u2019t work" + (nt ? ": " + nt : "")) + "</span></div>"; }).join("") : "") + "</div>";
       else if (!all.length) html += '<p class="cs-empty">No shifts this month.</p>';
       return html;
+    }
+    // R174: index "can't work" days: st.off["crew|day"] = note, st.offDay[day] = [names]
+    function setOff(list) {
+      st.offRaw = list || []; st.off = {}; st.offDay = {};
+      var nameOf = {}; people.forEach(function (p) { nameOf[p.id] = p.name; }); (st.rows || []).forEach(function (r) { if (r.crew_id && r.crew_name) nameOf[r.crew_id] = r.crew_name; });
+      (list || []).forEach(function (a) { if (!a || a.status !== "unavailable" || !a.crew_id || !a.day) return; var k = String(a.day).slice(0, 10);
+        st.off[a.crew_id + "|" + k] = a.note || ""; (st.offDay[k] = st.offDay[k] || []).push(nameOf[a.crew_id] || "Someone"); });
     }
     function render() {
       closePop(); idx = {};
@@ -288,8 +303,11 @@
       $("#csBody").innerHTML = '<p class="cs-empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></p>';
       $("#csRange").textContent = label(rg);
       // pad a day each side: a late shift can fall on the neighbouring UTC date
-      return BPStore.ops.crew.schedule(iso(addDays(rg.from, -1)), iso(addDays(rg.to, 1)), st.staff || null).then(function (rows) {
-        if (my !== seq) return; st.rows = rows || []; st.loaded = true; render();
+      // R174 (0365): the server now puts each task on its STUDIO day; the one-day pad stays (harmless, older databases)
+      var offP = availability ? Promise.resolve().then(function () { return availability(iso(rg.from), iso(rg.to), st.staff || null); }).catch(function () { return null; }) : Promise.resolve(null);
+      return Promise.all([BPStore.ops.crew.schedule(iso(addDays(rg.from, -1)), iso(addDays(rg.to, 1)), st.staff || null), offP]).then(function (res) {
+        var rows = res[0], offs = res[1];
+        if (my !== seq) return; st.rows = rows || []; st.loaded = true; setOff(offs); render();
       }).catch(function (e) {
         if (my !== seq) return;
         if (window.BPUI && BPUI.loadError) BPUI.loadError($("#csBody"), e, load, { what: "the schedule" });
@@ -308,7 +326,7 @@
       load(); }); });
     var sel = $("#csStaff"); if (sel) sel.addEventListener("change", function () { st.staff = sel.value; load(); });
     fillPeople();
-    return { reload: load, refresh: function () { if (st.loaded) render(); }, setPeople: function (p) { people = (p || []).slice(); fillPeople(); render(); }, state: st, ready: load() };
+    return { reload: load, refresh: function () { if (st.loaded) render(); }, setPeople: function (p) { people = (p || []).slice(); fillPeople(); setOff(st.offRaw); render(); }, state: st, ready: load() };
   }
   window.HelmCrewSchedule = { mount: mount, _switchAnchor: switchAnchor, _group: group, _timeOf: timeOf, _dayOf: dayOf, _workOf: workOf, _lanes: lanes };
 })();
