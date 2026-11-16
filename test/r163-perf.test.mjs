@@ -186,8 +186,8 @@ await t('0358: catalog built once per request, _r23_tz without the time zone fil
 });
 
 await t('cache-bust: store-api v350 on every page', () => {
-  assert.match(EV, /store-api\.js\?v=351/);
-  assert.match(read('public/dashboard.html'), /store-api\.js\?v=351/);
+  assert.match(EV, /store-api\.js\?v=352/);
+  assert.match(read('public/dashboard.html'), /store-api\.js\?v=352/);
 });
 
 console.log(`\nr163-perf: ${pass} passed, ${fail} failed`);

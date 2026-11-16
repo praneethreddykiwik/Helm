@@ -24,6 +24,10 @@
 //   * run-sheet reminders (0269) the owner of a run-sheet line (team member / staff / vendor with an e-mail), at the
 //                   line's reminder times (studio default 15 / 0 min before), e-mail only (WhatsApp goes through the 0132
 //                   lane above); claimed via runsheet_reminder_claim (re-checked there; trials / samples never queue)
+//   * staff e-mails (R170, 0361) tasks given to a staff member (one e-mail per person per event, tasks given within a
+//                   minute merged), the "Send by email" buttons, and every task reminder / late reminder / office alert that
+//                   the 0338 timer queues for WhatsApp; staff-email.mjs; claimed via staff_email_claim (re-checked there:
+//                   task still open, same person, studio not on a trial, event live); e-mail only
 //   * enquiry replies (0269) the instant thank-you to someone who used a studio's public enquiry form (/<studio>/enquiry),
 //                   the studio's own words; claimed via enquiry_reply_claim (re-checked there; trials never queue)
 //   * Helm notices (0244) a studio's plan request -> sales@helm.events, and "Ask my admin to upgrade" -> the
@@ -99,6 +103,7 @@ import { deliveryMessage } from "./delivery-reminder.mjs";   // 0241: delivery /
 import { vendorRequestMessage, VENDOR_TX_REASON } from "./vendor-request.mjs";   // 0256: vendor requests + reminders
 import { helmNoticeEmail, NOTICE_TX_REASON } from "./helm-notices.mjs";   // 0244: sales requests + "ask my admin"
 import { runsheetReminderMessage, enquiryReplyMessage, RUNSHEET_TX_REASON, ENQUIRY_TX_REASON } from "./r24-automation.mjs";   // 0269: run-sheet reminders + enquiry replies
+import { staffEmailMessage, STAFF_TX_REASON, OFFICE_TX_REASON } from "./staff-email.mjs";   // R170 (0361): tasks + task reminders e-mailed to staff
 import { replyToOf } from "../integrations-test/logic.mjs";
 import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks } from "../_shared/email-compliance.mjs";
 import { brandMode, mailConfig, sendMail, type SmtpSend } from "../_shared/mailer.ts";
@@ -507,6 +512,22 @@ Deno.serve(async (req) => {
       const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
       const { error: mErr } = await admin.rpc("runsheet_reminder_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
       if (mErr) { log.error("run-sheet mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
+      counts[res]++;
+    }
+    // R170 (0361): tasks given to staff + task reminders / late / office alerts by e-mail (staff_email_claim re-checks each
+    // row: task still open, same person, studio not on a trial, event live). A database without 0361 has nothing to claim.
+    const { data: srows, error: sErr } = mailOn && !overBudget() ? await admin.rpc("staff_email_claim", { p_limit: batch }) : NOCLAIM;
+    if (sErr && !/PGRST202|42883/.test(String(sErr.code || ""))) log.error("staff e-mail claim skipped", errTag(sErr));
+    for (const r of (Array.isArray(srows) ? srows : [])) {
+      if (overBudget()) break;   // R168
+      const id = String(r?.id ?? ""), to = String(r?.to ?? "");
+      if (!UUIDISH.test(id)) { counts.invalid++; continue; }
+      const msg = staffEmailMessage(r, origin);
+      const ident: Identity = await withReply("staff", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
+      const extra: Extra = { footer: txFooter(String(r?.kind ?? "") === "office_alert" ? OFFICE_TX_REASON : STAFF_TX_REASON, { app: origin, address: postalAddress(env) }) };
+      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
+      const { error: mErr } = await admin.rpc("staff_email_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      if (mErr) { log.error("staff e-mail mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // 0269: instant replies to the public enquiry form (a database without 0269 has nothing to claim)

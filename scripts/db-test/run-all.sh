@@ -371,6 +371,7 @@ run "r128-security-fixes-0336" "R128-SECURITY-FIXES-0336: ALL PASS \(43/43\)" ps
 run "r129-studio-whatsapp-0337" "R129-STUDIO-WHATSAPP-0337: ALL PASS \(42/42\)" psql -q -f tests/db/r129-studio-whatsapp-0337.sql
 # r130 (0338): WhatsApp task reminders - settings, per-task times, the 12:30 example (10/5/3, done at 12:26), missed times, late x3 + office, hold while waiting, new person / time, studio switch, assigned / open-shift fields, Meta ticks forward only, Live Status summary; re-applies itself twice, rolled back
 run "r130-task-reminders-0338" "R130-TASK-REMINDERS-0338: ALL PASS \(40/40\)" psql -q -f tests/db/r130-task-reminders-0338.sql
+run "r170-staff-email-0361" "R170-STAFF-EMAIL-0361: ALL PASS \(44/44\)" psql -q -f tests/db/r170-staff-email-0361.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
 run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f tests/db/r136-audit-via-0340.sql
 # r139 (0341): per-network limits on the approval link (240), client portal (240) and invitation (600) per 10 minutes - same answers as before, call N+1 from one network refused with a clean 22023 sentence, other networks / no address / read-only calls never blocked, kept __pre0341 copies with no app privilege, crew links untouched (0154), _tl173_trial_locked closed to anon; re-applies itself twice, rolled back

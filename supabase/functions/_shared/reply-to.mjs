@@ -80,6 +80,7 @@ export async function studioReplyTo(admin, org, opts = {}) {
 export const LANE_TABLES = {
   outbox: "comms_outbox", delivery: "delivery_reminder_sends", vendor: "vendor_request_sends",
   runsheet: "runsheet_reminder_sends", enquiry: "lead_enquiries", pkg: "pkg_outbox",
+  staff: "staff_email_outbox",   // R170 (0361): tasks + task reminders e-mailed to staff
 };
 
 // Reply-To for a queued row: the row's own explicit reply-to when valid, else the studio's fallback.
