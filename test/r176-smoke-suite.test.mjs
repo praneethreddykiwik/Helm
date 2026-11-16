@@ -29,6 +29,9 @@ t('triggers: deploy, schedule (3-hourly quick + daily full), manual', () => {
 t('deploy runs skip previews: only successful deploys of known hosts', () => {
   assert.match(WF, /deployment_status\.state == 'success'/);
   assert.match(WF, /contains\(github\.event\.deployment_status\.environment_url, 'helm-v01\.vercel\.app'\)/);
+  // R178: dev-repo deploys arrive at a unique vercel.app address, so they are recognised by environment 'Production'
+  assert.match(WF, /github\.event\.deployment\.environment == 'Production'/);
+  assert.doesNotMatch(WF, /deployment\.environment == 'Preview'/);
 });
 
 t('channel check: manual input defaults to false and is forced off outside workflow_dispatch', () => {
