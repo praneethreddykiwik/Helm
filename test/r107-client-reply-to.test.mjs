@@ -89,7 +89,7 @@ await t('rowReplyTo: queued row -> its studio (lane table org_id), cached per st
   assert.equal(await RT.rowReplyTo(a, 'enquiry', ROW, 'desk@sparkv.in', { env: SENDER }), 'desk@sparkv.in');
   assert.equal(await RT.rowReplyTo(a, 'nope', ROW, null, {}), '');
   for (const [lane, table] of [['outbox', 'comms_outbox'], ['delivery', 'delivery_reminder_sends'], ['vendor', 'vendor_request_sends'],
-    ['runsheet', 'runsheet_reminder_sends'], ['enquiry', 'lead_enquiries'], ['pkg', 'pkg_outbox']]) assert.equal(RT.LANE_TABLES[lane], table);
+    ['runsheet', 'runsheet_reminder_sends'], ['enquiry', 'lead_enquiries'], ['pkg', 'pkg_outbox'], ['staff', 'staff_email_outbox']]) assert.equal(RT.LANE_TABLES[lane], table);
 });
 
 await t('mailer: studio mode "<Studio> via Helm Events" (address unchanged); helm mode "Helm Events"; Reply-To == sender dropped', () => {
@@ -138,8 +138,8 @@ await t('comms-dispatch: every studio e-mail lane gets the Reply-To fallback; He
   const cd = read('supabase/functions/comms-dispatch/index.ts');
   assert.match(cd, /import \{ rowReplyTo \} from "\.\.\/_shared\/reply-to\.mjs";/);
   assert.match(cd, /ident = await withReply\("outbox", id, ident\);/);
-  for (const lane of ['delivery', 'vendor', 'runsheet', 'enquiry']) assert.match(cd, new RegExp('const ident: Identity = await withReply\\("' + lane + '", id,'));
-  assert.equal((cd.match(/withReply\("/g) || []).length, 5);
+  for (const lane of ['delivery', 'vendor', 'runsheet', 'enquiry', 'staff']) assert.match(cd, new RegExp('const ident: Identity = await withReply\\("' + lane + '", id,'));
+  assert.equal((cd.match(/withReply\("/g) || []).length, 6);   // R170: + the staff e-mail lane
   assert.match(cd, /sendEmail\(id, to, msg\.subject, msg\.text, "Helm", \{\}, extra\)/, 'trial mail stays Helm, no studio reply-to');
 });
 

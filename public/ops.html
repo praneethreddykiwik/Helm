@@ -56,6 +56,8 @@
   .titem{display:flex;gap:8px;align-items:center;font-size:13px;padding:7px 9px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel-2)}
   .titem input{width:18px;height:18px;accent-color:var(--accent)}
   .assignbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .assign-mail{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--ink-2);cursor:pointer}
+  .assign-mail input{width:auto;margin:0}
   .grp{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
   .grp .gh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
   .grp .gh b{font-size:14px} .grp .gh .ph{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
@@ -126,7 +128,7 @@
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=4">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=74" id="shellProto"></script>
+<script src="/shell-proto.js?v=75" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -182,6 +184,7 @@
         <select class="s-66dbd5d" id="assignCrew" aria-label="Assign to staff"></select>
         <span class="crewwho" id="assignWho" aria-live="polite"></span>
         <select class="s-47b618f" id="assignVendor" hidden aria-label="Assign to vendor"></select>
+        <label class="assign-mail" id="assignEmailWrap" title="E-mail the person their tasks for this event (sent from your studio name; replies come to your studio)"><input type="checkbox" id="assignEmail" checked> ✉ Send by email</label>
         <button type="button" class="btn primary" id="assignBtn">Assign selected →</button>
       </div>
       <div class="s-d2c171b" id="suggestBar"></div>
@@ -278,7 +281,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=351"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=352"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -289,7 +292,7 @@
   let waRows={}, trmSettings=null, scRem=null;
   async function loadWa(){ try{ const r=await BPStore.ops.waStatus(quoteId); if(!r) return; trmSettings=r.settings||null; waRows={};
       (r.tasks||[]).forEach(x=>{ if(x&&x.task_id) waRows[x.task_id]=x; });
-      const ln=$("#trmLine"); if(ln && window.HelmTaskReminders && trmSettings) ln.textContent=trmSettings.enabled===false?"WhatsApp task reminders are switched off for your studio (Settings → Notifications).":HelmTaskReminders.explain(trmSettings);
+      const ln=$("#trmLine"); if(ln && window.HelmTaskReminders && trmSettings) ln.textContent=trmSettings.enabled===false?"Task reminders are switched off for your studio (Settings → Notifications).":HelmTaskReminders.explain(trmSettings)+" Reminders are also emailed to staff who have an email address.";
     }catch{} }
   function waChip(t){ const c=window.HelmTaskReminders && HelmTaskReminders.chip(waRows[t.id]); return c?`<span class="wachip" data-state="${esc(c.state)}"${c.title?` title="${esc(c.title)}"`:""}>💬 ${esc(c.text)}</span>`:""; }
 
@@ -376,6 +379,7 @@
   $("#assignKind") && $("#assignKind").addEventListener("change",()=>{
     const outsource = $("#assignKind").value==="outsourced";
     $("#assignCrew").hidden = outsource; $("#assignVendor").hidden = !outsource;
+    if($("#assignEmailWrap")) $("#assignEmailWrap").hidden = outsource;   // R170: vendors get their checklist by their own link
     renderSuggestions();
   });
   // staff by name + phone + photo (crew_members; 0041-linked members carry their profile photo)
@@ -435,7 +439,16 @@
         const clash=await BPStore.calendar.wouldClash({date:quote.eventDate, crewId:c.id, excludeQuote:quoteId}).catch(()=>({clash:false}));
         if(clash.clash && !(await BPUI.confirm(c.name+" is "+clash.detail+". Assign anyway?",{title:"Scheduling clash",okLabel:"Assign anyway",danger:true}))){ return; }
         const r=await BPStore.ops.assignTasks(quoteId, activeCat, titles, c.id, c.name, c.phone);
-        setMsg("ok", `Assigned ${r.tasks_created} ${activeCat} task(s) to ${c.name}.${window.HelmTrialPreview?"":" Worker link ready below."}`);
+        // R170 (0361): "Send by email" ticked -> e-mail their task list now; unticked -> the automatic e-mail is cancelled
+        let mailNote="";
+        if($("#assignEmail") && !$("#assignEmail").checked){ try{ await BPStore.ops.emailHold(quoteId, c.id); }catch(e){} mailNote=" No email sent."; }
+        else {
+          try{ const fresh=await BPStore.ops.listTasks(quoteId); tasks=fresh||tasks;
+            const t=(fresh||[]).find(x=>x.crew_id===c.id && titles.includes(x.title) && !["completed","cancelled","rejected"].includes(x.status));
+            mailNote=t? " "+mailText(await BPStore.ops.emailTasks(t.id, true), c.name) : "";
+          }catch(e){ mailNote=" The email could not be queued - use ✉ Send by email below."; }
+        }
+        setMsg("ok", `Assigned ${r.tasks_created} ${activeCat} task(s) to ${c.name}.${window.HelmTrialPreview?"":" Worker link ready below."}${mailNote}`);
       }
       $("#selAll").checked=false; await refresh(); await renderTasks();
     }catch(e){ setMsg("err",BPUI.friendlyError(e,{action:"assign the tasks"})); }
@@ -474,20 +487,43 @@
       ${evidenceBtn(t)}
       ${canEditOps?`<button type="button" class="btn sm sched" title="Set start time & prerequisite" aria-label="Schedule ${tn}">⏱</button>`:""}
       ${canEditOps?`<button type="button" class="btn sm spc" title="Toggle recurring reminder" aria-label="${t.is_special?"Turn off recurring reminder for":"Turn on recurring reminder for"} ${tn}">${t.is_special?'🔕':'🔔'}</button>`:""}
+      ${canEditOps&&t.assignee_kind!=='outsourced'&&(t.crew_id||t.assignee_phone)&&['assigned','accepted','in_progress'].includes(t.status)?`<button type="button" class="btn sm temail" title="Send this task by email" aria-label="Send ${tn} by email">✉</button>`:""}
       ${canEditOps&&['rejected','assigned'].includes(t.status)?`<button type="button" class="btn sm reassign" aria-label="Reassign ${tn}">Reassign</button>`:""}
       ${canEditOps&&['accepted','in_progress','completed'].includes(t.status)?`<button type="button" class="btn sm reassign-locked" disabled title="Locked: task accepted" aria-label="Reassign ${tn} - locked: task accepted">Reassign</button>`:""}
       ${canEditOps&&CANCELLABLE.includes(t.status)?`<button type="button" class="btn sm danger tcancel" title="Cancel this task (a reason is required)" aria-label="Cancel ${tn}">Cancel</button>`:""}
       ${canVerify && t.status==='completed' && t.verify_status==='pending' ? `<button type="button" class="btn sm vpass" aria-label="Pass QC for ${tn}">✓ Pass</button><button type="button" class="btn sm vrej" aria-label="Reject QC for ${tn}">✗ Reject</button>`:""}
       ${t.status==='cancelled'?`<div class="creason">Cancelled${t.cancel_reason?": "+esc(t.cancel_reason):""}${t.cancelled_at?" · "+esc(fmtTime(t.cancelled_at)):""}</div>`:""}</div>`;
   }
+  // R170 (0361): "Send by email" - the server reads the address from the staff record (never from this page)
+  function personMailBtn(phone, name){
+    if(!canEditOps) return "";
+    const t=tasks.find(x=>x.assignee_phone===phone && x.assignee_kind!=='outsourced' && ['assigned','accepted','in_progress'].includes(x.status));
+    return t?`<button type="button" class="btn sm semail" data-task="${esc(t.id)}" aria-label="Send ${esc(name)} their tasks by email">✉ Send by email</button>`:"";
+  }
+  function mailText(r, name){
+    const who=(r&&r.name)||name||"They";
+    if(r&&r.ok) return `Email on its way to ${r.masked||who}.`;
+    const why=r&&r.reason;
+    if(why==="no_email") return `${who} has no email on their staff record - add one on the Staff page to email them.`;
+    if(why==="just_sent") return `An email went to ${who} a moment ago.`;
+    if(why==="trial") return "In the free trial nothing leaves Helm, so no email was sent.";
+    if(why==="not_live") return "This event is cancelled or a sample, so no email was sent.";
+    return "Nothing to email for this task.";
+  }
+  async function sendMail(b, taskId, all){
+    await BPUI.guard(b, async()=>{
+      try{ const r=await BPStore.ops.emailTasks(taskId, all); BPUI.toast(mailText(r), {type: r&&r.ok?"ok":"info", timeout: 7000}); }
+      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"send the email"}),{type:"err"}); }
+    },{busyLabel:"Sending…"});
+  }
   function workerLinkFor(phone){ const w=tokens.find(x=>x.phone===phone); return w? BPStore.links.url("work", w.token, location.origin+"/work.html?token="+w.token) : null; }
   function workerLinksBlock(){
     const seen=new Set(), rows=[];
     tasks.forEach(t=>{ const ph=t.assignee_phone; if(!ph||seen.has(ph)) return; seen.add(ph); const link=workerLinkFor(ph); if(!link) return;
       const name=t.assignee_name||ph;
-      rows.push(`<div class="linkline"><b>${esc(name)}</b><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" aria-label="Copy worker link for ${esc(name)}">Copy link</button></div>`); });
+      rows.push(`<div class="linkline"><b>${esc(name)}</b><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" aria-label="Copy worker link for ${esc(name)}">Copy link</button>${personMailBtn(ph,name)}</div>`); });
     if(!rows.length) return "";
-    return `<div class="grp" id="workerLinks"><div class="gh"><b>🔗 Worker links</b><span class="muted">one per person - sent to them on WhatsApp from your studio's number; if a message isn't delivered, copy the link and share it</span></div>${rows.join("")}</div>`;
+    return `<div class="grp" id="workerLinks"><div class="gh"><b>🔗 Worker links</b><span class="muted">one per person - sent to them by email (and on WhatsApp from your studio's number once it is connected); if a message isn't delivered, copy the link and share it</span></div>${rows.join("")}</div>`;
   }
   function renderDashboard(){
     if(!renderDashboard._s){ renderDashboard._s=1; BPStore.links.studio().then(s=>{ if(s) renderDashboard(); }).catch(()=>{}); }   // re-render once the branded studio link name is known
@@ -519,12 +555,14 @@
         const rows=ts.map(t=>taskRow(t,byId,t.category)).join("");
         return `<div class="grp"><div class="gh"><b>${esc(name)}</b><span class="ph">${esc(phone)}</span>
           <span class="muted">${done}/${ts.length} done</span></div>${rows}
-          ${link?`<div class="linkline"><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" aria-label="Copy worker link for ${esc(name)}">Copy link</button></div>
-            <div class="muted" style="margin-top:4px">Sent on WhatsApp from your studio's number to ${esc(phone)}. If it shows Not sent or Failed, copy the link and share it.</div>`:""}</div>`;
+          ${link?`<div class="linkline"><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" aria-label="Copy worker link for ${esc(name)}">Copy link</button>${personMailBtn(phone,name)}</div>
+            <div class="muted" style="margin-top:4px">Sent by email, and on WhatsApp from your studio's number to ${esc(phone)} once it is connected. If it shows Not sent or Failed, copy the link and share it.</div>`:""}</div>`;
       }).join("");
     }
     host.querySelectorAll(".copy").forEach(b=>b.addEventListener("click",async()=>{ try{await navigator.clipboard.writeText(b.dataset.l); b.textContent="Copied ✓"; BPUI.toast("Worker link copied.",{type:"ok",timeout:2000}); setTimeout(()=>b.textContent="Copy link",1400);}catch{ BPUI.toast("Couldn't copy — select the link and copy it manually.",{type:"err"}); } }));
     host.querySelectorAll(".reassign").forEach(b=>b.addEventListener("click",()=>openReassign(b.closest(".trow").dataset.id)));
+    host.querySelectorAll(".temail").forEach(b=>b.addEventListener("click",()=>sendMail(b, b.closest(".trow").dataset.id, false)));
+    host.querySelectorAll(".semail").forEach(b=>b.addEventListener("click",()=>sendMail(b, b.dataset.task, true)));
     host.querySelectorAll(".tcancel").forEach(b=>b.addEventListener("click",()=>openCancelTask(b.closest(".trow").dataset.id)));
     host.querySelectorAll(".evid").forEach(b=>b.addEventListener("click",()=>openEvidence(b.closest(".trow").dataset.id)));
     // QC / special buttons: guarded (no double-submit) — while one is in flight, its whole row is locked
@@ -680,7 +718,7 @@
     const c=crew.find(x=>x.id===$("#ra_crew").value);
     if(!c){ $("#ra_err").textContent="Pick a staff member."; $("#ra_err").hidden=false; $("#ra_crew").focus(); return; }
     BPUI.guard($("#reassignForm"),async()=>{
-      try{ await BPStore.ops.reassign(raTaskId,c.id,c.name,c.phone); await closeReassign(true); BPUI.toast("Reassigned to "+c.name+".",{type:"ok"}); }
+      try{ await BPStore.ops.reassign(raTaskId,c.id,c.name,c.phone); await closeReassign(true); BPUI.toast("Reassigned to "+c.name+"."+((c.email||c.profile_id)?" They get an email with their tasks in about a minute.":""),{type:"ok"}); }
       catch(err){ $("#ra_err").textContent=BPUI.friendlyError(err,{action:"reassign the task"}); $("#ra_err").hidden=false; return; }
       try{ await refresh(); }
       catch(err){ BPUI.toast(BPUI.friendlyError(err,{action:"refresh the task list"}),{type:"err"}); }

@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (315 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (316 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4015 objects): body 175, bucket 9, col 226, con 402, cron 20, exec 4, fn 1807, idx 461, marker 12, pol 184, polexpr 4, pre 96, pub 5, seq 1, tbl 263, trg 344, view 2.
+-- What is checked (4044 objects): body 175, bucket 9, col 227, con 402, cron 20, exec 4, fn 1821, idx 467, marker 12, pol 184, polexpr 4, pre 97, pub 5, seq 1, tbl 264, trg 350, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3065,9 +3065,9 @@ with o(m, k, s, n, x) as (values
   ('0274_automations_optin', 'fn', 'public', 'tg_auto274_gate', ''),
   ('0274_automations_optin', 'fn', 'public', '_assign132_enqueue__pre0274', 'uuid,uuid,text,uuid,text,text,text,text,text'),
   ('0274_automations_optin', 'body', 'public', '_assign132_enqueue', 'uuid,uuid,text,uuid,text,text,text,text,text|29a9f058a46f9ff160d8d0cfe51c650f'),
+  ('0274_automations_optin', 'pre', null, '__pre0274', null),
   ('0274_automations_optin', 'fn', 'public', 'automation_overview', ''),
   ('0274_automations_optin', 'fn', 'public', 'automation_switch', 'text,boolean'),
-  ('0274_automations_optin', 'pre', null, '__pre0274', null),
   ('0276_public_captcha', 'tbl', 'public.captcha_public_passes', null, null),
   ('0276_public_captcha', 'idx', 'public.captcha_public_passes_created_idx', null, null),
   ('0276_public_captcha', 'fn', 'public', 'captcha_public_pass_record', 'text'),
@@ -4039,7 +4039,36 @@ with o(m, k, s, n, x) as (values
   ('0360_r167_fk_indexes', 'idx', 'public.vendor_request_sends_org_id_idx', null, null),
   ('0360_r167_fk_indexes', 'idx', 'public.vendor_requests_delivery_id_idx', null, null),
   ('0360_r167_fk_indexes', 'idx', 'public.vendor_requests_replaced_by_idx', null, null),
-  ('0360_r167_fk_indexes', 'idx', 'public.vendor_requests_replaces_id_idx', null, null)
+  ('0360_r167_fk_indexes', 'idx', 'public.vendor_requests_replaces_id_idx', null, null),
+  ('0361_r170_staff_email', 'col', 'public.automation_settings', 'staff_email_enabled', null),
+  ('0361_r170_staff_email', 'tbl', 'public.staff_email_outbox', null, null),
+  ('0361_r170_staff_email', 'idx', 'public.staff_email_outbox_dedupe361', null, null),
+  ('0361_r170_staff_email', 'idx', 'public.staff_email_outbox_pending361', null, null),
+  ('0361_r170_staff_email', 'idx', 'public.staff_email_outbox_merge361', null, null),
+  ('0361_r170_staff_email', 'idx', 'public.staff_email_outbox_org_id_idx', null, null),
+  ('0361_r170_staff_email', 'idx', 'public.staff_email_outbox_task_id_idx', null, null),
+  ('0361_r170_staff_email', 'idx', 'public.staff_email_outbox_crew_id_idx', null, null),
+  ('0361_r170_staff_email', 'trg', 'public.staff_email_outbox', 'zz_quote_org_match', null),
+  ('0361_r170_staff_email', 'trg', 'public.staff_email_outbox', 'zzz_studio_read_only', null),
+  ('0361_r170_staff_email', 'trg', 'public.staff_email_outbox', 'zzz_sq164_system_skip', null),
+  ('0361_r170_staff_email', 'trg', 'public.staff_email_outbox', 'zzzz_ts166_outbox_skip', null),
+  ('0361_r170_staff_email', 'fn', 'public', '_r361_email', 'text'),
+  ('0361_r170_staff_email', 'fn', 'public', '_r361_on', 'uuid'),
+  ('0361_r170_staff_email', 'fn', 'public', '_r361_person', 'uuid,uuid,text'),
+  ('0361_r170_staff_email', 'fn', 'public', '_r361_manager', 'uuid,uuid'),
+  ('0361_r170_staff_email', 'fn', 'public', '_r361_live', 'uuid,uuid'),
+  ('0361_r170_staff_email', 'fn', 'public', '_r361_mine', 'event_tasks,uuid,text'),
+  ('0361_r170_staff_email', 'fn', 'public', '_r361_tg_task_assigned', ''),
+  ('0361_r170_staff_email', 'trg', 'public.event_tasks', 'zzz_r361_task_email', null),
+  ('0361_r170_staff_email', 'fn', 'public', '_r361_tg_reminder', ''),
+  ('0361_r170_staff_email', 'trg', 'public.task_wa_outbox', 'zzz_r361_reminder_email', null),
+  ('0361_r170_staff_email', 'fn', 'public', 'staff_email_send', 'uuid,boolean'),
+  ('0361_r170_staff_email', 'fn', 'public', 'staff_email_hold', 'uuid,uuid'),
+  ('0361_r170_staff_email', 'fn', 'public', 'staff_email_claim', 'integer'),
+  ('0361_r170_staff_email', 'fn', 'public', 'staff_email_mark', 'uuid,text'),
+  ('0361_r170_staff_email', 'fn', 'public', 'automation_overview__pre0361', ''),
+  ('0361_r170_staff_email', 'fn', 'public', 'automation_switch__pre0361', 'text,boolean'),
+  ('0361_r170_staff_email', 'pre', null, '__pre0361', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4356,7 +4385,8 @@ mig(ord, m, ov, note) as (values
   (312, '0357_r163_bell_type_once', null, 'bell / inbox / pending + Continue quotes speed fix: _r23_visible + bell_feed__pre0042 + my_open_quotes re-issued in place (built with dynamic SQL), checked by the r163-0357 marker; kept bodies as __pre0357'),
   (313, '0358_r163_catalog_tz_speed', null, 'notification_catalog + _r23_tz re-issued in place (built with dynamic SQL), checked by the r163-0358 marker; kept bodies as __pre0358; new table _r358_tz_names'),
   (314, '0359_r167_cron_log_trim', null, null),
-  (315, '0360_r167_fk_indexes', null, 'index-only migration: adds FK/tenant btree indexes, each created only if the table exists; checked here by index name')
+  (315, '0360_r167_fk_indexes', null, 'index-only migration: adds FK/tenant btree indexes, each created only if the table exists; checked here by index name'),
+  (316, '0361_r170_staff_email', null, null)
 ),
 env as (
   select

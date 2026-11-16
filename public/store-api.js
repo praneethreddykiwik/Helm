@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=74"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=75"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -3932,6 +3932,11 @@ window.HelmUrl = HelmUrl;
     // Phase 40 — outsource a set of tasks to a vendor (sends them the checklist via the worker link)
     assignTasksVendor: (quoteId, category, titles, vendorId) => rpc("assign_tasks_vendor",
       { p_quote_id: quoteId, p_category: category, p_titles: titles, p_vendor_id: vendorId }),
+    // R170 (0361): "Send by email" - the server reads the address from the staff record. all = every open task of that
+    // person on this event. Answer { ok, masked? , name, reason? } (reason: no_email | just_sent | trial | not_live | vendor | closed)
+    emailTasks: (taskId, all) => rpc("staff_email_send", { p_task: taskId, p_all: all !== false }),
+    // the assign form's "Send by email" box unticked: cancel the e-mail just queued for that person on this event
+    emailHold: (quoteId, crewId) => rpc("staff_email_hold", { p_quote: quoteId, p_crew: crewId }),
     reassign: (taskId, crewId, name, phone) => rpc("reassign_task",
       { p_task_id: taskId, p_crew_id: crewId || null, p_name: name, p_phone: phone }),
     // r96 (0312): the office cancels an assigned / accepted / in-progress task; a reason (3-300 chars) is required

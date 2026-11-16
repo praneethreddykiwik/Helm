@@ -124,6 +124,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0323_r114_trial_simulation.sql
 -- 0354 (r156 WhatsApp templates in the background) adds wa_template_jobs + wa_template_setup to the keep list
 \ir ../../supabase/migrations/0354_r156_wa_template_jobs.sql
+-- 0361 (r170 staff e-mails) adds staff_email_outbox to the purge list
+\ir ../../supabase/migrations/0361_r170_staff_email.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin
