@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (321 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (322 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4094 objects): body 173, bucket 9, col 228, con 403, cron 20, exec 4, fn 1847, idx 475, marker 12, pol 184, polexpr 4, pre 100, pub 5, seq 1, tbl 267, trg 360, view 2.
+-- What is checked (4092 objects): body 170, bucket 9, col 228, con 403, cron 19, exec 4, fn 1846, idx 475, marker 15, pol 184, polexpr 4, pre 101, pub 5, seq 1, tbl 267, trg 359, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -673,7 +673,6 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'accept_invitation', 'text'),
   ('0001_pricing_authority', 'body', 'public', 'enforce_pricing_total', '|906e8a4240c9079e5ecde18fd774d385'),
   ('0001_pricing_authority', 'fn', 'public', 'helm_quote_total_canonical', 'jsonb'),
-  ('0001_pricing_authority', 'trg', 'public.quotes', 'zz_enforce_pricing_total', null),
   ('0003_money_integrity', 'fn', 'public', 'helm_total_paid', 'uuid,uuid,uuid'),
   ('0003_money_integrity', 'fn', 'public', 'enforce_no_overpayment', ''),
   ('0003_money_integrity', 'fn', 'public', 'enforce_no_overpayment_ms', ''),
@@ -889,7 +888,6 @@ with o(m, k, s, n, x) as (values
   ('0030_password_rule_symbols', 'body', 'public', '_password_ok', 'text|8ca249ad194b43fd6247bd651e5878a5'),
   ('0031_manual_private_bucket', 'bucket', null, 'helm-manual', null),
   ('0031_manual_private_bucket', 'pol', 'storage.objects', 'helm_manual_staff_read', null),
-  ('0032_rescore2_fixes', 'body', 'public', 'tg_refund_maker_checker', '|f996cfe30620e903fee42ec5a7b75995'),
   ('0032_rescore2_fixes', 'body', 'public', 'storage_upload_allowed', 'text,text|50d0c73c5cbfd1512661f7807570aea4'),
   ('0032_rescore2_fixes', 'fn', 'public', 'tg_quote_pricing_bounds', ''),
   ('0032_rescore2_fixes', 'trg', 'public.quotes', 'ab_quote_pricing_bounds', null),
@@ -908,7 +906,6 @@ with o(m, k, s, n, x) as (values
   ('0032_rescore2_fixes', 'trg', 'public.organizations', 'ab_mass_assign_guard', null),
   ('0033_rescore3_fixes', 'body', 'public', '_flag', 'text|adfc7af6485f660ca3ac5cef66200b0f'),
   ('0033_rescore3_fixes', 'body', 'public', '_flag', 'text,uuid|32e57e7ec220ad14f1898c45528a1758'),
-  ('0033_rescore3_fixes', 'body', 'public', 'tg_guard_task_verify', '|e79723e83615acc0c77045cf6765d943'),
   ('0033_rescore3_fixes', 'fn', 'public', '_notify__base', 'uuid,text,text,text,jsonb'),
   ('0033_rescore3_fixes', 'fn', 'public', 'tg_quote_pricing_shape', ''),
   ('0033_rescore3_fixes', 'trg', 'public.quotes', 'ab_quote_pricing_shape', null),
@@ -1318,7 +1315,6 @@ with o(m, k, s, n, x) as (values
   ('0054_security_alerts', 'fn', 'public', 'security_alert_outbox_claim', 'integer'),
   ('0054_security_alerts', 'fn', 'public', 'security_alert_outbox_mark', 'uuid,text'),
   ('0054_security_alerts', 'pre', null, '__pre0054', null),
-  ('0055_phone_verify', 'body', 'public', '_mp_mobile', 'text,text|9dc8fb4603dda5c4c6127ecfe887e27f'),
   ('0055_phone_verify', 'col', 'public.member_profiles', 'phone_verified_at', null),
   ('0055_phone_verify', 'con', 'public.member_profiles', 'member_profiles_phone_chk', null),
   ('0055_phone_verify', 'con', 'public.member_profiles', 'member_profiles_whatsapp_chk', null),
@@ -2233,7 +2229,6 @@ with o(m, k, s, n, x) as (values
   ('0184_trial_retention', 'fn', 'public', 'trial_retention_dry_run', 'uuid,boolean'),
   ('0184_trial_retention', 'fn', 'public', 'trial_retention_set_hold', 'uuid,boolean,text'),
   ('0184_trial_retention', 'cron', null, 'helm_trial_retention', null),
-  ('0184_trial_retention', 'cron', null, 'helm_trial_retention_purge', null),
   ('0185_trial_upgrade_choice', 'body', 'public', 'my_studio_account_update', 'jsonb|f857513d747545b4fd57f8bcc652bf57'),
   ('0185_trial_upgrade_choice', 'col', 'public.organizations', 'upgrade_choice', null),
   ('0185_trial_upgrade_choice', 'col', 'public.organizations', 'upgrade_choice_at', null),
@@ -3379,8 +3374,6 @@ with o(m, k, s, n, x) as (values
   ('0285_r35_payment_details_safety', 'fn', 'public', 'hq_studio_flag_clear', 'uuid,uuid,text'),
   ('0285_r35_payment_details_safety', 'fn', 'public', 'studio_security_events_list', 'integer'),
   ('0285_r35_payment_details_safety', 'fn', 'public', 'studio_email_settings_set__pre0285', 'text,text'),
-  ('0285_r35_payment_details_safety', 'fn', 'public', 'save_org_payment_account__pre0285', 'text,text,text'),
-  ('0285_r35_payment_details_safety', 'fn', 'public', 'set_org_integration_status__pre0285', 'text,text'),
   ('0285_r35_payment_details_safety', 'fn', 'public', 'admin_set_role_access__pre0285', 'text,text,boolean,boolean'),
   ('0285_r35_payment_details_safety', 'fn', 'public', '_r285_tg_org_email_gate', ''),
   ('0285_r35_payment_details_safety', 'fn', 'public', '_r285_tg_org_email_alert', ''),
@@ -4118,11 +4111,16 @@ with o(m, k, s, n, x) as (values
   ('0366_r174b_presence', 'trg', 'public.member_presence', 'zzz_studio_read_only', null),
   ('0366_r174b_presence', 'fn', 'public', 'presence_touch', ''),
   ('0366_r174b_presence', 'fn', 'public', 'presence_list', ''),
-  ('0366_r174b_presence', 'fn', 'public', 'presence_set_visible', 'boolean')
+  ('0366_r174b_presence', 'fn', 'public', 'presence_set_visible', 'boolean'),
+  ('0367_r177_plain_dash_reissue', 'fn', 'public', '_r367_keep', 'text'),
+  ('0367_r177_plain_dash_reissue', 'pre', null, '__pre0367', null),
+  ('0367_r177_plain_dash_reissue', 'marker', 'public', 'tg_refund_maker_checker', '|r177-0367'),
+  ('0367_r177_plain_dash_reissue', 'marker', 'public', 'tg_guard_task_verify', '|r177-0367'),
+  ('0367_r177_plain_dash_reissue', 'marker', 'public', '_mp_mobile', 'text,text|r177-0367')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
-  (2, '0001_pricing_authority', null, null),
+  (2, '0001_pricing_authority', null, 'the pricing trigger may be named quotes_enforce_pricing_total (base) instead of zz_enforce_pricing_total - same enforce_pricing_total function (0345 left prod on the base name); the base row checks it'),
   (3, '0002_create_helm_user_lockdown', 'skip', 'privilege lock-down only (grants on create_helm_user) - nothing to look up by name'),
   (4, '0003_money_integrity', null, null),
   (5, '0004_tenant_integrity', null, null),
@@ -4300,7 +4298,7 @@ mig(ord, m, ov, note) as (values
   (177, '0181_trial_guards', null, null),
   (178, '0182_trial_builder_prices', null, null),
   (179, '0183_trial_expiry_read_only', null, null),
-  (180, '0184_trial_retention', null, null),
+  (180, '0184_trial_retention', null, 'the daily free-trial purge job helm_trial_retention_purge is OFF on prod by owner decision (APPLY-0345 item 8); the hourly helm_trial_retention job is checked'),
   (181, '0185_trial_upgrade_choice', null, null),
   (182, '0186_trial_one_per_email_extension', null, null),
   (183, '0187_trial_outbound_gaps', null, null),
@@ -4371,7 +4369,7 @@ mig(ord, m, ov, note) as (values
   (248, '0282_r32_security_review', null, null),
   (249, '0283_r33_team_safety', null, null),
   (250, '0284_invite_rsvp_privacy', null, null),
-  (251, '0285_r35_payment_details_safety', null, null),
+  (251, '0285_r35_payment_details_safety', null, 'the two __pre0285 copies exist only where 0117 (optional, Razorpay dormant) was applied - 0285 skips that step otherwise'),
   (252, '0287_studio_timezone_today', null, null),
   (253, '0288_staff_google_only', null, null),
   (254, '0290_send_window', null, null),
@@ -4441,7 +4439,8 @@ mig(ord, m, ov, note) as (values
   (318, '0363_r172_update_notices_staff_link', null, null),
   (319, '0364_r173_task_timing', null, null),
   (320, '0365_r174_event_day_board', null, null),
-  (321, '0366_r174b_presence', null, 'The two realtime.messages policies (own studio private presence channel) are created only where the Supabase realtime schema exists; local and CI databases have none. On prod check them with: select policyname from pg_policies where schemaname = realtime and policyname like helm_presence_%')
+  (321, '0366_r174b_presence', null, 'The two realtime.messages policies (own studio private presence channel) are created only where the Supabase realtime schema exists; local and CI databases have none. On prod check them with: select policyname from pg_policies where schemaname = realtime and policyname like helm_presence_%'),
+  (322, '0367_r177_plain_dash_reissue', null, 'three functions re-issued with plain dashes (built with dynamic SQL, only where the known body is live), checked by the r177-0367 marker; kept bodies as __pre0367')
 ),
 env as (
   select
