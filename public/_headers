@@ -574,6 +574,16 @@
   ! Cache-Control
   Cache-Control: no-store
 
+/monitor
+  X-Robots-Tag: noindex, nofollow, noarchive
+  ! Cache-Control
+  Cache-Control: no-store
+
+/monitor.html
+  X-Robots-Tag: noindex, nofollow, noarchive
+  ! Cache-Control
+  Cache-Control: no-store
+
 /integrations
   X-Robots-Tag: noindex, nofollow, noarchive
   ! Cache-Control

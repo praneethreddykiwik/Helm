@@ -4,6 +4,7 @@
  *                                         (home page card: opts.compact; Calendar "Live today" tab: full)
  *   HelmLiveBoard.mountOps(el, getTasks)  the progress summary above an event's "Live status" (Tasks & staff page)
  *   HelmLiveBoard.summarize(tasks, now)   pure counts (used by mountOps; unit-tested)
+ * R181: both link to the full Event-day monitor page (monitor.html?quote=<id>).
  * Data: BPStore.ops.live.today(hours) -> live_events_today (0365): office roles only, own studio only.
  * Built with DOM calls only (textContent), never HTML strings, so nothing a client or worker typed can become markup.
  * Refreshes every 60 s while the page is visible. Before 0365 (null answer) the card / tab stay hidden. */
@@ -124,7 +125,7 @@
 
   /* ---- one event card (live_events_today row) ---- */
   function eventCard(ev, now, compact) {
-    var link = "ops.html?quote=" + encodeURIComponent(ev.quote_id) + "#live";
+    var link = "monitor.html?quote=" + encodeURIComponent(ev.quote_id);   /* R181: the full Event-day monitor page */
     var name = (ev.code ? ev.code : "") + (ev.title && ev.title !== ev.code ? " · " + ev.title : "");
     var when = [ev.is_today ? "Today" : fmtDay(ev.event_date), ev.event_time || "", ev.venue || ""].filter(Boolean).join(" · ");
     var pill = Number(ev.late) ? h("span", { cls: "lb-pill lb-pill-late", text: ev.late + " late" })
@@ -143,7 +144,8 @@
       waiting: +ev.waiting || 0, late: +ev.late || 0, rejected: +ev.rejected || 0, unassigned: +ev.unassigned || 0 }), people];
     if (!compact) { kids.push(lateBox(lt, now, Math.max(0, (+ev.late || 0) - lt.length))); kids.push(lastLine(ev.last, now)); }
     else if (lt.length) kids.push(h("div", { cls: "lb-late-mini", text: "⚠ " + lt[0].title + " (" + (lt[0].who || "no one") + ") was due " + fmtTime(lt[0].at) + (lt.length > 1 ? " · +" + (lt.length - 1) + " more" : "") }));
-    kids.push(h("div", { cls: "lb-foot" }, [h("a", { cls: "lb-open", href: link, text: "Open live board →" })]));
+    kids.push(h("div", { cls: "lb-foot" }, [h("a", { cls: "lb-open", href: link, text: "Open event-day monitor →" }),
+      h("a", { cls: "lb-open lb-sec", href: "ops.html?quote=" + encodeURIComponent(ev.quote_id) + "#live", text: "Tasks & staff" })]));
     return h("article", { cls: "lb-ev" + (Number(ev.late) ? " lb-has-late" : ""), label: name }, kids);
   }
 
@@ -201,8 +203,10 @@
       if (!tasks.length) { el.hidden = true; return; }
       el.hidden = false;
       var now = Date.now(), c = summarize(tasks, now);
+      var qid = (tasks[0] && tasks[0].quote_id) || "";
       el.appendChild(h("div", { cls: "lb-top" }, [h("div", {}, [h("h3", { cls: "lb-h", text: "Event-day progress" }),
-        h("div", { cls: "lb-muted", text: "Updates on its own" + (c.nextStart ? " · next start " + fmtTime(c.nextStart) + " (" + until(c.nextStart, now) + ")" : "") })])]));
+        h("div", { cls: "lb-muted", text: "Updates on its own" + (c.nextStart ? " · next start " + fmtTime(c.nextStart) + " (" + until(c.nextStart, now) + ")" : "") })]),
+        qid ? h("a", { cls: "lb-open", href: "monitor.html?quote=" + encodeURIComponent(qid), text: "Open full monitor →", title: "By staff, by work, by status and what is left - one page" }) : null]));
       el.appendChild(bar(c.done, c.total));
       el.appendChild(stats(c));
       el.appendChild(h("div", { cls: "lb-people" }, [h("span", { text: "👥 " + c.staffConfirmed + " of " + c.staff + " people confirmed (accepted, started or done)" })]));

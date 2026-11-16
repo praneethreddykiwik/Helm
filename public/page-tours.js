@@ -382,6 +382,14 @@
       { sel: "#ibxReadAll", title: "Mark all read", desc: "Clear the unread count in one go." },
       { sel: "#ibxMail", title: "E-mail me", desc: "Get unread notifications by e-mail, straight away or once each morning." },
     ],
+    "monitor.html": [
+      { sel: "#monEvent", title: "Pick the event", desc: "Today's events and the next 3 days come first, then the rest of the month. With several events today, choose All events today." },
+      { sel: "#monSummary", title: "How far along", desc: "The bar is the share of tasks done. Tap a count (Late, Waiting for a yes...) to see just those tasks." },
+      { sel: "#monTabs", title: "Four ways to look", desc: "By staff: each person and their tasks. By work: each section like Tasks & staff. By status: columns from waiting to done. Leftover: everything not done, late ones first." },
+      { sel: ".mon-tools", title: "Filter and sort", desc: "Search, or show one person, one section or one status. Sort by start time, name or status." },
+      { sel: "#monFeed", title: "What just happened", desc: "Accepts, starts and finishes as they come in. The page updates on its own every 30 seconds." },
+      { sel: "#monOpenOps", title: "Change something", desc: "This page only watches. To reassign, schedule or cancel, open Tasks & staff (or a task's Open button). Nudge e-mails the task to the person again." },
+    ],
     "integrations.html": [
       { sel: "#itgEmail", title: "E-mail invites", desc: "The sender name and reply-to address on e-mails Helm sends for you. Changing the reply-to address needs two-step sign-in; the sender name does not." },
       { sel: "#itgEmailTest", title: "Test it", desc: "Send yourself a test e-mail to see how it looks." },
