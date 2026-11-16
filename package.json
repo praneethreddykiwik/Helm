@@ -40,7 +40,8 @@
     "test:db": "bash scripts/db-test/run-all.sh",
     "check:base": "node scripts/check-base-immutable.mjs",
     "gen:sbom": "node scripts/gen-sbom.mjs",
-    "check:sbom": "node scripts/gen-sbom.mjs --check"
+    "check:sbom": "node scripts/gen-sbom.mjs --check",
+    "test:edge": "cd tests/edge && DENO_NO_PACKAGE_JSON=1 NO_COLOR=1 deno test --lock=../../deno.lock --frozen --allow-env --allow-read --no-check --import-map=import_map.json"
   },
   "engines": {
     "node": ">=22.23.4 <23"
