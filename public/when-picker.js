@@ -1,8 +1,10 @@
 /* when-picker.js - R179: a clear date + time picker for task start times and exact reminder times.
  *
  * HelmWhen.attach(input, opts) turns an <input type="datetime-local"> into
- *   [ date field ]  [ time field ]      <- the date field is a normal type=date (ui-pickers.js gives it the rounded
- *   (Today) (Tomorrow) (Event day) ...      calendar); the time field takes 6:32 PM / 18:32 / 632p and offers a 15-minute list
+ *   [ date field ]   [ 3 : 57 ]            <- the date field is a normal type=date (ui-pickers.js gives it the rounded
+ *                    [ AM | PM ]               calendar). R183: the time is two big segments (hour, minutes: tap, type digits,
+ *                    :00 :15 :30 :45           arrows / wheel; typing "6:32 pm" or "1832" fills both) + an AM | PM toggle
+ *   (Today) (Tomorrow) (Event day) ...
  *   "Mon 16 Nov, 2:30 PM"                   <- the result in words
  * The original input stays the source of truth: it becomes type=hidden and keeps the STUDIO wall clock "YYYY-MM-DDTHH:MM"
  * (or "" when empty), so every caller that reads input.value keeps working. When a caller sets input.value and fires
@@ -76,15 +78,6 @@
     return T && T.validTz(tz) ? tz : "";
   }
   function zoneDiffers(tz) { var T = global.HelmStudioTime; return !!(tz && T && !T.sameClock(tz, new Date())); }
-  var LIST_ID = "helmWhenTimes";
-  function timeList() {
-    if (doc.getElementById(LIST_ID)) return LIST_ID;
-    var dl = el("datalist"); dl.id = LIST_ID;
-    for (var i = 0; i < 96; i++) { var hm = pad(Math.floor(i / 4)) + ":" + pad((i % 4) * 15); var o = el("option"); o.value = label12(hm); dl.appendChild(o); }
-    (doc.body || doc.documentElement).appendChild(dl);
-    return LIST_ID;
-  }
-
   function attach(input, opts) {
     if (!input || input.__helmWhen) return input && input.__helmWhen;
     opts = opts || {};
@@ -100,10 +93,52 @@
     var date = el("input", "whenp-date"); date.type = "date"; date.id = base + "_d"; date.setAttribute("aria-label", who + "date");
     if (/^\d{4}-\d{2}-\d{2}$/.test(minDate)) date.min = minDate;
     if (/^\d{4}-\d{2}-\d{2}$/.test(maxDate)) date.max = maxDate;
-    var time = el("input", "whenp-time"); time.type = "text"; time.id = base + "_t"; time.autocomplete = "off"; time.spellcheck = false;
-    time.placeholder = "e.g. 6:30 PM"; time.maxLength = 9; time.inputMode = "text";
-    time.setAttribute("aria-label", who + "time (for example 6:30 PM)"); time.setAttribute("list", timeList());
-    row.appendChild(date); row.appendChild(time);
+    // R183: iOS-style time: big hour : minute segments (tap, type digits, arrows / wheel) + an AM | PM toggle + quick :00 :15 :30 :45.
+    var tp = el("div", "whenp-tp"); tp.setAttribute("role", "group"); tp.setAttribute("aria-label", who + "time");
+    var clock = el("div", "whenp-clock");
+    function seg(cls, id, name, lo, hi) {
+      var s = el("input", "whenp-seg " + cls); s.type = "text"; s.id = id; s.autocomplete = "off"; s.spellcheck = false;
+      s.inputMode = "numeric"; s.maxLength = 2; s.placeholder = "--";
+      s.setAttribute("role", "spinbutton"); s.setAttribute("aria-label", who + name);
+      s.setAttribute("aria-valuemin", String(lo)); s.setAttribute("aria-valuemax", String(hi));
+      return s;
+    }
+    var hh = seg("whenp-hh", base + "_t", "hour", 1, 12), mm = seg("whenp-mm", base + "_m", "minutes", 0, 59);
+    var colon = el("span", "whenp-colon", ":"); colon.setAttribute("aria-hidden", "true");
+    clock.appendChild(hh); clock.appendChild(colon); clock.appendChild(mm);
+    var apBox = el("div", "whenp-ampm"); apBox.setAttribute("role", "group"); apBox.setAttribute("aria-label", who + "AM or PM");
+    var bAM = el("button", "whenp-ap", "AM"), bPM = el("button", "whenp-ap", "PM");
+    bAM.type = "button"; bPM.type = "button"; apBox.appendChild(bAM); apBox.appendChild(bPM);
+    var quick = el("div", "whenp-quick");
+    [0, 15, 30, 45].forEach(function (q) {
+      var b = el("button", "whenp-q", ":" + pad(q)); b.type = "button"; b.setAttribute("aria-label", "Minutes " + pad(q));
+      b.addEventListener("click", function () { mm.value = pad(q); if (!hourOk()) { var dt = opts.defaultTime || "09:00"; setHM(dt.slice(0, 2) + ":" + pad(q)); } commit(); });
+      quick.appendChild(b);
+    });
+    tp.appendChild(clock); tp.appendChild(apBox); tp.appendChild(quick);
+    var time = hh;   // focus target + "is a time set" checks below
+    var pm = false;
+    function setAp(isPm) { pm = !!isPm; bAM.setAttribute("aria-pressed", String(!pm)); bPM.setAttribute("aria-pressed", String(pm));
+      bAM.classList.toggle("on", !pm); bPM.classList.toggle("on", pm); }
+    setAp(false);
+    function hourOk() { var h = +hh.value; return /^\d{1,2}$/.test(hh.value) && h >= 1 && h <= 12; }
+    function minOk() { var m = +mm.value; return /^\d{1,2}$/.test(mm.value) && m >= 0 && m <= 59; }
+    function getHM() {
+      if (!hourOk() || !minOk()) return null;
+      var h = +hh.value % 12; if (pm) h += 12;
+      return pad(h) + ":" + pad(+mm.value);
+    }
+    function aria() {
+      hh.setAttribute("aria-valuenow", hourOk() ? String(+hh.value) : ""); mm.setAttribute("aria-valuenow", minOk() ? String(+mm.value) : "");
+      hh.setAttribute("aria-valuetext", hourOk() ? String(+hh.value) + (pm ? " PM" : " AM") : "not set");
+      mm.setAttribute("aria-valuetext", minOk() ? pad(+mm.value) : "not set");
+    }
+    function setHM(hm) {
+      var m = /^(\d{2}):(\d{2})$/.exec(String(hm || "")); if (!m) return;
+      var h = +m[1]; setAp(h >= 12); hh.value = String(h % 12 === 0 ? 12 : h % 12); mm.value = m[2]; aria();
+    }
+    function timeTyped() { return !!(String(hh.value).trim() || String(mm.value).trim()); }
+    row.appendChild(date); row.appendChild(tp);
     wrap.appendChild(row);
     var chipsRow = null;
     var chips = Array.isArray(opts.chips) ? opts.chips : [];
@@ -116,7 +151,7 @@
           var ymd = typeof c.ymd === "function" ? c.ymd() : "";
           if (!/^\d{4}-\d{2}-\d{2}$/.test(String(ymd || ""))) return;
           date.value = ymd;
-          if (!parseTimeLoose(time.value)) { var dt = c.time || opts.defaultTime || "09:00"; time.value = label12(dt); }
+          if (!getHM()) setHM(c.time || opts.defaultTime || "09:00");
           commit(); time.focus();
         });
         chipsRow.appendChild(b);
@@ -145,13 +180,13 @@
     var lbl = input.id ? doc.querySelector('label[for="' + input.id + '"]') : null;
     if (lbl) lbl.htmlFor = date.id;
     var desc = input.getAttribute("aria-describedby");
-    if (desc) { date.setAttribute("aria-describedby", desc); time.setAttribute("aria-describedby", desc); }
+    if (desc) { date.setAttribute("aria-describedby", desc); hh.setAttribute("aria-describedby", desc); mm.setAttribute("aria-describedby", desc); }
 
     var busy = false;
     function show() {
       var v = String(input.value || "");
       var m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(v);
-      if (m) { if (date.value !== m[1]) date.value = m[1]; var hm = parseTimeLoose(time.value); if (hm !== m[2]) time.value = label12(m[2]); }
+      if (m) { if (date.value !== m[1]) date.value = m[1]; if (getHM() !== m[2]) setHM(m[2]); }
       else if (!v) { /* keep a half-typed value in the fields */ }
       var w = words(v);
       if (w) {
@@ -161,12 +196,13 @@
           w += " " + T.zoneLabel(tz, at).abbr + (isNaN(at.getTime()) ? "" : " (= " + T.fmtDevice(at) + " on your device)");
         }
       }
-      out.textContent = w ? w : (date.value && !parseTimeLoose(time.value) ? "Pick a time" : "");
+      out.textContent = w ? w : (date.value && !getHM() ? "Pick a time" : "");
       out.classList.toggle("whenp-need", !w && !!date.value);
-      time.classList.toggle("whenp-bad", !!String(time.value).trim() && !parseTimeLoose(time.value));
+      clock.classList.toggle("whenp-bad", timeTyped() && !getHM() && doc.activeElement !== hh && doc.activeElement !== mm);
+      aria();
     }
     function commit() {
-      var hm = parseTimeLoose(time.value);
+      var hm = getHM();
       var d = /^\d{4}-\d{2}-\d{2}$/.test(date.value) ? date.value : "";
       var next = d && hm ? d + "T" + hm : "";   // a half-filled picker means "no time yet" (the words line says what is missing)
       if (next !== input.value) { busy = true; input.value = next; fire(input, "input"); fire(input, "change"); busy = false; }
@@ -174,26 +210,70 @@
     }
     date.addEventListener("change", commit);
     date.addEventListener("input", commit);
-    time.addEventListener("change", function () { var hm = parseTimeLoose(time.value); if (hm) time.value = label12(hm); commit(); });
-    time.addEventListener("input", function () { if (parseTimeLoose(time.value) || !String(time.value).trim()) commit(); else show(); });
-    time.addEventListener("keydown", function (e) {
-      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-      var hm = parseTimeLoose(time.value) || "09:00"; e.preventDefault();
-      var mins = +hm.slice(0, 2) * 60 + +hm.slice(3); mins = (mins + (e.key === "ArrowUp" ? 15 : -15) + 1440) % 1440;
-      time.value = label12(pad(Math.floor(mins / 60)) + ":" + pad(mins % 60)); commit();
+    // typing a whole time into either box ("6:32 pm", "1832", "632p") fills both + AM/PM
+    function takeWhole(seg) {
+      var raw = String(seg.value || "");
+      if (!/[^0-9]/.test(raw) && raw.length <= 2) return false;
+      var hm = parseTimeLoose(raw); if (!hm) { seg.value = raw.replace(/\D/g, "").slice(0, 2); return false; }
+      setHM(hm); commit(); mm.focus(); return true;
+    }
+    hh.addEventListener("input", function () {
+      if (takeWhole(hh)) return;
+      var v = hh.value.replace(/\D/g, "").slice(0, 2);
+      if (v.length === 2 && +v > 12) v = v.charAt(0) === "0" ? v.charAt(1) : v.charAt(0);
+      hh.value = v;
+      if (v.length === 2 || (v.length === 1 && +v > 1)) { mm.focus(); try { mm.select(); } catch (e) {} }
+      commit();
     });
+    mm.addEventListener("input", function () {
+      if (takeWhole(mm)) return;
+      var v = mm.value.replace(/\D/g, "").slice(0, 2);
+      if (v.length === 2 && +v > 59) v = v.charAt(0);
+      if (v.length === 1 && +v > 5) v = "0" + v;
+      mm.value = v; commit();
+    });
+    hh.addEventListener("blur", function () { if (hh.value === "0" || hh.value === "00") hh.value = "12"; show(); });
+    mm.addEventListener("blur", function () { if (/^\d$/.test(mm.value)) { mm.value = pad(+mm.value); commit(); } else show(); });
+    function stepH(n) { var h = hourOk() ? +hh.value : 9; h = ((h - 1 + n) % 12 + 12) % 12 + 1; hh.value = String(h); if (!minOk()) mm.value = "00"; commit(); }
+    function stepM(n) { var m = minOk() ? +mm.value : 0; m = ((m + n) % 60 + 60) % 60; mm.value = pad(m); if (!hourOk()) hh.value = String(+((opts.defaultTime || "09:00").slice(0, 2)) % 12 || 12); commit(); }
+    function keys(e, isH) {
+      var k = e.key, sg = isH ? hh : mm;
+      // a digit typed into a full box (no selection) starts it over - like a phone clock, never "blocked by maxLength"
+      if (/^\d$/.test(k) && !e.ctrlKey && !e.metaKey && !e.altKey && sg.selectionStart === sg.selectionEnd && String(sg.value).length >= 2) {
+        e.preventDefault(); sg.value = k; sg.dispatchEvent(new Event("input", { bubbles: true })); return;
+      }
+      if (k === "ArrowUp" || k === "ArrowDown") { e.preventDefault(); var n = k === "ArrowUp" ? 1 : -1; if (isH) stepH(n); else stepM(e.shiftKey ? n * 15 : n); return; }
+      if (k === "PageUp" || k === "PageDown") { e.preventDefault(); if (isH) stepH(k === "PageUp" ? 3 : -3); else stepM(k === "PageUp" ? 15 : -15); return; }
+      if (k === "a" || k === "A") { e.preventDefault(); setAp(false); commit(); return; }
+      if (k === "p" || k === "P") { e.preventDefault(); setAp(true); commit(); return; }
+      if (isH && (k === ":" || k === "." || (k === "ArrowRight" && hh.selectionStart === hh.value.length))) { e.preventDefault(); mm.focus(); try { mm.select(); } catch (er) {} return; }
+      if (!isH && ((k === "Backspace" && !mm.value) || (k === "ArrowLeft" && mm.selectionStart === 0))) { e.preventDefault(); hh.focus(); return; }
+      if (k === "Enter") { commit(); }
+    }
+    hh.addEventListener("keydown", function (e) { keys(e, true); });
+    mm.addEventListener("keydown", function (e) { keys(e, false); });
+    // the mouse wheel changes a box only while that box has the focus (it never hijacks page scrolling)
+    hh.addEventListener("wheel", function (e) { if (doc.activeElement !== hh) return; e.preventDefault(); stepH(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+    mm.addEventListener("wheel", function (e) { if (doc.activeElement !== mm) return; e.preventDefault(); stepM(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+    // tap / click selects the whole box, so the next digits replace it (a click would otherwise drop the selection)
+    [hh, mm].forEach(function (sgm) {
+      sgm.addEventListener("focus", function () { try { sgm.select(); } catch (e) {} });
+      sgm.addEventListener("mouseup", function (e) { if (sgm.selectionStart === sgm.selectionEnd) { e.preventDefault(); try { sgm.select(); } catch (er) {} } });
+    });
+    bAM.addEventListener("click", function () { setAp(false); commit(); });
+    bPM.addEventListener("click", function () { setAp(true); commit(); });
     // a caller set input.value (Event day / Day before / reset): show it
     input.addEventListener("input", function () { if (!busy) show(); });
     input.addEventListener("change", function () { if (!busy) show(); });
     var api = {
-      wrap: wrap, date: date, time: time,
+      wrap: wrap, date: date, time: time, hour: hh, minute: mm,
       refresh: show,
       setMinMax: function (min, max) {
         var a = String(min || "").slice(0, 10), b = String(max || "").slice(0, 10);
         if (/^\d{4}-\d{2}-\d{2}$/.test(a)) date.min = a; else date.removeAttribute("min");
         if (/^\d{4}-\d{2}-\d{2}$/.test(b)) date.max = b; else date.removeAttribute("max");
       },
-      focus: function () { (date.value ? time : date).focus(); },
+      focus: function () { (date.value ? hh : date).focus(); },
     };
     input.__helmWhen = api;
     // a caller's input.focus() (it is hidden now) lands on the picker

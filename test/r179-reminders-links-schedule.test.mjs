@@ -59,7 +59,8 @@ await t("3b the picker says the result in words", () => {
 await t("3c the picker: hidden value holder (no silent form validation), date + time fields, chips, words line", () => {
   assert.match(WP, /input\.type = "hidden"/);
   assert.match(WP, /date\.type = "date"/);
-  assert.match(WP, /time\.setAttribute\("list", timeList\(\)\)/);
+  // R183: the time is an hour : minute clock (spinbuttons) + AM | PM toggle instead of a text box with a 15-minute list
+  assert.match(WP, /seg\("whenp-hh", base \+ "_t", "hour", 1, 12\)/);
   assert.match(WP, /var next = d && hm \? d \+ "T" \+ hm : "";/);
   assert.doesNotMatch(WP, /innerHTML|insertAdjacentHTML|\.style\./);
   assert.match(WPC, /\.whenp-row \{ display: grid;/);

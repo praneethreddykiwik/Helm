@@ -115,7 +115,7 @@ await t("comms-dispatch: the staff lane - claimed only with an e-mail provider, 
 
 await t("Operations page: Send by email box on the assign form, per-task and per-person buttons, plain-words answers", () => {
   const h = read("public/ops.html");
-  assert.match(h, /<label class="assign-mail" id="assignEmailWrap"[^>]*><input type="checkbox" id="assignEmail" checked> ✉ Send by email<\/label>/);
+  assert.match(h, /<label class="assign-mail" id="assignEmailWrap"[^>]*><input type="checkbox" id="assignEmail" checked(?: autocomplete="off")?> ✉ Send by email<\/label>/);
   assert.match(h, /if\(\$\("#assignEmailWrap"\)\) \$\("#assignEmailWrap"\)\.hidden = outsource;/);
   assert.match(h, /await BPStore\.ops\.emailHold\(quoteId, c\.id\)/);
   assert.match(h, /await BPStore\.ops\.emailTasks\(t\.id, true\)/);

@@ -164,7 +164,7 @@
     .titem input,input[type=checkbox]{min-height:0;width:22px;height:22px}
   }
 </style>
-<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="task-reminders.css?v=3"><link rel="stylesheet" href="when-picker.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="task-reminders.css?v=3"><link rel="stylesheet" href="when-picker.css?v=3"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=4">
 <link rel="stylesheet" href="live-board.css?v=2">
@@ -239,7 +239,7 @@
         <select class="s-66dbd5d" id="assignCrew" aria-label="Assign to staff"></select>
         <span class="crewwho" id="assignWho" aria-live="polite"></span>
         <select class="s-47b618f" id="assignVendor" hidden aria-label="Assign to vendor"></select>
-        <label class="assign-mail" id="assignEmailWrap" title="E-mail the person their tasks for this event (sent from your studio name; replies come to your studio)"><input type="checkbox" id="assignEmail" checked> ✉ Send by email</label>
+        <label class="assign-mail" id="assignEmailWrap" title="E-mail the person their tasks for this event (sent from your studio name; replies come to your studio)"><input type="checkbox" id="assignEmail" checked autocomplete="off"> ✉ Send by email</label>
         <label class="assign-mail" id="assignWaWrap" title="Send the person their tasks on WhatsApp from your studio's own number (needs WhatsApp connected in Integrations)"><input type="checkbox" id="assignWa"> 💬 Send on WhatsApp</label>
         <button type="button" class="btn primary" id="assignBtn">Assign selected →</button>
       </div>
@@ -480,6 +480,12 @@
   }
   $("#assignCrew").addEventListener("change",()=>crewWho($("#assignCrew"),$("#assignWho")));
   $("#assignWa") && $("#assignWa").addEventListener("change",()=>{ $("#assignWa").dataset.touched="1"; });
+  // R183: "Send by email" is ticked on EVERY visit and after every assign. Browsers restore a checkbox's old state on
+  // reload / Back (bfcache), so one untick used to silently cancel every later assignment e-mail ("No email sent.").
+  // Unticking now only skips the assignment it is used for.
+  function resetAssignEmail(){ const x=$("#assignEmail"); if(x) x.checked=true; }
+  resetAssignEmail();
+  window.addEventListener("pageshow", resetAssignEmail);
   $("#ra_crew").addEventListener("change",()=>crewWho($("#ra_crew"),$("#raWho")));
   async function renderTasks(){
     let tpl; try{ tpl=await BPStore.ops.templates(activeCat); }catch(e){ BPUI.loadError($("#taskList"), e, renderTasks, {what:"task templates"}); return; }
@@ -570,7 +576,7 @@
         }
         // R170 (0361): "Send by email" ticked -> e-mail their task list now; unticked -> the automatic e-mail is cancelled
         let mailNote="";
-        if($("#assignEmail") && !$("#assignEmail").checked){ try{ await BPStore.ops.emailHold(quoteId, c.id); }catch(e){} mailNote=" No email sent."; }
+        if($("#assignEmail") && !$("#assignEmail").checked){ try{ await BPStore.ops.emailHold(quoteId, c.id); }catch(e){} mailNote=" No email sent (\"Send by email\" was unticked) - use ✉ Email below to send it."; }
         else {
           try{ const fresh=await BPStore.ops.listTasks(quoteId); tasks=fresh||tasks;
             const t=(fresh||[]).find(x=>x.crew_id===c.id && titles.includes(x.title) && !["completed","cancelled","rejected"].includes(x.status));
@@ -589,7 +595,7 @@
         }
         setMsg("ok", `Assigned ${r.tasks_created} ${activeCat} task(s) to ${c.name}.${timeNote}${window.HelmTrialPreview?"":" Worker link ready below."}${mailNote}${waNote}`);
       }
-      $("#selAll").checked=false; await refresh(); await renderTasks();
+      $("#selAll").checked=false; resetAssignEmail(); await refresh(); await renderTasks();
     }catch(e){ setMsg("err",BPUI.friendlyError(e,{action:"assign the tasks"})); }
   },{busyLabel:"Assigning…"}));
 
@@ -1146,7 +1152,7 @@
   setInterval(()=>{ if(document.hidden || $("#app").hidden) return; if(!$("#reassignModal").hidden || !$("#cancelTaskModal").hidden || !$("#schedModal").hidden || !$("#evModal").hidden) return; if(document.querySelector("#dashboard [data-busy]")) return; refreshDashboard(); }, 7000);
   BPUI.boot(load);
 </script>
-<script src="wa-setup-note.js?v=1"></script><script src="studio-time.js?v=1"></script><script src="when-picker.js?v=2"></script><script src="task-reminders-ui.js?v=5"></script>
+<script src="wa-setup-note.js?v=1"></script><script src="studio-time.js?v=1"></script><script src="when-picker.js?v=3"></script><script src="task-reminders-ui.js?v=6"></script>
 <script src="crew-shifts.js?v=7"></script>
 </body>
 </html>
