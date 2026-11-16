@@ -5,14 +5,17 @@
 //   * task_reminder              "Due in 10 min: <task> at <time>" / "Due now: <task> ..." (R171 wording; the 0338 times)
 //   * task_late                  "Not started yet: <task>" (after the start, the 0338 late reminders)
 //   * office_alert               to the event manager: "<worker> has not started <task>", with the Live Status link
-// Links: APP_URL + the row's own path only (work.html?token=<uuid> for the person, ops.html?quote=<uuid> for the office);
+//   * task_update (R172, 0363)    "Update: your tasks for <event> changed" - the change lines collected for that person
+//                                and event (staff_update_claim), their open tasks now, and their permanent link
+// Links: APP_URL + the row's own path only (work.html?staff=<64 hex> = the person's permanent link (R172),
+// work.html?token=<uuid> = the per-event link, ops.html?quote=<uuid> for the office);
 // the host never comes from the database. Anything unexpected -> empty text and comms-dispatch marks the row skipped.
 export const STAFF_TX_REASON = "you are on the staff list of this studio and work was given to you";
 export const OFFICE_TX_REASON = "you are the manager of this event";
 export const STAFF_KINDS = ["task_assigned", "task_list", "task_one", "task_reminder", "task_late", "office_alert"];
 
 const ORIGIN = /^https:\/\/[A-Za-z0-9.-]{1,190}(?::[0-9]{1,5})?$/;
-const PATH = /^(work\.html\?token=|ops\.html\?quote=)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const PATH = /^(?:(?:work\.html\?token=|ops\.html\?quote=)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|work\.html\?staff=[0-9a-f]{64})$/;
 const clip = (v, n) => String(v == null ? "" : v).replace(/[\r\n\t<>]+/g, " ").replace(/\s+/g, " ").trim().slice(0, n);
 
 export function staffLink(row, origin) {
@@ -93,5 +96,32 @@ export function staffEmailMessage(row, origin) {
     text: hi + worker + " has not started " + task + " for " + eventLine + (at ? ". It was due at " + at : "") +
       ", and the reminders have gone out.\n\n" + (link ? "See the live status and reassign if needed:\n" + link : "Open the event in Helm to reassign if needed.") +
       "\n\n" + "Helm, for " + studio,
+  };
+}
+
+// R172 (0363): one "your tasks changed" notice (staff_update_claim row) -> { subject, text }; "" text = do not send
+export function staffUpdateMessage(row, origin) {
+  const none = { subject: "", text: "" };
+  if (!row || String(row.kind) !== "task_update") return none;
+  const lines = (Array.isArray(row.changes) ? row.changes : []).map((x) => clip(x, 200)).filter(Boolean).slice(0, 30);
+  if (!lines.length) return none;
+  const studio = clip(row.studio, 80) || "your studio", event = clip(row.event, 120) || "the event";
+  const date = clip(row.event_date, 20), venue = clip(row.venue, 100);
+  const more = Math.max(0, Math.round(Number(row.more) || 0));
+  const cancelled = row.cancelled === true;
+  const hi = "Hello" + (first(row.name) ? " " + first(row.name) : "") + ",\n\n";
+  const link = staffLink(row, origin);
+  const eventLine = event + (date ? " on " + date : "") + (venue ? " at " + venue : "");
+  const changed = lines.map((l) => "  - " + l).join("\n") + (more ? "\n  - and " + more + (more === 1 ? " more change" : " more changes") : "");
+  const tasks = (Array.isArray(row.tasks) ? row.tasks : []).slice(0, 25)
+    .map((t) => ({ title: clip(t && t.title, 160), at: when(t && t.start, t && t.day) })).filter((t) => t.title);
+  const now = cancelled ? "" : tasks.length
+    ? "\n\nYour tasks for this event now:\n" + tasks.map((t) => "  - " + t.title + (t.at ? " - starts " + t.at : "")).join("\n")
+    : "\n\nYou have no open tasks for this event now.";
+  return {
+    subject: (cancelled ? "Cancelled: " : "Update: your tasks for ") + event + (date ? " on " + date : "") + (cancelled ? "" : " changed"),
+    text: hi + studio + (cancelled ? " has cancelled " : " changed something on your work for ") + eventLine + ":\n\n" + changed + now +
+      (link ? "\n\nSee all your tasks (this link stays the same):\n" + link : "") +
+      "\n\nQuestions? Just reply to this e-mail - it goes to " + studio + "." + "\n\nThank you,\n" + studio,
   };
 }

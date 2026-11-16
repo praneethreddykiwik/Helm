@@ -94,7 +94,7 @@
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=4">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=76" id="shellProto"></script>
+<script src="/shell-proto.js?v=77" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -195,12 +195,12 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=353"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=354"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=36"></script>
-<script src="tour.js?v=55"></script>
+<script src="page-tours.js?v=37"></script>
+<script src="tour.js?v=56"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -317,6 +317,7 @@
         ${canCal?`<a class="ic" href="calendar.html?staff=${encodeURIComponent(s.id)}#schedule" title="See ${esc(s.name||"this person")}'s event schedule (week / month)">Schedule</a>`:""}
         ${canEdit?`<button class="ic" data-act="edit">Edit</button>
         <button class="ic" data-act="toggle">${s.active===false?"Reactivate":"Deactivate"}</button>
+        ${s.active!==false&&!(BPStore.staff.isDemo&&BPStore.staff.isDemo(s))?`<button class="ic" data-act="tlink" title="Copy ${esc(s.name||"this person")}'s permanent task link - it always shows their current tasks on every event">Task link</button><button class="ic" data-act="tlinknew" title="Make a new permanent task link - the old one stops working at once">New task link</button>`:""}
         ${isAdminUser&&!linked&&s.email&&s.active!==false&&!BPStore.staff.isDemo(s)?`<button class="ic" data-act="invite" title="Create a sign-up link for ${esc(s.email)} with their role">${BPStore.staff.loginStatus(s,invites)==="invited"?"Copy invite link":"Invite to log in"}</button>${BPStore.staff.loginStatus(s,invites)==="invited"?`<button class="ic" data-act="resend" title="E-mail the invite link to ${esc(s.email)} again">Resend email</button>`:""}`:""}`:""}
       </div>
     </div>`;
@@ -353,6 +354,8 @@
       if(b.dataset.act==="edit") openForm(s);
       else if(b.dataset.act==="invite") inviteStaff(s,b);
       else if(b.dataset.act==="resend") resendInviteEmail(s.email,b);
+      else if(b.dataset.act==="tlink") taskLink(s,b,false);
+      else if(b.dataset.act==="tlinknew") taskLink(s,b,true);
       else toggleActive(s,b);
     }));
   }
@@ -608,6 +611,20 @@
   }
   // r80: tell the availability grid (crew-shifts.js) to redraw - a deactivated person's row goes away without a reload
   function staffChanged(){ try{ document.dispatchEvent(new CustomEvent("helm:staff-changed")); }catch(_){} }
+  // R172 (0363): the person's permanent task link (one per staff member; it always shows their current tasks on every
+  // event and is in their task e-mails). "New task link" stops the old one at once.
+  async function taskLink(s,btn,fresh){
+    if(fresh && !(await BPUI.confirm(`Make a new task link for ${s.name||"this person"}? The old link stops working at once - send them the new one.`,{title:"New task link?",okLabel:"Make new link"}))) return;
+    await BPUI.guard(btn, async()=>{
+      try{
+        const r=fresh?await BPStore.ops.staffLinkNew(s.id):await BPStore.ops.staffLink(s.id);
+        if(!r||!r.ok||!r.path){ BPUI.toast(r&&r.reason==="trial"?"In the free trial no staff links are made.":r&&r.reason==="inactive"?"Reactivate this person first.":"Couldn't make the link right now - please try again.",{type:"info",timeout:6000}); return; }
+        const url=location.origin+"/"+r.path;
+        try{ await navigator.clipboard.writeText(url); BPUI.toast((fresh?"New task link made and copied":"Task link copied")+" - send it to "+(s.name||"them")+". It always shows their current tasks.",{type:"ok",timeout:6000}); }
+        catch{ await BPUI.prompt("Copy this task link and send it to "+(s.name||"them")+":",{title:"Permanent task link",label:"Task link",value:url,okLabel:"Done"}); }
+      }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"get the task link"}),{type:"err"}); }
+    },{busyLabel:"Getting link…"});
+  }
   async function toggleActive(s,btn){
     const reactivate=s.active===false;
     if(!reactivate && !(await BPUI.confirm(`Deactivate ${s.name}? Any tasks already assigned to them stay assigned (check the event workspaces before relying on them). They'll be hidden from the directory and crew pickers until reactivated.`,{title:"Deactivate staff member?",okLabel:"Deactivate"}))) return;

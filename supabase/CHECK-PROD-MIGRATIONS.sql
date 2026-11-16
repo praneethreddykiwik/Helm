@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (317 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (318 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4047 objects): body 174, bucket 9, col 227, con 402, cron 20, exec 4, fn 1824, idx 467, marker 12, pol 184, polexpr 4, pre 98, pub 5, seq 1, tbl 264, trg 350, view 2.
+-- What is checked (4080 objects): body 174, bucket 9, col 227, con 402, cron 20, exec 4, fn 1839, idx 474, marker 12, pol 184, polexpr 4, pre 99, pub 5, seq 1, tbl 266, trg 358, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4071,7 +4071,40 @@ with o(m, k, s, n, x) as (values
   ('0362_r171_staff_reminders', 'fn', 'public', 'staff_whatsapp_send', 'uuid'),
   ('0362_r171_staff_reminders', 'fn', 'public', 'staff_email_claim__pre0362', 'integer'),
   ('0362_r171_staff_reminders', 'fn', 'public', '_r362_dispatch_schedule', ''),
-  ('0362_r171_staff_reminders', 'pre', null, '__pre0362', null)
+  ('0362_r171_staff_reminders', 'pre', null, '__pre0362', null),
+  ('0363_r172_update_notices_staff_link', 'tbl', 'public.staff_links', null, null),
+  ('0363_r172_update_notices_staff_link', 'idx', 'public.staff_links_token363', null, null),
+  ('0363_r172_update_notices_staff_link', 'idx', 'public.staff_links_live363', null, null),
+  ('0363_r172_update_notices_staff_link', 'idx', 'public.staff_links_org_id_idx', null, null),
+  ('0363_r172_update_notices_staff_link', 'trg', 'public.staff_links', 'zzz_studio_read_only', null),
+  ('0363_r172_update_notices_staff_link', 'tbl', 'public.staff_update_outbox', null, null),
+  ('0363_r172_update_notices_staff_link', 'idx', 'public.staff_update_outbox_open363', null, null),
+  ('0363_r172_update_notices_staff_link', 'idx', 'public.staff_update_outbox_pending363', null, null),
+  ('0363_r172_update_notices_staff_link', 'idx', 'public.staff_update_outbox_org_id_idx', null, null),
+  ('0363_r172_update_notices_staff_link', 'idx', 'public.staff_update_outbox_crew_id_idx', null, null),
+  ('0363_r172_update_notices_staff_link', 'trg', 'public.staff_update_outbox', 'zz_quote_org_match', null),
+  ('0363_r172_update_notices_staff_link', 'trg', 'public.staff_update_outbox', 'zzz_studio_read_only', null),
+  ('0363_r172_update_notices_staff_link', 'trg', 'public.staff_update_outbox', 'zzz_sq164_system_skip', null),
+  ('0363_r172_update_notices_staff_link', 'trg', 'public.staff_update_outbox', 'zzzz_ts166_outbox_skip', null),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', '_r363_new_token', ''),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', '_r363_link', 'uuid,uuid'),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', 'staff_link_get', 'uuid'),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', 'staff_link_regenerate', 'uuid'),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', 'staff_link_view', 'text'),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', '_r363_when', 'timestamp with time zone,uuid'),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', '_r363_can', 'uuid,uuid,boolean'),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', '_r363_note', 'uuid,uuid,uuid,text,text[],boolean'),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', '_r363_tg_task_changed', ''),
+  ('0363_r172_update_notices_staff_link', 'trg', 'public.event_tasks', 'zzz_r363_task_changed', null),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', '_r363_note_event', 'uuid,uuid,text[],boolean'),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', '_r363_tg_event_changed', ''),
+  ('0363_r172_update_notices_staff_link', 'trg', 'public.quotes', 'zzz_r363_event_changed', null),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', '_r363_tg_plan_venue', ''),
+  ('0363_r172_update_notices_staff_link', 'trg', 'public.event_plan', 'zzz_r363_plan_venue', null),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', 'staff_update_claim', 'integer'),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', 'staff_update_mark', 'uuid,text'),
+  ('0363_r172_update_notices_staff_link', 'fn', 'public', 'staff_email_claim__pre0363', 'integer'),
+  ('0363_r172_update_notices_staff_link', 'pre', null, '__pre0363', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4390,7 +4423,8 @@ mig(ord, m, ov, note) as (values
   (314, '0359_r167_cron_log_trim', null, null),
   (315, '0360_r167_fk_indexes', null, 'index-only migration: adds FK/tenant btree indexes, each created only if the table exists; checked here by index name'),
   (316, '0361_r170_staff_email', null, null),
-  (317, '0362_r171_staff_reminders', null, null)
+  (317, '0362_r171_staff_reminders', null, null),
+  (318, '0363_r172_update_notices_staff_link', null, null)
 ),
 env as (
   select
