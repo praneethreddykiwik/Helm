@@ -105,7 +105,7 @@ await t("e-mail: fails closed (unknown kind, no tasks, no task title, reminder w
 
 await t("comms-dispatch: the staff lane - claimed only with an e-mail provider, studio reply-to, footer by kind, every row marked", () => {
   const cd = read("supabase/functions/comms-dispatch/index.ts");
-  assert.match(cd, /import \{ staffEmailMessage, (?:staffUpdateMessage, )?STAFF_TX_REASON, OFFICE_TX_REASON \} from "\.\/staff-email\.mjs";/);
+  assert.match(cd, /import \{ staffEmailMessage, (?:staffUpdateMessage, )?(?:staffEmailHtml, staffUpdateHtml, )?STAFF_TX_REASON, OFFICE_TX_REASON \} from "\.\/staff-email\.mjs";/);
   assert.match(cd, /mailOn && !overBudget\(\) \? await admin\.rpc\("staff_email_claim", \{ p_limit: batch \}\) : NOCLAIM;/);
   assert.match(cd, /const ident: Identity = await withReply\("staff", id,/);
   assert.match(cd, /=== "office_alert" \? OFFICE_TX_REASON : STAFF_TX_REASON/);

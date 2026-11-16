@@ -107,7 +107,7 @@ import { deliveryMessage } from "./delivery-reminder.mjs";   // 0241: delivery /
 import { vendorRequestMessage, VENDOR_TX_REASON } from "./vendor-request.mjs";   // 0256: vendor requests + reminders
 import { helmNoticeEmail, NOTICE_TX_REASON } from "./helm-notices.mjs";   // 0244: sales requests + "ask my admin"
 import { runsheetReminderMessage, enquiryReplyMessage, RUNSHEET_TX_REASON, ENQUIRY_TX_REASON } from "./r24-automation.mjs";   // 0269: run-sheet reminders + enquiry replies
-import { staffEmailMessage, staffUpdateMessage, STAFF_TX_REASON, OFFICE_TX_REASON } from "./staff-email.mjs";   // R170 (0361): tasks + task reminders e-mailed to staff
+import { staffEmailMessage, staffUpdateMessage, staffEmailHtml, staffUpdateHtml, STAFF_TX_REASON, OFFICE_TX_REASON } from "./staff-email.mjs";   // R170 (0361): tasks + task reminders e-mailed to staff
 import { replyToOf } from "../integrations-test/logic.mjs";
 import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks } from "../_shared/email-compliance.mjs";
 import { brandMode, mailConfig, sendMail, type SmtpSend } from "../_shared/mailer.ts";
@@ -530,7 +530,9 @@ Deno.serve(async (req) => {
       const msg = staffEmailMessage(r, origin);
       const ident: Identity = await withReply("staff", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
       const extra: Extra = { footer: txFooter(String(r?.kind ?? "") === "office_alert" ? OFFICE_TX_REASON : STAFF_TX_REASON, { app: origin, address: postalAddress(env) }) };
-      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
+      // R185: the designed HTML part (its own compliance footer, so the mailer adds the text footer only)
+      const shtml = msg.text ? staffEmailHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;
+      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, shtml) : "skipped";
       const { error: mErr } = await admin.rpc("staff_email_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
       if (mErr) { log.error("staff e-mail mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
@@ -547,7 +549,8 @@ Deno.serve(async (req) => {
       const msg = staffUpdateMessage(r, origin);
       const ident: Identity = await withReply("staffUpdate", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
       const extra: Extra = { footer: txFooter(STAFF_TX_REASON, { app: origin, address: postalAddress(env) }) };
-      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
+      const uhtml = msg.text ? staffUpdateHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;   // R185
+      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, uhtml) : "skipped";
       const { error: mErr } = await admin.rpc("staff_update_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
       if (mErr) { log.error("staff update mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
