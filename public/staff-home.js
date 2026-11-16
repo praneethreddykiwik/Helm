@@ -1,8 +1,11 @@
 /* staff-home.js - R172 (0363): the staff member's PERMANENT task link (work.html?staff=<64 hex>).
    One link per staff member (the office copies it from the Staff page or the Operations worker links; it is also in every
-   task e-mail). It shows that person's open tasks on all their upcoming events, grouped by event, and each event opens
-   the existing per-event task page (work.html?token=...) where they accept / start / mark done - the same checked worker
-   functions as before. The server (staff_link_view) answers only for a live link of an active staff member, rate limited.
+   task e-mail). It shows that person's open tasks on all their upcoming events, grouped by event.
+   R179 (0367): an event opens INSIDE the same permanent link - work.html?staff=<link>&event=<event id> - with an
+   "All my tasks" button back; the page then uses that event's own task link behind the scenes, so accept / start / mark
+   done are the same checked worker functions as before (the person never gets a second link to keep). Before 0367 (no
+   event id in the answer) the event opens its own task page as before.
+   The server (staff_link_view) answers only for a live link of an active staff member, rate limited.
    Nothing is kept in the browser. DOM API only (no HTML strings). */
 (function (global) {
   "use strict";
@@ -11,6 +14,12 @@
   var raw = null;
   try { raw = new URLSearchParams(global.location.search).get("staff"); } catch (e) { raw = null; }
   var TOKEN = raw && /^[0-9a-f]{64}$/.test(raw) ? raw : null;
+  var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  var evRaw = null;
+  try { evRaw = new URLSearchParams(global.location.search).get("event"); } catch (e) { evRaw = null; }
+  var EVENT = TOKEN && evRaw && UUID.test(evRaw) ? evRaw.toLowerCase() : null;
+  function homeHref() { return "work.html?staff=" + encodeURIComponent(TOKEN || ""); }
+  function eventHref(id) { return homeHref() + "&event=" + encodeURIComponent(String(id)); }
   var STATUS = { assigned: "New", accepted: "Accepted", in_progress: "In progress" };
 
   function $(s) { return doc.querySelector(s); }
@@ -44,7 +53,7 @@
       clear(sub);
       sub.appendChild(doc.createTextNode("Hi "));
       sub.appendChild(h("b", { text: String(v.name || "there") }));
-      sub.appendChild(doc.createTextNode(" - this link always shows your current tasks. Open an event to accept, start and finish them."));
+      sub.appendChild(doc.createTextNode(" - this link always shows your current tasks on today's and upcoming events. Open an event to accept, start and finish them. Keep this one link - it never changes."));
     }
     clear(host);
     var events = Array.isArray(v.events) ? v.events : [];
@@ -66,7 +75,12 @@
           t.category ? h("div", { cls: "muted", text: String(t.category) }) : null,
         ]));
       });
-      if (e.link && /^[0-9a-f-]{36}$/i.test(String(e.link))) {
+      if (e.quote_id && UUID.test(String(e.quote_id))) {
+        // R179: open the event inside this same permanent link
+        card.appendChild(h("div", { cls: "acts" }, [
+          h("a", { cls: "btn primary", href: eventHref(e.quote_id), text: "Open this event to accept / start / finish" }),
+        ]));
+      } else if (e.link && /^[0-9a-f-]{36}$/i.test(String(e.link))) {
         card.appendChild(h("div", { cls: "acts" }, [
           h("a", { cls: "btn primary", href: "work.html?token=" + encodeURIComponent(String(e.link)), text: "Open this event to accept / start / finish" }),
         ]));
@@ -92,5 +106,27 @@
     }
   }
 
-  global.HelmStaffHome = { wants: function () { return raw !== null; }, start: start };
+  // R179: work.html?staff=<link>&event=<id> -> that event's task link (used behind the scenes by work.html), or null
+  async function resolveEvent() {
+    if (!TOKEN || !EVENT) return null;
+    await global.BPStore.init();
+    var v = await global.BPStore.ops.worker.staffHome(TOKEN);
+    if (!v || v.ok !== true) return null;
+    var ev = (Array.isArray(v.events) ? v.events : []).find(function (e) { return String(e.quote_id || "").toLowerCase() === EVENT; });
+    return ev && ev.link && UUID.test(String(ev.link)) ? String(ev.link) : null;
+  }
+  // the "All my tasks" button above the event view
+  function backBar() {
+    var host = $("#content"); if (!host || $("#staffBack")) return;
+    var bar = h("div", { cls: "backbar", id: "staffBack" }, [
+      h("a", { cls: "btn back", href: homeHref(), text: "\u2190 All my tasks" }),
+      h("span", { cls: "muted", text: "Same link for all your events - keep it." }),
+    ]);
+    host.insertBefore(bar, host.firstChild);
+  }
+  global.HelmStaffHome = {
+    wants: function () { return raw !== null; },
+    inEvent: function () { return !!EVENT; },
+    start: start, resolveEvent: resolveEvent, backBar: backBar,
+  };
 })(typeof window !== "undefined" ? window : globalThis);

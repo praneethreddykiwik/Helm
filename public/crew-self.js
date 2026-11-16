@@ -246,10 +246,16 @@
     var B = S(); if (!B || !B.links) return;
     try { LINK = B.links.parse("work"); } catch (e) { LINK = null; }
     token = LINK ? LINK.ref : new URLSearchParams(location.search).get("token");
+    // R179: an event opened inside the permanent staff link (work.html?staff=..&event=..) hands its task link over
+    if (!token && typeof global.__helmWorkToken === "string") token = global.__helmWorkToken;
     if (!token) return;
     load(false);
     if (!timer) timer = setInterval(function () { if (doc.visibilityState === "visible" && navigator.onLine !== false) load(false); }, 90000);
   }
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", start); else start();
-  global.HelmCrewSelf = { reload: function () { return load(true); } };
+  global.HelmCrewSelf = {
+    reload: function () { return load(true); },
+    // R179: set the task link after the page found it (permanent link -> event view); starts the sections once
+    useToken: function (t) { if (!t || token) return; global.__helmWorkToken = String(t); start(); },
+  };
 })(window);

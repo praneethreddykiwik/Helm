@@ -105,7 +105,7 @@ t("UI: Staff page Task link / New task link, Operations Permanent link, the work
   assert.match(api, /staffLinkNew: \(crewId\) => rpc\("staff_link_regenerate", \{ p_crew: crewId \}\)/);
   assert.match(api, /staffHome: \(staffToken\) => \{/);
   assert.match(wk, /<script src="\/staff-home\.js\?v=\d+"><\/script>/);
-  assert.match(wk, /if\(window\.HelmStaffHome&&HelmStaffHome\.wants\(\)\) return HelmStaffHome\.start\(\);/);
+  assert.match(wk, /if\(window\.HelmStaffHome&&HelmStaffHome\.wants\(\)\)\{\s*if\(!HelmStaffHome\.inEvent\(\)\) return HelmStaffHome\.start\(\);/);
   assert.doesNotMatch(sh, /innerHTML|insertAdjacentHTML|document\.write/, "DOM API only");
   assert.match(sh, /\/\^\[0-9a-f\]\{64\}\$\/\.test\(raw\)/);
   assert.match(read("public/automations.js"), /a short update when the office changes their tasks or the event/);

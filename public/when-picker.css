@@ -1,0 +1,19 @@
+/* when-picker.css - R179 date + time picker (when-picker.js). Helm green light theme; no inline styles. */
+.whenp { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
+.whenp-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; }
+.whenp .whenp-date, .whenp .whenp-time { width: 100%; margin: 0 !important; min-height: 40px; font-size: 15px; }
+.whenp .whenp-time.whenp-bad { border-color: var(--danger, #b42318); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger, #b42318) 14%, transparent); }
+.whenp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.whenp-chips .btn.sm { border-radius: 999px; padding: 4px 12px; font-weight: 600; }
+.whenp-words { margin: 0; font-size: 13px; font-weight: 600; color: var(--accent, #0b6b4f); min-height: 18px; }
+.whenp-words:empty { display: none; }
+.whenp-words.whenp-need { color: var(--ink-3, #667085); font-weight: 500; }
+.whenp-compact { margin: 0; gap: 4px; }
+.whenp-compact .whenp-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+.whenp-compact .whenp-date, .whenp-compact .whenp-time { min-height: 36px; font-size: 14px; }
+@media (max-width: 420px) {
+  .whenp-row { grid-template-columns: 1fr 1fr; }
+}
+.whenp-row > .uip-date-wrap, .whenp-row > .uip-list-wrap { width: 100%; min-width: 0; display: block; }
+.whenp-row .uip-date-face { width: 100%; min-height: 40px; margin: 0; }
+.whenp-row .uip-date-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }

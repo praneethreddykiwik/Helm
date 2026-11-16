@@ -42,3 +42,13 @@ html[data-theme="dark"] .wachip[data-state="off"]{background:rgba(192,57,43,.15)
 .trm-at-row input.trm-at-in{flex:0 1 280px;min-width:0;width:auto;min-height:36px;margin:0;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;box-sizing:border-box}
 .trm-at-add{margin:2px 0}
 .trm-set .lerr{margin:8px 0 0}
+/* R179: organised reminder block + exact-time rows with the date/time picker */
+.trm-set{display:flex;flex-direction:column;gap:6px}
+.trm-sub{margin:8px 0 0;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.trm-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.trm-at{display:flex;flex-direction:column;gap:8px}
+.trm-at-list{display:flex;flex-direction:column;gap:8px}
+.trm-at-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:8px;padding:8px;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--panel) 92%,var(--accent,#0b6b4f) 8%)}
+.lsheet .trm-at-row .trm-at-lbl{margin:10px 0 0;font-size:12px;text-transform:none;letter-spacing:0;font-weight:600;color:var(--ink-2)}
+.trm-at-add{align-self:flex-start}
+@media (max-width:480px){.trm-at-row{grid-template-columns:minmax(0,1fr)}.lsheet .trm-at-row .trm-at-lbl{margin:0}.trm-at-row .trm-at-rm{justify-self:end}}
