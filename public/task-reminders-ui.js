@@ -180,7 +180,10 @@
     });
     return {
       read: function () {
-        var vals = [], ins = list.querySelectorAll("input");
+        // R183: only the value holders (input.trm-at-in, "YYYY-MM-DDTHH:MM" in the studio clock). Since R179 each row also
+        // holds the picker's own visible date + time fields; reading those ("2026-11-17", "3") made every exact time
+        // "Couldn't read one of the reminder times" and the owner could never save one.
+        var vals = [], ins = list.querySelectorAll("input.trm-at-in");
         for (var i = 0; i < ins.length; i++) { var v = String(ins[i].value || "").trim(); if (!v) continue; var d = fromLocal(v); vals.push(d && isFinite(d.getTime()) ? d.getTime() : null); }
         var c = checkTimes(vals, typeof opts.start === "function" ? opts.start() : null, saved);
         if (!c.ok) { err.textContent = c.error; err.hidden = false; throw new Error(c.error); }
