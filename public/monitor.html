@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" data-theme="light" class="auth-pending">
+<head>
+<style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}</style>
+<meta charset="utf-8">
+<base href="/"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event-day monitor — Helm Events</title>
+<link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
+<link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
+<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="monitor.css?v=1">
+<script src="/trusted-types.js?v=8"></script>
+<script src="/shell-proto.js?v=81" id="shellProto"></script>
+</head>
+<body class="mon-body">
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="mon-page">
+  <header class="mon-header">
+    <a href="dashboard.html" class="mark" title="Home"></a>
+    <div><h1>Event-day monitor</h1><small>Helm Events</small></div>
+    <nav class="nav"><a href="dashboard.html">Home</a><a href="calendar.html?cv=live">Live today</a></nav>
+    <span class="spacer"></span>
+    <span id="bell"></span>
+    <span id="account" class="account" hidden></span>
+  </header>
+  <main id="main" class="mon">
+    <div id="monBoot" class="mon-card mon-loading" aria-busy="true">Loading the event day…</div>
+    <div id="monErr" class="mon-card mon-err" role="alert" hidden></div>
+
+    <div id="monApp" hidden>
+      <section class="mon-top" aria-labelledby="monTitle">
+        <div class="mon-pick">
+          <label class="mon-lbl" for="monEvent">Event</label>
+          <select id="monEvent" class="mon-select" aria-describedby="monEventHint"></select>
+          <span id="monEventHint" class="mon-hint">Today and the next 3 days first, then the rest of the month.</span>
+        </div>
+        <div class="mon-head">
+          <h2 id="monTitle" class="mon-title">Event day</h2>
+          <p id="monSub" class="mon-sub"></p>
+          <div class="mon-head-acts">
+            <a id="monOpenOps" class="mon-btn" href="ops.html">Open Tasks &amp; staff</a>
+            <button type="button" id="monRefresh" class="mon-btn" aria-describedby="monUpdated">Refresh</button>
+            <span id="monUpdated" class="mon-updated" aria-live="polite"></span>
+          </div>
+        </div>
+      </section>
+
+      <section id="monSummary" class="mon-summary" aria-label="Progress"></section>
+
+      <div class="mon-tabs" role="tablist" aria-label="Views" id="monTabs">
+        <button type="button" role="tab" class="mon-tab" data-tab="staff" id="monTab-staff" aria-controls="monView">By staff</button>
+        <button type="button" role="tab" class="mon-tab" data-tab="work" id="monTab-work" aria-controls="monView">By work</button>
+        <button type="button" role="tab" class="mon-tab" data-tab="status" id="monTab-status" aria-controls="monView">By status</button>
+        <button type="button" role="tab" class="mon-tab" data-tab="left" id="monTab-left" aria-controls="monView">Leftover <span class="mon-n" id="monLeftN"></span></button>
+      </div>
+
+      <div class="mon-tools" role="search">
+        <input type="search" id="monQ" class="mon-input" placeholder="Search task, person or section" aria-label="Search">
+        <select id="monWho" class="mon-select" aria-label="Person"></select>
+        <select id="monSec" class="mon-select" aria-label="Section"></select>
+        <select id="monSt" class="mon-select" aria-label="Status">
+          <option value="">Any status</option>
+          <option value="late">Late</option>
+          <option value="waiting">Waiting for a yes</option>
+          <option value="accepted">Accepted</option>
+          <option value="started">Started</option>
+          <option value="done">Done</option>
+          <option value="rejected">Turned down</option>
+          <option value="unassigned">No one yet</option>
+        </select>
+        <select id="monSort" class="mon-select" aria-label="Sort">
+          <option value="time">Sort: start time</option>
+          <option value="name">Sort: name</option>
+          <option value="status">Sort: status</option>
+        </select>
+        <button type="button" id="monClear" class="mon-btn mon-ghost">Clear</button>
+      </div>
+
+      <div class="mon-grid">
+        <div id="monView" class="mon-view" role="tabpanel" aria-labelledby="monTab-staff" aria-live="polite"></div>
+        <aside class="mon-side" aria-label="Recent activity">
+          <h3 class="mon-h3">Recent activity</h3>
+          <ol id="monFeed" class="mon-feed"></ol>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/console-warning.js?v=1"></script>
+<script src="telemetry.js?v=11"></script>
+<script src="config.js?v=113"></script>
+<script src="event-name.js?v=9"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=358"></script>
+<script src="live-board.js?v=2"></script>
+<script src="monitor.js?v=1"></script>
+</body>
+</html>

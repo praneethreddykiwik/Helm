@@ -184,6 +184,10 @@
       "destination": "/ops"
     },
     {
+      "source": "/([a-z0-9-]+)/monitor",
+      "destination": "/monitor"
+    },
+    {
       "source": "/([a-z0-9-]+)/issues",
       "destination": "/issues"
     },
@@ -433,7 +437,7 @@
       ]
     },
     {
-      "source": "/(404|trial-preview-approve|trial-preview-portal|trial-preview-booklet|trial-preview-proposal|trial-preview-invite|trial-preview-work|trial-preview-vendor|trial-preview-enquiry|approve|audit|auth-confirm|booklet|budget|builder|business|capture|calendar|chat|checkout|client|closure|command|control|crm|dashboard|delivery|design|discovery|enquiry|event|flow|hq|hq-referrals|inbox|insights|integrations|inventory|invite|invite-studio|issues|leads|login|logistics|manual|media|nurture|onboarding|ops|plan|portal|profile-setup|proposal|proposal-view|quotes|ready|refer|referral-terms|reports|reset-password|resources|runsheet|settings|settlement|signup|sim-pay|staff|teardown|templates|unsubscribe|vendor-request|vendors|work)",
+      "source": "/(404|trial-preview-approve|trial-preview-portal|trial-preview-booklet|trial-preview-proposal|trial-preview-invite|trial-preview-work|trial-preview-vendor|trial-preview-enquiry|approve|audit|auth-confirm|booklet|budget|builder|business|capture|calendar|chat|checkout|client|closure|command|control|crm|dashboard|delivery|design|discovery|enquiry|event|flow|hq|hq-referrals|inbox|insights|integrations|inventory|invite|invite-studio|issues|leads|login|logistics|manual|media|monitor|nurture|onboarding|ops|plan|portal|profile-setup|proposal|proposal-view|quotes|ready|refer|referral-terms|reports|reset-password|resources|runsheet|settings|settlement|signup|sim-pay|staff|teardown|templates|unsubscribe|vendor-request|vendors|work)",
       "headers": [
         {
           "key": "X-Robots-Tag",
@@ -446,7 +450,7 @@
       ]
     },
     {
-      "source": "/(404|approve|audit|auth-confirm|booklet|budget|builder|business|capture|calendar|chat|checkout|client|closure|command|control|crm|dashboard|delivery|design|discovery|enquiry|event|flow|hq|hq-referrals|inbox|insights|integrations|inventory|invite|invite-studio|issues|leads|login|logistics|manual|media|nurture|onboarding|ops|plan|portal|profile-setup|proposal|proposal-view|quotes|ready|refer|referral-terms|reports|reset-password|resources|runsheet|settlement|sim-pay|staff|teardown|templates|unsubscribe|vendor-request|vendors|work)\\.html",
+      "source": "/(404|approve|audit|auth-confirm|booklet|budget|builder|business|capture|calendar|chat|checkout|client|closure|command|control|crm|dashboard|delivery|design|discovery|enquiry|event|flow|hq|hq-referrals|inbox|insights|integrations|inventory|invite|invite-studio|issues|leads|login|logistics|manual|media|monitor|nurture|onboarding|ops|plan|portal|profile-setup|proposal|proposal-view|quotes|ready|refer|referral-terms|reports|reset-password|resources|runsheet|settlement|sim-pay|staff|teardown|templates|unsubscribe|vendor-request|vendors|work)\\.html",
       "headers": [
         {
           "key": "X-Robots-Tag",
@@ -489,7 +493,7 @@
       ]
     },
     {
-      "source": "/([a-z0-9-]+)/(dashboard|quotes|leads|enquiry|chat|settings|audit|inventory|staff|vendors|templates|business|insights|reports|crm|nurture|calendar|onboarding|integrations|control|settlement|discovery|proposal|budget|closure|runsheet|resources|logistics|teardown|command|ready|flow|ops|issues|events|events/[^/]+|events/[^/]+/floor-plan|events/[^/]+/tasks|clients/[^/]+|booklet/[^/]+|event|builder)",
+      "source": "/([a-z0-9-]+)/(dashboard|quotes|leads|enquiry|chat|settings|audit|inventory|staff|vendors|templates|business|insights|reports|crm|nurture|calendar|onboarding|integrations|control|settlement|discovery|proposal|budget|closure|runsheet|resources|logistics|teardown|command|ready|flow|ops|monitor|issues|events|events/[^/]+|events/[^/]+/floor-plan|events/[^/]+/tasks|clients/[^/]+|booklet/[^/]+|event|builder)",
       "headers": [
         {
           "key": "X-Robots-Tag",

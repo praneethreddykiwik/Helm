@@ -77,6 +77,7 @@
     return a;
   }
   var REG = {};   /* rail items by key, for the Pinned group */
+  var GATE_AREA = { monitor: "staff" };   /* R181: nav keys that are pages, not areas - gate them on the area they read */
   var ALWAYS_NAV = { dashboard: 1, chat: 1 };   /* crew-1020: team chat is open to every signed-in member (no area gate) */
   var SC_HINT = { dashboard: "G D", quotes: "G Q", leads: "G L", calendar: "G C", chat: "G M", business: "G B" };
   var COUNT_KEYS = { leads: 1, quotes: 1, chat: 1 };
@@ -193,7 +194,7 @@
     var scroll = el("div", "hb-scroll");
     var work = group("Workspace");
     [["dashboard", "Dashboard", "dashboard.html", "dashboard"], ["quotes", "Quotes", "quotes.html", "quotes"], ["leads", "Leads", "leads.html", "leads"],
-     ["calendar", "Calendar", "calendar.html", "calendar"], ["chat", "Chat", "chat.html", "chat"]].forEach(function (x) { var it = item(x[0], x[1], x[2], x[3]); if (!ALWAYS_NAV[x[0]]) it.hidden = true; work.appendChild(it); });   /* crew-1020: gated items start hidden (no Quotes/Leads flash) */
+     ["calendar", "Calendar", "calendar.html", "calendar"], ["insights", "Event day", "monitor.html", "monitor"], ["chat", "Chat", "chat.html", "chat"]].forEach(function (x) { var it = item(x[0], x[1], x[2], x[3]); if (!ALWAYS_NAV[x[0]]) it.hidden = true; work.appendChild(it); });   /* crew-1020: gated items start hidden (no Quotes/Leads flash) */
     var manage = group("Manage"); manage.hidden = true; manage.setAttribute("data-tour", "nav-manage");
     var admin = group("Admin"); admin.hidden = true; admin.setAttribute("data-tour", "nav-admin");
     var favs = group("Pinned"); favs.classList.add("hb-fav"); favs.hidden = true; favs.id = "hbFavs";
@@ -743,7 +744,7 @@
       var k = a.getAttribute("data-key"); if (ALWAYS_NAV[k]) return;
       var row = a.parentNode && a.parentNode.classList.contains("hb-row") ? a.parentNode : a;
       row.hidden = true;
-      waitAuth(function () { can(k).then(function (ok) { var r = a.parentNode && a.parentNode.classList.contains("hb-row") ? a.parentNode : a; r.hidden = !ok; if (ok) a.hidden = false; if (!ok) favDrop(k); }); });
+      waitAuth(function () { can(GATE_AREA[k] || k).then(function (ok) { var r = a.parentNode && a.parentNode.classList.contains("hb-row") ? a.parentNode : a; r.hidden = !ok; if (ok) a.hidden = false; if (!ok) favDrop(k); }); });
     });
   }
   function favDrop(k) { try { var f = document.querySelector('#hbFavs [data-fkey="' + k + '"]'); if (f) f.hidden = true; } catch (e) {} }
