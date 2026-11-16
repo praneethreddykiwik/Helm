@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (319 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (321 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4087 objects): body 174, bucket 9, col 228, con 403, cron 20, exec 4, fn 1842, idx 474, marker 12, pol 184, polexpr 4, pre 100, pub 5, seq 1, tbl 266, trg 359, view 2.
+-- What is checked (4094 objects): body 173, bucket 9, col 228, con 403, cron 20, exec 4, fn 1847, idx 475, marker 12, pol 184, polexpr 4, pre 100, pub 5, seq 1, tbl 267, trg 360, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -2077,7 +2077,6 @@ with o(m, k, s, n, x) as (values
   ('0159_direct_studio_plan_gate', 'pre', null, '__pre0159', null),
   ('0159_direct_studio_plan_gate', 'fn', 'public', 'my_pending_start_trial', ''),
   ('0161_crew_schedule', 'fn', 'public', 'crew_schedule', 'date,date,uuid'),
-  ('0163_crew_schedule_hardening', 'body', 'public', 'crew_schedule', 'date,date,uuid|81d21c81cfcc0732e93cc8328c7ffcf4'),
   ('0164_audit_privacy_system_quiet', 'fn', 'public', '_is_system_change', ''),
   ('0164_audit_privacy_system_quiet', 'fn', 'public', '_sq164_tg_notification', ''),
   ('0164_audit_privacy_system_quiet', 'trg', 'public.notifications', 'a_sq164_system_quiet', null),
@@ -4111,7 +4110,15 @@ with o(m, k, s, n, x) as (values
   ('0364_r173_task_timing', 'fn', 'public', 'task_reminder_tick__pre0364', 'timestamp with time zone'),
   ('0364_r173_task_timing', 'fn', 'public', '_r364_tg_email_only', ''),
   ('0364_r173_task_timing', 'trg', 'public.task_wa_outbox', 'zzz_r364_email_only', null),
-  ('0364_r173_task_timing', 'pre', null, '__pre0364', null)
+  ('0364_r173_task_timing', 'pre', null, '__pre0364', null),
+  ('0365_r174_event_day_board', 'fn', 'public', 'live_events_today', 'integer'),
+  ('0365_r174_event_day_board', 'fn', 'public', 'crew_unavailable_conflicts', 'date,date'),
+  ('0366_r174b_presence', 'tbl', 'public.member_presence', null, null),
+  ('0366_r174b_presence', 'idx', 'public.member_presence_org_idx', null, null),
+  ('0366_r174b_presence', 'trg', 'public.member_presence', 'zzz_studio_read_only', null),
+  ('0366_r174b_presence', 'fn', 'public', 'presence_touch', ''),
+  ('0366_r174b_presence', 'fn', 'public', 'presence_list', ''),
+  ('0366_r174b_presence', 'fn', 'public', 'presence_set_visible', 'boolean')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4273,7 +4280,7 @@ mig(ord, m, ov, note) as (values
   (157, '0160_client_due_confirmed_only', 'superseded', 'everything it made was re-issued or removed by later migrations (checked there)'),
   (158, '0161_crew_schedule', null, null),
   (159, '0162_launch_bypass_off', 'skip', 'data only, PRODUCTION ONLY: switches the checkout ''Skip payment'' bypass off (staging keeps it on)'),
-  (160, '0163_crew_schedule_hardening', null, null),
+  (160, '0163_crew_schedule_hardening', 'superseded', 'everything it made was re-issued or removed by later migrations (checked there)'),
   (161, '0164_audit_privacy_system_quiet', null, null),
   (162, '0165_email_unsubscribe', null, null),
   (163, '0166_trial_sandbox_skeleton', null, null),
@@ -4432,7 +4439,9 @@ mig(ord, m, ov, note) as (values
   (316, '0361_r170_staff_email', null, null),
   (317, '0362_r171_staff_reminders', null, null),
   (318, '0363_r172_update_notices_staff_link', null, null),
-  (319, '0364_r173_task_timing', null, null)
+  (319, '0364_r173_task_timing', null, null),
+  (320, '0365_r174_event_day_board', null, null),
+  (321, '0366_r174b_presence', null, 'The two realtime.messages policies (own studio private presence channel) are created only where the Supabase realtime schema exists; local and CI databases have none. On prod check them with: select policyname from pg_policies where schemaname = realtime and policyname like helm_presence_%')
 ),
 env as (
   select

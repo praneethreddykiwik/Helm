@@ -94,7 +94,7 @@
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=4">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=78" id="shellProto"></script>
+<script src="/shell-proto.js?v=79" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -195,12 +195,12 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=355"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=356"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=38"></script>
-<script src="tour.js?v=57"></script>
+<script src="page-tours.js?v=39"></script>
+<script src="tour.js?v=58"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -301,7 +301,7 @@
     const showPay=BPStore.staff.payVisible(s,isAdminUser);   // r20 coord (d): a team login's pay is admin-only
     return `<div class="person ${s.active===false?'off':''}" data-id="${esc(s.id)}">
       <div class="top"><div class="av"${photo?` data-avatar-path="${esc(photo)}"`:""}>${esc(initials(s.name))}</div>
-        <div><div class="nm">${esc(s.name)}</div><div class="rl">${roleText(s)}</div></div></div>
+        <div><div class="nm">${esc(s.name)}${linked&&s.profile_id?' <span data-presence-uid="'+esc(s.profile_id)+'" data-presence-size="9px" hidden></span>':""}</div><div class="rl">${roleText(s)}</div></div></div>
       <div class="tags">
         ${linked?`<span class="tag linked" title="Name, phone, e-mail, department and title follow this person's Helm profile">🔗 Linked account</span>`:""}
         ${loginTag(s)}
@@ -344,7 +344,8 @@
   function render(){
     const shown=team;   // filtered on the server
     $("#count").textContent=(facets.total>0||shownTotal===0)?(shownTotal+" of "+facets.total):(shownTotal+" shown");
-    if(shown.length){ $("#grid").innerHTML=shown.map(personCard).join(""); try{ BPStore.chat.paintAvatars($("#grid")); }catch(e){} }
+    if(shown.length){ $("#grid").innerHTML=shown.map(personCard).join(""); try{ BPStore.chat.paintAvatars($("#grid")); }catch(e){}
+      try{ if(BPStore.presence){ BPStore.presence.paint($("#grid")); BPStore.presence.refresh(); } }catch(e){} }   // R174b: online dots for people who sign in to Helm
     else if(!facets.total){
       $("#grid").innerHTML=`<div class="empty">${showInactive?"No staff records yet.":"No team members yet."}${canEdit?` Add your first team member to start matching people to event needs.<br><button type="button" class="btn primary" id="emptyAdd">＋ Add your first team member</button>`:""}</div>`;
       const b=$("#emptyAdd"); if(b) b.addEventListener("click",()=>openForm(null));

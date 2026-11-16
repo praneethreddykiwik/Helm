@@ -147,7 +147,8 @@ await t('Realtime: the bell opens no channel off the Chat page; every channel cl
   assert.match(STORE, /kicked = true; liveRefresh\(\);\n[^\n]*\n[^\n]*\n\s+if \(pageKey\(\) !== "chat"\) return;\n\s+try \{ if \(chat && chat\.subscribe\) \{ csub = chat\.subscribe\(/);
   assert.match(STORE, /const RT_IDLE_MS = 60000;\n  function rtLive\(make, onBack\) \{/);
   assert.equal((STORE.match(/return rtLive\(\(\) => supa\.channel\(/g) || []).length, 3, 'versions, leads, chat');
-  assert.equal((STORE.match(/supa\.channel\(/g) || []).length, 3, 'no channel outside rtLive');
+  assert.equal((STORE.match(/supa\.channel\(/g) || []).length, 4, 'no channel outside rtLive (R174b: + the presence channel)');
+  assert.match(STORE, /rtLive\(\(\) => \{\n\s+const c = supa\.channel\("presence:org:"/, 'R174b presence channel goes through rtLive');
   assert.match(STORE, /spec\.filter = "org_id=eq\." \+ oid;/);
 });
 
@@ -186,8 +187,8 @@ await t('0358: catalog built once per request, _r23_tz without the time zone fil
 });
 
 await t('cache-bust: store-api v350 on every page', () => {
-  assert.match(EV, /store-api\.js\?v=355/);
-  assert.match(read('public/dashboard.html'), /store-api\.js\?v=355/);
+  assert.match(EV, /store-api\.js\?v=356/);
+  assert.match(read('public/dashboard.html'), /store-api\.js\?v=356/);
 });
 
 console.log(`\nr163-perf: ${pass} passed, ${fail} failed`);

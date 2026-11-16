@@ -194,9 +194,10 @@
 </style>
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
+<link rel="stylesheet" href="live-board.css?v=1">
 <link rel="stylesheet" href="trial-terms.css?v=4">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=78" id="shellProto"></script>
+<script src="/shell-proto.js?v=79" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -223,6 +224,8 @@
   <section id="tdCard" data-td-auto hidden aria-label="Demo data"></section>
   <section id="tuCard" data-tu-auto hidden aria-label="Your trial data after upgrading"></section>
   <section id="gsCard" class="gs" data-gs-auto hidden data-tour="checklist" aria-label="Getting started"></section>
+  <!-- R174 (0365): events happening today / in the next 24 h with task progress (office roles; hidden when nothing to show) -->
+  <section id="liveHome" class="lb-home" hidden aria-label="Ongoing and upcoming today"></section>
 
   <section class="hero">
     <div>
@@ -328,10 +331,10 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=355"></script><script src="flow-resume.js?v=9" data-mount></script>
+<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=356"></script><script src="flow-resume.js?v=9" data-mount></script><script src="live-board.js?v=1"></script>
 <script src="event-reminders.js?v=6"></script>
-<script src="page-tours.js?v=38"></script>
-<script src="tour.js?v=57"></script>
+<script src="page-tours.js?v=39"></script>
+<script src="tour.js?v=58"></script>
 <script src="getting-started.js?v=14"></script>
 <script src="onboarding-wizard.js?v=11"></script>
 <script src="trial-facts.js?v=9"></script>
@@ -474,6 +477,14 @@
     renderRoleBoard();                                     // Build 2 — role-specific workspace board (best-effort)
     renderPending();                                        // Phase 3 — personal feed (best-effort)
     renderMyTasks();                                        // Build 3 — bucketed personal tasks (best-effort)
+    renderLiveHome();                                       // R174 — ongoing & upcoming today (best-effort)
+  }
+  // R174 (0365): "Ongoing & upcoming today" - task progress of today's events (crew / no access: the server says no and the
+  // card stays hidden). Mounted once; it refreshes itself every minute while the page is visible.
+  let liveHomeUI = null;
+  function renderLiveHome() {
+    if (liveHomeUI || !window.HelmLiveBoard || !BPStore.ops || !BPStore.ops.live || BPStore.mode() !== "supabase") return;
+    liveHomeUI = HelmLiveBoard.mountToday($("#liveHome"), { compact: true, max: 4, hours: 24, title: "Ongoing & upcoming today" });
   }
   const inr = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
   // qts-1018: ONE status label (BPStore.quoteStatus - same words as Quotes + the workspace):

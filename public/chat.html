@@ -67,7 +67,7 @@
   .conv{display:flex;align-items:center;gap:12px;padding:0 14px;height:70px;cursor:pointer;border-bottom:1px solid var(--line-2)}
   .conv:hover{background:var(--panel-2)}
   .conv.on{background:var(--accent-soft)}
-  .av{width:46px;height:46px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;background:var(--accent)}
+  .av{width:46px;height:46px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;background:var(--accent);position:relative}
   .conv .meta{flex:1;min-width:0}
   .conv .meta .r1{display:flex;align-items:baseline;gap:8px}
   .conv .meta .nm{font-size:15.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
@@ -261,7 +261,7 @@
   @media(max-width:420px){.composer{padding:8px 10px}.cbar{gap:6px}.cbar .ic{width:34px;height:34px}#camBtn{display:none}}
 </style>
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=78" id="shellProto"></script>
+<script src="/shell-proto.js?v=79" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#msgs">Skip to messages</a>
@@ -380,7 +380,7 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=355"></script><script src="event-group-picker.js?v=5"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=356"></script><script src="event-group-picker.js?v=5"></script>
 <script>
 (function(){function hy(r){if(!r||!r.querySelectorAll)return;var l=r.matches&&r.matches("[data-st]")?[r]:[];l=l.concat([].slice.call(r.querySelectorAll("[data-st]")));l.forEach(function(e){e.style.cssText+=";"+e.getAttribute("data-st");e.removeAttribute("data-st");});}new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(hy);});}).observe(document.documentElement,{childList:true,subtree:true});})();
 (function(){
@@ -453,8 +453,8 @@
      (own bucket keys only) before anything is signed — see BPStore.chat.paintAvatars. */
   function photoOf(id){ const p=roster[id]; return (p&&p.avatar_path)||""; }
   function photoAttr(id){ const p=photoOf(id); return p?` data-avatar-path="${esc(p)}"`:""; }
-  function personAv(id,style){ return `<div class="av" data-st="background:${colorFor(id)};${style||""}"${photoAttr(id)}>${esc(initials(personName(id)))}</div>`; }
-  function paintAv(root){ try{ if(BPStore.chat.paintAvatars) BPStore.chat.paintAvatars(root); }catch(e){} }
+  function personAv(id,style,dot){ return `<div class="av" data-st="background:${colorFor(id)};${style||""}"${photoAttr(id)}>${esc(initials(personName(id)))}${dot&&id?'<span data-presence-uid="'+esc(id)+'" data-presence-corner hidden></span>':""}</div>`; }
+  function paintAv(root){ try{ if(BPStore.chat.paintAvatars) BPStore.chat.paintAvatars(root); }catch(e){} try{ if(BPStore.presence) BPStore.presence.paint(root); }catch(e){} }   // R174b: online dots
 
   function closeMenus(){ document.querySelectorAll(".menu,.rxpop").forEach(m=>m.remove()); document.querySelectorAll(".m.menu-open").forEach(m=>m.classList.remove("menu-open")); }
   document.addEventListener("click",(e)=>{ if(!e.target.closest(".menu")&&!e.target.closest(".rxpop")&&!e.target.closest("[data-menu-anchor]")&&!e.target.closest(".caret")) closeMenus(); });
@@ -576,7 +576,7 @@
     if(!list.length){ host.innerHTML=`<div class="emptylist">${!backendReady?"Chat isn’t set up on this workspace yet. An admin needs to finish chat setup — once that’s done, your team chats appear here.":q?"No chats found.":filter!=="all"?"Nothing here yet.":"No chats yet. Tap ＋ to start one."}</div>`; return; }
     host.innerHTML=list.map(c=>{ const a=convAvatar(c); const t=c._last?c._last.created_at:c.last_message_at;
       return `<div class="conv ${c.id===activeId?'on':''}" data-id="${esc(c.id)}" role="button" tabindex="0">
-        ${c.kind==="dm"?personAv(convOther(c)):avHtml(a)}
+        ${c.kind==="dm"?personAv(convOther(c),"",true):avHtml(a)}
         <div class="meta"><div class="r1"><span class="nm">${esc(convTitle(c))}</span><span class="tm ${c._unread?'hilite':''}">${esc(fmtListTime(t))}</span></div>
           <div class="r2"><span class="pv">${lastPreview(c)}</span><span class="marks" data-st="display:inline-flex;gap:3px;align-items:center;color:var(--ink-3);font-size:12px">${mutes.has(c.id)?'🔕':''}${pins.has(c.id)?'📌':''}${favs.has(c.id)&&!c._unread?'★':''}${c._unread?`<span class="unread">${c._unread>99?'99+':c._unread}</span>`:''}</span></div></div>
       </div>`; }).join("");
@@ -625,6 +625,7 @@
     const c=convs.find(x=>x.id===id); if(!c) return;
     $("#thead").hidden=false; $("#composer").hidden=false; const w=$("#welcome"); if(w) w.hidden=true;
     const a=convAvatar(c); const av=$("#tAv"); av.style.background=a.bg; av.textContent=a.txt;
+    if(c.kind==="dm"&&convOther(c)){ const d=document.createElement("span"); d.setAttribute("data-presence-uid",convOther(c)); d.setAttribute("data-presence-corner",""); d.setAttribute("data-presence-size","10px"); d.hidden=true; av.appendChild(d); }   // R174b
     { const ph=c.kind==="dm"?photoOf(convOther(c)):""; av.removeAttribute("data-av-done"); if(ph) av.setAttribute("data-avatar-path",ph); else av.removeAttribute("data-avatar-path"); paintAv($("#thead")); }
     $("#tName").textContent=convTitle(c);
     // r20-2: a switch never shows the previous chat's subtitle / messages or a false "No messages yet"
@@ -664,7 +665,9 @@
   function setSub(c){ if(!c) return;
     if(c.kind==="group") $("#tSub").textContent=(c.quote_id?"Event group · ":"")+(((thread.members||[]).map(m=>m.user_id===ME.id?"You":shortName(personName(m.user_id))).concat((thread.contacts||[]).map(k=>shortName(k.name)))).join(", ")||"group");
     else if(c.kind==="broadcast") $("#tSub").textContent="Everyone in your team";
-    else { const o=convOther(c), p=roster[o]; $("#tSub").textContent=(p&&p.job_title)||(p&&roleLbl(p.role))||""; } }
+    else { const o=convOther(c), p=roster[o], pr=presenceLine(o); $("#tSub").textContent=[pr,(p&&p.job_title)||(p&&roleLbl(p.role))||""].filter(Boolean).join(" · "); } }
+  // R174b (0366): "Online now" / "Away" / "Active 5 min ago" / "Last seen yesterday" for a DM header ("" when hidden / unknown)
+  function presenceLine(uid){ try{ const s=BPStore.presence&&BPStore.presence.status(uid); return s&&s.status!=="hidden"?s.label:""; }catch(e){ return ""; } }
   /* event group: keep the latest event card pinned above the thread */
   function renderPinBar(c){ const bar=$("#pinBar"); const ev=(thread.messages||[]).filter(isEventCard).pop();
     if(!c||!ev){ bar.hidden=true; bar.dataset.mid=""; return; } const mt=ev.meta||{};
@@ -1007,6 +1010,11 @@
   /* chatfix-1018: the ⋮ menu used to repeat New chat / New group from ＋; it now holds list actions */
   $("#menuBtn").addEventListener("click",()=>{ const items=[{k:"readall",label:"✓  Mark all as read",on:markAllRead}];
     if(canInvite) items.push({k:"invite",label:"👤  Invite a teammate",on:()=>{ location.href=INVITE_HREF; }});
+    // R174b (0366): my own "Show when I'm online" switch (on by default)
+    if(BPStore.presence&&!BPStore.chat.isLocal()){ const on=BPStore.presence.showingMe();
+      items.push({k:"online",label:(on?"🟢  Showing when I'm online - turn off":"⚪  Hidden - show when I'm online"),on:async()=>{
+        try{ await BPStore.presence.setVisible(!on); BPUI.toast(!on?"Your team can see when you're online again.":"You're hidden: your team won't see when you're online or when you were last active.",{type:"ok"}); }
+        catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"change your online status"}),{type:"err"}); } }}); }
     openMenu($("#menuBtn"),items); });
   async function markAllRead(){ const un=convs.filter(c=>c._unread>0);
     if(!un.length){ BPUI.toast("Nothing unread.",{type:"info"}); return; }
@@ -1066,7 +1074,7 @@
     if(!count) return {ok:false,field:"members",msg:"Pick at least one teammate.",name,count};
     return {ok:true,name,count}; }
   function others(){ return (BPStore.chat.isLocal()?BPStore.chat.localRoster():Object.values(roster)).filter(p=>p.id!==ME.id); }
-  function prowAvatar(p){ return `<div class="av" data-st="width:40px;height:40px;font-size:14px;background:${colorFor(p.id)}"${p.avatar_path?` data-avatar-path="${esc(p.avatar_path)}"`:""}>${esc(initials(pname(p)))}</div>`; }
+  function prowAvatar(p){ return `<div class="av" data-st="width:40px;height:40px;font-size:14px;background:${colorFor(p.id)}"${p.avatar_path?` data-avatar-path="${esc(p.avatar_path)}"`:""}>${esc(initials(pname(p)))}<span data-presence-uid="${esc(p.id)}" data-presence-corner data-presence-size="10px" hidden></span></div>`; }
   function newDmModal(){ const people=others(); const ov=document.createElement("div"); ov.className="ov"; ov.id="modalOv";
     ov.innerHTML=`<div class="modal"><h3>New chat</h3><div class="body">${people.map(p=>`<button type="button" class="prow" data-id="${esc(p.id)}" aria-label="${esc("Chat with "+pname(p)+", "+roleLbl(p.role))}">${prowAvatar(p)}<div class="nm">${esc(pname(p))}</div><span class="rl">${esc(roleLbl(p.role))}</span></button>`).join("")||'<div class="invite"><b>No teammates in your studio yet.</b><br>'+inviteHint()+'</div>'}</div><div class="foot"><button class="btn" data-close>Cancel</button></div></div>`;
     showModal(ov); paintAv(ov); ov.addEventListener("click",e=>{ if(e.target===ov||e.target.hasAttribute("data-close")) closeModal(); });
@@ -1111,7 +1119,9 @@
   // everyone in a group: chat members with their role (r20: every group, opened from the header too; read-only)
   // + for an event group its contacts (staff / vendors / client who don't sign in; 0194)
   function memberSub(m){ const p=roster[m.user_id]||{}; const bits=[(p.job_title||roleLbl(p.role)||"").trim()].filter(Boolean);
-    if(m.member_role==="admin") bits.push("group admin"); return bits.join(" · ")||"member"; }
+    if(m.member_role==="admin") bits.push("group admin");
+    if(m.user_id!==ME.id){ const pr=presenceLine(m.user_id); if(pr) bits.push(pr); }   // R174b: Online now / Last seen
+    return bits.join(" · ")||"member"; }
   async function peopleModal(){ const c=convs.find(x=>x.id===activeId); if(!c||c.kind!=="group") return; const ev=!!c.quote_id;
     const members=(thread.members||[]).map(m=>({ me:m.user_id===ME.id, name:m.user_id===ME.id?"You":personName(m.user_id), sub:memberSub(m) }))
       .sort((a,b)=>(a.me===b.me?a.name.localeCompare(b.name):(a.me?-1:1)));
@@ -1172,6 +1182,8 @@
       if(ME.metaName&&roster[ME.id]&&!String(roster[ME.id].full_name||"").trim()) roster[ME.id]=Object.assign({},roster[ME.id],{full_name:ME.metaName});
       await refresh();
       try{ sub=BPStore.chat.subscribe(onRealtime,()=>{}); }catch(e){}
+      // R174b (0366): online dots repaint themselves; the open DM header's "Online now / Last seen" line follows them
+      try{ if(BPStore.presence){ BPStore.presence.onChange(()=>{ const c=convs.find(x=>x.id===activeId); if(c&&c.kind==="dm") setSub(c); }); BPStore.presence.refresh(); } }catch(e){}
       window.addEventListener("beforeunload",()=>{ try{ sub&&sub.unsubscribe&&sub.unsubscribe(); }catch(e){} });
       const want=new URLSearchParams(location.search).get("c");
       if(want && convs.find(c=>c.id===want)) openConv(want);
