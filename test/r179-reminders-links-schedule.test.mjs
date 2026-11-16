@@ -68,7 +68,7 @@ await t("3c the picker: hidden value holder (no silent form validation), date + 
   assert.match(OPS, /startPicker\(\$\("#as_when"\), \[\$\("#as_evday"\), \$\("#as_daybefore"\)\]\)/);
   assert.match(OPS, /<script src="when-picker\.js\?v=\d+"><\/script><script src="task-reminders-ui\.js\?v=\d+"><\/script>/);
   assert.match(OPS, /<link rel="stylesheet" href="when-picker\.css\?v=\d+">/);
-  assert.match(TRM, /global\.HelmWhen\.attach\(inp, \{ compact: true, label: "Reminder" \}\)/);
+  assert.match(TRM, /global\.HelmWhen\.attach\(inp, \{ compact: true, label: "Reminder"(, zoneNote: false)? \}\)/);
 });
 
 await t("4 copy works in Safari: no await before copying, textarea first, clipboard item for a link still loading", () => {
