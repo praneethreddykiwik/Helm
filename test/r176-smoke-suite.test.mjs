@@ -13,8 +13,11 @@ const ANON = read('tests/smoke/anon.mjs');
 const CFG = read('tests/smoke/config.mjs');
 const PKG = JSON.parse(read('package.json'));
 
-t('workflow only runs in the dev repo (never on the public prod repo)', () => {
-  assert.match(WF, /if: >-\s*\n\s*github\.repository == 'koushik1133\/Helm'/);
+t('workflow runs in the dev repo; on the public prod repo only after a prod deploy or by hand (R180)', () => {
+  assert.match(WF, /if: >-\s*\n\s*\(github\.repository == 'koushik1133\/Helm' &&/);
+  // the prod repo branch never includes the schedule
+  const prodBranch = (WF.match(/github\.repository == 'praneethreddykiwik\/Helm' &&[\s\S]*?\)\)\)/) || [''])[0];
+  assert.ok(prodBranch && !/schedule/.test(prodBranch), 'prod repo: no schedule');
   const jobs = WF.split(/^jobs:\s*$/m)[1] || '';
   assert.deepEqual((jobs.match(/^  [a-z][\w-]*:\s*$/gm) || []).map((l) => l.trim()), ['smoke:'], 'exactly one job, guarded');
 });
@@ -31,6 +34,9 @@ t('deploy runs skip previews: only successful deploys of known hosts', () => {
   assert.match(WF, /contains\(github\.event\.deployment_status\.environment_url, 'helm-v01\.vercel\.app'\)/);
   // R178: dev-repo deploys arrive at a unique vercel.app address, so they are recognised by environment 'Production'
   assert.match(WF, /github\.event\.deployment\.environment == 'Production'/);
+  // R180: prod repo runs only after a prod deploy or by hand, never on schedule, never the channel check
+  assert.match(WF, /github\.repository == 'praneethreddykiwik\/Helm' &&\s*\(github\.event_name == 'workflow_dispatch' \|\|/);
+  assert.match(WF, /\[\[ "\$REPO" == "praneethreddykiwik\/Helm" \]\] && channel=0/);
   assert.doesNotMatch(WF, /deployment\.environment == 'Preview'/);
 });
 
