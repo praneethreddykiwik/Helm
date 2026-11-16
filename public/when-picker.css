@@ -17,3 +17,7 @@
 .whenp-row > .uip-date-wrap, .whenp-row > .uip-list-wrap { width: 100%; min-width: 0; display: block; }
 .whenp-row .uip-date-face { width: 100%; min-height: 40px; margin: 0; }
 .whenp-row .uip-date-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* R182: studio time zone note (only shown when the device clock differs from the studio's) */
+.whenp-zone { margin: 0; padding: 8px 10px; border-radius: 10px; font-size: 12.5px; line-height: 1.4; color: var(--ink-2, #344054);
+  background: color-mix(in srgb, var(--accent, #0b6b4f) 7%, transparent); border: 1px solid color-mix(in srgb, var(--accent, #0b6b4f) 22%, transparent); }
+.whenp-zone[hidden] { display: none; }

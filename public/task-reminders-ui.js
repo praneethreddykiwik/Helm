@@ -168,7 +168,7 @@
       rm.addEventListener("click", function () { list.removeChild(r); if (add) add.disabled = list.children.length >= 8; add.focus(); });
       r.appendChild(lb); r.appendChild(inp); r.appendChild(rm); list.appendChild(r);
       // R179: the clear date + time picker (when-picker.js); the input stays the value holder
-      if (global.HelmWhen && typeof global.HelmWhen.attach === "function") global.HelmWhen.attach(inp, { compact: true, label: "Reminder" });
+      if (global.HelmWhen && typeof global.HelmWhen.attach === "function") global.HelmWhen.attach(inp, { compact: true, label: "Reminder", zoneNote: false });
       add.disabled = list.children.length >= 8;
       return inp;
     }
