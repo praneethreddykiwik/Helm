@@ -20,6 +20,8 @@ const TOURS = read('public/page-tours.js');
 const code = (s) => s.replace(/^\s*--.*$/gm, '');
 
 const win = {};
+// R192: monitor.js uses the shared status / late / escalation module (task-status.js), loaded first as on the page
+vm.runInNewContext(readFileSync(new URL('../public/task-status.js', import.meta.url), 'utf8'), { window: win, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, Promise, setInterval() {}, clearInterval() {} });
 vm.runInNewContext(MON, { window: win, document: { getElementById: () => null, readyState: 'complete', addEventListener() {} }, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, URL, URLSearchParams, setInterval() {}, localStorage: null });
 const M = win.HelmMonitor;
 

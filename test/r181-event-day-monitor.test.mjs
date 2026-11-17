@@ -10,6 +10,8 @@ const t = async (name, fn) => { try { await fn(); pass++; console.log('  ok  ' +
 const JS = read('public/monitor.js'), HTML = read('public/monitor.html'), CSS = read('public/monitor.css');
 // load the module without a DOM: it must only export HelmMonitor (the page code waits for #monApp)
 const win = {};
+// R192: monitor.js uses the shared status / late / escalation module (task-status.js), loaded first as on the page
+vm.runInNewContext(readFileSync(new URL('../public/task-status.js', import.meta.url), 'utf8'), { window: win, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, Promise, setInterval() {}, clearInterval() {} });
 vm.runInNewContext(JS, { window: win, document: { getElementById: () => null, readyState: 'complete', addEventListener() {} }, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, URL, URLSearchParams, setInterval() {}, localStorage: null });
 const M = win.HelmMonitor;
 const NOW = Date.parse('2026-11-16T09:00:00Z');
@@ -89,7 +91,9 @@ await t('gate + data: Staff view required, only existing read paths, nudge only 
   assert.match(JS, /BPStore\.ops\.live\.today\(72\)/);
   assert.match(JS, /S\.canEdit && t\.crew_id/);
   assert.match(JS, /REFRESH_MS = 30000/);
-  assert.match(JS, /doc\.hidden/);   // no polling in a hidden tab
+  // R192: ONE shared refresh clock (task-status.js): every 30 s, never in a hidden tab, at once when you come back
+  assert.match(JS, /TS\.refresher\(function \(\) \{ if \(signedIn\(\)\) return loadTasks\(true\); \}, REFRESH_MS\)/);
+  assert.match(read('public/task-status.js'), /if \(doc && doc\.hidden && !force\) return;/);
 });
 
 await t('wiring: shell page list, nav item gated on Staff, routes, noindex headers, tour, links from live cards', () => {

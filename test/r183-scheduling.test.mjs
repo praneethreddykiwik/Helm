@@ -53,8 +53,11 @@ t('a) the owner\'s case: start 4:00 AM IST 17 Nov, reminder 3:45 AM -> saved', (
 t('b) "Send by email" is ticked on every visit and after every assign (never restored as unticked)', () => {
   assert.match(OPS, /<input type="checkbox" id="assignEmail" checked autocomplete="off">/);
   assert.match(OPS, /function resetAssignEmail\(\)\{ const x=\$\("#assignEmail"\); if\(x\) x\.checked=true; \}\n  resetAssignEmail\(\);\n  window\.addEventListener\("pageshow", resetAssignEmail\);/);
-  assert.match(OPS, /\$\("#selAll"\)\.checked=false; resetAssignEmail\(\); await refresh\(\);/);
-  assert.match(OPS, /No email sent \(\\"Send by email\\" was unticked\) - use ✉ Email below to send it\./);
+  assert.match(OPS, /\$\("#selAll"\)\.checked=false; resetAssignEmail\(\); const done=lastOkMsg; await refresh\(\);/);
+  // R192: also when the Add & assign sheet opens, and after giving existing tasks to someone
+  assert.match(OPS, /sheetOpened:\(preset\)=>\{ setMsg\(\); lastOkMsg=""; resetAssignEmail\(\);/);
+  assert.match(OPS, /resetAssignEmail\(\); const done=lastOkMsg; await refresh\(\); if\(window\.OpsBoard\) OpsBoard\.assigned\(done\);/);
+  assert.match(OPS, /No email sent \(\\"Send by email\\" was unticked\) - use Email in the task panel or By person to send it\./);
 });
 
 t('c) iOS-style time: hour + minute spinbuttons, AM | PM toggle, quick minutes; old text box + 15-min list gone', () => {

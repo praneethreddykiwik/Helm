@@ -136,7 +136,7 @@ await t('respondEvidence maps the sheet onto the RPC (nulls when empty, whole se
 });
 
 // ---- behaviour: ops.html evidence view against a stub DOM ------------------------------
-await t('ops.html: evidence button + modal render reason / voice / photos, all escaped, 300 s links', async () => {
+await t('ops.html: notes & photos tag + modal render reason / voice / photos, all escaped, 300 s links', async () => {
   const src = ops.slice(ops.indexOf('/* ---- crew evidence (0038)'), ops.indexOf('$("#ev_close").addEventListener'));
   assert.ok(src.length > 500, 'ops evidence block not found');
   const escSrc = ops.match(/const esc=\(s\)=>[^\n]*\n/)[0];
@@ -157,11 +157,7 @@ await t('ops.html: evidence button + modal render reason / voice / photos, all e
       {task_id:'t1',kind:'reject_reason',body:'<img src=x onerror=alert(1)> sick',worker_name:'Ravi "R"',created_at:'c1'},
       {task_id:'t1',kind:'reject_voice',storage_path:'${KEY}.webm',mime:'audio/webm',duration_s:75,worker_name:'Ravi',created_at:'c2'},
       {task_id:'t2',kind:'proof_photo',storage_path:'${KEY}.jpg',mime:'image/jpeg',worker_name:'Ana',created_at:'c3'}];
-    globalThis.__btn1=evidenceBtn(tasks[0]); globalThis.__btn2=evidenceBtn(tasks[1]); globalThis.__btn3=evidenceBtn({id:'none',title:'x'});
     globalThis.__open=openEvidence;`, ctx);
-  assert.match(ctx.__btn1, /class="btn sm evid"/); assert.match(ctx.__btn1, /💬 reason · 🎙 voice/);
-  assert.match(ctx.__btn1, /aria-label="View crew notes and photos for Stage &lt;b&gt;"/);
-  assert.match(ctx.__btn2, /📷 1/); assert.equal(ctx.__btn3, '');
   await ctx.__open('t1');
   const body = els.ev_body.innerHTML;
   assert.equal(els.evModal.hidden, false);
@@ -174,8 +170,11 @@ await t('ops.html: evidence button + modal render reason / voice / photos, all e
   await ctx.__open('t2');
   assert.match(els.ev_body.innerHTML, /<a href="[^"]+" target="_blank" rel="noopener noreferrer" aria-label="Open proof photo 1"><img src="[^"]+" alt="Proof photo 1" loading="lazy"><\/a>/);
   assert.deepEqual(signed.map((s) => s[1]), [300, 300]);
-  // the Live status row carries the button and the dashboard poll refreshes evidence
-  assert.match(ops, /\$\{verifyChip\(t\)\}\s*\n(\s*\$\{typeof waChip[^\n]*\n)?\s*\$\{evidenceBtn\(t\)\}/);
+  // R192: the row shows "Notes & photos (n)" (text, ops-board.js); the task panel opens this modal; the refresh reloads evidence
+  const brd = readFileSync(new URL('../public/ops-board.js', import.meta.url), 'utf8');
+  assert.match(brd, /text: "Notes & photos \(" \+ ev\.length \+ "\)"/);
+  assert.match(brd, /on: \{ click: function \(\) \{ P\(\)\.evidence\(t\.id\); \} \}/);
+  assert.match(ops, /evidence:\(id\)=>openEvidence\(id\)/);
   assert.match(ops, /BPStore\.ops\.listEvidence\(quoteId\)\.catch\(\(\)=>evidence\)/);
   assert.match(ops, /<div class="lmodal" id="evModal" hidden role="dialog" aria-modal="true" aria-labelledby="ev_title">/);
 });

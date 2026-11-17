@@ -132,7 +132,7 @@ await t('assigning: pending = asked off (waiting), approved = approved day off, 
   assert.match(SCHED, /lead = pending \? "Asked off \(waiting\)" : "Can\\u2019t work"/);
   assert.match(CAL, /u\.approval==="pending"\?"asked for this day off \(waiting for approval\)":"has this day off \(approved\)"/);
   assert.match(MON, /S\.offAsk\[first\.crew_id\] \? "⏳ Asked for this day off - waiting for approval · "/);
-  assert.match(MON, /case "dayoff_asked":/);
+  assert.match(read('public/task-status.js'), /case "dayoff_asked":/);   // R192: activity wording shared with Tasks & Crew (task-status.js)
 });
 
 await t('e-mails: request to the office, decision to the staff member, own links only, layout HTML', () => {

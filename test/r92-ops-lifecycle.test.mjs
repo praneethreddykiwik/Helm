@@ -13,87 +13,50 @@ const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 let n = 0; const t = async (name, fn) => { try { await fn(); n++; } catch (e) { console.error('FAIL ' + name); throw e; } };
 const ops = read('public/ops.html'), work = read('public/work.html'), rs = read('public/runsheet.html'), api = read('public/store-api.js');
 
-await t('1 filter bar + re-apply after render', async () => {
-  for (const id of ['opsFilter', 'of_q', 'of_person', 'of_section', 'of_status', 'of_clear']) assert.ok(ops.includes(`id="${id}"`), id);
-  const body = ops.slice(ops.indexOf('function renderDashboard(){'), ops.indexOf('/* r92: Live status filter - '));
-  assert.match(body, /Pick a section above[^\n]*applyOpsFilter\(\); return; \}/, 'early return re-applies');
-  assert.match(body, /applyOpsFilter\(\);\n  \}\n\s*$/, 'end of render re-applies');
+// R192: the filter bar (four drop-downs) became quick filter chips with counts + one search box (ops-board.js); the rule for each
+// chip runs here in a vm against the same shared status module (task-status.js) the page and /monitor use
+const W = {}; const CTX = { window: W, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, Promise, setInterval() {}, clearInterval() {} };
+vm.runInNewContext(read('public/task-status.js'), CTX); vm.runInNewContext(read('public/ops-board.js'), CTX);
+const PURE = W.OpsBoard._pure;
+await t('1 quick filter chips + search replace the drop-downs', async () => {
+  for (const id of ['opsFilter', 'of_q', 'of_person', 'of_section', 'of_status']) assert.ok(!ops.includes(`id="${id}"`), id + ' gone');
+  assert.match(ops, /<div class="tc-chips" id="chips" role="group" aria-label="Quick filters"><\/div>/);
+  assert.match(ops, /<input id="tcQ" type="search" maxlength="80" placeholder="Search tasks or people"/);
+  assert.deepEqual(JSON.parse(JSON.stringify(PURE.CHIPS.map((c) => c[1]))), ['All', 'Late', 'Special', 'No one yet', 'Waiting for a yes', 'No time', 'QC to check', 'Can’t-work clash', 'Done', 'Cancelled']);
 });
-
-// ---- tiny DOM for the filter block ----
-class Cls { constructor() { this.s = new Set(); } toggle(c, on) { on ? this.s.add(c) : this.s.delete(c); } contains(c) { return this.s.has(c); } }
-class E {
-  constructor(tag) { this.tag = tag; this.classList = new Cls(); this.dataset = {}; this.children = []; this.value = ''; this.hidden = false; this.disabled = false; this._t = ''; this.id = ''; this.ls = {}; }
-  set textContent(v) { this._t = String(v); this.children = []; } get textContent() { return this._t; }
-  appendChild(c) { this.children.push(c); return c; }
-  querySelectorAll(sel) { return sel === '.trow[data-id]' ? this.rows || [] : []; }
-  querySelector(sel) { return sel === '.gh .muted' ? this.count : null; }
-  addEventListener(tp, f) { this.ls[tp] = f; }
-}
-function harness(store) {
-  const els = {}; for (const id of ['opsFilter', 'of_q', 'of_person', 'of_section', 'of_status', 'of_clear', 'of_count']) els['#' + id] = new E(id === 'of_q' ? 'input' : 'select');
-  const mkGrp = (ids, label) => { const g = new E('div'); g.count = new E('span'); g.count.textContent = label; g.rows = ids.map((i) => { const r = new E('div'); r.dataset.id = i; return r; }); return g; };
-  const g1 = mkGrp(['1', '2', '3'], '1/3 done'), g2 = mkGrp(['4'], '0/1 done'), links = new E('div'); links.id = 'workerLinks';
-  const tasks = [
-    { id: '1', title: 'Stage frame', category: 'Stage setup', assignee_name: 'Ravi', status: 'completed', verify_status: 'pending' },
-    { id: '2', title: 'Stage lights', category: 'Stage setup', assignee_name: 'Ravi', status: 'accepted', verify_status: 'unverified' },
-    { id: '3', title: 'Backdrop <b>', category: 'Stage setup', assignee_name: 'Asha', status: 'unassigned', crew_id: 'c', verify_status: 'unverified' },
-    { id: '4', title: 'Lunch', category: 'Catering', assignee_name: '', status: 'rejected', verify_status: 'unverified' },
+await t('2 chip rules', async () => {
+  const now = Date.parse('2026-11-21T10:00:00Z'), past = '2026-11-21T09:00:00Z', later = '2026-11-21T12:00:00Z';
+  const tk = [
+    { id: '1', status: 'completed', verify_status: 'pending', planned_start: past, crew_id: 'a' },
+    { id: '2', status: 'accepted', planned_start: past, crew_id: 'a', is_special: true },
+    { id: '3', status: 'unassigned', crew_id: 'c', assignee_name: 'Asha', planned_start: later },
+    { id: '4', status: 'rejected', assignee_name: 'Ravi' },
+    { id: '5', status: 'unassigned' },
+    { id: '6', status: 'cancelled', planned_start: past, crew_id: 'a' },
   ];
-  const block = ops.slice(ops.indexOf('  /* r92: Live status filter - '), ops.indexOf('  function verifyChip(t){'));
-  const STATUS = ops.match(/const STATUS_LABEL=\{[^\n]*\};/)[0], SHOWN = ops.match(/const shownStatus=[^\n]*;/)[0];
-  const ctx = { tasks, quoteId: 'q1', CATS: ['Stage setup', 'Catering'], JSON, Object, String, Set,
-    $: (s) => els[s] || null,
-    document: { createElement: (tg) => new E(tg), querySelectorAll: (s) => (s === '#dashboard .grp' ? [g1, g2, links] : []) },
-    localStorage: store };
-  vm.createContext(ctx);
-  vm.runInContext(STATUS + SHOWN + block + '\nthis.applyOpsFilter=applyOpsFilter; this.setOpsFilter=setOpsFilter;', ctx);
-  return { ctx, els, g1, g2 };
-}
-const mem = () => { const m = {}; return { getItem: (k) => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, m }; };
-
-await t('2 filter behaviour', async () => {
-  const store = mem(); const h = harness(store);
-  h.ctx.applyOpsFilter();
-  const opts = (id) => h.els['#' + id].children.map((o) => o.value);
-  assert.deepEqual(opts('of_person'), ['', 'Asha', 'Ravi', 'Unassigned']);
-  assert.deepEqual(opts('of_section'), ['', 'Stage setup', 'Catering']);
-  assert.deepEqual(opts('of_status'), ['', 'assigned', 'accepted', 'completed', 'rejected', 'qc_pending'], 'shownStatus (unassigned+crew = assigned) + QC pending');
-  assert.equal(h.els['#of_person'].children[1].textContent, 'Asha', 'options via textContent');
-  assert.equal(h.g1.count.textContent, '1/3 done'); assert.equal(h.els['#of_clear'].disabled, true);
-  h.ctx.setOpsFilter('q', 'stage');
-  assert.deepEqual(h.g1.rows.map((r) => r.classList.contains('f-hide')), [false, false, true]);
-  assert.equal(h.g2.classList.contains('f-hide'), true, 'empty group hidden');
-  assert.equal(h.g1.count.textContent, '1/2 done (of 3)');
-  assert.equal(h.els['#of_count'].textContent, '2 of 4 tasks');
-  assert.equal(JSON.parse(store.m['helm.opsFilter.q1']).q, 'stage', 'saved per event');
-  h.ctx.setOpsFilter('q', ''); h.ctx.setOpsFilter('status', 'qc_pending');
-  assert.deepEqual(h.g1.rows.map((r) => r.classList.contains('f-hide')), [false, true, true]);
-  h.ctx.setOpsFilter('status', 'assigned');
-  assert.deepEqual(h.g1.rows.map((r) => r.classList.contains('f-hide')), [true, true, false], 'status uses shownStatus');
-  h.ctx.setOpsFilter('status', ''); h.ctx.setOpsFilter('person', 'Unassigned');
-  assert.equal(h.g1.classList.contains('f-hide'), true); assert.equal(h.g2.classList.contains('f-hide'), false);
-  // a fresh page for the same event restores the filter
-  const h2 = harness(store); h2.ctx.applyOpsFilter();
-  assert.equal(h2.els['#of_person'].value, 'Unassigned'); assert.equal(h2.g1.classList.contains('f-hide'), true);
-  h2.els['#of_clear'].ls.click();
-  assert.equal(h2.g1.classList.contains('f-hide'), false); assert.equal(h2.g1.count.textContent, '1/3 done');
-  // storage that throws never breaks the page
-  const bad = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
-  const h3 = harness(bad); h3.ctx.applyOpsFilter(); h3.ctx.setOpsFilter('q', 'lunch');
-  assert.equal(h3.g2.classList.contains('f-hide'), false); assert.equal(h3.g1.classList.contains('f-hide'), true);
+  const ids = (k, clash) => tk.filter((x) => PURE.chipTest(k, x, now, clash)).map((x) => x.id).join(',');
+  assert.equal(ids(''), '1,2,3,4,5', 'All leaves cancelled out');
+  assert.equal(ids('late'), '2'); assert.equal(ids('special'), '2');
+  assert.equal(ids('none'), '4,5', 'no one yet = nobody or turned down');
+  assert.equal(ids('wait'), '3', 'an "unassigned" row that names someone is waiting for a yes (r20)');
+  assert.equal(ids('notime'), '4,5'); assert.equal(ids('qc'), '1'); assert.equal(ids('done'), '1'); assert.equal(ids('cancelled'), '6');
+  assert.equal(ids('clash', (x) => x.id === '2' || x.id === '1'), '2', 'a done task never counts as a clash');
 });
-
-await t('3 locked Reassign + QC buttons', async () => {
-  assert.match(ops, /\['rejected','assigned'\]\.includes\(t\.status\)\?`<button type="button" class="btn sm reassign"/);
-  assert.match(ops, /\['accepted','in_progress','completed'\]\.includes\(t\.status\)\?`<button type="button" class="btn sm reassign-locked" disabled title="Locked: task accepted"/);
-  assert.match(ops, /canVerify && t\.status==='completed' && t\.verify_status==='pending'/);
+await t('3 Reassign only before the person said yes + QC buttons only for completed + pending', async () => {
+  const B = read('public/ops-board.js');
+  assert.match(B, /if \(t\.status === "assigned" && !noOne\(t\)\) foot\.push\(h\("button", \{ type: "button", cls: "tc-btn", "data-key": "a:re", text: "Reassign"/);
+  assert.match(B, /Accepted tasks stay with their person - to move one, cancel it \(a reason is required\) and give it out again\./);
+  assert.match(B, /var REASSIGNABLE = \["unassigned", "assigned", "rejected"\];/);
+  assert.match(ops, /filter\(t=>t&&\["unassigned","assigned","rejected"\]\.includes\(t\.status\)\)/);   // the sheet re-checks before reassign_task
+  assert.match(B, /g\.canVerify && t\.status === "completed" && t\.verify_status === "pending"/);
 });
 
 await t('4 CSS + no inline style on suggestions', async () => {
   const sugg = ops.slice(ops.indexOf('async function renderSuggestions'), ops.indexOf('async function refresh('));
   assert.ok(!/style=/.test(sugg), 'no style= in renderSuggestions');
-  assert.match(sugg, /class="btn sm sugg\$\{s\.off\?' off':\(s\.available\?'':' busy'\)\}"/);   // R174: "can't work" shown apart from "busy"
+  // R192: suggestions rank the sheet's person list (free / booked elsewhere / asked off / day off, star = department match)
+  assert.match(sugg, /sugg=\{\}; \(list\|\|\[\]\)\.forEach\(s=>\{ if\(s&&s\.id\) sugg\[s\.id\]=s; \}\);/);
+  assert.match(read('public/ops-board.js'), /text: x\.pending \? "asked off" : "day off"/);
   assert.match(ops, /\.sugg\{margin:0 6px 6px 0\} \.sugg\.busy\{opacity:\.6\}/);
   const coarse = ops.slice(ops.indexOf('@media (pointer:coarse)'));
   assert.match(coarse, /\.btn,\.btn\.sm,\.account button,\.tabs button\{min-height:44px/);
@@ -126,7 +89,7 @@ await t('6 migration 0311 / APPLY / MANIFEST / run-all / tour', async () => {
   assert.ok(!m.includes("'accepted>rejected'") && !m.includes("'rejected>accepted'"), 'owner 2a: answers are final');
   assert.match(m, /__pre0311\(%s\)', r\.fn, r\.args\)\) is null then/, 'wrap once');
   assert.ok(read('scripts/db-test/run-all.sh').includes('tests/db/r92-task-lifecycle-0311.sql'));
-  assert.ok(read('public/page-tours.js').includes('sel: "#opsFilter"'));
+  assert.ok(read('public/page-tours.js').includes('sel: ["#chips", "#tcQ"]'));   // R192: chips + search
 });
 
 console.log(`r92-ops-lifecycle: ${n}/6 passed`);
