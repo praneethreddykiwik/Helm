@@ -70,9 +70,9 @@
 </style>
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="money-lock.css?v=1"><link rel="stylesheet" href="money-header.css?v=1">
+<link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="money-lock.css?v=1"><link rel="stylesheet" href="money-header.css?v=2">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=90" id="shellProto"></script>
+<script src="/shell-proto.js?v=91" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -95,8 +95,9 @@
     <p class="page-purpose" id="pagePurpose"><b>Money in and out:</b> collect from the client, pay vendors &amp; staff.</p>
 
     <div id="priceWarn" class="pwarn" role="alert" hidden>This event has no priced invoice — price the quote to settle.</div>
-    <!-- R197 (0376): the one-glance money header + Needs attention (money-header-ui.js); Finance view only. The cash tiles stay. -->
-    <div data-mh-mount data-mh-parts="header attention" id="moneyHeader" hidden></div>
+    <!-- R197 (0376): the one-glance money header + Needs attention (money-header-ui.js); Finance view only. The cash tiles stay.
+         R198 (0377): + the "Cash in & out" and "Who owes what" tabs (money-cash-ui.js); hidden on a database without 0377. -->
+    <div data-mh-mount data-mh-parts="header attention cash owes" id="moneyHeader" hidden></div>
     <div class="tiles">
       <div class="tile"><div class="l">Invoice total</div><div class="n" id="t_rev">—</div></div>
       <div class="tile"><div class="l">Received</div><div class="n" id="t_recv">—</div></div>
@@ -130,7 +131,7 @@
 
     <div data-vb-mount="bills" id="vendorBills"></div>
 
-    <div class="card">
+    <div class="card" id="claims">
       <h2>🧾 Staff expense claims</h2>
       <p class="sub">Reimbursements for the staff — approve, then mark paid.</p>
       <div class="table-scroll"><table><thead><tr><th scope="col">Who</th><th scope="col">For</th><th scope="col" class="num">Amount</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
@@ -144,7 +145,7 @@
       <div class="totbar"><span>Claims total: <b id="e_tot">₹0</b></span><span>Paid: <b id="e_paid">₹0</b></span></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="refunds">
       <h2>↩ Refunds &amp; recovery</h2>
       <p class="sub">Deposits, damage deductions, refunds to the client, and amounts to recover.</p>
       <div class="table-scroll"><table><thead><tr><th scope="col">Type</th><th scope="col">Reason</th><th scope="col" class="num">Amount</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
@@ -176,7 +177,7 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=368"></script><script src="money-header-ui.js?v=1"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=12"></script><script src="money-lock-ui.js?v=2"></script><script src="trial-test-note.js?v=4"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=369"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=12"></script><script src="money-lock-ui.js?v=2"></script><script src="trial-test-note.js?v=4"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));

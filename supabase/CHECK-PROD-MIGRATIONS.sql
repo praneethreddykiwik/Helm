@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (331 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (332 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4361 objects): body 170, bucket 9, col 242, con 412, cron 19, exec 6, fn 1966, idx 520, marker 58, pol 186, polexpr 4, pre 107, pub 5, seq 1, tbl 285, trg 369, view 2.
+-- What is checked (4365 objects): body 170, bucket 9, col 242, con 412, cron 19, exec 7, fn 1968, idx 520, marker 59, pol 186, polexpr 4, pre 107, pub 5, seq 1, tbl 285, trg 369, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4385,7 +4385,11 @@ with o(m, k, s, n, x) as (values
   ('0376_r197_event_money_header', 'marker', 'public', 'money_settings_set', 'jsonb|r197-0376'),
   ('0376_r197_event_money_header', 'marker', 'public', 'get_studio_target_margin', '|r197-0376'),
   ('0376_r197_event_money_header', 'marker', 'public', 'event_money_header', 'uuid|r197-0376'),
-  ('0376_r197_event_money_header', 'exec', 'public', 'event_money_header', 'uuid|authenticated')
+  ('0376_r197_event_money_header', 'exec', 'public', 'event_money_header', 'uuid|authenticated'),
+  ('0377_r198_event_money_cash', 'fn', 'public', '_r377_d', 'timestamp with time zone,text'),
+  ('0377_r198_event_money_cash', 'fn', 'public', 'event_money_cash', 'uuid'),
+  ('0377_r198_event_money_cash', 'marker', 'public', 'event_money_cash', 'uuid|r198-0377'),
+  ('0377_r198_event_money_cash', 'exec', 'public', 'event_money_cash', 'uuid|authenticated')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4718,7 +4722,8 @@ mig(ord, m, ov, note) as (values
   (328, '0373_r190_vendor_bills_finish', null, 'vendor bills finish: _r21_cost_lines, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0373), checked by the r190-0373 marker (the wrappers name the r186-0369 / r24-ci-0270 / r163-0357 / r189-money-0372 bodies they keep and the 0371 _r25_crew_cfg reader, so those markers still hold); the hourly timer is scheduled only where pg_cron is installed - check it with select jobname from cron.job where jobname = helm-vendor-bill-reminders'),
   (329, '0374_r191_inventory_upgrade', null, 'inventory upgrade + multi-day stock: _r21_cost_lines, public_portal_extras, worker_checkin_equipment and inventory_costs wrapped once (old bodies kept as __pre0374), checked by the r191-inventory-0374 marker (the ledger and cost wrappers name the r21-money-0246 / r22-money-0252 / r23-crew-0265 / r58-inventory-cost-0299 bodies they keep)'),
   (330, '0375_r193_booklet_soft_reads', null, 'booklet soft reads: booklet_current, booklet_image_info, booklet_staff_image and booklet_layout_auto_on re-issued in place (same inputs, null / {} / ok false for an event not in the caller''s studio instead of P0002), checked by the r193-0375 marker; new server-only helper _booklet_staff_quote_soft'),
-  (331, '0376_r197_event_money_header', null, 'P&L clarity phase 1: new read-only event_money_header + money_settings.margin_band; money_settings_get / money_settings_set wrapped once (old bodies kept as __pre0376, which still carry the r189-money-0372 marker) and get_studio_target_margin re-issued in place (default 25), checked by the r197-0376 marker')
+  (331, '0376_r197_event_money_header', null, 'P&L clarity phase 1: new read-only event_money_header + money_settings.margin_band; money_settings_get / money_settings_set wrapped once (old bodies kept as __pre0376, which still carry the r189-money-0372 marker) and get_studio_target_margin re-issued in place (default 25), checked by the r197-0376 marker'),
+  (332, '0377_r198_event_money_cash', null, 'P&L clarity phase 2: new read-only event_money_cash (cash in & out + who owes what) and the server-only helper _r377_d, checked by the r198-0377 marker')
 ),
 env as (
   select

@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=90"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=91"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -9202,6 +9202,18 @@ window.HelmUrl = HelmUrl;
     },
   };
 
+  /* ---------------- R198 P&L clarity phase 2 (0377): cash in & out + who owes what ----------------
+     ONE read call (event_money_cash): the dated money in / out of an event (payments, instalments to come, vendor payouts and
+     bills, crew wages, expense claims, refunds), the running "cash left", why cash left is not the profit (exact parts), and who
+     still owes whom (client, vendors, crew - per person for the admin only, staff pay-backs, GST). The server does every sum.
+     Finance view only (re-checked on the server). null = signed out / not this studio's event / a database without 0377. */
+  const moneyCash = {
+    async get(quoteId) {
+      if (mode !== "supabase" || !quoteId) return null;
+      try { return await rpc("event_money_cash", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+    },
+  };
+
   /* ---------------- notification deep links (pure — unit-tested in test/notif-deeplinks.test.mjs) ----------------
      notifLink(n) → a RELATIVE link to one of the app's own pages ("" when there is nowhere to go).
      Every id is encodeURIComponent'd; the destination page reads ?task= / ?msg= / #payments and
@@ -11342,6 +11354,7 @@ window.HelmUrl = HelmUrl;
     isStaffEmail, STAFF_GOOGLE_MESSAGE, staffGoogleOnlyFor, staffGoogleSessionCheck,
     moneyLock,   // R189 (0372)
     moneyHeader, // R197 (0376)
+    moneyCash, // R198 (0377)
     taskReminders,   // R130 (0338)
     activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
     // User manual (migration 0031): lives in the PRIVATE storage bucket "helm-manual",
