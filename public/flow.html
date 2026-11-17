@@ -462,23 +462,23 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=366"></script><script src="/trial-sim.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=367"></script><script src="/trial-sim.js?v=3"></script>
 <script src="page-tours.js?v=49"></script>
 <script src="tour.js?v=68"></script>
 <script src="payment-schedule.js?v=6"></script>
 <script src="booklet.js?v=33"></script>
-<script src="share-checklist.js?v=15"></script>
+<script src="share-checklist.js?v=16"></script>
 <script src="flow-layout-sync.js?v=6"></script>
 <script src="reprice-guard.js?v=1"></script>
 <script src="event-sizing.js?v=5"></script>
 <script src="flow-autosave.js?v=5"></script>
 <script src="flow-validate.js?v=5"></script>
 <script src="flow-resume.js?v=9"></script>
-<script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=5"></script>
+<script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=6"></script>
 <script src="flow-dish-editor.js?v=3"></script>
 <script src="venues-core.js?v=11"></script>
 <script src="venue-picker.js?v=8"></script>
-<script src="venue-area.js?v=2"></script><script src="wa-proposal.js?v=8"></script><script src="email-send.js?v=9"></script><script src="trial-test-note.js?v=4"></script><script src="event-group-picker.js?v=5"></script><script src="approval-watch.js?v=2"></script><script src="stage-history.js?v=2"></script><script src="link-views.js?v=4"></script>
+<script src="venue-area.js?v=2"></script><script src="wa-proposal.js?v=8"></script><script src="email-send.js?v=9"></script><script src="trial-test-note.js?v=4"></script><script src="event-group-picker.js?v=5"></script><script src="approval-watch.js?v=2"></script><script src="stage-history.js?v=2"></script><script src="link-views.js?v=5"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   // owner 2026-10 (flow validation): every field rule lives in flow-validate.js. Event dates follow the
@@ -527,6 +527,10 @@
   const fTax=()=>BPStore.tax.resolve(Object.assign({}, quoteKeep&&ev ? BPStore.quoteTaxCfg(ev) : (rates||{}), { taxExempt: exemptOn() }));
   const inr=(n)=>{ const r=fTax(); return r.country!=="IN" ? BPStore.tax.money(Math.round(n||0), r) : "₹"+Math.round(n||0).toLocaleString("en-IN"); };
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
+  // R193: the page's own quote check, shared with the widgets that read by the URL id (booklet card, link views, quote
+  // validity): they wait for it and stay hidden for a quote that is not found (deleted / another studio) instead of
+  // calling the server about it. Resolves to the quote id once it opened, or null.
+  let pageQuoteDone=()=>{}; window.HelmPageQuote=new Promise(r=>{ pageQuoteDone=r; });
   let ev=null, rates={chairPrice:200,platePrice:500,gstPct:18,layoutBase:0,serviceChargePct:0,assetPrices:null};
   let packages=[], plan=null, appliedPkg=null, layoutItems=[], canEdit=false;
   let qGuestsOverridden=false;
@@ -2183,10 +2187,11 @@
     $("#gate").hidden=true;
     try{ ev=await BPStore.quotes.get(id); }
     catch(e){
-      if(BPUI.isNotFound(e)){ showNotFound(); return; }
+      if(BPUI.isNotFound(e)){ pageQuoteDone(null); showNotFound(); return; }
       $("#gate").hidden=false; BPUI.loadError($("#gate"), e, openQuote, {what:"this quote"}); return;
     }
-    if(!ev){ showNotFound(); return; }
+    if(!ev){ pageQuoteDone(null); showNotFound(); return; }
+    pageQuoteDone(ev.id||id);
     try{ const o=await BPStore.org.current(); const bl=o&&o.brand&&o.brand.billing; flowStudioState=(bl&&typeof bl.state==="string")?bl.state:""; }catch{}
     try{ if(window.HelmTrail) HelmTrail.setCurrent({title:[ev.code,ev.title].filter((v,i,a)=>v&&a.indexOf(v)===i).join(" "),kind:"quote",href:"flow.html?quote="+encodeURIComponent(id),recordHref:"event.html?id="+encodeURIComponent(id)}); }catch(e){}
     loading=true;
@@ -2224,10 +2229,10 @@
       else { acc.innerHTML=`<button type="button" id="loginBtn">Sign in</button>`; $("#loginBtn").addEventListener("click",()=>location.replace("login.html?next="+encodeURIComponent(HelmUrl.here()))); }
       if(BPStore.auth.required() && !u){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     }
-    if(!id){ $("#gate").hidden=false; $("#gate").innerHTML='<p style="color:var(--ink-2)">No quote selected. Start one from <a href="dashboard.html" style="color:var(--accent);text-decoration:underline">Home</a> or <a href="leads.html" style="color:var(--accent);text-decoration:underline">Leads</a>.</p>'; return; }
+    if(!id){ pageQuoteDone(null); $("#gate").hidden=false; $("#gate").innerHTML='<p style="color:var(--ink-2)">No quote selected. Start one from <a href="dashboard.html" style="color:var(--accent);text-decoration:underline">Home</a> or <a href="leads.html" style="color:var(--accent);text-decoration:underline">Leads</a>.</p>'; return; }
     // r22: /flow?quote=SMP-1003 (an event number, like the event page accepts) -> the same page with the id
     if(!HelmUrl.isUuid(id) && HelmUrl.eventId){ let rid=null; try{ rid=await HelmUrl.eventId(id); }catch(_){ rid=null; }
-      if(!rid){ showNotFound(); return; }
+      if(!rid){ pageQuoteDone(null); showNotFound(); return; }
       const sp=new URLSearchParams(location.search); sp.delete("id"); sp.set("quote",rid);
       location.replace(location.pathname+"?"+sp.toString()+location.hash); return; }
     try{ canEdit=await BPStore.auth.canEditArea("quotes"); }catch{ canEdit=true; }

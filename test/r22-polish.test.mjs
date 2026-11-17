@@ -133,7 +133,7 @@ await t('8 closed event: effStage = closed, the Closed step is ticked, nothing t
 
 await t('9 /flow?quote=<code>: resolved in the caller\'s studio, then the same page with the id; UUID unchanged', async () => {
   const F = read('public/flow.html');
-  assert.match(F, /if\(!HelmUrl\.isUuid\(id\) && HelmUrl\.eventId\)\{ let rid=null; try\{ rid=await HelmUrl\.eventId\(id\); \}catch\(_\)\{ rid=null; \}\s*if\(!rid\)\{ showNotFound\(\); return; \}/);
+  assert.match(F, /if\(!HelmUrl\.isUuid\(id\) && HelmUrl\.eventId\)\{ let rid=null; try\{ rid=await HelmUrl\.eventId\(id\); \}catch\(_\)\{ rid=null; \}\s*if\(!rid\)\{ (?:pageQuoteDone\(null\); )?showNotFound\(\); return; \}/);
   assert.match(F, /sp\.delete\("id"\); sp\.set\("quote",rid\);\s*location\.replace\(location\.pathname\+"\?"\+sp\.toString\(\)\+location\.hash\); return; \}/);
   assert.ok(F.indexOf('HelmUrl.eventId(id)') < F.indexOf('await openQuote();\n  });'), 'resolved before the quote loads');
   const at = API.indexOf('HelmUrl.eventId = async function (ref) {'); assert.ok(at > 0);

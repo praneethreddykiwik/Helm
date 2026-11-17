@@ -228,17 +228,17 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=366"></script><script src="/trial-sim.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=367"></script><script src="/trial-sim.js?v=3"></script>
 <script src="flow-resume.js?v=9"></script>
 <script src="event-reminders.js?v=6"></script>
 <script src="page-tours.js?v=49"></script>
 <script src="tour.js?v=68"></script>
 <script src="payment-schedule.js?v=6"></script>
 <script src="booklet.js?v=33"></script>
-<script src="email-send.js?v=9"></script><script src="share-checklist.js?v=15"></script>
+<script src="email-send.js?v=9"></script><script src="share-checklist.js?v=16"></script>
 <script src="invite-site-share.js?v=13"></script><script src="booklet-share.js?v=19"></script>
-<script src="pkg-review.js?v=9"></script><script src="quote-validity.js?v=5"></script>
-<script src="event-group-picker.js?v=5"></script><script src="capacity-shortage.js?v=9"></script><script src="approval-watch.js?v=2"></script><script src="stage-history.js?v=2"></script><script src="link-views.js?v=4"></script>
+<script src="pkg-review.js?v=9"></script><script src="quote-validity.js?v=6"></script>
+<script src="event-group-picker.js?v=5"></script><script src="capacity-shortage.js?v=9"></script><script src="approval-watch.js?v=2"></script><script src="stage-history.js?v=2"></script><script src="link-views.js?v=5"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -246,6 +246,9 @@
   let evTax=null;
   const inr=(n)=>evTax?BPStore.quoteMoney(n,evTax):BPStore.studioMoney(n);
   let id=new URLSearchParams(location.search).get("id");
+  // R193: the page's own event check, shared with the widgets that read by the URL id (link views chip, quote validity):
+  // they wait for it and stay hidden for an event that is not found instead of calling the server about it.
+  let pageQuoteDone=()=>{}; window.HelmPageQuote=new Promise(r=>{ pageQuoteDone=r; });
 
   // the lifecycle — a calm, guided path. Each stage carries the "next action" hint.
   const STAGES=[
@@ -320,7 +323,7 @@
 
   async function load(){
     await BPStore.init(); id=await HelmUrl.get("id", id); await renderAccount(); try{await BPStore.bell.mount(document.querySelector("#bell"));}catch{}
-    if(!id){ $("#notfound").hidden=false; return; }
+    if(!id){ pageQuoteDone(null); $("#notfound").hidden=false; return; }
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     // R163: the event row is asked for NOW, at the same time as the access checks below (each its own round trip on a
     // busy database), instead of after them. Row security still decides what comes back; the answer is only used once
@@ -341,7 +344,8 @@
     // "not found" only when the event truly doesn't exist; any other failure → error card with Retry
     $("#loadErr").innerHTML=""; $("#notfound").hidden=true;
     try{ ev=await evFirst; }
-    catch(e){ if(BPUI.isNotFound(e)) $("#notfound").hidden=false; else BPUI.loadError($("#loadErr"), e, load, {what:"this event"}); return; }
+    catch(e){ if(BPUI.isNotFound(e)){ pageQuoteDone(null); $("#notfound").hidden=false; } else BPUI.loadError($("#loadErr"), e, load, {what:"this event"}); return; }
+    pageQuoteDone(ev && ev.id ? ev.id : null);
     try{ evTax=BPStore.quoteTax(ev); }catch(_){ evTax=null; }
     // Pretty URLs (/studio/events/<code>) carry no ?id=, so hand the resolved quote id to the
     // Share booklet button (it could not open, so links could not be revoked from here).

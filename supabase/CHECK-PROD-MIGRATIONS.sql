@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (329 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (330 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4337 objects): body 164, bucket 9, col 241, con 411, cron 19, exec 5, fn 1960, idx 520, marker 50, pol 186, polexpr 4, pre 106, pub 5, seq 1, tbl 285, trg 369, view 2.
+-- What is checked (4345 objects): body 167, bucket 9, col 241, con 411, cron 19, exec 5, fn 1961, idx 520, marker 54, pol 186, polexpr 4, pre 106, pub 5, seq 1, tbl 285, trg 369, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -2408,7 +2408,6 @@ with o(m, k, s, n, x) as (values
   ('0213_sample_event_layouts', 'fn', 'public', '_a213_sample_layout', 'text'),
   ('0213_sample_event_layouts', 'fn', 'public', '_a213_fill_floor', 'uuid'),
   ('0213_sample_event_layouts', 'fn', 'public', '_a213_fill_trial_layouts', 'uuid'),
-  ('0220_start_blank_untouched', 'body', 'public', 'booklet_current', 'uuid|b134c8aee1b0ef67a37dbc609ffef344'),
   ('0220_start_blank_untouched', 'body', 'public', 'start_blank_quote', 'text,text|26df4d3a9a15cf94539f635c417139d8'),
   ('0220_start_blank_untouched', 'fn', 'public', '_blank_quote_touched_reason', 'uuid,uuid'),
   ('0220_start_blank_untouched', 'col', 'public.client_booklets', 'sections_set_at', null),
@@ -4361,7 +4360,16 @@ with o(m, k, s, n, x) as (values
   ('0374_r191_inventory_upgrade', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|r191-inventory-0374'),
   ('0374_r191_inventory_upgrade', 'marker', 'public', 'public_portal_extras', 'uuid|r191-inventory-0374'),
   ('0374_r191_inventory_upgrade', 'marker', 'public', 'worker_checkin_equipment', 'uuid,uuid,numeric|r191-inventory-0374'),
-  ('0374_r191_inventory_upgrade', 'marker', 'public', 'inventory_costs', 'uuid[]|r191-inventory-0374')
+  ('0374_r191_inventory_upgrade', 'marker', 'public', 'inventory_costs', 'uuid[]|r191-inventory-0374'),
+  ('0375_r193_booklet_soft_reads', 'body', 'public', 'booklet_current', 'uuid|a245cc5c964c9a8ba37a9e32dea19b4c'),
+  ('0375_r193_booklet_soft_reads', 'body', 'public', 'booklet_image_info', 'uuid|c0f642fdcf4cb6fb2a7d1035dcca18c4'),
+  ('0375_r193_booklet_soft_reads', 'body', 'public', 'booklet_staff_image', 'uuid,text,text|630c7aa9330a9d2bb15c86b03b2c48b6'),
+  ('0375_r193_booklet_soft_reads', 'body', 'public', 'booklet_layout_auto_on', 'uuid|3a7ead7f6ea18a822f0ee5c4e80d5404'),
+  ('0375_r193_booklet_soft_reads', 'fn', 'public', '_booklet_staff_quote_soft', 'uuid,boolean'),
+  ('0375_r193_booklet_soft_reads', 'marker', 'public', 'booklet_current', 'uuid|r193-0375'),
+  ('0375_r193_booklet_soft_reads', 'marker', 'public', 'booklet_image_info', 'uuid|r193-0375'),
+  ('0375_r193_booklet_soft_reads', 'marker', 'public', 'booklet_staff_image', 'uuid,text,text|r193-0375'),
+  ('0375_r193_booklet_soft_reads', 'marker', 'public', 'booklet_layout_auto_on', 'uuid|r193-0375')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4692,7 +4700,8 @@ mig(ord, m, ov, note) as (values
   (326, '0371_r188_r23_cfg_split', null, 'only the settings reader inside 15 existing functions is renamed in place (0265 crew callers -> _r25_crew_cfg, 0266 inbox callers -> _r25_inbox_cfg), checked by the new reader name in their bodies'),
   (327, '0372_r189_money_lock', null, 'money lock: _r21_cost_lines, _r21_event_money, _vb_event_pnl, _a49_close_blockers, _pst_allocate and business_pnl wrapped once (old bodies kept as __pre0372), checked by the r189-money-0372 marker (the wrappers name the r23-crew-0265 / helm-0198-stages / r20-business-0239 bodies they keep)'),
   (328, '0373_r190_vendor_bills_finish', null, 'vendor bills finish: _r21_cost_lines, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0373), checked by the r190-0373 marker (the wrappers name the r186-0369 / r24-ci-0270 / r163-0357 / r189-money-0372 bodies they keep and the 0371 _r25_crew_cfg reader, so those markers still hold); the hourly timer is scheduled only where pg_cron is installed - check it with select jobname from cron.job where jobname = helm-vendor-bill-reminders'),
-  (329, '0374_r191_inventory_upgrade', null, 'inventory upgrade + multi-day stock: _r21_cost_lines, public_portal_extras, worker_checkin_equipment and inventory_costs wrapped once (old bodies kept as __pre0374), checked by the r191-inventory-0374 marker (the ledger and cost wrappers name the r21-money-0246 / r22-money-0252 / r23-crew-0265 / r58-inventory-cost-0299 bodies they keep)')
+  (329, '0374_r191_inventory_upgrade', null, 'inventory upgrade + multi-day stock: _r21_cost_lines, public_portal_extras, worker_checkin_equipment and inventory_costs wrapped once (old bodies kept as __pre0374), checked by the r191-inventory-0374 marker (the ledger and cost wrappers name the r21-money-0246 / r22-money-0252 / r23-crew-0265 / r58-inventory-cost-0299 bodies they keep)'),
+  (330, '0375_r193_booklet_soft_reads', null, 'booklet soft reads: booklet_current, booklet_image_info, booklet_staff_image and booklet_layout_auto_on re-issued in place (same inputs, null / {} / ok false for an event not in the caller''s studio instead of P0002), checked by the r193-0375 marker; new server-only helper _booklet_staff_quote_soft')
 ),
 env as (
   select
