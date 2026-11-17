@@ -1212,7 +1212,7 @@
   },
   {
    "file": "public/inventory.html",
-   "expr": "lossRows || '<tr><td colspan=\"9\" class=\"empty\">Nothing missing or damaged — everything came back. 🎉</td></tr>'",
+   "expr": "lossRows || '<tr><td colspan=\"10\" class=\"empty\">Nothing missing or damaged — everything came back. 🎉</td></tr>'",
    "why": "HTML fragment variable built in this function from esc()'d values, numbers and literals (reviewed at the definition just above the sink); fallback is a literal"
   },
   {

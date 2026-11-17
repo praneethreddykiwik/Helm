@@ -105,6 +105,11 @@
       <h2><span aria-hidden="true">🧾</span> Payment receipts</h2>
       <div id="receipts"></div>
     </div>
+    <div class="card" id="damageCard" hidden>
+      <h2>Damage and loss charges</h2>
+      <p class="muted">Items that came back damaged or did not come back, as agreed with your planner.</p>
+      <div id="damages"></div>
+    </div>
     <div class="card" id="contactCard" hidden>
       <h2><span aria-hidden="true">📞</span> Contact your planner</h2>
       <div class="muted" id="contactName"></div>
@@ -126,7 +131,7 @@
 <script src="/telemetry.js?v=11"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=360"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script>
+<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=361"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -283,6 +288,14 @@
         rc.slice(0,100).forEach(r=>{ const row=document.createElement("div"); row.className="prow";
           const g=document.createElement("span"); g.className="g"; g.textContent=(r.number?String(r.number).slice(0,60):"Receipt");
           const dd=document.createElement("div"); dd.className="due"; dd.textContent=[fmtD(r.date), r.method?String(r.method).slice(0,40):""].filter(Boolean).join(" · "); g.appendChild(dd);
+          const a=document.createElement("span"); a.className="amt"; a.textContent=inr(r.amount);
+          row.appendChild(g); row.appendChild(a); box.appendChild(row); }); }
+      // R191 (0374): damage / loss charges - only when the studio shows them on the portal (off by default)
+      const dc=Array.isArray(x.damage_charges)?x.damage_charges.filter(r=>r&&typeof r==="object"):[];
+      if(dc.length){ $("#damageCard").hidden=false; const box=$("#damages"); box.textContent="";
+        dc.slice(0,100).forEach(r=>{ const row=document.createElement("div"); row.className="prow";
+          const g=document.createElement("span"); g.className="g"; g.textContent=String(r.label||"Damage / loss").slice(0,200);
+          const dd=document.createElement("div"); dd.className="due"; dd.textContent=[fmtD(r.date), r.status==="paid"?"Paid":"Due"].filter(Boolean).join(" · "); g.appendChild(dd);
           const a=document.createElement("span"); a.className="amt"; a.textContent=inr(r.amount);
           row.appendChild(g); row.appendChild(a); box.appendChild(row); }); }
       const c=x.contact&&typeof x.contact==="object"?x.contact:{}, cl=$("#contactLinks"); cl.textContent="";

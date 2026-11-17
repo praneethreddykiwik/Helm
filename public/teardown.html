@@ -62,9 +62,9 @@
 </style>
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="stock-flow.css?v=1">
+<link rel="stylesheet" href="stock-flow.css?v=2">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=83" id="shellProto"></script>
+<script src="/shell-proto.js?v=84" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -125,8 +125,9 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=360"></script>
-<script src="stock-flow.js?v=1"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=361"></script>
+<script src="stock-flow.js?v=2"></script>
+<script src="stock-checkin.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -147,6 +148,7 @@
   // Reserved but never taken out = "Reserved - never taken out, nothing to return" and is released automatically.
   const SF=window.HelmStockFlow;
   let backOpen=null;   // {key, kind:"co"|"legacy", id, item, out}
+  let tdCtx=null;      // R191 (0374): stock settings + what this person may see; null on an older database
   const fmtWhen=(t)=>{ try{ return BPStore.fmtDateTime?BPStore.fmtDateTime(t):BPStore.fmtDay(t); }catch(_){ return ""; } };
   function eventDayCome(){ const d=String((ev&&ev.eventDate)||"").slice(0,10); let t=""; try{ t=BPStore.todayLocal(); }catch(_){}
     return !/^\d{4}-\d{2}-\d{2}$/.test(d) || (t && d<=t); }
@@ -180,7 +182,11 @@
         <td>${acts?`<div class="sf-acts">${acts}</div>`:""}</td></tr>`;
     }).join("") : '<tr><td colspan="4" class="empty">No stock was reserved or given out for this event.</td></tr>';
     const host=$("#invRows"), re=()=>section(renderInventory,host,"stock");
-    host.querySelectorAll("[data-bk-open]").forEach(b=>b.addEventListener("click",()=>{ backOpen={key:b.dataset.bkOpen}; re().then(()=>{ const f=host.querySelector('[data-bk] [data-f="ok"]'); if(f) f.focus(); }); }));
+    host.querySelectorAll("[data-bk-open]").forEach(b=>b.addEventListener("click",()=>{
+      // R191 (0374): a check-out opens the shared Mark back dialog (consumables, "some are still out", photo proof, who pays)
+      const k=b.dataset.bkOpen, c=k.indexOf("co:")===0?cos.find(x=>x.id===k.slice(3)):null;
+      if(c&&window.HelmStockCheckin&&tdCtx){ HelmStockCheckin.open({ checkout:c, item:itemsById[c.item_id]||{}, quoteId:id, ctx:tdCtx, onDone:re }); return; }
+      backOpen={key:k}; re().then(()=>{ const f=host.querySelector('[data-bk] [data-f="ok"]'); if(f) f.focus(); }); }));
     host.querySelectorAll("[data-bk]").forEach(f=>f.querySelectorAll("[data-bgo]").forEach(b=>b.addEventListener("click",async()=>{
       if(b.dataset.bgo==="close"){ backOpen=null; return re(); }
       const k=f.dataset.bk, isCo=k.indexOf("co:")===0, rid=k.slice(k.indexOf(":")+1);
@@ -246,6 +252,7 @@
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"");
     $("#app").hidden=false; $("#tdAdd").hidden=!canEdit;
     $("#ciLink").href="inventory.html?quote="+encodeURIComponent(id);
+    try{ tdCtx=BPStore.inventory.stock?await BPStore.inventory.stock.settings():null; }catch(e){ tdCtx=null; }
     await section(renderInventory,$("#invRows"),"stock");
     await section(renderBookings,$("#bkRows"),"vendor bookings");
     await section(renderTeardown,$("#tdRows"),"teardown items");

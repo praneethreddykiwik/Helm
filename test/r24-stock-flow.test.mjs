@@ -23,10 +23,10 @@ const SQL = read('supabase/migrations/0268_stock_one_flow.sql'), APPLY = read('s
 const MANIFEST = read('supabase/migrations/MANIFEST'), RUNALL = read('scripts/db-test/run-all.sh'), PKG = read('package.json');
 
 console.log('r24 stock - one flow (stock-flow.js):');
-t('a check-out splits into Out / Back / Missing / Damaged', () => {
-  assert.deepEqual(SF.coParts({ status: 'out', qty_out: 20 }), { out: 20, back: 0, missing: 0, damaged: 0, cancelled: false });
-  assert.deepEqual(SF.coParts({ status: 'partial', qty_out: 20, qty_in: 19, qty_damaged: 2, written_off: 3 }), { out: 0, back: 17, missing: 1, damaged: 2, cancelled: false });
-  assert.deepEqual(SF.coParts({ status: 'returned', qty_out: 5, qty_in: 5 }), { out: 0, back: 5, missing: 0, damaged: 0, cancelled: false });
+t('a check-out splits into Out / Back / Missing / Damaged', () => {   // R191: + used (consumables)
+  assert.deepEqual(SF.coParts({ status: 'out', qty_out: 20 }), { out: 20, back: 0, missing: 0, damaged: 0, used: 0, cancelled: false });
+  assert.deepEqual(SF.coParts({ status: 'partial', qty_out: 20, qty_in: 19, qty_damaged: 2, written_off: 3 }), { out: 0, back: 17, missing: 1, damaged: 2, used: 0, cancelled: false });
+  assert.deepEqual(SF.coParts({ status: 'returned', qty_out: 5, qty_in: 5 }), { out: 0, back: 5, missing: 0, damaged: 0, used: 0, cancelled: false });
   assert.equal(SF.coParts({ status: 'cancelled', qty_out: 5 }).cancelled, true);
   assert.equal(SF.coState({ status: 'partial', qty_out: 20, qty_in: 19, qty_damaged: 2 }), 'missing');
   assert.equal(SF.coState({ status: 'returned', qty_out: 5, qty_in: 5, qty_damaged: 1 }), 'damaged');

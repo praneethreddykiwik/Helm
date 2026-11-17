@@ -21,13 +21,17 @@
   var NEVER_OUT = "Reserved — never taken out, nothing to return";
   function n(x) { var v = Number(x); return isFinite(v) ? v : 0; }
 
-  // one check-out row -> { out, back, missing, damaged, cancelled }
+  // one check-out row -> { out, back, missing, damaged, used, cancelled }
+  // R191 (0374): a consumable's "used" units are accounted for (in qty_in) but did not come back; a part-return while
+  // still Out shows what is already back (qty_in) and what is still out.
   function coParts(c) {
     c = c || {};
-    if (c.status === "cancelled") return { out: 0, back: 0, missing: 0, damaged: 0, cancelled: true };
-    if (c.status === "out") return { out: Math.max(n(c.qty_out) - n(c.qty_in), 0), back: 0, missing: 0, damaged: 0, cancelled: false };
+    var used = Math.max(n(c.qty_used), 0);
+    if (c.status === "cancelled") return { out: 0, back: 0, missing: 0, damaged: 0, used: 0, cancelled: true };
+    if (c.status === "out") { var dmg0 = Math.max(n(c.qty_damaged), 0);
+      return { out: Math.max(n(c.qty_out) - n(c.qty_in), 0), back: Math.max(n(c.qty_in) - dmg0, 0), missing: 0, damaged: dmg0, used: 0, cancelled: false }; }
     var dmg = Math.max(n(c.qty_damaged), 0), inn = n(c.qty_in);
-    return { out: 0, back: Math.max(inn - dmg, 0), missing: Math.max(n(c.qty_out) - inn, 0), damaged: dmg, cancelled: false };
+    return { out: 0, back: Math.max(inn - dmg - used, 0), missing: Math.max(n(c.qty_out) - inn, 0), damaged: dmg, used: used, cancelled: false };
   }
   // the state word of one check-out
   function coState(c) {
@@ -43,7 +47,8 @@
     var p = coParts(c);
     if (p.cancelled) return "Cancelled (recorded by mistake)";
     if (p.out > 0) return "Out " + p.out;
-    var bits = ["Back " + p.back];
+    var bits = [(p.used ? "Left over " : "Back ") + p.back];
+    if (p.used) bits.push("Used " + p.used);
     if (p.damaged) bits.push("Damaged " + p.damaged);
     if (p.missing) bits.push("Missing " + p.missing);
     return bits.join(" · ");
@@ -71,7 +76,7 @@
     });
     cos.forEach(function (c) {
       if (!c || !c.item_id || c.status === "cancelled") return; var s = slot(c.item_id), p = coParts(c);
-      s.out += p.out; s.back += p.back; s.missing += p.missing; s.damaged += p.damaged;
+      s.out += p.out; s.back += p.back; s.missing += p.missing; s.damaged += p.damaged; s.used = (s.used || 0) + (p.used || 0);
       s.history.push(c); if (p.out > 0) s.outs.push(c);
     });
     return Object.keys(by).map(function (k) {
@@ -102,7 +107,8 @@
     }
     if (row.state === "reserved") return o.eventOver ? NEVER_OUT : "Held for this event — give it out when it leaves the store";
     if (row.state === "released") return row.history.length ? "" : NEVER_OUT + " (released automatically)";
-    var parts = ["Back " + row.back];
+    var parts = [(row.used ? "Left over " : "Back ") + row.back];
+    if (row.used) parts.push("Used " + row.used);
     if (row.damaged) parts.push("Damaged " + row.damaged);
     if (row.missing) parts.push("Missing " + row.missing);
     return parts.join(" · ");

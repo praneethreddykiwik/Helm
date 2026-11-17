@@ -34,7 +34,7 @@ test('pay / cost / links come from the RPCs, with the pre-0299 table read as the
   assert.match(API, /else if \(rpcMissing\(r\.error\)\) r58Rpc\[o\.key\] = false; else throw r\.error;/, 'only a missing RPC falls back');
   assert.match(API, /return crewWithPay\(await sbAll\(/);
   assert.match(API, /const pg = await sbPage\(q\.order\("name"\)\.order\("id"\), o\); await crewWithPay\(pg\.rows\); return pg;/);
-  assert.match(API, /return invWithCost\(await sbAll\(/);
+  assert.match(API, /return invWithCost\(rows\);/);   // R191: read with the 0374 columns, then fill costs
   assert.match(API, /var one = await crewWithPay\(\[\{ id: id \}\]\); base = \(one\[0\] && one\[0\]\.attributes\) \|\| \{\};/, 'staff custom-field merge reads through the RPC');
 });
 
@@ -67,8 +67,8 @@ test('r58Fill fills rows in place (list keeps .truncated) and falls back before 
 });
 
 test('inventory: a hidden cost is not shown as a zero value', () => {
-  assert.match(INV, /\(it\.unit_cost!=null\?` - taken off your stock \(\$\{BPStore\.studioMoney/);
-  assert.match(INV, /\$\{lostVal\?" · "\+esc\(BPStore\.studioMoney\(lostVal\)\)\+" lost":""\}/);
+  assert.match(INV, /\(it\.unit_cost!=null&&canCost\?` - taken off your stock \(\$\{BPStore\.studioMoney/);   // R191: money only when this person may see costs
+  assert.match(INV, /\$\{lostVal&&canCost\?" · "\+esc\(BPStore\.studioMoney\(lostVal\)\)\+" lost":""\}/);
 });
 
 test('chat event card: phone / e-mail from event_group_contact (Quotes view), once per event', () => {

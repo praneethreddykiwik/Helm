@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=83"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=84"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -3613,6 +3613,11 @@ window.HelmUrl = HelmUrl;
   // readable: read them from the table exactly as before. Rows are filled in place (a list keeps .truncated).
   const CREW_COLS = "id,name,phone,department,active,created_at,role,skills,email,emp_type,notes,org_id,profile_id,is_demo";
   const INV_COLS = "id,name,category,total_qty,unit,notes,active,created_at,priority,org_id,attributes,is_demo";
+  // R191 (0374): item type (reusable / consumable) + reorder level; a database without 0374 answers the old columns
+  const INV_COLS_R191 = INV_COLS + ",item_kind,reorder_level";
+  let invColsR191 = null;   // null = untried, false = not installed yet
+  const invCols = () => (invColsR191 === false ? INV_COLS : INV_COLS_R191);
+  const invColMiss = (e) => { const c = (e && e.code) || ""; return c === "42703" || c === "PGRST204" || /item_kind|reorder_level/i.test(String((e && e.message) || "")); };
   const r58Rpc = { pay: null, cost: null };   // null = untried, false = not installed yet (pre-0299)
   const r58Chunks = (a, n) => { const out = []; for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n)); return out; };
   async function r58Fill(rows, o) {
@@ -5230,8 +5235,12 @@ window.HelmUrl = HelmUrl;
   const inventory = {
     async items(includeInactive) {
       if (mode === "supabase") {
-        return invWithCost(await sbAll(() => { let q = supa.from("inventory_items").select(INV_COLS).order("name").order("id");
-          if (!includeInactive) q = q.eq("active", true); return q; }));
+        const read = () => sbAll(() => { let q = supa.from("inventory_items").select(invCols()).order("name").order("id");
+          if (!includeInactive) q = q.eq("active", true); return q; });
+        let rows;
+        try { rows = await read(); if (invColsR191 === null) invColsR191 = true; }
+        catch (e) { if (invColsR191 === false || !invColMiss(e)) throw e; invColsR191 = false; rows = await read(); }
+        return invWithCost(rows);
       }
       const a = readLs(INV_LS); return includeInactive ? a : a.filter((i) => i.active !== false);
     },
@@ -5241,13 +5250,18 @@ window.HelmUrl = HelmUrl;
     _sanitize(o) {
       const s = { ...o };
       if ("total_qty" in s) s.total_qty = Math.max(0, Math.trunc(Number(s.total_qty) || 0));
+      // R191 (0374): item type + optional reorder level (consumables); on a database without 0374 they are dropped
+      if ("item_kind" in s) s.item_kind = s.item_kind === "consumable" ? "consumable" : "reusable";
+      if ("reorder_level" in s) { const r = s.reorder_level === "" || s.reorder_level == null ? null : Math.trunc(Number(s.reorder_level));
+        s.reorder_level = r == null || !Number.isFinite(r) || r < 0 ? null : r; }
+      if (invColsR191 === false) { delete s.item_kind; delete s.reorder_level; }
       if ("unit_cost" in s) s.unit_cost = Math.max(0, Number(s.unit_cost) || 0);
       if ("reorder_at" in s && s.reorder_at != null) s.reorder_at = Math.max(0, Math.trunc(Number(s.reorder_at) || 0));
       return s;
     },
     async addItem(it) {
       it = this._sanitize(it);
-      if (mode === "supabase") { const { data, error } = await supa.from("inventory_items").insert(it).select(INV_COLS).single(); if (error) throw dupError(error, "item", it.name); return invWithCost(data); }
+      if (mode === "supabase") { const { data, error } = await supa.from("inventory_items").insert(it).select(invCols()).single(); if (error) throw dupError(error, "item", it.name); return invWithCost(data); }
       const a = readLs(INV_LS); const row = { id: uid(), active: true, total_qty: 0, ...it, created_at: now() }; a.push(row); localStorage.setItem(INV_LS, JSON.stringify(a)); return row;
     },
     // Bulk insert (one round-trip) — used by "Load starter items" so seeding ~20 rows
@@ -5315,8 +5329,9 @@ window.HelmUrl = HelmUrl;
           const it = d.items.find((i) => i.id === itemId), total = it ? Number(it.total_qty || 0) : null;
           if (total != null && Number(qty) > 0) {
             const qd = d.meta[quoteId] && d.meta[quoteId].date;
-            const have = qd ? ((d.dayTotals[itemId] || {})[qd] || 0) + (d.undated[itemId] || 0)
-                            : d.peakOf(d.dayTotals[itemId] || {}) + (d.undated[itemId] || 0);
+            const on = qd && d.onEvent ? d.onEvent(itemId, quoteId) : null;
+            const have = (qd ? (on != null ? on : ((d.dayTotals[itemId] || {})[qd] || 0)) : d.peakOf(d.dayTotals[itemId] || {}))
+                         + (d.undated[itemId] || 0) + ((d.always && d.always[itemId]) || 0);
             if (have + Number(qty) > total) {
               const err = new Error("Not enough " + (it.name || "stock") + " free: only " + Math.max(0, total - have) + " left. Someone else may have just reserved it.");
               err.code = "INVENTORY_CONFLICT"; throw err;
@@ -5418,6 +5433,15 @@ window.HelmUrl = HelmUrl;
         if (r.error) throw r.error;
         (r.data || []).forEach(put);
       }
+      // R191 (0374): each event's stock window (set-up from .. teardown until + the studio's buffer days); none = its one day
+      try {
+        const live = Object.keys(meta).filter((k) => meta[k].active && meta[k].date);
+        for (let i = 0; i < live.length; i += 1000) {
+          const w = await inventory.stock.windows(live.slice(i, i + 1000));
+          if (!Array.isArray(w)) break;
+          w.forEach((x) => { const m = x && meta[x.quote_id]; if (m && x.d_from && x.d_to) { m.from = String(x.d_from).slice(0, 10); m.to = String(x.d_to).slice(0, 10); } });
+        }
+      } catch (e) { /* windows are an extra: without them every event holds its own day, as before */ }
       return meta;
     },
     // Demand per item: by event date, plus undated. Counts live reservations AND open
@@ -5439,18 +5463,31 @@ window.HelmUrl = HelmUrl;
       const slot = (it, q) => { const k = it + "|" + (q || ""); return per[k] || (per[k] = { it, q: q || null, res: 0, out: 0 }); };
       liveRes.forEach((r) => { slot(r.item_id, r.quote_id).res += Number(r.qty || 0); });
       openCo.forEach((c) => { slot(c.item_id, c.quote_id).out += stillOut(c); });
-      const dayTotals = {}, undated = {};
+      const dayTotals = {}, undated = {}, always = {}, spans = {};
+      let today = ""; try { today = BPStore.todayLocal(); } catch (e) { today = ""; }
+      const addDays = (d, n) => { const t = new Date(d + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
       Object.values(per).forEach((x) => {
         const m = x.q ? meta[x.q] : null;
         const shelved = !!(m && !m.active);
         if (shelved && !x.out) return;                       // reservation on a shelved/cancelled event: stock is free
-        const q = shelved ? x.out : Math.max(x.res, x.out);  // stock physically still out stays committed
         const d = m && m.active ? m.date : null;
-        if (d) { (dayTotals[x.it] = dayTotals[x.it] || {}); dayTotals[x.it][d] = (dayTotals[x.it][d] || 0) + q; }
-        else undated[x.it] = (undated[x.it] || 0) + q;
+        if (!d) { undated[x.it] = (undated[x.it] || 0) + (shelved ? x.out : Math.max(x.res, x.out)); return; }   // stock still out stays committed
+        const from = m.from || d, to = m.to || d;
+        // R191: stock still out from an event whose days are over is off the shelf on EVERY date until it is marked back
+        // (the check-out guard always counted it; the list only counted it on that event's own day)
+        const over = !!(today && to < today);
+        let q = Math.max(x.res, x.out);
+        if (over && x.out > 0) { always[x.it] = (always[x.it] || 0) + x.out; q = Math.max(x.res - x.out, 0); }
+        (spans[x.it] = spans[x.it] || []).push({ q: x.q, from, to, qty: q });
+        if (q <= 0) return;
+        const t = (dayTotals[x.it] = dayTotals[x.it] || {});
+        for (let k = 0, day = from; k <= 62 && day <= to; k++, day = addDays(day, 1)) t[day] = (t[day] || 0) + q;   // the whole window
       });
       const peakOf = (m) => { let mx = 0; for (const k in m) if (m[k] > mx) mx = m[k]; return mx; };
-      return { items, meta, dayTotals, undated, peakOf };
+      // what overlaps one event's window (the reserve guard's rule: every event whose window touches it, plus its own)
+      const onEvent = (itemId, qid) => { const m = meta[qid]; if (!m || !m.date) return null; const f = m.from || m.date, t = m.to || m.date;
+        return (spans[itemId] || []).reduce((a, s) => a + ((s.q === qid || (s.from <= t && f <= s.to)) ? s.qty : 0), 0); };
+      return { items, meta, dayTotals, undated, always, spans, onEvent, peakOf };
     },
     // committed & available per item id, DATE-AWARE.
     // An item used on two different dates isn't gone twice: it comes back between
@@ -5467,9 +5504,12 @@ window.HelmUrl = HelmUrl;
       const qd = quoteId && d.meta[quoteId] && d.meta[quoteId].date;
       const map = {};
       d.items.forEach((i) => {
-        const c = d.peakOf(d.dayTotals[i.id] || {}) + (d.undated[i.id] || 0);
+        const base = (d.undated[i.id] || 0) + ((d.always && d.always[i.id]) || 0);
+        const c = d.peakOf(d.dayTotals[i.id] || {}) + base;
         const row = { ...i, committed: c, available: Number(i.total_qty || 0) - c };
-        if (qd) row.availableOnEvent = Number(i.total_qty || 0) - (((d.dayTotals[i.id] || {})[qd] || 0) + (d.undated[i.id] || 0));
+        if (qd) { const on = d.onEvent ? d.onEvent(i.id, quoteId) : null;
+          row.availableOnEvent = Number(i.total_qty || 0) - ((on != null ? on : ((d.dayTotals[i.id] || {})[qd] || 0)) + base); }
+        row.outNotBack = (d.always && d.always[i.id]) || 0;   // R191: still out from a finished event
         map[i.id] = row;
       });
       return map;
@@ -5539,6 +5579,22 @@ window.HelmUrl = HelmUrl;
         const row = await this.in(id, Number(ok || 0), by, true);
         return { ok: true, legacy: true, status: row && row.status };
       },
+      // R191 (0374): Mark back with more: o = { ok, damaged, by, restOut (the rest is still out), photoPath (proof for a damaged /
+      // missing line), decision ("absorb" | "charge", Finance edit), charge (amount) }. Reusable: OK + damaged, the rest missing
+      // (or still out); consumable: ok = left over, the rest used. Older DB without checkin_stock_v2: the 0268 call, when the
+      // extra parts are not used.
+      async backV2(id, o) {
+        if (mode !== "supabase") throw new Error("Check-in needs Supabase");
+        o = o || {};
+        try {
+          return await rpc("checkin_stock_v2", { p_id: id, p_ok: Number(o.ok || 0), p_damaged: Number(o.damaged || 0), p_returned_by: o.by || null,
+            p_rest_out: !!o.restOut, p_photo_path: o.photoPath || null, p_decision: o.decision || null,
+            p_charge_amount: o.charge == null || o.charge === "" ? null : Number(o.charge) });
+        } catch (e) {
+          if (!rpcMissing(e) || o.restOut || o.decision) throw e;
+        }
+        return this.back(id, o.ok, o.damaged, o.by);
+      },
       // r24: one item's history across events - which event, given to whom, when out, when back (newest first)
       async forItem(itemId) {
         if (mode !== "supabase") return readLs("bp_checkouts").filter((c) => c.item_id === itemId);
@@ -5547,6 +5603,46 @@ window.HelmUrl = HelmUrl;
         if (r.error) r = await supa.from("inventory_checkouts").select("*").eq("item_id", itemId).order("checked_out_at", { ascending: false }).order("id").limit(200);
         if (r.error) throw r.error;
         return r.data || [];
+      },
+    },
+    // ---- R191 (0374): stock after the check-in, photo proof, damage decision, settings, multi-day windows ----
+    // Every call answers null on a database without 0374 (the pages then keep the old behaviour).
+    stock: {
+      async _call(fn, args) { if (mode !== "supabase") return null; try { return await rpc(fn, args || {}); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+      // { photo_proof, portal_damage, buffer_days, stock_costs, can_money, can_cost, can_decide, can_set }
+      settings() { return this._call("inventory_settings_get"); },
+      setSettings(o) { o = o || {}; return this._call("inventory_settings_set", { p_photo_proof: o.photoProof == null ? null : !!o.photoProof,
+        p_portal_damage: o.portalDamage == null ? null : !!o.portalDamage, p_buffer_days: o.bufferDays == null || o.bufferDays === "" ? null : Math.trunc(Number(o.bufferDays)),
+        p_stock_costs: o.stockCosts == null ? null : !!o.stockCosts }); },
+      // per check-out: { item_kind, used, missing, damaged, found, in_repair, repaired, photos[], photo_needed, decision, charge_status, charge_amount?, history[] }
+      story(quoteId) { return this._call("stock_story", { p_quote: quoteId || null }); },
+      found(id, qty, note, photoPath) { return this._call("stock_found", { p_checkout: id, p_qty: Number(qty), p_note: note || null, p_photo_path: photoPath || null }); },
+      repair(id, action, qty, cost, note) { return this._call("stock_repair", { p_checkout: id, p_action: action, p_qty: Number(qty),
+        p_cost: cost == null || cost === "" ? null : Number(cost), p_note: note || null }); },
+      decide(id, decision, amount, note) { return this._call("stock_damage_decision", { p_checkout: id, p_decision: decision,
+        p_amount: amount == null || amount === "" ? null : Number(amount), p_note: note || null }); },
+      addPhoto(id, path) { return this._call("stock_add_photo", { p_checkout: id, p_photo_path: path }); },
+      windows(quoteIds) { const ids = [...new Set((quoteIds || []).filter(Boolean))].slice(0, 2000); return ids.length ? this._call("stock_windows", { p_quotes: ids }) : Promise.resolve([]); },
+      setWindow(quoteId, from, to) { return this._call("event_stock_window_set", { p_quote: quoteId, p_setup_from: from || null, p_teardown_to: to || null }); },
+      overlaps(quoteId) { return this._call("stock_overlaps", { p_quote: quoteId }); },
+      // photo proof: checked + re-encoded in the browser (EXIF / GPS removed, like every upload), private bucket event-docs,
+      // <studio>/<event or none>/stock/<uuid>.<ext> -> the stored path (the server checks the path before it keeps it)
+      async uploadStockPhoto(quoteId, file) {
+        if (mode !== "supabase" || !supa) throw new Error("Photos need the online database.");
+        const img = await ugPrepareImage(file, { maxBytes: FILE_MAX, maxPx: 2000, allow: ["image/png", "image/jpeg", "image/webp"] });
+        const orgId = await org.id(); if (!orgId) throw new Error("no organization in context");
+        const name = ugObjectName(img.ext); if (!name) throw new Error("upload not available");
+        const path = orgId + "/" + (quoteId && /^[0-9a-f-]{36}$/i.test(String(quoteId)) ? quoteId : "none") + "/stock/" + name;
+        const { error } = await supa.storage.from("event-docs").upload(path, img.blob, { upsert: false, contentType: img.mime, cacheControl: "3600" });
+        if (error) throw error;
+        return path;
+      },
+      async photoUrls(paths, seconds) {
+        const ok = (paths || []).filter((x) => /^[0-9a-f-]{36}\/([0-9a-f-]{36}|none)\/stock\/[0-9a-f-]{36}\.(jpg|png|webp)$/.test(String(x || "")));
+        if (!ok.length || !supa) return {};
+        const { data, error } = await supa.storage.from("event-docs").createSignedUrls(ok, seconds || 300);
+        if (error) throw error;
+        const out = {}; (data || []).forEach((d) => { if (d && d.path && d.signedUrl) out[d.path] = d.signedUrl; }); return out;
       },
     },
     // r24 (0268): release this event's reservations that are done - never taken out (after the event day; Teardown

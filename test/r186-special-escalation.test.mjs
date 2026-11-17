@@ -105,7 +105,7 @@ await t('0369: APPLY verbatim, MANIFEST, run-all, retention re-run, one-line ove
   const line = OVR.split('\n').find((l) => l.startsWith('  "0369": '));
   assert.ok(line && JSON.parse('{' + line.replace(/,\s*$/, '') + '}')['0369'].add.length === 4, 'one line, four markers');
   JSON.parse(OVR);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.ok(read(f).includes("'0368', '0369']"), f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.ok(read(f).includes("'0368', '0369'"), f);
   assert.ok(PKG.includes('node test/r186-special-escalation.test.mjs'));
 });
 
