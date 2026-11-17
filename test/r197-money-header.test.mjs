@@ -157,11 +157,11 @@ t('module: DOM building only, Finance-only mount, server call only, refreshes on
   assert.match(API, /moneyHeader, \/\/ R197 \(0376\)/);
   assert.match(CSS, /@media \(max-width:760px\)/); assert.match(CSS, /\.mh-attn\{display:grid/);
 });
-t('pages: Budget / Closure get header + attention + plan vs actual, Settlement / event get header + attention; scripts + CSS linked', () => {
-  assert.match(PAGES.budget, /<div data-mh-mount data-mh-parts="header attention pva" data-mh-replaces="budgetTiles" id="moneyHeader" hidden><\/div>/);
+t('pages: Budget / Closure get header + attention + plan vs actual (+ R198 cash / owes tabs), Settlement header + attention (+ cash / owes), event header + attention; scripts + CSS linked', () => {
+  assert.match(PAGES.budget, /<div data-mh-mount data-mh-parts="header attention pva cash owes" data-mh-replaces="budgetTiles" id="moneyHeader" hidden><\/div>/);
   assert.match(PAGES.budget, /<div class="tiles" id="budgetTiles">/);
-  assert.match(PAGES.closure, /<div data-mh-mount data-mh-parts="header attention pva" id="moneyHeader" hidden><\/div>/);
-  assert.match(PAGES.settlement, /<div data-mh-mount data-mh-parts="header attention" id="moneyHeader" hidden><\/div>/);
+  assert.match(PAGES.closure, /<div data-mh-mount data-mh-parts="header attention pva cash owes" id="moneyHeader" hidden><\/div>/);
+  assert.match(PAGES.settlement, /<div data-mh-mount data-mh-parts="header attention cash owes" id="moneyHeader" hidden><\/div>/);
   assert.match(PAGES.event, /<div data-mh-mount data-mh-parts="header attention" id="moneyHeader" hidden><\/div>/);
   for (const [k, h] of Object.entries(PAGES)) {
     assert.match(h, /<script src="money-header-ui\.js\?v=\d+"><\/script>/, k);

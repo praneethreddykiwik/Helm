@@ -7,7 +7,9 @@
      attention  "Needs attention": at most 3 cards (bill to pay, money to collect, margin below target, ...)
      pva        Plan vs actual by category: Plan / Actual (or Expected) / Difference / a bar with the plan line, the studio's
                 big-gap flag (Settings -> Money rules), tap a row for the lines behind it; "How the profit is worked out"
-   Mount: <div data-mh-mount data-mh-parts="header attention pva" data-mh-replaces="id1 id2" hidden></div>. It fills once
+     cash/owes  R198 (0377): "Cash in & out" and "Who owes what" (money-cash-ui.js, event_money_cash), shown as tabs next to
+                Plan vs actual when the page asks for them; hidden on a database without 0377 (the other parts still show)
+   Mount: <div data-mh-mount data-mh-parts="header attention pva cash owes" data-mh-replaces="id1 id2" hidden></div>. It fills once
    the page shows its gate (data-mh-gate, default #app) and only for roles with Finance view; the server re-checks it
    (event_money_header). Without Finance view, on a database without 0376, or for an event that is not found, it stays
    hidden and the page's older cards keep working. Words: only Plan / Expected / Actual / Profit.
@@ -216,7 +218,7 @@
     box.appendChild(sec);
   }
 
-  function renderAttention(box, h, fmt, onTop) {
+  function renderAttention(box, h, fmt, onTop, onOwes) {
     var list = (h.attention || []).slice(0, 3);
     if (!list.length) return;
     var sec = el("section", "mh-attn"); sec.setAttribute("aria-label", "Needs attention");
@@ -231,6 +233,10 @@
       if (x.top && typeof onTop === "function") { card.classList.add("tap"); card.tabIndex = 0; card.setAttribute("role", "button");
         var go = function () { onTop(x.top.key); };
         card.addEventListener("click", go); card.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } }); }
+      // R198 (0377): "Pay ..." / "Collect ..." opens Who owes what when the page has it
+      else if ((a.kind === "bill_due" || a.kind === "collect") && typeof onOwes === "function") { card.classList.add("tap"); card.tabIndex = 0; card.setAttribute("role", "button");
+        card.setAttribute("aria-label", t.textContent + ". Open Who owes what");
+        card.addEventListener("click", onOwes); card.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOwes(); } }); }
       sec.appendChild(card);
     });
     box.appendChild(sec);
@@ -318,6 +324,40 @@
     box.appendChild(sec);
   }
 
+  // R198 (0377): the tab bar under Needs attention (Plan vs actual · Cash in & out · Who owes what), as in mockups/pnl.
+  // Each panel is drawn the first time it is opened (the chart measures its width). Keyboard: arrows move between tabs.
+  function renderTabs(box, tabs, state, pref) {
+    var hash = String((global.location && global.location.hash) || "").replace(/^#/, "");
+    var pick = function (k) { return tabs.some(function (t) { return t.key === k; }) ? k : null; };
+    var cur = pick(state.tab) || pick(hash) || pick(pref) || tabs[0].key;
+    var bar = el("div", "mh-tabs"); bar.setAttribute("role", "tablist"); bar.setAttribute("aria-label", "Event money");
+    var wrap = el("div", "mh-panels"), btns = {}, panels = {}, drawn = {};
+    tabs.forEach(function (t) {
+      var b = el("button", null, t.label); b.type = "button"; b.setAttribute("role", "tab"); b.id = "mh-tab-" + state.uid + "-" + t.key;
+      b.setAttribute("aria-controls", "mh-pan-" + state.uid + "-" + t.key); b.setAttribute("data-tab", t.key);
+      if (t.count) b.appendChild(el("span", "mh-count", t.count));
+      var p = el("div", "mh-panel"); p.id = "mh-pan-" + state.uid + "-" + t.key; p.setAttribute("role", "tabpanel"); p.setAttribute("aria-labelledby", b.id);
+      b.addEventListener("click", function () { select(t.key); });
+      b.addEventListener("keydown", function (e) {
+        var i = tabs.indexOf(t), j = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : null;
+        if (j === null) return; e.preventDefault(); j = (j + tabs.length) % tabs.length; select(tabs[j].key); try { btns[tabs[j].key].focus(); } catch (x) {}
+      });
+      btns[t.key] = b; panels[t.key] = p; bar.appendChild(b); wrap.appendChild(p);
+    });
+    function select(k, scroll) {
+      if (!btns[k]) return;
+      state.tab = k;
+      tabs.forEach(function (t) {
+        var on = t.key === k; btns[t.key].setAttribute("aria-selected", on ? "true" : "false"); btns[t.key].tabIndex = on ? 0 : -1; panels[t.key].hidden = !on;
+        if (on && !drawn[t.key]) { drawn[t.key] = true; t.draw(panels[t.key]); }
+      });
+      if (scroll) { try { bar.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (e) {} }
+    }
+    box.appendChild(bar); box.appendChild(wrap);
+    select(cur);
+    return { select: select };
+  }
+
   // ---------------- mount ----------------
   async function fmtFor(quoteId) {
     var B = S(), cfg = null;
@@ -336,24 +376,42 @@
     if (!fin) { box.hidden = true; return; }      // no money numbers for this role; the page shows the rest
     var want = String(box.getAttribute("data-mh-parts") || "header attention").split(/\s+/);
     var replaces = String(box.getAttribute("data-mh-replaces") || "").split(/\s+/).filter(Boolean);
-    var fmt = await fmtFor(id), seq = 0, timer = null, state = { open: {}, uid: ++uid }, started = Date.now();
+    var fmt = await fmtFor(id), seq = 0, timer = null, state = { open: {}, uid: ++uid, tab: null }, started = Date.now();
+    var wantCash = want.indexOf("cash") >= 0, wantOwes = want.indexOf("owes") >= 0;
     async function draw() {
-      var my = ++seq, h;
+      var my = ++seq, h, c = null;
+      var pc = (wantCash || wantOwes) && B.moneyCash ? Promise.resolve().then(function () { return B.moneyCash.get(id); }).catch(function () { return null; }) : Promise.resolve(null);
       try { h = await B.moneyHeader.get(id); } catch (e) { h = null; }
+      try { c = await pc; } catch (e) { c = null; }
       if (my !== seq) return;
       if (!h || typeof h !== "object") { box.hidden = true; return; }     // older database / not found: the older cards stay
       replaces.forEach(function (rid) { var n = document.getElementById(rid); if (n) n.hidden = true; });
-      clear(box); box.classList.add("mh-wrap");
+      clear(box); box.classList.add("mh-wrap"); box.hidden = false;   // shown before the tabs draw: the chart measures its width
       if (want.indexOf("header") >= 0) renderHeader(box, h, fmt);
-      var pvaBox = null;
+      var C = global.HelmMoneyCash, hasCash = !!(c && typeof c === "object" && C);
+      var tabs = [];
+      if (want.indexOf("pva") >= 0) tabs.push({ key: "pva", label: "Plan vs " + (h.cost_word === "actual" ? "actual" : "expected"), draw: function (b) { renderPva(b, h, fmt, state); } });
+      if (hasCash && wantCash) tabs.push({ key: "cash", label: "Cash in & out", draw: function (b) { C.renderCash(b, c, fmt); } });
+      if (hasCash && wantOwes) {
+        var o = c.owes || {}, cnt = ((o.vendors || {}).bills || []).length + ((o.claims || {}).items || []).length + ((o.refunds || {}).items || []).length + (num((o.client || {}).balance) > 0.5 ? 1 : 0);
+        tabs.push({ key: "owes", label: "Who owes what", count: cnt, draw: function (b) { C.renderOwes(b, c, fmt, { here: function (hid) { return !!document.getElementById(hid); } }); } });
+      }
+      var tabsApi = null;
       if (want.indexOf("attention") >= 0) renderAttention(box, h, fmt, want.indexOf("pva") >= 0 ? function (key) {
+        if (tabsApi) tabsApi.select("pva");
         state.open[key] = true; var r = box.querySelector('.mh-r[data-cat="' + String(key).replace(/[^a-z0-9_-]/gi, "") + '"]');
         if (r && r.getAttribute("aria-expanded") !== "true") r.click();
         if (r) { try { r.scrollIntoView({ block: "center", behavior: "smooth" }); r.focus({ preventScroll: true }); } catch (e) {} }
-      } : null);
-      if (want.indexOf("pva") >= 0) { pvaBox = el("div"); box.appendChild(pvaBox); renderPva(pvaBox, h, fmt, state); }
+      } : null, tabs.some(function (t) { return t.key === "owes"; }) ? function () { if (tabsApi) tabsApi.select("owes", true); } : null);
+      if (tabs.length === 1) { var one = el("div"); box.appendChild(one); tabs[0].draw(one); }
+      else if (tabs.length > 1) tabsApi = renderTabs(box, tabs, state, box.getAttribute("data-mh-tab"));
       box.hidden = false;
     }
+    var rz = null, lastW = 0;
+    global.addEventListener && global.addEventListener("resize", function () {
+      clearTimeout(rz); rz = setTimeout(function () { var w = global.innerWidth || 0; if (state.tab === "cash" && Math.abs(w - lastW) > 40) { lastW = w; draw(); } }, 250);
+    });
+    lastW = global.innerWidth || 0;
     function soon() { if (Date.now() - started < 1200) return; clearTimeout(timer); timer = setTimeout(draw, 250); }
     ["helm:pnl-refresh", "helm:vendor-bills-changed", "helm:settlement-loaded", "helm:money-changed"].forEach(function (ev) { document.addEventListener(ev, soon); });
     await draw();
@@ -369,7 +427,7 @@
       whenShown(gate, function () { Promise.resolve().then(function () { return mount(n); }).catch(function (e) { try { console.warn("money header:", e && e.message); } catch (_) {} n.hidden = true; }); });
     });
   }
-  global.HelmMoneyHeader = { mount: mount, sentence: sentence, attention: attention, chip: chip, statusChip: statusChip, lightLabel: lightLabel,
+  global.HelmMoneyHeader = { mount: mount, renderTabs: renderTabs, sentence: sentence, attention: attention, chip: chip, statusChip: statusChip, lightLabel: lightLabel,
     whenWords: whenWords, points: points, pnum: pnum, renderHeader: renderHeader, renderAttention: renderAttention, renderPva: renderPva };
   if (typeof document === "undefined") return;
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
