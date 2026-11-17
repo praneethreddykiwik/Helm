@@ -6,6 +6,9 @@
    done are the same checked worker functions as before (the person never gets a second link to keep). Before 0367 (no
    event id in the answer) the event opens its own task page as before.
    The server (staff_link_view) answers only for a live link of an active staff member, rate limited.
+   R187 (0370): above the events, the office's answers to the person's day-off requests (approved / not approved, with
+   the office's note) until they tap "OK, got it" (staff_link_cantwork / staff_link_cantwork_ack), and the days still
+   waiting for approval. Hidden before 0370.
    Nothing is kept in the browser. DOM API only (no HTML strings). */
 (function (global) {
   "use strict";
@@ -42,6 +45,42 @@
     if (s) s.textContent = sub || "Please ask the person who sent it to you for a new one.";
     b.hidden = false;
   }
+  function fmtDay(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : ""; }
+  function weekday(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); if (!m) return "";
+    try { return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString("en-IN", { weekday: "short", timeZone: "UTC" }); } catch (e) { return ""; }
+  }
+  // R187: day-off answers + days waiting (null / error = nothing shown)
+  async function renderCantwork(host) {
+    var W = global.BPStore && global.BPStore.ops && global.BPStore.ops.worker;
+    if (!W || !W.staffCantwork || !host) return;
+    var v = null; try { v = await W.staffCantwork(TOKEN); } catch (e) { v = null; }
+    var old = $("#staffCantwork"); if (old && old.parentNode) old.parentNode.removeChild(old);
+    if (!v || v.ok !== true) return;
+    var dec = (Array.isArray(v.decisions) ? v.decisions : []).filter(function (x) { return x && (x.approval === "approved" || x.approval === "rejected"); });
+    var wait = Array.isArray(v.waiting) ? v.waiting : [];
+    if (!dec.length && !wait.length) return;
+    var card = h("div", { cls: "card staff-ev", id: "staffCantwork" }, [h("h1", { text: "Your days off" })]);
+    dec.forEach(function (x) {
+      var ok = x.approval === "approved", d = String(x.day).slice(0, 10);
+      var row = h("div", { cls: "task" }, [
+        h("span", { cls: "st " + (ok ? "accepted" : "rejected"), text: ok ? "Approved" : "Not approved" }),
+        h("div", { cls: "tt", text: weekday(d) + " " + fmtDay(d) }),
+        h("div", { cls: "rsl", text: ok ? "You have this day off." : "Please plan to work this day - call your manager if you can't." }),
+        x.decision_note ? h("div", { cls: "rsl", text: "Note from the office: " + String(x.decision_note) }) : null,
+      ]);
+      var got = h("button", { type: "button", cls: "btn primary", text: "OK, got it" });
+      got.addEventListener("click", async function () {
+        got.disabled = true;
+        try { await W.staffCantworkAck(TOKEN, d); await renderCantwork(host); }
+        catch (e) { got.disabled = false; try { global.BPUI.toast("Couldn't save that - try again.", { type: "err" }); } catch (x2) {} }
+      });
+      row.appendChild(h("div", { cls: "acts" }, [got]));
+      card.appendChild(row);
+    });
+    if (wait.length) card.appendChild(h("p", { cls: "sub", text: "Waiting for the office to approve: " + wait.map(function (w) { var d = String(w.day).slice(0, 10); return weekday(d) + " " + fmtDay(d); }).join(", ") }));
+    host.insertBefore(card, host.firstChild);
+  }
   function when(t) { var s = String((t && t.start) || ""), d = String((t && t.day) || ""); return s ? (d ? s + " on " + d : s) : (d ? "on " + d : ""); }
 
   function render(v) {
@@ -56,6 +95,7 @@
       sub.appendChild(doc.createTextNode(" - this link always shows your current tasks on today's and upcoming events. Open an event to accept, start and finish them. Keep this one link - it never changes."));
     }
     clear(host);
+    renderCantwork(host).catch(function () {});
     var events = Array.isArray(v.events) ? v.events : [];
     if (!events.length) {
       host.appendChild(h("div", { cls: "card" }, [h("p", { cls: "sub", text: "You have no open tasks right now. New work will show up here." })]));

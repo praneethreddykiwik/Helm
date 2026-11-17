@@ -139,7 +139,7 @@ await t('comms-dispatch: every studio e-mail lane gets the Reply-To fallback; He
   assert.match(cd, /import \{ rowReplyTo \} from "\.\.\/_shared\/reply-to\.mjs";/);
   assert.match(cd, /ident = await withReply\("outbox", id, ident\);/);
   for (const lane of ['delivery', 'vendor', 'runsheet', 'enquiry', 'staff', 'staffUpdate']) assert.match(cd, new RegExp('const ident: Identity = await withReply\\("' + lane + '", id,'));
-  assert.equal((cd.match(/withReply\("/g) || []).length, 7);   // R170: + the staff e-mail lane; R172: + staff change notices
+  assert.equal((cd.match(/withReply\("/g) || []).length, 8);   // R170: + the staff e-mail lane; R172: + staff change notices; R187: + day-off e-mails
   assert.match(cd, /sendEmail\(id, to, msg\.subject, msg\.text, "Helm", \{\}, extra\)/, 'trial mail stays Helm, no studio reply-to');
 });
 

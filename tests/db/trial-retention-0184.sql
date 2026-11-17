@@ -132,6 +132,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0366_r174b_presence.sql
 -- 0368 (R184) adds event_task_log (the Event day activity timeline) to the purge list after 0366
 \ir ../../supabase/migrations/0368_r184_event_activity.sql
+-- 0370 (R187) adds cantwork_email_outbox (day-off request e-mails) to the purge list before crew_availability
+\ir ../../supabase/migrations/0370_r187_cantwork_approval.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

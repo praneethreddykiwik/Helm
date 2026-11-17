@@ -5,6 +5,8 @@
      #crewTimesheet (Event day)       check-in / out times, hours, late + no-show? flags, office correction,
                                       the event's check-in location (for the optional location check)
      #crewAvailCard (Staff)           month grid: who can't work which day (+ who is working), tap to mark
+     #cantwork-requests (Staff)       R187 (0370): day-off requests from the staff link - badge count, Approve / Turn down
+                                      with an optional note, the last 30 days of answers (and whether the person saw it)
      #crewCfgCard   (Settings)  the studio's crew settings
    DOM API only (no HTML strings). Amounts carry data-money (privacy mode masks them). dd/mm/yyyy, studio time zone. */
 (function (global) {
@@ -334,6 +336,7 @@
     var month = today().slice(0, 7);
     // r80: the Staff page fires this after a deactivate / reactivate / save, so the grid drops or adds the row now
     doc.addEventListener("helm:staff-changed", function () { draw().catch(function () {}); });
+    doc.addEventListener("helm:cantwork-decided", function () { draw().catch(function () {}); });   // R187: a request answered in the list
     await draw();
     async function draw() {
       var from = month + "-01", last = new Date(Date.UTC(+month.slice(0, 4), +month.slice(5, 7), 0)).getUTCDate(), to = month + "-" + pad(last);
@@ -353,7 +356,7 @@
       prev.addEventListener("click", function () { var d = ymd(from); d.setUTCMonth(d.getUTCMonth() - 1); month = d.toISOString().slice(0, 7); draw(); });
       next.addEventListener("click", function () { var d = ymd(from); d.setUTCMonth(d.getUTCMonth() + 1); month = d.toISOString().slice(0, 7); draw(); });
       card.appendChild(h("div", { cls: "cs-row" }, [prev, h("b", { text: label, "aria-live": "polite" }), next,
-        h("span", { cls: "cs-note" }, [h("span", { cls: "cs-key off" }), " can't work  ", h("span", { cls: "cs-key work" }), " working"])]));
+        h("span", { cls: "cs-note" }, [h("span", { cls: "cs-key off" }), " can't work  ", h("span", { cls: "cs-key ask" }), " asked, waiting  ", h("span", { cls: "cs-key work" }), " working"])]));
       if (!crew.length) { card.appendChild(h("p", { cls: "cs-note", text: "No staff yet." })); return; }
       var tbl = h("table", { cls: "cs-grid" });
       var hr = h("tr", {}, [h("th", { cls: "nm", scope: "col", text: "Staff" })]);
@@ -364,9 +367,13 @@
         var tr = h("tr", {}, [h("td", { cls: "nm", title: c.name, text: c.name })]);
         for (var d = 1; d <= last; d++) {
           var ds = month + "-" + pad(d), k = c.id + "|" + ds, o = offMap[k], w = work[k];
-          var lbl = c.name + ", " + weekday(ds) + " " + fmtDay(ds) + (o ? ", can't work" + (o.note ? " (" + o.note + ")" : "") + (o.source === "crew" ? ", marked by them" : "") : ", free") + (w ? ", working " + w.join(", ") : "");
-          var b = h("button", { type: "button", cls: "cs-cell" + (o ? " off" : "") + (w ? " work" : ""), title: lbl, "aria-label": lbl, "aria-pressed": o ? "true" : "false", text: o ? "✕" : (w ? "•" : "") });
+          var ask = !!o && o.approval === "pending";   // R187: asked off, waiting for approval
+          var lbl = c.name + ", " + weekday(ds) + " " + fmtDay(ds) + (o ? (ask ? ", asked off - waiting for approval" : ", can't work") + (o.note ? " (" + o.note + ")" : "") + (o.source === "crew" ? ", marked by them" : "") : ", free") + (w ? ", working " + w.join(", ") : "");
+          var b = h("button", { type: "button", cls: "cs-cell" + (o ? (ask ? " ask" : " off") : "") + (w ? " work" : ""), title: lbl, "aria-label": lbl, "aria-pressed": o ? "true" : "false", text: o ? (ask ? "?" : "✕") : (w ? "•" : "") });
           if (!canEdit) b.disabled = true;
+          else if (ask && o.id) b.addEventListener("click", (function (item, name) { return function () {
+            decideRequest(Object.assign({ name: name }, item), function () { draw().catch(function () {}); doc.dispatchEvent(new CustomEvent("helm:cantwork-changed")); });
+          }; })(o, c.name));
           else b.addEventListener("click", (function (crewId, day, wasOff, btn, name) { return async function () {
             var note = null;
             if (!wasOff) { note = await global.BPUI.prompt("Reason (optional):", { title: name + " can't work on " + fmtDay(day) + "?", label: "Reason", okLabel: "Mark can't work", required: false }); if (note === null) return; }
@@ -379,6 +386,110 @@
         tb.appendChild(tr);
       });
       card.appendChild(h("div", { cls: "cs-tablewrap" }, [tbl]));
+    }
+  }
+
+  // =====================================================================================================
+  // Staff: day-off requests (R187, 0370)
+  // =====================================================================================================
+  // Approve / Turn down one request, with an optional note to the staff member. done() after a decision.
+  async function decideRequest(item, done) {
+    var B = S(), U = global.BPUI; if (!B || !U) return;
+    var d = String(item.day).slice(0, 10), who = item.name || "This staff member";
+    var choice = U.confirm ? await U.confirm(who + " asked for " + weekday(d) + " " + fmtDay(d) + " off" + (item.note ? " - reason: " + item.note : " (no reason given)")
+      + (item.booked ? ". They already have work that day." : "."), { title: "Day-off request", okLabel: "Approve", cancelLabel: "Decide later" }) : null;
+    var decision = choice ? "approve" : null;
+    if (!decision) {
+      // not approved now: offer to turn it down (or leave it waiting)
+      var no = U.confirm ? await U.confirm("Turn down " + who + "'s request for " + fmtDay(d) + "? They will be told and asked to work that day.",
+        { title: "Turn down the request?", okLabel: "Turn down", cancelLabel: "Leave it waiting", danger: true }) : false;
+      if (!no) return;
+      decision = "reject";
+    }
+    var note = U.prompt ? await U.prompt(decision === "approve" ? "A note for " + who + " (optional)" : "Tell " + who + " why (optional)",
+      { title: decision === "approve" ? "Approve the day off" : "Turn down the day off", label: "Note", required: false,
+        okLabel: decision === "approve" ? "Approve" : "Turn down" }) : "";
+    if (note === null) return;
+    try {
+      await B.ops.shifts.decide(item.id, decision, String(note || "").replace(/[\u0000-\u001f<>]/g, " ").trim().slice(0, 200) || null);
+      toast(decision === "approve" ? "Approved - " + who + " has " + fmtDay(d) + " off." : "Turned down - " + who + " will be told.");
+      if (done) done();
+    } catch (e) { toast(errText(e, "save the decision"), "err"); }
+  }
+  async function mountRequests(card) {
+    var B = S(); if (!B || !B.ops || !B.ops.shifts || !B.ops.shifts.requests) return;
+    var showPast = false;
+    doc.addEventListener("helm:cantwork-changed", function () { draw().catch(function () {}); });
+    await draw();
+    try { if (location.hash === "#cantwork-requests" && !card.hidden) card.scrollIntoView({ block: "start" }); } catch (e) {}
+    async function draw() {
+      var v = null; try { v = await B.ops.shifts.requests("all"); } catch (e) { v = null; }
+      if (!v || !Array.isArray(v.items)) { card.hidden = true; return; }
+      if (!v.items.length) { clear(card); card.hidden = true; return; }   // nothing asked in the last 30 days: no card
+      var items = v.items, waiting = items.filter(function (x) { return x.approval === "pending"; }), past = items.filter(function (x) { return x.approval !== "pending"; });
+      clear(card); card.hidden = false; card.classList.add("cs-card");
+      var hd = h("h3", { text: "🗓️ Day-off requests" });
+      if (Number(v.pending) > 0) hd.appendChild(h("span", { cls: "cs-req-badge", "aria-label": v.pending + " waiting", text: String(v.pending) }));
+      card.appendChild(hd);
+      var buf = Number(v.buffer_days) || 0;
+      card.appendChild(h("p", { cls: "cs-sub", text: "Staff ask for days off from their link. " + (buf ? "They must ask at least " + buf + " day" + (buf === 1 ? "" : "s") + " ahead (Settings → Crew); closer days they call you, and you can still mark them on the Availability grid below. " : "")
+        + "Waiting and approved days both show a warning when you assign work - you can still assign." }));
+      if (!waiting.length) card.appendChild(h("p", { cls: "cs-note", text: "No requests waiting." }));
+      else {
+        var lst = h("div", { cls: "cs-reqlist", role: "list", "aria-label": "Requests waiting" });
+        waiting.forEach(function (x) { lst.appendChild(row(x, v.can_decide)); });
+        card.appendChild(lst);
+      }
+      if (past.length) {
+        var det = h("details", { cls: "cs-past" }); if (showPast) det.open = true;
+        det.addEventListener("toggle", function () { showPast = det.open; });
+        det.appendChild(h("summary", { text: "Answered in the last 30 days (" + past.length + ")" }));
+        var pl = h("div", { cls: "cs-reqlist", role: "list" });
+        past.forEach(function (x) { pl.appendChild(row(x, v.can_decide)); });
+        det.appendChild(pl); card.appendChild(det);
+      }
+      if (!v.can_decide && waiting.length) card.appendChild(h("p", { cls: "cs-note", text: "Only the owner, an admin or someone who can edit Staff can approve days off." }));
+    }
+    function row(x, canDecide) {
+      var d = String(x.day).slice(0, 10), wait = x.approval === "pending", ok = x.approval === "approved";
+      var r = h("div", { cls: "cs-req" + (wait ? " wait" : ""), role: "listitem" });
+      var info = h("div", { cls: "cs-req-d" }, [
+        h("b", { text: (x.name || "Staff member") + " · " + weekday(d) + " " + fmtDay(d) }),
+        h("span", { text: x.note ? "Reason: " + x.note : "No reason given" }),
+        x.booked ? h("small", { text: "⚠ Already has work that day" }) : null,
+        wait ? null : h("small", { text: (ok ? "Approved" : "Turned down") + (x.decided_by ? " by " + x.decided_by : "") + (x.decision_note ? " - " + x.decision_note : "")
+          + (x.ack_at ? " · seen by them" : " · not seen yet") })]);
+      r.appendChild(info);
+      var acts = h("div", { cls: "cs-req-a" });
+      if (canDecide) {
+        if (wait || !ok) {
+          var a = h("button", { type: "button", cls: "btn sm ok", text: "Approve" });
+          a.addEventListener("click", function () { quick(x, "approve", a); });
+          acts.appendChild(a);
+        }
+        if (wait || ok) {
+          var n = h("button", { type: "button", cls: "btn sm no", text: "Turn down" });
+          n.addEventListener("click", function () { quick(x, "reject", n); });
+          acts.appendChild(n);
+        }
+      }
+      if (wait) r.appendChild(h("span", { cls: "cs-ap wait", text: "Waiting" }));
+      else r.appendChild(h("span", { cls: "cs-ap " + (ok ? "yes" : "no"), text: ok ? "Approved" : "Turned down" }));
+      if (acts.firstChild) r.appendChild(acts);
+      return r;
+    }
+    async function quick(x, decision, btn) {
+      var U = global.BPUI, d = String(x.day).slice(0, 10), who = x.name || "this staff member";
+      var note = U && U.prompt ? await U.prompt(decision === "approve" ? "A note for " + who + " (optional)" : "Tell " + who + " why (optional)",
+        { title: (decision === "approve" ? "Approve " : "Turn down ") + weekday(d) + " " + fmtDay(d) + " off?", label: "Note", required: false,
+          okLabel: decision === "approve" ? "Approve" : "Turn down" }) : "";
+      if (note === null) return;
+      btn.disabled = true;
+      try {
+        await B.ops.shifts.decide(x.id, decision, String(note || "").replace(/[\u0000-\u001f<>]/g, " ").trim().slice(0, 200) || null);
+        toast(decision === "approve" ? "Approved - " + who + " has " + fmtDay(d) + " off." : "Turned down - " + who + " will be told.");
+        await draw(); doc.dispatchEvent(new CustomEvent("helm:cantwork-decided"));
+      } catch (e) { btn.disabled = false; toast(errText(e, "save the decision"), "err"); }
     }
   }
 
@@ -409,6 +520,9 @@
     var pay = h("select", { id: "cc_pay" }, [h("option", { value: "day", text: "Per day (day rate x days checked in)" }), h("option", { value: "hours", text: "Per hour (hours checked in x day rate / day hours)" })]);
     pay.value = cfg.payBasis === "hours" ? "hours" : "day";
     var dh = num("cc_dh", cfg.dayHours, 1, 24, 0.5);
+    // R187 (0370): how many days ahead staff must ask for a day off (server-checked; null before 0370 = not shown)
+    var cwc = null; try { cwc = B.ops.shifts.cantworkSettings ? await B.ops.shifts.cantworkSettings() : null; } catch (e) { cwc = null; }
+    var bufIn = cwc ? num("cc_buf", Number(cwc.buffer_days) >= 0 ? Number(cwc.buffer_days) : 7, 0, 60) : null;
     var msg = h("p", { cls: "mnote", role: "status", "aria-live": "polite" });
     var save = h("button", { type: "button", cls: "btn", id: "cc_save", text: "Save crew settings" });
     card.appendChild(av.el); card.appendChild(os.el); card.appendChild(nt.el);
@@ -416,6 +530,7 @@
     card.appendChild(ci.el); card.appendChild(gf.el);
     card.appendChild(h("div", { cls: "cs-form" }, [field("Check-in radius (m)", rad), field("Late after (min past start)", grace), field("No-show? after (min)", ns)]));
     card.appendChild(h("div", { cls: "cs-form" }, [field("Actual wages from check-in", pay, "wide"), field("Hours in a working day", dh)]));
+    if (bufIn) card.appendChild(h("div", { cls: "cs-form" }, [field("Days off: staff must ask at least this many days ahead (closer days they call you; 0 = any day)", bufIn, "wide")]));
     card.appendChild(msg); card.appendChild(save);
     if (!cfg.can_edit) {
       Array.prototype.forEach.call(card.querySelectorAll("input,select,button"), function (x) { x.disabled = true; });
@@ -433,8 +548,11 @@
       if (s === null) { msg.textContent = "No-show after must be 15 to 720 minutes."; ns.focus(); return; }
       if (d === null) { msg.textContent = "A working day must be 1 to 24 hours."; dh.focus(); return; }
       if (r !== null) patch.geofenceRadiusM = r; patch.lateGraceMin = g; patch.noShowAfterMin = s; patch.dayHours = d;
+      var bv = bufIn ? n(bufIn, 0, 60) : null;
+      if (bufIn && (bv === null || Math.round(bv) !== bv)) { msg.textContent = "The notice for a day off must be a whole number of days, 0 to 60."; bufIn.focus(); return; }
       global.BPUI.guard(save, async function () {
-        try { await B.ops.shifts.saveSettings(patch); msg.textContent = "Saved."; toast("Crew settings saved."); }
+        try { await B.ops.shifts.saveSettings(patch); if (bufIn && bv !== Number(cwc.buffer_days)) { await B.ops.shifts.saveCantworkBuffer(bv); cwc.buffer_days = bv; }
+          msg.textContent = "Saved."; toast("Crew settings saved."); }
         catch (e) { msg.textContent = errText(e, "save the crew settings"); }
       }, { busyLabel: "Saving…" });
     });
@@ -443,11 +561,13 @@
   function start() {
     var B = S(); if (!B || !B.ops || !B.ops.shifts) return;
     var sc = doc.getElementById("shiftCard"), ts = doc.getElementById("crewTimesheet"), av = doc.getElementById("crewAvailCard"), cc = doc.getElementById("crewCfgCard");
+    var rq = doc.getElementById("cantwork-requests");
     if (sc) whenShown("app", function () { mountShifts(sc).catch(function () { sc.hidden = true; }); });
     if (ts) whenShown("app", function () { mountTimesheet(ts).catch(function () { ts.hidden = true; }); });
     if (av) whenShown("grid", function () { B.init().then(function () { return mountAvailability(av); }).catch(function () { av.hidden = true; }); });
+    if (rq) whenShown("grid", function () { B.init().then(function () { return mountRequests(rq); }).catch(function () { rq.hidden = true; }); });
     if (cc) B.init().then(function () { return mountSettings(cc); }).catch(function () { cc.hidden = true; });
   }
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", start); else start();
-  global.HelmCrewShifts = { parseLatLng: parseLatLng, toInstant: toInstant, radiusOrDefault: radiusOrDefault };
+  global.HelmCrewShifts = { parseLatLng: parseLatLng, toInstant: toInstant, radiusOrDefault: radiusOrDefault, decideRequest: decideRequest };
 })(window);

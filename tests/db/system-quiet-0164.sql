@@ -45,9 +45,10 @@ do $$ declare c0 int; c1 int; begin
 end $$;
 
 -- outboxes
--- r170 (0361): staff_email_outbox is the 7th outbox with the guard; r172 (0363): staff_update_outbox the 8th
-select pg_temp.t('10 all 8 outboxes guarded', (select count(*) from pg_trigger where tgname = 'zzz_sq164_system_skip') = 8
-  and exists (select 1 from pg_trigger where tgname = 'zzz_sq164_system_skip' and tgrelid = to_regclass('public.staff_email_outbox')),
+-- r170 (0361): staff_email_outbox is the 7th outbox with the guard; r172 (0363): staff_update_outbox the 8th; R187 (0370): cantwork_email_outbox the 9th
+select pg_temp.t('10 all 9 outboxes guarded', (select count(*) from pg_trigger where tgname = 'zzz_sq164_system_skip') = 9
+  and exists (select 1 from pg_trigger where tgname = 'zzz_sq164_system_skip' and tgrelid = to_regclass('public.staff_email_outbox'))
+  and exists (select 1 from pg_trigger where tgname = 'zzz_sq164_system_skip' and tgrelid = to_regclass('public.cantwork_email_outbox')),
   (select count(*)::text from pg_trigger where tgname = 'zzz_sq164_system_skip'));
 do $$ declare s text; u uuid := gen_random_uuid(); begin
   insert into public.welcome_email_outbox(org_id, user_id, kind, email) values ('a0000000-0000-4000-8000-000000000001', u, 'member', 'x@a.test') returning status into s;

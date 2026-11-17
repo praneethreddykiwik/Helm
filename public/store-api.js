@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=82"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=83"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -4019,6 +4019,14 @@ window.HelmUrl = HelmUrl;
       async dayStatus(date, excludeQuote) { if (!supa || !date) return null; try { return await rpc("crew_day_status", { p_date: date, p_exclude_quote: excludeQuote || null }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
       // R174 (0365): work given on a day the person marked "can't work" (Calendar conflicts); null before 0365 / without Staff view
       async unavailableConflicts(from, to) { if (!supa || !from || !to) return null; try { return await rpc("crew_unavailable_conflicts", { p_from: from, p_to: to }); } catch (e) { if (rpcMissing(e) || (e && e.code === "42501")) return null; throw e; } },
+      // R187 (0370): a "can't work" day is a request the office approves. requests() = the Staff page list + badge count
+      // (null before 0370 / without Staff view); decide(id, "approve"|"reject", note); ack = the staff member's "OK, got it"
+      // on their event link. The buffer (days ahead a staff member must ask) is a studio setting, checked on the server.
+      async requests(scope) { if (!supa) return null; try { return await rpc("cantwork_requests", { p_scope: scope === "all" ? "all" : "open" }); } catch (e) { if (rpcMissing(e) || (e && e.code === "42501")) return null; throw e; } },
+      decide: (id, decision, note) => rpc("cantwork_decide", { p_id: id, p_decision: decision === "approve" ? "approve" : "reject", p_note: note || null }),
+      ack: (token, day) => wrpc("crew_cantwork_ack", { p_token: token, p_day: day || null }),
+      async cantworkSettings() { if (!supa) return null; try { return await rpc("cantwork_settings_get", {}); } catch (e) { if (rpcMissing(e) || (e && e.code === "42501")) return null; throw e; } },
+      saveCantworkBuffer: (days) => rpc("cantwork_settings_set", { p_buffer_days: Math.round(Number(days)) }),
     },
     // R174 (0365): event-day progress - events happening today / in the next hours with task counts, late tasks and the
     // latest activity (home card + Calendar "Live today"). null before 0365 (the card / tab then stay hidden).
@@ -4038,6 +4046,17 @@ window.HelmUrl = HelmUrl;
         const t = String(staffToken || "").trim();
         if (!/^[0-9a-f]{64}$/.test(t)) { const e = new Error("invalid link"); e.code = "P0001"; return Promise.reject(e); }
         return rpc("staff_link_view", { p_token: t });
+      },
+      // R187 (0370): the permanent link page - day-off decisions to acknowledge ("OK, got it") + days still waiting.
+      // null before 0370 (the card stays hidden).
+      async staffCantwork(staffToken) {
+        const t = String(staffToken || "").trim(); if (!/^[0-9a-f]{64}$/.test(t)) return null;
+        try { return await rpc("staff_link_cantwork", { p_token: t }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+      },
+      staffCantworkAck: (staffToken, day) => {
+        const t = String(staffToken || "").trim();
+        if (!/^[0-9a-f]{64}$/.test(t)) { const e = new Error("invalid link"); e.code = "P0001"; return Promise.reject(e); }
+        return rpc("staff_link_cantwork_ack", { p_token: t, p_day: day || null });
       },
       // 0132 — what changed for me ("Updated" badges) + my run-sheet lines
       updates: (token) => wrpc("worker_assignment_updates", { p_token: token }),
@@ -5197,7 +5216,7 @@ window.HelmUrl = HelmUrl;
       const crew = await this.list(false);
       const cat = (category || "").toLowerCase();
       // who is busy on this date? (assigned to another event on the same day)
-      let busy = new Set(); const off = new Map();   // R174: off = marked "can't work" that day (note kept)
+      let busy = new Set(); const off = new Map(), offAsk = new Set();   // R174: off = marked "can't work" that day (note kept); R187: offAsk = still waiting for approval
       if (date && mode === "supabase" && supa) {
         try {
           const { data: evs } = await supa.from("quotes").select("id").eq("event_date", date);
@@ -5207,7 +5226,7 @@ window.HelmUrl = HelmUrl;
             (ts || []).forEach((t) => busy.add(t.crew_id));
           }
         } catch {}
-        try { const st = await ops.shifts.dayStatus(date, excludeQuote); (st || []).forEach((x) => { if (x && x.unavailable) { busy.add(x.crew_id); off.set(x.crew_id, x.note || ""); } }); } catch {}   // r23: days off count as busy; R174: and say so
+        try { const st = await ops.shifts.dayStatus(date, excludeQuote); (st || []).forEach((x) => { if (x && x.unavailable) { busy.add(x.crew_id); off.set(x.crew_id, x.note || ""); if (x.approval === "pending") offAsk.add(x.crew_id); } }); } catch {}   // r23: days off count as busy; R174: and say so; R187: pending kept apart
       }
       const scored = crew.map((c) => {
         const dept = (c.department || "").toLowerCase();
@@ -5217,7 +5236,7 @@ window.HelmUrl = HelmUrl;
         const available = !busy.has(c.id);
         const score = (available ? 100 : 0) + (deptMatch ? 20 : 0) + (skillMatch ? 15 : 0);
         return { id: c.id, name: c.name, phone: c.phone, department: c.department, skills: c.skills || [],
-          available, match: !!(deptMatch || skillMatch), score, off: off.has(c.id), offNote: off.get(c.id) || "" };
+          available, match: !!(deptMatch || skillMatch), score, off: off.has(c.id), offNote: off.get(c.id) || "", offPending: offAsk.has(c.id) };
       }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
       return scored.slice(0, limit || 5);
     },
@@ -7852,7 +7871,10 @@ window.HelmUrl = HelmUrl;
       // r23 (0265): the person marked the day unavailable (their own crew link or the Staff page)
       if (crewId) { try { const st = await ops.shifts.dayStatus(date, excludeQuote);
         const me = (st || []).find((x) => x && x.crew_id === crewId && x.unavailable);
-        if (me) return { clash: true, type: "unavailable", detail: "marked unavailable on " + (BPStore.fmtStudioDate ? BPStore.fmtStudioDate(date) : date) + (me.note ? " (" + me.note + ")" : "") }; } catch (e) {} }
+        // R187 (0370): pending = asked off, waiting for approval; approved = an approved day off (never blocks - the office confirms)
+        if (me) return { clash: true, type: "unavailable", approval: me.approval || "approved",
+          detail: (me.approval === "pending" ? "asked for " : "on an approved day off on ") + (BPStore.fmtStudioDate ? BPStore.fmtStudioDate(date) : date)
+            + (me.approval === "pending" ? " off (waiting for approval)" : "") + (me.note ? " (" + me.note + ")" : "") }; } catch (e) {} }
       const events = await quotes.list();
       // 0198: a cancelled / closed / archived event on that day holds nobody - never a clash
       const sameDay = events.filter((e) => calEvLive(e) && e.eventDate === date && e.id !== excludeQuote);
@@ -8988,6 +9010,7 @@ window.HelmUrl = HelmUrl;
     if (k.indexOf("chat_") === 0) return "chat.html";
     if (k === "studio_identity_changed") return "control.html#general";   // r23 (0257): Helm changed the studio name / link
     if (k === "team_safety") return "control.html#users";   // r33 (0283): admin / owner changes -> Settings -> Team
+    if (k === "crew_cantwork_request") return "staff.html#cantwork-requests";   // R187 (0370): day-off requests -> Staff page list
     // r35 (0285): payment details / sensitive settings (admins only - the server decides)
     if (k === "studio_security") {
       const ev = String(d.event || "");
@@ -9355,6 +9378,8 @@ window.HelmUrl = HelmUrl;
       shift_filled: ["✅", "Open shift filled" + (d.shift ? ": " + d.shift : "")],
       crew_late: ["⏰", (d.worker || "A crew member") + " checked in late" + (d.late_min ? " (" + d.late_min + " min)" : "")],
       crew_unavailable: ["📅", (d.worker || "A crew member") + " marked a booked day unavailable" + (d.day ? " (" + d.day + ")" : "")],
+      // R187 (0370): a staff member asked for a day off - approve or turn down on the Staff page
+      crew_cantwork_request: ["🗓️", (d.worker || "A staff member") + " asked for a day off" + (d.day ? " (" + String(d.day).slice(0, 10).split("-").reverse().join("/") + ")" : "") + " - approve on Staff"],
       task_reminder: ["🔔", "Task reminder" + (d.task ? ": " + d.task : "")],
       task_overdue: ["⏰", (d.task ? d.task : "A task") + " hasn't started" + (d.worker ? " (" + d.worker + ")" : "") + (d.start ? " - was due " + d.start : "")],   // R130 (0338)
       otp: ["🔐", "Approval OTP sent"],

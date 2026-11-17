@@ -122,6 +122,7 @@
       { sel: "#deptFilter", title: "Filter", desc: "Show one department or one skill, or include people who no longer work with you." },
       { sel: "#importBtn", trial: false, title: "Import", desc: "Bring your whole team in from an Excel or CSV file." },
       { sel: "#newBtn", title: "Add your team", desc: "Add an in-house team member with their name, phone and department (stage, lighting, catering…)." },
+      { sel: "#cantwork-requests", title: "Day-off requests", desc: "Staff ask for days off from their link (at least 7 days ahead - closer days they call you). Approve or turn down with a note; they are told and tap OK, got it. Waiting and approved days warn you when you assign work." },
       { sel: "#grid", title: "Your people", desc: "Everyone on the team, by department. You assign them to event tasks from an event's Logistics page." },
       { sel: '[data-act="tlink"]', title: "Permanent task link", desc: "Task link copies one link per person that always shows their current tasks on every event - it is also in every task e-mail. New task link stops the old one at once." },
     ],
