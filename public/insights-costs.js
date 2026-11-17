@@ -15,7 +15,7 @@
     { k: "rentals", label: "Rentals & inventory" }, { k: "expense_claims", label: "Expense claims" },
     { k: "change_orders", label: "Change orders" }, { k: "other_costs", label: "Miscellaneous" }, { k: "refunds", label: "Refunds to client" }
   ];
-  var DEFAULT_TARGET = 30;           // target margin % until the studio sets one (Settings, 0242)
+  var DEFAULT_TARGET = 25;           // target margin % until the studio sets one (Settings, 0242; R197 0376: 25, was 30)
   var TARGET_KEY = "helm_ins_target_margin";   // retired per-device value (before 0242): offered once to the studio, then removed
 
   /* ---------------- pure helpers ---------------- */

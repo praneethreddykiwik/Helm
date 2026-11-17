@@ -278,7 +278,7 @@
 <link rel="stylesheet" href="control-split.css?v=16">
 <link rel="stylesheet" href="roles-matrix.css?v=1"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=89" id="shellProto"></script>
+<script src="/shell-proto.js?v=90" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -458,13 +458,13 @@
       <div class="actions"><button type="button" class="btn primary" id="savePricing">Save pricing</button></div>
     </div>
 
-    <!-- r21 (0242) ONE studio-wide target margin for Insights benchmarks - target-margin-settings.js fills it; hidden until the server answers -->
+    <!-- r21 (0242) ONE studio-wide target margin for Insights benchmarks + the R197 (0376) event money header (default 25) - target-margin-settings.js fills it; hidden until the server answers -->
     <div class="card" id="tmCard" hidden>
       <h3>Target margin</h3>
-      <p class="mnote">One value for the whole studio, so everyone sees the same colours on the Insights page.</p>
+      <p class="mnote">One value for the whole studio, so everyone sees the same colours on Insights and on every event's money header.</p>
       <p class="mnote" id="tm_ro" hidden>Read-only: only a studio admin (or someone allowed to edit Settings) can change it.</p>
       <div class="grid">
-        <div class="fld"><label for="tm_pct">Target margin %</label><input id="tm_pct" type="number" min="0" max="90" step="0.5" inputmode="decimal" placeholder="30" aria-describedby="tm_help tm_err"><p class="mnote" id="tm_help">Used by Insights benchmarks to colour events green/amber/red. A number from 0 to 90 (default 30).</p><p class="fv-msg" id="tm_err" aria-live="polite" hidden></p></div>
+        <div class="fld"><label for="tm_pct">Target margin %</label><input id="tm_pct" type="number" min="0" max="90" step="0.5" inputmode="decimal" placeholder="25" aria-describedby="tm_help tm_err"><p class="mnote" id="tm_help">Used by Insights benchmarks and the event money header (Budget, Payments, Closure) to colour events green/amber/red. A number from 0 to 90 (default 25). How far below still counts as amber is a money rule below.</p><p class="fv-msg" id="tm_err" aria-live="polite" hidden></p></div>
       </div>
       <div id="tm_msg" role="status" aria-live="polite"></div>
       <div class="actions" id="tm_actions"><button type="button" class="btn primary" id="tm_save">Save target margin</button></div>
@@ -931,14 +931,14 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=367"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=368"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=49"></script>
-<script src="tour.js?v=68"></script>
+<script src="page-tours.js?v=50"></script>
+<script src="tour.js?v=69"></script>
 <script src="pkg-review.js?v=9"></script>
 <script src="onboarding-core.js?v=9"></script>
 <script src="studio-billing-form.js?v=3"></script>
@@ -957,7 +957,7 @@
 <script src="studio-templates-core.js?v=6"></script>
 <script src="studio-templates.js?v=15"></script>
 <script src="team-safety.js?v=3"></script>
-<script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=2"></script><script src="money-lock-ui.js?v=1"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=6"></script><script src="payment-schedule-settings.js?v=4"></script>
+<script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=3"></script><script src="money-lock-ui.js?v=2"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=6"></script><script src="payment-schedule-settings.js?v=4"></script>
 <script src="asset-price-grid.js?v=7"></script><script src="pricing-form-core.js?v=4"></script><script src="menu-pkg-editor.js?v=5"></script><script src="layout-rules.js?v=2"></script>
 <script src="trial-demo.js?v=21"></script>
 <script src="trial-upgrade.js?v=3"></script>

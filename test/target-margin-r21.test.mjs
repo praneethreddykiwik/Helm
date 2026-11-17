@@ -1,5 +1,5 @@
 // r21 (0242): ONE studio-wide target margin for the Insights benchmarks, set in Settings.
-// Insights reads the studio value (fallback 30), the per-device value is retired (offered once to an editor),
+// Insights reads the studio value (fallback 25 since R197 / 0376, was 30), the per-device value is retired (offered once to an editor),
 // Settings field with validation, store-api wiring, SQL shape (additive, guarded, self-check rows).
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
@@ -56,35 +56,35 @@ t('insights: studio value is used for everyone (28% margin vs 25 target = on tar
   assert.equal(bench.all((e) => e.tagName === 'INPUT').length, 0);
   assert.match(bench.textContent, /1 on target/);
 });
-t('insights: nothing saved -> 30% default (28% margin = watch)', async () => {
-  const { ui, bench } = await mount({}, { target_margin_pct: null, default_pct: 30, can_edit: true });
-  assert.equal(ui.target(), 30); assert.match(bench.textContent, /Studio default \(30%\)/); assert.match(bench.textContent, /1 to watch/);
+t('insights: nothing saved -> 25% default (R197; 28% margin = on target)', async () => {
+  const { ui, bench } = await mount({}, { target_margin_pct: null, default_pct: 25, can_edit: true });
+  assert.equal(ui.target(), 25); assert.match(bench.textContent, /Studio default \(25%\)/); assert.match(bench.textContent, /1 on target/);
   assert.equal(bench.all((e) => e.tagName === 'A' && e.href === 'control.html#target-margin').length, 1);
 });
-t('migration: device 25%, studio none, editor -> offered once; "Save" saves 25 for the studio and removes the device value', async () => {
+t('migration: device 22%, studio none, editor -> offered once; "Save" saves 22 for the studio and removes the device value', async () => {
   let saved = null;
-  const { ui, ls, bench } = await mount({ helm_ins_target_margin: '25' }, { target_margin_pct: null, default_pct: 30, can_edit: true },
+  const { ui, ls, bench } = await mount({ helm_ins_target_margin: '22' }, { target_margin_pct: null, default_pct: 25, can_edit: true },
     (v) => { saved = v; return Promise.resolve({ target_margin_pct: v, can_edit: true }); });
-  assert.equal(ui.target(), 30);   // not applied until saved for the studio
-  const b = btn(bench, /Save 25% for the whole studio/); assert.ok(b, 'offer shown');
+  assert.equal(ui.target(), 25);   // not applied until saved for the studio
+  const b = btn(bench, /Save 22% for the whole studio/); assert.ok(b, 'offer shown');
   b.click(); await tick();
-  assert.equal(saved, 25); assert.equal(ui.target(), 25); assert.equal(ls.getItem('helm_ins_target_margin'), null);
+  assert.equal(saved, 22); assert.equal(ui.target(), 22); assert.equal(ls.getItem('helm_ins_target_margin'), null);
   assert.equal(btn(bench, /for the whole studio/), undefined);
 });
-t('migration: "Keep 30%" dismisses for good (device value removed, nothing saved)', async () => {
+t('migration: "Keep 25%" dismisses for good (device value removed, nothing saved)', async () => {
   let saved = null;
-  const { ui, ls, bench } = await mount({ helm_ins_target_margin: '25' }, { target_margin_pct: null, default_pct: 30, can_edit: true }, (v) => { saved = v; return Promise.resolve({}); });
-  btn(bench, /Keep 30%/).click(); await tick();
-  assert.equal(saved, null); assert.equal(ui.target(), 30); assert.equal(ls.getItem('helm_ins_target_margin'), null);
+  const { ui, ls, bench } = await mount({ helm_ins_target_margin: '22' }, { target_margin_pct: null, default_pct: 25, can_edit: true }, (v) => { saved = v; return Promise.resolve({}); });
+  btn(bench, /Keep 25%/).click(); await tick();
+  assert.equal(saved, null); assert.equal(ui.target(), 25); assert.equal(ls.getItem('helm_ins_target_margin'), null);
 });
-t('migration: no offer for a non-editor, when the studio already has a value, or for a 30 / out-of-range device value', async () => {
-  for (const [dev, server] of [['25', { target_margin_pct: null, can_edit: false }], ['25', { target_margin_pct: 35, can_edit: true }], ['30', { target_margin_pct: null, can_edit: true }], ['-20', { target_margin_pct: null, can_edit: true }]]) {
+t('migration: no offer for a non-editor, when the studio already has a value, or for a 25 (the default) / out-of-range device value', async () => {
+  for (const [dev, server] of [['22', { target_margin_pct: null, can_edit: false }], ['22', { target_margin_pct: 35, can_edit: true }], ['25', { target_margin_pct: null, can_edit: true }], ['-20', { target_margin_pct: null, can_edit: true }]]) {
     const { ls, bench } = await mount({ helm_ins_target_margin: dev }, server);
     assert.equal(btn(bench, /for the whole studio/), undefined, dev + ' ' + JSON.stringify(server));
     assert.equal(ls.getItem('helm_ins_target_margin'), null);
   }
 });
-t('migration: server older than 0242 -> keep the device value (or 30), nothing removed', async () => {
+t('migration: server older than 0242 -> keep the device value (or 25), nothing removed', async () => {
   const { ui, ls, bench } = await mount({ helm_ins_target_margin: '22' }, null);
   assert.equal(ui.target(), 22); assert.equal(ls.getItem('helm_ins_target_margin'), '22'); assert.match(bench.textContent, /needs database update 0242/);
 });
@@ -109,7 +109,7 @@ t('store-api: get / set wiring, client-side 0..90 check, friendly 0242 message',
 t('Settings: card in Pricing, label + help text, validation, editors only', () => {
   assert.match(CC, /<div class="card" id="tmCard" hidden>\s*<h3>Target margin<\/h3>/);
   assert.match(CC, /<label for="tm_pct">Target margin %<\/label><input id="tm_pct" type="number" min="0" max="90"/);
-  assert.match(CC, /Used by Insights benchmarks to colour events green\/amber\/red\./);
+  assert.match(CC, /Used by Insights benchmarks and the event money header \(Budget, Payments, Closure\) to colour events green\/amber\/red\. A number from 0 to 90 \(default 25\)\./);
   assert.match(CC, /<script src="target-margin-settings\.js\?v=\d+"><\/script>/);
   assert.match(SPLIT, /"#target-margin":"pricing"/);
   assert.match(CAT, /\["pricing", "Target margin %"/);

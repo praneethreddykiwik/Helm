@@ -6,14 +6,14 @@
    than 0242. DOM via textContent only (no HTML strings). validate() is pure and unit-tested. */
 (function (global) {
   "use strict";
-  var DEFAULT = 30, MIN = 0, MAX = 90;
+  var DEFAULT = 25, MIN = 0, MAX = 90;   // R197 (0376): owner default 25 (was 30)
   var started = false, tries = 0, saved = null, canEdit = false;
   var wantFocus = (function () { try { return /^#target-margin$/i.test(global.location && global.location.hash || ""); } catch (e) { return false; } })();
   // pure: raw text from the box -> { ok, value, error }
   function validate(raw) {
     var t = String(raw == null ? "" : raw).trim().replace(/%$/, "").trim();
     if (t === "") return { ok: false, value: null, error: "Enter a target margin from 0 to 90." };
-    if (!/^\d{1,2}(\.\d+)?$/.test(t)) return { ok: false, value: null, error: "Use a number from 0 to 90, e.g. 30 or 27.5." };
+    if (!/^\d{1,2}(\.\d+)?$/.test(t)) return { ok: false, value: null, error: "Use a number from 0 to 90, e.g. 25 or 27.5." };
     var n = Number(t);
     if (!isFinite(n) || n < MIN || n > MAX) return { ok: false, value: null, error: "The target margin must be from 0 to 90." };
     return { ok: true, value: Math.round(n * 10) / 10, error: "" };
@@ -38,7 +38,7 @@
     saved = d && d.target_margin_pct != null ? Number(d.target_margin_pct) : null;
     i.value = String(saved != null ? saved : DEFAULT); i.disabled = !canEdit;
     $("tm_ro").hidden = canEdit; $("tm_actions").hidden = !canEdit;
-    if (saved == null) say("Not set yet: Insights uses the " + DEFAULT + "% default.", "info");
+    if (saved == null) say("Not set yet: Insights and the event money header use the " + DEFAULT + "% default.", "info");
   }
   async function save() {
     if (!canEdit) return;
