@@ -116,8 +116,9 @@ begin
   select count(*) into n from public.client_booklets;
   perform pg_temp.res('16 other studio sees no rows', n = 0, n::text);
   perform pg_temp.login('b_admin@b.test');
-  e := pg_temp.try(format('select public.booklet_current(%L)', qa));
-  perform pg_temp.res('17 other studio cannot read current link', e like 'P0002%', e);
+  -- r193 (0375): another studio's event answers null (no link) instead of P0002 (HTTP 500); nothing is revealed
+  r := public.booklet_current(qa::uuid);
+  perform pg_temp.res('17 other studio cannot read current link', r is null, coalesce(r::text, 'null'));
 
   -- public read: client-safe payload
   perform pg_temp.anon();

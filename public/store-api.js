@@ -217,6 +217,7 @@ window.HelmUrl = HelmUrl;
   let urlAuthCode = false, urlAuthError = "";   // PKCE ?code= return (see init)
   let ready = null;             // init() promise
   let currentUser = null;       // signed-in Supabase user (or null)
+  let rtTokenExp = 0;           // R193: when this tab's access token expires (ms; 0 = no live session) - rtLive() joins only before it
   let roleCache = null;         // this user's RBAC role
   let accessCache = null;       // { role, map:{area:{view,edit}} | null } — the live access matrix for this user
   let photoProbe = null;        // in-flight / cached render-photo deploy probe (0095)
@@ -1267,7 +1268,9 @@ window.HelmUrl = HelmUrl;
      while signed out, or polling right after sign-out / expiry - are always refused by the database (42501) and
      filled the Postgres error log. Answer them here with the same 401 / 42501 the server would give, without a
      network call. Public pages (approval, invitation, site) use other RPCs and are untouched. */
-  const SIGNED_IN_ONLY = /\/rest\/v1\/(leads|quotes|chat_[a-z_]+)(\?|$)/;
+  // R193 (prod log 17 Nov 2026): + audit_log (home "Recent activity") and the signed-in RPCs a page polls or opens with
+  // (live_events_today = home "Live today" card; the share-booklet reads) - a sleeping laptop's tab sent them with the anon key
+  const SIGNED_IN_ONLY = /\/rest\/v1\/(leads|quotes|audit_log|chat_[a-z_]+|rpc\/(?:live_events_today|booklet_current|booklet_image_info|booklet_staff_image|booklet_layout_auto_on))(\?|$)/;
   function anonDenied(input, init) {
     try {
       const u = typeof input === "string" ? input : (input && input.url) || "";
@@ -1885,6 +1888,7 @@ window.HelmUrl = HelmUrl;
                 global: { fetch: authAwareFetch } });
             const gs = await supa.auth.getSession();
             const session = gs && gs.data ? gs.data.session : null;
+            rtTokenExp = session && session.access_token ? (Number(session.expires_at) || 0) * 1000 : 0;
             // a stored session whose refresh hit a NETWORK error is unknown, not signed out
             try { sessionUnverified = !session && !!(gs && gs.error) && !definiteAuthRefusal(gs.error) && hasStoredSession(); } catch (e) { sessionUnverified = false; }
             currentUser = session ? session.user : null;
@@ -1917,6 +1921,7 @@ window.HelmUrl = HelmUrl;
                 }
                 // first sign-in in this browser (e.g. returning from Google): start the session clock
                 if (event === "SIGNED_IN" && sess && sess.user) { const st = sessionStart(); if (!st || st.uid !== sess.user.id) stampSessionStart(sess.user.id, true); }
+                rtTokenExp = sess && sess.access_token ? (Number(sess.expires_at) || 0) * 1000 : 0;   // R193
                 if (sess && sess.user) { hadSession = true; if (!explicitSignOut) currentUser = sess.user; }
                 if ((event === "SIGNED_OUT" && !explicitSignOut) || (event === "TOKEN_REFRESHED" && !sess)) {
                   // Don't log the user out on a transient blip. supabase-js can emit a
@@ -3345,9 +3350,18 @@ window.HelmUrl = HelmUrl;
      (with a catch-up callback) when the tab is visible. make(cb) builds and subscribes the channel; onBack() runs after a
      re-open so the page reloads what it missed. Returns { unsubscribe() } like a channel. */
   const RT_IDLE_MS = 60000;
+  /* R193 (prod log 16 Nov 2026: "invalid column for filter quote_id"): a channel that joins while this tab has no live
+     access token (the laptop just woke up and the refresh has not landed, or the session ended) joins as the ANON role,
+     which may not read quote_versions / quotation_versions, and Realtime refuses the filter with that error. rtLive()
+     now joins only while the token is good for 10 more seconds, else tries again every RT_RETRY_MS (up to 40 times)
+     and on the next "tab visible". */
+  const RT_RETRY_MS = 15000;
+  function rtSessionOk() { return !!currentUser && rtTokenExp > Date.now() + 10000; }
   function rtLive(make, onBack) {
-    let ch = null, stopped = false, idleT = null;
-    const open = () => { if (stopped || ch) return; try { ch = make(); } catch (e) { ch = null; } };
+    let ch = null, stopped = false, idleT = null, retryT = null, tries = 0;
+    const open = () => { if (stopped || ch) return; clearTimeout(retryT); retryT = null;
+      if (!rtSessionOk()) { if (++tries <= 40) retryT = setTimeout(() => { retryT = null; if (!(typeof document !== "undefined" && document.hidden)) { open(); try { if (ch) onBack && onBack(); } catch (e) {} } }, RT_RETRY_MS); return; }
+      tries = 0; try { ch = make(); } catch (e) { ch = null; } };
     const close = () => { if (!ch) return; try { if (supa && typeof supa.removeChannel === "function") supa.removeChannel(ch); else if (ch.unsubscribe) ch.unsubscribe(); } catch (e) {} ch = null; };
     const onVis = () => {
       if (typeof document === "undefined") return;
@@ -3356,7 +3370,7 @@ window.HelmUrl = HelmUrl;
     };
     open();
     try { document.addEventListener("visibilitychange", onVis); } catch (e) {}
-    return { unsubscribe() { stopped = true; clearTimeout(idleT); try { document.removeEventListener("visibilitychange", onVis); } catch (e) {} close(); } };
+    return { unsubscribe() { stopped = true; clearTimeout(idleT); clearTimeout(retryT); try { document.removeEventListener("visibilitychange", onVis); } catch (e) {} close(); } };
   }
   const MEMO_LIST_MS = 8000;
   // Any non-read method on the object forgets the shared read first, so a list() asked for after a

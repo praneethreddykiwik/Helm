@@ -61,9 +61,11 @@ begin
   e := pg_temp.try(format('select public.booklet_put_image(%L, ''3d'', ''labels'', ''image/jpeg'', %L)', qa, jpg));
   perform pg_temp.res('08 other studio cannot insert', e like '42501%' or e like 'P0002%', e);
   perform pg_temp.login('b_admin@b.test');
-  e := pg_temp.try(format('select public.booklet_staff_image(%L, ''3d'', ''labels'')', qa))
-    || pg_temp.try(format('select public.booklet_image_info(%L)', qa));
-  perform pg_temp.res('09 other studio cannot read', e like '%42501%' or e like '%P0002%', e);
+  -- r193 (0375): another studio's event answers null / {} (nothing) instead of P0002 (HTTP 500)
+  r := public.booklet_staff_image(qa::uuid, '3d', 'labels');
+  e := coalesce(r::text, 'null');
+  r := public.booklet_image_info(qa::uuid);
+  perform pg_temp.res('09 other studio cannot read', e = 'null' and r = '{}'::jsonb, e || ' / ' || coalesce(r::text, 'null'));
   perform pg_temp.login('a_staff@a.test');
   e := pg_temp.try('select count(*) from public.client_booklet_images') || pg_temp.try('insert into public.client_booklet_images(org_id, quote_id, kind, variant, mime, bytes, data) values (gen_random_uuid(), gen_random_uuid(), ''2d'', ''plain'', ''image/png'', 1, ''\x00'')');
   perform pg_temp.res('10 no direct table access for signed-in users', e like '42501%42501%', e);

@@ -145,7 +145,7 @@ await t('Notifications 10 at a time: bell grows by 10 on scroll (max 100, back t
 
 await t('Realtime: the bell opens no channel off the Chat page; every channel closes while hidden; leads only this studio', () => {
   assert.match(STORE, /kicked = true; liveRefresh\(\);\n[^\n]*\n[^\n]*\n\s+if \(pageKey\(\) !== "chat"\) return;\n\s+try \{ if \(chat && chat\.subscribe\) \{ csub = chat\.subscribe\(/);
-  assert.match(STORE, /const RT_IDLE_MS = 60000;\n  function rtLive\(make, onBack\) \{/);
+  assert.match(STORE, /const RT_IDLE_MS = 60000;\n[\s\S]{0,900}?\n  function rtLive\(make, onBack\) \{/);
   assert.equal((STORE.match(/return rtLive\(\(\) => supa\.channel\(/g) || []).length, 3, 'versions, leads, chat');
   assert.equal((STORE.match(/supa\.channel\(/g) || []).length, 4, 'no channel outside rtLive (R174b: + the presence channel)');
   assert.match(STORE, /rtLive\(\(\) => \{\n\s+const c = supa\.channel\("presence:org:"/, 'R174b presence channel goes through rtLive');
@@ -156,7 +156,7 @@ await t('rtLive behaviour: closes after the idle time while hidden, re-opens + c
   const m = /function rtLive\(make, onBack\) \{[\s\S]*?\n  \}/.exec(STORE); assert.ok(m);
   const ls = {}, doc = { hidden: false, addEventListener: (k, f) => { ls[k] = f; }, removeEventListener: (k) => { delete ls[k]; } };
   let opened = 0, removed = 0, back = 0; const timers = [];
-  const ctx = { document: doc, RT_IDLE_MS: 60000, supa: { removeChannel: () => { removed++; } },
+  const ctx = { document: doc, RT_IDLE_MS: 60000, RT_RETRY_MS: 15000, rtSessionOk: () => true, supa: { removeChannel: () => { removed++; } },
     setTimeout: (f) => { timers.push(f); return timers.length; }, clearTimeout: () => {} };
   const rtLive = vm.runInNewContext('(' + m[0].replace('function rtLive', 'function') + ')', ctx);
   const h = rtLive(() => { opened++; return {}; }, () => { back++; });
@@ -164,6 +164,23 @@ await t('rtLive behaviour: closes after the idle time while hidden, re-opens + c
   doc.hidden = true; ls.visibilitychange(); timers.pop()(); assert.equal(removed, 1, 'closed while hidden');
   doc.hidden = false; ls.visibilitychange(); assert.equal(opened, 2); assert.equal(back, 1, 'catch-up');
   h.unsubscribe(); assert.equal(removed, 2); assert.equal(ls.visibilitychange, undefined);
+});
+
+await t('R193 rtLive: no live access token -> no channel (it would join as anon: "invalid column for filter quote_id"); joins once the token is back', async () => {
+  const m = /function rtLive\(make, onBack\) \{[\s\S]*?\n  \}/.exec(STORE); assert.ok(m);
+  assert.match(STORE, /function rtSessionOk\(\) \{ return !!currentUser && rtTokenExp > Date\.now\(\) \+ 10000; \}/);
+  assert.match(STORE, /rtTokenExp = session && session\.access_token \? \(Number\(session\.expires_at\) \|\| 0\) \* 1000 : 0;/);
+  assert.match(STORE, /rtTokenExp = sess && sess\.access_token \? \(Number\(sess\.expires_at\) \|\| 0\) \* 1000 : 0;   \/\/ R193/);
+  const ls = {}, doc = { hidden: false, addEventListener: (k, f) => { ls[k] = f; }, removeEventListener: (k) => { delete ls[k]; } };
+  let opened = 0, back = 0, ok = false; const timers = [];
+  const ctx = { document: doc, RT_IDLE_MS: 60000, RT_RETRY_MS: 15000, rtSessionOk: () => ok, supa: { removeChannel: () => {} },
+    setTimeout: (f) => { timers.push(f); return timers.length; }, clearTimeout: () => {} };
+  const rtLive = vm.runInNewContext('(' + m[0].replace('function rtLive', 'function') + ')', ctx);
+  const h = rtLive(() => { opened++; return {}; }, () => { back++; });
+  assert.equal(opened, 0, 'no channel without a live token'); assert.equal(timers.length, 1, 'a retry is scheduled');
+  timers.shift()(); assert.equal(opened, 0); assert.equal(timers.length, 1, 'still waiting');
+  ok = true; timers.shift()(); assert.equal(opened, 1, 'joins once the token is back'); assert.equal(back, 1, 'and catches up');
+  h.unsubscribe();
 });
 
 await t('Per-page prefs: my_notification_prefs + mutes answered once per tab session (swr)', () => {
@@ -187,8 +204,8 @@ await t('0358: catalog built once per request, _r23_tz without the time zone fil
 });
 
 await t('cache-bust: store-api v350 on every page', () => {
-  assert.match(EV, /store-api\.js\?v=365/);
-  assert.match(read('public/dashboard.html'), /store-api\.js\?v=365/);
+  assert.match(EV, /store-api\.js\?v=366/);
+  assert.match(read('public/dashboard.html'), /store-api\.js\?v=366/);
 });
 
 console.log(`\nr163-perf: ${pass} passed, ${fail} failed`);
