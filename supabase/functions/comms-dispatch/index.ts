@@ -28,6 +28,8 @@
 //                   minute merged), the "Send by email" buttons, and every task reminder / late reminder / office alert that
 //                   the 0338 timer queues for WhatsApp; staff-email.mjs; claimed via staff_email_claim (re-checked there:
 //                   task still open, same person, studio not on a trial, event live); e-mail only
+//   * day-off e-mails (R187, 0370) a staff member asked for a day off (to the owner / admins / managers / Staff editors) and
+//                   the office's answer (to the staff member); cantwork-email.mjs; claimed via cantwork_email_claim
 //   * staff updates (R172, 0363) "your tasks changed" notices: office edits to a person's task (time, name, instructions,
 //                   area, status, cancelled, given to someone else) or to the event (date, time, venue, cancelled) collect
 //                   into one notice per person per event (5 quiet minutes, max 15); staff-email.mjs staffUpdateMessage;
@@ -107,7 +109,8 @@ import { deliveryMessage } from "./delivery-reminder.mjs";   // 0241: delivery /
 import { vendorRequestMessage, VENDOR_TX_REASON } from "./vendor-request.mjs";   // 0256: vendor requests + reminders
 import { helmNoticeEmail, NOTICE_TX_REASON } from "./helm-notices.mjs";   // 0244: sales requests + "ask my admin"
 import { runsheetReminderMessage, enquiryReplyMessage, RUNSHEET_TX_REASON, ENQUIRY_TX_REASON } from "./r24-automation.mjs";   // 0269: run-sheet reminders + enquiry replies
-import { staffEmailMessage, staffUpdateMessage, staffEmailHtml, staffUpdateHtml, STAFF_TX_REASON, OFFICE_TX_REASON } from "./staff-email.mjs";   // R170 (0361): tasks + task reminders e-mailed to staff
+import { staffEmailMessage, staffUpdateMessage, staffEmailHtml, staffUpdateHtml, STAFF_TX_REASON, OFFICE_TX_REASON, ESCALATION_TX_REASON } from "./staff-email.mjs";   // R170 (0361): tasks + task reminders e-mailed to staff
+import { cantworkMessage, cantworkHtml, CANTWORK_OFFICE_REASON, CANTWORK_STAFF_REASON } from "./cantwork-email.mjs";   // R187 (0370): day-off requests + decisions
 import { replyToOf } from "../integrations-test/logic.mjs";
 import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks } from "../_shared/email-compliance.mjs";
 import { brandMode, mailConfig, sendMail, type SmtpSend } from "../_shared/mailer.ts";
@@ -529,7 +532,9 @@ Deno.serve(async (req) => {
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const msg = staffEmailMessage(r, origin);
       const ident: Identity = await withReply("staff", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
-      const extra: Extra = { footer: txFooter(String(r?.kind ?? "") === "office_alert" ? OFFICE_TX_REASON : STAFF_TX_REASON, { app: origin, address: postalAddress(env) }) };
+      // R186 (0369): escalation e-mails (task_escalation) carry their own reason line
+      const sk = String(r?.kind ?? "");
+      const extra: Extra = { footer: txFooter(sk === "office_alert" ? OFFICE_TX_REASON : sk === "task_escalation" ? ESCALATION_TX_REASON : STAFF_TX_REASON, { app: origin, address: postalAddress(env) }) };
       // R185: the designed HTML part (its own compliance footer, so the mailer adds the text footer only)
       const shtml = msg.text ? staffEmailHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;
       const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, shtml) : "skipped";
@@ -553,6 +558,23 @@ Deno.serve(async (req) => {
       const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, uhtml) : "skipped";
       const { error: mErr } = await admin.rpc("staff_update_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
       if (mErr) { log.error("staff update mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
+      counts[res]++;
+    }
+    // R187 (0370): day-off requests to the office + the decision to the staff member (cantwork_email_claim re-checks each
+    // row: still waiting / still decided, same person, studio not on a trial). A database without 0370 has nothing to claim.
+    const { data: cwrows, error: cwErr } = mailOn && !overBudget() ? await admin.rpc("cantwork_email_claim", { p_limit: batch }) : NOCLAIM;
+    if (cwErr && !/PGRST202|42883/.test(String(cwErr.code || ""))) log.error("day-off e-mail claim skipped", errTag(cwErr));
+    for (const r of (Array.isArray(cwrows) ? cwrows : [])) {
+      if (overBudget()) break;
+      const id = String(r?.id ?? ""), to = String(r?.to ?? "");
+      if (!UUIDISH.test(id)) { counts.invalid++; continue; }
+      const msg = cantworkMessage(r, origin);
+      const ident: Identity = await withReply("cantwork", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
+      const extra: Extra = { footer: txFooter(String(r?.kind ?? "") === "request" ? CANTWORK_OFFICE_REASON : CANTWORK_STAFF_REASON, { app: origin, address: postalAddress(env) }) };
+      const chtml = msg.text ? cantworkHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;
+      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, chtml) : "skipped";
+      const { error: mErr } = await admin.rpc("cantwork_email_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      if (mErr) { log.error("day-off e-mail mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // 0269: instant replies to the public enquiry form (a database without 0269 has nothing to claim)

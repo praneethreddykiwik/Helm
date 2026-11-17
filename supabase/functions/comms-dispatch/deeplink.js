@@ -33,6 +33,7 @@ export function notifLink(n) {
     if (k.indexOf("chat_") === 0) return "chat.html";
     if (k === "studio_identity_changed") return "control.html#general";   // r23 (0257): Helm changed the studio name / link
     if (k === "team_safety") return "control.html#users";   // r33 (0283): admin / owner changes -> Settings -> Team
+    if (k === "crew_cantwork_request") return "staff.html#cantwork-requests";   // R187 (0370): day-off requests -> Staff page list
     // r35 (0285): payment details / sensitive settings (admins only - the server decides)
     if (k === "studio_security") {
       const ev = String(d.event || "");
@@ -54,6 +55,7 @@ export function notifLink(n) {
     if (k === "client_link_viewed" || k === "client_view_followup") return "event.html?id=" + enc(q) + "#link-views";
     // r23 (0262): valid-until reminders / "request a new quote" open the event workspace at the validity line
     if (k === "quote_expiring" || k === "quote_expired" || k === "quote_renew_request") return "event.html?id=" + enc(q) + "#quote-validity";
+    if (k === "task_escalated") return "monitor.html?quote=" + enc(q);   // R186 (0369): the Event day monitor (Late panel)
     if (k.indexOf("task_") === 0) return "ops.html?quote=" + enc(q) + (has(d.task_id) ? "&task=" + enc(d.task_id) : "");
     if (/^(payment_link|payment_reminder|payment_receipt|payment|payment_received|advance_paid|payment_reconcile|pkg_payment)$/.test(k))
       return "settlement.html?quote=" + enc(q) + "#payments";

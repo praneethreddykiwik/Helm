@@ -52,3 +52,10 @@ html[data-theme="dark"] .wachip[data-state="off"]{background:rgba(192,57,43,.15)
 .lsheet .trm-at-row .trm-at-lbl{margin:10px 0 0;font-size:12px;text-transform:none;letter-spacing:0;font-weight:600;color:var(--ink-2)}
 .trm-at-add{align-self:flex-start}
 @media (max-width:480px){.trm-at-row{grid-template-columns:minmax(0,1fr)}.lsheet .trm-at-row .trm-at-lbl{margin:0}.trm-at-row .trm-at-rm{justify-self:end}}
+/* R186 (0369): special tasks not started - the escalation steps (Settings) */
+.trm-esc{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.trm-esc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px 14px;margin:8px 0}
+.trm-esc-step{display:grid;grid-template-columns:auto;gap:4px;font-size:13px;min-width:0}
+.trm-esc-step label{font-weight:600;font-size:12.5px}
+.trm-esc-step input{width:90px;min-height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;box-sizing:border-box}
+.trm-esc-step .muted{font-size:12px}

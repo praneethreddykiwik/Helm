@@ -122,6 +122,7 @@
       { sel: "#deptFilter", title: "Filter", desc: "Show one department or one skill, or include people who no longer work with you." },
       { sel: "#importBtn", trial: false, title: "Import", desc: "Bring your whole team in from an Excel or CSV file." },
       { sel: "#newBtn", title: "Add your team", desc: "Add an in-house team member with their name, phone and department (stage, lighting, catering…)." },
+      { sel: "#cantwork-requests", title: "Day-off requests", desc: "Staff ask for days off from their link (at least 7 days ahead - closer days they call you). Approve or turn down with a note; they are told and tap OK, got it. Waiting and approved days warn you when you assign work." },
       { sel: "#grid", title: "Your people", desc: "Everyone on the team, by department. You assign them to event tasks from an event's Logistics page." },
       { sel: '[data-act="tlink"]', title: "Permanent task link", desc: "Task link copies one link per person that always shows their current tasks on every event - it is also in every task e-mail. New task link stops the old one at once." },
     ],
@@ -243,6 +244,7 @@
           { sel: "#nf_table", title: "Who hears about what", desc: "For each kind of alert, pick which roles get it in the bell and by text or e-mail." },
           { sel: "#nf_reset", title: "Back to defaults", desc: "Puts every notification back to how Helm set it up." },
           { sel: "#np_user", title: "Per-person overrides", desc: "Pick one person to mute or add alerts just for them." },
+          { sel: "#trmCard", title: "Task reminders and escalation", desc: "Reminders for the person on each task. For special tasks not started, set when the coordinator, the manager and the admin / owner are told (0, 5 and 10 minutes after the start by default). It stops once the task is started." },
         ],
         reminders: [
           { sel: "#evrCard", title: "Event reminders", desc: "Reminders to the team before each event." },
@@ -387,6 +389,7 @@
       { sel: "#monSummary", title: "How far along", desc: "The bar is the share of tasks done. Tap a count (Late, Waiting for a yes...) to see just those tasks." },
       { sel: "#monTabs", title: "Six ways to look", desc: "By staff: each person and their tasks. By work: each section. By status: waiting to done. Leftover: not done yet. Check-in: who is on site, who checked out, who is late. Activity: every update, newest first." },
       { sel: ".mon-tools", title: "Filter and sort", desc: "Search, or show one person, one section or one status. Sort by start time, name or status." },
+      { sel: "#monAlerts", title: "Late tasks", desc: "Every task whose start time has passed and is not started. A special task shows how far it has been escalated, for example Escalated to manager 3:10 PM." },
       { sel: "#monFeed", title: "What just happened", desc: "Every update as it comes in: work given out or moved, replies, starts, finishes, new times, check-ins and e-mails sent. See all opens the Activity tab. Updates on its own every 30 seconds." },
       { sel: "#monOpenOps", title: "Change something", desc: "This page only watches. To reassign, schedule or cancel, open Tasks & staff (or a task's Open button). Nudge e-mails the task to the person again." },
     ],

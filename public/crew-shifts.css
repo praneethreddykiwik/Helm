@@ -101,3 +101,23 @@
 .cs-offrow-a .cs-btn:hover{border-color:#9fd3bd}
 .cs-offrow-a .cs-btn.ghost{background:transparent}
 .cs-offrow-a .cs-btn:disabled{opacity:.6;cursor:wait}
+/* R187 (0370): a day off is a request - waiting (amber, dashed) / approved (red) / too close to ask (dimmed); the office list */
+.cs-key.ask{background:#fff6e0;border-color:#e3b341;border-style:dashed}
+.cs-day.ask{background:#fff6e0;border-color:#e3b341;border-style:dashed;color:#7a5200}
+.cs-day.lock{opacity:.55}
+.cs-cell.ask{background:#fff6e0;border-color:#e3b341;border-style:dashed;color:#7a5200;font-weight:700}
+.cs-buffer{font-size:13px;color:var(--ink-2,#4a4553)}
+.cs-ap{align-self:flex-start;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px}
+.cs-ap.wait{background:#fff6e0;color:#7a5200}.cs-ap.yes{background:#e3f4ed;color:#036b4d}.cs-ap.no{background:#fdecec;color:#b42318}
+.cs-decisions{display:flex;flex-direction:column;gap:8px;margin:0 0 10px}
+.cs-decision.yes{border-color:#9fd3bd}.cs-decision.no{border-color:#e9a3a3}
+.cs-dnote{overflow-wrap:anywhere}
+.cs-req-badge{display:inline-block;min-width:20px;padding:1px 7px;margin-left:6px;border-radius:99px;background:#b42318;color:#fff;font-size:12px;font-weight:700;line-height:18px;text-align:center;vertical-align:middle}
+.cs-reqlist{display:flex;flex-direction:column;gap:8px;margin:8px 0 0}
+.cs-req{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--line,#e8e3db);border-radius:12px;background:var(--panel,#fff)}
+.cs-req.wait{border-color:#e3b341;background:#fffbf0}
+.cs-req-d{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 200px}
+.cs-req-d b{font-size:14px}.cs-req-d span,.cs-req-d small{font-size:13px;color:var(--ink-2,#4a4553);overflow-wrap:anywhere}
+.cs-req-a{display:flex;gap:6px;flex-wrap:wrap}
+.cs-req-a .btn{min-height:40px}
+.cs-past summary{cursor:pointer;font-size:13px;font-weight:600;margin-top:10px}
