@@ -345,9 +345,18 @@
   }
 
   /* ---- the standalone card on flow.html ---- */
+  // R193 (prod log 16-17 Nov 2026: booklet_layout_auto_on / booklet_current / booklet_image_info -> HTTP 500 "event not
+  // found" in bursts of three): this card read the quote id from the URL and asked the server about it at once, even when
+  // the page had found no such quote (deleted draft, another studio's link). flow.html publishes its own check as
+  // window.HelmPageQuote (the opened quote id, or null); the card waits for it and stays hidden otherwise.
+  function pageQuoteOk(id) {
+    const p = global.HelmPageQuote; if (!p || typeof p.then !== "function") return Promise.resolve(true);
+    return p.then((q) => !!q && String(q).toLowerCase() === String(id).toLowerCase(), () => false);
+  }
   async function renderCard(card) {
     const quoteId = quoteIdFor(card); const body = clear(card.querySelector(".sc-body"));
     if (!quoteId) { body.appendChild(el("p", "sc-meta", "Save the client first to share a booklet.")); return; }
+    if (!(await pageQuoteOk(quoteId))) { card.hidden = true; return; }
     const st = global.BPStore;
     // r19 L11 (0220): a live link made on an empty layout gets the floor plan + 3D view back once the layout has objects
     try { if (st.booklet && typeof st.booklet.layoutAutoOn === "function") await st.booklet.layoutAutoOn(quoteId); } catch (e) {}
@@ -408,7 +417,7 @@
     cards.forEach((c) => { if (!can) { c.hidden = true; return; } if (c.dataset.scWired) return; c.dataset.scWired = "1"; c.hidden = false; renderCard(c).catch(() => {}); });
   }
 
-  global.HelmShareChecklist = { mount, wire, normalize, menuRule, preview, fitSize, sharePayload, freshEnough, missingImages, normInfo, imageStatus, variantFlags, builderUrl, captureUrl, acceptCaptureMessage, needsCapture, autoCapture, trialSections, TRIAL_PICS_MSG, CAPTURE_TIMEOUT_MS, STYLES, SECTIONS };
+  global.HelmShareChecklist = { mount, wire, pageQuoteOk, normalize, menuRule, preview, fitSize, sharePayload, freshEnough, missingImages, normInfo, imageStatus, variantFlags, builderUrl, captureUrl, acceptCaptureMessage, needsCapture, autoCapture, trialSections, TRIAL_PICS_MSG, CAPTURE_TIMEOUT_MS, STYLES, SECTIONS };
   if (doc && doc.querySelector("[data-share-checklist]")) {
     if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", wire); else wire();
   }

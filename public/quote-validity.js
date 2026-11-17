@@ -181,9 +181,17 @@
     if (!id) { try { var p = new URLSearchParams(global.location.search); id = p.get("id") || p.get("quote") || ""; } catch (e) { id = ""; } }
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : "";
   }
+  // R193 (prod log 16-17 Nov 2026): flow.html / event.html publish their own quote check as window.HelmPageQuote (the
+  // opened quote id, or null when not found / another studio's) - a line read by the URL id waits for it, so a stale link
+  // no longer sends "not authorized for this quote" calls. Pages without it: unchanged.
+  function pageQuoteOk(id) {
+    var p = global.HelmPageQuote; if (!p || typeof p.then !== "function") return Promise.resolve(true);
+    return p.then(function (q) { return !!q && String(q).toLowerCase() === String(id).toLowerCase(); }, function () { return false; });
+  }
   async function mountStaff(el, quoteId) {
     var S = store(); if (!el || !S) return null;
     var id = quoteId || quoteIdFrom(el); if (!id) { el.hidden = true; return null; }
+    if (!quoteId && !(await pageQuoteOk(id))) { el.hidden = true; return null; }   // R193: the page did not find this quote
     el.setAttribute("data-quote-id", id);
     var d = null; try { d = await S.get(id); } catch (e) { d = null; }
     paintStaff(el, id, d);
@@ -378,7 +386,7 @@
 
   var API = { refreshStaff: refreshStaff, fmtDMY: fmtDMY, relText: relText, pill: pill, clientView: clientView, parseReminderDays: parseReminderDays,
               validateDays: validateDays, addDaysISO: addDaysISO, parseDMY: parseDMY, undoOffer: undoOffer, linkWarn: linkWarn, UNDO_MS: UNDO_MS, mountClient: mountClient, refreshClient: refreshClient,
-              mountStaff: mountStaff, mountSettings: mountSettings, DEFAULT_DAYS: DEFAULT_DAYS };
+              mountStaff: mountStaff, mountSettings: mountSettings, pageQuoteOk: pageQuoteOk, DEFAULT_DAYS: DEFAULT_DAYS };
   global.HelmQuoteValidity = API;
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   if (typeof document === "undefined") return;

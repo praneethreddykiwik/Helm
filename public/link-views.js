@@ -173,12 +173,20 @@
     schedule();
   }
 
+  /* R193 (prod log 16-17 Nov 2026): flow.html / event.html publish their own quote check as window.HelmPageQuote (a promise
+     of the opened quote id, or null when it was not found / is another studio's). A widget that reads by the URL id waits
+     for it, so a stale link no longer sends "not authorized for this event" calls. Pages without it: unchanged. */
+  function pageQuoteOk(id) {
+    var p = global.HelmPageQuote; if (!p || typeof p.then !== "function") return Promise.resolve(true);
+    return p.then(function (q) { return !!q && String(q).toLowerCase() === String(id).toLowerCase(); }, function () { return false; });
+  }
   /* chip / panel on the event workspace + quote flow step 9 */
   function mount(el) {
     if (!el || el.__lv) return; el.__lv = true;
     var id = quoteIdFrom(el); if (!id) return;
     var panel = el.getAttribute("data-link-views") === "panel";
     async function paint(fresh) {
+      if (!(await pageQuoteOk(id))) { el.hidden = true; return; }   // R193: the page did not find this quote - ask nothing about it
       if (!(await canUse())) { el.hidden = true; return; }
       var m = await summaries([id], fresh); if (!m) { el.hidden = true; return; }
       var s = m[id];
@@ -377,7 +385,7 @@
     Array.prototype.forEach.call(doc.querySelectorAll("[data-link-views-settings]"), function (c) { settingsCard(c).catch(function () {}); });
   }
   global.HelmLinkViews = { ago: ago, days: days, state: state, chipText: chipText, chipTitle: chipTitle, deviceText: deviceText, pageLabel: pageLabel,
-    pagesText: pagesText, quoteIdFrom: quoteIdFrom, nudgeResultText: nudgeResultText, open: open, mount: mount, decorateRows: decorateRows,
+    pagesText: pagesText, quoteIdFrom: quoteIdFrom, pageQuoteOk: pageQuoteOk, nudgeResultText: nudgeResultText, open: open, mount: mount, decorateRows: decorateRows,
     settingsCard: settingsCard, summaries: summaries, wire: wire };
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", wire); else wire();
 })(typeof window !== "undefined" ? window : globalThis);

@@ -234,8 +234,9 @@ begin
   e := pg_temp.try(format('select public.booklet_layout_auto_on(%L)', q5));
   perform pg_temp.res('38 booklet_layout_auto_on: quotes-view-only member refused (42501)', e like '42501%', e);
   perform pg_temp.login('b_admin@b.test');
-  e := pg_temp.try(format('select public.booklet_layout_auto_on(%L)', q5));
-  perform pg_temp.res('39 booklet_layout_auto_on: other studio refused (P0002)', e like 'P0002%', e);
+  -- r193 (0375): another studio's event -> {ok:false, changed:false} (nothing touched) instead of P0002 (HTTP 500)
+  r := public.booklet_layout_auto_on(q5);
+  perform pg_temp.res('39 booklet_layout_auto_on: other studio gets nothing (ok false)', not (r ->> 'ok')::boolean and not (r ->> 'changed')::boolean, coalesce(r::text, 'null'));
   perform pg_temp.login('a_staff@a.test');
   select token into tok from public.client_booklets where quote_id = q5 and revoked_at is null;
   r := public.booklet_layout_auto_on(q5);
