@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (323 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (324 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4108 objects): body 168, bucket 9, col 228, con 403, cron 19, exec 4, fn 1852, idx 478, marker 19, pol 184, polexpr 4, pre 101, pub 5, seq 1, tbl 268, trg 363, view 2.
+-- What is checked (4115 objects): body 168, bucket 9, col 228, con 403, cron 19, exec 4, fn 1852, idx 478, marker 26, pol 184, polexpr 4, pre 101, pub 5, seq 1, tbl 268, trg 363, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -3049,7 +3049,6 @@ with o(m, k, s, n, x) as (values
   ('0274_automations_optin', 'body', 'public', '_comms_cfg', 'uuid|209b382657991bd43443c8f458083bd5'),
   ('0274_automations_optin', 'body', 'public', '_lv261_cfg', 'uuid|33a859b5f9ee9bd2336a4d377d9ee309'),
   ('0274_automations_optin', 'body', 'public', '_qv262_cfg', 'uuid|ad3503dfeff0875a70eaa4295e1a5e8b'),
-  ('0274_automations_optin', 'body', 'public', '_r23_cfg', 'uuid|8e607bcab70096bc25f68e56dd8e71fe'),
   ('0274_automations_optin', 'body', 'public', '_r24_cfg', 'uuid|8dec63741f3485817dc3051e3e76751f'),
   ('0274_automations_optin', 'tbl', 'public.automation_optin_backup_0274', null, null),
   ('0274_automations_optin', 'idx', 'public.automation_optin_backup_0274_studio', null, null),
@@ -4132,7 +4131,15 @@ with o(m, k, s, n, x) as (values
   ('0368_r184_event_activity', 'trg', 'public.event_tasks', 'zzz_r368_task_log', null),
   ('0368_r184_event_activity', 'fn', 'public', '_r368_checkin_log', ''),
   ('0368_r184_event_activity', 'trg', 'public.crew_checkins', 'zzz_r368_checkin_log', null),
-  ('0368_r184_event_activity', 'fn', 'public', 'event_day_activity', 'uuid,integer')
+  ('0368_r184_event_activity', 'fn', 'public', 'event_day_activity', 'uuid,integer'),
+  ('0371_r188_r23_cfg_split', 'body', 'public', '_r23_cfg', 'uuid|8e607bcab70096bc25f68e56dd8e71fe'),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'get_crew_settings', '|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'crew_set_availability', 'uuid,date,text,text|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'crew_link_home__pre0299', 'uuid|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'admin_get_inbox_settings', '|public._r25_inbox_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r23_mode', 'uuid,uuid|public._r25_inbox_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r23_queue_digests', '|public._r25_inbox_cfg(')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4457,7 +4464,8 @@ mig(ord, m, ov, note) as (values
   (320, '0365_r174_event_day_board', null, null),
   (321, '0366_r174b_presence', null, 'The two realtime.messages policies (own studio private presence channel) are created only where the Supabase realtime schema exists; local and CI databases have none. On prod check them with: select policyname from pg_policies where schemaname = realtime and policyname like helm_presence_%'),
   (322, '0367_r179_special_reminders_staff_link_event', null, 'special-task reminders + the permanent staff link opens each event inside it: task_reminder_tick and staff_link_view wrapped once (old bodies kept as __pre0367), checked by the r179-0367 marker'),
-  (323, '0368_r184_event_activity', null, null)
+  (323, '0368_r184_event_activity', null, null),
+  (324, '0371_r188_r23_cfg_split', null, 'only the settings reader inside 15 existing functions is renamed in place (0265 crew callers -> _r25_crew_cfg, 0266 inbox callers -> _r25_inbox_cfg), checked by the new reader name in their bodies')
 ),
 env as (
   select

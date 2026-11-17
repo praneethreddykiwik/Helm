@@ -49,6 +49,8 @@ run "audit-p2-0156"      "AUDIT-P2-0156: ALL PASS \(77/77\)" psql -q -f tests/db
 # before anything that re-applies older migrations (0011/0012/0015/0025/0026) over the 0071/0072 bodies
 # 0260 early (later suites commit grant changes it probes); it re-applies itself twice (re-run safe), rolled back
 run "r23-cancel-links-0260" "R23-CANCEL-LINKS-0260: ALL PASS \(40/40\)" psql -q -f tests/db/r23-cancel-links-0260.sql
+# r188 (0371): crew settings + inbox settings each read by their own function - the prod bug reproduced (callers on _r23_cfg with the 0266 body live: day off saved, staff link lists none, crew switches null), then fixed (0371 twice): days off listed, availability / self check-in switches respected, saved crew settings come back, inbox settings save + read, an old 0265 / 0266 body put back breaks neither, owner / grants / definer / search_path kept; rolled back. Early: later suites commit grant changes (anon loses the crew link RPCs) that 16b probes
+run "r188-r23-cfg-split-0371" "R188-R23-CFG-0371: ALL PASS \(19/19\)" psql -q -f tests/db/r188-r23-cfg-split-0371.sql
 run "pending-fixes"      "PENDING-FIXES: ALL PASS \(30/30\)" psql -q -f tests/db/pending-fixes.sql
 run "inv-fixes"          "INV-FIXES: ALL PASS \(24/24\)" psql -q -f tests/db/inv-fixes.sql
 run "checkout-shortage-0105" "CHECKOUT-SHORTAGE-0105: ALL PASS \(24/24\)" psql -q -f tests/db/checkout-shortage-0105.sql
