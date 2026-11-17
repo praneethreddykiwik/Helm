@@ -324,6 +324,7 @@
       { sel: "#l_issues", title: "Something went wrong?", desc: "Log an issue or incident so it is followed up after the event." },
     ],
     "closure.html": [
+      { sel: "#moneyHeader", need: "finance", title: "Money at a glance", desc: "The final profit against your target with a traffic light. Once closed it shows the frozen figure (Frozen v1, v2...). Plan vs actual shows which categories went over." },
       { sel: ["#frozenPnl", "#plCard"], need: "finance", title: "Frozen P&L", desc: "When you close the event Helm keeps a copy of the P&L that never changes. Re-open and close again, or a late adjustment, writes a new version showing what changed." },
       { sel: ["#moneyLedger", "#plCard"], title: "Profit and loss", desc: "What the event earned and cost, and the profit left. Costs well over the plan are flagged, and costs added on the event day with no estimate are tagged Unplanned." },
       { sel: "#crewAttendance", need: "finance", title: "Confirm attendance", desc: "Who worked and for how long, suggested from the crew check-ins. One tap confirms it, so the wages in the margin are final." },
@@ -338,7 +339,7 @@
       { sel: "#steps", title: "The event lifecycle", desc: "Every stage of this event, from proposal to settlement. Click a step to jump straight to it." },
       { sel: "#advBtn", title: "Advance the stage", desc: "Move the event forward — discovery → proposal → quote → confirmed → planning, and on." },
       { sel: "#inviteBtn", title: "Invitation website", desc: "Once confirmed, build a public invitation site for the client to share with guests." },
-      { sel: "#paySchedCard", need: "finance", title: "Payments", desc: "The client's payment plan: what is paid, what is due and when." },
+      { sel: ["#moneyHeader", "#paySchedCard"], need: "finance", title: "Money at a glance", desc: "Quoted, received, costs and profit against your target with a traffic light, and what needs attention. The client's payment plan is just below." },
       { sel: "#filesPanel", title: "Files", desc: "Keep this event's papers in one place: contracts, permits, drawings." },
       { sel: "#evMenuBtn", title: "More actions", desc: "Share the booklet, re-share links, or cancel the event. Free trial: Share booklet (Preview) shows it inside your studio." },
     ],
@@ -441,7 +442,7 @@
       { sel: "#bookBtn", title: "Assign a vendor", desc: "Send a vendor a request, or note a booking you made by phone." },
     ],
     "settlement.html": [
-      { sel: "#t_rev", title: "Totals", desc: "What the client was billed, what came in, and the balance due." },
+      { sel: ["#moneyHeader", "#t_rev"], title: "Money at a glance", desc: "Quoted, received, costs and profit against your target, plus what needs attention (a bill to pay, money to collect). The totals below show the balance due." },
       { sel: "#payments", need: "finance", title: "Client payments", desc: "Every payment received against this event." },
       { sel: "#pay_amt", need: "finance", title: "Record a payment", desc: "Type the amount and record it. The balance updates straight away." },
       { sel: "#clientTds", need: "finance", title: "TDS deducted by the client", desc: "A company client kept 2% as TDS? Record it here: it counts as received, so the balance is clear and the event can close. Tick Form 16A when it comes in." },
@@ -451,7 +452,8 @@
       { sel: "#r_kind", title: "Refunds", desc: "Money returned to the client, or recovered, with a reason." },
     ],
     "budget.html": [
-      { sel: "#t_rev", title: "Budget at a glance", desc: "Revenue, estimated cost, actual cost and margin for this event." },
+      { sel: ["#moneyHeader", "#t_rev"], title: "Money at a glance", desc: "Quoted, received, costs against the plan and the profit. The light compares the margin with your target: green on target, amber just below, red well below." },
+      { sel: ["#moneyHeader", "#planMount"], need: "finance", title: "Plan vs actual", desc: "Each cost category against its plan, flagged when it goes well over. Tap a row to see the bills and lines behind it. Needs attention lists what to do next." },
       { sel: "#planMount", title: "Budget plan", desc: "The cost lines for this event, estimated and actual." },
       { sel: "#c_desc", title: "Add a cost", desc: "Add a cost line with its type, estimate and actual." },
       { sel: "#paySchedCard", need: "finance", title: "Payment schedule", desc: "The client's payment plan for this event. In the free trial, a payment the client simulated shows as Paid (test) with its TEST receipt - no real money." },

@@ -389,6 +389,12 @@
     nf(g3, "gap_pct", "Flag a cost category more than this % over the plan", { min: "0", max: "1000", step: "1", inputmode: "decimal" });
     nf(g3, "gap_abs", "… or more than this amount over the plan", { min: "0", step: "500", inputmode: "decimal" });
     chk(g3, "unplanned_tag", "Tag costs added on or after the event day with no estimate as \"Unplanned\"");
+    // R197 (0376): the traffic light on the event money header; only offered when the server knows the rule (0376)
+    if (has(c.margin_band)) {
+      var tgt = has(c.target_margin_pct) ? c.target_margin_pct : (has(c.target_default) ? c.target_default : 25);
+      nf(g3, "margin_band", "Traffic light: amber while the profit is up to this many points below the target", { min: "0", max: "50", step: "0.5", inputmode: "decimal" },
+        "Green = at or above the target margin (now " + tgt + "%" + (has(c.target_margin_pct) ? "" : ", the default") + "), amber = up to this many points below, red = more below or a loss. Change the target in the Target margin card.");
+    }
     var g4 = group("Closed and cancelled events");
     chk(g4, "freeze_closed", "Use the frozen P&L for closed events (Business, Settlement, reports)");
     var la = select([["reopen", "Re-open the event first (as today)"], ["admin", "An admin may add a late adjustment (writes a new frozen version)"]], c.late_adjust); la.disabled = !c.can_edit;

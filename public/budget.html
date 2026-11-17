@@ -69,10 +69,10 @@
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="vendor-bills.css?v=3">
-<link rel="stylesheet" href="money-ledger.css?v=2">
+<link rel="stylesheet" href="money-ledger.css?v=2"><link rel="stylesheet" href="money-header.css?v=1">
 <link rel="stylesheet" href="payment-schedule.css?v=5">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=89" id="shellProto"></script>
+<script src="/shell-proto.js?v=90" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -94,7 +94,11 @@
     <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span> · <span class="muted">Step 4 of 4 (after stock, people and vendors)</span> · <a id="flowBack" href="resources.html">3 What's missing</a></div>
     <p class="page-purpose" id="pagePurpose"><b>Plan:</b> what this event should cost and earn.</p>
 
-    <div class="tiles">
+    <!-- R197 (0376): the one-glance money header + Needs attention + Plan vs actual (money-header-ui.js); Finance view only.
+         When it shows, the older tiles below are hidden (one money picture per page); without 0376 they stay. -->
+    <div data-mh-mount data-mh-parts="header attention pva" data-mh-replaces="budgetTiles" id="moneyHeader" hidden></div>
+
+    <div class="tiles" id="budgetTiles">
       <div class="tile"><div class="l">Revenue (ex-tax)</div><div class="n" id="t_rev">—</div><div class="pct" id="t_revsub"></div></div>
       <div class="tile"><div class="l">Total cost</div><div class="n" id="t_est">—</div></div>
       <div class="tile"><div class="l">Actual cost</div><div class="n" id="t_act">—</div></div>
@@ -162,7 +166,7 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=367"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=12"></script><script src="money-ledger-ui.js?v=3"></script><script src="budget-plan.js?v=3"></script><script src="payment-schedule.js?v=6"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=368"></script><script src="money-header-ui.js?v=1"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=12"></script><script src="money-ledger-ui.js?v=3"></script><script src="budget-plan.js?v=3"></script><script src="payment-schedule.js?v=6"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));

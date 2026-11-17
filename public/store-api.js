@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=89"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=90"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -9189,6 +9189,19 @@ window.HelmUrl = HelmUrl;
     taxByMonth(from, to) { return mlkCall("business_tax_by_month", { p_from: from || null, p_to: to || null }); },
   };
 
+  /* ---------------- R197 P&L clarity phase 1 (0376): the one-glance event money header ----------------
+     ONE read call (event_money_header): Quoted / Received / Costs vs Plan / Profit + margin vs the studio target with the
+     traffic light, the categories behind the margin gap, plan vs expected / actual per category + the lines behind each,
+     up to 3 "Needs attention" items, the frozen figure for a closed + frozen event. The server does every sum; the page
+     only shows it. Finance view only (re-checked on the server). null = signed out / not this studio's event / a database
+     without 0376 (the pages keep their older cards). */
+  const moneyHeader = {
+    async get(quoteId) {
+      if (mode !== "supabase" || !quoteId) return null;
+      try { return await rpc("event_money_header", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+    },
+  };
+
   /* ---------------- notification deep links (pure — unit-tested in test/notif-deeplinks.test.mjs) ----------------
      notifLink(n) → a RELATIVE link to one of the app's own pages ("" when there is nowhere to go).
      Every id is encodeURIComponent'd; the destination page reads ?task= / ?msg= / #payments and
@@ -11328,6 +11341,7 @@ window.HelmUrl = HelmUrl;
     reservedEmailDomain, RESERVED_EMAIL_MESSAGE, preauthorisedHqEmail,
     isStaffEmail, STAFF_GOOGLE_MESSAGE, staffGoogleOnlyFor, staffGoogleSessionCheck,
     moneyLock,   // R189 (0372)
+    moneyHeader, // R197 (0376)
     taskReminders,   // R130 (0338)
     activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
     // User manual (migration 0031): lives in the PRIVATE storage bucket "helm-manual",
