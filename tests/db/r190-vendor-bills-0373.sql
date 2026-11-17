@@ -190,6 +190,17 @@ insert into public.event_closure (quote_id, closed_at, org_id) values ('a0000000
   on conflict (quote_id) do update set closed_at = now();
 select pg_temp.t('7a closed event: a normal new bill is still refused',
   pg_temp.as_val('a_admin@a.test', $q$with i as (insert into public.vendor_bills (quote_id, amount, org_id) values ('a0000000-0000-4000-8000-00000000da01', 500, 'a0000000-0000-4000-8000-000000000001') returning 1) select count(*)::text from i$q$) like '23514 This event is closed%');
+-- with the 0372 money lock installed its studio switch decides: re-open (default) refuses a late bill, admin allows it
+insert into _k values ('7x', case when to_regclass('public.money_settings') is null then 'no-0372'
+  else pg_temp.as_val('a_admin@a.test', $q$select public.vendor_bill_add_late('a0000000-0000-4000-8000-00000000da01', '{"amount": 1200}', 'Generator bill came a week later')::text$q$) end);
+do $$ begin
+  if to_regclass('public.money_settings') is not null then
+    execute $x$insert into public.money_settings (org_id, late_adjust) values ('a0000000-0000-4000-8000-000000000001', 'admin')
+             on conflict (org_id) do update set late_adjust = 'admin'$x$;
+  end if;
+end $$;
+select pg_temp.t('7x money lock (0372) switch "re-open" refuses a late bill; without 0372 nothing to check',
+  (select v from _k where k = '7x') = 'no-0372' or (select v from _k where k = '7x') like '42501 This studio re-opens a closed event%', (select v from _k where k = '7x'));
 select pg_temp.t('7b a late bill: Finance editor (not admin) refused by default; short reason refused; not-closed refused',
   pg_temp.as_val('a_staff@a.test', $q$select public.vendor_bill_add_late('a0000000-0000-4000-8000-00000000da01', '{"amount": 1200}', 'Generator bill came a week later')::text$q$) like '42501 Only a studio admin%'
   and pg_temp.as_val('a_admin@a.test', $q$select public.vendor_bill_add_late('a0000000-0000-4000-8000-00000000da01', '{"amount": 1200}', 'late')::text$q$) like '22023 Say why%'
@@ -201,6 +212,16 @@ select pg_temp.t('7c the admin adds it: bill + reason row, event stays closed',
   and exists (select 1 from public.vendor_bills b join public.vendor_bill_late l on l.bill_id = b.id
                where b.bill_no = 'G-9' and b.amount = 1200 and b.gst_amount = 183 and l.reason = 'Generator bill came a week later' and l.closed_at is not null)
   and (select closed_at from public.event_closure where quote_id = 'a0000000-0000-4000-8000-00000000da01') is not null);
+create or replace function pg_temp.snap_late() returns boolean language plpgsql as $f$
+declare v boolean;
+begin
+  if to_regclass('public.event_pnl_snapshots') is null then return true; end if;   -- no 0372 here: nothing to check
+  execute $x$select exists (select 1 from public.event_pnl_snapshots where quote_id = 'a0000000-0000-4000-8000-00000000da01' and reason = 'late_adjustment'
+               and note like 'Late vendor bill: Generator bill came a week later%')$x$ into v;
+  return v;
+end $f$;
+select pg_temp.t('7c2 with 0372: the late bill wrote the next frozen P&L version (late_adjustment)',
+  pg_temp.snap_late());
 select pg_temp.t('7d a normal insert is STILL refused after the late one (the bypass is for that one bill only)',
   pg_temp.as_val('a_admin@a.test', $q$with i as (insert into public.vendor_bills (quote_id, amount, org_id) values ('a0000000-0000-4000-8000-00000000da01', 600, 'a0000000-0000-4000-8000-000000000001') returning 1) select count(*)::text from i$q$) like '23514 This event is closed%');
 select pg_temp.t('7e studio setting "Finance editors" lets the Finance editor add a late bill',

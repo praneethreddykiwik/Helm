@@ -101,11 +101,14 @@ t('Calendar: "Live today" tab (office roles) + unavailable-day conflicts', () =>
 });
 
 t('Tasks & staff: progress card above Live status, Late chip, can\'t-work in the picker + warning, start-day clash check', () => {
-  assert.match(OPS, /<div class="card" id="live">/);
-  assert.match(OPS, /<div id="liveSummary" class="lb-ops" hidden/);
-  assert.match(OPS, /HelmLiveBoard\.mountOps\(\$\("#liveSummary"\),\(\)=>tasks\)/);
-  assert.match(OPS, /\$\{isLate\(t\)\?'<span class="st late"/);
-  assert.match(OPS, /⛔ can\\u2019t work this day/);
+  // R192: the event header carries ONE progress bar + the On-the-day Late box (ops-board.js); "late" comes from the shared
+  // task-status.js rule, the same one /monitor uses
+  const BRD = r('public/ops-board.js');
+  assert.match(BRD, /"aria-valuenow": String\(sm\.pct\), "aria-label": sm\.pct \+ "% of tasks done"/);
+  assert.match(BRD, /h\("h3", \{\}, \["Late - not started ", h\("span", \{ cls: "tc-n", text: String\(late\.length\) \}\)\]\)/);
+  assert.match(BRD, /var late = ts\.filter\(function \(t\) \{ return TS\.isLate\(t, now\); \}\)/);
+  assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>\n<script src="ops-board\.js\?v=\d+"><\/script>/);
+  assert.match(OPS, /⛔ approved day off/); assert.match(OPS, /⏳ asked off this day \(waiting for approval\)/);   // R187 (0370): pending vs approved
   assert.match(OPS, /async function loadOff\(\)/);
   assert.match(OPS, /BPStore\.calendar\.wouldClash\(\{date:\(when&&\$\("#as_when"\)\.value/);
 });

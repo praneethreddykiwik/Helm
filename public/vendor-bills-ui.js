@@ -252,7 +252,8 @@
       clear(formBox); if (want === "none") return;
       if (want === "closed") {
         var cn = el("div", "vb-note"); cn.appendChild(el("b", null, "This event is closed. "));
-        cn.appendChild(document.createTextNode(ex.late_who === "finance" ? "A bill that came late can be added by someone who can edit Finance." : "A bill that came late can be added by a studio admin, with the reason (a late adjustment)."));
+        cn.appendChild(document.createTextNode(ex.late_on === false ? "Your studio re-opens a closed event for a late cost: re-open it on the Closure page to add this bill (an admin can switch on late adjustments in the money settings)."
+          : ex.late_who === "finance" ? "A bill that came late can be added by someone who can edit Finance." : "A bill that came late can be added by a studio admin, with the reason (a late adjustment)."));
         formBox.appendChild(cn); return;
       }
       var tabs = el("div", "vb-tabs"), full = el("button", "btn vb-on", late ? "Add a late bill" : "Add a bill"), quick = el("button", "btn", "📲 Quick add from WhatsApp");

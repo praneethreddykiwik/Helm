@@ -27,9 +27,9 @@
 --   6  BILL PHOTO / PDF ADDED LATER: vendor_bill_files (insert only) - the bill row itself is never edited.
 --   7  BILL AFTER THE EVENT CLOSED = a LATE ADJUSTMENT (vendor_bill_add_late): only on a closed event, with a reason, by
 --      the admins (studio setting: admins / Finance editors). The 0152 "event is closed" check is skipped for that one bill
---      only (a vendor_bill_late row written first in the same transaction); every other rule still runs. When a P&L
---      snapshot hook exists (public.pnl_snapshot_after_late_cost(uuid, text), R189) it is called so a new version is
---      written; without it nothing else happens. Paying an already-recorded bill after close is allowed through
+--      only (a vendor_bill_late row written first in the same transaction); every other rule still runs. With the R189
+--      money lock (0372) installed its studio switch (money_settings.late_adjust = admin) must allow late adjustments, and
+--      _r372_snapshot writes the next frozen P&L version (reason late_adjustment); without 0372 nothing else happens. Paying an already-recorded bill after close is allowed through
 --      vendor_bill_pay (it does not change profit; the close checklist already says so).
 --   Access: everything needs the Finance area (view to read, edit to pay / attach / convert); settings + late bills
 --   admin by default; crew and crew links never see any of it. Own studio only everywhere.
@@ -622,7 +622,8 @@ end $$;
 
 create or replace function public._r21_cost_lines(p_quote uuid, p_org uuid)
 returns jsonb language plpgsql stable security definer set search_path = '' as $fn$
--- r190-0373: the kept ledger (_r21_cost_lines__pre0373 = the r21-money-0246 / r22-money-0252 / r23-crew-0265 body) unchanged,
+-- r190-0373: the kept ledger (_r21_cost_lines__pre0373 = the r189-money-0372 wrapper of the r21-money-0246 / r22-money-0252 /
+-- r23-crew-0265 body, which reads its crew settings through public._r25_crew_cfg( since 0371) unchanged,
 -- except the "paid" of a booking line no longer counts a converted typed advance twice (payout rows with source advance are already in it)
 declare v jsonb := public._r21_cost_lines__pre0373(p_quote, p_org);
 begin
@@ -701,10 +702,22 @@ end $$;
 revoke all on function public.tg_a152_money_create_guard() from public, anon, authenticated;
 
 -- may this person add a late bill? (studio setting late_who: admins only (default) or anyone with Finance edit)
+create or replace function public._r373_late_on(p_org uuid)
+returns boolean language plpgsql stable security definer set search_path = '' as $fn$
+-- r190-0373: with the R189 money lock (0372) installed, its studio switch money_settings.late_adjust decides whether a
+-- closed event takes late costs at all (admin = yes; reopen = re-open the event first); without 0372 = yes
+declare v jsonb;
+begin
+  if to_regprocedure('public._r372_cfg(uuid)') is null then return true; end if;
+  execute 'select public._r372_cfg($1)' into v using p_org;
+  return coalesce(v ->> 'late_adjust', 'reopen') = 'admin';
+exception when others then return false;
+end $fn$;
+
 create or replace function public._r373_can_late(p_org uuid)
 returns boolean language sql stable security definer set search_path = '' as $fn$
-  -- r190-0373
-  select auth.uid() is not null and public.has_area('finance', 'edit')
+  -- r190-0373: the late switch is on, and the person is an admin / the owner (or has Finance edit when the studio chose that)
+  select auth.uid() is not null and public.has_area('finance', 'edit') and public._r373_late_on(p_org)
      and (coalesce(public.user_role(), '') = 'admin' or auth.uid() = public._r283_owner(p_org)
           or public._r373_cfg(p_org) ->> 'late_who' = 'finance');
 $fn$;
@@ -720,13 +733,15 @@ declare v_org uuid := public.current_org_id(); v_id uuid := gen_random_uuid(); v
 begin
   if auth.uid() is null or v_org is null or not public.has_area('finance', 'edit') then
     raise exception 'not authorized' using errcode = '42501'; end if;
-  if not public._r373_can_late(v_org) then
-    raise exception 'Only a studio admin can add a bill to a closed event (Business -> Vendor bill reminders sets who may).' using errcode = '42501'; end if;
   if p is null or jsonb_typeof(p) <> 'object' then raise exception 'bad bill' using errcode = '22023'; end if;
   select c.closed_at into v_closed from public.event_closure c where c.quote_id = p_quote and c.org_id = v_org;
   if not exists (select 1 from public.quotes q where q.id = p_quote and q.org_id = v_org and q.deleted_at is null) then
     raise exception 'event not found' using errcode = 'P0002'; end if;
   if v_closed is null then raise exception 'This event is not closed - add the bill the normal way.' using errcode = '22023'; end if;
+  if not public._r373_late_on(v_org) then
+    raise exception 'This studio re-opens a closed event for a late cost. Re-open the event, or let admins add late adjustments in the money settings.' using errcode = '42501'; end if;
+  if not public._r373_can_late(v_org) then
+    raise exception 'Only a studio admin can add a bill to a closed event (Business -> Vendor bill reminders sets who may).' using errcode = '42501'; end if;
   if char_length(v_r) < 10 or char_length(v_r) > 500 then
     raise exception 'Say why this bill came after the event was closed (10 to 500 characters).' using errcode = '22023'; end if;
   v_amt := case when (p ->> 'amount') ~ '^\s*[0-9]+(\.[0-9]+)?\s*$' then round((p ->> 'amount')::numeric, 2) end;
@@ -760,14 +775,15 @@ begin
               jsonb_build_object('quote_id', p_quote, 'amount', v_amt, 'reason', v_r, 'closed_at', v_closed), v_org);
   exception when others then raise warning 'r190-0373: audit skipped (%)', sqlstate;
   end;
-  -- R189 (P&L snapshot): a new version with this reason, when that feature is installed; never blocks the bill
-  if to_regprocedure('public.pnl_snapshot_after_late_cost(uuid,text)') is not null then
+  -- R189 (0372 money lock): the next frozen P&L version (reason late_adjustment) with this reason; never blocks the bill.
+  -- Without 0372 nothing else happens.
+  if to_regprocedure('public._r372_snapshot(uuid,uuid,text,text)') is not null then
     begin
-      execute 'select to_jsonb(public.pnl_snapshot_after_late_cost($1, $2))' into v_snap using p_quote, 'Late vendor bill: ' || v_r;
-    exception when others then raise warning 'r190-0373: P&L snapshot hook skipped (%)', sqlstate; v_snap := null;
+      execute 'select to_jsonb(public._r372_snapshot($1, $2, $3, $4))' into v_snap using p_quote, v_org, 'late_adjustment', left('Late vendor bill: ' || v_r, 1000);
+    exception when others then raise warning 'r190-0373: P&L snapshot skipped (%)', sqlstate; v_snap := null;
     end;
   end if;
-  return jsonb_build_object('ok', true, 'bill', to_jsonb(v_row), 'late', true, 'snapshot', v_snap);
+  return jsonb_build_object('ok', true, 'bill', to_jsonb(v_row), 'late', true, 'snapshot_version', v_snap);
 end $fn$;
 
 -- ---- 8) reads for the pages ------------------------------------------------------------------------------------------------
@@ -813,7 +829,7 @@ begin
     into v_books
     from (select b.id, b.created_at, coalesce(b.advance, 0) as advance, public._r373_converted(b.id) as conv
             from public.event_resources b where b.quote_id = p_quote and b.org_id = v_org and b.status <> 'cancelled' and coalesce(b.advance, 0) > 0) x;
-  return jsonb_build_object('closed', v_closed, 'can_late', v_closed and public._r373_can_late(v_org),
+  return jsonb_build_object('closed', v_closed, 'can_late', v_closed and public._r373_can_late(v_org), 'late_on', public._r373_late_on(v_org),
     'late_who', c ->> 'late_who', 'today', v_today, 'cash_limit', (c ->> 'cash_limit')::numeric, 'gst_warn_days', (c ->> 'gst_warn_days')::integer,
     'bills', v_bills, 'bookings', v_books);
 end $fn$;
@@ -1014,7 +1030,7 @@ declare f text;
 begin
   foreach f in array array['public._r373_cfg(uuid)', 'public._r373_open(uuid)', 'public._r373_money(numeric,text)', 'public._r373_people(uuid)',
                            'public._r373_hour(uuid,timestamptz)', 'public._r373_slot(date,date,jsonb)', 'public._r373_converted(uuid)',
-                           'public._r373_can_late(uuid)', 'public.tg_r373_advance_lock()',
+                           'public._r373_can_late(uuid)', 'public._r373_late_on(uuid)', 'public.tg_r373_advance_lock()',
                            'public.vendor_bill_reminder_tick(timestamptz)', 'public.vendor_bill_reminder_claim(integer)',
                            'public.vendor_bill_reminder_mark(uuid,text)',
                            'public._r21_cost_lines(uuid,uuid)', 'public._r21_cost_lines__pre0373(uuid,uuid)',

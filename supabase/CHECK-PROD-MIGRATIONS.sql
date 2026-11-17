@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (325 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (327 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4186 objects): body 169, bucket 9, col 231, con 406, cron 19, exec 5, fn 1885, idx 496, marker 27, pol 184, polexpr 4, pre 103, pub 5, seq 1, tbl 275, trg 365, view 2.
+-- What is checked (4236 objects): body 169, bucket 9, col 237, con 408, cron 19, exec 5, fn 1903, idx 502, marker 40, pol 184, polexpr 4, pre 104, pub 5, seq 1, tbl 276, trg 368, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -2906,7 +2906,6 @@ with o(m, k, s, n, x) as (values
   ('0265_crew_availability_shifts_checkin', 'fn', 'public', '_r23_shift_fill_check', 'uuid'),
   ('0265_crew_availability_shifts_checkin', 'fn', 'public', 'get_crew_settings', ''),
   ('0265_crew_availability_shifts_checkin', 'fn', 'public', 'set_crew_settings', 'jsonb'),
-  ('0265_crew_availability_shifts_checkin', 'fn', 'public', 'crew_link_home', 'uuid'),
   ('0265_crew_availability_shifts_checkin', 'fn', 'public', 'crew_set_availability', 'uuid,date,text,text'),
   ('0265_crew_availability_shifts_checkin', 'fn', 'public', 'crew_claim_shift', 'uuid,uuid'),
   ('0265_crew_availability_shifts_checkin', 'fn', 'public', 'crew_withdraw_claim', 'uuid,uuid'),
@@ -2925,6 +2924,7 @@ with o(m, k, s, n, x) as (values
   ('0265_crew_availability_shifts_checkin', 'trg', 'public.event_tasks', 'zz_r23_shift_task_release', null),
   ('0265_crew_availability_shifts_checkin', 'con', 'public.assign_notify_outbox', 'assign_notify_outbox_item_kind_check', null),
   ('0265_crew_availability_shifts_checkin', 'fn', 'public', '_r23_tz', 'uuid'),
+  ('0265_crew_availability_shifts_checkin', 'fn', 'public', 'crew_link_home', 'uuid'),
   ('0266_notification_inbox', 'tbl', 'public.notification_inbox_state', null, null),
   ('0266_notification_inbox', 'idx', 'public.notification_inbox_state_org_idx', null, null),
   ('0266_notification_inbox', 'idx', 'public.notification_inbox_state_notif_idx', null, null),
@@ -3049,7 +3049,6 @@ with o(m, k, s, n, x) as (values
   ('0274_automations_optin', 'body', 'public', '_comms_cfg', 'uuid|209b382657991bd43443c8f458083bd5'),
   ('0274_automations_optin', 'body', 'public', '_lv261_cfg', 'uuid|33a859b5f9ee9bd2336a4d377d9ee309'),
   ('0274_automations_optin', 'body', 'public', '_qv262_cfg', 'uuid|ad3503dfeff0875a70eaa4295e1a5e8b'),
-  ('0274_automations_optin', 'body', 'public', '_r23_cfg', 'uuid|8e607bcab70096bc25f68e56dd8e71fe'),
   ('0274_automations_optin', 'body', 'public', '_r24_cfg', 'uuid|8dec63741f3485817dc3051e3e76751f'),
   ('0274_automations_optin', 'tbl', 'public.automation_optin_backup_0274', null, null),
   ('0274_automations_optin', 'idx', 'public.automation_optin_backup_0274_studio', null, null),
@@ -4155,6 +4154,56 @@ with o(m, k, s, n, x) as (values
   ('0369_r186_special_escalation', 'marker', 'public', 'staff_email_claim', 'integer|r186-0369'),
   ('0369_r186_special_escalation', 'marker', 'public', '_r23_visible', 'uuid,uuid|r186-0369'),
   ('0369_r186_special_escalation', 'marker', 'public', 'bell_feed', 'integer|r186-0369'),
+  ('0370_r187_cantwork_approval', 'col', 'public.crew_availability', 'approval', null),
+  ('0370_r187_cantwork_approval', 'col', 'public.crew_availability', 'requested_at', null),
+  ('0370_r187_cantwork_approval', 'col', 'public.crew_availability', 'decided_at', null),
+  ('0370_r187_cantwork_approval', 'col', 'public.crew_availability', 'decided_by', null),
+  ('0370_r187_cantwork_approval', 'col', 'public.crew_availability', 'decision_note', null),
+  ('0370_r187_cantwork_approval', 'col', 'public.crew_availability', 'ack_at', null),
+  ('0370_r187_cantwork_approval', 'con', 'public.crew_availability', 'crew_availability_approval_r370', null),
+  ('0370_r187_cantwork_approval', 'con', 'public.crew_availability', 'crew_availability_decision_note_r370', null),
+  ('0370_r187_cantwork_approval', 'idx', 'public.crew_availability_pending_r370', null, null),
+  ('0370_r187_cantwork_approval', 'tbl', 'public.cantwork_email_outbox', null, null),
+  ('0370_r187_cantwork_approval', 'idx', 'public.cantwork_email_outbox_dedupe370', null, null),
+  ('0370_r187_cantwork_approval', 'idx', 'public.cantwork_email_outbox_pending370', null, null),
+  ('0370_r187_cantwork_approval', 'idx', 'public.cantwork_email_outbox_org_idx', null, null),
+  ('0370_r187_cantwork_approval', 'idx', 'public.cantwork_email_outbox_avail_idx', null, null),
+  ('0370_r187_cantwork_approval', 'idx', 'public.cantwork_email_outbox_crew_idx', null, null),
+  ('0370_r187_cantwork_approval', 'trg', 'public.cantwork_email_outbox', 'zzz_studio_read_only', null),
+  ('0370_r187_cantwork_approval', 'trg', 'public.cantwork_email_outbox', 'zzz_sq164_system_skip', null),
+  ('0370_r187_cantwork_approval', 'trg', 'public.cantwork_email_outbox', 'zzzz_ts166_outbox_skip', null),
+  ('0370_r187_cantwork_approval', 'fn', 'public', '_r370_buffer', 'uuid'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', '_r370_too_close', 'integer'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', '_r370_can_decide', ''),
+  ('0370_r187_cantwork_approval', 'fn', 'public', '_r370_staff_of_link', 'text'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', '_r370_decisions', 'uuid,uuid,date'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', '_r370_tell_office', 'uuid'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', '_r370_tell_staff', 'uuid'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', 'crew_cantwork_ack', 'uuid,date'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', 'staff_link_cantwork', 'text'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', 'staff_link_cantwork_ack', 'text,date'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', 'crew_link_home__pre0370', 'uuid'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', 'cantwork_requests', 'text'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', 'cantwork_decide', 'uuid,text,text'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', 'cantwork_settings_get', ''),
+  ('0370_r187_cantwork_approval', 'fn', 'public', 'cantwork_settings_set', 'integer'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', 'cantwork_email_claim', 'integer'),
+  ('0370_r187_cantwork_approval', 'fn', 'public', 'cantwork_email_mark', 'uuid,text'),
+  ('0370_r187_cantwork_approval', 'pre', null, '__pre0370', null),
+  ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_link_home', 'uuid|r187-0370'),
+  ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_set_availability', 'uuid,date,text,text|r187-0370'),
+  ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_availability_set', 'uuid,date,text,text|r187-0370'),
+  ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_availability_range', 'date,date,uuid|r187-0370'),
+  ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_day_status', 'date,uuid|r187-0370'),
+  ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_unavailable_conflicts', 'date,date|r187-0370'),
+  ('0371_r188_r23_cfg_split', 'body', 'public', '_r23_cfg', 'uuid|8e607bcab70096bc25f68e56dd8e71fe'),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'get_crew_settings', '|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'crew_set_availability', 'uuid,date,text,text|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'crew_link_home__pre0299', 'uuid|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'admin_get_inbox_settings', '|public._r25_inbox_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r23_mode', 'uuid,uuid|public._r25_inbox_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r23_queue_digests', '|public._r25_inbox_cfg('),
   ('0373_r190_vendor_bills_finish', 'body', 'public', 'tg_a152_money_create_guard', '|89814d0bb104fb800e12011966b84b5f'),
   ('0373_r190_vendor_bills_finish', 'tbl', 'public.vendor_bill_settings', null, null),
   ('0373_r190_vendor_bills_finish', 'tbl', 'public.vendor_bill_files', null, null),
@@ -4196,6 +4245,7 @@ with o(m, k, s, n, x) as (values
   ('0373_r190_vendor_bills_finish', 'trg', 'public.event_resources', 'ad_r373_advance_lock', null),
   ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r21_cost_lines__pre0373', 'uuid,uuid'),
   ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_attach', 'uuid,uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r373_late_on', 'uuid'),
   ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r373_can_late', 'uuid'),
   ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_add_late', 'uuid,jsonb,text'),
   ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bills_extra', 'uuid'),
@@ -4537,7 +4587,9 @@ mig(ord, m, ov, note) as (values
   (322, '0367_r179_special_reminders_staff_link_event', null, 'special-task reminders + the permanent staff link opens each event inside it: task_reminder_tick and staff_link_view wrapped once (old bodies kept as __pre0367), checked by the r179-0367 marker'),
   (323, '0368_r184_event_activity', null, null),
   (324, '0369_r186_special_escalation', null, 'special-task escalation ladder: task_reminder_tick, staff_email_claim, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0369), checked by the r186-0369 marker (the wrappers name the r179-0367 / r24-ci-0270 / r163-0357 bodies they keep, so those markers still hold)'),
-  (325, '0373_r190_vendor_bills_finish', null, 'vendor bills finish: _r21_cost_lines, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0373), checked by the r190-0373 marker (the wrappers name the r186-0369 / r24-ci-0270 / r163-0357 bodies they keep, so those markers still hold); the hourly timer is scheduled only where pg_cron is installed - check it with select jobname from cron.job where jobname = helm-vendor-bill-reminders')
+  (325, '0370_r187_cantwork_approval', null, 'day-off requests: crew_link_home wrapped once (old body kept as __pre0370); crew_set_availability, crew_availability_set, crew_availability_range, crew_day_status and crew_unavailable_conflicts re-issued - all checked by the r187-0370 marker'),
+  (326, '0371_r188_r23_cfg_split', null, 'only the settings reader inside 15 existing functions is renamed in place (0265 crew callers -> _r25_crew_cfg, 0266 inbox callers -> _r25_inbox_cfg), checked by the new reader name in their bodies'),
+  (327, '0373_r190_vendor_bills_finish', null, 'vendor bills finish: _r21_cost_lines, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0373), checked by the r190-0373 marker (the wrappers name the r186-0369 / r24-ci-0270 / r163-0357 / r189-money-0372 bodies they keep and the 0371 _r25_crew_cfg reader, so those markers still hold); the hourly timer is scheduled only where pg_cron is installed - check it with select jobname from cron.job where jobname = helm-vendor-bill-reminders')
 ),
 env as (
   select

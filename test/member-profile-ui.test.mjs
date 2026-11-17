@@ -309,7 +309,9 @@ t('staff: linked rows never send name / phone / email / department / role; dupli
   assert.match(staffHtml, /const owner=await BPStore\.staff\.linkedOwnerOfPhone\(rec\.phone, editingId\);/);
   assert.match(staffHtml, /fail\(BPStore\.staff\.linkErrorText\(e\)\|\|BPUI\.friendlyError/);
   assert.match(staffHtml, /<a href="control\.html#users">Edit in User control<\/a>/);
-  assert.match(ops, /const owner=await BPStore\.staff\.linkedOwnerOfPhone\(phone\);/, 'ops quick-add has the same guard');
+  // R192: the ops quick-add form is gone - new people are added on the Staff page (the guard above), ops links there
+  assert.doesNotMatch(ops, /id="cr_add"/, 'no second add-staff form on Tasks & Crew');
+  assert.match(ops, /<a class="tc-mini-link" href="staff\.html">Add them on the Staff page<\/a>/);
   // the guard itself: same number written differently = the same member (helm_norm_phone rule)
   const rows = [{ id: 'c1', name: 'Ravi', phone: '+91 98765 43210', profile_id: U(7) }, { id: 'c2', name: 'Unlinked', phone: '9000000000', profile_id: null }];
   const f = await makeEnv({ respond: (q) => (q.table === 'crew_members' ? { data: rows.filter((r) => r.profile_id), error: null } : { data: [], error: null }) });

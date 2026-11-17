@@ -80,7 +80,7 @@ await t('0373: TDS = its own payout row (source tds + section), idempotent, neve
   assert.doesNotMatch(pay, /event_closed/, 'paying an already-recorded bill after close is allowed here');
 });
 
-await t('0373: late bills - reason row first in the same transaction, 0152 guard skips only that bill, admins by default, R189 hook optional', () => {
+await t('0373: late bills - reason row first in the same transaction, 0152 guard skips only that bill, admins by default, 0372 snapshot + switch when installed', () => {
   const g = MIG.slice(MIG.indexOf('create or replace function public.tg_a152_money_create_guard()'), MIG.indexOf('-- may this person add a late bill?'));
   assert.match(g, /l\.bill_id = new\.id and l\.quote_id = new\.quote_id and l\.tx = txid_current\(\)/);
   for (const keep of ["This event is closed - re-open it before adding a %.", "hint = 'not_confirmed'", "hint = 'refund_over_paid'", "pg_advisory_xact_lock(hashtextextended('helm:pay:quote:'"])
@@ -88,7 +88,9 @@ await t('0373: late bills - reason row first in the same transaction, 0152 guard
   const late = MIG.slice(MIG.indexOf('create or replace function public.vendor_bill_add_late('), MIG.indexOf('-- ---- 8)'));
   assert.ok(late.indexOf('insert into public.vendor_bill_late') < late.indexOf('insert into public.vendor_bills'), 'reason row before the bill');
   assert.match(late, /_a156_vendor_bill_refs_ok\(p_quote, v_booking, v_vendor, v_file\)/);
-  assert.match(late, /to_regprocedure\('public\.pnl_snapshot_after_late_cost\(uuid,text\)'\) is not null/);
+  assert.match(late, /to_regprocedure\('public\._r372_snapshot\(uuid,uuid,text,text\)'\) is not null/);
+  assert.match(late, /_r372_snapshot\(\$1, \$2, \$3, \$4\)\)' into v_snap using p_quote, v_org, 'late_adjustment'/);
+  assert.match(MIG, /coalesce\(v ->> 'late_adjust', 'reopen'\) = 'admin'/, 'the 0372 money switch decides whether late costs are allowed');
   assert.match(MIG, /or public\._r373_cfg\(p_org\) ->> 'late_who' = 'finance'/);
 });
 
@@ -133,7 +135,7 @@ await t('packaging: APPLY-0373 = begin + the migration + commit + an all-true ve
   assert.doesNotMatch(code(APPLY), /create temp(orary)? table|^set\s+(local\s+|session\s+)?[a-z_.]+\s*(=|to)\s/im, 'paste-safe: no temp tables / session settings');
   assert.doesNotMatch(code(APPLY), /set_config\(/i, 'no session state');
   assert.match(MF, /^forward  supabase\/migrations\/0373_r190_vendor_bills_finish\.sql$/m);
-  assert.match(RUNALL, /run "r190-vendor-bills-0373" "R190-VENDOR-BILLS-0373: ALL PASS \\\(46\/46\\\)" psql -q -f tests\/db\/r190-vendor-bills-0373\.sql/);
+  assert.match(RUNALL, /run "r190-vendor-bills-0373" "R190-VENDOR-BILLS-0373: ALL PASS \\\(48\/48\\\)" psql -q -f tests\/db\/r190-vendor-bills-0373\.sql/);
   assert.match(RET, /\\ir \.\.\/\.\.\/supabase\/migrations\/0373_r190_vendor_bills_finish\.sql/);
   assert.match(DBT, /R190-VENDOR-BILLS-0373: ALL PASS/); assert.match(DBT, /^rollback;$/m);
   const line = OVR.split('\n').find((l) => l.startsWith('  "0373": '));

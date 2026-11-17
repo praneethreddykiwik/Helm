@@ -66,7 +66,7 @@ await t("3c the picker: hidden value holder (no silent form validation), date + 
   assert.match(WPC, /\.whenp-row \{ display: grid;/);
   assert.match(OPS, /function startPicker\(inp, adopt\)/);
   assert.match(OPS, /startPicker\(\$\("#sc_when"\), \[\$\("#sc_evday"\), \$\("#sc_daybefore"\)\]\)/);
-  assert.match(OPS, /startPicker\(\$\("#as_when"\), \[\$\("#as_evday"\), \$\("#as_daybefore"\)\]\)/);
+  assert.match(OPS, /startPicker\(\$\("#as_when"\), \[\]\);   \/\/ R179: date \+ time picker \(the Day before \/ Event day buttons sit above it\)/);   // R192
   assert.match(OPS, /<script src="when-picker\.js\?v=\d+"><\/script><script src="task-reminders-ui\.js\?v=\d+"><\/script>/);
   assert.match(OPS, /<link rel="stylesheet" href="when-picker\.css\?v=\d+">/);
   assert.match(TRM, /global\.HelmWhen\.attach\(inp, \{ compact: true, label: "Reminder"(, zoneNote: false)? \}\)/);
@@ -76,9 +76,10 @@ await t("4 copy works in Safari: no await before copying, textarea first, clipbo
   assert.match(OPS, /function copyNow\(text, inp\)\{/);
   assert.match(OPS, /document\.execCommand\("copy"\)/);
   assert.match(OPS, /new ClipboardItem\(\{"text\/plain": p\.then/);
-  assert.match(OPS, /host\.querySelectorAll\("\.copy"\)\.forEach\(b=>b\.addEventListener\("click",\(\)=>\{/);
+  // R192: By person "Copy event-only link" copies with the same synchronous helper (no await before the copy)
+  assert.match(r("public/ops-board.js"), /on: \{ click: function \(\) \{ if \(P\(\)\.copyNow\(link, null\)\) toast\("Event link copied\."/);
   assert.doesNotMatch(OPS, /Couldn't copy — select the link and copy it manually/);
-  assert.match(OPS, /function fillPermInputs\(\)\{/);
+  assert.match(r("public/ops-board.js"), /if \(c\.id\) \{ try \{ P\(\)\.permLink\(c\.id\); \} catch \(e\) \{\}/);   // fetched before anyone clicks Copy
   assert.match(STAFF, /function copyTaskLink\(s,btn\)\{/);
   assert.match(STAFF, /new ClipboardItem\(\{"text\/plain": p\.then/);
   assert.match(STAFF, /\.copy-ta\{position:fixed;top:-1000px/);
@@ -86,9 +87,10 @@ await t("4 copy works in Safari: no await before copying, textarea first, clipbo
 });
 
 await t("5a worker links: the permanent link is the primary one, the event-only link second", () => {
-  assert.match(OPS, /<span class="wl-tag">Permanent link \(all their events\)<\/span><input readonly class="wl-plink" data-crew="\$\{esc\(crew\)\}"/);
-  assert.match(OPS, /Event-only link \(this event only\): <button type="button" class="btn sm copy" data-l="\$\{esc\(link\)\}"/);
-  assert.match(OPS, /personMailBtn\(ph,name,true\)/);
+  // R192: each By person card - Email tasks, WhatsApp, Copy permanent link (primary), then the event-only link (ghost)
+  const B = r("public/ops-board.js"), iP = B.indexOf('text: "Copy permanent link"'), iE = B.indexOf('text: "Copy event-only link"');
+  assert.ok(iP > 0 && iE > iP, "permanent link first, event-only second");
+  assert.match(B, /cls: "tc-btn sm ghost", "data-key": "pe:" \+ c\.id, text: "Copy event-only link"/);
 });
 await t("5b the permanent link opens an event inside itself, with All my tasks back", () => {
   assert.match(HOME, /function eventHref\(id\) \{ return homeHref\(\) \+ "&event=" \+ encodeURIComponent\(String\(id\)\); \}/);
@@ -113,7 +115,9 @@ await t("5c e-mails about one event deep-link into the permanent link; the updat
 });
 
 await t("6 special tasks: legend + migration 0367 (wrap once, same slots, every 5 min up to 6, safe)", () => {
-  assert.match(OPS, /🔔 <b>Mark special<\/b> = an important task: extra reminders 10 and 5 min before, then every 5 min until it is started \(up to 6\)/);
+  // R192: the stale legend ("every 5 min ... up to 6") is gone; the panel explains special tasks with the R186 escalation ladder
+  assert.doesNotMatch(OPS, /then every 5 min until it is started \(up to 6\)/);
+  assert.match(r("public/ops-board.js"), /global\.HelmTaskReminders\.escExplain\(S\.escCfg\)/);
   assert.doesNotMatch(OPS, /it does not send anything by itself/);
   assert.match(MIG, /alter function public\.task_reminder_tick\(timestamptz\) rename to task_reminder_tick__pre0367;/);
   assert.match(MIG, /alter function public\.staff_link_view\(text\) rename to staff_link_view__pre0367;/);

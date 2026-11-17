@@ -86,7 +86,7 @@
 </style>
 <link rel="stylesheet" href="/theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="/public-pages-v2.css?v=6">
-<link rel="stylesheet" href="/crew-shifts.css?v=5">
+<link rel="stylesheet" href="/crew-shifts.css?v=6">
 <script src="/trusted-types.js?v=8"></script>
 <script src="/public-theme.js?v=4"></script>
 </head>
@@ -162,8 +162,8 @@
 <script src="/telemetry.js?v=11"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=361"></script>
-<script src="/staff-home.js?v=2"></script>
+<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=363"></script>
+<script src="/staff-home.js?v=3"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s||"").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -482,6 +482,6 @@
   $("#retryFirst").addEventListener("click",(ev)=>{ BPUI.guard(ev.currentTarget,()=>refresh(true)).catch(()=>{}); });
   BPUI.boot(load);
 </script>
-<script src="/crew-self.js?v=4"></script>
+<script src="/crew-self.js?v=5"></script>
 </body>
 </html>

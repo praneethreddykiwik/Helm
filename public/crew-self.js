@@ -4,6 +4,9 @@
                    and then only the distance to the venue is saved)
      #crewShifts - open shifts of the studio this person may take (one tap; first come or "needs approval")
      #crewAvail  - my availability: tap a day to mark it off / free (today .. 60 days shown)
+                   R187 (0370): a day off is a REQUEST the office approves (waiting / approved / not approved), days inside
+                   the studio's notice (default 7 days, studio time zone) can't be asked for here (the server refuses too),
+                   and each decision is shown until the person taps "OK, got it"
    Every call is the work-link token (the same one the page already uses); nothing is kept in the browser.
    DOM API only (no HTML strings). India first: dd/mm/yyyy, the studio's currency in en-IN. */
 (function (global) {
@@ -23,6 +26,8 @@
   }
   function clear(n) { while (n && n.firstChild) n.removeChild(n.firstChild); }
   function errText(e) {
+    // R187: the server's "Too close ... call your manager" sentence is already written for the staff member - show it as is
+    if (e && (e.hint === "cantwork_buffer" || /^Too close - /.test(String(e.message || "")))) return String(e.message).slice(0, 240);
     var B = global.BPUI; try { if (B && B.friendlyError) return B.friendlyError(e, { action: "save that" }); } catch (x) {}
     return (e && e.message) ? String(e.message).slice(0, 240) : "Something went wrong - try again.";
   }
@@ -180,10 +185,18 @@
     var off = {}, work = {};
     (home.availability || []).forEach(function (a) { if (a && a.status === "unavailable") off[String(a.day).slice(0, 10)] = a; });
     (home.busy || []).forEach(function (d) { work[String(d).slice(0, 10)] = true; });
+    var cw = home.cantwork || null, buf = cw ? Math.max(0, Number(cw.buffer_days) || 0) : 0;
+    var firstDay = buf ? addDays(String(home.today || "").slice(0, 10), buf) : "";
     box.appendChild(h("div", { cls: "cat", text: "📅 My availability" }));
+    renderDecisions(box, cw && cw.decisions);
     var card = h("div", { cls: "task cs-avail" });
-    card.appendChild(h("p", { cls: "rsl", text: "Tap a day you can't work. Tap again when you're free. The office sees it before giving out work." }));
-    var legend = h("p", { cls: "rsl cs-legend" }, [h("span", { cls: "cs-key off" }), " can't work  ", h("span", { cls: "cs-key work" }), " working"]);
+    card.appendChild(h("p", { cls: "rsl", text: cw
+      ? "Tap a day you can't work to ask for it off - the office approves it. Tap again when you're free."
+      : "Tap a day you can't work. Tap again when you're free. The office sees it before giving out work." }));
+    if (buf) card.appendChild(h("p", { cls: "rsl cs-buffer", text: "Days off need " + buf + " day" + (buf === 1 ? "" : "s") + "' notice - for a day before "
+      + weekday(firstDay) + " " + fmtDay(firstDay) + ", please call your manager." }));
+    var legend = h("p", { cls: "rsl cs-legend" }, [h("span", { cls: "cs-key off" }), " day off  ",
+      cw ? h("span", { cls: "cs-key ask" }) : null, cw ? " waiting for approval  " : null, h("span", { cls: "cs-key work" }), " working"]);
     card.appendChild(legend);
     var grid = h("div", { cls: "cs-days", role: "group", "aria-label": "Next 60 days" });
     var today = String(home.today || "").slice(0, 10), month = "";
@@ -195,14 +208,17 @@
         var lead = (ymd(d).getUTCDay() + 6) % 7;   // Monday-first columns: blank cells before the first day shown
         for (var k = 0; k < lead; k++) grid.appendChild(h("span", { cls: "cs-pad", "aria-hidden": "true" }));
       }
-      var isOff = !!off[d], isWork = !!work[d];
-      var b = h("button", { type: "button", cls: "cs-day" + (isOff ? " off" : "") + (isWork ? " work" : ""), "data-day": d,
+      var isOff = !!off[d], isWork = !!work[d], isAsk = isOff && off[d].approval === "pending", isLock = !isOff && !!firstDay && d < firstDay;
+      var b = h("button", { type: "button", cls: "cs-day" + (isOff ? (isAsk ? " ask" : " off") : "") + (isWork ? " work" : "") + (isLock ? " lock" : ""), "data-day": d,
         "aria-pressed": isOff ? "true" : "false",
-        title: isOff ? ("Can't work" + (off[d].note ? ": " + off[d].note : "") + " - tap to mark free") : "Tap if you can't work this day",
-        "aria-label": weekday(d) + " " + fmtDay(d) + (isOff ? ", marked can't work" + (off[d].note ? ", reason: " + off[d].note : "") : ", free") + (isWork ? ", you are working" : "")
-          + (isOff && off[d].by_office ? ", set by the office" : "") }, [
+        title: isOff ? ((isAsk ? "Asked off - waiting for approval" : "Day off") + (off[d].note ? ": " + off[d].note : "") + " - tap to mark free")
+          : (isLock ? "Too close to ask here - please call your manager" : "Tap if you can't work this day"),
+        "aria-label": weekday(d) + " " + fmtDay(d) + (isOff ? (isAsk ? ", asked off, waiting for approval" : ", day off") + (off[d].note ? ", reason: " + off[d].note : "") : ", free")
+          + (isWork ? ", you are working" : "") + (isOff && off[d].by_office ? ", set by the office" : "") + (isLock ? ", too close to ask here" : "") }, [
         h("span", { cls: "w", text: weekday(d) }), h("b", { text: String(+d.slice(8, 10)) })]);
-      b.addEventListener("click", (function (day, wasOff, isW, btn) { return function () { toggleDay(day, wasOff, isW, btn, card); }; })(d, isOff, isWork, b));
+      b.addEventListener("click", (function (day, wasOff, isW, btn, lock) { return function () {
+        if (lock) { note(card, tooClose(buf), "err"); try { global.BPUI.toast(tooClose(buf), { type: "err" }); } catch (e) {} return; }
+        toggleDay(day, wasOff, isW, btn, card); }; })(d, isOff, isWork, b, isLock));
       grid.appendChild(b);
     }
     card.appendChild(grid);
@@ -214,6 +230,7 @@
       mine.forEach(function (d) {
         var a = off[d], row = h("div", { cls: "cs-offrow", role: "listitem" });
         row.appendChild(h("div", { cls: "cs-offrow-d" }, [h("b", { text: weekday(d) + " " + fmtDay(d) }),
+          cw ? h("span", { cls: "cs-ap " + (a.approval === "pending" ? "wait" : "yes"), text: a.approval === "pending" ? "Waiting for approval" : "Approved" }) : null,
           h("span", { cls: a.note ? "cs-offrow-r" : "cs-offrow-r none", text: a.note ? a.note : "No reason given" }),
           a.by_office ? h("small", { text: "set by the office" }) : null]));
         var acts = h("div", { cls: "cs-offrow-a" });
@@ -231,12 +248,41 @@
     }
     box.appendChild(card);
   }
+  function tooClose(buf) {
+    return buf === 7 ? "Too close - days within a week can't be blocked here. Please call your manager."
+      : "Too close - days within the next " + buf + " days can't be blocked here. Please call your manager.";
+  }
+  // R187: the office's answers, shown until the person taps "OK, got it" (the time is recorded)
+  function renderDecisions(box, list) {
+    list = (list || []).filter(function (x) { return x && (x.approval === "approved" || x.approval === "rejected"); });
+    if (!list.length) return;
+    var wrap = h("div", { cls: "cs-decisions", role: "list", "aria-label": "Answers to your day-off requests" });
+    list.forEach(function (x) {
+      var ok = x.approval === "approved", d = String(x.day).slice(0, 10);
+      var row = h("div", { cls: "task cs-decision " + (ok ? "yes" : "no"), role: "listitem" });
+      row.appendChild(h("div", { cls: "tt", text: (ok ? "✅ Day off approved: " : "❌ Day off not approved: ") + weekday(d) + " " + fmtDay(d) }));
+      row.appendChild(h("p", { cls: "rsl", text: ok ? "You have this day off." : "Please plan to work this day - call your manager if you can't." }));
+      if (x.decision_note) row.appendChild(h("p", { cls: "rsl cs-dnote", text: "Note from the office: " + x.decision_note }));
+      var got = h("button", { type: "button", cls: "btn primary", text: "OK, got it" });
+      got.addEventListener("click", function () { ack(d, got, row); });
+      row.appendChild(h("div", { cls: "acts" }, [got]));
+      wrap.appendChild(row);
+    });
+    box.appendChild(wrap);
+  }
+  async function ack(day, btn, row) {
+    if (busy) return; busy = true; btn.disabled = true; note(row, "");
+    try { await S().ops.shifts.ack(token, day); await load(true); }
+    catch (e) { btn.disabled = false; note(row, errText(e)); }
+    finally { busy = false; }
+  }
   function cleanReason(r) { return String(r == null ? "" : r).replace(/[\u0000-\u001f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120); }
   async function askReason(day, isWork, current) {
     var B = global.BPUI; if (!(B && B.prompt)) return current || "";
     var r = await B.prompt((isWork ? "You are already working on " + fmtDay(day) + " - the office will be told. " : "") +
       "Why can't you work? (optional - e.g. Family function, exam, travelling; the office sees it)",
-      { title: "Can't work on " + fmtDay(day) + "?", label: "Reason", value: current || "", okLabel: current != null && current !== "" ? "Save reason" : "Mark as can't work", required: false });
+      { title: "Can't work on " + fmtDay(day) + "?", label: "Reason", value: current || "", required: false,
+        okLabel: current != null && current !== "" ? "Save reason" : (home && home.cantwork ? "Ask for this day off" : "Mark as can't work") });
     return r === null ? null : cleanReason(r);
   }
   async function editReason(day, current, btn, card) {
@@ -261,9 +307,15 @@
     busy = true; btn.disabled = true; note(card, "");
     try {
       var r = await S().ops.shifts.setAvailability(token, day, want, reason);
-      try { global.BPUI.toast(want === "unavailable" ? ("Marked " + fmtDay(day) + " as can't work" + (r && r.booked_that_day ? " - the office has been told" : "")) : (fmtDay(day) + " is free again"), { type: "ok" }); } catch (e) {}
+      try { global.BPUI.toast(want === "unavailable"
+        ? (r && r.approval === "pending" ? "Asked for " + fmtDay(day) + " off - the office will approve it" : "Marked " + fmtDay(day) + " as can't work")
+          + (r && r.booked_that_day ? " (you are working that day - the office has been told)" : "")
+        : (fmtDay(day) + " is free again"), { type: "ok" }); } catch (e) {}
       await load(true);
-    } catch (e) { btn.disabled = false; note(card, errText(e)); }
+    } catch (e) {
+      btn.disabled = false; note(card, errText(e));
+      if (e && e.hint === "cantwork_buffer") { try { global.BPUI.toast(errText(e), { type: "err" }); } catch (x) {} }   // R187: the note sits below the long grid
+    }
     finally { busy = false; }
   }
 

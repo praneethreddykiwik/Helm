@@ -121,7 +121,10 @@ t('bell + toast use the resolver and mark read on click', () => {
   assert.match(api, /if \(m\.id\) item\.msg_id = m\.id;/);
 });
 t('destinations carry the anchors', () => {
-  assert.match(rd('ops.html'), /<div class="trow\$\{t\.status==='cancelled'\?' is-cancelled':''\}" data-id="\$\{esc\(t\.id\)\}">/);   // r96: cancelled rows get is-cancelled
+  // R192: task rows keep data-id (and id="task-<id>"); ?task= / #task-<id> also open that task's panel; cancelled rows get is-cancelled
+  assert.match(rd('ops-board.js'), /"data-id": String\(t\.id\), role: "listitem", id: "task-" \+ t\.id/);
+  assert.match(rd('ops-board.js'), /\(t\.status === "cancelled" \? " is-cancelled" : ""\)/);
+  assert.match(rd('ops-board.js'), /new URLSearchParams\(global\.location\.search\)\.get\("task"\)/);
   assert.match(rd('chat.html'), /data-mid="\$\{esc\(m\.id\)\}"/);
   assert.match(rd('chat.html'), /get\("c"\)/);
   assert.match(rd('settlement.html'), /<div class="card" id="payments">/);

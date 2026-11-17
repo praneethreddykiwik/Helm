@@ -82,7 +82,7 @@
 <link rel="stylesheet" href="events-calendar.css?v=5">
 <link rel="stylesheet" href="capacity-shortage.css?v=5"><link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=84" id="shellProto"></script>
+<script src="/shell-proto.js?v=86" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -134,10 +134,10 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=361"></script>
-<script src="page-tours.js?v=44"></script>
-<script src="tour.js?v=63"></script>
-<script src="crew-schedule.js?v=8"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=363"></script>
+<script src="page-tours.js?v=46"></script>
+<script src="tour.js?v=65"></script>
+<script src="crew-schedule.js?v=9"></script>
 <script src="live-board.js?v=2"></script>
 <script src="events-calendar.js?v=7"></script>
 <script>
@@ -279,7 +279,7 @@
       const t0=BPStore.todayLocal(), t1=new Date(t0+"T12:00:00Z"); t1.setUTCDate(t1.getUTCDate()+90);
       const uc=await BPStore.ops.shifts.unavailableConflicts(t0, t1.toISOString().slice(0,10));
       (uc||[]).forEach(u=>{ if(!u||!u.day) return; data.conflicts.push({ key:"unavail|"+u.crew_id+"|"+u.day, type:"unavailable", date:String(u.day).slice(0,10),
-        label:u.name||"Staff member", detail:"marked this day as can't work"+(u.note?" ("+u.note+")":"")+" but has tasks on", events:(u.events||[]).map(e=>({id:e.id,code:e.code})) }); });
+        label:u.name||"Staff member", detail:(u.approval==="pending"?"asked for this day off (waiting for approval)":"has this day off (approved)")+(u.note?" ("+u.note+")":"")+" but has tasks on", events:(u.events||[]).map(e=>({id:e.id,code:e.code})) }); });
     }catch(_){} }
     try{ data.acks=await BPStore.calendar.acks((data.conflicts||[]).map(c=>c.key)); }catch(_){ data.acks=null; }   // 0198: advisory
     leadDates=await pLeads; $("#lgLead").hidden=!canLeads; sampleIds=new Set(await pSample);
