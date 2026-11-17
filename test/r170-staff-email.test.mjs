@@ -115,12 +115,17 @@ await t("comms-dispatch: the staff lane - claimed only with an e-mail provider, 
 
 await t("Operations page: Send by email box on the assign form, per-task and per-person buttons, plain-words answers", () => {
   const h = read("public/ops.html");
-  assert.match(h, /<label class="assign-mail" id="assignEmailWrap"[^>]*><input type="checkbox" id="assignEmail" checked(?: autocomplete="off")?> ✉ Send by email<\/label>/);
+  // R192: step 4 "Tell them" of the Add & assign sheet
+  assert.match(h, /<label class="tc-chk" id="assignEmailWrap"[^>]*><input type="checkbox" id="assignEmail" checked(?: autocomplete="off")?> Send by email<\/label>/);
   assert.match(h, /if\(\$\("#assignEmailWrap"\)\) \$\("#assignEmailWrap"\)\.hidden = outsource;/);
   assert.match(h, /await BPStore\.ops\.emailHold\(quoteId, c\.id\)/);
   assert.match(h, /await BPStore\.ops\.emailTasks\(t\.id, true\)/);
-  assert.match(h, /class="btn sm temail"/);
-  assert.match(h, /class="btn sm semail" data-task=/);
+  // per task (task panel) and per person (By person) - both go through the page's sendMail (ops-board.js -> OpsPage.mail)
+  const B = read("public/ops-board.js");
+  assert.match(B, /text: "Email", "aria-label": "Email this task to " \+ \(nm \|\| "the person"\), on: \{ click: function \(e\) \{ P\(\)\.mail\(e\.currentTarget, t\.id, false\); \} \}/);
+  assert.match(B, /text: "Email tasks", "aria-label": "Send " \+ c\.name \+ " their tasks by e-mail", on: \{ click: function \(e\) \{ P\(\)\.mail\(e\.currentTarget, open\.id, true\); \} \}/);
+  assert.match(h, /mail:\(b,id,all\)=>sendMail\(b,id,all\)/);
+  assert.doesNotMatch(B, /emailTasks\([^)]*@/, "no address is ever sent from the board");
   assert.match(h, /if\(why==="no_email"\) return `\$\{who\} has no email on their staff record/);
   assert.doesNotMatch(h, /emailTasks\([^)]*@/, "no address is ever sent from the page");
   const api = read("public/store-api.js");

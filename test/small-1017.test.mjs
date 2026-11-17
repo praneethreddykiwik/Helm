@@ -30,7 +30,7 @@ ok(/d\.next_date\?esc\(BPStore\.fmtDateIN\(d\.next_date\)\)/.test(nur), 'nurture
 const cal = pub('calendar.html');
 ok(/stb tentative/.test(cal) && /cal-legend/.test(cal) && /BPStore\.auth\.canView\("leads"\)/.test(cal), 'calendar tentative + gated lead dates');
 // 9 worker links in the default view
-ok(/host\.insertAdjacentHTML\("beforeend", workerLinksBlock\(\)\)/.test(ops), 'worker links in section view');
+ok(/text: "Copy permanent link"/.test(pub('ops-board.js')) && /text: "Copy event-only link"/.test(pub('ops-board.js')), 'worker links on each By person card (R192)');
 // 10 no past task start
 ok(/a task can't be scheduled to start in the past/.test(ops), 'task schedule blocks past dates');
 // 11 + 5 SQL: ASCII-only, additive, verify

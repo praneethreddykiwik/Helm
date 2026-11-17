@@ -26,6 +26,8 @@ const code = (s) => s.replace(/^\s*--.*$/gm, '');
 const M = await import('../supabase/functions/comms-dispatch/staff-email.mjs');
 
 const win = {};
+// R192: monitor.js uses the shared status / late / escalation module (task-status.js), loaded first as on the page
+vm.runInNewContext(readFileSync(new URL('../public/task-status.js', import.meta.url), 'utf8'), { window: win, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, Promise, setInterval() {}, clearInterval() {} });
 vm.runInNewContext(MON, { window: win, document: { getElementById: () => null, readyState: 'complete', addEventListener() {} }, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, URL, URLSearchParams, setInterval() {}, localStorage: null });
 const MONA = win.HelmMonitor;
 const trmCtx = { window: {}, document: {} }; trmCtx.globalThis = trmCtx;
@@ -168,7 +170,7 @@ await t('monitor: Activity shows escalation steps; Late panel badge "Escalated t
   assert.equal(MONA.actText({ kind: 'escalated', title: 'Receive the groom', detail: { level: 'admin', to: ['A', 'B'] } }),
     '“Receive the groom” not started - escalated to admin / owner (A, B)');
   assert.match(MON, /\["escalation", "Escalations"\]/);
-  assert.match(MON, /k === "task_escalation" \? "Escalation e-mail"/);
+  assert.match(read('public/task-status.js'), /k === "task_escalation" \? "Escalation e-mail"/);   // R192: shared wording
   assert.match(MONC, /\.mon-chip\.mon-esc\{[^}]*white-space:normal/, 'badge wraps at 375px');
 });
 

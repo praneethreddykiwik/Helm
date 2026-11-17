@@ -6,7 +6,7 @@
 <meta charset="utf-8">
 <base href="/">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Operations — Helm Events</title>
+<title>Tasks &amp; Crew — Helm Events</title>
 <link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
 <style>
@@ -167,16 +167,16 @@
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="task-reminders.css?v=4"><link rel="stylesheet" href="when-picker.css?v=3"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=6">
-<link rel="stylesheet" href="live-board.css?v=2">
+<link rel="stylesheet" href="ops-board.css?v=1">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=85" id="shellProto"></script>
+<script src="/shell-proto.js?v=86" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="wrap">
   <header>
     <a href="dashboard.html" class="mark" title="Home" aria-label="Home"></a>
-    <div><h1>Tasks &amp; staff</h1><small>Helm Events</small></div>
+    <div><b>Tasks &amp; Crew</b><small>Helm Events</small></div>
     <nav class="nav"><a href="dashboard.html">Home</a><a href="quotes.html">Quotes</a><a href="/builder">Builder</a><a href="control.html">Settings</a></nav>
     <span class="spacer"></span>
     <span id="bell"></span>
@@ -189,102 +189,143 @@
   <div id="loadErr"></div>
   <div id="noquote" class="card" hidden><p class="muted" id="noquoteMsg">Open an event from <a class="s-dea29d3" href="quotes.html">Quotes</a> → Operations.</p></div>
 
-  <div id="app" hidden>
-    <div class="card evhead" id="evhead"></div>
-    <p class="muted flow-next" id="flowNext" hidden></p>
-
-    <div class="card">
-      <h3>Staff</h3>
-      <div id="crewChips"></div>
-      <div class="crewrow s-d2c171b">
-        <input id="cr_name" placeholder="Name (e.g. Karthik)" aria-label="Staff name">
-        <input id="cr_phone" type="tel" data-phone placeholder="Phone" aria-label="Staff phone">
-        <select id="cr_dept" aria-label="Department"></select>
-        <button type="button" class="btn" id="cr_add">+ Add staff</button>
-      </div>
+  <!-- R192 Tasks & Crew (TASKS-CREW-PAGE-PLAN.md): "Are we ready?" before the event, "What needs me right now?" on the day.
+       Laid out by ops-board.js (DOM only); every action stays in the page script below. -->
+  <div id="app" class="tc" hidden>
+    <div class="tc-top">
+      <h1 id="pageTitle">Tasks &amp; Crew</h1>
+      <span class="tc-viewonly" id="tcViewOnly" hidden>View only</span>
+      <label class="tc-search" for="tcQ"><span class="tc-search-ico" aria-hidden="true"></span><input id="tcQ" type="search" maxlength="80" placeholder="Search tasks or people" autocomplete="off" aria-label="Search tasks or people"><kbd class="tc-kbd" aria-hidden="true">/</kbd></label>
+      <a class="tc-toplink" id="toMonitor" href="monitor.html" title="Open the full-screen event-day monitor (the wall-screen view)">Monitor ↗</a>
     </div>
 
-    <div class="card">
-      <h3>Assign work</h3>
-      <div id="msg" role="status" aria-live="polite"></div>
-      <div class="tabs" id="catTabs" role="group" aria-label="Task section"></div>
-      <label class="s-1c780c5">
-        <input class="s-47124b2" type="checkbox" id="selAll"> Select all in this category</label>
-      <div class="tasklist" id="taskList"></div>
-      <div class="crewrow" id="tplAddRow">
-        <input id="tpl_cat" maxlength="60" placeholder="Section (e.g. Stage)" aria-label="Template section">
-        <input id="tpl_title" maxlength="120" placeholder="New task (e.g. Venue recce)" aria-label="New template task">
-        <button type="button" class="btn" id="tpl_add">+ Add to template</button>
+    <section class="tc-ev tc-card" id="evhead" aria-label="Event"></section>
+
+    <div class="tc-phase-row" id="tcPhase">
+      <div class="tc-seggrp" role="group" aria-label="Which part of the job">
+        <button type="button" class="tc-seg" data-phase="plan" aria-pressed="false">Before the event</button>
+        <button type="button" class="tc-seg" data-phase="live" aria-pressed="false">On the day</button>
       </div>
-      <!-- R173 (0364): give the selected tasks a start time and reminders while assigning (optional) -->
-      <div class="assign-time" id="assignTime">
-        <label class="assign-mail" title="Give every selected task the same start time and reminders as you assign them"><input type="checkbox" id="asTimeOn"> ⏱ Add a start time &amp; reminders to these tasks</label>
-        <div class="as-box" id="asTimeBox" hidden>
-          <div class="as-when">
-            <label for="as_when">Start time</label>
-            <input type="datetime-local" id="as_when" aria-describedby="as_warn">
-            <button type="button" class="btn sm" id="as_evday" title="Put the event's date in the start time">Event day</button>
-            <button type="button" class="btn sm" id="as_daybefore" title="Put the day before the event in the start time (set-up the evening before)">Day before</button>
+      <span class="tc-phase-note" id="tcPhaseNote"></span>
+      <button type="button" class="tc-btn sm ghost" id="tcPhaseAuto" hidden>Use the studio’s clock</button>
+    </div>
+
+    <section class="tc-attn" id="attn" aria-label="Needs attention"></section>
+    <span class="tc-sr" id="tcAnnounce" aria-live="polite"></span>
+
+    <div class="tc-layout">
+      <section class="tc-work tc-card" id="work" aria-labelledby="workH">
+        <div class="tc-work-head">
+          <h2 id="workH" class="tc-h2">Tasks <span class="tc-count" id="taskCount"></span></h2>
+          <div class="tc-seggrp" id="tcViews" role="group" aria-label="View">
+            <button type="button" class="tc-seg sm" data-view="timeline" aria-pressed="false">Timeline</button>
+            <button type="button" class="tc-seg sm" data-view="list" aria-pressed="true">List</button>
+            <button type="button" class="tc-seg sm" data-view="people" aria-pressed="false">By person</button>
           </div>
-          <p class="when-warn" id="as_warn" role="status" hidden></p>
-          <fieldset class="trm-set" id="as_rem" hidden></fieldset>
+          <button type="button" class="tc-btn tc-primary" id="addBtn">+ Add &amp; assign</button>
         </div>
-      </div>
-      <div class="assignbar">
-        <span class="muted"><b id="selCount">0</b> selected →</span>
-        <select class="s-b62dc2d" id="assignKind" aria-label="Assignment type">
-          <option value="in_house">🏠 Our staff</option>
-          <option value="outsourced">🤝 A vendor</option>
-        </select>
-        <select class="s-66dbd5d" id="assignCrew" aria-label="Assign to staff"></select>
-        <span class="crewwho" id="assignWho" aria-live="polite"></span>
-        <select class="s-47b618f" id="assignVendor" hidden aria-label="Assign to vendor"></select>
-        <label class="assign-mail" id="assignEmailWrap" title="E-mail the person their tasks for this event (sent from your studio name; replies come to your studio)"><input type="checkbox" id="assignEmail" checked autocomplete="off"> ✉ Send by email</label>
-        <label class="assign-mail" id="assignWaWrap" title="Send the person their tasks on WhatsApp from your studio's own number (needs WhatsApp connected in Integrations)"><input type="checkbox" id="assignWa"> 💬 Send on WhatsApp</label>
-        <button type="button" class="btn primary" id="assignBtn">Assign selected →</button>
-      </div>
-      <div class="s-d2c171b" id="suggestBar"></div>
+        <div class="tc-chips" id="chips" role="group" aria-label="Quick filters"></div>
+        <div id="view"></div>
+        <span class="tc-sr" id="tcUpdated" aria-live="polite"></span>
+      </section>
+
+      <aside class="tc-side" aria-label="Crew and activity">
+        <section class="tc-card" aria-labelledby="crewH">
+          <div class="tc-side-h"><h2 id="crewH" class="tc-h2">Crew today <span class="tc-count" id="crewCount"></span></h2><a class="tc-mini-link" href="staff.html">Staff page</a></div>
+          <ul class="tc-crew" id="crewList"></ul>
+        </section>
+        <section class="tc-card" aria-labelledby="actH">
+          <div class="tc-side-h"><h2 id="actH" class="tc-h2">Latest</h2><a id="allActivity" class="tc-mini-link" href="monitor.html">All activity</a></div>
+          <ol class="tc-feed" id="feed"></ol>
+        </section>
+        <section class="tc-card" id="trmCardOps" aria-labelledby="remH">
+          <h2 id="remH" class="tc-h2">Reminders</h2>
+          <!-- R130 (0338): reminders go out on their own every minute (WhatsApp, the studio's own number) - no Remind / Fire buttons -->
+          <div id="waSetupNote" hidden></div>
+          <p class="muted trm-line" id="trmLine"></p>
+        </section>
+      </aside>
     </div>
 
     <!-- r23 (0265): open shifts for this event (built by crew-shifts.js; hidden when off / before 0265) -->
     <div class="card" id="shiftCard" hidden></div>
-
-    <div class="card" id="live">
-      <!-- R174: event-day progress (done / started / accepted / waiting / late, who is confirmed, latest activity); refreshes every minute -->
-      <div id="liveSummary" class="lb-ops" hidden aria-live="polite"></div>
-      <div class="s-a522af5">
-        <h3 class="s-1169661">Live status</h3>
-        <div class="tabs s-1169661" id="groupToggle" role="group" aria-label="Group tasks"><button type="button" data-g="section" class="on" aria-pressed="true">By section</button><button type="button" data-g="crew" aria-pressed="false">By staff</button></div>
-        <span class="spacer s-97445a8"></span>
-      </div>
-      <!-- R130 (0338): reminders go out on their own every minute (WhatsApp, the studio's own number) - no Remind / Fire buttons -->
-      <div id="waSetupNote" hidden></div>
-      <p class="muted trm-line" id="trmLine"></p>
-      <p class="muted ops-legend" id="opsLegend"><b>Buttons on each task:</b> ⏱ <b>Schedule</b> = start time and reminders (minutes before, or an exact time like 5:32 PM) · ✉ <b>Email</b> / 💬 <b>WhatsApp</b> = send this task to the person now · 🔔 <b>Mark special</b> = an important task: extra reminders 10 and 5 min before, then every 5 min until it is started (up to 6) · <b>Reassign</b> / <b>Cancel</b>. ⏰ shows the reminders a task has.</p>
-      <div class="opsfilter" id="opsFilter" role="search" aria-label="Filter tasks">
-        <input type="search" id="of_q" maxlength="80" placeholder="Search tasks" aria-label="Search task titles">
-        <select id="of_person" aria-label="Filter by person"></select>
-        <select id="of_section" aria-label="Filter by section"></select>
-        <select id="of_status" aria-label="Filter by status"></select>
-        <button type="button" class="btn sm" id="of_clear">Clear</button>
-        <span class="muted" id="of_count" aria-live="polite"></span>
-      </div>
-      <div id="dashboard"></div>
-    </div>
+    <p class="muted flow-next" id="flowNext" hidden></p>
   </div>
   </main>
 </div>
 
-<div class="lmodal" id="reassignModal" hidden role="dialog" aria-modal="true" aria-labelledby="ra_title">
-  <form class="lsheet form" id="reassignForm" novalidate>
-    <h3 id="ra_title">Reassign task</h3>
-    <p class="muted s-249d010" id="ra_task"></p>
-    <label for="ra_crew">Staff member</label>
-    <select id="ra_crew" required></select>
-    <div class="crewwho s-8a77e5a" id="raWho" aria-live="polite"></div>
-    <div class="lerr" id="ra_err" role="alert" hidden></div>
-    <div class="foot"><button type="button" class="btn" id="ra_cancel" data-close>Cancel</button><button type="submit" class="btn primary" id="ra_save">Reassign</button></div>
-  </form>
+<div class="tc-layer">
+  <!-- bulk bar: shows when tasks are ticked -->
+  <div class="tc-bulk" id="bulk" role="region" aria-label="Selected tasks" hidden>
+    <span class="tc-bulk-n"><b id="bulkN">0</b> selected</span>
+    <div class="tc-bulk-acts">
+      <button type="button" class="tc-btn" data-bulk="assign">Assign</button>
+      <button type="button" class="tc-btn" data-bulk="time">Set time</button>
+      <button type="button" class="tc-btn" data-bulk="special">Mark special</button>
+      <button type="button" class="tc-btn" data-bulk="send">Send</button>
+      <button type="button" class="tc-btn danger" data-bulk="cancel">Cancel tasks</button>
+    </div>
+    <button type="button" class="tc-btn ghost" id="bulkClear" aria-label="Clear the selection">Done</button>
+  </div>
+  <div class="tc-scrim" id="tcScrim" hidden></div>
+
+  <!-- the task panel (a bottom sheet on a phone): only the actions that make sense right now -->
+  <aside class="tc-drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle" hidden>
+    <div class="tc-d-head"><div><p class="tc-d-sec" id="dSec"></p><h2 id="dTitle" class="tc-d-title"></h2></div><button type="button" class="tc-x" data-close aria-label="Close">×</button></div>
+    <div class="tc-d-body" id="dBody"></div>
+    <div class="tc-d-foot" id="dFoot"></div>
+  </aside>
+
+  <!-- "+ Add & assign": what / who / when / tell them -->
+  <aside class="tc-drawer wide" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sTitle" hidden>
+    <div class="tc-d-head"><div><p class="tc-d-sec">Add &amp; assign</p><h2 id="sTitle" class="tc-d-title">Give work to someone</h2></div><button type="button" class="tc-x" data-close aria-label="Close">×</button></div>
+    <div class="tc-d-body" id="sBody">
+      <div id="msg" class="tc-msg" role="status" aria-live="polite"></div>
+      <div id="sPreset" hidden></div>
+      <fieldset class="tc-fs" id="sWhat">
+        <legend><span data-step>1. </span>What</legend>
+        <div class="tc-optrow" id="catTabs" role="group" aria-label="Task section"></div>
+        <label class="tc-chk"><input type="checkbox" id="selAll"> Select all in this section</label>
+        <div class="tc-tasks-pick" id="taskList"></div>
+        <div class="tc-inline"><input class="tc-inp" id="tpl_title" maxlength="120" placeholder="Or type a new task (saved to your checklist)" aria-label="New task for this section"><button type="button" class="tc-btn sm" id="tpl_add">+ Add to checklist</button></div>
+      </fieldset>
+      <fieldset class="tc-fs">
+        <legend><span data-step>2. </span>Who</legend>
+        <select class="tc-inp" id="assignKind" aria-label="Assignment type">
+          <option value="in_house">Our staff</option>
+          <option value="outsourced">A vendor</option>
+        </select>
+        <label class="tc-search" for="pickQ"><span class="tc-search-ico" aria-hidden="true"></span><input id="pickQ" type="search" maxlength="60" placeholder="Search staff or vendor" autocomplete="off" aria-label="Search staff or vendor"></label>
+        <div class="tc-picklist" id="assignPick" role="group" aria-label="Pick a person"></div>
+        <select id="assignCrew" hidden aria-hidden="true" tabindex="-1" aria-label="Assign to staff"></select>
+        <select id="assignVendor" hidden aria-hidden="true" tabindex="-1" aria-label="Assign to vendor"></select>
+        <span class="crewwho" id="assignWho" aria-live="polite"></span>
+        <p class="tc-hint">Someone new? <a class="tc-mini-link" href="staff.html">Add them on the Staff page</a>, then pick them here.</p>
+      </fieldset>
+      <fieldset class="tc-fs" id="assignTime">
+        <legend><span data-step>3. </span>When <small>(optional - needed for reminders)</small></legend>
+        <div class="tc-optrow" role="group" aria-label="Day">
+          <button type="button" class="tc-opt" id="as_daybefore" data-day="before" aria-pressed="false" title="Set-up the evening before">Day before</button>
+          <button type="button" class="tc-opt" id="as_evday" data-day="event" aria-pressed="true" title="The event's date">Event day</button>
+          <button type="button" class="tc-opt" id="as_none" data-day="none" aria-pressed="false" title="No start time: no reminders, special tasks can't escalate">No time yet</button>
+          <button type="button" class="tc-opt" id="as_keep" data-day="keep" aria-pressed="false" hidden>Keep their times</button>
+        </div>
+        <div id="asTimeBox">
+          <label for="as_when" class="tc-lbl">Start time</label>
+          <input type="datetime-local" id="as_when" aria-describedby="as_warn">
+          <p class="when-warn" id="as_warn" role="status" hidden></p>
+          <fieldset class="trm-set" id="as_rem" hidden></fieldset>
+        </div>
+        <label class="tc-chk"><input type="checkbox" id="asSpecial"> ▲ Special (P1) - if not started: worker → coordinator → manager → admin / owner</label>
+      </fieldset>
+      <fieldset class="tc-fs">
+        <legend><span data-step>4. </span>Tell them</legend>
+        <label class="tc-chk" id="assignEmailWrap" title="E-mail the person their tasks for this event (sent from your studio name; replies come to your studio)"><input type="checkbox" id="assignEmail" checked autocomplete="off"> Send by email</label>
+        <label class="tc-chk" id="assignWaWrap" title="Send the person their tasks on WhatsApp from your studio's own number (needs WhatsApp connected in Integrations)"><input type="checkbox" id="assignWa"> Send on WhatsApp (the studio number)</label>
+      </fieldset>
+    </div>
+    <div class="tc-d-foot"><button type="button" class="tc-btn" data-close>Cancel</button><button type="button" class="tc-btn tc-primary push" id="assignBtn">Assign</button></div>
+  </aside>
 </div>
 
 <div class="lmodal" id="cancelTaskModal" hidden role="dialog" aria-modal="true" aria-labelledby="ct_title">
@@ -349,23 +390,26 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=362"></script>
-<script src="live-board.js?v=2"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=363"></script>
+<script src="task-status.js?v=1"></script>
+<script src="ops-board.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   let quoteId=new URLSearchParams(location.search).get("quote");
   let CATS=["Stage setup","Carpets","Backdrops","Flower decoration","Mandapam","Lighting","Catering","Labour","Transport","AV & sound"];
-  let quote=null, crew=[], vendors=[], tasks=[], tokens=[], evidence=[], activeCat=CATS[0], canVerify=false, canEditOps=false, groupMode="section";
+  let quote=null, crew=[], vendors=[], tasks=[], tokens=[], evidence=[], activeCat=CATS[0], canVerify=false, canEditOps=false;
+  // R192: the Add & assign sheet - which day the start time is on (no tick box: "before" | "event" | "none" | "keep"),
+  // everyone ranked for the active section (BPStore.staff.suggest: free / booked elsewhere / department match)
+  let asDay="event", sugg={}, lastOkMsg="";
   // R130 (0338): the latest WhatsApp per task + the studio's reminder settings (null before 0338)
   let waRows={}, trmSettings=null, scRem=null;
   async function loadWa(){ try{ const r=await BPStore.ops.waStatus(quoteId); if(!r) return; trmSettings=r.settings||null; waRows={};
       (r.tasks||[]).forEach(x=>{ if(x&&x.task_id) waRows[x.task_id]=x; });
       const ln=$("#trmLine"); if(ln && window.HelmTaskReminders && trmSettings) ln.textContent=trmSettings.enabled===false?"Task reminders are switched off for your studio (Settings → Notifications).":HelmTaskReminders.explain(trmSettings);
     }catch{} }
-  function waChip(t){ const c=window.HelmTaskReminders && HelmTaskReminders.chip(waRows[t.id]); return c?`<span class="wachip" data-state="${esc(c.state)}"${c.title?` title="${esc(c.title)}"`:""}>💬 ${esc(c.text)}</span>`:""; }
 
-  function setMsg(kind,t){ const m=$("#msg"); if(!t){m.innerHTML="";return;} m.innerHTML=`<div class="msg ${kind}"${kind==="err"?' role="alert"':""}>${esc(t)}</div>`; }
+  function setMsg(kind,t){ const m=$("#msg"); if(kind==="ok") lastOkMsg=t||""; if(!t){m.innerHTML="";return;} m.innerHTML=`<div class="msg ${kind}"${kind==="err"?' role="alert"':""}>${esc(t)}</div>`; }
   function openLogin(){ $("#loginModal").hidden=false; setTimeout(()=>$("#li_email").focus(),50); }
   function closeLogin(){ $("#loginModal").hidden=true; $("#li_err").hidden=true; }
   async function renderAccount(){ const el=$("#account"); if(!BPStore.auth.enabled()){el.hidden=true;return;} el.hidden=false;
@@ -390,7 +434,7 @@
     canVerify=['admin','manager','planner','quality'].includes(role);
     canEditOps=canEdit;
     // photos for linked members (one chat_directory read; the page never waits for it)
-    BPStore.chat.directory().then(d=>{ memberDir=d||{}; if(crew.some(c=>c.profile_id)){ renderCrew(); crewWho($("#assignCrew"),$("#assignWho")); } }).catch(()=>{});
+    BPStore.chat.directory().then(d=>{ memberDir=d||{}; if(crew.some(c=>c.profile_id)){ crewWho($("#assignCrew"),$("#assignWho")); renderDashboard(); } }).catch(()=>{});
     $("#loadErr").innerHTML=""; $("#noquote").hidden=true;
     try{ quote=await pQuote; }
     catch(e){
@@ -398,23 +442,21 @@
       else BPUI.loadError($("#loadErr"), e, load, {what:"this event"});
       return; }
     if(!quote){ $("#noquoteMsg").innerHTML='Event not found. Open an event from <a href="quotes.html" style="color:var(--accent);text-decoration:underline">Quotes</a> → Operations.'; $("#noquote").hidden=false; return; }
-    $("#app").hidden=false;
-    $("#evhead").innerHTML=`<span class="code">${esc(quote.code)}</span><span class="ttl">${esc(quote.title||"")}</span>
-      <span class="muted">${esc(quote.eventType||"")} · ${esc(quote.status)}</span>`;
+    $("#app").hidden=false;   // R192: the event header (date, venue, Guests arrive, countdown, progress) is drawn by ops-board.js
     // r24: where this page sits in the resources flow (1 stock -> 2 our people -> 3 what's missing -> 4 budget)
     $("#flowNext").innerHTML=`Step 2 of 4 — assign our people. Done? <a class="s-a805525" href="resources.html?quote=${encodeURIComponent(quote.id||quoteId)}">3 See what's still missing →</a>`; $("#flowNext").hidden=false;
     // sections come from the template catalog (falls back to defaults)
     try{ const cats=await pCats; if(cats && cats.length) CATS=cats; }catch{}
     if(!CATS.includes(activeCat)) activeCat=CATS[0];
     // dept + crew dropdowns
-    $("#cr_dept").innerHTML=CATS.map(c=>`<option>${esc(c)}</option>`).join("");
-    $("#catTabs").innerHTML=CATS.map(c=>`<button type="button" data-c="${esc(c)}" class="${c===activeCat?'on':''}" aria-pressed="${c===activeCat}">${esc(c)}</button>`).join("");
+    // R192: sections are option chips in the Add & assign sheet (the "Add staff" form moved to the Staff page)
+    $("#catTabs").innerHTML=CATS.map(c=>`<button type="button" class="tc-opt" data-c="${esc(c)}" aria-pressed="${c===activeCat}">${esc(c)}</button>`).join("");
     $("#catTabs").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{ activeCat=b.dataset.c;
-      $("#catTabs").querySelectorAll("button").forEach(x=>{ x.classList.toggle("on",x===b); x.setAttribute("aria-pressed",String(x===b)); }); $("#selAll").checked=false; renderTasks(); renderSuggestions(); }));
-    $("#tpl_cat").value=activeCat||"";
-    if(!canEdit){ ["cr_add","assignBtn","tpl_add"].forEach(id=>{const e=$("#"+id); if(e)e.disabled=true;}); /* planner-1023: server needs staff edit */ setMsg("err","Your role is view-only for operations."); }
+      $("#catTabs").querySelectorAll("button").forEach(x=>{ x.setAttribute("aria-pressed",String(x===b)); }); $("#selAll").checked=false; renderTasks(); renderSuggestions(); }));
+    if(!canEdit){ ["assignBtn","tpl_add"].forEach(id=>{const e=$("#"+id); if(e)e.disabled=true;}); /* planner-1023: server needs staff edit; the page shows "View only" and no action buttons */ }
     try{ await refresh(pOps); }
-    catch(e){ BPUI.loadError($("#dashboard"), e, async()=>{ await refresh(); }, {what:"staff and tasks"}); }
+    catch(e){ BPUI.loadError($("#view"), e, async()=>{ await refresh(); }, {what:"staff and tasks"}); }
+    if(window.OpsBoard) OpsBoard.init();   // R192: header, Before / On the day, attention boxes, views, task panel, one 30 s refresh
     renderTasks();
     renderSuggestions();
     // R130: WhatsApp line per task + "not set up" note (never blocks the page)
@@ -427,20 +469,17 @@
     return Promise.all([BPStore.ops.listCrew(), BPStore.ops.listTasks(quoteId), BPStore.ops.listTokens(quoteId),
       BPStore.vendors.listAll(false).catch(()=>[]), BPStore.ops.listEvidence(quoteId).catch(()=>[])]);
   }
-  // Phase 50 — suggest in-house crew for the active category, ranked by skill + availability
+  // Phase 50 — rank in-house crew for the active category by skill + availability (R192: the sheet's person list shows
+  // free / booked elsewhere / day off and a star for a department match, so the suggestions are part of the list now)
   async function renderSuggestions(){
-    const host=$("#suggestBar"); if(!host) return;
-    if($("#assignKind").value==="outsourced"){ host.innerHTML=""; return; }
-    let sugg=[]; try{ sugg=await BPStore.staff.suggest({category:activeCat, date:quote&&quote.eventDate, excludeQuote:quoteId, limit:5}); }catch{ host.innerHTML=""; return; }
-    if(!sugg.length){ host.innerHTML=""; return; }
-    host.innerHTML=`<div class="muted sugg-head">💡 Suggested for ${esc(activeCat)}${quote&&quote.eventDate?" on "+esc(quote.eventDate):""} — click to pick:</div>`+
-      sugg.map(s=>`<button type="button" class="btn sm sugg${s.off?' off':(s.available?'':' busy')}" data-id="${esc(s.id)}" title="${s.match?'Skill/department match':'No skill match'}${s.off?(s.offPending?' · asked for this day off (waiting for approval)':' · approved day off')+(s.offNote?': '+esc(s.offNote):''):(s.available?'':' · already booked that day')}">
-        ${s.match?'⭐ ':''}${esc(s.name)}${s.department?` · ${esc(s.department)}`:''} ${s.off?(s.offPending?'<span class="sugg-off">● asked off</span>':'<span class="sugg-off">● day off</span>'):(s.available?'<span class="sugg-free">● free</span>':'<span class="sugg-busy">● busy</span>')}</button>`).join("");
-    host.querySelectorAll(".sugg").forEach(b=>b.addEventListener("click",()=>{ $("#assignKind").value="in_house"; $("#assignCrew").hidden=false; $("#assignVendor").hidden=true; $("#assignCrew").value=b.dataset.id; crewWho($("#assignCrew"),$("#assignWho")); }));
+    if($("#assignKind").value==="outsourced"){ if(window.OpsBoard) OpsBoard.picks(); return; }
+    let list=[]; try{ list=await BPStore.staff.suggest({category:activeCat, date:quote&&quote.eventDate, excludeQuote:quoteId, limit:500}); }catch{ list=[]; }
+    sugg={}; (list||[]).forEach(s=>{ if(s&&s.id) sugg[s.id]=s; });
+    if(window.OpsBoard) OpsBoard.picks();
   }
   async function refresh(pending){
     [crew,tasks,tokens,vendors,evidence]=await (pending||fetchOps());
-    renderCrew(); renderDashboard();
+    renderDashboard();
     $("#assignCrew").innerHTML=`<option value="">— pick staff —</option>`+crew.map(crewOption).join(""); crewWho($("#assignCrew"),$("#assignWho"));
     offDay=""; loadOff();   // R174: mark who can't work that day
     $("#assignVendor").innerHTML = vendors.length
@@ -450,8 +489,8 @@
   // in-house / outsource toggle: swap the assignee picker
   $("#assignKind") && $("#assignKind").addEventListener("change",()=>{
     const outsource = $("#assignKind").value==="outsourced";
-    $("#assignCrew").hidden = outsource; $("#assignVendor").hidden = !outsource;
     if($("#assignEmailWrap")) $("#assignEmailWrap").hidden = outsource;   // R170: vendors get their checklist by their own link
+    if($("#assignWho")) $("#assignWho").hidden = outsource;
     renderSuggestions();
   });
   // staff by name + phone + photo (crew_members; 0041-linked members carry their profile photo)
@@ -461,23 +500,19 @@
     return `<span class="cav"${p?` data-avatar-path="${esc(p)}"`:""} aria-hidden="true">${esc(crewInitials(c&&c.name))}</span>`; }
   function crewOption(c){ return `<option value="${esc(c.id)}">${esc(c.name)}${c.department?" · "+esc(c.department):""} · ${esc(c.phone)}${c.profile_id?" · 🔗":""}${offIds.has(c.id)?(offIds.get(c.id).pending?" · ⏳ asked off this day (waiting for approval)":" · ⛔ approved day off"):""}${noMail(c)?" · no email":""}</option>`; }
   // R174 (0265 data): people who marked the work day (the start time's day, else the event day) as "can't work"
-  let offIds=new Map(), offDay="";
-  function workDay(){ const v=$("#as_when")&&$("#asTimeOn")&&$("#asTimeOn").checked?$("#as_when").value:""; return v?String(v).slice(0,10):(quote&&quote.eventDate)||""; }
+  let offIds=new Map(), offDay="";   // R187 (0370): crew id -> {note, pending}; pending = asked off, still waiting for an answer
+  function workDay(){ const v=$("#as_when")&&(asDay==="before"||asDay==="event")?$("#as_when").value:""; return v?String(v).slice(0,10):(quote&&quote.eventDate)||""; }
   async function loadOff(){ const d=workDay(); if(!d||!BPStore.ops.shifts||!BPStore.ops.shifts.dayStatus){ offIds=new Map(); offDay=""; return; }
     if(d===offDay) return; let st=null; try{ st=await BPStore.ops.shifts.dayStatus(d, quoteId); }catch(e){ st=null; }
     offIds=new Map(); (st||[]).forEach(x=>{ if(x&&x.unavailable) offIds.set(x.crew_id, {note:x.note||"", pending:x.approval==="pending"}); }); offDay=d;   // R187: pending = asked off, waiting for approval
-    const sel=$("#assignCrew"); if(sel&&crew.length){ const v=sel.value; sel.innerHTML=`<option value="">— pick staff —</option>`+crew.map(crewOption).join(""); sel.value=v; crewWho(sel,$("#assignWho")); } }
+    const sel=$("#assignCrew"); if(sel&&crew.length){ const v=sel.value; sel.innerHTML=`<option value="">— pick staff —</option>`+crew.map(crewOption).join(""); sel.value=v; crewWho(sel,$("#assignWho")); }
+    if(window.OpsBoard) OpsBoard.picks(); }
   // R171: no e-mail on the staff record and no linked Helm login = nothing to e-mail them
   function noMail(c){ return !!c && !String(c.email||"").trim() && !c.profile_id; }
   // the picked person, with photo, beside a staff <select>
   function crewWho(sel, host){ if(!sel||!host) return; const c=crew.find(x=>x.id===sel.value);
     host.innerHTML=c?`${crewAv(c)}<span><b>${esc(c.name)}</b> · ${esc(c.phone)}${c.profile_id?' <span title="Linked to a Helm account">🔗</span>':""}${noMail(c)?' <span class="nomail" title="Add an email on the Staff page to email them">· no email on file</span>':""}${sel.id==="assignCrew"&&offIds.has(c.id)?`<span class="as-offwarn" role="status">${offIds.get(c.id).pending?`⏳ ${esc(c.name)} asked for ${esc(offDay)} off - waiting for approval`:`⛔ ${esc(c.name)} has ${esc(offDay)} as an approved day off`}${offIds.get(c.id).note?" ("+esc(offIds.get(c.id).note)+")":""}. You can still assign - you'll be asked to confirm.</span>`:""}</span>`:"";
     try{ BPStore.chat.paintAvatars(host); }catch(e){} }
-  function renderCrew(){
-    $("#crewChips").innerHTML = crew.length? crew.map(c=>`<span class="chip">${crewAv(c)}${esc(c.name)} <span class="dep">${esc(c.department||"")}</span> · ${esc(c.phone)}${c.profile_id?' <span class="lk" title="Linked to a Helm account">🔗</span>':""}</span>`).join("")
-      : '<span class="muted">No staff yet — add people below.</span>';
-    try{ BPStore.chat.paintAvatars($("#crewChips")); }catch(e){}
-  }
   $("#assignCrew").addEventListener("change",()=>crewWho($("#assignCrew"),$("#assignWho")));
   $("#assignWa") && $("#assignWa").addEventListener("change",()=>{ $("#assignWa").dataset.touched="1"; });
   // R183: "Send by email" is ticked on EVERY visit and after every assign. Browsers restore a checkbox's old state on
@@ -486,58 +521,106 @@
   function resetAssignEmail(){ const x=$("#assignEmail"); if(x) x.checked=true; }
   resetAssignEmail();
   window.addEventListener("pageshow", resetAssignEmail);
-  $("#ra_crew").addEventListener("change",()=>crewWho($("#ra_crew"),$("#raWho")));
   async function renderTasks(){
     let tpl; try{ tpl=await BPStore.ops.templates(activeCat); }catch(e){ BPUI.loadError($("#taskList"), e, renderTasks, {what:"task templates"}); return; }
     if(!tpl.length){ $("#taskList").innerHTML='<span class="muted">No task templates in this section yet.</span>'; updateSel(); return; }
     $("#taskList").innerHTML=tpl.map(t=>`<label class="titem"><input type="checkbox" class="tk" value="${esc(t.title)}"> ${esc(t.title)}</label>`).join("");
     $("#taskList").querySelectorAll(".tk").forEach(c=>c.addEventListener("change",updateSel)); updateSel();
   }
-  // task templates had no create UI — add a task (optionally a new section) to the org's template catalog
+  // task templates had no create UI — add a task to the org's template catalog (R192: typed in the sheet's "What" step,
+  // saved to the active section and ticked at once)
   $("#tpl_add") && $("#tpl_add").addEventListener("click",()=>BPUI.guard($("#tpl_add"),async()=>{
     setMsg();
-    const cat=($("#tpl_cat").value||"").trim(), title=($("#tpl_title").value||"").trim();
-    if(!cat||!title){ setMsg("err","Enter a section and a task title."); return; }
+    const cat=String(activeCat||"").trim(), title=($("#tpl_title").value||"").trim();
+    if(!cat||!title){ setMsg("err","Type the new task first."); $("#tpl_title").focus(); return; }
     try{ await BPStore.ops.addTemplate(cat,title); }
     catch(e){ setMsg("err", /duplicate|unique|23505/i.test(String(e&&(e.message||e.code)))?"That task is already in this section.":"Could not add the task: "+((e&&e.message)||e)); return; }
-    $("#tpl_title").value=""; activeCat=cat; await load(); setMsg("ok",`Added "${title}" to ${cat}.`);
+    $("#tpl_title").value=""; await renderTasks();
+    const box=[...$("#taskList").querySelectorAll(".tk")].find(x=>x.value===title); if(box){ box.checked=true; updateSel(); }
+    setMsg("ok",`Added "${title}" to ${cat} - ticked below.`); lastOkMsg="";
   }));
-  function updateSel(){ $("#selCount").textContent=$("#taskList").querySelectorAll(".tk:checked").length; }
+  $("#tpl_title") && $("#tpl_title").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); $("#tpl_add").click(); } });
+  function updateSel(){ if(window.OpsBoard) OpsBoard.sheetLabel(); }
   $("#selAll") && $("#selAll").addEventListener("change",e=>{ $("#taskList").querySelectorAll(".tk").forEach(c=>c.checked=e.target.checked); updateSel(); });
 
-  // R173 (0364): "Add a start time & reminders to these tasks" - optional, for our own staff (vendors get no reminders)
+  // R173 (0364) / R192: the sheet's "When" step - Day before / Event day / No time yet (no tick box hiding the start time);
+  // for our own staff only (vendors get no reminders). "Keep their times" when existing tasks are given to someone else.
   let asRem=null;
   const asStartISO=()=>{ const v=$("#as_when")&&$("#as_when").value; const d=v?fromLocalInput(v):null; return d&&!isNaN(d.getTime())?d.toISOString():null; };
   function asSync(){
-    const on=$("#asTimeOn")&&$("#asTimeOn").checked, inHouse=$("#assignKind").value!=="outsourced";
-    $("#assignTime").hidden=!inHouse; $("#asTimeBox").hidden=!(on&&inHouse);
-    if(!(on&&inHouse)) return;
+    const inHouse=$("#assignKind").value!=="outsourced", on=inHouse&&(asDay==="before"||asDay==="event");
+    $("#assignTime").hidden=!inHouse; $("#asTimeBox").hidden=!on;
+    if(!on) return;
     if(!$("#as_when").value){ const E=evDateStr(); if(E){ const et=evTimeHM(); $("#as_when").value=(et&&+et.slice(0,2)<6?dayShift(E,-1)+"T18:00":E+"T"+(et||"09:00")); } }
     $("#as_when").min=toLocalInput(new Date()).slice(0,10)+"T00:00";
-    startPicker($("#as_when"), [$("#as_evday"), $("#as_daybefore")]);   // R179: date + time picker
+    startPicker($("#as_when"), []);   // R179: date + time picker (the Day before / Event day buttons sit above it)
     if(!asRem && window.HelmTaskReminders && trmSettings){ $("#as_rem").hidden=false;
       asRem=HelmTaskReminders.schedFields($("#as_rem"), {remind_before:null, remind_at:[]}, trmSettings, remOpts(asStartISO, "as")); }
     showWhen($("#as_warn"), $("#as_when").value);
   }
-  $("#asTimeOn") && $("#asTimeOn").addEventListener("change", asSync);
-  $("#asTimeOn") && $("#asTimeOn").addEventListener("change",()=>loadOff());   // R174: the work day may have changed
+  function setAsDay(d){
+    asDay=d;
+    ["as_daybefore","as_evday","as_none","as_keep"].forEach(id=>{ const b=$("#"+id); if(b) b.setAttribute("aria-pressed", String(b.dataset.day===d)); });
+    asSync();
+    if((d==="before"||d==="event") && evDateStr()) quickDate($("#as_when"), d==="before"?"before":"day");
+    // on the day itself a default time that has already passed moves to the next half hour (studio clock)
+    if(d==="event" && $("#as_when").value){ const v=$("#as_when").value, nowL=toLocalInput(new Date());
+      if(v.slice(0,10)===nowL.slice(0,10) && fromLocalInput(v).getTime()<Date.now()){ const m=(+nowL.slice(11,13))*60+(+nowL.slice(14,16)), n=Math.min(23*60+30, Math.ceil((m+1)/30)*30);
+        $("#as_when").value=nowL.slice(0,10)+"T"+pad2(Math.floor(n/60))+":"+pad2(n%60); $("#as_when").dispatchEvent(new Event("input",{bubbles:true})); $("#as_when").dispatchEvent(new Event("change",{bubbles:true})); } }
+    loadOff();   // R174: re-check "can't work" for the new day
+  }
+  ["as_daybefore","as_evday","as_none","as_keep"].forEach(id=>{ const b=$("#"+id); b && b.addEventListener("click",()=>setAsDay(b.dataset.day)); });
   $("#assignKind").addEventListener("change", asSync);
   $("#as_when") && $("#as_when").addEventListener("input",()=>showWhen($("#as_warn"), $("#as_when").value));
   $("#as_when") && $("#as_when").addEventListener("change",()=>loadOff());   // R174: re-check "can't work" for the new day
-  $("#as_evday") && $("#as_evday").addEventListener("click",()=>quickDate($("#as_when"),"day"));
-  $("#as_daybefore") && $("#as_daybefore").addEventListener("click",()=>quickDate($("#as_when"),"before"));
   // read the start time + reminders for the assign step: null = not used; throws (message shown) when not valid
   function asRead(){
-    if(!($("#asTimeOn")&&$("#asTimeOn").checked) || $("#assignKind").value==="outsourced") return null;
+    if($("#assignKind").value==="outsourced" || !(asDay==="before"||asDay==="event")) return null;
     const v=$("#as_when").value;
-    if(!v){ setMsg("err","Pick the start time, or untick \"Add a start time & reminders\"."); $("#as_when").focus(); throw new Error("no start"); }
+    if(!v){ setMsg("err","Pick the start time, or choose \"No time yet\"."); $("#as_when").focus(); throw new Error("no start"); }
     const c=whenCheck(v); if(c.block){ setMsg("err",c.block); $("#as_when").focus(); throw new Error(c.block); }
     let mins, at=[];
     try{ mins=asRem?asRem.value():undefined; at=asRem?asRem.times():[]; }catch(e){ setMsg("err","Check the reminders below the start time."); throw e; }
     return { start: fromLocalInput(v).toISOString(), mins, at };
   }
+  // R192: existing tasks (task panel "Give to someone" / "Reassign", bulk "Assign") go to the picked person with reassign_task
+  async function assignPreset(ids){
+    if($("#assignKind").value==="outsourced"){ setMsg("err","Tasks already on the list go to our own staff here. For a vendor, cancel the task and give it out again."); return; }
+    const c=crew.find(x=>x.id===$("#assignCrew").value);
+    if(!c){ setMsg("err","Pick a crew member."); return; }
+    let when=null; try{ when=asRead(); }catch(e){ return; }
+    const list=ids.map(id=>tasks.find(x=>String(x.id)===String(id))).filter(t=>t&&["unassigned","assigned","rejected"].includes(t.status));
+    if(!list.length){ setMsg("err","These tasks are accepted, started or done - they stay with their person."); return; }
+    const day=when?String($("#as_when").value).slice(0,10):(list[0].planned_start?toLocalInput(list[0].planned_start).slice(0,10):quote.eventDate);
+    const clash=await BPStore.calendar.wouldClash({date:day, crewId:c.id, excludeQuote:quoteId}).catch(()=>({clash:false}));
+    if(clash.clash && !(await BPUI.confirm(c.name+" is "+clash.detail+". Assign anyway?",{title:"Scheduling clash",okLabel:"Assign anyway",danger:true}))){ return; }
+    const special=!!($("#asSpecial")&&$("#asSpecial").checked);
+    let n=0, err="";
+    for(const t of list){
+      try{ await BPStore.ops.reassign(t.id,c.id,c.name,c.phone); n++;
+        if(when){ await BPStore.ops.setSchedule(t.id, when.start, null, t.depends_on||null);
+          if(when.mins!==undefined && trmSettings) await BPStore.ops.setReminders(t.id, when.mins);
+          await saveRemTimes(t.id, when.at, Array.isArray(t.remind_at)&&t.remind_at.length>0); }
+        if(special && !t.is_special) await BPStore.ops.setSpecial(t.id, true, 5);
+      }catch(e){ err=BPUI.friendlyError(e,{action:"give the task to "+c.name}); }
+    }
+    if(!n){ setMsg("err", err||"Nothing was changed."); return; }
+    // reassign_task e-mails the person their tasks (in about a minute); "Send by email" unticked holds that e-mail
+    let mailNote="";
+    if($("#assignEmail") && !$("#assignEmail").checked){ try{ await BPStore.ops.emailHold(quoteId, c.id); }catch(e){} mailNote=" No e-mail sent (\"Send by email\" was unticked)."; }
+    else mailNote=(c.email||c.profile_id)?" They get an e-mail with their tasks in about a minute.":" "+c.name+" has no e-mail on their staff record.";
+    let waNote="";
+    if($("#assignWa") && $("#assignWa").checked){
+      try{ waNote=(await waConnected())===false ? " "+WA_NOT_SET_UP : " "+waText(await BPStore.ops.whatsappTasks(list[0].id), c.name); }
+      catch(e){ waNote=" The WhatsApp could not be queued - use WhatsApp in the task panel."; }
+    }
+    setMsg("ok", `Gave ${n} task${n===1?"":"s"} to ${c.name}.${when?" Starts "+fmtTime(when.start)+".":""}${special?" Marked special.":""}${mailNote}${waNote}${err?" Some could not be changed: "+err:""}`);
+    resetAssignEmail(); const done=lastOkMsg; await refresh(); if(window.OpsBoard) OpsBoard.assigned(done);
+  }
   $("#assignBtn") && $("#assignBtn").addEventListener("click",()=>BPUI.guard($("#assignBtn"),async()=>{
-    setMsg();
+    setMsg(); lastOkMsg="";
+    const preset=window.OpsBoard?OpsBoard.presetIds():null;
+    if(preset){ await assignPreset(preset); return; }
     const titles=[...$("#taskList").querySelectorAll(".tk:checked")].map(c=>c.value);
     if(!titles.length){ setMsg("err","Select at least one task."); return; }
     const outsource=$("#assignKind").value==="outsourced";
@@ -551,7 +634,7 @@
         const clash=await BPStore.calendar.wouldClash({date:quote.eventDate, vendorId:vId, excludeQuote:quoteId}).catch(()=>({clash:false}));
         if(clash.clash && !(await BPUI.confirm(((v&&v.name)||"This vendor")+" is "+clash.detail+". Give it to them anyway?",{title:"Scheduling clash",okLabel:"Assign anyway",danger:true}))){ return; }
         const r=await BPStore.ops.assignTasksVendor(quoteId, activeCat, titles, vId);
-        setMsg("ok", `Gave ${r.tasks_created} ${activeCat} task(s) to ${r.vendor||(v&&v.name)}. Checklist sent — their link is below.`);
+        setMsg("ok", `Gave ${r.tasks_created} ${activeCat} task(s) to ${r.vendor||(v&&v.name)}. Checklist sent — their link is on the task.`);
       } else {
         const crewId=$("#assignCrew").value;
         if(!crewId){ setMsg("err","Pick a crew member."); return; }
@@ -562,26 +645,31 @@
         const r=await BPStore.ops.assignTasks(quoteId, activeCat, titles, c.id, c.name, c.phone);
         // R173 (0364): the start time + reminders go on the NEW tasks first, so the e-mail below already shows the time
         let timeNote="";
-        if(when){
+        const special=!!($("#asSpecial")&&$("#asSpecial").checked);   // R192: Special (P1) right in the When step
+        if(when||special){
           try{ const fresh=await BPStore.ops.listTasks(quoteId); tasks=fresh||tasks;
             const mine=(fresh||[]).filter(x=>!before.has(x.id) && x.crew_id===c.id && titles.includes(x.title));
             for(const x of mine){
+              if(when){
               await BPStore.ops.setSchedule(x.id, when.start, null, x.depends_on||null);
               if(when.mins!==undefined && trmSettings) await BPStore.ops.setReminders(x.id, when.mins);
               await saveRemTimes(x.id, when.at, false);
+              }
+              if(special) await BPStore.ops.setSpecial(x.id, true, 5);
             }
-            if(mine.length){ const s=window.HelmTaskReminders?HelmTaskReminders.summary(Object.assign({}, mine[0], {planned_start:when.start, remind_before:when.mins===undefined?mine[0].remind_before:when.mins, remind_at:when.at}), trmSettings, clockOf):"";
+            if(when && mine.length){ const s=window.HelmTaskReminders?HelmTaskReminders.summary(Object.assign({}, mine[0], {planned_start:when.start, remind_before:when.mins===undefined?mine[0].remind_before:when.mins, remind_at:when.at}), trmSettings, clockOf):"";
               timeNote=` Starts ${fmtTime(when.start)}${s?", reminders "+s:""}.`; }
-          }catch(e){ timeNote=" The start time could not be saved on every task - set it with ⏱ Schedule. ("+(e&&e.message?String(e.message).slice(0,120):"error")+")"; }
+            if(special && mine.length) timeNote+=" Marked special.";
+          }catch(e){ timeNote=" The start time could not be saved on every task - set it with Change time in the task panel. ("+(e&&e.message?String(e.message).slice(0,120):"error")+")"; }
         }
         // R170 (0361): "Send by email" ticked -> e-mail their task list now; unticked -> the automatic e-mail is cancelled
         let mailNote="";
-        if($("#assignEmail") && !$("#assignEmail").checked){ try{ await BPStore.ops.emailHold(quoteId, c.id); }catch(e){} mailNote=" No email sent (\"Send by email\" was unticked) - use ✉ Email below to send it."; }
+        if($("#assignEmail") && !$("#assignEmail").checked){ try{ await BPStore.ops.emailHold(quoteId, c.id); }catch(e){} mailNote=" No email sent (\"Send by email\" was unticked) - use Email in the task panel or By person to send it."; }
         else {
           try{ const fresh=await BPStore.ops.listTasks(quoteId); tasks=fresh||tasks;
             const t=(fresh||[]).find(x=>x.crew_id===c.id && titles.includes(x.title) && !["completed","cancelled","rejected"].includes(x.status));
             mailNote=t? " "+mailText(await BPStore.ops.emailTasks(t.id, true), c.name) : "";
-          }catch(e){ mailNote=" The email could not be queued - use ✉ Send by email below."; }
+          }catch(e){ mailNote=" The email could not be queued - use Email tasks in By person."; }
         }
         // R171 (0362): "Send on WhatsApp" ticked -> the studio's number sends it; not connected -> say so, nothing sent
         let waNote="";
@@ -591,89 +679,25 @@
             else { const pick=(l)=>(l||[]).find(x=>x.crew_id===c.id && titles.includes(x.title) && !["completed","cancelled","rejected"].includes(x.status));
               let t2=pick(tasks); if(!t2){ const fresh=await BPStore.ops.listTasks(quoteId); tasks=fresh||tasks; t2=pick(fresh); }
               waNote=t2? " "+waText(await BPStore.ops.whatsappTasks(t2.id), c.name) : ""; }
-          }catch(e){ waNote=" The WhatsApp could not be queued - use 💬 Send on WhatsApp below."; }
+          }catch(e){ waNote=" The WhatsApp could not be queued - use WhatsApp in By person."; }
         }
-        setMsg("ok", `Assigned ${r.tasks_created} ${activeCat} task(s) to ${c.name}.${timeNote}${window.HelmTrialPreview?"":" Worker link ready below."}${mailNote}${waNote}`);
+        setMsg("ok", `Assigned ${r.tasks_created} ${activeCat} task(s) to ${c.name}.${timeNote}${window.HelmTrialPreview?"":" Their links are in By person."}${mailNote}${waNote}`);
       }
-      $("#selAll").checked=false; resetAssignEmail(); await refresh(); await renderTasks();
+      $("#selAll").checked=false; resetAssignEmail(); const done=lastOkMsg; await refresh(); await renderTasks();
+      if(window.OpsBoard) OpsBoard.assigned(done);   // R192: the sheet closes and the result shows as a toast
     }catch(e){ setMsg("err",BPUI.friendlyError(e,{action:"assign the tasks"})); }
   },{busyLabel:"Assigning…"}));
 
-  async function addCrew(){
-    const name=$("#cr_name").value.trim(), phone=$("#cr_phone").value.trim(), dept=$("#cr_dept").value;
-    if(name.length<2){ setMsg("err","Enter the staff member's name."); $("#cr_name").focus(); return; }
-    const pv=BPStore.validate.phone(phone); if(!pv.ok){ setMsg("err",pv.error); $("#cr_phone").focus(); return; }
-    await BPUI.guard($("#cr_add"),async()=>{   // no duplicate staff on a double-click / Enter
-      // 0041: one account = one staff record — a linked member's number can't get a second row
-      const owner=await BPStore.staff.linkedOwnerOfPhone(phone);
-      if(owner){ setMsg("err",`This number belongs to ${owner.name}, who already has a staff record linked to their Helm account — pick them from the list instead.`); $("#cr_phone").focus(); return; }
-      try{ await BPStore.ops.addCrew(name,phone,dept); $("#cr_name").value="";$("#cr_phone").value=""; await refresh(); setMsg("ok","Crew added."); }
-      catch(e){ setMsg("err",BPStore.staff.linkErrorText(e)||BPUI.friendlyError(e,{action:"add the staff member"})); }
-    },{busyLabel:"Adding…"});
-  }
-  $("#cr_add") && $("#cr_add").addEventListener("click",addCrew);
-  ["#cr_name","#cr_phone"].forEach(s=>$(s).addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); if(!$("#cr_add").disabled) addCrew(); } }));
-
   const CANCELLABLE=['assigned','accepted','in_progress'];   // r96 (0312): the office can cancel these (reason required)
-  const STATUS_LABEL={unassigned:"Unassigned",assigned:"Assigned",accepted:"Accepted",in_progress:"In progress",completed:"Completed",rejected:"Rejected",cancelled:"Cancelled"};
-  // r20: display only - a task saved as "unassigned" that already names an assignee reads "Assigned" (the row is never rewritten)
-  const shownStatus=(t)=>(t && t.status==="unassigned" && (String(t.assignee_name||"").trim() || t.crew_id)) ? "assigned" : (t && t.status);
-  // one task row; `label` is the left chip (category in crew-mode, assignee in section-mode)
-  // R174: the event-day progress card above "Live status" (re-drawn with the list, which refreshes every few seconds);
-  // #live in the address (from the home card / Calendar "Live today") scrolls to it once
-  let liveUI=null, liveScrolled=false;
-  function renderLive(){ if(!window.HelmLiveBoard) return; if(!liveUI) liveUI=HelmLiveBoard.mountOps($("#liveSummary"),()=>tasks); else liveUI.refresh();
-    if(!liveScrolled && location.hash==="#live" && tasks.length){ liveScrolled=true; try{ $("#live").scrollIntoView({block:"start"}); }catch(e){} } }
-  function taskRow(t, byId, label){
-    const tn=esc(t.title||"task"), stS=shownStatus(t);
-    return `<div class="trow${t.status==='cancelled'?' is-cancelled':''}" data-id="${esc(t.id)}">
-      <span class="cat">${esc(label||"")}</span><span class="tt">${esc(t.title)}</span>
-      <span class="st ${esc(stS)}">${STATUS_LABEL[stS]||esc(stS)}</span>${isLate(t)?'<span class="st late" title="The start time has passed and the task has not started">Late</span>':''}
-      ${t.assignee_kind==='outsourced'?`<span class="qc" style="background:var(--accent-soft);color:var(--accent)" title="Done by the vendor ${esc(t.assignee_name||'')}">🤝 vendor</span>`:''}
-      ${t.is_special?'<span class="gate special" title="Marked special: extra reminders 10 and 5 min before the start, then every 5 min until it is started (up to 6). Needs a start time (Schedule).">🔔 Special</span>':''}
-      ${gateChip(t,byId)}
-      ${remChip(t)}
-      ${verifyChip(t)}
-      ${typeof waChip==="function"?waChip(t):""}
-      ${evidenceBtn(t)}
-      ${rowActs(t, tn)}
-      ${t.status==='cancelled'?`<div class="creason">Cancelled${t.cancel_reason?": "+esc(t.cancel_reason):""}${t.cancelled_at?" · "+esc(fmtTime(t.cancelled_at)):""}</div>`:""}</div>`;
-  }  // R174: late = assigned / accepted, has a start time, and that time has passed (not started yet)
-  function isLate(t){ if(!t||!["assigned","accepted"].includes(t.status)||!t.planned_start) return false; const x=new Date(t.planned_start).getTime(); return isFinite(x)&&x<Date.now(); }
-
-  // R173: every task action has a word next to its icon (the owner could not tell the icon-only buttons apart);
-  // grouped in one wrapping block: Schedule, Email, WhatsApp, Mark special, then Reassign / Cancel / QC
-  function rowActs(t, tn){
-    const open=['assigned','accepted','in_progress'].includes(t.status);
-    const send=canEditOps&&t.assignee_kind!=='outsourced'&&(t.crew_id||t.assignee_phone)&&open;
-    const a=[
-      canEditOps?`<button type="button" class="btn sm sched" title="Set the start time and reminders (minutes before, or an exact time)" aria-label="Schedule ${tn}: start time and reminders">⏱ Schedule</button>`:"",
-      send?`<button type="button" class="btn sm temail" title="Email this task to the person now (the address on their staff record)" aria-label="Email ${tn} to the person">✉ Email</button><button type="button" class="btn sm twa" title="Send this task on WhatsApp now (needs your studio's WhatsApp number connected)" aria-label="Send ${tn} on WhatsApp">💬 WhatsApp</button>`:"",
-      canEditOps?`<button type="button" class="btn sm spc" title="${t.is_special?"Remove the special mark":"Mark as special: extra reminders 10 and 5 min before the start, then every 5 min until it is started"}" aria-label="${t.is_special?"Remove the special mark from":"Mark as special:"} ${tn}">${t.is_special?'🔕 Unmark special':'🔔 Mark special'}</button>`:"",
-      canEditOps&&['rejected','assigned'].includes(t.status)?`<button type="button" class="btn sm reassign" title="Give this task to someone else" aria-label="Reassign ${tn}">Reassign</button>`:"",
-      canEditOps&&['accepted','in_progress','completed'].includes(t.status)?`<button type="button" class="btn sm reassign-locked" disabled title="Locked: task accepted" aria-label="Reassign ${tn} - locked: task accepted">Reassign</button>`:"",
-      canEditOps&&CANCELLABLE.includes(t.status)?`<button type="button" class="btn sm danger tcancel" title="Cancel this task (a reason is required)" aria-label="Cancel ${tn}">Cancel</button>`:"",
-      canVerify && t.status==='completed' && t.verify_status==='pending' ? `<button type="button" class="btn sm vpass" aria-label="Pass QC for ${tn}">✓ Pass</button><button type="button" class="btn sm vrej" aria-label="Reject QC for ${tn}">✗ Reject</button>`:"",
-    ].join("");
-    return a?`<span class="tacts" role="group" aria-label="Actions for ${tn}">${a}</span>`:"";
-  }
+  // R192: status words, "late" and the task rows live in task-status.js / ops-board.js (shared with /monitor)
   // R173 (0364): the reminders this task has ("10 & 5 min before · 5:32 PM"), only when it has a start time
   const clockOf=(iso)=>{ try{ const o=BPStore.fmtStudioDate(iso,{fmt:{hour:'numeric',minute:'2-digit'}}); if(o) return o; }catch{} try{ return new Date(iso).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); }catch{ return ""; } };
-  function remChip(t){
+  function remSummary(t){
     if(!t||!t.planned_start||!['assigned','accepted'].includes(t.status)||t.assignee_kind==='outsourced'||!window.HelmTaskReminders) return "";
     if(trmSettings && trmSettings.enabled===false) return "";
-    const s=HelmTaskReminders.summary(t, trmSettings, clockOf);
-    return s?`<span class="remchip" title="Reminders for this task (email; WhatsApp once connected)">⏰ ${esc(s)}</span>`:"";
+    return HelmTaskReminders.summary(t, trmSettings, clockOf)||"";
   }
   // R170 (0361): "Send by email" - the server reads the address from the staff record (never from this page)
-  function personMailBtn(phone, name, noPerm){
-    if(!canEditOps) return "";
-    const t=tasks.find(x=>x.assignee_phone===phone && x.assignee_kind!=='outsourced' && ['assigned','accepted','in_progress'].includes(x.status));
-    // R171 (0362): Send on WhatsApp beside it (the studio's own number; a clear note when it is not set up)
-    // R172 (0363): Permanent link - one link per staff member that always shows their current tasks on every event
-    const pl=t&&t.crew_id&&!noPerm?`<button type="button" class="btn sm splink" data-crew="${esc(t.crew_id)}" title="One link for this person that always shows all their tasks on every event" aria-label="Copy the permanent task link for ${esc(name)}">🔗 Copy permanent link</button>`:"";
-    return t?`<button type="button" class="btn sm semail" data-task="${esc(t.id)}" title="Email this person all their tasks for this event" aria-label="Send ${esc(name)} their tasks by email">✉ Email tasks</button><button type="button" class="btn sm swa" data-task="${esc(t.id)}" title="Send this person their tasks on WhatsApp (needs your studio's WhatsApp number connected)" aria-label="Send ${esc(name)} their tasks on WhatsApp">💬 WhatsApp tasks</button>${pl}`:"";
-  }
   function mailText(r, name){
     const who=(r&&r.name)||name||"They";
     if(r&&r.ok) return `Email on its way to ${r.masked||who}.`;
@@ -741,12 +765,6 @@
     permLinks.set(crewId,p); return p;
   }
   function permMissText(crewId){ const r=permReason.get(crewId); return r==="trial"?"In the free trial no staff links are made.":r==="inactive"?"This staff member is deactivated - reactivate them on the Staff page first.":"Couldn't make the link right now - please try again."; }
-  // fill the permanent-link boxes on the page once their links are known
-  function fillPermInputs(){
-    document.querySelectorAll(".splink[data-crew]").forEach(b=>{ permLink(b.dataset.crew); });   // ready before the click
-    document.querySelectorAll("input.wl-plink[data-crew]").forEach(inp=>{ const c=inp.dataset.crew;
-      permLink(c).then(u=>{ inp.value=u||""; inp.placeholder=u?"":permMissText(c); }); });
-  }
   function copyStaffLink(b, crewId){
     const have=permLinks.get(crewId), row=b.closest(".linkline,.wl-row"), inp=row?row.querySelector("input.wl-plink"):null;
     const done=()=>BPUI.toast("Permanent link copied - it always shows this person's current tasks on every event.",{type:"ok",timeout:5000});
@@ -766,166 +784,38 @@
       BPUI.prompt("Copy this permanent link:",{title:"Permanent task link",label:"Permanent task link",value:u,okLabel:"Done"}); });
   }
   function workerLinkFor(phone){ const w=tokens.find(x=>x.phone===phone); return w? BPStore.links.url("work", w.token, location.origin+"/work.html?token="+w.token) : null; }
-  function workerLinksBlock(){
-    const seen=new Set(), rows=[];
-    tasks.forEach(t=>{ const ph=t.assignee_phone; if(!ph||seen.has(ph)) return; seen.add(ph); const link=workerLinkFor(ph); if(!link) return;
-      const name=t.assignee_name||ph;
-      const t0=tasks.find(x=>x.assignee_phone===ph && x.crew_id); const crew=t0?t0.crew_id:"";
-      // R179: the permanent link is the one to share (all their events, opens each event inside the same link);
-      // the per-event link stays available as a second option
-      rows.push(`<div class="wl-row linkline"><b>${esc(name)}</b><div class="wl-main">${crew&&canEditOps?`<span class="wl-tag">Permanent link (all their events)</span><input readonly class="wl-plink" data-crew="${esc(crew)}" placeholder="Making the link…" aria-label="Permanent task link for ${esc(name)}"><button type="button" class="btn sm primary splink" data-crew="${esc(crew)}" title="One link for this person that always shows all their tasks on every event" aria-label="Copy the permanent task link for ${esc(name)}">🔗 Copy link</button>`:`<input readonly value="${esc(link)}" aria-label="Event link for ${esc(name)}">`}${personMailBtn(ph,name,true)}</div><div class="wl-ev muted">Event-only link (this event only): <button type="button" class="btn sm copy" data-l="${esc(link)}" title="This person's link for this event only" aria-label="Copy the event-only link for ${esc(name)}">Copy event link</button></div></div>`); });
-    if(!rows.length) return "";
-    return `<div class="grp" id="workerLinks"><div class="gh"><b>🔗 Worker links</b><span class="muted">Share the permanent link - one link per person that always shows all their tasks on every event (each event opens inside it). It is in every task email, and on WhatsApp once your studio's number is connected.</span></div>${rows.join("")}</div>`;
-  }
+  // R192: the page is drawn by ops-board.js (rows patched, not rebuilt); this hands it fresh data
   function renderDashboard(){
     if(!renderDashboard._s){ renderDashboard._s=1; BPStore.links.studio().then(s=>{ if(s) renderDashboard(); }).catch(()=>{}); }   // re-render once the branded studio link name is known
-    const host=$("#dashboard");
-    renderLive();
-    if(!tasks.length){ host.innerHTML='<div class="empty">No tasks assigned yet. Pick a section above, select tasks, choose a staff member, and Assign.</div>'; applyOpsFilter(); return; }
-    const byId=Object.fromEntries(tasks.map(t=>[t.id,t]));
-    if(groupMode==="section"){
-      // group by section (category), in template order; tasks already arrive category+seq sorted
-      const cats=[...CATS]; tasks.forEach(t=>{ if(!cats.includes(t.category)) cats.push(t.category); });
-      host.innerHTML=cats.map(cat=>{
-        const ts=tasks.filter(t=>t.category===cat); if(!ts.length) return "";
-        const done=ts.filter(t=>t.status==='completed').length;
-        const blocked=ts.filter(t=>gateChip(t,byId).includes('blocked')).length;
-        const pend=ts.filter(t=>t.verify_status==='pending').length;
-        const spec=ts.filter(t=>t.is_special).length;
-        const badges=[blocked?`<span class="gate blocked">${blocked} blocked</span>`:"",pend?`<span class="qc pend">${pend} QC pending</span>`:"",spec?`<span class="gate special" title="Tasks marked special (important) in this section">🔔 ${spec} special</span>`:""].join(" ");
-        return `<div class="grp"><div class="gh"><b>📋 ${esc(cat)}</b><span class="muted">${done}/${ts.length} done</span> ${badges}</div>
-          ${ts.map(t=>taskRow(t,byId,t.assignee_name||"—")).join("")}</div>`;
-      }).join("") || '<div class="empty">No tasks yet.</div>';
-      // 1017: "Worker link ready below" - the links used to show only in the By-person view
-      host.insertAdjacentHTML("beforeend", workerLinksBlock());
-    } else {
-      // group by assignee phone
-      const byPhone={}; tasks.forEach(t=>{ const k=t.assignee_phone||"—"; (byPhone[k]=byPhone[k]||[]).push(t); });
-      const tokenFor=workerLinkFor;
-      host.innerHTML=Object.entries(byPhone).map(([phone,ts])=>{
-        const name=ts[0].assignee_name||"Unassigned"; const link=tokenFor(phone);
-        const done=ts.filter(t=>t.status==='completed').length;
-        const rows=ts.map(t=>taskRow(t,byId,t.category)).join("");
-        return `<div class="grp"><div class="gh"><b>${esc(name)}</b><span class="ph">${esc(phone)}</span>
-          <span class="muted">${done}/${ts.length} done</span></div>${rows}
-          ${link?`<div class="linkline"><input readonly value="${esc(link)}" aria-label="Worker link for ${esc(name)}"><button type="button" class="btn sm copy" data-l="${esc(link)}" title="This person's link for this event only" aria-label="Copy the event link for ${esc(name)}">Copy event link</button>${personMailBtn(phone,name)}</div>
-            <div class="muted" style="margin-top:4px">Sent by email, and on WhatsApp from your studio's number to ${esc(phone)} once it is connected. If it shows Not sent or Failed, copy the link and share it.</div>`:""}</div>`;
-      }).join("");
-    }
-    host.querySelectorAll(".copy").forEach(b=>b.addEventListener("click",()=>{ const row=b.closest(".linkline,.wl-row"); const inp=row?row.querySelector("input:not(.wl-plink)"):null;
-      if(copyNow(b.dataset.l, inp)){ const t0=b.textContent; b.textContent="Copied ✓"; BPUI.toast("Event link copied.",{type:"ok",timeout:2000}); setTimeout(()=>{ b.textContent=t0; },1400); }
-      else BPUI.toast("Select the link and press Cmd+C (Ctrl+C) to copy it.",{type:"info",timeout:6000}); }));
-    fillPermInputs();
-    host.querySelectorAll(".reassign").forEach(b=>b.addEventListener("click",()=>openReassign(b.closest(".trow").dataset.id)));
-    host.querySelectorAll(".temail").forEach(b=>b.addEventListener("click",()=>sendMail(b, b.closest(".trow").dataset.id, false)));
-    host.querySelectorAll(".semail").forEach(b=>b.addEventListener("click",()=>sendMail(b, b.dataset.task, true)));
-    host.querySelectorAll(".twa").forEach(b=>b.addEventListener("click",()=>sendWa(b, b.closest(".trow").dataset.id)));
-    host.querySelectorAll(".swa").forEach(b=>b.addEventListener("click",()=>sendWa(b, b.dataset.task)));
-    host.querySelectorAll(".splink").forEach(b=>b.addEventListener("click",()=>copyStaffLink(b, b.dataset.crew)));
-    host.querySelectorAll(".tcancel").forEach(b=>b.addEventListener("click",()=>openCancelTask(b.closest(".trow").dataset.id)));
-    host.querySelectorAll(".evid").forEach(b=>b.addEventListener("click",()=>openEvidence(b.closest(".trow").dataset.id)));
-    // QC / special buttons: guarded (no double-submit) — while one is in flight, its whole row is locked
-    const rowGuard=(b,fn)=>{ const row=b.closest(".trow"); if(row.dataset.busy) return; row.dataset.busy="1";
-      const others=[...row.querySelectorAll("button")].filter(x=>x!==b && !x.disabled); others.forEach(x=>x.disabled=true);
-      return BPUI.guard(b,fn).finally(()=>{ delete row.dataset.busy; others.forEach(x=>x.disabled=false); }); };
-    host.querySelectorAll(".vpass").forEach(b=>b.addEventListener("click",()=>rowGuard(b,async()=>{
-      const id=b.closest(".trow").dataset.id;
+    if(window.OpsBoard) OpsBoard.update();
+  }
+  // QC (Pass / Reject) and Special from the task panel: guarded (no double submit)
+  async function verifyTask(b, id, pass){
+    const t=tasks.find(x=>String(x.id)===String(id));
+    if(pass) return BPUI.guard(b,async()=>{
       try{ await BPStore.ops.verify(id,true); BPUI.toast("Task passed QC ✓",{type:"ok"}); await refreshDashboard(); }
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"pass the task"}),{type:"err"}); }
-    })));
-    host.querySelectorAll(".vrej").forEach(b=>b.addEventListener("click",async()=>{
-      const id=b.closest(".trow").dataset.id, t=tasks.find(x=>x.id===id);
-      const note=await BPUI.prompt("Reason for rejection (sent back to the event manager):",{title:"Reject "+((t&&t.title)||"task")+"?",label:"Reason for rejection",multiline:true,required:true,requiredMessage:"Give a reason so the team knows what to fix.",okLabel:"Reject task"});
-      if(note===null) return;   // Cancel must not reject the task
-      await rowGuard(b,async()=>{
-        try{ await BPStore.ops.verify(id,false,note.trim()); BPUI.toast("Rejected — sent back for rework.",{type:"ok"}); await refreshDashboard(); }
-        catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"reject the task"}),{type:"err"}); }
-      });
-    }));
-    host.querySelectorAll(".sched").forEach(b=>b.addEventListener("click",()=>scheduleFlow(b.closest(".trow").dataset.id)));
-    host.querySelectorAll(".spc").forEach(b=>b.addEventListener("click",()=>rowGuard(b,async()=>{
-      const id=b.closest(".trow").dataset.id, t=tasks.find(x=>x.id===id);
-      try{ await BPStore.ops.setSpecial(id, !(t&&t.is_special), 5);
-        BPUI.toast((t&&t.is_special)?"No longer marked special.":"Marked special - it gets reminders 10 and 5 min before its start, then every 5 min until started. Set the start time with ⏱ Schedule.",{type:"ok"}); await refreshDashboard(); }
-      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the reminder"}),{type:"err"}); }
-    })));
-    applyOpsFilter();
-  }
-  /* r92: Live status filter - search titles + person / section / status; hides rows with a class, hides empty
-     groups, updates the group counts; remembered per event (localStorage, best effort); re-applied after every render */
-  const OF_KEY=()=>"helm.opsFilter."+(quoteId||"");
-  const OF_QC="qc_pending";
-  let opsF=null, opsFKey="";
-  function opsFilterState(){
-    if(opsF && opsFKey===OF_KEY()) return opsF;
-    opsFKey=OF_KEY(); opsF={q:"",person:"",section:"",status:""};
-    try{ const v=JSON.parse(localStorage.getItem(OF_KEY())||"null"); if(v&&typeof v==="object") ["q","person","section","status"].forEach(k=>{ if(typeof v[k]==="string") opsF[k]=v[k].slice(0,120); }); }catch{}
-    return opsF;
-  }
-  function saveOpsFilter(){ try{ localStorage.setItem(OF_KEY(), JSON.stringify(opsFilterState())); }catch{} }
-  const ofPerson=(t)=>String((t&&t.assignee_name)||"").trim()||"Unassigned";
-  function fillSelect(sel, first, items, cur){
-    if(!sel) return;
-    sel.textContent="";
-    const o0=document.createElement("option"); o0.value=""; o0.textContent=first; sel.appendChild(o0);
-    items.forEach(([v,l])=>{ const o=document.createElement("option"); o.value=v; o.textContent=l; sel.appendChild(o); });
-    sel.value=items.some(([v])=>v===cur)?cur:"";
-  }
-  function opsFilterMatch(t,f){
-    if(!t) return true;
-    if(f.q && !String(t.title||"").toLowerCase().includes(f.q.toLowerCase())) return false;
-    if(f.person && ofPerson(t)!==f.person) return false;
-    if(f.section && String(t.category||"")!==f.section) return false;
-    if(f.status===OF_QC) return t.verify_status==="pending";
-    if(f.status && shownStatus(t)!==f.status) return false;
-    return true;
-  }
-  function applyOpsFilter(){
-    const f=opsFilterState(), bar=$("#opsFilter"); if(!bar) return;
-    bar.hidden=!tasks.length;
-    const people=[...new Set(tasks.map(ofPerson))].sort((a,b)=>a.localeCompare(b)).map(p=>[p,p]);
-    const sects=[...CATS, ...tasks.map(t=>t.category)].filter((c,i,a)=>c && a.indexOf(c)===i && tasks.some(t=>t.category===c)).map(c=>[c,c]);
-    const sts=Object.keys(STATUS_LABEL).filter(k=>tasks.some(t=>shownStatus(t)===k)).map(k=>[k,STATUS_LABEL[k]]);
-    sts.push([OF_QC,"QC pending"]);
-    fillSelect($("#of_person"),"Everyone",people,f.person);
-    fillSelect($("#of_section"),"All sections",sects,f.section);
-    fillSelect($("#of_status"),"Any status",sts,f.status);
-    const qi=$("#of_q"); if(qi && qi.value!==f.q) qi.value=f.q;
-    const on=!!(f.q||f.person||f.section||f.status);
-    const byId=Object.fromEntries(tasks.map(t=>[String(t.id),t]));
-    let shown=0;
-    document.querySelectorAll("#dashboard .grp").forEach(g=>{
-      if(g.id==="workerLinks") return;
-      const rows=[...g.querySelectorAll(".trow[data-id]")]; if(!rows.length) return;
-      let vis=0, done=0;
-      rows.forEach(r=>{ const t=byId[r.dataset.id]; const ok=!on||opsFilterMatch(t,f); r.classList.toggle("f-hide",!ok); if(ok){ vis++; if(t&&t.status==="completed") done++; } });
-      shown+=vis;
-      g.classList.toggle("f-hide", vis===0);
-      const c=g.querySelector(".gh .muted"); if(c){ if(c.dataset.all==null) c.dataset.all=c.textContent;
-        c.textContent= on ? done+"/"+vis+" done (of "+rows.length+")" : c.dataset.all; }
     });
-    const cnt=$("#of_count"); if(cnt) cnt.textContent = on ? (shown ? shown+" of "+tasks.length+" tasks" : "No tasks match the filter") : "";
-    const clr=$("#of_clear"); if(clr) clr.disabled=!on;
+    const note=await BPUI.prompt("Reason for rejection (sent back to the event manager):",{title:"Reject "+((t&&t.title)||"task")+"?",label:"Reason for rejection",multiline:true,required:true,requiredMessage:"Give a reason so the team knows what to fix.",okLabel:"Reject task"});
+    if(note===null) return;   // Cancel must not reject the task
+    return BPUI.guard(b,async()=>{
+      try{ await BPStore.ops.verify(id,false,note.trim()); BPUI.toast("Rejected — sent back for rework.",{type:"ok"}); await refreshDashboard(); }
+      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"reject the task"}),{type:"err"}); }
+    });
   }
-  function setOpsFilter(k,v){ opsFilterState()[k]=v; saveOpsFilter(); applyOpsFilter(); }
-  $("#of_q") && $("#of_q").addEventListener("input",e=>setOpsFilter("q",String(e.target.value||"").slice(0,80)));
-  [["#of_person","person"],["#of_section","section"],["#of_status","status"]].forEach(([s,k])=>{ const el=$(s); el && el.addEventListener("change",e=>setOpsFilter(k,e.target.value)); });
-  $("#of_clear") && $("#of_clear").addEventListener("click",()=>{ opsF={q:"",person:"",section:"",status:""}; saveOpsFilter(); applyOpsFilter(); });
-  function verifyChip(t){
-    if(t.verify_status==='passed')   return '<span class="qc pass" title="Verified by quality">QC ✓</span>';
-    if(t.verify_status==='rejected') return `<span class="qc rej" title="${esc(t.verify_note||'Rejected')}">QC ✗ rework</span>`;
-    if(t.verify_status==='pending')  return '<span class="qc pend">QC pending</span>';
-    return '';
+  // R186 (0369): a special task gets extra reminders before its start and, if it is not started, the coordinator, the
+  // manager and the admin / owner are told step by step (Settings -> Notifications sets when)
+  function toggleSpecial(b, id){
+    const t=tasks.find(x=>String(x.id)===String(id));
+    return BPUI.guard(b,async()=>{
+      try{ await BPStore.ops.setSpecial(id, !(t&&t.is_special), 5);
+        BPUI.toast((t&&t.is_special)?"No longer marked special.":"Marked special - extra reminders before the start; if it isn't started, the coordinator, then the manager, then the admin / owner are told."+(t&&!t.planned_start?" Give it a start time (Set a time) so it can escalate.":""),{type:"ok",timeout:7000}); await refreshDashboard(); }
+      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the special mark"}),{type:"err"}); }
+    });
   }
   // r20: task times in the STUDIO's time zone (Asia/Kolkata for an Indian studio), never the viewer's browser zone
   const fmtTime=(iso)=>{ try{ const o=BPStore.fmtStudioDate(iso,{fmt:{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}}); if(o) return o; }catch{} try{ return new Date(iso).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }catch{ return iso; } };
   /* ---- crew evidence (0038): what the worker sent with a reject / done ---- */
-  function evidenceBtn(t){
-    const rows=evidence.filter(e=>e.task_id===t.id); if(!rows.length) return '';
-    const n=(k)=>rows.filter(e=>e.kind===k).length, parts=[];
-    if(n('reject_reason')) parts.push('💬 reason'); if(n('reject_voice')) parts.push('🎙 voice'); if(n('proof_photo')) parts.push('📷 '+n('proof_photo'));
-    return `<button type="button" class="btn sm evid" aria-label="View crew notes and photos for ${esc(t.title||'task')}">${esc(parts.join(' · '))}</button>`;
-  }
   async function openEvidence(taskId){
     const t=tasks.find(x=>x.id===taskId); const rows=evidence.filter(e=>e.task_id===taskId); if(!rows.length) return;
     $("#ev_task").textContent=(t?(t.title||"Task")+(t.assignee_name?" — "+t.assignee_name:""):"Task");
@@ -950,40 +840,6 @@
   function closeEvidence(){ $("#evModal").hidden=true; $("#ev_body").innerHTML=""; }
   $("#ev_close").addEventListener("click",closeEvidence);
   $("#evModal").addEventListener("click",e=>{ if(e.target.id==="evModal") closeEvidence(); });
-  function gateChip(t, byId){
-    if(['completed','cancelled'].includes(t.status)) return '';
-    if(t.depends_on){ const d=byId[t.depends_on];
-      if(d && !(d.status==='completed' && d.verify_status==='passed'))
-        return `<span class="gate blocked" title="Waiting for a prerequisite">⛔ waits on ${esc((d.title||'task').slice(0,20))}</span>`; }
-    if(t.planned_start && new Date(t.planned_start) > new Date())
-      return `<span class="gate scheduled">⏱ ${esc(fmtTime(t.planned_start))}</span>`;
-    if(t.planned_start || t.depends_on) return '<span class="gate ready">▶ ready</span>';
-    return '';
-  }
-  /* ---- reassign: pick from a list of staff (no typing exact names) ---- */
-  let raTaskId=null; const raDirty=BPUI.trackDirty($("#reassignForm"));
-  function openReassign(id){
-    const t=tasks.find(x=>x.id===id); if(!t) return;
-    if(!crew.length){ BPUI.toast("No staff yet — add people in the Staff section first.",{type:"info"}); $("#cr_name").focus(); return; }
-    raTaskId=id;
-    $("#ra_task").textContent=`${t.title||"Task"}${t.assignee_name?" — currently "+t.assignee_name:""}`;
-    $("#ra_crew").innerHTML=`<option value="">— pick staff —</option>`+crew.map(crewOption).join(""); crewWho($("#ra_crew"),$("#raWho"));
-    $("#ra_err").hidden=true; raDirty.clean(); $("#reassignModal").hidden=false;
-  }
-  async function closeReassign(force){ if(!force && !(await BPUI.confirmDiscard(raDirty))) return; $("#reassignModal").hidden=true; raTaskId=null; raDirty.clean(); }
-  $("#ra_cancel").addEventListener("click",()=>closeReassign());
-  $("#reassignModal").addEventListener("click",e=>{ if(e.target.id==="reassignModal") closeReassign(); });
-  $("#reassignForm").addEventListener("submit",e=>{ e.preventDefault();
-    const c=crew.find(x=>x.id===$("#ra_crew").value);
-    if(!c){ $("#ra_err").textContent="Pick a staff member."; $("#ra_err").hidden=false; $("#ra_crew").focus(); return; }
-    BPUI.guard($("#reassignForm"),async()=>{
-      try{ await BPStore.ops.reassign(raTaskId,c.id,c.name,c.phone); await closeReassign(true); BPUI.toast("Reassigned to "+c.name+"."+((c.email||c.profile_id)?" They get an email with their tasks in about a minute.":""),{type:"ok"}); }
-      catch(err){ $("#ra_err").textContent=BPUI.friendlyError(err,{action:"reassign the task"}); $("#ra_err").hidden=false; return; }
-      try{ await refresh(); }
-      catch(err){ BPUI.toast(BPUI.friendlyError(err,{action:"refresh the task list"}),{type:"err"}); }
-    });
-  });
-
   /* ---- r96 (0312): cancel a task - a reason is required; the row is kept, greyed out ---- */
   let ctTaskId=null; const ctDirty=BPUI.trackDirty($("#cancelTaskForm"));
   function openCancelTask(id){
@@ -1131,9 +987,6 @@
     });
   });
 
-  $("#groupToggle") && $("#groupToggle").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
-    groupMode=b.dataset.g; $("#groupToggle").querySelectorAll("button").forEach(x=>{ x.classList.toggle("on",x===b); x.setAttribute("aria-pressed",String(x===b)); }); renderDashboard();
-  }));
   // R130 (0338): Remind due / Fire due are gone - task_reminder_tick runs every minute (pg_cron) and comms-dispatch sends.
 
   $("#loginForm").addEventListener("submit",async e=>{ e.preventDefault();
@@ -1148,10 +1001,21 @@
   // live dashboard — poll tasks/statuses so accepts/starts/completes appear without reloading
   async function refreshDashboard(){ if(!quoteId) return;
     try{ [tasks,tokens,evidence]=await Promise.all([BPStore.ops.listTasks(quoteId), BPStore.ops.listTokens(quoteId), BPStore.ops.listEvidence(quoteId).catch(()=>evidence)]); await loadWa(); renderDashboard(); }catch{} }
-  // skip the poll while a modal is open or a row action is in flight, so the list doesn't re-render under the user
-  setInterval(()=>{ if(document.hidden || $("#app").hidden) return; if(!$("#reassignModal").hidden || !$("#cancelTaskModal").hidden || !$("#schedModal").hidden || !$("#evModal").hidden) return; if(document.querySelector("#dashboard [data-busy]")) return; refreshDashboard(); }, 7000);
+  // R192: no 7-second full redraw any more - ops-board.js runs ONE 30 s refresh (shared with /monitor, task-status.js) that
+  // skips while a pop-up is open, and only redraws the rows that changed
+  window.OpsPage={
+    get:()=>({quote, quoteId, crew, tasks, tokens, vendors, evidence, CATS, activeCat, canEdit:canEditOps, canVerify, offIds, suggest:sugg, waRows, trmSettings, memberDir}),
+    reload:()=>refreshDashboard(), evDateStr, evTimeHM, remSummary,
+    waChip:(t)=>window.HelmTaskReminders?HelmTaskReminders.chip(waRows[t.id]):null,
+    schedule:(id)=>scheduleFlow(id), cancel:(id)=>openCancelTask(id), evidence:(id)=>openEvidence(id),
+    mail:(b,id,all)=>sendMail(b,id,all), wa:(b,id)=>sendWa(b,id), copyLink:(b,id)=>copyStaffLink(b,id), permLink, copyNow, workerLink:workerLinkFor,
+    verify:verifyTask, special:toggleSpecial,
+    sheetOpened:(preset)=>{ setMsg(); lastOkMsg=""; resetAssignEmail(); renderSuggestions();
+      setAsDay(preset?"keep":(evDateStr()?"event":"none")); if(!preset){ $("#selAll").checked=false; } },
+  };
   BPUI.boot(load);
 </script>
+
 <script src="wa-setup-note.js?v=1"></script><script src="studio-time.js?v=1"></script><script src="when-picker.js?v=3"></script><script src="task-reminders-ui.js?v=7"></script>
 <script src="crew-shifts.js?v=8"></script>
 </body>

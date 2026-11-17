@@ -1,6 +1,6 @@
 -- 0372_r189_money_lock.sql - R189 Money phase 1 "Lock the money" (owner, 17 Nov 2026; MONEY-INVENTORY-PLAN.md phase 1 +
 -- its "Phase 1 review (R189)"). Forward-only, additive, safe to run twice. ASCII only.
--- REQUIRES 0246 + 0252 + 0265 (_r21_cost_lines / _r21_event_money / _vb_event_pnl: the event cost ledger), 0049 + 0110 +
+-- REQUIRES 0274 (_r25_crew_cfg; 0371 moved every crew caller to it) + 0246 + 0252 + 0265 (_r21_cost_lines / _r21_event_money / _vb_event_pnl: the event cost ledger), 0049 + 0110 +
 --          0152 + 0198 (_a49_close_blockers), 0239 (business_pnl), 0264 (_pst_allocate), 0282 (_r282_event_closed),
 --          0287 (studio_today), 0296 (_r55_purge_allowed), 0184 (_tr184_purge_tables / _tr184_keep_tables).
 --
@@ -46,8 +46,8 @@ do $$ begin
   if to_regprocedure('public._r21_cost_lines(uuid,uuid)') is null or to_regprocedure('public._r21_event_money(uuid,uuid,boolean)') is null
      or to_regprocedure('public._vb_event_pnl(uuid,uuid)') is null or to_regprocedure('public._vb_event_pnl__pre0246(uuid,uuid)') is null then
     raise exception 'STOP 0372: apply 0246 (the event cost ledger) first'; end if;
-  if to_regprocedure('public._r23_cfg(uuid)') is null or to_regclass('public.crew_checkins') is null then
-    raise exception 'STOP 0372: apply 0265 (crew check-ins) first'; end if;
+  if to_regprocedure('public._r25_crew_cfg(uuid)') is null or to_regclass('public.crew_checkins') is null then
+    raise exception 'STOP 0372: apply 0265 (crew check-ins) and 0274 (_r25_crew_cfg) first'; end if;
   if to_regprocedure('public._a49_close_blockers(uuid)') is null then raise exception 'STOP 0372: apply 0198 first'; end if;
   if to_regprocedure('public.business_pnl(date,date)') is null or to_regprocedure('public.business_pnl__pre0239(date,date)') is null then
     raise exception 'STOP 0372: apply 0239 (Business area) first'; end if;
@@ -225,7 +225,7 @@ returns jsonb language sql stable security definer set search_path = '' as $$
   select jsonb_build_object(
     'ot_enabled', coalesce(s.ot_enabled, false), 'ot_mode', coalesce(s.ot_mode, 'multiplier'),
     'ot_multiplier', coalesce(s.ot_multiplier, 1.5), 'ot_rate', s.ot_rate,
-    'std_hours', coalesce(s.std_hours, nullif((public._r23_cfg(p_org) ->> 'dayHours')::numeric, 0), 8), 'std_hours_set', s.std_hours,
+    'std_hours', coalesce(s.std_hours, nullif((public._r25_crew_cfg(p_org) ->> 'dayHours')::numeric, 0), 8), 'std_hours_set', s.std_hours,
     'half_day', coalesce(s.half_day, false),
     'allowance_enabled', coalesce(s.allowance_enabled, false), 'allowance_default', coalesce(s.allowance_default, 0),
     'tds_enabled', coalesce(s.tds_enabled, true), 'tds_rate', coalesce(s.tds_rate, 2), 'tds_section', coalesce(s.tds_section, '194C'),
@@ -413,17 +413,27 @@ do $$ begin
   end if;
 end $$;
 
+-- the kept ledger body reads the crew settings like 0371 made every crew caller do (only on a database where this file ran before
+-- 0371: same pg_get_functiondef + replace technique, only the reader name changes; nothing else in the body)
+do $$ declare v_def text; begin
+  v_def := pg_get_functiondef('public._r21_cost_lines__pre0372(uuid,uuid)'::regprocedure);
+  if position('public._r23_cfg(' in v_def) > 0 and to_regprocedure('public._r25_crew_cfg(uuid)') is not null then
+    execute replace(v_def, 'public._r23_cfg(', 'public._r25_crew_cfg(');
+  end if;
+end $$;
+
 -- cost lines: the kept body, then confirmed attendance (crew), the Unplanned tag, and the correction lines
 create or replace function public._r21_cost_lines(p_quote uuid, p_org uuid)
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
 -- r189-money-0372: wraps _r21_cost_lines__pre0372 (the r21-money-0246 / r22-money-0252 / r23-crew-0265 ledger body)
+-- reads the crew settings through public._r25_crew_cfg( like every crew caller since 0371 (never the shared _r23_cfg)
 declare v jsonb; v_out jsonb := '[]'::jsonb; l jsonb; w record; v_cfg jsonb; v_ev date; v_tz text; v_day_h numeric;
   v_at timestamptz; v_src text; v_id uuid; v_corr jsonb;
 begin
   v := public._r21_cost_lines__pre0372(p_quote, p_org);
   if v is null then return null; end if;
   v_cfg := public._r372_cfg(p_org);
-  v_day_h := coalesce(nullif((public._r23_cfg(p_org) ->> 'dayHours')::numeric, 0), 8);
+  v_day_h := coalesce(nullif((public._r25_crew_cfg(p_org) ->> 'dayHours')::numeric, 0), 8);
   select q.event_date into v_ev from public.quotes q where q.id = p_quote;
   v_tz := public._r372_tz(p_org);
   for l in select x from jsonb_array_elements(v) x loop
@@ -813,7 +823,7 @@ begin
   if auth.uid() is null or v_org is null or not public.has_area('finance', 'view') then raise exception 'not authorized' using errcode = '42501'; end if;
   if not exists (select 1 from public.quotes q where q.id = p_quote and q.org_id = v_org) then raise exception 'event not found' using errcode = '42501'; end if;
   v_cfg := public._r372_cfg(v_org); v_tz := public._r372_tz(v_org);
-  v_day_h := coalesce(nullif((public._r23_cfg(v_org) ->> 'dayHours')::numeric, 0), 8);
+  v_day_h := coalesce(nullif((public._r25_crew_cfg(v_org) ->> 'dayHours')::numeric, 0), 8);
   v_closed := public._r282_event_closed(p_quote);
   v_lines := coalesce(public._r21_cost_lines__pre0372(p_quote, v_org), '[]'::jsonb);
   for l in select x from jsonb_array_elements(v_lines) x where x ->> 'source' = 'crew' order by x ->> 'label' loop
