@@ -19,6 +19,10 @@ if [ -z "${PGHOST:-}" ]; then
   fi
 fi
 export PGDATABASE=helm_runall
+# R195: run every session in UTC, like the CI postgres:17 service and Supabase. A Mac's local cluster otherwise uses the
+# machine's zone (e.g. America/Chicago) and suites that mix UTC dates with studio (India) dates fail only locally
+# (trial-retention-0184 #39 at some hours of the day). Override with PGTZ=... to test another zone on purpose.
+export PGTZ="${PGTZ:-UTC}"
 # 0164: fixture/setup statements run as a superuser with no API claims, which the DB treats as a
 # direct (system) change and keeps quiet. Suites expect normal sends, so pin the override off;
 # system-quiet-0164.sql clears it to test the real detection.

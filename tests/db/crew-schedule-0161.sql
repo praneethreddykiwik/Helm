@@ -22,6 +22,13 @@ create or replace function pg_temp.t(p_name text, p_ok boolean, p_got text) retu
   insert into _c161 values (p_name, case when coalesce(p_ok, false) then 'PASS' else 'FAIL: ' || coalesce(p_got, '<null>') end);
 $$;
 
+-- R195: remember the shared fixture quotes' event date / time so the cleanup puts them back. This suite used to leave
+-- event_date = 2026-11-10 on BOTH fixture quotes for every later suite; once (2026-11-10 + 7 days) ended in the studio's
+-- time zone (2026-11-17 18:30 UTC), the invitation / proposal link windows (0022) closed for every later suite that
+-- publishes or reads those quotes' invitation site (storage-policy, upload-hardening, r34-invite-0284, r125-trial-lockdown-0334).
+drop table if exists _c161_prev; create temp table _c161_prev as
+  select id, event_date, event_time from public.quotes
+   where id in ('a0000000-0000-4000-8000-00000000da01', 'b0000000-0000-4000-8000-00000000da01');
 -- setup (superuser): two crew logins in org A, one crew row in org B, tasks on the fixture quotes
 do $$ declare
   orgA uuid := 'a0000000-0000-4000-8000-000000000001'; orgB uuid := 'b0000000-0000-4000-8000-000000000001';
@@ -93,6 +100,8 @@ do $$ begin
   execute 'reset role';
   delete from public.event_tasks where id::text like '%c16100%';
   delete from public.crew_members where id::text like '%0c161%';
+  -- R195: put the fixture quotes' event date / time back as they were before this suite (see the setup note)
+  update public.quotes q set event_date = p.event_date, event_time = p.event_time from _c161_prev p where q.id = p.id;
 end $$;
 
 select case when count(*) filter (where result <> 'PASS') = 0
