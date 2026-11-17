@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (328 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (329 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4289 objects): body 166, bucket 9, col 237, con 408, cron 19, exec 5, fn 1934, idx 513, marker 46, pol 184, polexpr 4, pre 105, pub 5, seq 1, tbl 282, trg 369, view 2.
+-- What is checked (4337 objects): body 164, bucket 9, col 241, con 411, cron 19, exec 5, fn 1960, idx 520, marker 50, pol 186, polexpr 4, pre 106, pub 5, seq 1, tbl 285, trg 369, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -542,7 +542,6 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'tg_task_verify', ''),
   ('base-v1-2026-09-25', 'fn', 'public', 'user_role', ''),
   ('base-v1-2026-09-25', 'fn', 'public', 'verify_task', 'uuid,boolean,text'),
-  ('base-v1-2026-09-25', 'fn', 'public', 'worker_checkin_equipment', 'uuid,uuid,numeric'),
   ('base-v1-2026-09-25', 'fn', 'public', 'worker_get_equipment', 'uuid'),
   ('base-v1-2026-09-25', 'fn', 'public', 'worker_get_tasks', 'uuid'),
   ('base-v1-2026-09-25', 'fn', 'public', 'worker_respond', 'uuid,uuid,text'),
@@ -671,6 +670,7 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'verify_and_consent', 'uuid,text,text,boolean,text,text,text,text'),
   ('base-v1-2026-09-25', 'fn', 'public', 'accept_invitation', 'text'),
   ('base-v1-2026-09-25', 'fn', 'public', 'bell_feed', 'integer'),
+  ('base-v1-2026-09-25', 'fn', 'public', 'worker_checkin_equipment', 'uuid,uuid,numeric'),
   ('0001_pricing_authority', 'body', 'public', 'enforce_pricing_total', '|906e8a4240c9079e5ecde18fd774d385'),
   ('0001_pricing_authority', 'fn', 'public', 'helm_quote_total_canonical', 'jsonb'),
   ('0003_money_integrity', 'fn', 'public', 'helm_total_paid', 'uuid,uuid,uuid'),
@@ -1494,7 +1494,6 @@ with o(m, k, s, n, x) as (values
   ('0072_pending_fixes', 'con', 'public.inventory_checkouts', 'inventory_checkouts_written_off_nonneg_chk', null),
   ('0073_inventory_cancel_and_unique_names', 'body', 'public', 'checkin_equipment', 'uuid,numeric,text,boolean|98911813733e6e1fefe0661bb1b02c2f'),
   ('0073_inventory_cancel_and_unique_names', 'body', 'public', 'checkout_equipment', 'uuid,uuid,numeric,text,uuid,text|c3be54023f1e4a6114dfb50c6d8159be'),
-  ('0073_inventory_cancel_and_unique_names', 'body', 'public', 'worker_checkin_equipment', 'uuid,uuid,numeric|51b91f84a67888a689d098c10831058e'),
   ('0073_inventory_cancel_and_unique_names', 'col', 'public.inventory_checkouts', 'cancelled_at', null),
   ('0073_inventory_cancel_and_unique_names', 'col', 'public.inventory_checkouts', 'cancelled_by', null),
   ('0073_inventory_cancel_and_unique_names', 'fn', 'public', 'cancel_checkout', 'uuid,text'),
@@ -1756,8 +1755,8 @@ with o(m, k, s, n, x) as (values
   ('0101_e2e_usability', 'fn', 'public', '_r101_quote_tax', 'jsonb,numeric'),
   ('0101_e2e_usability', 'fn', 'public', '_r101_studio_contact', 'uuid'),
   ('0101_e2e_usability', 'pre', null, '__pre0101', null),
-  ('0101_e2e_usability', 'fn', 'public', 'public_portal_extras', 'uuid'),
   ('0101_e2e_usability', 'fn', 'public', 'public_booklet_pay_terms', 'uuid'),
+  ('0101_e2e_usability', 'fn', 'public', 'public_portal_extras', 'uuid'),
   ('0102_uae_demo_seed', 'body', 'public', 'seed_demo_data', '|2d6439cfb5e274d3efb25077fa1445d8'),
   ('0102_uae_demo_seed', 'fn', 'public', '_demo_seed_ae', 'uuid'),
   ('0102_uae_demo_seed', 'fn', 'public', '_demo_seed_for', 'uuid'),
@@ -2957,7 +2956,6 @@ with o(m, k, s, n, x) as (values
   ('0266_notification_inbox', 'cron', null, 'helm_inbox_tick', null),
   ('0266_notification_inbox', 'pre', null, '__pre0266', null),
   ('0266_notification_inbox', 'fn', 'public', '_r23_visible', 'uuid,uuid'),
-  ('0268_stock_one_flow', 'body', 'public', '_checkout_free', 'uuid,date,uuid|6ee093d63a2edae5daa50924cbdeba5b'),
   ('0268_stock_one_flow', 'col', 'public.inventory_checkouts', 'qty_damaged', null),
   ('0268_stock_one_flow', 'con', 'public.inventory_checkouts', 'inventory_checkouts_damaged_0268', null),
   ('0268_stock_one_flow', 'col', 'public.event_stock_requests', 'checkout_id', null),
@@ -3412,7 +3410,6 @@ with o(m, k, s, n, x) as (values
   ('0287_studio_timezone_today', 'body', 'public', '_pkg_lock_reason', 'uuid|14b3064641ae6bc1eda50aa72bbbb394'),
   ('0287_studio_timezone_today', 'body', 'public', '_r3_price_change_notify', 'uuid,text,text[],text|4c991f417d24634f1795e253399eb9e6'),
   ('0287_studio_timezone_today', 'body', 'public', '_demo_seed_ae', 'uuid|9263ec9eb535db09c155c0650fc41a1e'),
-  ('0287_studio_timezone_today', 'body', 'public', 'checkout_availability', 'uuid,uuid|f12962d7794c1d2a45d97d957c10f838'),
   ('0287_studio_timezone_today', 'body', 'public', 'hq_extend_trial', 'uuid,integer,text|4a1f8d16b9eb6f9cb7a924f97a6a0e6f'),
   ('0287_studio_timezone_today', 'body', 'public', 'vendor_payables_summary__pre0239', '|31ecfb2d700dabede1df0e7a1b91dd9c'),
   ('0287_studio_timezone_today', 'body', 'public', 'hq_settle_provider_payment', 'text,uuid,numeric,date,date,date,text,text,text,numeric|976fe97440fc8881fc51f222d393587d'),
@@ -3505,11 +3502,11 @@ with o(m, k, s, n, x) as (values
   ('0299_r58_crew_events_hardening', 'trg', 'public.crew_members', 'ab_r58_crew_pay_guard', null),
   ('0299_r58_crew_events_hardening', 'fn', 'public', 'staff_pay_fields', 'uuid[]'),
   ('0299_r58_crew_events_hardening', 'fn', 'public', 'work_links_for_event', 'uuid'),
-  ('0299_r58_crew_events_hardening', 'fn', 'public', 'inventory_costs', 'uuid[]'),
   ('0299_r58_crew_events_hardening', 'pol', 'public.run_sheet_items', 'r58 crew own events', null),
   ('0299_r58_crew_events_hardening', 'fn', 'public', 'event_group_contact', 'uuid'),
   ('0299_r58_crew_events_hardening', 'tbl', 'public.chat_card_contact_backup_r58', null, null),
   ('0299_r58_crew_events_hardening', 'pre', null, '__pre0299', null),
+  ('0299_r58_crew_events_hardening', 'fn', 'public', 'inventory_costs', 'uuid[]'),
   ('0300_r59_settings_money_hardening', 'body', 'public', 'admin_get_role_access', '|901dd217deb00d2ebc2093e05bacc4f6'),
   ('0300_r59_settings_money_hardening', 'body', 'public', 'set_pricing_config', 'jsonb|798bd619a964d9c61a27eb2c8b508ee8'),
   ('0300_r59_settings_money_hardening', 'body', 'public', 'my_studio_account', '|62235fd17313c052b7865eaa99e8a059'),
@@ -4313,7 +4310,58 @@ with o(m, k, s, n, x) as (values
   ('0373_r190_vendor_bills_finish', 'marker', 'public', '_r23_visible', 'uuid,uuid|r190-0373'),
   ('0373_r190_vendor_bills_finish', 'marker', 'public', 'bell_feed', 'integer|r190-0373'),
   ('0373_r190_vendor_bills_finish', 'marker', 'public', 'tg_a152_money_create_guard', '|r190-0373'),
-  ('0373_r190_vendor_bills_finish', 'exec', 'public', 'vendor_bill_pay', 'uuid,numeric,numeric,text,date,text,text,text|authenticated')
+  ('0373_r190_vendor_bills_finish', 'exec', 'public', 'vendor_bill_pay', 'uuid,numeric,numeric,text,date,text,text,text|authenticated'),
+  ('0374_r191_inventory_upgrade', 'body', 'public', 'checkout_availability', 'uuid,uuid|9485e122ce2d9d3977def3e9d810096d'),
+  ('0374_r191_inventory_upgrade', 'col', 'public.inventory_items', 'item_kind', null),
+  ('0374_r191_inventory_upgrade', 'col', 'public.inventory_items', 'reorder_level', null),
+  ('0374_r191_inventory_upgrade', 'con', 'public.inventory_items', 'inventory_items_kind_0374', null),
+  ('0374_r191_inventory_upgrade', 'con', 'public.inventory_items', 'inventory_items_reorder_0374', null),
+  ('0374_r191_inventory_upgrade', 'col', 'public.inventory_checkouts', 'qty_used', null),
+  ('0374_r191_inventory_upgrade', 'con', 'public.inventory_checkouts', 'inventory_checkouts_used_0374', null),
+  ('0374_r191_inventory_upgrade', 'tbl', 'public.inventory_stock_events', null, null),
+  ('0374_r191_inventory_upgrade', 'idx', 'public.inventory_stock_events_checkout_idx', null, null),
+  ('0374_r191_inventory_upgrade', 'idx', 'public.inventory_stock_events_quote_idx', null, null),
+  ('0374_r191_inventory_upgrade', 'idx', 'public.inventory_stock_events_org_idx', null, null),
+  ('0374_r191_inventory_upgrade', 'idx', 'public.inventory_stock_events_item_idx', null, null),
+  ('0374_r191_inventory_upgrade', 'tbl', 'public.inventory_settings', null, null),
+  ('0374_r191_inventory_upgrade', 'col', 'public.inventory_settings', 'stock_costs', null),
+  ('0374_r191_inventory_upgrade', 'idx', 'public.inventory_settings_org_idx', null, null),
+  ('0374_r191_inventory_upgrade', 'tbl', 'public.event_stock_windows', null, null),
+  ('0374_r191_inventory_upgrade', 'idx', 'public.event_stock_windows_quote_idx', null, null),
+  ('0374_r191_inventory_upgrade', 'idx', 'public.event_stock_windows_org_idx', null, null),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_tg_insert_only', ''),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_cfg', 'uuid'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_buffer', 'uuid'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_can_cost', 'uuid'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'inventory_settings_get', ''),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'inventory_settings_set', 'boolean,boolean,integer,boolean'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_win', 'uuid,uuid'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_load', 'uuid,uuid,uuid'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'event_stock_window_set', 'uuid,date,date'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'stock_windows', 'uuid[]'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'stock_overlaps', 'uuid'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_photo_ok', 'text,uuid,uuid'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_decide', 'uuid,text,numeric,text'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'stock_damage_decision', 'uuid,text,numeric,text'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_checkin', 'uuid,numeric,numeric,text,boolean,text,boolean,text,numeric'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'checkin_stock_v2', 'uuid,numeric,numeric,text,boolean,text,text,numeric'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'worker_checkin_equipment__pre0374', 'uuid,uuid,numeric'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_lock', 'uuid,boolean'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r374_sum', 'uuid,text'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'stock_found', 'uuid,numeric,text,text'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'stock_repair', 'uuid,text,numeric,numeric,text'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'stock_add_photo', 'uuid,text'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'stock_story', 'uuid'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', '_r21_cost_lines__pre0374', 'uuid,uuid'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'public_portal_extras__pre0374', 'uuid'),
+  ('0374_r191_inventory_upgrade', 'fn', 'public', 'inventory_costs__pre0374', 'uuid[]'),
+  ('0374_r191_inventory_upgrade', 'pol', 'storage.objects', 'event_docs_stock_insert_0374', null),
+  ('0374_r191_inventory_upgrade', 'pol', 'storage.objects', 'event_docs_stock_select_0374', null),
+  ('0374_r191_inventory_upgrade', 'pre', null, '__pre0374', null),
+  ('0374_r191_inventory_upgrade', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|r191-inventory-0374'),
+  ('0374_r191_inventory_upgrade', 'marker', 'public', 'public_portal_extras', 'uuid|r191-inventory-0374'),
+  ('0374_r191_inventory_upgrade', 'marker', 'public', 'worker_checkin_equipment', 'uuid,uuid,numeric|r191-inventory-0374'),
+  ('0374_r191_inventory_upgrade', 'marker', 'public', 'inventory_costs', 'uuid[]|r191-inventory-0374')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4643,7 +4691,8 @@ mig(ord, m, ov, note) as (values
   (325, '0370_r187_cantwork_approval', null, 'day-off requests: crew_link_home wrapped once (old body kept as __pre0370); crew_set_availability, crew_availability_set, crew_availability_range, crew_day_status and crew_unavailable_conflicts re-issued - all checked by the r187-0370 marker'),
   (326, '0371_r188_r23_cfg_split', null, 'only the settings reader inside 15 existing functions is renamed in place (0265 crew callers -> _r25_crew_cfg, 0266 inbox callers -> _r25_inbox_cfg), checked by the new reader name in their bodies'),
   (327, '0372_r189_money_lock', null, 'money lock: _r21_cost_lines, _r21_event_money, _vb_event_pnl, _a49_close_blockers, _pst_allocate and business_pnl wrapped once (old bodies kept as __pre0372), checked by the r189-money-0372 marker (the wrappers name the r23-crew-0265 / helm-0198-stages / r20-business-0239 bodies they keep)'),
-  (328, '0373_r190_vendor_bills_finish', null, 'vendor bills finish: _r21_cost_lines, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0373), checked by the r190-0373 marker (the wrappers name the r186-0369 / r24-ci-0270 / r163-0357 / r189-money-0372 bodies they keep and the 0371 _r25_crew_cfg reader, so those markers still hold); the hourly timer is scheduled only where pg_cron is installed - check it with select jobname from cron.job where jobname = helm-vendor-bill-reminders')
+  (328, '0373_r190_vendor_bills_finish', null, 'vendor bills finish: _r21_cost_lines, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0373), checked by the r190-0373 marker (the wrappers name the r186-0369 / r24-ci-0270 / r163-0357 / r189-money-0372 bodies they keep and the 0371 _r25_crew_cfg reader, so those markers still hold); the hourly timer is scheduled only where pg_cron is installed - check it with select jobname from cron.job where jobname = helm-vendor-bill-reminders'),
+  (329, '0374_r191_inventory_upgrade', null, 'inventory upgrade + multi-day stock: _r21_cost_lines, public_portal_extras, worker_checkin_equipment and inventory_costs wrapped once (old bodies kept as __pre0374), checked by the r191-inventory-0374 marker (the ledger and cost wrappers name the r21-money-0246 / r22-money-0252 / r23-crew-0265 / r58-inventory-cost-0299 bodies they keep)')
 ),
 env as (
   select

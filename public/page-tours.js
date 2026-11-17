@@ -128,11 +128,13 @@
     ],
     "inventory.html": [
       { sel: "#eventPanel", title: "Reserve for an event", desc: "Book items to a specific event — this is what the close-out later checks is returned." },
+      { sel: "#stockDates", title: "Stock dates", desc: "A multi-day event or a set-up the day before: set the set-up and teardown days and the stock stays held for the whole range. Other events holding the same items on those days are listed." },
       { sel: "#search", title: "Find stock", desc: "Search items, or filter by category and value grade (A / B / C)." },
       { sel: "#seedBtn", title: "A quick start", desc: "Adds a ready-made list of common event items you can edit." },
       { sel: "#newBtn", title: "Add stock", desc: "Add equipment to your inventory, graded A / B / C by value so losses are easy to price." },
       { sel: ["#pane-loans", '[aria-controls="pane-loans"]'], title: "Check out & back in", desc: "Issue stock to a person and record how much comes back. Anything short is flagged with its rupee value." },
-      { sel: "#lossRows", title: "Losses", desc: "Items lost or damaged, with what they cost you." },
+      { sel: "#lossRows", title: "Losses", desc: "Items lost or damaged. Follow-up on each line: Found (a late return goes back into stock), Send to repair, Add photo, and - with Finance access - who pays: the studio or the client." },
+      { sel: "#stockSettings", title: "Stock settings", desc: "Ask for a photo of damaged or missing items, show damage charges on the client portal, let stock staff see costs, and add buffer days for cleaning." },
     ],
     "vendors.html": [
       { sel: "#viewTabs", title: "Partners and requests", desc: "Your vendor list, or the requests and invoices you sent them." },
@@ -471,7 +473,7 @@
       { sel: "#trmLine", title: "Task reminders", desc: "Reminders go by email to each staff record address and on WhatsApp once connected. Change time in a task's panel sets its start time and reminders; tick tasks to move many at once." },
     ],
     "teardown.html": [
-      { sel: "#invRows", title: "Stock coming back", desc: "Every item that went out, and whether it is back." },
+      { sel: "#invRows", title: "Stock coming back", desc: "Every item that went out, and whether it is back. Mark back: came back OK and damaged (the rest is missing), or tick Some are still out. Consumables: count what is left over - the rest was used." },
       { sel: "#ciLink", title: "Check items back in", desc: "Open Inventory for this event to mark items returned." },
       { sel: "#bkRows", title: "Vendors packing up", desc: "Vendor pickups and handovers." },
       { sel: "#tdRows", title: "Teardown tasks", desc: "Tick off each pack-down job." },
