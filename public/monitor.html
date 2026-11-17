@@ -8,9 +8,10 @@
 <link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
-<link rel="stylesheet" href="monitor.css?v=3">
+<link rel="stylesheet" href="ops-board.css?v=1">
+<link rel="stylesheet" href="monitor.css?v=4">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=88" id="shellProto"></script>
+<script src="/shell-proto.js?v=89" id="shellProto"></script>
 </head>
 <body class="mon-body">
 <a class="skip-link" href="#main">Skip to content</a>
@@ -27,21 +28,27 @@
     <div id="monBoot" class="mon-card mon-loading" aria-busy="true">Loading the event day…</div>
     <div id="monErr" class="mon-card mon-err" role="alert" hidden></div>
 
-    <div id="monApp" hidden>
-      <section class="mon-top" aria-labelledby="monTitle">
-        <div class="mon-pick">
-          <label class="mon-lbl" for="monEvent">Event</label>
-          <select id="monEvent" class="mon-select" aria-describedby="monEventHint"></select>
-          <span id="monEventHint" class="mon-hint">Today and the next 3 days first, then the rest of the month.</span>
-        </div>
-        <div class="mon-head">
-          <h2 id="monTitle" class="mon-title">Event day</h2>
-          <p id="monSub" class="mon-sub"></p>
-          <div class="mon-head-acts">
-            <a id="monOpenOps" class="mon-btn" href="ops.html">Open Tasks &amp; staff</a>
-            <button type="button" id="monRefresh" class="mon-btn" aria-describedby="monUpdated">Refresh</button>
-            <span id="monUpdated" class="mon-updated" aria-live="polite"></span>
+    <div id="monApp" class="tc mon-app" hidden>
+      <!-- R194: one header band, the same component as Tasks & Crew (ops-board.css .tc-ev): event switcher as the title,
+           date / time / venue / guests, the countdown tile, then the actions -->
+      <section class="tc-ev tc-card mon-ev" aria-labelledby="monTitle">
+        <div class="tc-ev-main mon-ev-main">
+          <div class="tc-ev-id"><span class="tc-ev-code" id="monCode"></span><span class="tc-pill" id="monPill" hidden></span></div>
+          <div class="mon-evpick">
+            <h2 id="monTitle" class="tc-ev-title mon-title">Event day</h2>
+            <span class="mon-evpick-chev" aria-hidden="true"></span>
+            <label class="tc-sr" for="monEvent">Switch event</label>
+            <select id="monEvent" class="mon-evpick-sel" aria-describedby="monEventHint" title="Switch event"></select>
           </div>
+          <span id="monEventHint" class="tc-sr">Today and the next 3 days first, then the rest of the month.</span>
+          <p id="monSub" class="tc-ev-sub mon-sub"></p>
+        </div>
+        <dl class="tc-times mon-times" id="monTimes" aria-label="Times"></dl>
+        <div class="tc-ev-foot mon-head-acts">
+          <a id="monOpenOps" class="tc-btn tc-primary" href="ops.html">Open Tasks &amp; Crew</a>
+          <button type="button" id="monRefresh" class="tc-btn" aria-describedby="monUpdated">Refresh</button>
+          <span id="monUpdated" class="mon-updated" aria-live="polite"></span>
+          <button type="button" id="monWall" class="tc-btn ghost mon-wallbtn" aria-pressed="false" title="Big text for a wall screen or TV (full screen)">Wall screen</button>
         </div>
       </section>
 
@@ -57,32 +64,36 @@
         <button type="button" role="tab" class="mon-tab" data-tab="activity" id="monTab-activity" aria-controls="monView">Activity</button>
       </div>
 
-      <div class="mon-tools" role="search">
-        <input type="search" id="monQ" class="mon-input" placeholder="Search task, person or section" aria-label="Search">
-        <select id="monWho" class="mon-select" aria-label="Person"></select>
-        <select id="monSec" class="mon-select" aria-label="Section"></select>
-        <select id="monSt" class="mon-select" aria-label="Status">
-          <option value="">Any status</option>
-          <option value="late">Late</option>
-          <option value="waiting">Waiting for a yes</option>
-          <option value="accepted">Accepted</option>
-          <option value="started">Started</option>
-          <option value="done">Done</option>
-          <option value="rejected">Turned down</option>
-          <option value="unassigned">No one yet</option>
-        </select>
-        <select id="monSort" class="mon-select" aria-label="Sort">
-          <option value="time">Sort: start time</option>
-          <option value="name">Sort: name</option>
-          <option value="status">Sort: status</option>
-        </select>
-        <button type="button" id="monClear" class="mon-btn mon-ghost">Clear</button>
+      <!-- R194: filters in one row (search + four small menus); on a phone the menus fold behind a Filters button -->
+      <div class="mon-tools" id="monTools" role="search">
+        <label class="tc-search mon-search" for="monQ"><span class="tc-search-ico" aria-hidden="true"></span><input type="search" id="monQ" maxlength="80" placeholder="Search task, person or section" autocomplete="off" aria-label="Search"></label>
+        <button type="button" id="monFiltersBtn" class="tc-btn mon-filtersbtn" aria-expanded="false" aria-controls="monFilters">Filters <span class="mon-n" id="monFiltersN"></span></button>
+        <div class="mon-filters" id="monFilters">
+          <select id="monWho" class="mon-select" aria-label="Person"></select>
+          <select id="monSec" class="mon-select" aria-label="Section"></select>
+          <select id="monSt" class="mon-select" aria-label="Status">
+            <option value="">Any status</option>
+            <option value="late">Late</option>
+            <option value="waiting">Waiting for a yes</option>
+            <option value="accepted">Accepted</option>
+            <option value="started">Started</option>
+            <option value="done">Done</option>
+            <option value="rejected">Turned down</option>
+            <option value="unassigned">No one yet</option>
+          </select>
+          <select id="monSort" class="mon-select" aria-label="Sort">
+            <option value="time">Sort: start time</option>
+            <option value="name">Sort: name</option>
+            <option value="status">Sort: status</option>
+          </select>
+          <button type="button" id="monClear" class="tc-btn ghost mon-clear" hidden>Clear</button>
+        </div>
       </div>
 
       <div class="mon-grid">
         <div id="monView" class="mon-view" role="tabpanel" aria-labelledby="monTab-staff" aria-live="polite"></div>
-        <aside class="mon-side" aria-label="Recent activity">
-          <h3 class="mon-h3">Recent activity</h3>
+        <aside class="mon-side tc-card" aria-labelledby="monFeedH">
+          <div class="mon-side-h"><h3 class="mon-h3" id="monFeedH">Recent activity</h3><button type="button" class="tc-mini-link mon-linkbtn" id="monFeedAll">See all</button></div>
           <ol id="monFeed" class="mon-feed"></ol>
         </aside>
       </div>
@@ -94,9 +105,9 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=365"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=366"></script>
 <script src="live-board.js?v=2"></script>
 <script src="task-status.js?v=1"></script>
-<script src="monitor.js?v=5"></script>
+<script src="monitor.js?v=6"></script>
 </body>
 </html>

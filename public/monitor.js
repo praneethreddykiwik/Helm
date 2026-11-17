@@ -16,11 +16,15 @@
  *   R186 (0369): special tasks not started climb an escalation ladder (coordinator -> manager -> admin / owner); each step is
  *   in the timeline (kind "escalated") and the Late panel shows the latest one as a badge ("Escalated to manager 3:10 PM").
  * Gate: BPStore.auth.requireView("staff") - same as Tasks & staff. Crew never see this page.
+ * R194 layout (owner: "organise this page properly, the header and all"): one header band shared with Tasks & Crew
+ * (ops-board.css .tc-ev: event switcher as the title, date / venue / guests, countdown tile, actions), then the summary
+ * (big % + bar, status chips in one row, the other facts in one muted line), tabs, filters in one row (a Filters button on a
+ * phone), then the views with the activity rail beside them. "Wall screen" = big text for a TV, full screen when allowed.
  * Built with DOM calls only (textContent), never HTML strings. Refreshes every 30 s while the tab is visible
  * (event_tasks is not in a realtime publication, so polling is the cheap, safe choice). */
 (function () {
   "use strict";
-  var doc = document, REFRESH_MS = 30000, LS_KEY = "helm.monitor.quote", LS_TAB = "helm.monitor.tab";
+  var doc = document, REFRESH_MS = 30000, LS_KEY = "helm.monitor.quote", LS_TAB = "helm.monitor.tab", LS_WALL = "helm.monitor.wall";
   var $ = function (s) { return doc.querySelector(s); };
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -207,13 +211,17 @@
     var d = presenceDot(t); if (d) { d.setAttribute("data-presence-corner", ""); a.appendChild(d); }
     return a;
   }
+  /* R194: the time sits first in the row (as on Tasks & Crew): clock, then the day ("night of ..." after midnight), then
+     "in 45 min" / "12 min late". A task with no start time says "No time" quietly in that same first column. */
   function timeCell(t) {
-    if (!t.planned_start) return h("span", { cls: "mon-muted", text: "No start time" });
-    var s = stateOf(t), w = h("span", { cls: "mon-time" + (s.late ? " is-late" : "") });
-    w.appendChild(h("span", { text: fmtWhen(t.planned_start) }));
-    if (s.key === "waiting" || s.key === "accepted") w.appendChild(h("small", { text: s.late ? "should have started " + ago(t.planned_start) : until(t.planned_start) }));
+    if (!t.planned_start) return h("span", { cls: "mon-time is-none", title: "No start time set", text: "No time" });
+    var s = stateOf(t), p = parts(t.planned_start), w = h("span", { cls: "mon-time" + (s.late ? " is-late" : ""), title: fmtWhen(t.planned_start) });
+    w.appendChild(h("b", { text: fmtClock(t.planned_start) }));
+    if (p) w.appendChild(h("small", { text: p.hour < 6 ? "night of " + fmtDayIso(prevDay(p.day)) : fmtDayIso(p.day) }));
+    if (s.key === "waiting" || s.key === "accepted") w.appendChild(h("small", { cls: "mon-time-rel", text: s.late ? lateWords(TS.lateMin(t)) : until(t.planned_start) }));
     return w;
   }
+  function lateWords(m) { return m < 60 ? m + " min late" : m < 1440 ? Math.floor(m / 60) + " h " + (m % 60 ? (m % 60) + " min " : "") + "late" : Math.floor(m / 1440) + " d late"; }
   function actions(t) {
     var box = h("span", { cls: "mon-acts" });
     var qid = t.quote_id || S.quote;
@@ -248,6 +256,7 @@
     opts = opts || {};
     var s = stateOf(t);
     var row = h("div", { cls: "mon-row" + (s.late ? " is-late" : "") + (s.key === "done" ? " is-done" : ""), role: "listitem" });
+    row.appendChild(timeCell(t));
     var main = h("div", { cls: "mon-row-main" });
     var tt = h("div", { cls: "mon-row-title" }, [h("span", { text: t.title || "Task" })]);
     if (t.is_special) tt.appendChild(h("span", { cls: "mon-chip is-special", text: "🔔 Special" }));
@@ -258,7 +267,6 @@
     if (t._code) meta.appendChild(h("span", { cls: "mon-code", text: t._code }));
     main.appendChild(meta);
     row.appendChild(main);
-    row.appendChild(timeCell(t));
     var st = h("div", { cls: "mon-row-st" }); st.appendChild(steps(t)); st.appendChild(chip(s)); row.appendChild(st);
     row.appendChild(actions(t));
     return row;
@@ -445,40 +453,42 @@
   function renderSummary() {
     var box = $("#monSummary"); clear(box);
     var sm = summarize(S.tasks), now = Date.now();
+    // R194: row 1 = big % + "x of y tasks" + the bar, with the status chips beside it on a wide screen; row 2 = one muted line
     var top = h("div", { cls: "mon-sum-top" });
     top.appendChild(h("div", { cls: "mon-pct" }, [h("b", { text: sm.pct + "%" }), h("span", { text: " done · " + sm.done + " of " + sm.total + " tasks" })]));
     top.appendChild(bar(sm.pct));
     box.appendChild(top);
-    var counts = h("div", { cls: "mon-counts" });
+    var counts = h("div", { cls: "mon-counts", role: "group", label: "Show only" });
     [["done", sm.done, "Done"], ["started", sm.started, "Started"], ["accepted", sm.accepted, "Accepted"], ["waiting", sm.waiting, "Waiting for a yes"],
      ["late", sm.late, "Late"], ["rejected", sm.rejected, "Turned down"], ["unassigned", sm.unassigned, "No one yet"]].forEach(function (c) {
       if ((c[0] === "rejected" || c[0] === "unassigned") && !c[1]) return;
-      var b = h("button", { cls: "mon-count is-" + c[0], type: "button", title: "Show only: " + c[2] });
+      var b = h("button", { cls: "mon-count is-" + c[0] + (c[1] ? "" : " is-zero"), type: "button", title: "Show only: " + c[2] });
       b.appendChild(h("b", { text: String(c[1]) })); b.appendChild(h("span", { text: c[2] }));
       b.addEventListener("click", function () { $("#monSt").value = c[0]; setTab(c[0] === "done" ? "work" : "left"); render(); });
       counts.appendChild(b);
     });
-    box.appendChild(counts);
+    top.appendChild(counts);
     var facts = h("div", { cls: "mon-facts" });
-    facts.appendChild(h("span", { text: "👥 " + sm.confirmed + " of " + sm.people + " people confirmed (accepted, started or done)" }));
+    facts.appendChild(h("span", { title: "People who accepted, started or finished their work", text: sm.confirmed + " of " + sm.people + " people confirmed" }));
     var ac = attendanceCounts();   // R184
     if (ac.people) {
       var cf = h("button", { cls: "mon-factbtn" + (ac.late ? " mon-warn" : ""), type: "button", title: "Open the Check-in view",
-        text: "📍 " + ac.checkedIn + " of " + ac.people + " checked in" + (ac.late ? " · " + ac.late + " late" : "") });
+        text: ac.checkedIn + " of " + ac.people + " checked in" + (ac.late ? " · " + ac.late + " late" : "") });
       cf.addEventListener("click", function () { setTab("checkin"); render(); });
       facts.appendChild(cf);
     }
-    if (sm.next) facts.appendChild(h("span", { text: "⏭ Next: " + (sm.next.title || "task") + " - " + fmtWhen(sm.next.planned_start) + " (" + until(sm.next.planned_start, now) + ")" }));
+    if (sm.next) facts.appendChild(h("span", { title: fmtWhen(sm.next.planned_start), text: "Next: " + (sm.next.title || "task") + " " + until(sm.next.planned_start, now) }));
     // R184: the latest update (same line as the Tasks & staff progress card), from the full timeline
     var latest = allActs()[0];
     if (latest) {
-      var lb = h("button", { cls: "mon-factbtn mon-latest", type: "button", title: "Open the Activity view", text: "🕘 Latest: " + actText(latest) + " · " + ago(latest.at) });
+      var lb = h("button", { cls: "mon-factbtn mon-latest", type: "button", title: "Open the Activity view", text: "Latest: " + actText(latest) + " · " + ago(latest.at) });
       lb.addEventListener("click", function () { setTab("activity"); render(); });
       facts.appendChild(lb);
     }
     box.appendChild(facts);
     var n = leftover(S.tasks).length; $("#monLeftN").textContent = n ? String(n) : "";
     renderAlerts(now);
+    stickyOffset();
   }
   /* R184: red LATE panel - every task whose start time has passed and is not started (task, person, was due, how long ago, Nudge) */
   function lateTasks(now) {
@@ -518,9 +528,26 @@
     });
     if (acts.length > 15) {
       var more = h("li", { cls: "mon-feed-more" }); var b = h("button", { cls: "mon-btn mon-sm mon-ghost", type: "button", text: "See all " + acts.length + " updates" });
-      b.addEventListener("click", function () { setTab("activity"); render(); try { $("#monView").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} });
+      b.addEventListener("click", openActivity);
       more.appendChild(b); feed.appendChild(more);
     }
+  }
+  function openActivity() { setTab("activity"); render(); try { $("#monView").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} }
+  // R194: the activity rail sticks just under the sticky summary card, whatever its height
+  function stickyOffset() {
+    var sm = $("#monSummary"), app = $("#monApp"); if (!sm || !app || !app.style) return;
+    try { app.style.setProperty("--mon-sum-h", Math.round(sm.getBoundingClientRect().height || 0) + "px"); } catch (e) {}
+  }
+  // R194: filters - how many are on (the phone's Filters button shows it) and Clear only when something is on
+  function filterCount() {
+    var n = 0; ["#monWho", "#monSec", "#monSt"].forEach(function (s) { if ($(s).value) n++; });
+    if ($("#monSort").value !== "time") n++;
+    return n;
+  }
+  function paintFilters() {
+    var n = filterCount(), q = ($("#monQ").value || "").trim();
+    $("#monFiltersN").textContent = n ? String(n) : "";
+    $("#monClear").hidden = !(n || q);
   }
   function fillFilters() {
     var who = $("#monWho"), sec = $("#monSec"), wv = who.value, sv = sec.value, people = {}, secs = {};
@@ -531,7 +558,7 @@
     Object.keys(secs).sort().forEach(function (k) { sec.appendChild(opt(k, k, k === sv)); });
   }
   function render() {
-    renderSummary();
+    renderSummary(); paintFilters();
     var list = filtered(), v = $("#monView"); clear(v);
     if (S.tab === "activity") v.appendChild(viewActivity());   // R184: the timeline shows even before any task exists (check-ins, e-mails)
     else if (!S.tasks.length) v.appendChild(empty("No tasks for this event yet. Give work out in Tasks & staff and it shows here live."));
@@ -626,16 +653,58 @@
       er.textContent = (window.BPUI && BPUI.friendlyError) ? BPUI.friendlyError(e, { action: "load the event's tasks" }) : "Could not load the tasks. Check your connection and press Refresh.";
     } finally { S.loading = false; $("#monView").removeAttribute("aria-busy"); }
   }
+  /* R194: the header band - code + a Today / Upcoming pill, the event name as the switcher, date · venue · guests, and the
+     time tiles (Guests arrive + the countdown: "Event in 9 days", on the day a live clock) */
   function headFor() {
-    var e = S.quote === "all" ? null : S.evInfo[S.quote];
-    if (S.quote === "all") { $("#monTitle").textContent = "All events today"; $("#monSub").textContent = S.events.filter(function (x) { return x.is_today; }).map(function (x) { return x.code; }).join(" · "); $("#monOpenOps").hidden = true; return; }
+    var e = S.quote === "all" ? null : S.evInfo[S.quote], pill = $("#monPill");
+    if (S.quote === "all") {
+      $("#monCode").textContent = "Today"; $("#monTitle").textContent = "All events today";
+      $("#monSub").textContent = S.events.filter(function (x) { return x.is_today; }).map(function (x) { return [x.code, x.title].filter(Boolean).join(" · "); }).join("  |  ");
+      $("#monOpenOps").hidden = true; pillFor(pill, 0); renderTimes(null); return;
+    }
     $("#monOpenOps").hidden = false; $("#monOpenOps").setAttribute("href", "ops.html?quote=" + encodeURIComponent(S.quote));
-    if (!e) { $("#monTitle").textContent = "Event"; $("#monSub").textContent = ""; return; }
-    $("#monTitle").textContent = [e.code, e.title].filter(Boolean).join(" · ");
-    $("#monSub").textContent = [fmtDayIso(e.event_date, true), e.event_time, e.venue].filter(Boolean).join(" · ");
+    if (!e) { $("#monCode").textContent = ""; $("#monTitle").textContent = "Event"; $("#monSub").textContent = ""; pill.hidden = true; renderTimes(null); return; }
+    $("#monCode").textContent = e.code || "";
+    $("#monTitle").textContent = e.title || e.code || "Event";
+    $("#monSub").textContent = [e.event_date ? fmtDayIso(e.event_date, true) : "No event date yet", e.venue, e.guests ? e.guests + " guests" : ""].filter(Boolean).join(" · ");
+    pillFor(pill, e.event_date ? TS.dayDiff(todayIso(), String(e.event_date).slice(0, 10)) : NaN);
+    renderTimes(e);
+  }
+  function pillFor(pill, d) {
+    if (!isFinite(d)) { pill.hidden = true; return; }
+    pill.hidden = false; pill.textContent = d === 0 ? "Event day - live" : d > 0 ? "Upcoming" : "Past";
+    pill.className = "tc-pill" + (d === 0 ? "" : " plan");
+  }
+  function countdown(e) {
+    var d = e && e.event_date ? TS.dayDiff(todayIso(), String(e.event_date).slice(0, 10)) : NaN;
+    if (!isFinite(d)) return ["Countdown", "No date yet"];
+    if (d > 1) return ["Event in", d + " days"]; if (d === 1) return ["Event", "Tomorrow"];
+    if (d < 0) return ["Event was", (-d) + (d === -1 ? " day ago" : " days ago")];
+    return ["Now", fmtClock(new Date().toISOString())];
+  }
+  function renderTimes(e) {
+    var dl = $("#monTimes"); if (!dl) return; clear(dl);
+    function tile(lbl, val, cls, id) { dl.appendChild(h("div", { cls: "tc-t" + (cls ? " " + cls : "") }, [h("dt", { text: lbl }), h("dd", { text: val })])); if (id) dl.lastChild.lastChild.id = id; }
+    if (e && e.event_time) tile("Guests arrive", e.event_time, "key");
+    var cd = S.quote === "all" ? ["Now", fmtClock(new Date().toISOString())] : countdown(e);
+    tile(cd[0], cd[1], "count", "monClock");
+    dl.setAttribute("data-live", cd[0] === "Now" ? "1" : "");
+  }
+  // the venue, guests and time come from the quote (not in the live list) - read once per event, quietly
+  async function enrich(q) {
+    var e = S.evInfo[q]; if (!e || e._full || !BPStore.quotes || !BPStore.quotes.get) return;
+    e._full = true;
+    try {
+      var x = await BPStore.quotes.get(q); if (!x) return;
+      var c = x.client || {};
+      e.code = e.code || x.code; e.title = e.title || x.title; e.event_date = e.event_date || x.eventDate || x.event_date;
+      e.event_time = e.event_time || x.eventTime || x.event_time; e.venue = e.venue || x.venue || c.venue || "";
+      e.guests = x.guests || (x.pricing && x.pricing.guests) || c.guests || "";
+      if (S.quote === q) headFor();
+    } catch (err) {}
   }
   async function choose(q, push) {
-    S.quote = q; headFor();
+    S.quote = q; headFor(); if (q !== "all") enrich(q);
     try { localStorage.setItem(LS_KEY, q); } catch (e) {}
     if (push) { try { var u = new URL(location.href); u.searchParams.set("quote", q); history.replaceState(null, "", u.pathname + u.search); } catch (e) {} }
     S.tasks = []; await loadTasks(false);
@@ -644,6 +713,8 @@
     var el = $("#monUpdated"); if (!el || !S.lastLoad) return;
     var s = Math.round((Date.now() - S.lastLoad) / 1000);
     el.textContent = "Updated " + (s < 5 ? "just now" : s < 60 ? s + "s ago" : Math.floor(s / 60) + " min ago");
+    var ck = $("#monClock"), dl = $("#monTimes");   // R194: the live clock on the event day
+    if (ck && dl && dl.getAttribute("data-live") === "1") ck.textContent = fmtClock(new Date().toISOString());
   }
 
   /* ---- start ---- */
@@ -662,6 +733,14 @@
     $("#monRefresh").addEventListener("click", function () { loadTasks(false); });
     ["#monQ", "#monWho", "#monSec", "#monSt", "#monSort"].forEach(function (s) { $(s).addEventListener(s === "#monQ" ? "input" : "change", render); });
     $("#monClear").addEventListener("click", function () { $("#monQ").value = ""; $("#monWho").value = ""; $("#monSec").value = ""; $("#monSt").value = ""; $("#monSort").value = "time"; render(); });
+    // R194: phone - the four menus fold behind one Filters button
+    $("#monFiltersBtn").addEventListener("click", function () {
+      var tools = $("#monTools"), open = !tools.classList.contains("is-open");
+      tools.classList.toggle("is-open", open); this.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    $("#monFeedAll").addEventListener("click", openActivity);
+    $("#monWall").addEventListener("click", function () { setWall(!doc.body.classList.contains("mon-wall"), true); });
+    window.addEventListener("resize", stickyOffset);
     var tabs = $("#monTabs");
     tabs.addEventListener("click", function (e) { var b = e.target.closest(".mon-tab"); if (!b) return; setTab(b.getAttribute("data-tab")); render(); });
     tabs.addEventListener("keydown", function (e) {
@@ -672,6 +751,20 @@
     // R192: ONE refresh clock shared with Tasks & Crew (task-status.js): every 30 s while visible + at once when you come back
     TS.refresher(function () { if (signedIn()) return loadTasks(true); }, REFRESH_MS);
     setInterval(tick, 5000);
+  }
+  /* R194: wall-screen mode - bigger text, filters out of the way; full screen when the browser allows it (the button press
+     is the user gesture). Remembered on this device only. Esc / leaving full screen keeps the big text until switched off. */
+  function setWall(on, ask) {
+    doc.body.classList.toggle("mon-wall", !!on);
+    var b = $("#monWall"); if (b) { b.setAttribute("aria-pressed", on ? "true" : "false"); b.textContent = on ? "Exit wall screen" : "Wall screen"; }
+    try { localStorage.setItem(LS_WALL, on ? "1" : ""); } catch (e) {}
+    if (ask) {
+      try {
+        if (on && doc.documentElement.requestFullscreen && !doc.fullscreenElement) doc.documentElement.requestFullscreen().catch(function () {});
+        else if (!on && doc.fullscreenElement && doc.exitFullscreen) doc.exitFullscreen().catch(function () {});
+      } catch (e) {}
+    }
+    stickyOffset();
   }
   async function start() {
     await BPStore.init(); await renderAccount();
@@ -687,6 +780,8 @@
     var saved = null; try { saved = localStorage.getItem(LS_KEY); } catch (e) {}
     var tabSaved = null; try { tabSaved = localStorage.getItem(LS_TAB); } catch (e) {}
     setTab(tabSaved || "staff");
+    var wallSaved = null; try { wallSaved = localStorage.getItem(LS_WALL); } catch (e) {}
+    if (wallSaved === "1") setWall(true, false);
     var sel = $("#monEvent");
     var pick = (want && (want === "all" || UUID.test(want))) ? want : (saved && (saved === "all" || S.evInfo[saved])) ? saved : (S.events[0] && S.events[0].quote_id);
     if (want && UUID.test(want) && !S.evInfo[want]) { sel.insertBefore(opt(want, "This event"), sel.firstChild); S.evInfo[want] = { quote_id: want }; }
@@ -700,5 +795,6 @@
     if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", go); else go();
   }
   window.HelmMonitor = { stateOf: stateOf, summarize: summarize, leftover: leftover, fmtWhen: fmtWhen, _personKey: personKey,
-    actText: actText, actGroup: actGroup, _S: S, _attendance: attendance, lastEscalation: lastEscalation, escBadge: escBadge };
+    actText: actText, actGroup: actGroup, _S: S, _attendance: attendance, lastEscalation: lastEscalation, escBadge: escBadge,
+    _countdown: countdown, _lateWords: lateWords, _todayIso: todayIso };
 })();
