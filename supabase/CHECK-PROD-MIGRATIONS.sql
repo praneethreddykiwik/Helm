@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (325 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (326 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4171 objects): body 167, bucket 9, col 234, con 407, cron 19, exec 4, fn 1878, idx 487, marker 29, pol 184, polexpr 4, pre 103, pub 5, seq 1, tbl 271, trg 367, view 2.
+-- What is checked (4179 objects): body 168, bucket 9, col 234, con 407, cron 19, exec 4, fn 1878, idx 487, marker 36, pol 184, polexpr 4, pre 103, pub 5, seq 1, tbl 271, trg 367, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4195,7 +4195,15 @@ with o(m, k, s, n, x) as (values
   ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_availability_set', 'uuid,date,text,text|r187-0370'),
   ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_availability_range', 'date,date,uuid|r187-0370'),
   ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_day_status', 'date,uuid|r187-0370'),
-  ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_unavailable_conflicts', 'date,date|r187-0370')
+  ('0370_r187_cantwork_approval', 'marker', 'public', 'crew_unavailable_conflicts', 'date,date|r187-0370'),
+  ('0371_r188_r23_cfg_split', 'body', 'public', '_r23_cfg', 'uuid|8e607bcab70096bc25f68e56dd8e71fe'),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'get_crew_settings', '|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'crew_set_availability', 'uuid,date,text,text|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'crew_link_home__pre0299', 'uuid|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|public._r25_crew_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', 'admin_get_inbox_settings', '|public._r25_inbox_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r23_mode', 'uuid,uuid|public._r25_inbox_cfg('),
+  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r23_queue_digests', '|public._r25_inbox_cfg(')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4522,7 +4530,8 @@ mig(ord, m, ov, note) as (values
   (322, '0367_r179_special_reminders_staff_link_event', null, 'special-task reminders + the permanent staff link opens each event inside it: task_reminder_tick and staff_link_view wrapped once (old bodies kept as __pre0367), checked by the r179-0367 marker'),
   (323, '0368_r184_event_activity', null, null),
   (324, '0369_r186_special_escalation', null, 'special-task escalation ladder: task_reminder_tick, staff_email_claim, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0369), checked by the r186-0369 marker (the wrappers name the r179-0367 / r24-ci-0270 / r163-0357 bodies they keep, so those markers still hold)'),
-  (325, '0370_r187_cantwork_approval', null, 'day-off requests: crew_link_home wrapped once (old body kept as __pre0370); crew_set_availability, crew_availability_set, crew_availability_range, crew_day_status and crew_unavailable_conflicts re-issued - all checked by the r187-0370 marker')
+  (325, '0370_r187_cantwork_approval', null, 'day-off requests: crew_link_home wrapped once (old body kept as __pre0370); crew_set_availability, crew_availability_set, crew_availability_range, crew_day_status and crew_unavailable_conflicts re-issued - all checked by the r187-0370 marker'),
+  (326, '0371_r188_r23_cfg_split', null, 'only the settings reader inside 15 existing functions is renamed in place (0265 crew callers -> _r25_crew_cfg, 0266 inbox callers -> _r25_inbox_cfg), checked by the new reader name in their bodies')
 ),
 env as (
   select
