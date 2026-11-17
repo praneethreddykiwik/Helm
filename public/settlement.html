@@ -70,9 +70,9 @@
 </style>
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="vendor-bills.css?v=2">
+<link rel="stylesheet" href="vendor-bills.css?v=2"><link rel="stylesheet" href="money-lock.css?v=1">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=85" id="shellProto"></script>
+<script src="/shell-proto.js?v=86" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -114,6 +114,9 @@
         <div id="pay_block" class="err s-3717df5" role="alert" aria-live="assertive" hidden></div>
       </div>
     </div>
+
+    <!-- R189 (0372): TDS deducted by the client - money-lock-ui.js fills it; hidden without Finance view or 0372 -->
+    <div data-mlk-mount="tds" id="clientTds" hidden></div>
 
     <div class="card">
       <h2>🤝 Vendor settlement</h2>
@@ -171,7 +174,7 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=362"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=11"></script><script src="trial-test-note.js?v=4"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=363"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=11"></script><script src="money-lock-ui.js?v=1"></script><script src="trial-test-note.js?v=4"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -228,6 +231,7 @@
       <tr><td>Invoice total (quote + approved changes)</td><td class="num">${inr(s.revenue)}</td></tr>
       <tr><td>Payments received</td><td class="num" style="color:var(--safe-text,#0f7a43)">− ${inr(s.refundedOut>0?s.receivedGross:s.received)}</td></tr>
       ${s.refundedOut>0?`<tr><td>Refunded to client <span class="muted">(paid back - not owed again)</span></td><td class="num">${inr(s.refundedOut)}</td></tr>`:""}
+      ${s.clientTds>0?`<tr><td>TDS deducted by the client <span class="muted">(counts as received - Form 16A below)</span></td><td class="num">− ${inr(s.clientTds)}</td></tr>`:""}
       ${s.balance<0
         ? `<tr><td><b>Overpaid — credit due to client</b></td><td class="num"><b data-money style="color:var(--warn-text,#946200)">${inr(-s.balance)}</b></td></tr>`
         : `<tr><td><b>Balance due from client</b></td><td class="num"><b data-money style="color:${s.balance>0?'var(--neg)':'var(--safe-text,#0f7a43)'}">${inr(s.balance)}</b></td></tr>`}`;
@@ -375,11 +379,14 @@
       BPUI.loadError($("#vendBody"),e,load,{what:"vendor settlement"});
       BPUI.loadError($("#expBody"),e,load,{what:"expense claims"}); }
     await renderRefunds();
+    try{ document.dispatchEvent(new CustomEvent("helm:settlement-loaded")); }catch(_){}
   }
   // A bill / payout added in the Vendor bills card changes the vendor table, Owed and Final margin:
   // re-read the summary so every section agrees without a page reload (debounced; the card's own
   // first load also fires this, which just refreshes once).
   let vbT=null; document.addEventListener("helm:vendor-bills-changed",()=>{ if(!s) return; clearTimeout(vbT); vbT=setTimeout(()=>{ load(); },250); });
+  // R189 (0372): TDS recorded / reversed in the TDS card changes Balance due
+  document.addEventListener("helm:tds-changed",()=>{ if(!s) return; clearTimeout(vbT); vbT=setTimeout(()=>{ load(); },250); });
   BPUI.boot(async ()=>{
     await BPStore.init(); await renderAccount();
     $("#backLink").href = id?("event.html?id="+encodeURIComponent(id)):"quotes.html";

@@ -62,9 +62,9 @@
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="vendor-bills.css?v=2">
-<link rel="stylesheet" href="money-ledger.css?v=1">
+<link rel="stylesheet" href="money-ledger.css?v=2"><link rel="stylesheet" href="money-lock.css?v=1">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=85" id="shellProto"></script>
+<script src="/shell-proto.js?v=86" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -89,7 +89,13 @@
 
     <div class="card" id="closeDash" hidden></div>
 
+    <!-- R189 (0372): the frozen P&L (versions, corrections) - money-lock-ui.js fills it; hidden without Finance view or 0372 -->
+    <div data-mlk-mount="frozen" id="frozenPnl" hidden></div>
+
     <div data-ml-mount="margin" data-ml-replaces="plCard netProfit" data-ml-tiles="off" id="moneyLedger" hidden></div>
+
+    <!-- R189 (0372): Confirm attendance (days / overtime / allowance per person) - money-lock-ui.js -->
+    <div data-mlk-mount="attendance" id="crewAttendance" hidden></div>
 
     <div class="card" id="plCard">
       <h2>📊 Profit &amp; loss</h2>
@@ -154,10 +160,10 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=362"></script><script src="save-back.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=11"></script><script src="money-ledger-ui.js?v=2"></script><script src="stock-flow.js?v=1"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=363"></script><script src="save-back.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=11"></script><script src="money-ledger-ui.js?v=3"></script><script src="money-lock-ui.js?v=1"></script><script src="stock-flow.js?v=1"></script>
 <script src="closure-checklist.js?v=3"></script>
-<script src="page-tours.js?v=45"></script>
-<script src="tour.js?v=64"></script>
+<script src="page-tours.js?v=46"></script>
+<script src="tour.js?v=65"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));

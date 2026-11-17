@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (326 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (327 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4179 objects): body 168, bucket 9, col 234, con 407, cron 19, exec 4, fn 1878, idx 487, marker 36, pol 184, polexpr 4, pre 103, pub 5, seq 1, tbl 271, trg 367, view 2.
+-- What is checked (4232 objects): body 165, bucket 9, col 234, con 407, cron 19, exec 4, fn 1909, idx 498, marker 42, pol 184, polexpr 4, pre 104, pub 5, seq 1, tbl 277, trg 368, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -1222,7 +1222,6 @@ with o(m, k, s, n, x) as (values
   ('0049_db_gates', 'trg', 'public.event_close_overrides', 'zz_quote_org_match', null),
   ('0049_db_gates', 'trg', 'public.event_close_overrides', 'zzz_studio_read_only', null),
   ('0049_db_gates', 'pol', 'public.event_close_overrides', 'a49 close overrides read', null),
-  ('0049_db_gates', 'fn', 'public', '_a49_close_blockers', 'uuid'),
   ('0049_db_gates', 'fn', 'public', '_a49_blocker_text', 'jsonb'),
   ('0049_db_gates', 'fn', 'public', 'close_event_blockers', 'uuid'),
   ('0049_db_gates', 'fn', 'public', '_a49_close_gate', 'uuid,text'),
@@ -1239,6 +1238,7 @@ with o(m, k, s, n, x) as (values
   ('0049_db_gates', 'fn', 'public', 'storage_quota_ok', 'text,text,jsonb'),
   ('0049_db_gates', 'pol', 'storage.objects', 'upload_quota_insert', null),
   ('0049_db_gates', 'pre', null, '__pre0049', null),
+  ('0049_db_gates', 'fn', 'public', '_a49_close_blockers', 'uuid'),
   ('0050_auth_limits', 'tbl', 'public.auth_rate_hits', null, null),
   ('0050_auth_limits', 'fn', 'public', 'rate_hit', 'text,text,integer,integer'),
   ('0050_auth_limits', 'tbl', 'public.auth_mfa_attempts', null, null),
@@ -1860,8 +1860,8 @@ with o(m, k, s, n, x) as (values
   ('0124_vendor_bills', 'fn', 'public', 'record_vendor_payout', 'uuid,numeric,date,text,text,text'),
   ('0124_vendor_bills', 'pol', 'public.vendor_bills', 'vendor_bills_update', null),
   ('0124_vendor_bills', 'fn', 'public', 'vendor_payables_summary', ''),
-  ('0124_vendor_bills', 'fn', 'public', 'business_pnl', 'date,date'),
   ('0124_vendor_bills', 'fn', 'public', '_vb_event_pnl', 'uuid,uuid'),
+  ('0124_vendor_bills', 'fn', 'public', 'business_pnl', 'date,date'),
   ('0125_lead_audit_and_milestone_fix', 'trg', 'public.leads', 'audit_trg', null),
   ('0126_trial_staff_and_expiry', 'fn', 'public', '_trial_member_blocked', 'uuid'),
   ('0126_trial_staff_and_expiry', 'fn', 'public', 'my_trial_access', ''),
@@ -2437,7 +2437,6 @@ with o(m, k, s, n, x) as (values
   ('0239_business_area_admin_only', 'fn', 'public', 'vendor_payables_summary__pre0239', ''),
   ('0239_business_area_admin_only', 'fn', 'public', 'business_pnl__pre0239', 'date,date'),
   ('0239_business_area_admin_only', 'body', 'public', 'vendor_payables_summary', '|3ea170da458eb6c7b94608fe3e5f0fe1'),
-  ('0239_business_area_admin_only', 'body', 'public', 'business_pnl', 'date,date|43fc2bfad40c7bc216e7205bd46174c2'),
   ('0239_business_area_admin_only', 'pre', null, '__pre0239', null),
   ('0240_insights_event_costs', 'fn', 'public', 'insights_event_costs', 'date,date'),
   ('0241_delivery_reminders', 'tbl', 'public.delivery_settings', null, null),
@@ -2509,13 +2508,12 @@ with o(m, k, s, n, x) as (values
   ('0246_event_money_ledger', 'tbl', 'public.helm_money_rules', null, null),
   ('0246_event_money_ledger', 'fn', 'public', '_r21_category', 'text,text'),
   ('0246_event_money_ledger', 'fn', 'public', '_r21_category_label', 'text'),
-  ('0246_event_money_ledger', 'fn', 'public', '_r21_cost_lines', 'uuid,uuid'),
-  ('0246_event_money_ledger', 'fn', 'public', '_r21_event_money', 'uuid,uuid,boolean'),
   ('0246_event_money_ledger', 'fn', 'public', '_vb_event_pnl__pre0246', 'uuid,uuid'),
-  ('0246_event_money_ledger', 'body', 'public', '_vb_event_pnl', 'uuid,uuid|97d0b034dbe8a2359368cd289a2c41bb'),
   ('0246_event_money_ledger', 'fn', 'public', 'event_cost_breakdown', 'uuid'),
   ('0246_event_money_ledger', 'fn', 'public', 'studio_cost_breakdown', 'date,date'),
   ('0246_event_money_ledger', 'pre', null, '__pre0246', null),
+  ('0246_event_money_ledger', 'fn', 'public', '_r21_cost_lines', 'uuid,uuid'),
+  ('0246_event_money_ledger', 'fn', 'public', '_r21_event_money', 'uuid,uuid,boolean'),
   ('0248_reserved_email_domains', 'tbl', 'public.reserved_email_domains', null, null),
   ('0248_reserved_email_domains', 'tbl', 'public.staff_email_allowlist', null, null),
   ('0248_reserved_email_domains', 'fn', 'public', '_r248_norm_email', 'text'),
@@ -2865,7 +2863,6 @@ with o(m, k, s, n, x) as (values
   ('0264_payment_schedules', 'fn', 'public', '_pst_apply', 'uuid,text,text,uuid'),
   ('0264_payment_schedules', 'fn', 'public', '_pst_tg_quote_approved', ''),
   ('0264_payment_schedules', 'trg', 'public.quotes', 'zzz_pst_auto_schedule', null),
-  ('0264_payment_schedules', 'fn', 'public', '_pst_allocate', 'uuid'),
   ('0264_payment_schedules', 'fn', 'public', 'record_payment__pre0264', 'uuid,numeric,text,text,uuid,text,text'),
   ('0264_payment_schedules', 'fn', 'public', 'record_settlement_payment__pre0264', 'uuid,numeric,text,text,uuid,text,text'),
   ('0264_payment_schedules', 'fn', 'public', '_pst_pay_details', 'uuid'),
@@ -2883,6 +2880,7 @@ with o(m, k, s, n, x) as (values
   ('0264_payment_schedules', 'pre', null, '__pre0264', null),
   ('0264_payment_schedules', 'fn', 'public', 'payment_schedule_settings_get', ''),
   ('0264_payment_schedules', 'fn', 'public', 'payment_schedule_settings_set', 'jsonb'),
+  ('0264_payment_schedules', 'fn', 'public', '_pst_allocate', 'uuid'),
   ('0265_crew_availability_shifts_checkin', 'tbl', 'public.crew_availability', null, null),
   ('0265_crew_availability_shifts_checkin', 'idx', 'public.crew_availability_org_day_idx', null, null),
   ('0265_crew_availability_shifts_checkin', 'tbl', 'public.open_shifts', null, null),
@@ -3418,7 +3416,6 @@ with o(m, k, s, n, x) as (values
   ('0287_studio_timezone_today', 'body', 'public', 'hq_extend_trial', 'uuid,integer,text|4a1f8d16b9eb6f9cb7a924f97a6a0e6f'),
   ('0287_studio_timezone_today', 'body', 'public', 'vendor_payables_summary__pre0239', '|31ecfb2d700dabede1df0e7a1b91dd9c'),
   ('0287_studio_timezone_today', 'body', 'public', 'hq_settle_provider_payment', 'text,uuid,numeric,date,date,date,text,text,text,numeric|976fe97440fc8881fc51f222d393587d'),
-  ('0287_studio_timezone_today', 'body', 'public', '_r21_event_money', 'uuid,uuid,boolean|3c29b48b9a763c1fa9148921f91e2d56'),
   ('0287_studio_timezone_today', 'body', 'public', 'studio_cost_breakdown', 'date,date|caa4e8fdda3d9b006c1caae0b8aecf29'),
   ('0287_studio_timezone_today', 'fn', 'public', 'studio_timezone', 'uuid'),
   ('0287_studio_timezone_today', 'fn', 'public', 'studio_today', 'uuid,timestamp with time zone'),
@@ -4203,7 +4200,63 @@ with o(m, k, s, n, x) as (values
   ('0371_r188_r23_cfg_split', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|public._r25_crew_cfg('),
   ('0371_r188_r23_cfg_split', 'marker', 'public', 'admin_get_inbox_settings', '|public._r25_inbox_cfg('),
   ('0371_r188_r23_cfg_split', 'marker', 'public', '_r23_mode', 'uuid,uuid|public._r25_inbox_cfg('),
-  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r23_queue_digests', '|public._r25_inbox_cfg(')
+  ('0371_r188_r23_cfg_split', 'marker', 'public', '_r23_queue_digests', '|public._r25_inbox_cfg('),
+  ('0372_r189_money_lock', 'tbl', 'public.money_settings', null, null),
+  ('0372_r189_money_lock', 'tbl', 'public.event_pnl_snapshots', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.event_pnl_snapshots_org_idx', null, null),
+  ('0372_r189_money_lock', 'tbl', 'public.money_corrections', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.money_corrections_quote_idx', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.money_corrections_org_idx', null, null),
+  ('0372_r189_money_lock', 'tbl', 'public.crew_wage_confirmations', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.crew_wage_confirmations_quote_idx', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.crew_wage_confirmations_org_idx', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.crew_wage_confirmations_crew_idx', null, null),
+  ('0372_r189_money_lock', 'tbl', 'public.client_tds', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.client_tds_one_reversal_uq', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.client_tds_quote_idx', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.client_tds_org_idx', null, null),
+  ('0372_r189_money_lock', 'tbl', 'public.client_tds_certificates', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.client_tds_certificates_org_idx', null, null),
+  ('0372_r189_money_lock', 'idx', 'public.client_tds_certificates_quote_idx', null, null),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_tg_keep', ''),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_cfg', 'uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_tz', 'uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_who', ''),
+  ('0372_r189_money_lock', 'fn', 'public', 'money_settings_get', ''),
+  ('0372_r189_money_lock', 'fn', 'public', 'money_settings_set', 'jsonb'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_wage', 'jsonb,numeric,numeric,numeric,numeric,jsonb,numeric'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_suggest', 'uuid,uuid,uuid,jsonb'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r21_cost_lines__pre0372', 'uuid,uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r21_event_money__pre0372', 'uuid,uuid,boolean'),
+  ('0372_r189_money_lock', 'fn', 'public', '_vb_event_pnl__pre0372', 'uuid,uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', '_a49_close_blockers__pre0372', 'uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', '_pst_allocate__pre0372', 'uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', 'business_pnl__pre0372', 'date,date'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_flag', 'numeric,numeric,jsonb'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_diff', 'event_pnl_snapshots,jsonb,jsonb'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_snapshot', 'uuid,uuid,text,text'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_tg_close_snapshot', ''),
+  ('0372_r189_money_lock', 'trg', 'public.event_closure', 'zzz_r372_close_snapshot', null),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_current_snapshot', 'uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_tds', 'uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r372_cancelled_row', 'uuid,uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', 'event_pnl_versions', 'uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', 'pnl_freeze_now', 'uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', 'money_correction_add', 'uuid,text,numeric,text,text,uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', 'crew_attendance', 'uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', 'crew_attendance_confirm', 'uuid,jsonb'),
+  ('0372_r189_money_lock', 'fn', 'public', 'client_tds_list', 'uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', 'client_tds_record', 'uuid,numeric,text,numeric,text,uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', 'client_tds_reverse', 'uuid,text'),
+  ('0372_r189_money_lock', 'fn', 'public', 'client_tds_form16a', 'uuid,date,text'),
+  ('0372_r189_money_lock', 'fn', 'public', 'business_tax_by_month', 'date,date'),
+  ('0372_r189_money_lock', 'pre', null, '__pre0372', null),
+  ('0372_r189_money_lock', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|r189-money-0372'),
+  ('0372_r189_money_lock', 'marker', 'public', '_r21_event_money', 'uuid,uuid,boolean|r189-money-0372'),
+  ('0372_r189_money_lock', 'marker', 'public', '_vb_event_pnl', 'uuid,uuid|r189-money-0372'),
+  ('0372_r189_money_lock', 'marker', 'public', '_a49_close_blockers', 'uuid|r189-money-0372'),
+  ('0372_r189_money_lock', 'marker', 'public', '_pst_allocate', 'uuid|r189-money-0372'),
+  ('0372_r189_money_lock', 'marker', 'public', 'business_pnl', 'date,date|r189-money-0372')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4531,7 +4584,8 @@ mig(ord, m, ov, note) as (values
   (323, '0368_r184_event_activity', null, null),
   (324, '0369_r186_special_escalation', null, 'special-task escalation ladder: task_reminder_tick, staff_email_claim, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0369), checked by the r186-0369 marker (the wrappers name the r179-0367 / r24-ci-0270 / r163-0357 bodies they keep, so those markers still hold)'),
   (325, '0370_r187_cantwork_approval', null, 'day-off requests: crew_link_home wrapped once (old body kept as __pre0370); crew_set_availability, crew_availability_set, crew_availability_range, crew_day_status and crew_unavailable_conflicts re-issued - all checked by the r187-0370 marker'),
-  (326, '0371_r188_r23_cfg_split', null, 'only the settings reader inside 15 existing functions is renamed in place (0265 crew callers -> _r25_crew_cfg, 0266 inbox callers -> _r25_inbox_cfg), checked by the new reader name in their bodies')
+  (326, '0371_r188_r23_cfg_split', null, 'only the settings reader inside 15 existing functions is renamed in place (0265 crew callers -> _r25_crew_cfg, 0266 inbox callers -> _r25_inbox_cfg), checked by the new reader name in their bodies'),
+  (327, '0372_r189_money_lock', null, 'money lock: _r21_cost_lines, _r21_event_money, _vb_event_pnl, _a49_close_blockers, _pst_allocate and business_pnl wrapped once (old bodies kept as __pre0372), checked by the r189-money-0372 marker (the wrappers name the r23-crew-0265 / helm-0198-stages / r20-business-0239 bodies they keep)')
 ),
 env as (
   select

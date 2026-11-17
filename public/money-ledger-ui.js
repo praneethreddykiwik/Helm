@@ -91,12 +91,13 @@
     n.appendChild(ul); box.appendChild(n);
   }
   function varianceCell(row, fmt) {
-    var B = S(), td = el("td", "num"), v = num(row.variance), flag = B.moneyLedger.varianceFlag(row);
+    // R189 (0372): the server works out the flag with the studio's own big-gap rule; the browser rule is the fallback
+    var B = S(), td = el("td", "num"), v = num(row.variance), flag = typeof row.flag === "string" ? row.flag : B.moneyLedger.varianceFlag(row);
     if (Math.abs(v) < 0.005) { td.appendChild(el("span", "ml-muted", "on plan")); return td; }
     var sp = money(el("span", "ml-var " + flag, (v > 0 ? "+" : "−") + fmt(Math.abs(v))));
     td.appendChild(sp);
     if (row.variance_pct != null && v > 0) td.appendChild(el("span", "ml-vp " + flag, (flag === "over" ? " ⚠ " : " ") + row.variance_pct + "%"));
-    if (flag === "over") td.title = "More than 10% or more than 10,000 over the estimate";
+    if (flag === "over") td.title = typeof row.flag === "string" ? "Well over the plan (the studio's big-gap rule, Settings → Money rules)" : "More than 10% or more than 10,000 over the estimate";
     return td;
   }
   function amountCell(v, fmt, cls) {
@@ -135,11 +136,20 @@
         var r = el("tr", "ml-line"); r.hidden = true;
         var d1 = el("td"), stg = B.moneyLedger.stage(l);
         var nm = el("div", "ml-ln"); nm.appendChild(el("span", "ml-stage " + stg, STAGE_LABEL[stg]));
-        nm.appendChild(el("span", null, l.label || "Cost")); d1.appendChild(nm);
+        nm.appendChild(el("span", null, l.label || "Cost"));
+        if (l.unplanned) { var up = el("span", "ml-chip-unplanned", "Unplanned"); up.title = "Added on or after the event day with no estimate"; nm.appendChild(up); }
+        d1.appendChild(nm);
         var note = l.note || "";
         if (note) d1.appendChild(el("div", "ml-note" + (/^(not counted|replaced|in the plan only)/.test(note) ? " off" : ""), note));
         if (l.gst_status === "unknown" && num(l.c_act) > 0) d1.appendChild(el("div", "ml-note warn", "GST unknown - counted with its GST"));
         if (has(l.day_rate) && l.source === "crew") { var dr = el("div", "ml-note"); dr.appendChild(document.createTextNode("day rate ")); dr.appendChild(money(el("span", null, fmt(l.day_rate)))); d1.appendChild(dr); }
+        // R189 (0372): confirmed attendance - overtime / allowance parts (admin lines only; others see one crew line)
+        if (l.source === "crew" && l.wage_detail && (num(l.wage_detail.ot_amount) > 0 || num(l.wage_detail.allowance) > 0)) {
+          var wd = el("div", "ml-note");
+          if (num(l.wage_detail.ot_amount) > 0) { wd.appendChild(document.createTextNode("overtime ")); wd.appendChild(money(el("span", null, fmt(l.wage_detail.ot_amount)))); }
+          if (num(l.wage_detail.allowance) > 0) { wd.appendChild(document.createTextNode((num(l.wage_detail.ot_amount) > 0 ? " · " : "") + "allowance ")); wd.appendChild(money(el("span", null, fmt(l.wage_detail.allowance)))); }
+          d1.appendChild(wd);
+        }
         if (o.canEdit && hasCrew && l.staff_like && (l.source === "cost_line" || l.source === "vendor_line") && l.source_id && typeof o.onCrewCovered === "function") {
           var on = !!l.crew_covered, tg = el("button", "ml-tg" + (on ? " on" : ""), on ? "✓ Replaced by crew wages" : "Replaced by crew wages?");
           tg.type = "button"; tg.setAttribute("aria-pressed", on ? "true" : "false");
