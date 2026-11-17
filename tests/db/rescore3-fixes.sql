@@ -6,6 +6,8 @@
 set client_min_messages = warning;
 drop table if exists _r3; create temp table _r3(name text, result text); grant all on _r3 to anon, authenticated;
 drop table if exists _r3_ids; create temp table _r3_ids(k text primary key, v uuid); grant all on _r3_ids to anon, authenticated;
+-- R196: event date 14 days ahead in studio (India) time, never a fixed date that goes stale
+drop table if exists _r3d; create temp table _r3d as select (now() at time zone 'Asia/Kolkata')::date + 14 as ev_day; grant select on _r3d to anon, authenticated;
 
 create or replace function pg_temp.login(p_email text) returns void language plpgsql as $$
 declare u uuid; begin
@@ -48,7 +50,7 @@ begin
       values ('R3-'||upper(k), 'r3 '||k, 'quote', '{"name":"Rita","phone":"+91 98111 22222"}'::jsonb,
               case when k = 'zero' then '{}'::jsonb else '{"subtotal":100000,"discount":0,"gstPct":18}'::jsonb end, 1,
               case when k in ('pay','paid','zero','mark2','mark3') then 'approved' else 'sent' end, orgA,
-              gen_random_uuid(), now() + interval '30 days', date '2026-12-01', now(), now())
+              gen_random_uuid(), now() + interval '30 days', (select ev_day from _r3d), now(), now())
       returning id into q;
     insert into _r3_ids values (k, q);
     insert into _r3_ids select 'tok_'||k, approval_token from public.quotes where id = q;

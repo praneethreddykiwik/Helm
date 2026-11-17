@@ -31,11 +31,14 @@ exception when others then
 end $$;
 -- every waiting row is due now (the one-minute merge wait is proven separately)
 create or replace function pg_temp.due() returns void language sql as $$ update public.staff_email_outbox set not_before = now() - interval '1 second' where sent_at is null $$;
+-- R196: the event day is 14 days ahead in studio (India) time, never a fixed date that goes stale; at('12:30') = that time on that day
+create or replace function pg_temp.d() returns date language sql stable as $$ select (now() at time zone 'Asia/Kolkata')::date + 14 $$;
+create or replace function pg_temp.at(p text) returns timestamptz language sql stable as $$ select (pg_temp.d()::text || ' ' || p || ':00+05:30')::timestamptz $$;
 create or replace function pg_temp.n(p_kind text, p_to text, p_status text default 'pending') returns integer language sql as $$
   select count(*)::integer from public.staff_email_outbox where kind = p_kind and recipient = p_to and status = p_status $$;
 
 -- fixture: studio A, a live event with a manager, three staff (with e-mail / linked login only / no e-mail)
-update public.quotes set deleted_at = null, status = 'confirmed', title = 'Rao Wedding', event_date = '2026-12-01', is_demo = false,
+update public.quotes set deleted_at = null, status = 'confirmed', title = 'Rao Wedding', event_date = pg_temp.d(), is_demo = false,
        manager_id = (select id from auth.users where email = 'a_admin@a.test')
  where id = 'a0000000-0000-4000-8000-00000000da01';
 delete from public.automation_settings where org_id = 'a0000000-0000-4000-8000-000000000001';
@@ -56,8 +59,8 @@ select pg_temp.t('1d switch default on', public._r361_on('a0000000-0000-4000-800
 
 -- ---- 2) a task given to someone ----------------------------------------------------------------------------------------
 insert into public.event_tasks (id, quote_id, org_id, category, title, crew_id, assignee_name, assignee_phone, status, planned_start) values
-  ('a0000000-0000-4000-8000-0000000f3601', 'a0000000-0000-4000-8000-00000000da01', 'a0000000-0000-4000-8000-000000000001', 'Stage', 'Stage lights', 'a0000000-0000-4000-8000-0000000c3601', 'Ravi Kumar', '+91 90000 36101', 'assigned', '2026-12-01 12:30+05:30'),
-  ('a0000000-0000-4000-8000-0000000f3602', 'a0000000-0000-4000-8000-00000000da01', 'a0000000-0000-4000-8000-000000000001', 'Stage', 'Sound check', 'a0000000-0000-4000-8000-0000000c3601', 'Ravi Kumar', '+91 90000 36101', 'assigned', '2026-12-01 12:00+05:30'),
+  ('a0000000-0000-4000-8000-0000000f3601', 'a0000000-0000-4000-8000-00000000da01', 'a0000000-0000-4000-8000-000000000001', 'Stage', 'Stage lights', 'a0000000-0000-4000-8000-0000000c3601', 'Ravi Kumar', '+91 90000 36101', 'assigned', pg_temp.at('12:30')),
+  ('a0000000-0000-4000-8000-0000000f3602', 'a0000000-0000-4000-8000-00000000da01', 'a0000000-0000-4000-8000-000000000001', 'Stage', 'Sound check', 'a0000000-0000-4000-8000-0000000c3601', 'Ravi Kumar', '+91 90000 36101', 'assigned', pg_temp.at('12:00')),
   ('a0000000-0000-4000-8000-0000000f3603', 'a0000000-0000-4000-8000-00000000da01', 'a0000000-0000-4000-8000-000000000001', 'Decor', 'Flower arch', 'a0000000-0000-4000-8000-0000000c3601', 'Ravi Kumar', '+91 90000 36101', 'assigned', null);
 select pg_temp.t('2a three tasks given together = ONE e-mail, to the lower-cased staff address', pg_temp.n('task_assigned', 'ravi.k@example.org') = 1,
   (select count(*)::text from public.staff_email_outbox));
@@ -130,7 +133,7 @@ insert into public.task_wa_outbox (org_id, quote_id, task_id, kind, slot, slot_k
 select pg_temp.t('6e the same reminder slot never queues twice', pg_temp.n('task_reminder', 'ravi.k@example.org') = 1);
 
 -- ---- 7) claim of reminders ------------------------------------------------------------------------------------------------
-update public.event_tasks set planned_start = '2026-12-01 13:30+05:30' where id = 'a0000000-0000-4000-8000-0000000f3602';
+update public.event_tasks set planned_start = pg_temp.at('13:30') where id = 'a0000000-0000-4000-8000-0000000f3602';
 create temp table _r as select x from jsonb_array_elements(public.staff_email_claim(25)) x;
 select pg_temp.t('7a reminder claimed with task, start and work link fields',
   (select x ->> 'task' = 'Stage lights + spots' and x ->> 'start' is not null and x ? 'minutes' from _r where x ->> 'kind' = 'task_reminder'),

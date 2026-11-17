@@ -8,6 +8,9 @@
 set client_min_messages = warning;
 drop table if exists _r2; create temp table _r2(name text, result text); grant all on _r2 to anon, authenticated;
 drop table if exists _r2_ids; create temp table _r2_ids(k text primary key, v uuid); grant all on _r2_ids to anon, authenticated;
+-- R196: event dates relative to today in studio (India) time, never fixed dates that go stale (kept once for the whole run)
+drop table if exists _r2d; create temp table _r2d as select (now() at time zone 'Asia/Kolkata')::date + 14 as ev_day, (now() at time zone 'Asia/Kolkata')::date + 107 as ev_day2;
+grant select on _r2d to anon, authenticated;
 
 create or replace function pg_temp.login(p_email text) returns void language plpgsql as $$
 declare u uuid; begin
@@ -49,7 +52,7 @@ begin
                               approval_token, approval_token_expires_at, event_date, created_at, updated_at)
       values ('R2-'||upper(k), 'r2 '||k, 'quote', '{"name":"Rita","phone":"+91 98111 22222"}'::jsonb,
               '{"subtotal":100000,"discount":0,"gstPct":18}'::jsonb, 1, 'sent', orgA,
-              gen_random_uuid(), now() + interval '30 days', date '2026-12-01', now(), now())
+              gen_random_uuid(), now() + interval '30 days', (select ev_day from _r2d), now(), now())
       returning id into q;
     insert into _r2_ids values (k, q);
     insert into _r2_ids select 'tok_'||k, approval_token from public.quotes where id = q;
@@ -67,7 +70,7 @@ begin
   -- an invitation site (draft) for the slug test (studio A in context for its org trigger)
   perform auth.login_as(pg_temp.id('admin')); execute 'reset role';
   insert into public.event_sites(quote_id, org_id, slug, title, data)
-    values (pg_temp.id('site'), orgA, 'draft-r2'||substr(md5(random()::text),1,10), 'Rita and Ravi', '{"date":"2026-12-01"}'::jsonb)
+    values (pg_temp.id('site'), orgA, 'draft-r2'||substr(md5(random()::text),1,10), 'Rita and Ravi', jsonb_build_object('date', (select ev_day from _r2d)::text))
     returning id into v;
   insert into _r2_ids values ('site_row', v);
   perform pg_temp.su();
@@ -169,7 +172,7 @@ do $$ declare d date; begin
   begin update public.quotes set event_date = date '61115-01-01' where id = pg_temp.id('date'); exception when others then null; end;
   begin update public.quotes set event_date = date '1999-12-31' where id = pg_temp.id('date'); exception when others then null; end;
   perform pg_temp.su(); select event_date into d from public.quotes where id = pg_temp.id('date');
-  perform pg_temp.res('dates: an event date outside 2000-2100 is refused on a quote', d = date '2026-12-01', 'event_date '||d);
+  perform pg_temp.res('dates: an event date outside 2000-2100 is refused on a quote', d = (select ev_day from _r2d), 'event_date '||d);
 end $$;
 do $$ declare n int; begin
   perform pg_temp.login('a_admin@a.test');
@@ -182,12 +185,12 @@ do $$ declare t text; begin
   perform pg_temp.login('a_staff@a.test');
   begin update public.event_sites set data = '{"date":"61115-01-01"}'::jsonb where id = pg_temp.id('site_row'); exception when others then null; end;
   perform pg_temp.su(); select data->>'date' into t from public.event_sites where id = pg_temp.id('site_row');
-  perform pg_temp.res('dates: an invitation dated year 61115 is refused', t = '2026-12-01', 'date '||coalesce(t,'null'));
+  perform pg_temp.res('dates: an invitation dated year 61115 is refused', t = (select ev_day from _r2d)::text, 'date '||coalesce(t,'null'));
 end $$;
 do $$ declare d date; t text; begin
   perform pg_temp.login('a_staff@a.test');
   begin
-    update public.quotes set event_date = date '2027-03-04' where id = pg_temp.id('date');
+    update public.quotes set event_date = (select ev_day2 from _r2d) where id = pg_temp.id('date');
     update public.quotes set title = 'r2 legacy renamed' where id = pg_temp.id('legacy');
   exception when others then perform pg_temp.res('dates: valid dates save, and a LEGACY bad-date row stays and is still editable', false, sqlerrm); return; end;
   perform pg_temp.su();
@@ -195,7 +198,7 @@ do $$ declare d date; t text; begin
   select title into t from public.quotes where id = pg_temp.id('legacy');
   perform pg_temp.res('dates: valid dates save, and a LEGACY bad-date row stays and is still editable',
     d = date '61115-01-01' and t = 'r2 legacy renamed'
-    and (select event_date from public.quotes where id = pg_temp.id('date')) = date '2027-03-04', 'legacy '||d||' / '||t);
+    and (select event_date from public.quotes where id = pg_temp.id('date')) = (select ev_day2 from _r2d), 'legacy '||d||' / '||t);
 end $$;
 
 -- ================= 6) event_closure only through close_event ======================

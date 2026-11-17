@@ -27,14 +27,17 @@ exception when others then
   perform auth.logout(); execute 'reset role';
   return sqlstate || ' ' || sqlerrm;
 end $$;
--- 12:30 India on 1 Dec 2026 = 07:00 UTC; ist('12:20') -> that minute
-create or replace function pg_temp.ist(p text) returns timestamptz language sql as $$ select ('2026-12-01 ' || p || ':00+05:30')::timestamptz $$;
+-- R196: the event day is 14 days ahead in studio (India) time, never a fixed date that goes stale; d() = that day, dl() = its
+-- label as the messages print it (day month year, e.g. "1 Dec"). ist('12:20') -> that minute on that day (12:30 India = 07:00 UTC)
+create or replace function pg_temp.d() returns date language sql stable as $$ select (now() at time zone 'Asia/Kolkata')::date + 14 $$;
+create or replace function pg_temp.dl() returns text language sql stable as $$ select to_char(pg_temp.d(), 'FMDD Mon YYYY') $$;
+create or replace function pg_temp.ist(p text) returns timestamptz language sql as $$ select (pg_temp.d()::text || ' ' || p || ':00+05:30')::timestamptz $$;
 create or replace function pg_temp.rows(p_task uuid, p_status text default null) returns text language sql as $$
   select coalesce(string_agg(slot, ',' order by due_at, slot), '') from public.task_wa_outbox where task_id = p_task and (p_status is null or status = p_status) $$;
 
 -- fixture: studio A in India time, an event, its manager on the staff list, tasks
 update public.organizations set timezone = 'Asia/Kolkata' where id = 'a0000000-0000-4000-8000-000000000001';
-update public.quotes set deleted_at = null, status = 'confirmed', title = 'Rao Wedding', event_date = '2026-12-01',
+update public.quotes set deleted_at = null, status = 'confirmed', title = 'Rao Wedding', event_date = pg_temp.d(),
        manager_id = (select id from auth.users where email = 'a_admin@a.test')
  where id = 'a0000000-0000-4000-8000-00000000da01';
 insert into public.crew_members (id, name, phone, org_id, profile_id) values
@@ -151,15 +154,15 @@ select pg_temp.t('9b back on: a new time = a fresh set', (select count(*) = 1 fr
 insert into public.assign_notify_outbox (org_id, quote_id, item_kind, item_id, phone, name, body)
   values ('a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-00000000da01', 'task', 'a0000000-0000-4000-8000-0000000f0002', '919000003382', 'Meena Rao', 'New task: Sound check');
 select pg_temp.t('10a task assigned: template + 7 fields, the old text kept',
-  (select template = 'staff_task_assigned' and params = '["Meena", "Sound check", "Rao Wedding", "1 Dec 2026", "12:30 PM", "venue to be confirmed", "@link"]'::jsonb and body = 'New task: Sound check'
+  (select template = 'staff_task_assigned' and params = jsonb_build_array('Meena', 'Sound check', 'Rao Wedding', pg_temp.dl(), '12:30 PM', 'venue to be confirmed', '@link') and body = 'New task: Sound check'
      from public.assign_notify_outbox where item_id = 'a0000000-0000-4000-8000-0000000f0002' order by created_at desc limit 1),
   (select coalesce(template, 'null') || ' ' || coalesce(params::text, 'null') from public.assign_notify_outbox where item_id = 'a0000000-0000-4000-8000-0000000f0002' order by created_at desc limit 1));
 insert into public.open_shifts (id, org_id, quote_id, title, department, shift_date, start_time, end_time)
-  values ('a0000000-0000-4000-8000-0000000e0338', 'a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-00000000da01', 'Helper', 'Decoration', '2026-12-01', '10:00', '18:00');
+  values ('a0000000-0000-4000-8000-0000000e0338', 'a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-00000000da01', 'Helper', 'Decoration', pg_temp.d(), '10:00', '18:00');
 insert into public.assign_notify_outbox (org_id, quote_id, item_kind, item_id, phone, name, body)
   values ('a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-00000000da01', 'open_shift', 'a0000000-0000-4000-8000-0000000e0338', '919000003385', 'Kavya', 'open shift');
 select pg_temp.t('10b open shift: its own template + 8 fields',
-  (select template = 'staff_open_shift' and params = '["Kavya", "Decoration", "Rao Wedding", "1 Dec 2026", "10:00 AM", "6:00 PM", "venue to be confirmed", "@link"]'::jsonb
+  (select template = 'staff_open_shift' and params = jsonb_build_array('Kavya', 'Decoration', 'Rao Wedding', pg_temp.dl(), '10:00 AM', '6:00 PM', 'venue to be confirmed', '@link')
      from public.assign_notify_outbox where item_id = 'a0000000-0000-4000-8000-0000000e0338'),
   (select coalesce(params::text, 'null') from public.assign_notify_outbox where item_id = 'a0000000-0000-4000-8000-0000000e0338'));
 insert into public.assign_notify_outbox (org_id, quote_id, item_kind, item_id, phone, body)

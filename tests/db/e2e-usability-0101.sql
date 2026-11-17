@@ -6,6 +6,10 @@ set client_min_messages = warning;
 begin;
 create temp table _uf(name text, result text); grant all on _uf to anon, authenticated, service_role;
 create temp table _ukv(k text primary key, v text); grant all on _ukv to anon, authenticated, service_role;
+-- R196: the events sit 41 / 42 days ahead in studio (India) time and insights read the 31-day window around them
+-- (ev_from = ev_day - 27 .. ev_to = ev_day + 3), never fixed dates that go stale
+create temp table _ud as select d as ev_day, d + 1 as ev_day2, d - 27 as ev_from, d + 3 as ev_to from (select (now() at time zone 'Asia/Kolkata')::date + 41 as d) x;
+grant select on _ud to anon, authenticated, service_role;
 
 create or replace function pg_temp.su() returns void language plpgsql as $$
 begin execute 'reset role'; perform auth.logout(); execute 'reset role'; end $$;
@@ -33,11 +37,11 @@ grant execute on function pg_temp.get(text) to anon, authenticated, service_role
 do $$ declare a uuid := 'a0000000-0000-4000-8000-000000000001'; b uuid := 'b0000000-0000-4000-8000-000000000001'; begin
   perform pg_temp.su();
   insert into public.quotes(id, code, title, event_type, status, lifecycle_stage, event_date, pricing, client, org_id) values
-    ('a0000000-0000-4000-8000-0000000101e1', 'E101-1', 'WED_HYD_300_28DEC26', 'wedding', 'confirmed', 'planning', '2026-12-28',
+    ('a0000000-0000-4000-8000-0000000101e1', 'E101-1', 'WED_HYD_300_28DEC26', 'wedding', 'confirmed', 'planning', (select ev_day from _ud),
      '{"subtotal":502000,"discount":0,"gstPct":18,"total":592360}', '{"name":"Asha Rao","phone":"9000000101"}', a),
-    ('a0000000-0000-4000-8000-0000000101e2', 'E101-2', 'Exempt', 'corporate', 'confirmed', 'planning', '2026-12-29',
+    ('a0000000-0000-4000-8000-0000000101e2', 'E101-2', 'Exempt', 'corporate', 'confirmed', 'planning', (select ev_day2 from _ud),
      '{"subtotal":100000,"discount":0,"gstPct":18,"taxExempt":true,"total":100000}', '{"name":"Exempt Co","phone":"9000000102"}', a),
-    ('b0000000-0000-4000-8000-0000000101f1', 'E101-B', 'B event', 'wedding', 'confirmed', 'planning', '2026-12-28',
+    ('b0000000-0000-4000-8000-0000000101f1', 'E101-B', 'B event', 'wedding', 'confirmed', 'planning', (select ev_day from _ud),
      '{"subtotal":1000,"discount":0,"gstPct":18,"total":1180}', '{"name":"B Client","phone":"9000000109"}', b);
   update public.quotes set approval_token = 'a0000000-0000-4000-8000-0000000101aa', approval_token_revoked_at = null, approval_token_expires_at = null
    where id = 'a0000000-0000-4000-8000-0000000101e1';
@@ -68,7 +72,7 @@ exception when others then perform pg_temp.su(); insert into _uf values ('00 fix
 -- E13 insights: tax / ex-tax fields beside the unchanged gross fields
 do $$ declare r jsonb; m jsonb; inr jsonb; begin
   perform pg_temp.login('a_admin@a.test');
-  r := public.insights_range('2026-12-01', '2026-12-31'); m := r -> 'money';
+  r := public.insights_range((select ev_from from _ud), (select ev_to from _ud)); m := r -> 'money';
   select x into inr from jsonb_array_elements(r -> 'money_by_currency') x where x ->> 'currency' = 'INR';
   perform pg_temp.res('01 gross revenue unchanged (incl. tax)', (m ->> 'revenue')::numeric = 692360, m::text);
   perform pg_temp.res('02 tax collected = 90360 (exempt adds 0)', (m ->> 'tax')::numeric = 90360, m::text);
@@ -80,7 +84,7 @@ do $$ declare r jsonb; m jsonb; inr jsonb; begin
   perform pg_temp.res('06 tax helper: computed.totalGst used only for the same total', public._r101_quote_tax('{"gstPct":18,"computed":{"total":118,"totalGst":18}}', 118) = 18
     and public._r101_quote_tax('{"gstPct":18,"computed":{"total":999,"totalGst":500}}', 118) = 18 and public._r101_quote_tax('{"gstPct":0}', 100) = 0);
   perform pg_temp.login('b_admin@b.test');
-  r := public.insights_range('2026-12-01', '2026-12-31');
+  r := public.insights_range((select ev_from from _ud), (select ev_to from _ud));
   perform pg_temp.res('07 studio B tax only from its own event', (r #>> '{money,tax}')::numeric = 180, r ->> 'money');
   perform pg_temp.anon();
   perform pg_temp.res('08 anon cannot call insights / the copied body', pg_temp.try('select public.insights_range(null, null)') like '42501%'
@@ -91,7 +95,7 @@ exception when others then perform pg_temp.su(); insert into _uf values ('0x run
 do $$ declare t jsonb; begin
   perform pg_temp.anon();
   t := public.public_booklet_pay_terms('a0000000-0000-4000-8000-0000000101cc');
-  perform pg_temp.res('10 booklet terms: event date + 7 days + 30%', (t ->> 'event_date') = '2026-12-28' and (t ->> 'balance_due_days')::int = 7 and (t ->> 'advance_pct')::numeric = 30, t::text);
+  perform pg_temp.res('10 booklet terms: event date + 7 days + 30%', (t ->> 'event_date') = (select ev_day from _ud)::text and (t ->> 'balance_due_days')::int = 7 and (t ->> 'advance_pct')::numeric = 30, t::text);
   perform pg_temp.res('11 booklet terms: unknown token is an invalid link', pg_temp.try('select public.public_booklet_pay_terms(''a0000000-0000-4000-8000-00000000dead'')') like '%invalid link%');
   perform pg_temp.res('12 booklet terms: B link never shows A terms', (public.public_booklet_pay_terms('b0000000-0000-4000-8000-0000000101cc') ->> 'balance_due_days') is distinct from '7');
   perform pg_temp.su();
