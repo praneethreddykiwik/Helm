@@ -392,13 +392,14 @@
       { sel: "#ibxMail", title: "E-mail me", desc: "Get unread notifications by e-mail, straight away or once each morning." },
     ],
     "monitor.html": [
-      { sel: "#monEvent", title: "Pick the event", desc: "Today's events and the next 3 days come first, then the rest of the month. With several events today, choose All events today." },
+      { sel: ".mon-evpick", title: "Pick the event", desc: "Tap the event name to switch: today and the next 3 days first, then the rest of the month (or All events today). On the right: guests arrive, and the countdown or, on the day, a live clock." },
       { sel: "#monSummary", title: "How far along", desc: "The bar is the share of tasks done. Tap a count (Late, Waiting for a yes...) to see just those tasks." },
       { sel: "#monTabs", title: "Six ways to look", desc: "By staff: each person and their tasks. By work: each section. By status: waiting to done. Leftover: not done yet. Check-in: who is on site, who checked out, who is late. Activity: every update, newest first." },
-      { sel: ".mon-tools", title: "Filter and sort", desc: "Search, or show one person, one section or one status. Sort by start time, name or status." },
+      { sel: ".mon-tools", title: "Filter and sort", desc: "Search, or show one person, one section or one status. Sort by start time, name or status. On a phone the menus sit behind the Filters button; Clear shows when a filter is on." },
       { sel: "#monAlerts", title: "Late tasks", desc: "Every task whose start time has passed and is not started. A special task shows how far it has been escalated, for example Escalated to manager 3:10 PM." },
       { sel: "#monFeed", title: "What just happened", desc: "Every update as it comes in: work given out or moved, replies, starts, finishes, new times, check-ins and e-mails sent. See all opens the Activity tab. Updates on its own every 30 seconds." },
-      { sel: "#monOpenOps", title: "Change something", desc: "This page only watches. To reassign, schedule or cancel, open Tasks & staff (or a task's Open button). Nudge e-mails the task to the person again." },
+      { sel: "#monOpenOps", title: "Change something", desc: "This page only watches. To reassign, schedule or cancel, open Tasks & Crew (or a task's Open button). Nudge e-mails the task to the person again." },
+      { sel: ["#monWall", ".mon-head-acts"], title: "Wall screen", desc: "Big text for a TV or a wall screen, full screen when the browser allows it. Press it again (or Exit wall screen) to go back." },
     ],
     "integrations.html": [
       { sel: "#itgEmail", title: "E-mail invites", desc: "The sender name and reply-to address on e-mails Helm sends for you. Changing the reply-to address needs two-step sign-in; the sender name does not." },
