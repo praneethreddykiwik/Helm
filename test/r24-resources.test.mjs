@@ -205,8 +205,9 @@ t('event workspace: Resources stage = 1 Inventory, 2 Tasks & staff, 3 Resource p
   assert.match(read('public/event-ui.css'), /#app \.mod \.h \.mod-step\{/);
 });
 t('Tasks & staff / Inventory / Budget say where they sit in the flow, in the same words', () => {
-  assert.match(OPS, /<h1>Tasks &amp; staff<\/h1>/); assert.match(OPS, /Step 2 of 4 — assign our people\. Done\? <a class="s-a805525" href="resources\.html\?quote=\$\{encodeURIComponent\(quote\.id\|\|quoteId\)\}">3 See what's still missing →<\/a>/);
-  assert.match(OPS, /<option value="in_house">🏠 Our staff<\/option>/); assert.match(OPS, /<option value="outsourced">🤝 A vendor<\/option>/);
+  assert.match(OPS, /<h1 id="pageTitle">Tasks &amp; Crew<\/h1>/);   // R192 (approved mockup name on this page)
+  assert.match(OPS, /Step 2 of 4 — assign our people\. Done\? <a class="s-a805525" href="resources\.html\?quote=\$\{encodeURIComponent\(quote\.id\|\|quoteId\)\}">3 See what's still missing →<\/a>/);
+  assert.match(OPS, /<option value="in_house">Our staff<\/option>/); assert.match(OPS, /<option value="outsourced">A vendor<\/option>/);   // R192: no emoji icons
   assert.match(INV, /Step 1 of 4 — reserve our own stock for this event\./); assert.match(INV, /\$\("#rvNextStep"\)\.href="ops\.html\?quote="\+encodeURIComponent\(quoteId\);/);
   assert.match(BUD, /Step 4 of 4 \(after stock, people and vendors\)/); assert.match(BUD, /\$\("#flowBack"\)\.href = id\?\("resources\.html\?quote="\+encodeURIComponent\(id\)\):"resources\.html";/);
   assert.match(SRC, /label: "Resources covered \(nothing missing\)"/);

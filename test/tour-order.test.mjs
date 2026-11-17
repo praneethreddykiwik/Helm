@@ -93,7 +93,7 @@ t('per-page steps follow each toolbar left to right, then the content below', ()
   // R46: every page tour has 4-8 steps (page-tours.js), still in on-screen order
   assert.deepEqual(sels('quotes.html'), ['#tabs', '#tab_inprogress', '#search', '#typeFilter', '#newBtn', '#rows']);
   assert.deepEqual(sels('leads.html'), ['#search', '#archBtn', '#enqBtn', '#newBtn', '#board']);
-  assert.deepEqual(sels('staff.html'), ['#search', '#deptFilter', '#importBtn', '#newBtn', '#grid', '[data-act="tlink"]']);   // R172: the permanent task link button
+  assert.deepEqual(sels('staff.html'), ['#search', '#deptFilter', '#importBtn', '#newBtn', '#cantwork-requests', '#grid', '[data-act="tlink"]']);   // R172: the permanent task link button; R187: day-off requests
   assert.deepEqual(sels('inventory.html'), ['#eventPanel', '#stockDates', '#search', '#seedBtn', '#newBtn', '#pane-loans', '#lossRows', '#stockSettings']);   // R191: stock dates (in the event panel) + stock settings (end of Out & back)
   // r20: the builder's first-run tour walks the one-row header left to right (the r19 two-row header was reverted), then the panels
   // R164: + More / App bar (phone only, skipped elsewhere) right after Back home

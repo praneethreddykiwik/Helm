@@ -925,6 +925,7 @@ returns jsonb language plpgsql stable security definer set search_path = '' as $
 -- the loss still standing (written off - found later - repaired), the repair cost, and money the client paid back for it
 -- (a Charge client recovery once processed). Every line keeps source writeoff so every total adds up as before.
 -- The kept body carries the r21-money-0246 + r22-money-0252 + r23-crew-0265 ledger rules unchanged.
+-- (the r23-crew-0265 wages part reads its crew settings through public._r25_crew_cfg( since 0371, also unchanged)
 declare v_lines jsonb; v_out jsonb; v_new jsonb := '[]'::jsonb; x record;
 begin
   v_lines := coalesce(public._r21_cost_lines__pre0374(p_quote, p_org), '[]'::jsonb);

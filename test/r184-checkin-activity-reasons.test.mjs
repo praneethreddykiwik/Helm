@@ -20,6 +20,8 @@ const TOURS = read('public/page-tours.js');
 const code = (s) => s.replace(/^\s*--.*$/gm, '');
 
 const win = {};
+// R192: monitor.js uses the shared status / late / escalation module (task-status.js), loaded first as on the page
+vm.runInNewContext(readFileSync(new URL('../public/task-status.js', import.meta.url), 'utf8'), { window: win, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, Promise, setInterval() {}, clearInterval() {} });
 vm.runInNewContext(MON, { window: win, document: { getElementById: () => null, readyState: 'complete', addEventListener() {} }, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, URL, URLSearchParams, setInterval() {}, localStorage: null });
 const M = win.HelmMonitor;
 
@@ -120,17 +122,19 @@ await t('worker page: reason asked when marking, shown in a list, can be changed
 });
 
 await t('Team calendar: the tag shows the reason ("Can\u2019t work \u00b7 Family function"), tooltip says when none', () => {
-  assert.match(SCHED, /function offTxt\(note, max\)/);
-  assert.match(SCHED, /return "Can\\u2019t work \\u00b7 " \+ n;/);
+  // R187 (0370): offTxt(note, max, pending) - a day still waiting for approval reads "Asked off (waiting)"
+  assert.match(SCHED, /function offTxt\(note, max, pending\)/);
+  assert.match(SCHED, /return lead \+ " \\u00b7 " \+ n;/);
   assert.equal((SCHED.match(/esc\(offTxt\(/g) || []).length, 3);
   assert.match(SCHED, /\(no reason given\)/);
   // summaries name each person with their reason
-  assert.match(SCHED, /\(nameOf\[a\.crew_id\] \|\| "Someone"\) \+ \(a\.note \? " \(" \+ a\.note \+ "\)" : ""\)/);
+  assert.match(SCHED, /\(nameOf\[a\.crew_id\] \|\| "Someone"\) \+ \(a\.approval === "pending" \? " - asked, waiting for approval" : ""\) \+ \(a\.note \? " \(" \+ a\.note \+ "\)" : ""\)/);
   // the reason is shortened with an ellipsis, never cut mid-tag
-  const offTxt = new Function(SCHED.match(/function offTxt\(note, max\) \{[\s\S]*?\n    \}/)[0] + '; return offTxt;')();
+  const offTxt = new Function(SCHED.match(/function offTxt\(note, max, pending\) \{[\s\S]*?\n    \}/)[0] + '; return offTxt;')();
   assert.equal(offTxt('', 20), 'Can\u2019t work');
   assert.equal(offTxt('Family function', 20), 'Can\u2019t work \u00b7 Family function');
   assert.equal(offTxt('A very long reason about a family trip', 12), 'Can\u2019t work \u00b7 A very long\u2026');
+  assert.equal(offTxt('Exam', 20, true), 'Asked off (waiting) \u00b7 Exam');
 });
 
 await t('monitor: red LATE panel at the top (every late task: task, person, was due, how long ago, Nudge) + "Latest:" line', () => {

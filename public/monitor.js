@@ -86,56 +86,14 @@
     return "in " + Math.round(hh / 24) + " days";
   }
 
-  /* ---- status model (pure; unit-tested) ---- */
-  var ST = {
-    unassigned: { key: "unassigned", label: "No one yet", rank: 0 },
-    waiting:    { key: "waiting", label: "Waiting for a yes", rank: 1 },
-    accepted:   { key: "accepted", label: "Accepted", rank: 2 },
-    started:    { key: "started", label: "Started", rank: 3 },
-    done:       { key: "done", label: "Done", rank: 5 },
-    rejected:   { key: "rejected", label: "Turned down", rank: 4 }
-  };
-  function stateOf(t, now) {
-    var s = String((t && t.status) || "");
-    var base = s === "completed" ? "done" : s === "in_progress" ? "started" : s === "accepted" ? "accepted"
-      : s === "rejected" ? "rejected" : (s === "assigned" && (t.crew_id || t.assignee_name)) ? "waiting" : "unassigned";
-    var ps = t && t.planned_start ? new Date(t.planned_start).getTime() : NaN;
-    var late = (base === "waiting" || base === "accepted") && isFinite(ps) && ps < (now || Date.now());
-    return { key: base, late: late, label: ST[base].label };
-  }
-  function personKey(t) { return t.crew_id ? "c:" + t.crew_id : (t.assignee_name ? "n:" + String(t.assignee_name).toLowerCase() : ""); }
-  function summarize(tasks, now) {
-    now = now || Date.now();
-    var o = { total: 0, done: 0, started: 0, accepted: 0, waiting: 0, rejected: 0, unassigned: 0, late: 0, people: 0, confirmed: 0, next: null, firstLate: null };
-    var ppl = {}, conf = {};
-    (tasks || []).forEach(function (t) {
-      if (!t || t.status === "cancelled") return;
-      var s = stateOf(t, now); o.total++; o[s.key]++;
-      if (s.late) { o.late++; if (!o.firstLate || new Date(t.planned_start) < new Date(o.firstLate.planned_start)) o.firstLate = t; }
-      var k = personKey(t);
-      if (k) { ppl[k] = 1; if (s.key === "accepted" || s.key === "started" || s.key === "done") conf[k] = 1; }
-      var ps = t.planned_start ? new Date(t.planned_start).getTime() : NaN;
-      if ((s.key === "waiting" || s.key === "accepted") && isFinite(ps) && ps >= now && (!o.next || ps < new Date(o.next.planned_start).getTime())) o.next = t;
-    });
-    o.people = Object.keys(ppl).length; o.confirmed = Object.keys(conf).length;
-    o.pct = o.total ? Math.round(o.done * 100 / o.total) : 0;
-    return o;
-  }
-  /* leftover = everything not done: late first, then by start time (no time last), then title */
-  function leftover(tasks, now) {
-    now = now || Date.now();
-    return (tasks || []).filter(function (t) { return t && t.status !== "cancelled" && t.status !== "completed"; })
-      .map(function (t) { return { t: t, s: stateOf(t, now) }; })
-      .sort(function (a, b) {
-        if (a.s.late !== b.s.late) return a.s.late ? -1 : 1;
-        var pa = a.t.planned_start ? new Date(a.t.planned_start).getTime() : Infinity, pb = b.t.planned_start ? new Date(b.t.planned_start).getTime() : Infinity;
-        if (pa !== pb) return pa - pb;
-        return String(a.t.title || "").localeCompare(String(b.t.title || ""));
-      }).map(function (x) { return x.t; });
-  }
+  /* ---- status model: R192 - ONE shared vocabulary + late calculation (task-status.js), the same on Tasks & Crew ---- */
+  var TS = window.HelmTaskStatus;
+  var ST = {};
+  ["unassigned", "waiting", "accepted", "started", "done", "rejected"].forEach(function (k) { ST[k] = { key: k, label: TS.LABEL[k], rank: TS.RANK[k] }; });
+  var stateOf = TS.stateOf, personKey = TS.personKey, summarize = TS.summarize, leftover = TS.leftover;
 
   /* ---- page state ---- */
-  var S = { events: [], quote: null, tasks: [], crew: {}, sheet: {}, off: {}, acts: null, actType: "", canEdit: false, tab: "staff", lastLoad: 0, loading: false, evInfo: {}, timer: null };
+  var S = { events: [], quote: null, tasks: [], crew: {}, sheet: {}, off: {}, offAsk: {}, acts: null, actType: "", canEdit: false, tab: "staff", lastLoad: 0, loading: false, evInfo: {}, timer: null };
 
   /* ---- R184: attendance (check-in / check-out) + "can't work" reasons ---- */
   // first start time of a person's tasks on this event (the time they should be there by)
@@ -148,11 +106,9 @@
   function attendance(crewId) {
     var e = crewId && S.sheet[crewId];
     if (!e || !e.in) return { state: "none", text: "Not checked in", late: false, lateMin: 0 };
-    var fs = firstStart(crewId), inAt = e.inAt ? new Date(e.inAt).getTime() : NaN;
-    var late = (e.late_min || 0) > 0 || (isFinite(fs) && isFinite(inAt) && inAt > fs + 60000);
-    var lateMin = e.late_min || (isFinite(fs) && isFinite(inAt) ? Math.round((inAt - fs) / 60000) : 0);
+    var a = TS.attendance(e, firstStart(crewId));   // R192: the same check-in / late rule as Tasks & Crew
     var text = "Checked in " + (e.inAt ? fmtClock(e.inAt) : e.in) + " · " + (e.out ? "Checked out " + (e.outAt ? fmtClock(e.outAt) : e.out) : "Checked out —");
-    return { state: e.out ? "out" : "in", text: text, late: late, lateMin: late ? Math.max(1, lateMin) : 0, hours: e.hours };
+    return { state: a.state, text: text, late: a.late, lateMin: a.lateMin, hours: e.hours };
   }
   function attendanceCounts() {
     var ppl = {}, inN = 0, lateN = 0;
@@ -164,57 +120,16 @@
 
   /* ---- R184: the activity timeline ---- */
   var ACT_TYPES = [["", "All updates"], ["work", "Work given out / moved"], ["reply", "Accepted / turned down"], ["progress", "Started / done"],
-                   ["time", "Start time changes"], ["checkin", "Check-in / check-out"], ["email", "E-mails sent"], ["escalation", "Escalations"], ["special", "Special / cancelled"]];
-  function actGroup(k) {
-    return k === "assigned" || k === "reassigned" || k === "unassigned" ? "work" : k === "accepted" || k === "rejected" ? "reply"
-      : k === "started" || k === "completed" || k === "reopened" ? "progress" : k === "time_changed" ? "time"
-      : k === "check_in" || k === "check_out" || k === "check_edit" ? "checkin" : k === "email_sent" ? "email" : k === "escalated" ? "escalation" : "special";
-  }
+                   ["time", "Start time changes"], ["checkin", "Check-in / check-out"], ["email", "E-mails sent"], ["escalation", "Escalations"], ["special", "Special / cancelled"],
+                   ["dayoff", "Days off asked / approved"]];   // R187 (0370)
+  var actGroup = TS.actGroup;   // R192: shared wording (task-status.js)
   var ACT_ICON = { assigned: "📋", reassigned: "🔁", unassigned: "➖", time_changed: "🕒", special_on: "🔔", special_off: "🔕",
                    accepted: "✅", rejected: "✋", started: "▶️", completed: "🎉", cancelled: "✖️", reopened: "↩️",
-                   check_in: "📍", check_out: "🏁", check_edit: "✏️", email_sent: "✉️", escalated: "🚨" };
-  function emailWhat(k) {
-    return k === "task_reminder" ? "Reminder e-mail" : k === "task_late" ? "“Not started yet” e-mail" : k === "task_update" ? "“Your tasks were updated” e-mail"
-      : k === "office_alert" ? "Office alert e-mail" : k === "task_escalation" ? "Escalation e-mail" : "Task e-mail";
-  }
-  // R186: "coordinator" / "manager" / "admin / owner"
-  function escLevel(l) { return l === "admin" ? "admin / owner" : l === "manager" ? "manager" : "coordinator"; }
-  // R186: the latest escalation step of a task for its current start time (from the timeline), or null
-  function lastEscalation(t, acts) {
-    if (!t || !t.id) return null;
-    var ps = t.planned_start ? Date.parse(t.planned_start) : NaN, best = null;
-    (acts || []).forEach(function (a) {
-      if (!a || a.kind !== "escalated" || a.task_id !== t.id) return;
-      var rs = a.detail && a.detail.ref_start ? Date.parse(a.detail.ref_start) : NaN;
-      if (isFinite(ps) && isFinite(rs) && rs !== ps) return;   // an older start time: not this ladder
-      if (!best || new Date(a.at) > new Date(best.at)) best = a;
-    });
-    return best;
-  }
-  function escBadge(a) { return a ? "Escalated to " + escLevel(a.detail && a.detail.level) + " " + fmtClock(a.at) : ""; }
-  function actText(a) {
-    var who = a.name || "Someone", task = a.title ? "“" + a.title + "”" : "a task", d = a.detail || {};
-    switch (a.kind) {
-      case "assigned": return task + " given to " + (d.to || a.name || "someone");
-      case "reassigned": return task + " moved from " + (d.from || "someone") + " to " + (d.to || a.name || "someone");
-      case "unassigned": return task + " no longer has anyone on it";
-      case "time_changed": return task + ": start time " + (d.from ? fmtWhen(d.from) : "not set") + " → " + (d.to ? fmtWhen(d.to) : "not set");
-      case "special_on": return task + " marked special (extra reminders)";
-      case "special_off": return task + " is no longer special";
-      case "accepted": return who + " accepted " + task;
-      case "rejected": return who + " turned down " + task;
-      case "started": return who + " started " + task;
-      case "completed": return who + " finished " + task;
-      case "cancelled": return task + " was cancelled" + (d.reason ? " (" + d.reason + ")" : "");
-      case "reopened": return task + " was reopened";
-      case "check_in": return who + " checked in" + ((+d.late_min || 0) > 0 ? " · " + d.late_min + " min late" : "") + (d.within === false ? " · away from the venue" : "");
-      case "check_out": return who + " checked out";
-      case "check_edit": return "Office corrected " + who + "’s check-in times" + (d.note ? " (" + d.note + ")" : "");
-      case "email_sent": return emailWhat(d.email_kind) + " sent to " + who + (a.title ? " — " + a.title : "");
-      case "escalated": return task + " not started - escalated to " + escLevel(d.level) + (Array.isArray(d.to) && d.to.length ? " (" + d.to.slice(0, 6).join(", ") + (d.to.length > 6 ? " +" + (d.to.length - 6) : "") + ")" : "");
-      default: return who + ": " + String(a.kind || "update");
-    }
-  }
+                   check_in: "📍", check_out: "🏁", check_edit: "✏️", email_sent: "✉️", escalated: "🚨", dayoff_asked: "🗓️", dayoff_approved: "🗓️" };
+  // R186: "coordinator" / "manager" / "admin / owner" - R192: the shared ladder (task-status.js)
+  var escLevel = TS.escLevel, lastEscalation = TS.lastEscalation;
+  function escBadge(a) { return TS.escBadge(a, fmtClock); }
+  function actText(a) { return TS.actText(a, fmtWhen); }
   // without 0368: the timeline from what the tasks and the check-in sheet already say
   function fallbackActs() {
     var acts = [];
@@ -228,7 +143,21 @@
       if (e && e.outAt) acts.push({ at: e.outAt, kind: "check_out", crew_id: id, name: nm, detail: {} }); });
     return acts.sort(function (a, b) { return new Date(b.at) - new Date(a.at); });
   }
-  function allActs() { return S.acts || fallbackActs(); }
+  // R187 (0370): day-off steps of people on the event day (from the availability rows: requested_at / decided_at)
+  function dayoffActs() {
+    var out = [];
+    (S.offRows || []).forEach(function (a) {
+      if (!S.tasks.some(function (t) { return t.crew_id === a.crew_id; })) return;   // only people working this event
+      var nm = (S.crew[a.crew_id] && S.crew[a.crew_id].name) || "Someone";
+      if (a.requested_at) out.push({ at: a.requested_at, kind: "dayoff_asked", crew_id: a.crew_id, name: nm, detail: { note: a.note || "", pending: a.approval === "pending" } });
+      if (a.decided_at && a.approval === "approved") out.push({ at: a.decided_at, kind: "dayoff_approved", crew_id: a.crew_id, name: nm, detail: {} });
+    });
+    return out;
+  }
+  function allActs() {
+    var base = S.acts || fallbackActs(), extra = dayoffActs();
+    return extra.length ? base.concat(extra).sort(function (a, b) { return new Date(b.at) - new Date(a.at); }) : base;
+  }
 
   function filtered() {
     var q = ($("#monQ").value || "").trim().toLowerCase(), who = $("#monWho").value, sec = $("#monSec").value, st = $("#monSt").value, now = Date.now();
@@ -288,7 +217,7 @@
   function actions(t) {
     var box = h("span", { cls: "mon-acts" });
     var qid = t.quote_id || S.quote;
-    box.appendChild(h("a", { cls: "mon-btn mon-sm", href: "ops.html?quote=" + encodeURIComponent(qid) + "#task-" + encodeURIComponent(t.id), text: "Open", title: "Open this task in Tasks & staff (reassign, schedule, cancel)" }));
+    box.appendChild(h("a", { cls: "mon-btn mon-sm", href: "ops.html?quote=" + encodeURIComponent(qid) + "#task-" + encodeURIComponent(t.id), text: "Open", title: "Open this task on Tasks & Crew (the task panel: reassign, schedule, cancel)" }));
     var s = stateOf(t);
     if (S.canEdit && t.crew_id && (s.key === "waiting" || s.key === "accepted" || s.key === "started") && BPStore.ops && BPStore.ops.emailTasks) {
       var b = h("button", { cls: "mon-btn mon-sm", type: "button", text: "✉ Nudge", title: "E-mail this task to " + (nameOf(t) || "them") + " now" });
@@ -362,7 +291,9 @@
         if (at.late) att.appendChild(h("span", { cls: "mon-chip is-late", text: "Late check-in" + (at.lateMin ? " · " + at.lateMin + " min" : "") }));
         who.appendChild(att);
         var off = offReason(first.crew_id);
-        if (off != null) who.appendChild(h("small", { cls: "mon-offnote", text: "⛔ Marked this day as can’t work · " + (off || "no reason given") }));
+        // R187 (0370): a day still waiting for the office's approval says so
+        if (off != null) who.appendChild(h("small", { cls: "mon-offnote", text: S.offAsk[first.crew_id] ? "⏳ Asked for this day off - waiting for approval · " + (off || "no reason given")
+          : "⛔ Marked this day as can’t work · " + (off || "no reason given") }));
       }
       head.appendChild(who);
       var pr = h("div", { cls: "mon-person-pr" });
@@ -448,7 +379,7 @@
       var who = h("div", { cls: "mon-ci-who" }); who.appendChild(avatar(nm, t0));
       var wb = h("div", {}, [h("b", { text: nm || "Someone" })]);
       wb.appendChild(h("small", { cls: "mon-muted", text: ppl[id].length + (ppl[id].length === 1 ? " task" : " tasks") + (isFinite(fs) ? " · first at " + fmtClock(fs) : "") }));
-      if (off != null) wb.appendChild(h("small", { cls: "mon-offnote", text: "⛔ Can’t work this day · " + (off || "no reason given") }));
+      if (off != null) wb.appendChild(h("small", { cls: "mon-offnote", text: (S.offAsk[id] ? "⏳ Asked off - waiting for approval · " : "⛔ Can’t work this day · ") + (off || "no reason given") }));
       who.appendChild(wb); row.appendChild(who);
       row.appendChild(h("div", { cls: "mon-ci-cell" }, [h("small", { cls: "mon-muted", text: "In" }), h("b", { text: e.inAt ? fmtClock(e.inAt) : (e.in || "—") })]));
       row.appendChild(h("div", { cls: "mon-ci-cell" }, [h("small", { cls: "mon-muted", text: "Out" }), h("b", { text: e.outAt ? fmtClock(e.outAt) : (e.out || "—") })]));
@@ -656,15 +587,16 @@
   }
   // R184: who marked the event day as "can't work" (with their reason); one range call for all shown events
   async function loadOff(quoteIds) {
-    S.off = {};
+    S.off = {}; S.offAsk = {}; S.offRows = [];
     var A = BPStore.ops.shifts && BPStore.ops.shifts.availability; if (!A) return;
     var days = quoteIds.map(function (q) { var e = S.evInfo[q]; return e && e.event_date ? String(e.event_date).slice(0, 10) : ""; }).filter(Boolean);
     if (!days.length) days = [todayIso()];
     days.sort(); var from = days[0], to = days[days.length - 1];
     try {
       var rows = await A(from, to, null);
-      (rows || []).forEach(function (a) { if (a && a.crew_id && a.status === "unavailable" && days.indexOf(String(a.day).slice(0, 10)) >= 0) S.off[a.crew_id] = a.note || ""; });
-    } catch (e) { S.off = {}; }
+      (rows || []).forEach(function (a) { if (a && a.crew_id && a.status === "unavailable" && days.indexOf(String(a.day).slice(0, 10)) >= 0) {
+        S.off[a.crew_id] = a.note || ""; if (a.approval === "pending") S.offAsk[a.crew_id] = true; S.offRows.push(a); } });   // R187: pending = waiting for approval
+    } catch (e) { S.off = {}; S.offAsk = {}; S.offRows = []; }
   }
   // R184: the full timeline (0368); null before 0368 -> the page uses the task step times
   async function loadActivity(quoteIds) {
@@ -737,8 +669,9 @@
       var all = Array.prototype.slice.call(tabs.querySelectorAll(".mon-tab")), i = all.findIndex(function (b) { return b.getAttribute("aria-selected") === "true"; });
       var n = all[(i + (e.key === "ArrowRight" ? 1 : all.length - 1)) % all.length]; setTab(n.getAttribute("data-tab")); n.focus(); render(); e.preventDefault();
     });
-    setInterval(function () { if (signedIn() && !doc.hidden && Date.now() - S.lastLoad >= REFRESH_MS) loadTasks(true); tick(); }, 5000);
-    doc.addEventListener("visibilitychange", function () { if (!doc.hidden && signedIn() && Date.now() - S.lastLoad > 10000) loadTasks(true); });
+    // R192: ONE refresh clock shared with Tasks & Crew (task-status.js): every 30 s while visible + at once when you come back
+    TS.refresher(function () { if (signedIn()) return loadTasks(true); }, REFRESH_MS);
+    setInterval(tick, 5000);
   }
   async function start() {
     await BPStore.init(); await renderAccount();

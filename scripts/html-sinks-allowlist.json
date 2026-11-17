@@ -839,22 +839,6 @@
   },
   {
    "file": "public/ops.html",
-   "expr": "badges",
-   "why": "HTML fragment variable built in this function from esc()'d values, numbers and literals (reviewed at the definition just above the sink)"
-  },
-  {
-   "file": "public/ops.html",
-   "expr": "blocked",
-   "why": "integer/number computed locally (array index, .length count, reduce sum, or Number()-coerced pricing field)"
-  },
-  {
-   "file": "public/ops.html",
-   "expr": "done",
-   "why": "integer/number computed locally (array index, .length count, reduce sum, or Number()-coerced pricing field)",
-   "max": 2
-  },
-  {
-   "file": "public/ops.html",
    "expr": "html",
    "why": "HTML fragment variable built in this function from esc()'d values, numbers and literals (reviewed at the definition just above the sink)"
   },
@@ -862,21 +846,6 @@
    "file": "public/ops.html",
    "expr": "kind",
    "why": "CSS class token: literal ('ok'/'err'/'done'/'active'…) at every call site / computed from literals in this function"
-  },
-  {
-   "file": "public/ops.html",
-   "expr": "pend",
-   "why": "integer/number computed locally (array index, .length count, reduce sum, or Number()-coerced pricing field)"
-  },
-  {
-   "file": "public/ops.html",
-   "expr": "rows",
-   "why": "HTML fragment variable built in this function from esc()'d values, numbers and literals (reviewed at the definition just above the sink)"
-  },
-  {
-   "file": "public/ops.html",
-   "expr": "spec",
-   "why": "integer/number computed locally (array index, .length count, reduce sum, or Number()-coerced pricing field)"
   },
   {
    "file": "public/ops.html",

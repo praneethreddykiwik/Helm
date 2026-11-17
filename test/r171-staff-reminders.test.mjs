@@ -60,12 +60,14 @@ t("APPLY-0362 + MANIFEST + DB suite + prod checker", () => {
 });
 
 t("Operations page: 💬 next to every ✉ (task row + worker-link row), assign-form box, clear not-set-up text", () => {
-  assert.match(OPS, /class="btn sm temail"[^`]*<\/button><button type="button" class="btn sm twa"/);
-  assert.match(OPS, /class="btn sm semail" data-task="\$\{esc\(t\.id\)\}"[^`]*<\/button><button type="button" class="btn sm swa" data-task="\$\{esc\(t\.id\)\}"[^>]* aria-label="Send \$\{esc\(name\)\} their tasks on WhatsApp">/);
+  // R192: WhatsApp right after Email in the task panel and on each By person card (ops-board.js)
+  const BRD = read("public/ops-board.js");
+  assert.match(BRD, /P\(\)\.mail\(e\.currentTarget, t\.id, false\); \} \} \}\)\);\n\s*foot\.push\(h\("button", \{ type: "button", cls: "tc-btn", "data-key": "a:wa", text: "WhatsApp"/);
+  assert.match(BRD, /P\(\)\.mail\(e\.currentTarget, open\.id, true\); \} \} \}\)\);\n\s*acts\.appendChild\(h\("button", \{ type: "button", cls: "tc-btn sm", "data-key": "pw:" \+ c\.id, text: "WhatsApp", "aria-label": "Send " \+ c\.name \+ " their tasks on WhatsApp"/);
   assert.match(OPS, /id="assignWaWrap"[^>]*><input type="checkbox" id="assignWa">/);
   assert.match(OPS, /const WA_NOT_SET_UP="WhatsApp is not set up yet - connect your studio's WhatsApp number in Integrations\. Nothing was sent\.";/);
   assert.match(OPS, /if\(\(await waConnected\(\)\)===false\)\{ BPUI\.toast\(WA_NOT_SET_UP/);
-  assert.match(OPS, /\.twa"\)\.forEach[^\n]*sendWa\(/); assert.match(OPS, /\.swa"\)\.forEach[^\n]*sendWa\(/);
+  assert.match(OPS, /wa:\(b,id\)=>sendWa\(b,id\)/);
   assert.match(API, /whatsappTasks: \(taskId\) => rpc\("staff_whatsapp_send", \{ p_task: taskId \}\)/);
 });
 t("Operations page: the WhatsApp box is ticked only when the studio number is connected (never flips a manual choice)", () => {
@@ -85,7 +87,7 @@ t("reminder wording: email + WhatsApp, 'At the start time' explained as due now"
   assert.match(TR, /var CHOICES = \[30, 15, 10, 5, 3, 1, 0\];/);
 });
 t("page tour explains the WhatsApp box (one step with e-mail, ops stays at 8 steps)", () => {
-  assert.match(read("public/page-tours.js"), /\{ sel: "#assignEmailWrap", title: "Send by email or WhatsApp", desc: "[^"]*Tick 💬 Send on WhatsApp[^"]*nothing is sent/);
+  assert.match(read("public/page-tours.js"), /\{ sel: "#assignEmailWrap", title: "Send by email or WhatsApp", desc: "[^"]*Tick Send on WhatsApp[^"]*nothing is sent/);
 });
 
 console.log(`\nr171-staff-reminders: ${pass} passed, ${fail} failed`);

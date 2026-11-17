@@ -100,7 +100,9 @@ t("UI: Staff page Task link / New task link, Operations Permanent link, the work
   const st = read("public/staff.html"), ops = read("public/ops.html"), wk = read("public/work.html"), sh = read("public/staff-home.js"), api = read("public/store-api.js");
   assert.match(st, /data-act="tlink"/); assert.match(st, /data-act="tlinknew"/);
   assert.match(st, /The old link stops working at once/);
-  assert.match(ops, /class="btn sm splink" data-crew="\$\{esc\(t\.crew_id\)\}"/);
+  // R192: By person cards carry "Copy permanent link" (ops-board.js -> the page's copyStaffLink, prefetched for Safari)
+  assert.match(read("public/ops-board.js"), /text: "Copy permanent link", title: "One link for this person that always shows all their tasks on every event", on: \{ click: function \(e\) \{ P\(\)\.copyLink\(e\.currentTarget, c\.id\); \} \}/);
+  assert.match(ops, /copyLink:\(b,id\)=>copyStaffLink\(b,id\), permLink/);
   assert.match(api, /staffLink: \(crewId\) => rpc\("staff_link_get", \{ p_crew: crewId \}\)/);
   assert.match(api, /staffLinkNew: \(crewId\) => rpc\("staff_link_regenerate", \{ p_crew: crewId \}\)/);
   assert.match(api, /staffHome: \(staffToken\) => \{/);

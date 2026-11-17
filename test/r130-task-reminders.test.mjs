@@ -94,7 +94,9 @@ await t('Tasks & staff: no SMS wording, no Remind / Fire buttons, reminder tick 
   assert.doesNotMatch(h, /SMS/); assert.doesNotMatch(h, /id="remindDue"|id="fireDue"/);
   assert.match(h, /<fieldset class="trm-set" id="sc_rem"><\/fieldset>/);
   assert.match(h, /await BPStore\.ops\.setReminders\(scTaskId, remMins\)/);
-  assert.match(h, /\$\{typeof waChip==="function"\?waChip\(t\):""\}/); assert.match(h, /<div id="waSetupNote" hidden><\/div>/);
+  // R192: the WhatsApp line is a tag on the task row / panel (ops-board.js), fed by HelmTaskReminders.chip
+  assert.match(h, /waChip:\(t\)=>window\.HelmTaskReminders\?HelmTaskReminders\.chip\(waRows\[t\.id\]\):null/);
+  assert.match(r('public/ops-board.js'), /text: "WhatsApp: " \+ wa\.text/); assert.match(h, /<div id="waSetupNote" hidden><\/div>/);
   assert.ok(h.indexOf('task-reminders-ui.js') > 0 && h.indexOf('wa-setup-note.js') > 0);
 });
 await t('Settings card + open-shift note + quote box button', () => {
