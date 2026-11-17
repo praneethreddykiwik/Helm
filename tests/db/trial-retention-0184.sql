@@ -136,6 +136,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0369_r186_special_escalation.sql
 -- 0370 (R187) adds cantwork_email_outbox (day-off request e-mails) to the purge list before crew_availability
 \ir ../../supabase/migrations/0370_r187_cantwork_approval.sql
+-- 0372 (R189) adds the money records (P&L snapshots, corrections, attendance confirmations, client TDS + Form 16A) to the purge list, money_settings to the keep list
+\ir ../../supabase/migrations/0372_r189_money_lock.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

@@ -1,0 +1,55 @@
+/* money-lock.css - R189 (0372): frozen P&L, Confirm attendance, client TDS, GST & TDS by month, money rules. Theme tokens only. */
+.mlk-card h3{font-size:13px;margin:14px 0 8px;color:var(--ink-2)}
+.mlk-muted{color:var(--ink-3);font-size:12px}
+.mlk-hint{color:var(--ink-3);font-size:12px;margin:4px 0 10px;line-height:1.5}
+.mlk-sum{font-size:13px;margin:0 0 8px;color:var(--ink-2)}
+.mlk-ok{color:var(--safe-text,#0f7a43);font-size:12.5px}
+.mlk-warn-t{color:var(--warn-text,#7a4a06);font-size:12px;font-weight:600}
+.mlk-state{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel-2,var(--panel));font-size:13px;margin:0 0 6px}
+.mlk-state.ok{border-color:var(--accent,#047857);background:var(--accent-soft,#e3f4ed)}
+.mlk-state.warn{background:var(--warn-bg,#fff7e6);color:var(--warn-text,#7a4a06)}
+.mlk-state p{margin:6px 0 0;color:var(--ink-2);line-height:1.5}
+.mlk-state .btn{margin-top:8px}
+.mlk-warn{color:var(--warn-text,#7a4a06)!important}
+.mlk-card b.neg,.mlk-table span.neg,.mlk-biz span.neg{color:var(--bad-text,#b42318)}
+.mlk-tw{margin:0 0 6px}
+.mlk-table{width:100%;border-collapse:collapse;font-size:13px}
+.mlk-table th,.mlk-table td{padding:7px 8px;border-bottom:1px solid var(--line-2,var(--line));vertical-align:top;text-align:left}
+.mlk-table thead th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:700;white-space:nowrap}
+.mlk-table .num{text-align:right;font-family:var(--mono,monospace);white-space:nowrap}
+.mlk-table .mlk-name{font-weight:600}
+.mlk-table .mlk-strong span{font-weight:700}
+.mlk-diff div{margin:1px 0}
+.mlk-num{width:84px;max-width:100%;text-align:right;padding:5px 6px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--panel);color:var(--ink)}
+.mlk-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:6px 0 4px}
+.mlk-fld{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 160px}
+.mlk-fld label{font-size:12px;color:var(--ink-2);font-weight:600}
+.mlk-fld input,.mlk-fld select{min-height:36px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--panel);color:var(--ink);max-width:100%;box-sizing:border-box;width:100%}
+.mlk-fld .mlk-hint{margin:0}
+.mlk-act{flex:0 0 auto}
+.mlk-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px}
+.mlk-link{background:transparent;border:0;color:var(--accent,#047857);text-decoration:underline;padding:4px 2px;cursor:pointer;font:inherit;font-size:12.5px}
+.mlk-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:4px 0 10px}
+.mlk-tile{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel-2,var(--panel));min-width:0}
+.mlk-tile span{display:block;font-size:11.5px;color:var(--ink-3);font-weight:600}
+.mlk-tile b{display:block;font-family:var(--mono,monospace);font-size:16px;margin-top:2px;overflow-wrap:anywhere}
+.mlk-check{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:6px 0;line-height:1.4}
+.mlk-check input{margin-top:3px;flex:0 0 auto}
+.mlk-set{display:grid;gap:12px}
+.mlk-group{border:1px solid var(--line);border-radius:10px;padding:8px 12px 12px;margin:0;min-width:0;display:flex;flex-wrap:wrap;gap:8px 14px}
+.mlk-group legend{font-size:12px;font-weight:700;color:var(--ink-2);padding:0 4px}
+.mlk-group .mlk-check{flex:1 1 100%}
+.mlk-group .mlk-fld{flex:1 1 200px}
+.mlk-biz{margin-top:14px}
+@media (max-width:720px){
+  .mlk-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mlk-table thead{display:none}
+  .mlk-table,.mlk-table tbody,.mlk-table tr,.mlk-table td{display:block;width:100%;box-sizing:border-box}
+  .mlk-table tr{border:1px solid var(--line);border-radius:10px;padding:6px 8px;margin:0 0 8px}
+  .mlk-table td{border:0;padding:4px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:right;white-space:normal}
+  .mlk-table td::before{content:attr(data-label);color:var(--ink-3);font-size:11.5px;font-weight:600;text-align:left;flex:0 0 auto;max-width:50%}
+  .mlk-table td:not([data-label])::before,.mlk-table td[data-label=""]::before{content:none}
+  .mlk-table td.num{font-family:var(--mono,monospace)}
+  .mlk-diff{flex-direction:column;align-items:flex-end}
+  .mlk-form .mlk-fld{flex:1 1 100%}
+}
