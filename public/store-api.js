@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=86"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=87"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -8618,9 +8618,13 @@ window.HelmUrl = HelmUrl;
       const vendorOutstanding = vend.filter((x) => !x.settled).reduce((a, x) => a + Math.max(0, Number(x.cost || 0) - Number(x.advance || 0)), 0);
       const expTotal = exp.reduce((a, e) => a + Number(e.amount || 0), 0);
       const expPaid = exp.filter((e) => e.status === "paid").reduce((a, e) => a + Number(e.amount || 0), 0);
-      return { revenue, revenueExTax: b.revenueExTax != null ? b.revenueExTax : revenue, tax: b.tax || 0, received, balance, pricingMissing: !!b.pricingMissing, estCost: b.estCost, actCost: b.actCost, finalCost: b.finalCost,
+      const out = { revenue, revenueExTax: b.revenueExTax != null ? b.revenueExTax : revenue, tax: b.tax || 0, received, balance, pricingMissing: !!b.pricingMissing, estCost: b.estCost, actCost: b.actCost, finalCost: b.finalCost,
         estMargin: b.estMargin, actMargin: b.actMargin, finalMargin: b.finalMargin,
-        milestones: ms, bookings: vend, expenses: exp, vendorCost, vendorAdvance, vendorOutstanding, expTotal, expPaid, receivedGross: gross, refundedOut };
+        milestones: ms, bookings: vend, expenses: exp, vendorCost, vendorAdvance, vendorOutstanding, expTotal, expPaid, receivedGross: gross, refundedOut, clientTds: 0 };
+      // R189 (0372): TDS the client deducted counts as settled (same rule as the server close gate); 0 on an older database
+      try { const t = await moneyLock.tds(quoteId); const tds = t && isFinite(+t.total) ? Number(t.total) : 0;
+        if (tds) { out.clientTds = tds; out.balance = Math.round((balance - tds) * 100) / 100; } } catch (_) { /* older database: no TDS */ }
+      return out;
     },
     // Vendor bills overlay (one rule, shared by Settlement + the event workspace): per booking
     // cost = bills total if bills else booked cost; paid = advance + payouts; owed = max(cost - paid, 0).
@@ -9024,6 +9028,55 @@ window.HelmUrl = HelmUrl;
       const { error } = await supa.from("event_costs").update({ crew_covered: !!on }).eq("id", costId);
       if (error) throw error; return true;
     },
+  };
+
+  /* ---------------- R189 money lock (0372): frozen P&L, corrections, Confirm attendance, client TDS, money rules ----------------
+     Every call is a server function that checks the studio + Finance view / edit (settings: Settings edit; monthly tax:
+     Business area). null = database without 0372 (the cards stay hidden). Per-person pay comes back only for an admin. */
+  const mlkCall = async (fn, args) => {
+    if (mode !== "supabase") return null;
+    try { return await rpc(fn, args || {}); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+  };
+  const mlkWrite = async (fn, args) => {
+    if (mode !== "supabase") throw new Error("Needs the online database.");
+    try { return await rpc(fn, args || {}); }
+    catch (e) { if (rpcMissing(e)) { const er = new Error("This needs database update 0372 (ask your admin to run APPLY-0372.sql)."); er.code = "money_lock_missing"; throw er; } throw e; }
+  };
+  // pure: one attendance row from the form -> the server shape (null = invalid, with .error)
+  function mlkAttendanceRow(crewId, days, extra) {
+    const d = Number(String(days == null ? "" : days).trim());
+    if (!crewId || !isFinite(d) || d < 0 || d > 60 || Math.round(d * 2) !== d * 2) return { error: "Days worked must be 0 to 60, in half days (e.g. 1, 0.5, 2.5)." };
+    const o = { crew_id: String(crewId), days: d };
+    const x = extra || {};
+    const num = (v) => { const t = String(v == null ? "" : v).trim(); if (t === "") return null; const n = Number(t); return isFinite(n) ? n : NaN; };
+    const ot = num(x.ot_hours), al = num(x.allowance), hr = num(x.hours);
+    if (ot !== null) { if (isNaN(ot) || ot < 0 || ot > 300) return { error: "Overtime must be 0 to 300 hours." }; o.ot_hours = ot; }
+    if (al !== null) { if (isNaN(al) || al < 0 || al >= 1000000) return { error: "The allowance is out of range." }; o.allowance = al; }
+    if (hr !== null) { if (isNaN(hr) || hr < 0 || hr > 1000) return { error: "Hours must be 0 to 1000." }; o.hours = hr; }
+    if (x.note && String(x.note).trim()) o.note = String(x.note).trim().slice(0, 300);
+    return o;
+  }
+  // pure: a signed correction amount from the form ("-2000", "2,000") -> number or NaN
+  function mlkAmount(v) { const t = String(v == null ? "" : v).replace(/[,\s₹]/g, ""); if (!/^-?\d+(\.\d{1,2})?$/.test(t)) return NaN; return Number(t); }
+  const moneyLock = {
+    attendanceRow: mlkAttendanceRow, amount: mlkAmount,
+    CORRECTION_CATS: ML_CATS.filter((c) => c[0] !== "contingency"),
+    settings() { return mlkCall("money_settings_get"); },
+    saveSettings(patch) { return mlkWrite("money_settings_set", { p: patch || {} }); },
+    versions(quoteId) { return mlkCall("event_pnl_versions", { p_quote: quoteId }); },
+    freezeNow(quoteId) { return mlkWrite("pnl_freeze_now", { p_quote: quoteId }); },
+    addCorrection(quoteId, category, amount, reason, targetKind) {
+      return mlkWrite("money_correction_add", { p_quote: quoteId, p_category: category, p_amount: amount, p_reason: reason, p_target_kind: targetKind || null, p_target_id: null });
+    },
+    attendance(quoteId) { return mlkCall("crew_attendance", { p_quote: quoteId }); },
+    confirmAttendance(quoteId, rows) { return mlkWrite("crew_attendance_confirm", { p_quote: quoteId, p_rows: rows && rows.length ? rows : null }); },
+    tds(quoteId) { return mlkCall("client_tds_list", { p_quote: quoteId }); },
+    recordTds(quoteId, amount, section, rate, note) {
+      return mlkWrite("client_tds_record", { p_quote: quoteId, p_amount: amount, p_section: section || null, p_rate: rate == null || rate === "" ? null : Number(rate), p_note: note || null, p_payment: null });
+    },
+    reverseTds(tdsId, reason) { return mlkWrite("client_tds_reverse", { p_tds: tdsId, p_reason: reason }); },
+    form16a(tdsId, receivedOn, note) { return mlkWrite("client_tds_form16a", { p_tds: tdsId, p_received_on: receivedOn || null, p_note: note || null }); },
+    taxByMonth(from, to) { return mlkCall("business_tax_by_month", { p_from: from || null, p_to: to || null }); },
   };
 
   /* ---------------- notification deep links (pure — unit-tested in test/notif-deeplinks.test.mjs) ----------------
@@ -11164,6 +11217,7 @@ window.HelmUrl = HelmUrl;
   const BPStore = {
     reservedEmailDomain, RESERVED_EMAIL_MESSAGE, preauthorisedHqEmail,
     isStaffEmail, STAFF_GOOGLE_MESSAGE, staffGoogleOnlyFor, staffGoogleSessionCheck,
+    moneyLock,   // R189 (0372)
     taskReminders,   // R130 (0338)
     activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
     // User manual (migration 0031): lives in the PRIVATE storage bucket "helm-manual",

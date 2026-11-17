@@ -242,8 +242,8 @@ await t('UI: Vendor bills card uses the 0373 calls only when the server has them
   for (const c of ['.vb-warn', '.vb-set', '.bz-pill-bad']) assert.ok(CSS.includes(c), c);
 });
 
-await t('page tours: Settlement Vendor bills + the Business bills-to-pay and reminder cards (Finance only)', () => {
-  for (const sel of ['#vendorBills', '#bz-vb-due', '#bz-vb-set']) assert.match(TOURS, new RegExp('sel: "' + sel + '", need: "finance"'), sel);
+await t('page tours: Settlement Vendor bills + the Business vendor bills section (Finance only)', () => {
+  for (const sel of ['#vendorBills', '#bz-vb-due']) assert.match(TOURS, new RegExp('sel: "' + sel + '", need: "finance"'), sel);
 });
 
 console.log(`\nR190 vendor bills: ${pass} passed, ${fail} failed`);
