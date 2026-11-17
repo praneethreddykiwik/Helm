@@ -66,19 +66,23 @@ t("texts: email reminders do not need a phone; WhatsApp needs the studio number"
   const c = TR.chip({ status: "skipped", reason: "email_only", what: "reminder" });
   assert.equal(c.text, "Reminder: email only (no phone)");
 });
-t("Live status: every task action has words, grouped, special explained, legend, reminders chip", () => {
-  assert.match(ops, />⏱ Schedule<\/button>/);
-  assert.match(ops, />✉ Email<\/button><button type="button" class="btn sm twa"[^>]*>💬 WhatsApp<\/button>/);
-  assert.match(ops, /🔔 Mark special/); assert.match(ops, /🔕 Unmark special/);
-  assert.match(ops, /<span class="tacts" role="group" aria-label="Actions for \$\{tn\}">/);
-  assert.match(ops, /id="opsLegend"/);
-  assert.match(ops, /🔔 \$\{spec\} special/);
-  assert.match(ops, /function remChip\(t\)/);
+t("R192 task panel: every action has words, only the ones that make sense, special explained, reminders on the row", () => {
+  const B = read("public/ops-board.js");
+  // the old row of up to seven buttons + the legend paragraph are gone; one task panel instead
+  assert.doesNotMatch(ops, /id="opsLegend"/); assert.doesNotMatch(ops, /class="tacts"/);
+  for (const w of ['text: "Nudge now"', 'text: "Email"', 'text: "WhatsApp"', 'text: "Give to someone"', 'text: t.planned_start ? "Change time" : "Set a time"', 'text: "Reassign"', 'text: "Cancel task"', 'text: "Pass QC"', 'text: "Reject QC"', 'text: "▲ Make special"', 'text: "Remove the special mark"'])
+    assert.ok(B.includes(w), "panel action: " + w);
+  assert.match(B, /if \(k === "late" && t\.crew_id && inHouse\(t\)\) foot\.push/);   // Nudge only when late
+  assert.match(B, /if \(CANCELLABLE\.indexOf\(t\.status\) >= 0\) foot\.push/);   // Cancel only assigned / accepted / started
+  assert.match(B, /text: "Reminders " \+ r/);   // reminders shown on the row
+  assert.match(ops, /function remSummary\(t\)/);
   assert.doesNotMatch(ops, /title="Toggle recurring reminder"/);
-  assert.match(ops, />Copy event link<\/button>/); assert.match(ops, /🔗 Copy permanent link/);
+  assert.match(B, /text: "Copy event-only link"/); assert.match(B, /text: "Copy permanent link"/);
 });
 t("Assign work: optional start time + reminders in the same step, scheduled on the NEW tasks before the e-mail", () => {
-  assert.match(ops, /id="asTimeOn"> ⏱ Add a start time &amp; reminders to these tasks/);
+  // R192: no tick box hiding the start time - Day before / Event day / No time yet, the picker shown right away
+  assert.doesNotMatch(ops, /id="asTimeOn"/);
+  assert.match(ops, /id="as_daybefore" data-day="before"/); assert.match(ops, /id="as_evday" data-day="event" aria-pressed="true"/); assert.match(ops, /id="as_none" data-day="none"/);
   assert.match(ops, /<input type="datetime-local" id="as_when"/);
   assert.match(ops, /id="as_evday"/); assert.match(ops, /id="as_daybefore"/);
   assert.match(ops, /const mine=\(fresh\|\|\[\]\)\.filter\(x=>!before\.has\(x\.id\) && x\.crew_id===c\.id && titles\.includes\(x\.title\)\);/);
@@ -100,7 +104,8 @@ t("Schedule popup + staff page look: plain tick-box labels, wider sheet, centred
 t("comms-dispatch: a reminder 6+ hours ahead names the day; page tour explains the buttons", () => {
   assert.match(read("supabase/functions/comms-dispatch/staff-email.mjs"), /const at2 = Number\(row\.minutes\) >= 360 \? when\(row\.start, row\.day\) : clip\(row\.start, 12\);/);
   const tours = read("public/page-tours.js");
-  assert.match(tours, /Tick \\"Add a start time & reminders\\" first/); assert.match(tours, /Schedule = start time and reminders; Email \/ WhatsApp = send now/);
+  // R192: no tick box any more - the When step and the task panel's Change time
+  assert.match(tours, /when \(Day before, Event day or No time yet, reminders, Special\)/); assert.match(tours, /Change time in a task's panel sets its start time and reminders/);
 });
 
 const SE = await import("../supabase/functions/comms-dispatch/staff-email.mjs");
