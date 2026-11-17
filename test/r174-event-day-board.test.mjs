@@ -105,7 +105,7 @@ t('Tasks & staff: progress card above Live status, Late chip, can\'t-work in the
   assert.match(OPS, /<div id="liveSummary" class="lb-ops" hidden/);
   assert.match(OPS, /HelmLiveBoard\.mountOps\(\$\("#liveSummary"\),\(\)=>tasks\)/);
   assert.match(OPS, /\$\{isLate\(t\)\?'<span class="st late"/);
-  assert.match(OPS, /⛔ can\\u2019t work this day/);
+  assert.match(OPS, /⛔ approved day off/); assert.match(OPS, /⏳ asked off this day \(waiting for approval\)/);   // R187 (0370): pending vs approved
   assert.match(OPS, /async function loadOff\(\)/);
   assert.match(OPS, /BPStore\.calendar\.wouldClash\(\{date:\(when&&\$\("#as_when"\)\.value/);
 });

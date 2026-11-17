@@ -134,6 +134,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0368_r184_event_activity.sql
 -- 0369 (R186) adds task_escalation_steps (the special-task escalation ladder) to the purge list after 0368
 \ir ../../supabase/migrations/0369_r186_special_escalation.sql
+-- 0370 (R187) adds cantwork_email_outbox (day-off request e-mails) to the purge list before crew_availability
+\ir ../../supabase/migrations/0370_r187_cantwork_approval.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

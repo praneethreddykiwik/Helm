@@ -33,6 +33,7 @@ export function notifLink(n) {
     if (k.indexOf("chat_") === 0) return "chat.html";
     if (k === "studio_identity_changed") return "control.html#general";   // r23 (0257): Helm changed the studio name / link
     if (k === "team_safety") return "control.html#users";   // r33 (0283): admin / owner changes -> Settings -> Team
+    if (k === "crew_cantwork_request") return "staff.html#cantwork-requests";   // R187 (0370): day-off requests -> Staff page list
     // r35 (0285): payment details / sensitive settings (admins only - the server decides)
     if (k === "studio_security") {
       const ev = String(d.event || "");
