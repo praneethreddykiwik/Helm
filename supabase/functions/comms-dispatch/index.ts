@@ -109,7 +109,7 @@ import { deliveryMessage } from "./delivery-reminder.mjs";   // 0241: delivery /
 import { vendorRequestMessage, VENDOR_TX_REASON } from "./vendor-request.mjs";   // 0256: vendor requests + reminders
 import { helmNoticeEmail, NOTICE_TX_REASON } from "./helm-notices.mjs";   // 0244: sales requests + "ask my admin"
 import { runsheetReminderMessage, enquiryReplyMessage, RUNSHEET_TX_REASON, ENQUIRY_TX_REASON } from "./r24-automation.mjs";   // 0269: run-sheet reminders + enquiry replies
-import { staffEmailMessage, staffUpdateMessage, staffEmailHtml, staffUpdateHtml, STAFF_TX_REASON, OFFICE_TX_REASON } from "./staff-email.mjs";   // R170 (0361): tasks + task reminders e-mailed to staff
+import { staffEmailMessage, staffUpdateMessage, staffEmailHtml, staffUpdateHtml, STAFF_TX_REASON, OFFICE_TX_REASON, ESCALATION_TX_REASON } from "./staff-email.mjs";   // R170 (0361): tasks + task reminders e-mailed to staff
 import { cantworkMessage, cantworkHtml, CANTWORK_OFFICE_REASON, CANTWORK_STAFF_REASON } from "./cantwork-email.mjs";   // R187 (0370): day-off requests + decisions
 import { replyToOf } from "../integrations-test/logic.mjs";
 import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks } from "../_shared/email-compliance.mjs";
@@ -532,7 +532,9 @@ Deno.serve(async (req) => {
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const msg = staffEmailMessage(r, origin);
       const ident: Identity = await withReply("staff", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
-      const extra: Extra = { footer: txFooter(String(r?.kind ?? "") === "office_alert" ? OFFICE_TX_REASON : STAFF_TX_REASON, { app: origin, address: postalAddress(env) }) };
+      // R186 (0369): escalation e-mails (task_escalation) carry their own reason line
+      const sk = String(r?.kind ?? "");
+      const extra: Extra = { footer: txFooter(sk === "office_alert" ? OFFICE_TX_REASON : sk === "task_escalation" ? ESCALATION_TX_REASON : STAFF_TX_REASON, { app: origin, address: postalAddress(env) }) };
       // R185: the designed HTML part (its own compliance footer, so the mailer adds the text footer only)
       const shtml = msg.text ? staffEmailHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;
       const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, shtml) : "skipped";

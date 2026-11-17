@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=83"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=84"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -9032,6 +9032,7 @@ window.HelmUrl = HelmUrl;
     if (k === "client_link_viewed" || k === "client_view_followup") return "event.html?id=" + enc(q) + "#link-views";
     // r23 (0262): valid-until reminders / "request a new quote" open the event workspace at the validity line
     if (k === "quote_expiring" || k === "quote_expired" || k === "quote_renew_request") return "event.html?id=" + enc(q) + "#quote-validity";
+    if (k === "task_escalated") return "monitor.html?quote=" + enc(q);   // R186 (0369): the Event day monitor (Late panel)
     if (k.indexOf("task_") === 0) return "ops.html?quote=" + enc(q) + (has(d.task_id) ? "&task=" + enc(d.task_id) : "");
     if (/^(payment_link|payment_reminder|payment_receipt|payment|payment_received|advance_paid|payment_reconcile|pkg_payment)$/.test(k))
       return "settlement.html?quote=" + enc(q) + "#payments";
@@ -9382,6 +9383,9 @@ window.HelmUrl = HelmUrl;
       crew_cantwork_request: ["🗓️", (d.worker || "A staff member") + " asked for a day off" + (d.day ? " (" + String(d.day).slice(0, 10).split("-").reverse().join("/") + ")" : "") + " - approve on Staff"],
       task_reminder: ["🔔", "Task reminder" + (d.task ? ": " + d.task : "")],
       task_overdue: ["⏰", (d.task ? d.task : "A task") + " hasn't started" + (d.worker ? " (" + d.worker + ")" : "") + (d.start ? " - was due " + d.start : "")],   // R130 (0338)
+      // R186 (0369): a special task is still not started - the escalation ladder (only the people of that step see it)
+      task_escalated: ["🚨", String(d.label || ((d.task ? d.task : "A special task") + " is not started" + (d.worker ? " (" + d.worker + ")" : "")
+        + (d.level ? " - escalated to " + (d.level === "admin" ? "admin / owner" : d.level) : "")))],
       otp: ["🔐", "Approval OTP sent"],
       approval_link: ["✉️", trialPreview ? "Approval link ready (trial preview — not sent)" : "Approval link sent"],
       payment: ["💳", "Payment update"],
@@ -10954,6 +10958,10 @@ window.HelmUrl = HelmUrl;
   const taskReminders = {
     settings: () => (supa ? rpc("task_reminder_settings_get", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
     saveSettings: (patch) => (supa ? rpc("task_reminder_settings_set", { p: patch || {} }) : Promise.reject(new Error("Needs a signed-in studio."))),
+    // R186 (0369): the special-task escalation ladder (minutes after the start: coordinator, manager, admin). null = server without 0369.
+    escalation: () => (supa ? rpc("task_escalation_settings_get", { p_ladder: "not_started" }).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+    saveEscalation: (enabled, steps) => (supa ? rpc("task_escalation_settings_set", { p_ladder: "not_started", p_enabled: !!enabled,
+      p_steps: (Array.isArray(steps) ? steps : []).map((x) => Math.round(Number(x))) }) : Promise.reject(new Error("Needs a signed-in studio."))),
   };
 
   // R125 (0334): the free-trial preview pop-up (trial-preview.js). Signed-in staff of the studio only; no token is ever made.

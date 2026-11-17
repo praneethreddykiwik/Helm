@@ -13,6 +13,8 @@
  *         builds the timeline from the task step times it already has); BPStore.ops.shifts.availability(day, day)
  *         crew_availability_range (0265): who marked the event day "can't work", with their reason.
  *   R184 tabs: "Check-in" (each person: in / out times, late, hours) and "Activity" (the full timeline, filter by person / type).
+ *   R186 (0369): special tasks not started climb an escalation ladder (coordinator -> manager -> admin / owner); each step is
+ *   in the timeline (kind "escalated") and the Late panel shows the latest one as a badge ("Escalated to manager 3:10 PM").
  * Gate: BPStore.auth.requireView("staff") - same as Tasks & staff. Crew never see this page.
  * Built with DOM calls only (textContent), never HTML strings. Refreshes every 30 s while the tab is visible
  * (event_tasks is not in a realtime publication, so polling is the cheap, safe choice). */
@@ -162,21 +164,36 @@
 
   /* ---- R184: the activity timeline ---- */
   var ACT_TYPES = [["", "All updates"], ["work", "Work given out / moved"], ["reply", "Accepted / turned down"], ["progress", "Started / done"],
-                   ["time", "Start time changes"], ["checkin", "Check-in / check-out"], ["email", "E-mails sent"], ["special", "Special / cancelled"],
+                   ["time", "Start time changes"], ["checkin", "Check-in / check-out"], ["email", "E-mails sent"], ["escalation", "Escalations"], ["special", "Special / cancelled"],
                    ["dayoff", "Days off asked / approved"]];   // R187 (0370)
   function actGroup(k) {
     return k === "assigned" || k === "reassigned" || k === "unassigned" ? "work" : k === "accepted" || k === "rejected" ? "reply"
       : k === "started" || k === "completed" || k === "reopened" ? "progress" : k === "time_changed" ? "time"
-      : k === "check_in" || k === "check_out" || k === "check_edit" ? "checkin" : k === "email_sent" ? "email"
+      : k === "check_in" || k === "check_out" || k === "check_edit" ? "checkin" : k === "email_sent" ? "email" : k === "escalated" ? "escalation"
       : k === "dayoff_asked" || k === "dayoff_approved" ? "dayoff" : "special";
   }
   var ACT_ICON = { assigned: "📋", reassigned: "🔁", unassigned: "➖", time_changed: "🕒", special_on: "🔔", special_off: "🔕",
                    accepted: "✅", rejected: "✋", started: "▶️", completed: "🎉", cancelled: "✖️", reopened: "↩️",
-                   check_in: "📍", check_out: "🏁", check_edit: "✏️", email_sent: "✉️", dayoff_asked: "🗓️", dayoff_approved: "🗓️" };
+                   check_in: "📍", check_out: "🏁", check_edit: "✏️", email_sent: "✉️", escalated: "🚨", dayoff_asked: "🗓️", dayoff_approved: "🗓️" };
   function emailWhat(k) {
     return k === "task_reminder" ? "Reminder e-mail" : k === "task_late" ? "“Not started yet” e-mail" : k === "task_update" ? "“Your tasks were updated” e-mail"
-      : k === "office_alert" ? "Office alert e-mail" : "Task e-mail";
+      : k === "office_alert" ? "Office alert e-mail" : k === "task_escalation" ? "Escalation e-mail" : "Task e-mail";
   }
+  // R186: "coordinator" / "manager" / "admin / owner"
+  function escLevel(l) { return l === "admin" ? "admin / owner" : l === "manager" ? "manager" : "coordinator"; }
+  // R186: the latest escalation step of a task for its current start time (from the timeline), or null
+  function lastEscalation(t, acts) {
+    if (!t || !t.id) return null;
+    var ps = t.planned_start ? Date.parse(t.planned_start) : NaN, best = null;
+    (acts || []).forEach(function (a) {
+      if (!a || a.kind !== "escalated" || a.task_id !== t.id) return;
+      var rs = a.detail && a.detail.ref_start ? Date.parse(a.detail.ref_start) : NaN;
+      if (isFinite(ps) && isFinite(rs) && rs !== ps) return;   // an older start time: not this ladder
+      if (!best || new Date(a.at) > new Date(best.at)) best = a;
+    });
+    return best;
+  }
+  function escBadge(a) { return a ? "Escalated to " + escLevel(a.detail && a.detail.level) + " " + fmtClock(a.at) : ""; }
   function actText(a) {
     var who = a.name || "Someone", task = a.title ? "“" + a.title + "”" : "a task", d = a.detail || {};
     switch (a.kind) {
@@ -196,6 +213,7 @@
       case "check_out": return who + " checked out";
       case "check_edit": return "Office corrected " + who + "’s check-in times" + (d.note ? " (" + d.note + ")" : "");
       case "email_sent": return emailWhat(d.email_kind) + " sent to " + who + (a.title ? " — " + a.title : "");
+      case "escalated": return task + " not started - escalated to " + escLevel(d.level) + (Array.isArray(d.to) && d.to.length ? " (" + d.to.slice(0, 6).join(", ") + (d.to.length > 6 ? " +" + (d.to.length - 6) : "") + ")" : "");
       // R187 (0370): a day off on the event day - asked for on the staff link / approved by the office
       case "dayoff_asked": return who + " asked for the event day off" + (d.note ? " (" + d.note + ")" : "") + (d.pending ? " - waiting for approval" : "");
       case "dayoff_approved": return "Day off approved for " + who + (d.by ? " by " + d.by : "");
@@ -570,6 +588,10 @@
         h("b", { text: t.title || "Task" }),
         h("span", { text: [nameOf(t) || "No one yet", t._code].filter(Boolean).join(" · ") }),
         h("small", { text: "was due " + fmtClock(t.planned_start) + " (" + ago(t.planned_start, now) + ")" + (stateOf(t, now).key === "waiting" ? " · not accepted yet" : "") })]));
+      // R186 (0369): where the escalation ladder is now (special tasks)
+      var esc = lastEscalation(t, S.acts);
+      if (esc) row.appendChild(h("span", { cls: "mon-chip mon-esc is-esc-" + ((esc.detail && esc.detail.level) || "coordinator"), title: "Special task: Helm tells the team step by step until it is started", text: "🚨 " + escBadge(esc) }));
+      else if (t.is_special) row.appendChild(h("span", { cls: "mon-chip is-special", text: "🔔 Special" }));
       row.appendChild(actions(t));
       list.appendChild(row);
     });
@@ -767,5 +789,5 @@
     if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", go); else go();
   }
   window.HelmMonitor = { stateOf: stateOf, summarize: summarize, leftover: leftover, fmtWhen: fmtWhen, _personKey: personKey,
-    actText: actText, actGroup: actGroup, _S: S, _attendance: attendance };
+    actText: actText, actGroup: actGroup, _S: S, _attendance: attendance, lastEscalation: lastEscalation, escBadge: escBadge };
 })();
