@@ -37,7 +37,7 @@ begin
       "catering":{"mode":"inhouse","vendor":"SECRET-VENDOR","amount":0,"gstPct":5},"internalCost":77777,"margin":"SECRET-MARGIN",
       "computed":{"rental":20000,"plateSub":60000,"subtotal":100000,"totalGst":18000,"total":118000}}'::jsonb,
     client = '{"name":"Alice","phone":"+91 98765 00000","email":"alice@private.test","notes":"SECRET-STAFF-NOTE","guests":"120"}'::jsonb,
-    event_date = '2026-12-12', deleted_at = null, current_version = 1
+    event_date = (now() at time zone 'Asia/Kolkata')::date + 25, deleted_at = null, current_version = 1   -- R196: 25 days ahead in studio time (was a fixed date)
    where id = qa;
   update public.organizations set brand = '{"accent":"#aa3355","logo":"https://cdn.example.test/logo.png","phone":"+91 40 1234"}'::jsonb,
     business_email = 'hello@studio-a.test', business_email_confirmed = true where id = a;   -- 0075: admin-saved
@@ -58,7 +58,7 @@ begin
     ('a0000000-0000-4000-8000-0000000b0003', a, qa, 'Final', '{}', 118000, now());
   delete from public.payment_milestones where quote_id = qa;
   insert into public.payment_milestones(quote_id, label, due_date, amount, status, note, seq, org_id) values
-    (qa, 'Advance', '2026-11-01', 50000, 'paid', 'SECRET-MS-NOTE', 1, a), (qa, 'Balance', '2026-12-10', 68000, 'due', null, 2, a);
+    (qa, 'Advance', (now() at time zone 'Asia/Kolkata')::date - 16, 50000, 'paid', 'SECRET-MS-NOTE', 1, a), (qa, 'Balance', (now() at time zone 'Asia/Kolkata')::date + 23, 68000, 'due', null, 2, a);
   delete from public.client_booklets;
   delete from public.studio_subscriptions where org_id = a;
   delete from public.auth_rate_hits where bucket like 'booklet.%';
@@ -125,7 +125,7 @@ begin
   r := public.public_get_booklet(pg_temp.get('tok')::uuid);
   perform pg_temp.res('18 anon reads the booklet', r #>> '{event,code}' = 'A-0001' and r #>> '{studio,name}' = 'Studio A', left(r::text, 300));
   perform pg_temp.res('19 venue + guests + date', r #>> '{event,venue_name}' = 'Grand Hall' and (r #>> '{event,guests}')::numeric = 120
-    and r #>> '{event,event_date}' = '2026-12-12', left(r::text, 300));
+    and r #>> '{event,event_date}' = ((now() at time zone 'Asia/Kolkata')::date + 25)::text, left(r::text, 300));
   perform pg_temp.res('20 studio brand + contact', r #>> '{studio,accent}' = '#aa3355' and r #>> '{studio,logo}' = 'https://cdn.example.test/logo.png'
     and r #>> '{studio,email}' = 'hello@studio-a.test', (r -> 'studio')::text);
   perform pg_temp.res('21 layout shapes present', jsonb_array_length(r #> '{layout,items}') = 1 and r #>> '{layout,items,0,type}' = 'stage'

@@ -38,7 +38,7 @@ begin perform pg_temp.su();
   insert into public.quotes(id, code, title, event_type, status, client, pricing, current_version, org_id, event_date, created_at, updated_at)
     values ('a0000000-0000-4000-8000-0000000e0194', '10182026-94', 'Uma reception', 'Reception', 'confirmed',
             '{"name":"Uma Rao","phone":"+91 98480 00000"}'::jsonb, '{"subtotal":1000,"discount":0,"gstPct":18,"total":1180}'::jsonb,
-            1, orgA, '2026-12-20', now(), now())
+            1, orgA, (now() at time zone 'Asia/Kolkata')::date + 33, now(), now())   -- R196: 33 days ahead in studio time, not a fixed date
     on conflict (id) do update set status = 'confirmed', client = excluded.client;
   insert into public.crew_members(id, name, phone, org_id, active, profile_id) values
     ('a0000000-0000-4000-8000-00000c194001', 'Ravi Decor Lead', '+91 90000 00001', orgA, true, null),

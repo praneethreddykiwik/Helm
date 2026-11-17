@@ -11,6 +11,8 @@
 set client_min_messages = warning;
 drop table if exists _eg; create temp table _eg(name text, result text); grant all on _eg to anon, authenticated;
 drop table if exists _egv; create temp table _egv(k text primary key, v text); grant all on _egv to anon, authenticated;
+-- R196: the event day is 23 days ahead in studio (India) time, never a fixed date that goes stale (kept once for the whole run)
+drop table if exists _egd; create temp table _egd as select (now() at time zone 'Asia/Kolkata')::date + 23 as ev_day; grant select on _egd to anon, authenticated;
 
 create or replace function pg_temp.su() returns void language plpgsql as $$
 begin execute 'reset role'; perform auth.logout(); execute 'reset role'; end $$;
@@ -53,9 +55,9 @@ begin perform pg_temp.su();
   insert into public.quotes(id, code, title, event_type, status, client, pricing, current_version, org_id, event_date, event_time, created_at, updated_at)
   values
    ('a0000000-0000-4000-8000-0000000e0001', '10062026-11', 'Sharma wedding', 'Wedding', 'confirmed',
-    '{"name":"Priya Sharma","phone":"+91 98765 43210","email":"priya@example.com","venue":"Lotus Lawns","address":"MG Road","notes":"Jain food at one counter","guests":180,"budget":900000,"advance":50000,"eventDate":"2026-12-10"}'::jsonb,
+    '{"name":"Priya Sharma","phone":"+91 98765 43210","email":"priya@example.com","venue":"Lotus Lawns","address":"MG Road","notes":"Jain food at one counter","guests":180,"budget":900000,"advance":50000}'::jsonb || jsonb_build_object('eventDate', (select ev_day from _egd)::text),
     '{"subtotal":200000,"discount":5000,"gstPct":18,"total":230100,"guests":200,"chairs":200,"chairPrice":40,"platePrice":950,"advance":25000}'::jsonb,
-    1, orgA, '2026-12-10', '18:30', now(), now()),
+    1, orgA, (select ev_day from _egd), '18:30', now(), now()),
    ('a0000000-0000-4000-8000-0000000e0002', '10062026-12', 'Draft party', 'Birthday', 'quote',
     '{"name":"Draft Client"}'::jsonb, '{"subtotal":1000,"discount":0,"gstPct":18,"total":1180}'::jsonb, 1, orgA, null, null, now(), now()),
    ('b0000000-0000-4000-8000-0000000e0001', 'B-EG-01', 'Studio B gala', 'Gala', 'confirmed',
@@ -103,7 +105,7 @@ do $$ declare v uuid := pg_temp.getv('conv')::uuid; n int; m record; bad text; b
   perform pg_temp.res('05 card has the non-money details (client name, type, date/time, venue, guests, layout, menu, notes), no client phone / e-mail',
     m.meta -> 'client' ->> 'name' = 'Priya Sharma' and not (m.meta -> 'client' ? 'phone')
     and not (m.meta -> 'client' ? 'email') and m.meta ->> 'event_type' = 'Wedding'
-    and m.meta ->> 'event_date' = '2026-12-10' and m.meta ->> 'event_time' = '18:30'
+    and m.meta ->> 'event_date' = (select ev_day from _egd)::text and m.meta ->> 'event_time' = '18:30'
     and m.meta ->> 'venue' = 'Lotus Lawns (main)' and m.meta ->> 'venue_address' = 'MG Road, Pune'
     and (m.meta ->> 'guests')::int = 200 and (m.meta -> 'layout' ->> 'object_count')::int = 42
     and m.meta -> 'menu' ->> 'package' = 'Royal Veg' and jsonb_array_length(m.meta -> 'menu' -> 'dishes') = 2
