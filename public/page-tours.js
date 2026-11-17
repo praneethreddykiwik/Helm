@@ -243,6 +243,7 @@
           { sel: "#nf_table", title: "Who hears about what", desc: "For each kind of alert, pick which roles get it in the bell and by text or e-mail." },
           { sel: "#nf_reset", title: "Back to defaults", desc: "Puts every notification back to how Helm set it up." },
           { sel: "#np_user", title: "Per-person overrides", desc: "Pick one person to mute or add alerts just for them." },
+          { sel: "#trmCard", title: "Task reminders and escalation", desc: "Reminders for the person on each task. For special tasks not started, set when the coordinator, the manager and the admin / owner are told (0, 5 and 10 minutes after the start by default). It stops once the task is started." },
         ],
         reminders: [
           { sel: "#evrCard", title: "Event reminders", desc: "Reminders to the team before each event." },
@@ -387,6 +388,7 @@
       { sel: "#monSummary", title: "How far along", desc: "The bar is the share of tasks done. Tap a count (Late, Waiting for a yes...) to see just those tasks." },
       { sel: "#monTabs", title: "Six ways to look", desc: "By staff: each person and their tasks. By work: each section. By status: waiting to done. Leftover: not done yet. Check-in: who is on site, who checked out, who is late. Activity: every update, newest first." },
       { sel: ".mon-tools", title: "Filter and sort", desc: "Search, or show one person, one section or one status. Sort by start time, name or status." },
+      { sel: "#monAlerts", title: "Late tasks", desc: "Every task whose start time has passed and is not started. A special task shows how far it has been escalated, for example Escalated to manager 3:10 PM." },
       { sel: "#monFeed", title: "What just happened", desc: "Every update as it comes in: work given out or moved, replies, starts, finishes, new times, check-ins and e-mails sent. See all opens the Activity tab. Updates on its own every 30 seconds." },
       { sel: "#monOpenOps", title: "Change something", desc: "This page only watches. To reassign, schedule or cancel, open Tasks & staff (or a task's Open button). Nudge e-mails the task to the person again." },
     ],

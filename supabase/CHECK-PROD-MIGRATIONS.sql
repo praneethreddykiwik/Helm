@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (323 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (324 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4108 objects): body 168, bucket 9, col 228, con 403, cron 19, exec 4, fn 1852, idx 478, marker 19, pol 184, polexpr 4, pre 101, pub 5, seq 1, tbl 268, trg 363, view 2.
+-- What is checked (4130 objects): body 168, bucket 9, col 228, con 405, cron 19, exec 4, fn 1861, idx 481, marker 23, pol 184, polexpr 4, pre 102, pub 5, seq 1, tbl 270, trg 364, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -665,12 +665,12 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'public_event_site', 'text'),
   ('base-v1-2026-09-25', 'fn', 'public', 'event_activity', 'uuid'),
   ('base-v1-2026-09-25', 'fn', 'public', 'record_payment', 'uuid,numeric,text,text,uuid,text,text'),
-  ('base-v1-2026-09-25', 'fn', 'public', 'bell_feed', 'integer'),
   ('base-v1-2026-09-25', 'con', 'public.event_sites', 'event_sites_template_chk', null),
   ('base-v1-2026-09-25', 'fn', 'public', 'admin_set_role_access', 'text,text,boolean,boolean'),
   ('base-v1-2026-09-25', 'fn', 'public', 'export_tenant_organization_package', ''),
   ('base-v1-2026-09-25', 'fn', 'public', 'verify_and_consent', 'uuid,text,text,boolean,text,text,text,text'),
   ('base-v1-2026-09-25', 'fn', 'public', 'accept_invitation', 'text'),
+  ('base-v1-2026-09-25', 'fn', 'public', 'bell_feed', 'integer'),
   ('0001_pricing_authority', 'body', 'public', 'enforce_pricing_total', '|906e8a4240c9079e5ecde18fd774d385'),
   ('0001_pricing_authority', 'fn', 'public', 'helm_quote_total_canonical', 'jsonb'),
   ('0003_money_integrity', 'fn', 'public', 'helm_total_paid', 'uuid,uuid,uuid'),
@@ -4132,7 +4132,29 @@ with o(m, k, s, n, x) as (values
   ('0368_r184_event_activity', 'trg', 'public.event_tasks', 'zzz_r368_task_log', null),
   ('0368_r184_event_activity', 'fn', 'public', '_r368_checkin_log', ''),
   ('0368_r184_event_activity', 'trg', 'public.crew_checkins', 'zzz_r368_checkin_log', null),
-  ('0368_r184_event_activity', 'fn', 'public', 'event_day_activity', 'uuid,integer')
+  ('0368_r184_event_activity', 'fn', 'public', 'event_day_activity', 'uuid,integer'),
+  ('0369_r186_special_escalation', 'tbl', 'public.task_escalation_settings', null, null),
+  ('0369_r186_special_escalation', 'tbl', 'public.task_escalation_steps', null, null),
+  ('0369_r186_special_escalation', 'idx', 'public.task_escalation_steps_once369', null, null),
+  ('0369_r186_special_escalation', 'idx', 'public.task_escalation_steps_org369', null, null),
+  ('0369_r186_special_escalation', 'idx', 'public.task_escalation_steps_quote369', null, null),
+  ('0369_r186_special_escalation', 'trg', 'public.task_escalation_steps', 'zz_quote_org_match', null),
+  ('0369_r186_special_escalation', 'con', 'public.staff_email_outbox', 'staff_email_outbox_kind_chk369', null),
+  ('0369_r186_special_escalation', 'con', 'public.event_task_log', 'event_task_log_kind_chk369', null),
+  ('0369_r186_special_escalation', 'fn', 'public', '_r369_cfg', 'uuid,text'),
+  ('0369_r186_special_escalation', 'fn', 'public', '_r369_people', 'uuid,uuid,uuid,integer'),
+  ('0369_r186_special_escalation', 'fn', 'public', '_r369_escalation_tick', 'timestamp with time zone'),
+  ('0369_r186_special_escalation', 'fn', 'public', 'task_reminder_tick__pre0369', 'timestamp with time zone'),
+  ('0369_r186_special_escalation', 'fn', 'public', 'staff_email_claim__pre0369', 'integer'),
+  ('0369_r186_special_escalation', 'fn', 'public', '_r23_visible__pre0369', 'uuid,uuid'),
+  ('0369_r186_special_escalation', 'fn', 'public', 'bell_feed__pre0369', 'integer'),
+  ('0369_r186_special_escalation', 'fn', 'public', 'task_escalation_settings_get', 'text'),
+  ('0369_r186_special_escalation', 'fn', 'public', 'task_escalation_settings_set', 'text,boolean,integer[]'),
+  ('0369_r186_special_escalation', 'pre', null, '__pre0369', null),
+  ('0369_r186_special_escalation', 'marker', 'public', 'task_reminder_tick', 'timestamp with time zone|r186-0369'),
+  ('0369_r186_special_escalation', 'marker', 'public', 'staff_email_claim', 'integer|r186-0369'),
+  ('0369_r186_special_escalation', 'marker', 'public', '_r23_visible', 'uuid,uuid|r186-0369'),
+  ('0369_r186_special_escalation', 'marker', 'public', 'bell_feed', 'integer|r186-0369')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4457,7 +4479,8 @@ mig(ord, m, ov, note) as (values
   (320, '0365_r174_event_day_board', null, null),
   (321, '0366_r174b_presence', null, 'The two realtime.messages policies (own studio private presence channel) are created only where the Supabase realtime schema exists; local and CI databases have none. On prod check them with: select policyname from pg_policies where schemaname = realtime and policyname like helm_presence_%'),
   (322, '0367_r179_special_reminders_staff_link_event', null, 'special-task reminders + the permanent staff link opens each event inside it: task_reminder_tick and staff_link_view wrapped once (old bodies kept as __pre0367), checked by the r179-0367 marker'),
-  (323, '0368_r184_event_activity', null, null)
+  (323, '0368_r184_event_activity', null, null),
+  (324, '0369_r186_special_escalation', null, 'special-task escalation ladder: task_reminder_tick, staff_email_claim, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0369), checked by the r186-0369 marker (the wrappers name the r179-0367 / r24-ci-0270 / r163-0357 bodies they keep, so those markers still hold)')
 ),
 env as (
   select

@@ -14,6 +14,7 @@
      chip(row) -> { text, state, title } | null                 Live Status: the task's latest WhatsApp line
      settingsCard(host[, { store }])                            Settings -> Notifications -> Task reminders
      explain(settings) -> string                                 the plain-words rule shown in both places
+     escExplain(esc) / checkEscSteps(list)                       R186 (0369): the special-task escalation ladder (Settings)
    CSP-safe: createElement / textContent only; pure helpers exported for tests. */
 (function (global) {
   "use strict";
@@ -254,12 +255,67 @@
           .catch(function (e) { msg.textContent = (global.BPUI && global.BPUI.friendlyError) ? global.BPUI.friendlyError(e, { action: "save the reminders" }) : "Couldn't save - try again."; })
           .then(function () { save.disabled = false; });
       });
+      escalationPart(host, R, can);   // R186 (0369)
       return true;
     }, function () { host.hidden = true; return false; });
   }
 
+  // ---- R186 (0369): special tasks not started - who is told, and when ------------------------------------------------------
+  function escExplain(c) {
+    c = c || {};
+    var st = Array.isArray(c.steps) && c.steps.length === 3 ? c.steps : [0, 5, 10];
+    var at = function (m) { return Number(m) === 0 ? "at the start time" : m + " min after the start"; };
+    if (c.enabled === false) return "Escalation is off: special tasks only get the reminders above.";
+    return "When a special task is not started: " + at(st[0]) + " the person and the event coordinator are told; " +
+      at(st[1]) + " the manager too; " + at(st[2]) + " the admin / owner too. It stops as soon as the task is started. " +
+      "The office gets a bell notice and an email (free trial: bell only). The event coordinator is the event lead when one is set, otherwise everyone with the Coordinator or Supervisor role.";
+  }
+  // three whole minutes after the start, each later than the one before (first 0..60, last at most 120)
+  function checkEscSteps(list) {
+    var n = (Array.isArray(list) ? list : []).map(function (x) { return String(x == null ? "" : x).trim(); });
+    if (n.length !== 3 || n.some(function (x) { return !/^[0-9]{1,3}$/.test(x); })) return { ok: false, error: "Type each time as whole minutes, e.g. 0, 5 and 10." };
+    var v = n.map(Number);
+    if (v[0] > 60) return { ok: false, error: "The first step can be at most 60 minutes after the start." };
+    if (!(v[1] > v[0] && v[2] > v[1])) return { ok: false, error: "Each step must come later than the one before." };
+    if (v[2] > 120) return { ok: false, error: "The last step can be at most 120 minutes after the start." };
+    return { ok: true, steps: v };
+  }
+  function escalationPart(host, R, can) {
+    if (!R || typeof R.escalation !== "function") return;
+    var box = el("div", "trm-esc"); box.hidden = true; host.appendChild(box);
+    Promise.resolve().then(function () { return R.escalation(); }).then(function (c) {
+      if (!c || typeof c !== "object") return;
+      box.hidden = false;
+      box.appendChild(el("h4", null, "Special tasks not started: tell the office step by step"));
+      var ex = el("p", "trm-explain", escExplain(c)); box.appendChild(ex);
+      var on = checkbox("tre_on", "Escalate special tasks that are not started", c.enabled !== false); box.appendChild(on.wrap);
+      var st = Array.isArray(c.steps) && c.steps.length === 3 ? c.steps : [0, 5, 10];
+      var grid = el("div", "trm-esc-grid"), ins = [];
+      [["tre_s1", "Coordinator"], ["tre_s2", "Manager"], ["tre_s3", "Admin / owner"]].forEach(function (d, i) {
+        var w = el("div", "trm-esc-step"), lb = el("label", null, d[1]); lb.htmlFor = d[0];
+        var inp = el("input"); inp.id = d[0]; inp.type = "number"; inp.min = "0"; inp.max = i === 0 ? "60" : "120"; inp.step = "1"; inp.inputMode = "numeric";
+        inp.value = String(st[i]);
+        w.appendChild(lb); w.appendChild(inp); w.appendChild(el("span", "muted", "min after the start")); grid.appendChild(w); ins.push(inp);
+      });
+      box.appendChild(grid);
+      var foot = el("div", "trm-foot"), save = el("button", "btn", "Save escalation"); save.type = "button";
+      var msg = el("p", "trm-msg"); msg.setAttribute("role", "status"); msg.setAttribute("aria-live", "polite");
+      foot.appendChild(save); foot.appendChild(msg); box.appendChild(foot);
+      [on.input, save].concat(ins).forEach(function (x) { x.disabled = !can; });
+      save.addEventListener("click", function () {
+        var chk = checkEscSteps(ins.map(function (x) { return x.value; }));
+        if (!chk.ok) { msg.textContent = chk.error; return; }
+        save.disabled = true; msg.textContent = "Saving…";
+        R.saveEscalation(on.input.checked, chk.steps)
+          .then(function (n) { msg.textContent = "Saved."; ex.textContent = escExplain(n || {}); })
+          .catch(function (e) { msg.textContent = (global.BPUI && global.BPUI.friendlyError) ? global.BPUI.friendlyError(e, { action: "save the escalation steps" }) : "Couldn't save - try again."; })
+          .then(function () { save.disabled = false; });
+      });
+    }, function () { box.hidden = true; });
+  }
+
   var api = { schedFields: schedFields, chip: chip, settingsCard: settingsCard, explain: explain, parseCustom: parseCustom, sortMins: sortMins, listText: listText, CHOICES: CHOICES,
-    checkTimes: checkTimes, summary: summary };
+    checkTimes: checkTimes, summary: summary, escExplain: escExplain, checkEscSteps: checkEscSteps };
   global.HelmTaskReminders = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

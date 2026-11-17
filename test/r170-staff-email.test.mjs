@@ -99,16 +99,16 @@ await t("e-mail: fails closed (unknown kind, no tasks, no task title, reminder w
   assert.equal(staffLink({ link_path: "work.html?token=" + TOK }, "http://insecure.test"), "");
   const m = staffEmailMessage({ kind: "task_one", task: "<b>Lights</b>", event: "E<script>", studio: "S" }, ORIGIN);
   assert.doesNotMatch(m.text + m.subject, /[<>]/);
-  assert.deepEqual(STAFF_KINDS, ["task_assigned", "task_list", "task_one", "task_reminder", "task_late", "office_alert"]);
+  assert.deepEqual(STAFF_KINDS, ["task_assigned", "task_list", "task_one", "task_reminder", "task_late", "office_alert", "task_escalation"]);   // R186 (0369) adds the escalation e-mail
   assert.ok(STAFF_TX_REASON && OFFICE_TX_REASON);
 });
 
 await t("comms-dispatch: the staff lane - claimed only with an e-mail provider, studio reply-to, footer by kind, every row marked", () => {
   const cd = read("supabase/functions/comms-dispatch/index.ts");
-  assert.match(cd, /import \{ staffEmailMessage, (?:staffUpdateMessage, )?(?:staffEmailHtml, staffUpdateHtml, )?STAFF_TX_REASON, OFFICE_TX_REASON \} from "\.\/staff-email\.mjs";/);
+  assert.match(cd, /import \{ staffEmailMessage, (?:staffUpdateMessage, )?(?:staffEmailHtml, staffUpdateHtml, )?STAFF_TX_REASON, OFFICE_TX_REASON(?:, ESCALATION_TX_REASON)? \} from "\.\/staff-email\.mjs";/);
   assert.match(cd, /mailOn && !overBudget\(\) \? await admin\.rpc\("staff_email_claim", \{ p_limit: batch \}\) : NOCLAIM;/);
   assert.match(cd, /const ident: Identity = await withReply\("staff", id,/);
-  assert.match(cd, /=== "office_alert" \? OFFICE_TX_REASON : STAFF_TX_REASON/);
+  assert.match(cd, /=== "office_alert" \? OFFICE_TX_REASON : (?:sk === "task_escalation" \? ESCALATION_TX_REASON : )?STAFF_TX_REASON/);
   assert.match(cd, /admin\.rpc\("staff_email_mark", \{ p_id: id, p_status: res === "failed" \? "retry" : res \}\)/);
   assert.equal(RT.LANE_TABLES.staff, "staff_email_outbox");
 });
