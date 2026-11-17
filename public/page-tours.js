@@ -353,6 +353,8 @@
       { sel: "#bz-revenue", title: "Booked vs collected", desc: "Month by month: what you sold and what came in." },
       { sel: "#bz-overdue", title: "Overdue payments", desc: "Clients who owe you past their due date. Chase these first." },
       { sel: "#bz-pipeline", title: "Pipeline", desc: "Quotes still open, and what they are worth if they confirm." },
+      { sel: "#bz-vb-due", need: "finance", title: "Vendor bills to pay", desc: "Bills due in the next 2 weeks or already late - copy the list for WhatsApp in one tap. Below it, the TDS you kept back this financial year, ready to download for your CA." },
+      { sel: "#bz-vb-set", need: "finance", title: "Vendor bill reminders", desc: "Who Helm reminds about bills (a person or a role), how many days before, and whether vendors get a note too (off by default)." },
     ],
     "insights.html": [
       { sel: "#rangeBar", title: "Pick a period", desc: "Every number on this page covers the dates you choose here." },
@@ -436,6 +438,7 @@
       { sel: "#payments", need: "finance", title: "Client payments", desc: "Every payment received against this event." },
       { sel: "#pay_amt", need: "finance", title: "Record a payment", desc: "Type the amount and record it. The balance updates straight away." },
       { sel: "#vendBody", title: "Vendors", desc: "What you owe each vendor for this event." },
+      { sel: "#vendorBills", need: "finance", title: "Vendor bills", desc: "Each vendor bill and what is paid. Record payout takes the TDS you keep back too, so the bill counts as fully paid. Add the bill's photo later if it is missing. Once the event is closed, an admin adds a late bill with the reason." },
       { sel: "#e_who", title: "Expenses", desc: "Add staff claims and other costs paid out." },
       { sel: "#r_kind", title: "Refunds", desc: "Money returned to the client, or recovered, with a reason." },
     ],

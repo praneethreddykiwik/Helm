@@ -134,6 +134,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0368_r184_event_activity.sql
 -- 0369 (R186) adds task_escalation_steps (the special-task escalation ladder) to the purge list after 0368
 \ir ../../supabase/migrations/0369_r186_special_escalation.sql
+-- 0373 (R190) adds the vendor bill records (mail outbox, reminders, added files, late bills) to the purge list before vendor_payouts and vendor_bill_settings to the keep list
+\ir ../../supabase/migrations/0373_r190_vendor_bills_finish.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

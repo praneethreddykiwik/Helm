@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (324 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (325 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4130 objects): body 168, bucket 9, col 228, con 405, cron 19, exec 4, fn 1861, idx 481, marker 23, pol 184, polexpr 4, pre 102, pub 5, seq 1, tbl 270, trg 364, view 2.
+-- What is checked (4186 objects): body 169, bucket 9, col 231, con 406, cron 19, exec 5, fn 1885, idx 496, marker 27, pol 184, polexpr 4, pre 103, pub 5, seq 1, tbl 275, trg 365, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -2509,13 +2509,13 @@ with o(m, k, s, n, x) as (values
   ('0246_event_money_ledger', 'tbl', 'public.helm_money_rules', null, null),
   ('0246_event_money_ledger', 'fn', 'public', '_r21_category', 'text,text'),
   ('0246_event_money_ledger', 'fn', 'public', '_r21_category_label', 'text'),
-  ('0246_event_money_ledger', 'fn', 'public', '_r21_cost_lines', 'uuid,uuid'),
   ('0246_event_money_ledger', 'fn', 'public', '_r21_event_money', 'uuid,uuid,boolean'),
   ('0246_event_money_ledger', 'fn', 'public', '_vb_event_pnl__pre0246', 'uuid,uuid'),
   ('0246_event_money_ledger', 'body', 'public', '_vb_event_pnl', 'uuid,uuid|97d0b034dbe8a2359368cd289a2c41bb'),
   ('0246_event_money_ledger', 'fn', 'public', 'event_cost_breakdown', 'uuid'),
   ('0246_event_money_ledger', 'fn', 'public', 'studio_cost_breakdown', 'date,date'),
   ('0246_event_money_ledger', 'pre', null, '__pre0246', null),
+  ('0246_event_money_ledger', 'fn', 'public', '_r21_cost_lines', 'uuid,uuid'),
   ('0248_reserved_email_domains', 'tbl', 'public.reserved_email_domains', null, null),
   ('0248_reserved_email_domains', 'tbl', 'public.staff_email_allowlist', null, null),
   ('0248_reserved_email_domains', 'fn', 'public', '_r248_norm_email', 'text'),
@@ -4154,7 +4154,63 @@ with o(m, k, s, n, x) as (values
   ('0369_r186_special_escalation', 'marker', 'public', 'task_reminder_tick', 'timestamp with time zone|r186-0369'),
   ('0369_r186_special_escalation', 'marker', 'public', 'staff_email_claim', 'integer|r186-0369'),
   ('0369_r186_special_escalation', 'marker', 'public', '_r23_visible', 'uuid,uuid|r186-0369'),
-  ('0369_r186_special_escalation', 'marker', 'public', 'bell_feed', 'integer|r186-0369')
+  ('0369_r186_special_escalation', 'marker', 'public', 'bell_feed', 'integer|r186-0369'),
+  ('0373_r190_vendor_bills_finish', 'body', 'public', 'tg_a152_money_create_guard', '|89814d0bb104fb800e12011966b84b5f'),
+  ('0373_r190_vendor_bills_finish', 'tbl', 'public.vendor_bill_settings', null, null),
+  ('0373_r190_vendor_bills_finish', 'tbl', 'public.vendor_bill_files', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_files_bill373', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_files_org373', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_files_quote373', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_files_file373', null, null),
+  ('0373_r190_vendor_bills_finish', 'tbl', 'public.vendor_bill_late', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_late_org373', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_late_quote373', null, null),
+  ('0373_r190_vendor_bills_finish', 'tbl', 'public.vendor_bill_reminders', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_reminders_once373', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_reminders_org373', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_reminders_quote373', null, null),
+  ('0373_r190_vendor_bills_finish', 'tbl', 'public.vendor_bill_mail_outbox', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_mail_outbox_dedupe373', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_mail_outbox_pending373', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_mail_outbox_org373', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_mail_outbox_bill373', null, null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.vendor_bill_mail_outbox_rem373', null, null),
+  ('0373_r190_vendor_bills_finish', 'col', 'public.vendor_payouts', 'source', null),
+  ('0373_r190_vendor_bills_finish', 'col', 'public.vendor_payouts', 'tds_section', null),
+  ('0373_r190_vendor_bills_finish', 'col', 'public.vendor_payouts', 'payout_ref', null),
+  ('0373_r190_vendor_bills_finish', 'con', 'public.vendor_payouts', 'vendor_payouts_src_0373_ck', null),
+  ('0373_r190_vendor_bills_finish', 'idx', 'public.ix_vendor_payouts_src373', null, null),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r373_cfg', 'uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r373_open', 'uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r373_money', 'numeric,text'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r373_people', 'uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r373_hour', 'uuid,timestamp with time zone'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r373_slot', 'date,date,jsonb'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_reminder_tick', 'timestamp with time zone'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_reminder_claim', 'integer'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_reminder_mark', 'uuid,text'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_pay', 'uuid,numeric,numeric,text,date,text,text,text'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r373_converted', 'uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_convert_advances', 'uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'tg_r373_advance_lock', ''),
+  ('0373_r190_vendor_bills_finish', 'trg', 'public.event_resources', 'ad_r373_advance_lock', null),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r21_cost_lines__pre0373', 'uuid,uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_attach', 'uuid,uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r373_can_late', 'uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_add_late', 'uuid,jsonb,text'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bills_extra', 'uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bills_due', 'integer'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_tds_report', 'date,date'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_settings_get', ''),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'vendor_bill_settings_set', 'jsonb'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', '_r23_visible__pre0373', 'uuid,uuid'),
+  ('0373_r190_vendor_bills_finish', 'fn', 'public', 'bell_feed__pre0373', 'integer'),
+  ('0373_r190_vendor_bills_finish', 'pre', null, '__pre0373', null),
+  ('0373_r190_vendor_bills_finish', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|r190-0373'),
+  ('0373_r190_vendor_bills_finish', 'marker', 'public', '_r23_visible', 'uuid,uuid|r190-0373'),
+  ('0373_r190_vendor_bills_finish', 'marker', 'public', 'bell_feed', 'integer|r190-0373'),
+  ('0373_r190_vendor_bills_finish', 'marker', 'public', 'tg_a152_money_create_guard', '|r190-0373'),
+  ('0373_r190_vendor_bills_finish', 'exec', 'public', 'vendor_bill_pay', 'uuid,numeric,numeric,text,date,text,text,text|authenticated')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4480,7 +4536,8 @@ mig(ord, m, ov, note) as (values
   (321, '0366_r174b_presence', null, 'The two realtime.messages policies (own studio private presence channel) are created only where the Supabase realtime schema exists; local and CI databases have none. On prod check them with: select policyname from pg_policies where schemaname = realtime and policyname like helm_presence_%'),
   (322, '0367_r179_special_reminders_staff_link_event', null, 'special-task reminders + the permanent staff link opens each event inside it: task_reminder_tick and staff_link_view wrapped once (old bodies kept as __pre0367), checked by the r179-0367 marker'),
   (323, '0368_r184_event_activity', null, null),
-  (324, '0369_r186_special_escalation', null, 'special-task escalation ladder: task_reminder_tick, staff_email_claim, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0369), checked by the r186-0369 marker (the wrappers name the r179-0367 / r24-ci-0270 / r163-0357 bodies they keep, so those markers still hold)')
+  (324, '0369_r186_special_escalation', null, 'special-task escalation ladder: task_reminder_tick, staff_email_claim, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0369), checked by the r186-0369 marker (the wrappers name the r179-0367 / r24-ci-0270 / r163-0357 bodies they keep, so those markers still hold)'),
+  (325, '0373_r190_vendor_bills_finish', null, 'vendor bills finish: _r21_cost_lines, _r23_visible and bell_feed wrapped once (old bodies kept as __pre0373), checked by the r190-0373 marker (the wrappers name the r186-0369 / r24-ci-0270 / r163-0357 bodies they keep, so those markers still hold); the hourly timer is scheduled only where pg_cron is installed - check it with select jobname from cron.job where jobname = helm-vendor-bill-reminders')
 ),
 env as (
   select

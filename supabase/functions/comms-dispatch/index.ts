@@ -21,6 +21,9 @@
 //   * vendor requests (0256) a vendor asked to take part in an event (+ reminders 24 h / 48 h later while unanswered),
 //                   e-mail only, each with a fresh link APP_URL/vendor-request?t=<token> (accept / decline / invoice);
 //                   claimed via vendor_request_claim(limit, 'email') (re-checked there; trials / samples never queue)
+//   * vendor bill reminders (R190, 0373) the studio's "who pays vendors" people: 3 days before a bill is due, on the day,
+//                   every 3 days while overdue (studio settings); optional (OFF by default) one note to the vendor; claimed
+//                   via vendor_bill_reminder_claim (re-checked there; free trials / samples never queue an e-mail)
 //   * run-sheet reminders (0269) the owner of a run-sheet line (team member / staff / vendor with an e-mail), at the
 //                   line's reminder times (studio default 15 / 0 min before), e-mail only (WhatsApp goes through the 0132
 //                   lane above); claimed via runsheet_reminder_claim (re-checked there; trials / samples never queue)
@@ -105,6 +108,7 @@ import { bookletMessage } from "./booklet-link.mjs";
 import { quoteExpiryMessage } from "./quote-expiry.mjs";
 import { deliveryMessage } from "./delivery-reminder.mjs";   // 0241: delivery / arrival reminders
 import { vendorRequestMessage, VENDOR_TX_REASON } from "./vendor-request.mjs";   // 0256: vendor requests + reminders
+import { vendorBillMessage, vendorBillHtml, VENDOR_BILL_TX_REASON, VENDOR_BILL_VENDOR_TX_REASON } from "./vendor-bill-reminder.mjs";   // R190 (0373): vendor bill due reminders
 import { helmNoticeEmail, NOTICE_TX_REASON } from "./helm-notices.mjs";   // 0244: sales requests + "ask my admin"
 import { runsheetReminderMessage, enquiryReplyMessage, RUNSHEET_TX_REASON, ENQUIRY_TX_REASON } from "./r24-automation.mjs";   // 0269: run-sheet reminders + enquiry replies
 import { staffEmailMessage, staffUpdateMessage, staffEmailHtml, staffUpdateHtml, STAFF_TX_REASON, OFFICE_TX_REASON, ESCALATION_TX_REASON } from "./staff-email.mjs";   // R170 (0361): tasks + task reminders e-mailed to staff
@@ -502,6 +506,24 @@ Deno.serve(async (req) => {
       const res: Res = msg.text ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
       const { error: mErr } = await admin.rpc("vendor_request_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
       if (mErr) { log.error("vendor request mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
+      counts[res]++;
+    }
+    // R190 (0373): vendor bill due reminders - to the studio's "who pays vendors" people (and, only when the studio turned
+    // it on, to the vendor). vendor_bill_reminder_claim re-checks each row (bill still open, still a payer / still the
+    // vendor's address, studio may send). A database without 0373 has nothing to claim.
+    const { data: vbrows, error: vbErr } = mailOn && !overBudget() ? await admin.rpc("vendor_bill_reminder_claim", { p_limit: batch }) : NOCLAIM;
+    if (vbErr && !/PGRST202|42883/.test(String(vbErr.code || ""))) log.error("vendor bill claim skipped", errTag(vbErr));
+    for (const r of (Array.isArray(vbrows) ? vbrows : [])) {
+      if (overBudget()) break;   // R168
+      const id = String(r?.id ?? ""), to = String(r?.to ?? "");
+      if (!UUIDISH.test(id)) { counts.invalid++; continue; }
+      const msg = vendorBillMessage(r, origin);
+      const ident: Identity = await withReply("vendorBill", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
+      const extra: Extra = { footer: txFooter(String(r?.audience ?? "") === "vendor" ? VENDOR_BILL_VENDOR_TX_REASON : VENDOR_BILL_TX_REASON, { app: origin, address: postalAddress(env) }) };
+      const vhtml = msg.text ? vendorBillHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;
+      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, vhtml) : "skipped";
+      const { error: mErr } = await admin.rpc("vendor_bill_reminder_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      if (mErr) { log.error("vendor bill mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // 0269: run-sheet reminders (e-mail lane; a database without 0269 just has nothing to claim)

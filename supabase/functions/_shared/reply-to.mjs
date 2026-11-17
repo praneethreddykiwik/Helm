@@ -82,6 +82,7 @@ export const LANE_TABLES = {
   runsheet: "runsheet_reminder_sends", enquiry: "lead_enquiries", pkg: "pkg_outbox",
   staff: "staff_email_outbox",   // R170 (0361): tasks + task reminders e-mailed to staff
   staffUpdate: "staff_update_outbox",   // R172 (0363): "your tasks changed" notices to staff
+  vendorBill: "vendor_bill_mail_outbox",   // R190 (0373): vendor bill due reminders
 };
 
 // Reply-To for a queued row: the row's own explicit reply-to when valid, else the studio's fallback.
