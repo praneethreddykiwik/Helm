@@ -7,6 +7,9 @@
 //   * office_alert               to the event manager: "<worker> has not started <task>", with the Live Status link
 //   * task_update (R172, 0363)    "Update: your tasks for <event> changed" - the change lines collected for that person
 //                                and event (staff_update_claim), their open tasks now, and their permanent link
+//   * task_escalation (R186, 0369) to an office person on the escalation ladder of a SPECIAL task that is not started:
+//                                "Escalated: <task> not started (<worker>)", the step (1 coordinator / 2 manager / 3 admin),
+//                                minutes late, and the Event day monitor link (monitor.html?quote=<event id>)
 // Links: APP_URL + the row's own path only (work.html?staff=<64 hex> = the person's permanent link (R172); R179 adds
 // &event=<event id> for an e-mail about one event, so it opens that event inside the same link,
 // work.html?token=<uuid> = the per-event link, ops.html?quote=<uuid> for the office);
@@ -17,10 +20,11 @@ import * as L from "../_shared/email-layout.mjs";
 
 export const STAFF_TX_REASON = "you are on the staff list of this studio and work was given to you";
 export const OFFICE_TX_REASON = "you are the manager of this event";
-export const STAFF_KINDS = ["task_assigned", "task_list", "task_one", "task_reminder", "task_late", "office_alert"];
+export const ESCALATION_TX_REASON = "you are on your studio's escalation list for special tasks that have not started";
+export const STAFF_KINDS = ["task_assigned", "task_list", "task_one", "task_reminder", "task_late", "office_alert", "task_escalation"];
 
 const ORIGIN = /^https:\/\/[A-Za-z0-9.-]{1,190}(?::[0-9]{1,5})?$/;
-const PATH = /^(?:(?:work\.html\?token=|ops\.html\?quote=)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|work\.html\?staff=[0-9a-f]{64}(?:&event=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?)$/;
+const PATH = /^(?:(?:work\.html\?token=|ops\.html\?quote=|monitor\.html\?quote=)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|work\.html\?staff=[0-9a-f]{64}(?:&event=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?)$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const STAFF_PATH = /^work\.html\?staff=[0-9a-f]{64}$/;
 // R179: e-mails about one event open that event INSIDE the person's permanent link (work.html?staff=..&event=<id>);
@@ -35,6 +39,13 @@ export function staffLink(row, origin) {
   if (STAFF_PATH.test(p) && UUID_RE.test(q) && EVENT_KINDS.includes(String(row && row.kind))) p += "&event=" + q;
   if (!ORIGIN.test(o) || !PATH.test(p)) return "";
   return o + "/" + p;
+}
+
+// R186: the ladder step of an escalation row -> { n: 1..3, who: "the coordinator and the manager are told" }
+const ESC_WHO = ["the event coordinator is told", "the coordinator and the manager are told", "the coordinator, the manager and the admin / owner are told"];
+function escStep(row) {
+  const n = Math.min(3, Math.max(1, Math.round(Number(row && row.step) || 1)));
+  return { n, who: ESC_WHO[n - 1] };
 }
 
 function first(name) { return clip(name, 80).split(" ")[0] || ""; }
@@ -101,6 +112,19 @@ export function staffEmailMessage(row, origin) {
       text: hi + task + " for " + event + (at ? " was due to start at " + at : " was due to start") + " and is not marked as started yet.\n\n" +
         (link ? "If you have started, mark it on your task page:\n" + link + "\n\nIf something is stopping you, reply to this e-mail." :
                 "If something is stopping you, reply to this e-mail.") + sign,
+    };
+  }
+  if (kind === "task_escalation") {
+    const worker = clip(row.worker, 80) || "The person on it";
+    const late = Math.max(0, Math.round(Number(row.late_min) || 0));
+    const step = escStep(row);
+    return {
+      subject: "Escalated: " + task + " not started (" + worker + ") - " + event,
+      text: hi + worker + " has not started " + task + " for " + eventLine + (at ? ". It was due at " + at : "") +
+        (late ? " (" + late + " min ago)" : "") + ".\n\nThis is a special task, so Helm tells the team step by step until it is started. " +
+        "Step " + step.n + " of 3: " + step.who + ".\n\n" +
+        (link ? "See the live status and act now:\n" + link : "Open the Event day monitor in Helm to act now.") +
+        "\n\n" + "Helm, for " + studio,
     };
   }
   // office_alert (to the event manager)
@@ -240,6 +264,18 @@ export function staffEmailHtml(row, origin, opts = {}) {
       (link ? cta(link, "Open my task page") + L.para("If something is stopping you, reply to this e-mail.") : L.para("If something is stopping you, reply to this e-mail.")) +
       L.note(`Sent by ${L.strong(e(studio))} with Helm.`);
     return staffDoc(msg.subject, task + " has not been started yet", inner, STAFF_TX_REASON, site);
+  }
+  if (kind === "task_escalation") {
+    const worker = clip(row.worker, 80) || "The person on it";
+    const late = Math.max(0, Math.round(Number(row.late_min) || 0));
+    const step = escStep(row);
+    const inner = eyebrow(studio) + L.h1("Special task not started") + hello +
+      banner(worker + " has not started " + task + (late ? " - " + late + " min late" : "") + ".") +
+      facts([["Task", task], ["Person", worker], ["Was due", at], ["Step", step.n + " of 3 - " + step.who], ["Event", event], ["Date", date], ["Venue", venue]]) +
+      L.para("Helm keeps telling the team step by step until the task is started.") +
+      (link ? cta(link, "Open the live monitor") : L.para("Open the Event day monitor in Helm to act now.")) +
+      L.note(`Helm, for ${L.strong(e(studio))}.`);
+    return staffDoc(msg.subject, worker + " has not started " + task, inner, ESCALATION_TX_REASON, site);
   }
   // office_alert
   const worker = clip(row.worker, 80) || "A staff member";
