@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=86"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=87"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -8833,7 +8833,10 @@ window.HelmUrl = HelmUrl;
       if (!b) continue;
       const own = bills.filter((x) => x.booking_id === b.id);
       const cost = own.length ? vendorPnlCalc({ bookings: [Object.assign({}, b, { status: "confirmed" })], bills: own }).vendors : vbNum(b.cost);
-      const advance = vbNum(b.advance), payouts = r2(own.reduce((a, x) => a + payOf(x), 0));
+      // R190 (0373): part of a typed advance turned into payout rows (source "advance") is already in the payouts -
+      // only the rest of the typed advance still counts, so nothing is counted twice
+      const converted = own.reduce((a, x) => a + (x.vendor_payouts || []).filter((p) => p && p.source === "advance").reduce((s2, p) => s2 + vbNum(p.amount), 0), 0);
+      const advance = Math.max(0, vbNum(b.advance) - converted), payouts = r2(own.reduce((a, x) => a + payOf(x), 0));
       const paid = r2(advance + payouts);
       byBooking[b.id] = { cost: r2(cost), advance: r2(advance), payouts, paid, owed: r2(Math.max(0, cost - paid)), billed: own.length > 0 };
       let credit = advance;
@@ -8927,6 +8930,57 @@ window.HelmUrl = HelmUrl;
       if (mode !== "supabase") return null;
       try { return await rpc("vendor_payables_summary", {}); } catch (e) { if (rpcMissing(e)) return null; throw e; }
     },
+    /* R190 (0373): finish vendor bills. Each returns null / throws vbFinishMissing() on a server without 0373. */
+    // pay a bill: cash part + optional TDS part (two payout rows, the bill counts as settled); same key = never twice
+    async payTds(billId, amount, tds, section, paidOn, method, reference, key) {
+      const amt = Number(amount || 0), t = Number(tds || 0);
+      if (!Number.isFinite(amt) || !Number.isFinite(t) || amt < 0 || t < 0 || amt + t <= 0) throw new Error("Enter an amount above zero.");
+      return await rpc("vendor_bill_pay", { p_bill: billId, p_amount: Math.round(amt * 100) / 100, p_tds: Math.round(t * 100) / 100,
+        p_tds_section: section ? String(section).trim().toUpperCase().slice(0, 8) : null, p_paid_on: paidOn || null,
+        p_method: method || null, p_reference: reference || null, p_key: key ? String(key).slice(0, 90) : null });
+    },
+    // the Vendor bills card extras: added files, late reason, TDS suggestion, GST 150-day warning, typed advances, closed
+    async extra(quoteId) {
+      if (mode !== "supabase") return null;
+      try { return await rpc("vendor_bills_extra", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+    },
+    async convertAdvances(quoteId) { return await rpc("vendor_bill_convert_advances", { p_quote: quoteId }); },
+    // a photo / PDF added to a bill later (uploaded to the event's files first; the bill row is never edited)
+    async attach(quoteId, billId, file) {
+      if (!file) throw new Error("Choose the photo or PDF of the bill.");
+      const row = await files.upload(quoteId, file);
+      if (!row || !row.id) throw new Error("Couldn't upload the file - try again.");
+      return await rpc("vendor_bill_attach", { p_bill: billId, p_file: row.id });
+    },
+    // a bill for a CLOSED event = a late adjustment (reason 10..500 characters); file optional
+    async addLate(quoteId, b, file, reason) {
+      const r = String(reason == null ? "" : reason).trim();
+      if (r.length < 10) throw new Error("Say why this bill came after the event was closed (at least 10 characters).");
+      const amt = Number(b && b.amount);
+      if (!Number.isFinite(amt) || amt <= 0) throw new Error("Enter the bill amount (above zero).");
+      const gst = vbGstPart(b.gst_amount, amt);
+      if (gst.error) throw new Error(gst.error);
+      let fileId = null;
+      if (file) { const row = await files.upload(quoteId, file); fileId = row && row.id; }
+      const p = { amount: Math.round(amt * 100) / 100, bill_no: b.bill_no || null, bill_date: b.bill_date || null, due_date: b.due_date || null,
+        description: b.description || null, vendor_id: b.vendor_id || null, booking_id: b.booking_id || null, file_id: fileId };
+      if (gst.value != null) { p.gst_amount = gst.value; if (typeof b.gst_claimable === "boolean") p.gst_claimable = b.gst_claimable; }
+      return await rpc("vendor_bill_add_late", { p_quote: quoteId, p, p_reason: r.slice(0, 500) });
+    },
+    // Business: bills due within N days + overdue (+ GST 150-day warnings); the TDS report; the reminder settings
+    async due(days) {
+      if (mode !== "supabase") return null;
+      try { return await rpc("vendor_bills_due", { p_days: Math.max(0, Math.min(60, Math.round(Number(days) || 14))) }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+    },
+    async tdsReport(from, to) {
+      if (mode !== "supabase") return null;
+      try { return await rpc("vendor_tds_report", { p_from: from || null, p_to: to || null }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+    },
+    async settings() {
+      if (mode !== "supabase") return null;
+      try { return await rpc("vendor_bill_settings_get", {}); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+    },
+    async saveSettings(patch) { return await rpc("vendor_bill_settings_set", { p: patch || {} }); },
     async business(from, to) {
       if (mode !== "supabase") return null;
       try { return await rpc("business_pnl", { p_from: from || null, p_to: to || null }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
@@ -9086,6 +9140,7 @@ window.HelmUrl = HelmUrl;
     // r23 (0262): valid-until reminders / "request a new quote" open the event workspace at the validity line
     if (k === "quote_expiring" || k === "quote_expired" || k === "quote_renew_request") return "event.html?id=" + enc(q) + "#quote-validity";
     if (k === "task_escalated") return "monitor.html?quote=" + enc(q);   // R186 (0369): the Event day monitor (Late panel)
+    if (k === "vendor_bill_due") return "settlement.html?quote=" + enc(q) + "#vendorBills";   // R190 (0373): the event's Vendor bills card
     if (k.indexOf("task_") === 0) return "ops.html?quote=" + enc(q) + (has(d.task_id) ? "&task=" + enc(d.task_id) : "");
     if (/^(payment_link|payment_reminder|payment_receipt|payment|payment_received|advance_paid|payment_reconcile|pkg_payment)$/.test(k))
       return "settlement.html?quote=" + enc(q) + "#payments";
@@ -9439,6 +9494,8 @@ window.HelmUrl = HelmUrl;
       // R186 (0369): a special task is still not started - the escalation ladder (only the people of that step see it)
       task_escalated: ["🚨", String(d.label || ((d.task ? d.task : "A special task") + " is not started" + (d.worker ? " (" + d.worker + ")" : "")
         + (d.level ? " - escalated to " + (d.level === "admin" ? "admin / owner" : d.level) : "")))],
+      // R190 (0373): a vendor bill is due / overdue - only the studio's "who pays vendors" people see it
+      vendor_bill_due: ["🧾", String(d.label || ("Vendor bill " + (Number(d.days) < 0 ? "overdue" : Number(d.days) === 0 ? "due today" : "due soon") + (d.vendor ? ": " + d.vendor : "")))],
       otp: ["🔐", "Approval OTP sent"],
       approval_link: ["✉️", trialPreview ? "Approval link ready (trial preview — not sent)" : "Approval link sent"],
       payment: ["💳", "Payment update"],
