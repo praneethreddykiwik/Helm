@@ -385,9 +385,9 @@
     "monitor.html": [
       { sel: "#monEvent", title: "Pick the event", desc: "Today's events and the next 3 days come first, then the rest of the month. With several events today, choose All events today." },
       { sel: "#monSummary", title: "How far along", desc: "The bar is the share of tasks done. Tap a count (Late, Waiting for a yes...) to see just those tasks." },
-      { sel: "#monTabs", title: "Four ways to look", desc: "By staff: each person and their tasks. By work: each section like Tasks & staff. By status: columns from waiting to done. Leftover: everything not done, late ones first." },
+      { sel: "#monTabs", title: "Six ways to look", desc: "By staff: each person and their tasks. By work: each section. By status: waiting to done. Leftover: not done yet. Check-in: who is on site, who checked out, who is late. Activity: every update, newest first." },
       { sel: ".mon-tools", title: "Filter and sort", desc: "Search, or show one person, one section or one status. Sort by start time, name or status." },
-      { sel: "#monFeed", title: "What just happened", desc: "Accepts, starts and finishes as they come in. The page updates on its own every 30 seconds." },
+      { sel: "#monFeed", title: "What just happened", desc: "Every update as it comes in: work given out or moved, replies, starts, finishes, new times, check-ins and e-mails sent. See all opens the Activity tab. Updates on its own every 30 seconds." },
       { sel: "#monOpenOps", title: "Change something", desc: "This page only watches. To reassign, schedule or cancel, open Tasks & staff (or a task's Open button). Nudge e-mails the task to the person again." },
     ],
     "integrations.html": [

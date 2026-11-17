@@ -9,6 +9,10 @@
  *   BPStore.ops.listCrew()            names / departments / linked logins (for the online dot)
  *   BPStore.ops.shifts.timesheet(q)   event_timesheet (0265): who checked in (null without 0265)
  *   BPStore.ops.emailTasks(task,false) staff_email_send (0361): "Send by email" nudge (Staff edit only, server-checked)
+ *   R184: BPStore.ops.live.activity(q)  event_day_activity (0368): every update, newest first (null before 0368: the page then
+ *         builds the timeline from the task step times it already has); BPStore.ops.shifts.availability(day, day)
+ *         crew_availability_range (0265): who marked the event day "can't work", with their reason.
+ *   R184 tabs: "Check-in" (each person: in / out times, late, hours) and "Activity" (the full timeline, filter by person / type).
  * Gate: BPStore.auth.requireView("staff") - same as Tasks & staff. Crew never see this page.
  * Built with DOM calls only (textContent), never HTML strings. Refreshes every 30 s while the tab is visible
  * (event_tasks is not in a realtime publication, so polling is the cheap, safe choice). */
@@ -129,7 +133,84 @@
   }
 
   /* ---- page state ---- */
-  var S = { events: [], quote: null, tasks: [], crew: {}, sheet: {}, canEdit: false, tab: "staff", lastLoad: 0, loading: false, evInfo: {}, timer: null };
+  var S = { events: [], quote: null, tasks: [], crew: {}, sheet: {}, off: {}, acts: null, actType: "", canEdit: false, tab: "staff", lastLoad: 0, loading: false, evInfo: {}, timer: null };
+
+  /* ---- R184: attendance (check-in / check-out) + "can't work" reasons ---- */
+  // first start time of a person's tasks on this event (the time they should be there by)
+  function firstStart(crewId) {
+    var best = NaN;
+    S.tasks.forEach(function (t) { if (t.crew_id !== crewId || t.status === "cancelled" || !t.planned_start) return; var v = new Date(t.planned_start).getTime(); if (isFinite(v) && (!isFinite(best) || v < best)) best = v; });
+    return best;
+  }
+  // {state: "in"|"out"|"none", text, late, lateMin, hours}
+  function attendance(crewId) {
+    var e = crewId && S.sheet[crewId];
+    if (!e || !e.in) return { state: "none", text: "Not checked in", late: false, lateMin: 0 };
+    var fs = firstStart(crewId), inAt = e.inAt ? new Date(e.inAt).getTime() : NaN;
+    var late = (e.late_min || 0) > 0 || (isFinite(fs) && isFinite(inAt) && inAt > fs + 60000);
+    var lateMin = e.late_min || (isFinite(fs) && isFinite(inAt) ? Math.round((inAt - fs) / 60000) : 0);
+    var text = "Checked in " + (e.inAt ? fmtClock(e.inAt) : e.in) + " · " + (e.out ? "Checked out " + (e.outAt ? fmtClock(e.outAt) : e.out) : "Checked out —");
+    return { state: e.out ? "out" : "in", text: text, late: late, lateMin: late ? Math.max(1, lateMin) : 0, hours: e.hours };
+  }
+  function attendanceCounts() {
+    var ppl = {}, inN = 0, lateN = 0;
+    S.tasks.forEach(function (t) { if (t.crew_id && t.status !== "cancelled" && t.status !== "rejected") ppl[t.crew_id] = 1; });
+    Object.keys(ppl).forEach(function (id) { var a = attendance(id); if (a.state !== "none") { inN++; if (a.late) lateN++; } });
+    return { people: Object.keys(ppl).length, checkedIn: inN, late: lateN };
+  }
+  function offReason(crewId) { var v = crewId && S.off[crewId]; return v == null ? null : v; }
+
+  /* ---- R184: the activity timeline ---- */
+  var ACT_TYPES = [["", "All updates"], ["work", "Work given out / moved"], ["reply", "Accepted / turned down"], ["progress", "Started / done"],
+                   ["time", "Start time changes"], ["checkin", "Check-in / check-out"], ["email", "E-mails sent"], ["special", "Special / cancelled"]];
+  function actGroup(k) {
+    return k === "assigned" || k === "reassigned" || k === "unassigned" ? "work" : k === "accepted" || k === "rejected" ? "reply"
+      : k === "started" || k === "completed" || k === "reopened" ? "progress" : k === "time_changed" ? "time"
+      : k === "check_in" || k === "check_out" || k === "check_edit" ? "checkin" : k === "email_sent" ? "email" : "special";
+  }
+  var ACT_ICON = { assigned: "📋", reassigned: "🔁", unassigned: "➖", time_changed: "🕒", special_on: "🔔", special_off: "🔕",
+                   accepted: "✅", rejected: "✋", started: "▶️", completed: "🎉", cancelled: "✖️", reopened: "↩️",
+                   check_in: "📍", check_out: "🏁", check_edit: "✏️", email_sent: "✉️" };
+  function emailWhat(k) {
+    return k === "task_reminder" ? "Reminder e-mail" : k === "task_late" ? "“Not started yet” e-mail" : k === "task_update" ? "“Your tasks were updated” e-mail"
+      : k === "office_alert" ? "Office alert e-mail" : "Task e-mail";
+  }
+  function actText(a) {
+    var who = a.name || "Someone", task = a.title ? "“" + a.title + "”" : "a task", d = a.detail || {};
+    switch (a.kind) {
+      case "assigned": return task + " given to " + (d.to || a.name || "someone");
+      case "reassigned": return task + " moved from " + (d.from || "someone") + " to " + (d.to || a.name || "someone");
+      case "unassigned": return task + " no longer has anyone on it";
+      case "time_changed": return task + ": start time " + (d.from ? fmtWhen(d.from) : "not set") + " → " + (d.to ? fmtWhen(d.to) : "not set");
+      case "special_on": return task + " marked special (extra reminders)";
+      case "special_off": return task + " is no longer special";
+      case "accepted": return who + " accepted " + task;
+      case "rejected": return who + " turned down " + task;
+      case "started": return who + " started " + task;
+      case "completed": return who + " finished " + task;
+      case "cancelled": return task + " was cancelled" + (d.reason ? " (" + d.reason + ")" : "");
+      case "reopened": return task + " was reopened";
+      case "check_in": return who + " checked in" + ((+d.late_min || 0) > 0 ? " · " + d.late_min + " min late" : "") + (d.within === false ? " · away from the venue" : "");
+      case "check_out": return who + " checked out";
+      case "check_edit": return "Office corrected " + who + "’s check-in times" + (d.note ? " (" + d.note + ")" : "");
+      case "email_sent": return emailWhat(d.email_kind) + " sent to " + who + (a.title ? " — " + a.title : "");
+      default: return who + ": " + String(a.kind || "update");
+    }
+  }
+  // without 0368: the timeline from what the tasks and the check-in sheet already say
+  function fallbackActs() {
+    var acts = [];
+    S.tasks.forEach(function (t) {
+      [["created_at", (t.crew_id || t.assignee_name) ? "assigned" : ""], ["responded_at", t.status === "rejected" ? "rejected" : "accepted"],
+       ["started_at", "started"], ["completed_at", "completed"]].forEach(function (p) {
+        if (t[p[0]] && p[1]) acts.push({ at: t[p[0]], kind: p[1], task_id: t.id, title: t.title, crew_id: t.crew_id, name: nameOf(t), detail: { to: nameOf(t) }, _code: t._code }); });
+    });
+    Object.keys(S.sheet).forEach(function (id) { var e = S.sheet[id], nm = (S.crew[id] && S.crew[id].name) || "Someone";
+      if (e && e.inAt) acts.push({ at: e.inAt, kind: "check_in", crew_id: id, name: nm, detail: { late_min: e.late_min } });
+      if (e && e.outAt) acts.push({ at: e.outAt, kind: "check_out", crew_id: id, name: nm, detail: {} }); });
+    return acts.sort(function (a, b) { return new Date(b.at) - new Date(a.at); });
+  }
+  function allActs() { return S.acts || fallbackActs(); }
 
   function filtered() {
     var q = ($("#monQ").value || "").trim().toLowerCase(), who = $("#monWho").value, sec = $("#monSec").value, st = $("#monSt").value, now = Date.now();
@@ -254,10 +335,17 @@
       var who = h("div", { cls: "mon-person-who" }, [h("b", { text: nm })]);
       var c = first.crew_id && S.crew[first.crew_id], line = [];
       if (c && (c.department || c.role)) line.push(c.department || c.role);
-      var ci = first.crew_id && S.sheet[first.crew_id];
-      if (ci) line.push(ci);
       var last = lastAct(ts); if (last) line.push(last);
       who.appendChild(h("small", { text: line.join(" · ") || (k === "none" ? "Give these tasks to someone in Tasks & staff" : "") }));
+      // R184: attendance line (check-in / check-out) + the day they said they can't work, with their reason
+      if (first.crew_id) {
+        var at = attendance(first.crew_id);
+        var att = h("small", { cls: "mon-att is-" + at.state + (at.late ? " is-late" : "") }, [h("span", { text: (at.state === "none" ? "○ " : "📍 ") + at.text })]);
+        if (at.late) att.appendChild(h("span", { cls: "mon-chip is-late", text: "Late check-in" + (at.lateMin ? " · " + at.lateMin + " min" : "") }));
+        who.appendChild(att);
+        var off = offReason(first.crew_id);
+        if (off != null) who.appendChild(h("small", { cls: "mon-offnote", text: "⛔ Marked this day as can’t work · " + (off || "no reason given") }));
+      }
       head.appendChild(who);
       var pr = h("div", { cls: "mon-person-pr" });
       pr.appendChild(h("b", { text: sm.done + "/" + sm.total + " done" }));
@@ -323,6 +411,75 @@
     card.appendChild(rows);
     return card;
   }
+  /* R184: Check-in - each person on the event: in / out, late, hours, and the day they said they can't work */
+  function viewCheckin(list) {
+    var ppl = {}, order = [];
+    list.forEach(function (t) { if (!t.crew_id || t.status === "rejected") return; if (!ppl[t.crew_id]) { ppl[t.crew_id] = []; order.push(t.crew_id); } ppl[t.crew_id].push(t); });
+    if (!order.length) return empty(S.tasks.length ? "No one matches these filters." : "No one has work on this event yet.");
+    var rank = function (id) { var a = attendance(id); return a.state === "none" ? (isFinite(firstStart(id)) && firstStart(id) < Date.now() ? 0 : 1) : a.state === "in" ? 2 : 3; };
+    order.sort(function (a, b) { return rank(a) - rank(b) || nameOf(ppl[a][0]).localeCompare(nameOf(ppl[b][0])); });
+    var ac = attendanceCounts();
+    var card = h("section", { cls: "mon-card mon-ci", label: "Check-in" });
+    card.appendChild(h("p", { cls: "mon-muted", text: ac.checkedIn + " of " + ac.people + " checked in" + (ac.late ? " · " + ac.late + " late" : "") +
+      ". Staff check in and out on their task page (their link); the office can correct times in Tasks & staff → Timesheet." }));
+    var tbl = h("div", { cls: "mon-ci-list", role: "list" });
+    order.forEach(function (id) {
+      var t0 = ppl[id][0], nm = nameOf(t0), at = attendance(id), fs = firstStart(id), e = S.sheet[id] || {}, off = offReason(id);
+      var waiting = at.state === "none" && isFinite(fs) && fs < Date.now();
+      var row = h("div", { cls: "mon-ci-row is-" + at.state + (at.late || waiting ? " is-late" : ""), role: "listitem" });
+      var who = h("div", { cls: "mon-ci-who" }); who.appendChild(avatar(nm, t0));
+      var wb = h("div", {}, [h("b", { text: nm || "Someone" })]);
+      wb.appendChild(h("small", { cls: "mon-muted", text: ppl[id].length + (ppl[id].length === 1 ? " task" : " tasks") + (isFinite(fs) ? " · first at " + fmtClock(fs) : "") }));
+      if (off != null) wb.appendChild(h("small", { cls: "mon-offnote", text: "⛔ Can’t work this day · " + (off || "no reason given") }));
+      who.appendChild(wb); row.appendChild(who);
+      row.appendChild(h("div", { cls: "mon-ci-cell" }, [h("small", { cls: "mon-muted", text: "In" }), h("b", { text: e.inAt ? fmtClock(e.inAt) : (e.in || "—") })]));
+      row.appendChild(h("div", { cls: "mon-ci-cell" }, [h("small", { cls: "mon-muted", text: "Out" }), h("b", { text: e.outAt ? fmtClock(e.outAt) : (e.out || "—") })]));
+      var st = h("div", { cls: "mon-ci-st" });
+      st.appendChild(h("span", { cls: "mon-chip is-" + (at.state === "none" ? (waiting ? "late" : "waiting") : at.state === "in" ? "started" : "done"),
+        text: at.state === "none" ? (waiting ? "Not here yet" : "Not checked in") : at.state === "in" ? "On site" : "Checked out" }));
+      if (at.late) st.appendChild(h("span", { cls: "mon-chip is-late", text: "Late" + (at.lateMin ? " · " + at.lateMin + " min" : "") }));
+      if (e.hours) st.appendChild(h("small", { cls: "mon-muted", text: e.hours + " h" }));
+      row.appendChild(st);
+      tbl.appendChild(row);
+    });
+    card.appendChild(tbl);
+    return card;
+  }
+  /* R184: Activity - every update, newest first, grouped by day; filter by person (top filter) and by type */
+  function actPersonKey(a) { return a.crew_id ? "c:" + a.crew_id : (a.name ? "n:" + String(a.name).toLowerCase() : ""); }
+  function viewActivity() {
+    var who = $("#monWho").value, q = ($("#monQ").value || "").trim().toLowerCase();
+    var acts = allActs().filter(function (a) {
+      if (S.actType && actGroup(a.kind) !== S.actType) return false;
+      if (who && actPersonKey(a) !== who) return false;
+      if (q && (actText(a) + " " + (a._code || "")).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    var card = h("section", { cls: "mon-card mon-act", label: "Activity" });
+    var bar2 = h("div", { cls: "mon-act-bar" });
+    var sel = h("select", { cls: "mon-select", label: "Kind of update" });
+    ACT_TYPES.forEach(function (o) { sel.appendChild(opt(o[0], o[1], o[0] === S.actType)); });
+    sel.addEventListener("change", function () { S.actType = sel.value; render(); });
+    bar2.appendChild(sel);
+    bar2.appendChild(h("small", { cls: "mon-muted", text: acts.length + (acts.length === 1 ? " update" : " updates") + (S.acts ? "" : " (from task times - every change is recorded once the latest database update is in)") }));
+    card.appendChild(bar2);
+    if (!acts.length) { card.appendChild(empty("Nothing here yet. Work given out, replies, starts, check-ins and e-mails show here as they happen.")); return card; }
+    var list = h("ol", { cls: "mon-tl" }), day = "", today = todayIso();
+    acts.forEach(function (a) {
+      var p = parts(a.at), d = p ? p.day : "";
+      if (d !== day) { day = d; list.appendChild(h("li", { cls: "mon-tl-day", text: d === today ? "Today" : d === addDays(today, -1) ? "Yesterday" : fmtDayIso(d, true) })); }
+      var li = h("li", { cls: "mon-tl-i is-" + actGroup(a.kind) + (a.kind === "rejected" || a.kind === "cancelled" ? " is-warn" : "") });
+      li.appendChild(h("span", { cls: "mon-tl-ic", text: ACT_ICON[a.kind] || "•" }));
+      var body = h("div", { cls: "mon-tl-b" }, [h("span", { text: actText(a) })]);
+      var meta = [fmtClock(a.at)];
+      if (a.by_name && (a.kind === "assigned" || a.kind === "reassigned" || a.kind === "unassigned" || a.kind === "time_changed" || a.kind === "special_on" || a.kind === "special_off" || a.kind === "cancelled" || a.kind === "check_edit")) meta.push("by " + a.by_name);
+      if (a._code) meta.push(a._code);
+      body.appendChild(h("small", { cls: "mon-muted", text: meta.join(" · ") }));
+      li.appendChild(body); list.appendChild(li);
+    });
+    card.appendChild(list);
+    return card;
+  }
   function lastAct(ts) {
     var best = null;
     ts.forEach(function (t) { [["completed_at", "finished"], ["started_at", "started"], ["responded_at", t.status === "rejected" ? "turned down" : "accepted"]].forEach(function (p) {
@@ -355,23 +512,62 @@
     box.appendChild(counts);
     var facts = h("div", { cls: "mon-facts" });
     facts.appendChild(h("span", { text: "👥 " + sm.confirmed + " of " + sm.people + " people confirmed (accepted, started or done)" }));
+    var ac = attendanceCounts();   // R184
+    if (ac.people) {
+      var cf = h("button", { cls: "mon-factbtn" + (ac.late ? " mon-warn" : ""), type: "button", title: "Open the Check-in view",
+        text: "📍 " + ac.checkedIn + " of " + ac.people + " checked in" + (ac.late ? " · " + ac.late + " late" : "") });
+      cf.addEventListener("click", function () { setTab("checkin"); render(); });
+      facts.appendChild(cf);
+    }
     if (sm.next) facts.appendChild(h("span", { text: "⏭ Next: " + (sm.next.title || "task") + " - " + fmtWhen(sm.next.planned_start) + " (" + until(sm.next.planned_start, now) + ")" }));
-    if (sm.firstLate) facts.appendChild(h("span", { cls: "mon-warn", text: "⚠ First late: " + (sm.firstLate.title || "task") + " - " + (nameOf(sm.firstLate) || "no one") + ", due " + fmtClock(sm.firstLate.planned_start) }));
+    // R184: the latest update (same line as the Tasks & staff progress card), from the full timeline
+    var latest = allActs()[0];
+    if (latest) {
+      var lb = h("button", { cls: "mon-factbtn mon-latest", type: "button", title: "Open the Activity view", text: "🕘 Latest: " + actText(latest) + " · " + ago(latest.at) });
+      lb.addEventListener("click", function () { setTab("activity"); render(); });
+      facts.appendChild(lb);
+    }
     box.appendChild(facts);
     var n = leftover(S.tasks).length; $("#monLeftN").textContent = n ? String(n) : "";
+    renderAlerts(now);
+  }
+  /* R184: red LATE panel - every task whose start time has passed and is not started (task, person, was due, how long ago, Nudge) */
+  function lateTasks(now) {
+    return S.tasks.filter(function (t) { return t && t.status !== "cancelled" && stateOf(t, now).late; })
+      .sort(function (a, b) { return new Date(a.planned_start) - new Date(b.planned_start); });
+  }
+  function renderAlerts(now) {
+    var box = $("#monAlerts"); if (!box) return; clear(box);
+    var late = lateTasks(now);
+    if (!late.length) { box.hidden = true; return; }
+    box.hidden = false;
+    box.appendChild(h("h3", { cls: "mon-alerts-h" }, [h("span", { text: "⚠ Late — start time passed, not started" }), h("span", { cls: "mon-n", text: String(late.length) })]));
+    var list = h("div", { cls: "mon-alerts-list", role: "list" });
+    late.forEach(function (t) {
+      var row = h("div", { cls: "mon-alert", role: "listitem" });
+      row.appendChild(h("div", { cls: "mon-alert-main" }, [
+        h("b", { text: t.title || "Task" }),
+        h("span", { text: [nameOf(t) || "No one yet", t._code].filter(Boolean).join(" · ") }),
+        h("small", { text: "was due " + fmtClock(t.planned_start) + " (" + ago(t.planned_start, now) + ")" + (stateOf(t, now).key === "waiting" ? " · not accepted yet" : "") })]));
+      row.appendChild(actions(t));
+      list.appendChild(row);
+    });
+    box.appendChild(list);
   }
   function renderFeed() {
-    var feed = $("#monFeed"), acts = []; clear(feed);
-    S.tasks.forEach(function (t) { [["completed_at", "finished"], ["started_at", "started"], ["responded_at", t.status === "rejected" ? "turned down" : "accepted"]].forEach(function (p) {
-      if (t[p[0]]) acts.push({ at: t[p[0]], who: nameOf(t) || "Someone", what: p[1], title: t.title || "a task", code: t._code }); }); });
-    acts.sort(function (a, b) { return new Date(b.at) - new Date(a.at); });
-    if (!acts.length) { feed.appendChild(h("li", { cls: "mon-muted", text: "No activity yet - accepts, starts and finishes show here." })); return; }
+    var feed = $("#monFeed"), acts = allActs(); clear(feed);   // R184: the full timeline (0368), newest first
+    if (!acts.length) { feed.appendChild(h("li", { cls: "mon-muted", text: "No activity yet - work given out, replies, starts, check-ins and e-mails show here." })); return; }
     acts.slice(0, 15).forEach(function (a) {
-      feed.appendChild(h("li", { cls: "mon-feed-i is-" + a.what.replace(/\s/g, "-") }, [
-        h("b", { text: a.who }), " " + a.what + " ", h("span", { text: a.title }),
-        a.code ? h("span", { cls: "mon-code", text: " " + a.code }) : null,
+      feed.appendChild(h("li", { cls: "mon-feed-i is-" + actGroup(a.kind) }, [
+        h("span", { cls: "mon-tl-ic", text: ACT_ICON[a.kind] || "•" }), h("span", { text: actText(a) }),
+        a._code ? h("span", { cls: "mon-code", text: " " + a._code }) : null,
         h("small", { text: ago(a.at) })]));
     });
+    if (acts.length > 15) {
+      var more = h("li", { cls: "mon-feed-more" }); var b = h("button", { cls: "mon-btn mon-sm mon-ghost", type: "button", text: "See all " + acts.length + " updates" });
+      b.addEventListener("click", function () { setTab("activity"); render(); try { $("#monView").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} });
+      more.appendChild(b); feed.appendChild(more);
+    }
   }
   function fillFilters() {
     var who = $("#monWho"), sec = $("#monSec"), wv = who.value, sv = sec.value, people = {}, secs = {};
@@ -384,13 +580,15 @@
   function render() {
     renderSummary();
     var list = filtered(), v = $("#monView"); clear(v);
-    if (!S.tasks.length) v.appendChild(empty("No tasks for this event yet. Give work out in Tasks & staff and it shows here live."));
-    else v.appendChild(S.tab === "work" ? viewWork(list) : S.tab === "status" ? viewStatus(list) : S.tab === "left" ? viewLeft(list) : viewStaff(list));
+    if (S.tab === "activity") v.appendChild(viewActivity());   // R184: the timeline shows even before any task exists (check-ins, e-mails)
+    else if (!S.tasks.length) v.appendChild(empty("No tasks for this event yet. Give work out in Tasks & staff and it shows here live."));
+    else v.appendChild(S.tab === "work" ? viewWork(list) : S.tab === "status" ? viewStatus(list) : S.tab === "left" ? viewLeft(list)
+      : S.tab === "checkin" ? viewCheckin(list) : viewStaff(list));
     renderFeed();
     try { if (BPStore.presence && BPStore.presence.paint) BPStore.presence.paint(v); } catch (e) {}
   }
   function setTab(tab) {
-    S.tab = /^(staff|work|status|left)$/.test(tab) ? tab : "staff";
+    S.tab = /^(staff|work|status|left|checkin|activity)$/.test(tab) ? tab : "staff";
     Array.prototype.forEach.call(doc.querySelectorAll(".mon-tab"), function (b) {
       var on = b.getAttribute("data-tab") === S.tab; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1;
       if (on) $("#monView").setAttribute("aria-labelledby", b.id);
@@ -427,9 +625,35 @@
     await Promise.all(quoteIds.map(function (q) { return T(q).then(function (r) {
       ((r && r.rows) || []).forEach(function (x) {
         if (!x || !x.crew_id) return;
-        var e = (x.entries || []).filter(function (k) { return r.today && k.day === r.today; })[0];
-        S.sheet[x.crew_id] = e && e.in ? ("✅ checked in " + e.in + (e.out ? " · out " + e.out : "")) : x.roster === "arrived" ? "✅ arrived" : x.flag === "late" ? "⏰ late to check in" : "";
+        // R184: today's check-in, else the most recent one for this event (a multi-day event / the day after)
+        var es = (x.entries || []).filter(function (k) { return k && k.in; });
+        var e = es.filter(function (k) { return r.today && k.day === r.today; })[0] || es.slice().sort(function (a, b) { return String(b.day).localeCompare(String(a.day)); })[0];
+        if (!e) return;
+        S.sheet[x.crew_id] = { day: e.day, in: e.in, out: e.out || "", inAt: e.in_at || null, outAt: e.out_at || null, late_min: e.late_min || 0, hours: x.hours || null };
       }); }).catch(function () {}); }));
+  }
+  // R184: who marked the event day as "can't work" (with their reason); one range call for all shown events
+  async function loadOff(quoteIds) {
+    S.off = {};
+    var A = BPStore.ops.shifts && BPStore.ops.shifts.availability; if (!A) return;
+    var days = quoteIds.map(function (q) { var e = S.evInfo[q]; return e && e.event_date ? String(e.event_date).slice(0, 10) : ""; }).filter(Boolean);
+    if (!days.length) days = [todayIso()];
+    days.sort(); var from = days[0], to = days[days.length - 1];
+    try {
+      var rows = await A(from, to, null);
+      (rows || []).forEach(function (a) { if (a && a.crew_id && a.status === "unavailable" && days.indexOf(String(a.day).slice(0, 10)) >= 0) S.off[a.crew_id] = a.note || ""; });
+    } catch (e) { S.off = {}; }
+  }
+  // R184: the full timeline (0368); null before 0368 -> the page uses the task step times
+  async function loadActivity(quoteIds) {
+    var L = BPStore.ops.live && BPStore.ops.live.activity; if (!L) { S.acts = null; return; }
+    var all = [], missing = false;
+    await Promise.all(quoteIds.map(function (q) { return L(q, 200).then(function (r) {
+      if (r == null) { missing = true; return; }
+      var code = S.quote === "all" ? ((S.evInfo[q] && S.evInfo[q].code) || "") : "";
+      (r || []).forEach(function (a) { if (a && a.at) { if (code) a._code = code; all.push(a); } });
+    }).catch(function () { missing = true; }); }));
+    S.acts = missing && !all.length ? null : all.sort(function (a, b) { return new Date(b.at) - new Date(a.at); });
   }
   async function loadTasks(silent) {
     if (S.loading || !S.quote) return; S.loading = true;
@@ -440,7 +664,7 @@
         var code = S.quote === "all" ? ((S.evInfo[q] && S.evInfo[q].code) || "") : "";
         return (ts || []).map(function (t) { t.quote_id = t.quote_id || q; if (code) t._code = code; return t; }); }); }));
       S.tasks = [].concat.apply([], lists);
-      await loadSheet(ids);
+      await Promise.all([loadSheet(ids), loadOff(ids), loadActivity(ids)]);
       S.lastLoad = Date.now(); $("#monErr").hidden = true;
       fillFilters(); render(); tick();
     } catch (e) {
@@ -520,5 +744,6 @@
   if (typeof window !== "undefined" && typeof document !== "undefined" && document.getElementById && document.getElementById("monApp")) {
     if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", go); else go();
   }
-  window.HelmMonitor = { stateOf: stateOf, summarize: summarize, leftover: leftover, fmtWhen: fmtWhen, _personKey: personKey };
+  window.HelmMonitor = { stateOf: stateOf, summarize: summarize, leftover: leftover, fmtWhen: fmtWhen, _personKey: personKey,
+    actText: actText, actGroup: actGroup, _S: S, _attendance: attendance };
 })();

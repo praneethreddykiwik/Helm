@@ -225,7 +225,7 @@
         "</tr></thead><tbody>" + evRow + ppl.map(function (p) {
           return '<tr><th scope="row" class="cs-who"><a href="calendar.html?staff=' + encodeURIComponent(p.id) + '#schedule" data-pick="' + esc(p.id) + '">' + esc(p.name || "Unnamed") + "</a></th>" +
             ds.map(function (d) { var k = iso(d), here = (byDay[k] || []).filter(function (b) { return b.crew_id === p.id; }), offN = st.off[p.id + "|" + k];
-              return '<td class="' + (k === today ? "cs-today" : "") + (offN != null ? " cs-off" : "") + '">' + (offN != null ? '<span class="cs-offtag" title="' + esc(p.name + " marked this day as can\u2019t work" + (offN ? ": " + offN : "")) + '">Can\u2019t work' + (here.length ? " \u00b7 booked" : "") + "</span>" : "") + here.map(function (b) { return chip(b, ""); }).join("") + "</td>"; }).join("") + "</tr>";
+              return '<td class="' + (k === today ? "cs-today" : "") + (offN != null ? " cs-off" : "") + '">' + (offN != null ? '<span class="cs-offtag" title="' + esc(p.name + " marked this day as can\u2019t work" + (offN ? ": " + offN : " (no reason given)")) + '">' + esc(offTxt(offN, 22)) + (here.length ? " \u00b7 booked" : "") + "</span>" : "") + here.map(function (b) { return chip(b, ""); }).join("") + "</td>"; }).join("") + "</tr>";
         }).join("") + "</tbody></table></div>" +
         (ppl.length ? "" : '<p class="cs-empty">No crew yet. Add people on the Staff page and assign them to event tasks.</p>');
     }
@@ -237,7 +237,7 @@
         return '<span class="cs-tg-dh' + (k === today ? " cs-today" : "") + '">' + DOW[(d.getDay() + 6) % 7] + ' <b>' + d.getDate() + "</b></span>"; }).join("") + "</div>";
       var allday = '<div class="cs-tg-all" data-st="' + cols + '"><span class="cs-tg-lbl">all-day</span>' + ds.map(function (d) {
         var k = iso(d), l = (byDay[k] || []).filter(function (b) { return b.start == null; }), offs = st.offDay[k] || [], mine = st.staff ? st.off[st.staff + "|" + k] : undefined;
-        return '<div class="' + (st.staff && mine != null ? "cs-off" : "") + '">' + (st.staff ? (mine != null ? '<span class="cs-offtag" title="' + esc("Marked can\u2019t work" + (mine ? ": " + mine : "")) + '">Can\u2019t work</span>' : "")
+        return '<div class="' + (st.staff && mine != null ? "cs-off" : "") + '">' + (st.staff ? (mine != null ? '<span class="cs-offtag" title="' + esc("Marked can\u2019t work" + (mine ? ": " + mine : " (no reason given)")) + '">' + esc(offTxt(mine, 90)) + "</span>" : "")
           : (offs.length ? '<span class="cs-offsum" title="' + esc("Can\u2019t work: " + offs.join(", ")) + '">' + offs.length + " can\u2019t work</span>" : "")) + l.map(function (b) { return chip(b, "cs-allday"); }).join("") + "</div>"; }).join("") + "</div>";
       var hours = ""; for (var h = 0; h < 24; h++) hours += '<span class="cs-hr" data-st="top:' + h * HOUR + 'px">' + (h ? pad(h) + ":00" : "") + "</span>";
       var now = nowW(), nowTop = (now.getHours() + now.getMinutes() / 60) * HOUR;
@@ -263,7 +263,7 @@
           var k = iso(d), list = byDay[k] || [], offs = st.offDay[k] || [], mine = st.staff ? st.off[st.staff + "|" + k] : undefined;
           var dots = nar ? '<span class="cs-dots">' + list.slice(0, 3).map(function (b) { return '<i class="cs-s-' + sKind(b) + '"></i>'; }).join("") + "</span>" : "";
           return '<div class="cs-cell' + (st.staff && mine != null ? " cs-off" : "") + (d.getMonth() !== mo ? " cs-out" : "") + (k === today ? " cs-today" : "") + (list.length ? " cs-has" : "") + (st.sel === k ? " cs-sel" : "") + '" data-day="' + k + '" role="button" tabindex="0" aria-label="' + esc(d.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long" }) + (list.length ? ", " + list.length + " events" : "")) + '"><span class="cs-num">' + d.getDate() + "</span>" + dots +
-            (st.staff ? (mine != null ? '<span class="cs-offtag" title="' + esc("Marked can\u2019t work" + (mine ? ": " + mine : "")) + '">Can\u2019t work</span>' : "")
+            (st.staff ? (mine != null ? '<span class="cs-offtag" title="' + esc("Marked can\u2019t work" + (mine ? ": " + mine : " (no reason given)")) + '">' + esc(offTxt(mine, 20)) + "</span>" : "")
               : (offs.length ? '<span class="cs-offsum" title="' + esc("Can\u2019t work: " + offs.join(", ")) + '">' + offs.length + " can\u2019t work</span>" : "")) +
             list.slice(0, max).map(function (b) { return chip(b, "cs-mchip"); }).join("") + (!nar && list.length > max ? '<span class="cs-more">+' + (list.length - max) + " more</span>" : "") + "</div>";
         }).join("") + "</div></div>";
@@ -281,7 +281,14 @@
       st.offRaw = list || []; st.off = {}; st.offDay = {};
       var nameOf = {}; people.forEach(function (p) { nameOf[p.id] = p.name; }); (st.rows || []).forEach(function (r) { if (r.crew_id && r.crew_name) nameOf[r.crew_id] = r.crew_name; });
       (list || []).forEach(function (a) { if (!a || a.status !== "unavailable" || !a.crew_id || !a.day) return; var k = String(a.day).slice(0, 10);
-        st.off[a.crew_id + "|" + k] = a.note || ""; (st.offDay[k] = st.offDay[k] || []).push(nameOf[a.crew_id] || "Someone"); });
+        st.off[a.crew_id + "|" + k] = a.note || ""; (st.offDay[k] = st.offDay[k] || []).push((nameOf[a.crew_id] || "Someone") + (a.note ? " (" + a.note + ")" : "")); });
+    }
+    // R184: the visible "can't work" tag carries the person's reason (shortened to fit; the full text is in the tooltip)
+    function offTxt(note, max) {
+      var n = String(note || "").replace(/\s+/g, " ").trim();
+      if (!n) return "Can\u2019t work";
+      if (max && n.length > max) n = n.slice(0, Math.max(1, max - 1)).trim() + "\u2026";
+      return "Can\u2019t work \u00b7 " + n;
     }
     function render() {
       closePop(); idx = {};

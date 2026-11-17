@@ -8,9 +8,9 @@
 <link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
-<link rel="stylesheet" href="monitor.css?v=1">
+<link rel="stylesheet" href="monitor.css?v=2">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=81" id="shellProto"></script>
+<script src="/shell-proto.js?v=82" id="shellProto"></script>
 </head>
 <body class="mon-body">
 <a class="skip-link" href="#main">Skip to content</a>
@@ -46,12 +46,15 @@
       </section>
 
       <section id="monSummary" class="mon-summary" aria-label="Progress"></section>
+      <section id="monAlerts" class="mon-alerts" aria-label="Late tasks" role="region" hidden></section>
 
       <div class="mon-tabs" role="tablist" aria-label="Views" id="monTabs">
         <button type="button" role="tab" class="mon-tab" data-tab="staff" id="monTab-staff" aria-controls="monView">By staff</button>
         <button type="button" role="tab" class="mon-tab" data-tab="work" id="monTab-work" aria-controls="monView">By work</button>
         <button type="button" role="tab" class="mon-tab" data-tab="status" id="monTab-status" aria-controls="monView">By status</button>
         <button type="button" role="tab" class="mon-tab" data-tab="left" id="monTab-left" aria-controls="monView">Leftover <span class="mon-n" id="monLeftN"></span></button>
+        <button type="button" role="tab" class="mon-tab" data-tab="checkin" id="monTab-checkin" aria-controls="monView">Check-in</button>
+        <button type="button" role="tab" class="mon-tab" data-tab="activity" id="monTab-activity" aria-controls="monView">Activity</button>
       </div>
 
       <div class="mon-tools" role="search">
@@ -91,8 +94,8 @@
 <script src="telemetry.js?v=11"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=358"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=359"></script>
 <script src="live-board.js?v=2"></script>
-<script src="monitor.js?v=1"></script>
+<script src="monitor.js?v=2"></script>
 </body>
 </html>
