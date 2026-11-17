@@ -32,3 +32,17 @@ tr.vb-void td{opacity:.6} tr.vb-void td b{text-decoration:line-through}
 .vb-biz{margin-top:16px}
 @media(max-width:720px){.vb-sum{grid-template-columns:1fr 1fr}.vb-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:420px){.vb-grid{grid-template-columns:1fr}}
+/* R190 (0373): GST 150-day / cash warnings, typed-advance note, the late-bill reason field, Business "bills to pay" + TDS + reminder settings */
+.vb-warn{background:var(--warn-bg,#fff7e6);color:var(--warn-text,#7a4a06);border-radius:8px;padding:4px 8px;font-size:11.5px;margin:4px 0 0;white-space:normal;max-width:260px}
+p.vb-warn{max-width:none;padding:8px 12px;font-size:12px}
+.vb-adv .btn{margin-top:8px}
+.vb-wide{grid-column:span 2}
+.vb-set{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:end}
+.vb-set .vb-chk{grid-column:span 1}
+.vb-row-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.vb-due-list td:first-child{min-width:120px}
+@media(max-width:720px){.vb-set{grid-template-columns:1fr 1fr}.vb-wide{grid-column:span 2}}
+@media(max-width:420px){.vb-set{grid-template-columns:1fr}.vb-wide{grid-column:auto}}
+.bz-pill-bad{color:var(--bad-text,#b42318);background:color-mix(in srgb,var(--bad-text,#b42318) 10%,transparent)}
+tr.vb-over td b{color:var(--bad-text,#b42318)}
+.vb-fld[hidden],.vb-warn[hidden],.vb-note[hidden]{display:none}

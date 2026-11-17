@@ -138,6 +138,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0370_r187_cantwork_approval.sql
 -- 0372 (R189) adds the money records (P&L snapshots, corrections, attendance confirmations, client TDS + Form 16A) to the purge list, money_settings to the keep list
 \ir ../../supabase/migrations/0372_r189_money_lock.sql
+-- 0373 (R190) adds the vendor bill records (mail outbox, reminders, added files, late bills) to the purge list before vendor_payouts and vendor_bill_settings to the keep list
+\ir ../../supabase/migrations/0373_r190_vendor_bills_finish.sql
 -- 0374 (R191) adds inventory_stock_events + event_stock_windows (stock history) to the purge list, inventory_settings to the keep list
 \ir ../../supabase/migrations/0374_r191_inventory_upgrade.sql
 
