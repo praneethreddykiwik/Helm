@@ -27,10 +27,11 @@ export PGTZ="${PGTZ:-UTC}"
 # direct (system) change and keeps quiet. Suites expect normal sends, so pin the override off;
 # system-quiet-0164.sql clears it to test the real detection.
 # 0290: the older suites run as if every message were inside the studio send window; r41-send-window-0290.sql turns it on
+# 0383: fixtures / suites write auth.users.last_sign_in_at by hand - not sign-ins; r205-signin-notice-0383.sql turns the notices on
 # 0342: the older suites expect a failed send to be retried at once and to give up after 5 tries; r143-outbox-backoff-0342.sql turns the backoff on
 # 0296: fixtures / cleanups delete events and vendors as the superuser; the older suites run with the purge mark on
 # (it never helps a delete made AS anon / authenticated). r55-no-hard-delete-0296.sql + the 0184 re-run below turn it off.
-export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off -c helm.retry_backoff=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
+export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off -c helm.signin_notice=off -c helm.retry_backoff=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
 dropdb --if-exists helm_runall >/dev/null 2>&1; createdb helm_runall
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/00-supabase-shim.sql >/dev/null 2>&1
 
@@ -410,6 +411,8 @@ run "r197-money-header-0376" "R197-MONEY-HEADER-0376: ALL PASS \(22/22\)" psql -
 run "r198-money-cash-0377" "R198-MONEY-CASH-0377: ALL PASS \(19/19\)" psql -q -f tests/db/r198-money-cash-0377.sql
 # r199 (0378): Users & invites account status - admin / Users edit only (anon, no Users edit, Users view only refused), own studio only (A never sees B), last sign-in / never / invitation login without a password / temporary password, deactivated + date, joined via an invitation + who invited, open invites newest per e-mail, expired flagged, revoked / accepted / already-a-member left out, e-mail sent + status, no secrets, reading writes nothing; question 6: a deactivated staff record re-added with the same e-mail + phone is taken (no unique rule), the phone of a linked account refused 23505 even when deactivated; re-applies itself twice, rolled back
 run "r199-team-status-0378" "R199-TEAM-STATUS-0378: ALL PASS \(21/21\)" psql -q -f tests/db/r199-team-status-0378.sql
+# r205 (0383): teammate sign-in notices - a real sign-in (new session + last_sign_in_at) -> one bell row for the owner + admins only (never the person, never studio B), "Name (Role) signed in [for the first time] - h:mm AM - Browser on System" in the studio clock, audit auth.sign_in; token refresh ignored; 10-minute rule; first of the studio day (default) / every / off; only roles (crew off by default); HQ / helm.events / deactivated / sample studio never; invited person joining = first time; a broken notice never blocks the sign-in; fallback ping no-op while the trigger is on; settings admin-only + validated + audited; RLS; catalog type; grants; rolled back
+run "r205-signin-notice-0383" "R205-SIGNIN-NOTICE-0383: ALL PASS \(39/39\)" psql -q -f tests/db/r205-signin-notice-0383.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
 run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f tests/db/r136-audit-via-0340.sql
 # r139 (0341): per-network limits on the approval link (240), client portal (240) and invitation (600) per 10 minutes - same answers as before, call N+1 from one network refused with a clean 22023 sentence, other networks / no address / read-only calls never blocked, kept __pre0341 copies with no app privilege, crew links untouched (0154), _tl173_trial_locked closed to anon; re-applies itself twice, rolled back

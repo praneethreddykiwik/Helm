@@ -383,6 +383,36 @@ window.HelmUrl = HelmUrl;
       return Array.isArray(claims.amr) ? claims.amr.map((a) => String((a && a.method) || a || "")) : [];
     } catch (e) { return []; }
   }
+  // R205 (0383): the session id claim of a signed access token ("" when unreadable)
+  function jwtSessionId(token) {
+    try {
+      const part = String(token || "").split(".")[1]; if (!part) return "";
+      const b64 = part.replace(/-/g, "+").replace(/_/g, "/"); const pad = b64 + "===".slice((b64.length + 3) % 4);
+      const sid = String(JSON.parse(atob(pad)).session_id || "");
+      return /^[0-9a-f-]{36}$/i.test(sid) ? sid : "";
+    } catch (e) { return ""; }
+  }
+  // R205 (0383): the sign-in notice FALLBACK. The server tells the studio admins about a sign-in by itself (a trigger on
+  // Supabase Auth's sign-in time); only on a project that refused that trigger does this tab's "I am signed in" do it.
+  // Once per session per tab, a few seconds after the page settled, never blocking anything; the server ignores a session
+  // it has already seen, and answers via "trigger" while the trigger is on - then this browser stops asking for a week.
+  function signinPing(sess) {
+    try {
+      if (!supa || !sess || !sess.user || typeof window === "undefined") return;
+      const sid = jwtSessionId(sess.access_token); if (!sid) return;
+      const KEY = "helm.r383.via", now = Date.now();
+      try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v && v.until > now) return; } catch (e) {}
+      try { if (sessionStorage.getItem("helm.r383.ping") === sid) return; sessionStorage.setItem("helm.r383.ping", sid); } catch (e) {}
+      setTimeout(function () {
+        try {
+          supa.rpc("signin_notice_ping", { p_ua: String((navigator && navigator.userAgent) || "").slice(0, 400) || null }).then(function (r) {
+            const via = r && r.data && r.data.via, missing = r && r.error && /PGRST202|42883|not find the function/i.test(String((r.error.code || "") + " " + (r.error.message || "")));
+            if (via === "trigger" || missing) { try { localStorage.setItem(KEY, JSON.stringify({ via: via || "none", until: now + (via === "trigger" ? 7 : 1) * 864e5 })); } catch (e) {} }
+          }, function () {});
+        } catch (e) {}
+      }, 4000);
+    } catch (e) {}
+  }
   async function isRecoverySession() {
     if (!supa || !currentUser) return false;
     try {
@@ -1921,6 +1951,7 @@ window.HelmUrl = HelmUrl;
                 }
                 // first sign-in in this browser (e.g. returning from Google): start the session clock
                 if (event === "SIGNED_IN" && sess && sess.user) { const st = sessionStart(); if (!st || st.uid !== sess.user.id) stampSessionStart(sess.user.id, true); }
+                if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && sess && sess.user) signinPing(sess);   // R205 (0383) fallback only
                 rtTokenExp = sess && sess.access_token ? (Number(sess.expires_at) || 0) * 1000 : 0;   // R193
                 if (sess && sess.user) { hadSession = true; if (!explicitSignOut) currentUser = sess.user; }
                 if ((event === "SIGNED_OUT" && !explicitSignOut) || (event === "TOKEN_REFRESHED" && !sess)) {
@@ -9262,6 +9293,8 @@ window.HelmUrl = HelmUrl;
     if (k.indexOf("chat_") === 0) return "chat.html";
     if (k === "studio_identity_changed") return "control.html#general";   // r23 (0257): Helm changed the studio name / link
     if (k === "team_safety") return "control.html#users";   // r33 (0283): admin / owner changes -> Settings -> Team
+    // R205 (0383): "Ravi (Planner) signed in" -> Settings -> Users & invites with that person's details open
+    if (k === "team_signin") return "control.html" + (/^[0-9a-f-]{36}$/i.test(String(d.user_id || "")) ? "?person=" + enc(d.user_id) : "") + "#users";
     if (k === "crew_cantwork_request") return "staff.html#cantwork-requests";   // R187 (0370): day-off requests -> Staff page list
     // r35 (0285): payment details / sensitive settings (admins only - the server decides)
     if (k === "studio_security") {
@@ -9327,6 +9360,7 @@ window.HelmUrl = HelmUrl;
     if (k === "payment" || k === "payment_received") return "payment_receipt";
     if (k === "trial_reminder") return "billing_trial";
     if (k === "plan_active") return "plan_active";   // r121 (0329): muted on its own (catalog type plan_active)
+    if (k === "team_signin") return "team_signin";   // R205 (0383): teammate sign-ins (owner + admins only)
     if (/^pkg_(selected|accepted|declined|payment)$/.test(k)) return k;
     if (/^task_(accept|reject|start|complete)$/.test(k)) return "task_update";
     if (k.indexOf("design_") === 0) return "design_update";
@@ -9341,7 +9375,7 @@ window.HelmUrl = HelmUrl;
     task_reminder: "Task reminders", task_due: "Tasks due", payment_link: "Payment links", payment_reminder: "Payment reminders",
     payment_receipt: "Payment receipts", advance_paid: "Payments received", payment_reconcile: "Payments needing attention",
     chat_message: "Chat messages", pkg_selected: "Client package choices", pkg_accepted: "Package choices accepted",
-    pkg_declined: "Package choices declined", pkg_payment: "Package payments", security_alert: "Security alerts (Helm HQ only)", billing_trial: "Free trial reminders", plan_active: "Plan active",
+    pkg_declined: "Package choices declined", pkg_payment: "Package payments", security_alert: "Security alerts (Helm HQ only)", billing_trial: "Free trial reminders", plan_active: "Plan active", team_signin: "Teammate sign-ins",
     inventory_low_stock: "Low stock warnings", client_follow_up: "Client follow-ups",
     client_link_viewed: "Client opened their link", client_view_followup: "Viewed but not approved", other: "Other updates" };
   // A4: a chat row's read key carries its newest message time, so marking a conversation read
@@ -9677,6 +9711,8 @@ window.HelmUrl = HelmUrl;
       payment_overdue: ["⏰", String(d.label || "A client payment is overdue")],
       // r33 (0283): an admin change waiting 24 hours / cancelled / done, a studio ownership change (admins only - the server decides)
       team_safety: ["🛡️", String(d.label || "Team change")],
+      // R205 (0383): a teammate signed in (owner + admins named on it only - the server decides); time is the studio clock
+      team_signin: ["👋", String(d.label || ((d.name || "A teammate") + " signed in" + (d.first_time ? " for the first time" : "")))],
       // 0269: a new lead from the studio's public enquiry form (name + event type only)
       lead_new: ["📥", String(d.label || "New enquiry")],
       // r22 (0254): "request to close anyway" + the approval (admins / coordinators / managers only - the server decides)
@@ -10605,7 +10641,8 @@ window.HelmUrl = HelmUrl;
       "booklet.snapshot": "Snapshot", "booklet.snap": "Snapshot", "pkg.view": "Viewed", "pkg.choose": "Chose", "pkg.accept": "Accepted",
       "pkg.decline": "Declined", "pkg.adjust": "Adjusted", "quote.moved_to_archive": "Archived", "quote.moved_to_deleted": "Moved to bin",
       "quote.restored": "Restored", "design.advance": "Stage moved", "upload.rejected": "Rejected",
-      "studio.renamed": "Studio renamed", "studio.link_renamed": "Link changed", "hq.studio.identity": "Renamed by Helm" };
+      "studio.renamed": "Studio renamed", "studio.link_renamed": "Link changed", "hq.studio.identity": "Renamed by Helm",
+      "auth.sign_in": "Signed in", "signin_notice.settings": "Sign-in notices changed" };
     if (fixed[a]) return fixed[a];
     const last = a.split(".").pop(); return auditHuman(last) || "—";
   }
@@ -10627,6 +10664,9 @@ window.HelmUrl = HelmUrl;
       case "booklet.share": return "Booklet shared with the client" + ev + (c.expires_at ? " (link valid until " + String(c.expires_at).slice(0, 10) + ")" : "");
       case "booklet.revoke": return "Booklet link revoked" + ev;
       // r23 (0257): studio name / link changes (Helm support only; old links keep working)
+      // R205 (0383): one sign-in (the person is the actor); browser / system only, never the network address
+      case "auth.sign_in": return "Signed in" + (c.first_time === true ? " for the first time" : "") + (c.device ? " (" + String(c.device).slice(0, 60) + ")" : "");
+      case "signin_notice.settings": return "Changed the sign-in notices" + (c.to && c.to.mode ? " to " + ({ off: "Off", first_daily: "First sign-in each day", every: "Every sign-in" }[c.to.mode] || "") : "");
       case "studio.renamed": return "Studio renamed" + (c.from || c.to ? " from \u201c" + String(c.from || "").slice(0, 120) + "\u201d to \u201c" + String(c.to || "").slice(0, 120) + "\u201d" : "");
       case "studio.link_renamed": return "Studio link changed" + (c.from || c.to ? " from " + String(c.from || "").slice(0, 60) + " to " + String(c.to || "").slice(0, 60) + " (old links keep working)" : "");
       // R120: a free-trial preview reads like the bell ("... ready (trial preview — not sent)")
@@ -11219,6 +11259,12 @@ window.HelmUrl = HelmUrl;
       p_steps: (Array.isArray(steps) ? steps : []).map((x) => Math.round(Number(x))) }) : Promise.reject(new Error("Needs a signed-in studio."))),
   };
 
+  // R205 (0383): Settings -> Notifications -> Teammate sign-ins (admins). null = server without 0383.
+  const signinNotice = {
+    settings: () => (supa ? rpc("signin_notice_settings_get", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+    saveSettings: (patch) => (supa ? rpc("signin_notice_settings_set", { p: patch || {} }) : Promise.reject(new Error("Needs a signed-in studio."))),
+  };
+
   // R125 (0334): the free-trial preview pop-up (trial-preview.js). Signed-in staff of the studio only; no token is ever made.
   const trialPreview = {
     bundle: (kind, quoteId, opts) => rpc("trial_preview_bundle", { p_kind: kind, p_quote: quoteId || null, p_opts: opts || {} }),
@@ -11365,6 +11411,7 @@ window.HelmUrl = HelmUrl;
     moneyLock,   // R189 (0372)
     moneyHeader, // R197 (0376)
     moneyCash, // R198 (0377)
+    signinNotice,    // R205 (0383)
     taskReminders,   // R130 (0338)
     activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
     // User manual (migration 0031): lives in the PRIVATE storage bucket "helm-manual",

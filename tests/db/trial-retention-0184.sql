@@ -142,6 +142,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0373_r190_vendor_bills_finish.sql
 -- 0374 (R191) adds inventory_stock_events + event_stock_windows (stock history) to the purge list, inventory_settings to the keep list
 \ir ../../supabase/migrations/0374_r191_inventory_upgrade.sql
+-- 0383 (R205) adds signin_notice_settings + signin_notice_log (teammate sign-in notices) to the keep list
+\ir ../../supabase/migrations/0383_r205_signin_notice.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin
