@@ -154,10 +154,10 @@ await t('APPLY-0381: paste-safe (begin / commit, no psql meta, no temp tables), 
 });
 await t('0381 wiring: MANIFEST, checker override (last), run-all, CHECK-PROD, release lists', () => {
   assert.ok(read('supabase/migrations/MANIFEST').includes('forward  supabase/migrations/0381_r203_test_studio_two_step.sql'));
-  assert.match(read('supabase/check-prod-overrides.json'), /"0381": \{ "note": "test-studio two-step switch[^\n]*"marker public\._r285_step_up\(uuid\) r203-0381"[^\n]*\] \}\n\}\n$/);
+  assert.match(read('supabase/check-prod-overrides.json'), /"0381": \{ "note": "test-studio two-step switch[^\n]*"marker public\._r285_step_up\(uuid\) r203-0381"[^\n]*\] \},?\n/);
   assert.match(read('scripts/db-test/run-all.sh'), /run "r203-test-studio-0381" "R203-TEST-STUDIO-0381: ALL PASS \\\(27\/27\\\)" psql -q -f tests\/db\/r203-test-studio-0381\.sql/);
   assert.match(read('supabase/CHECK-PROD-MIGRATIONS.sql'), /0381_r203_test_studio_two_step/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0379', '0381'\];/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0379', '0381'(, '\d{4}')*\];/, f);
 });
 await t('banner + nudges: my_test_studio read (cached, READ_RPCS), banner for everyone in a test studio, no two-step nudge there', () => {
   assert.match(API, /\|my_seat_usage\|my_test_studio\|my_notification_prefs\|/);
@@ -178,7 +178,7 @@ await t('Settings: R202\'s Admin two-step note (shown before the click) stays qu
 await t('asset pins: store-api v374 + auth-ui v63 everywhere, page-tours v54', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const s = read('public/' + f);
-    const m = s.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '374', f);
+    const m = s.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '375', f);
     const a = s.match(/auth-ui\.js\?v=(\d+)/); if (a) assert.equal(a[1], '63', f);
     const p = s.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '54', f);
   }

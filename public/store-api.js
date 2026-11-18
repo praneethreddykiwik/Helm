@@ -1391,7 +1391,9 @@ window.HelmUrl = HelmUrl;
      network call. Public pages (approval, invitation, site) use other RPCs and are untouched. */
   // R193 (prod log 17 Nov 2026): + audit_log (home "Recent activity") and the signed-in RPCs a page polls or opens with
   // (live_events_today = home "Live today" card; the share-booklet reads) - a sleeping laptop's tab sent them with the anon key
-  const SIGNED_IN_ONLY = /\/rest\/v1\/(leads|quotes|audit_log|chat_[a-z_]+|rpc\/(?:live_events_today|booklet_current|booklet_image_info|booklet_staff_image|booklet_layout_auto_on))(\?|$)/;
+  // R206 (prod API log 18 Nov 2026): + event_costs (Budget summary on the event page) and the quote page's stage history /
+  // valid-until reads - the same lapsed-sign-in tab sent them with the anon key (403 in the log)
+  const SIGNED_IN_ONLY = /\/rest\/v1\/(leads|quotes|audit_log|event_costs|chat_[a-z_]+|rpc\/(?:live_events_today|booklet_current|booklet_image_info|booklet_staff_image|booklet_layout_auto_on|quote_stage_history|quote_validity_get))(\?|$)/;
   function anonDenied(input, init) {
     try {
       const u = typeof input === "string" ? input : (input && input.url) || "";
@@ -3302,7 +3304,10 @@ window.HelmUrl = HelmUrl;
     async get(id) {
       // a truncated/garbled id from a link would reach Postgres as a 22P02 error — answer "not found" instead
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""))) { const e = new Error("This event link is incomplete or no longer exists."); e.code = "PGRST116"; throw e; }
-      const { data: q, error } = await supa.from("quotes").select("*").eq("id", id).single(); if (error) throw error;
+      // R206 (prod API log 18 Nov 2026): .maybeSingle() - a deleted / another studio's quote is 0 rows, which .single() asked
+      // the server to refuse (HTTP 406 in the log). The caller still gets the same "not found" (PGRST116) error as before.
+      const { data: q, error } = await supa.from("quotes").select("*").eq("id", id).maybeSingle(); if (error) throw error;
+      if (!q) { const e = new Error("This quote doesn't exist or was deleted."); e.code = "PGRST116"; throw e; }
       const { data: vs, error: e2 } = await supa.from("quote_versions")
         .select("id,version_no,label,object_count,created_at").eq("quote_id", id).order("version_no", { ascending: false });
       if (e2) throw e2;
@@ -9416,10 +9421,17 @@ window.HelmUrl = HelmUrl;
      up to 3 "Needs attention" items, the frozen figure for a closed + frozen event. The server does every sum; the page
      only shows it. Finance view only (re-checked on the server). null = signed out / not this studio's event / a database
      without 0376 (the pages keep their older cards). */
+  // R206 (prod API log 17 Nov 2026: 404 event_money_header before 0376 was applied): a read call the database does not have
+  // yet is asked ONCE per page load - every later redraw (money changed, settlement loaded ...) answers null without a call.
+  const goneReads = new Set();
+  async function softRead(fn, args) {
+    if (goneReads.has(fn)) return null;
+    try { return await rpc(fn, args); } catch (e) { if (rpcMissing(e)) { goneReads.add(fn); return null; } throw e; }
+  }
   const moneyHeader = {
     async get(quoteId) {
       if (mode !== "supabase" || !quoteId) return null;
-      try { return await rpc("event_money_header", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+      return softRead("event_money_header", { p_quote: quoteId });
     },
   };
 
@@ -9431,7 +9443,7 @@ window.HelmUrl = HelmUrl;
   const moneyCash = {
     async get(quoteId) {
       if (mode !== "supabase" || !quoteId) return null;
-      try { return await rpc("event_money_cash", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+      return softRead("event_money_cash", { p_quote: quoteId });
     },
   };
 

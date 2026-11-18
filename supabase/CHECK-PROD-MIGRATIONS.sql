@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (335 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (336 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4398 objects): body 172, bucket 9, col 242, con 412, cron 19, exec 13, fn 1979, idx 521, marker 66, pol 186, polexpr 4, pre 107, pub 5, seq 1, tbl 288, trg 372, view 2.
+-- What is checked (4407 objects): body 173, bucket 9, col 242, con 412, cron 19, exec 14, fn 1979, idx 526, marker 67, pol 186, polexpr 4, pre 108, pub 5, seq 1, tbl 288, trg 372, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4422,7 +4422,16 @@ with o(m, k, s, n, x) as (values
   ('0381_r203_test_studio_two_step', 'marker', 'public', 'my_test_studio', '|r203-0381'),
   ('0381_r203_test_studio_two_step', 'marker', 'public', 'hq_set_test_studio', 'uuid,boolean,text|r203-0381'),
   ('0381_r203_test_studio_two_step', 'exec', 'public', 'my_test_studio', '|authenticated'),
-  ('0381_r203_test_studio_two_step', 'exec', 'public', 'hq_set_test_studio', 'uuid,boolean,text|authenticated')
+  ('0381_r203_test_studio_two_step', 'exec', 'public', 'hq_set_test_studio', 'uuid,boolean,text|authenticated'),
+  ('0384_r206_api_timeouts', 'body', 'public', 'event_timesheet', 'uuid|90d39c2c74f21ee8db31c64bcc4e3b81'),
+  ('0384_r206_api_timeouts', 'idx', 'public.ix_event_tasks_quote_crew_0384', null, null),
+  ('0384_r206_api_timeouts', 'idx', 'public.ix_event_day_arrival_ref_0384', null, null),
+  ('0384_r206_api_timeouts', 'idx', 'public.ix_open_shift_claims_crew_0384', null, null),
+  ('0384_r206_api_timeouts', 'idx', 'public.ix_event_task_log_crew_0384', null, null),
+  ('0384_r206_api_timeouts', 'idx', 'public.ix_audit_log_org_at_id_0384', null, null),
+  ('0384_r206_api_timeouts', 'pre', null, '__pre0384', null),
+  ('0384_r206_api_timeouts', 'marker', 'public', 'event_timesheet', 'uuid|r206-0384'),
+  ('0384_r206_api_timeouts', 'exec', 'public', 'event_timesheet', 'uuid|authenticated')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4759,7 +4768,8 @@ mig(ord, m, ov, note) as (values
   (332, '0377_r198_event_money_cash', null, 'P&L clarity phase 2: new read-only event_money_cash (cash in & out + who owes what) and the server-only helper _r377_d, checked by the r198-0377 marker'),
   (333, '0378_r199_team_account_status', null, 'Users & invites account status: new read-only team_account_status (admin / Users edit, own studio), checked by the r199-0378 marker'),
   (334, '0379_r202_signin_help', null, 'Users & invites sign-in help: Send sign-in link + New temporary password (team_signin_help log), team_account_status + signin_link_at / can_new_temp, checked by the r202-0379 markers'),
-  (335, '0381_r203_test_studio_two_step', null, 'test-studio two-step switch: new private tables studio_test_mode + studio_test_mode_log, new hq_set_test_studio / my_test_studio / _r381_two_step_exempt, _r285_step_up re-issued in place, checked by the r203-0381 marker')
+  (335, '0381_r203_test_studio_two_step', null, 'test-studio two-step switch: new private tables studio_test_mode + studio_test_mode_log, new hq_set_test_studio / my_test_studio / _r381_two_step_exempt, _r285_step_up re-issued in place, checked by the r203-0381 marker'),
+  (336, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes')
 ),
 env as (
   select

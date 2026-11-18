@@ -119,7 +119,10 @@
     try { var sp = new URLSearchParams(global.location.search); id = sp.get("quote") || sp.get("id") || ""; } catch (e) { id = ""; }
     var st = global.BPStore;
     if (!/^[0-9a-f-]{36}$/i.test(id) || !st || !st.approval || !st.approval.trialSimPayments) return;
-    st.approval.trialSimPayments(id).then(function (rows) {
+    // R206: flow.html publishes its own quote check (window.HelmPageQuote) - ask nothing about a quote it did not find
+    var pq = global.HelmPageQuote && typeof global.HelmPageQuote.then === "function" ? global.HelmPageQuote : Promise.resolve(id);
+    pq.then(function (q) { return q && String(q).toLowerCase() === id.toLowerCase() ? st.approval.trialSimPayments(id) : null; }, function () { return null; }).then(function (rows) {
+      if (!rows) return;
       var lines = simLines(rows); if (!lines.length) return;
       var ul = doc.createElement("ul"); ul.id = "paySimList"; ul.className = "hint";
       lines.forEach(function (l) { var li = doc.createElement("li"); li.textContent = l; ul.appendChild(li); });
