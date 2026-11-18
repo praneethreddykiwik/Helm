@@ -7,6 +7,7 @@
      HelmTeamStatus.member(u, acct, now)  -> { key, tone, label, detail, title }
          key: active | never | setup | off | unknown     (acct = the 0378 row for u, or null on a database without 0378)
      HelmTeamStatus.invite(inv, now)      -> { key: invited | expired, tone, label, detail, title }
+     HelmTeamStatus.signInHelp(state, acct, { self, isAdmin, canEdit, deactivated }) -> R202: Send sign-in link / New temporary password
      HelmTeamStatus.profileHint(u, priv)  -> "Profile: mobile number missing" | "" (complete)
      HelmTeamStatus.ago(iso, now) / until(iso, now) / when(iso, time)
      HelmTeamStatus.matches(state, filter) -> does this row pass the "Show" filter
@@ -54,17 +55,40 @@
     if (!a) return { key: "unknown", tone: "muted", label: "Member", detail: joinedTxt, title: "Sign-in times show after the database update 0378" };
     var last = ts(a.last_sign_in_at);
     if (last == null && a.needs_password) {
-      return { key: "setup", tone: "warn", label: "Signed up – no password yet", detail: joinedTxt,
-        title: "Their login was made by the invitation e-mail and has no password yet. They can use “Forgot password?” on the sign-in page, or you can send a new invite." };
+      return { key: "setup", tone: "warn", label: "Signed up – no password yet", detail: [joinedTxt, a.signin_link_at ? "sign-in link sent " + ago(a.signin_link_at, now) : ""].filter(Boolean).join(" · "),
+        title: "Their login was made by the invitation e-mail and has no password yet. Use “Send sign-in link”, or they can use “Forgot password?” on the sign-in page." };
     }
     if (last == null) {
-      return { key: "never", tone: "warn", label: a.temp_password ? "Added – never signed in" : "Signed up – never signed in",
-        detail: joinedTxt + (a.temp_password ? (joinedTxt ? " · " : "") + "temporary password not used yet" : ""),
-        title: a.temp_password ? "An admin added them with a one-time temporary password. They haven’t signed in with it yet." : "Their account exists but they have never signed in." };
+      // R202: plainer words for an "Add user" login ("Added – never signed in · temporary password not used yet" read as jargon)
+      var link = a.signin_link_at ? "sign-in link sent " + ago(a.signin_link_at, now) : "";
+      if (a.temp_password) {
+        return { key: "never", tone: "warn", label: "Added by admin – hasn’t signed in yet",
+          detail: ["Temporary password unused", link, joined ? "Added " + when(joined) : ""].filter(Boolean).join(" · "),
+          title: "An admin made this login with “Add user” and a one-time temporary password (shown once). They haven’t signed in yet. Use “Send sign-in link” to e-mail them a link to set their own password." };
+      }
+      return { key: "never", tone: "warn", label: "Signed up – never signed in", detail: [joinedTxt, link].filter(Boolean).join(" · "),
+        title: "Their account exists but they have never signed in." };
     }
     return { key: "active", tone: "ok", label: "Last signed in " + ago(a.last_sign_in_at, now),
       detail: joinedTxt + (a.temp_password ? (joinedTxt ? " · " : "") + "still on the temporary password" : ""),
       title: "Last sign-in: " + when(a.last_sign_in_at, true) };
+  }
+
+  /* R202 (0379): which sign-in help a member's row / View panel offers.
+     o = { self, isAdmin, canEdit, deactivated }   ->  { row, link, temp, reactivateFirst, linkSentAt, why }
+       row:  show "Send sign-in link" on the table row (never signed in / no password yet)
+       link: offer it in the View panel (anyone not deactivated, not yourself)
+       temp: "New temporary password" (admins; the database says can_new_temp: a never-used Add user login)
+       reactivateFirst: a deactivated person - explain "Reactivate first, then send a sign-in link" */
+  function signInHelp(state, acct, o) {
+    o = o || {}; var a = acct || null, k = state && state.key;
+    var none = { row: false, link: false, temp: false, reactivateFirst: false, linkSentAt: a && a.signin_link_at || null, why: "" };
+    if (!a || o.self || !(o.isAdmin || o.canEdit)) return none;
+    if (k === "off" || o.deactivated) { none.reactivateFirst = true; none.why = "Reactivate first, then send a sign-in link."; return none; }
+    var never = k === "never" || k === "setup";
+    return { row: never, link: true, temp: !!(o.isAdmin && a.can_new_temp === true), reactivateFirst: false, linkSentAt: a.signin_link_at || null,
+      why: never ? "E-mails them a secure link to choose their own password (the same e-mail as “Forgot password?”). Once every 10 minutes."
+                 : "E-mails them a secure link to set a new password (the same e-mail as “Forgot password?”). Once every 10 minutes." };
   }
 
   /* an open invitation (0378 invites[] row, or an invitations.list() row) */
@@ -172,7 +196,7 @@
     return dr;
   }
 
-  var api = { member: member, invite: invite, profileHint: profileHint, matches: matches, ago: ago, until: until, when: when,
+  var api = { member: member, invite: invite, signInHelp: signInHelp, profileHint: profileHint, matches: matches, ago: ago, until: until, when: when,
     openDrawer: openDrawer, closeDrawer: closeDrawer, copyText: copyText };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HelmTeamStatus = api;

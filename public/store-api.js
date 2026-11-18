@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=92"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=93"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -2654,6 +2654,12 @@ window.HelmUrl = HelmUrl;
       reauthClear();
       lsDel(RECOVERY_KEY);
       recoveryLinkClear();   // R204: the reset link is used up
+      // R202: a person who came in through a reset / "sign-in link" e-mail while still on an admin-given temporary
+      // password has now chosen their own - lift "must change password" too (the database only allows it once the
+      // login no longer has the temporary one, 0028), so they are not asked for that lost temporary password next.
+      if (recovery) {
+        try { const { error: ce } = await supa.rpc("clear_password_change_required"); if (!ce && currentUser) { try { sessionStorage.setItem(PW_OK_KEY, currentUser.id); } catch (e) {} } } catch (e) {}
+      }
       try { await supa.auth.signOut({ scope: "others" }); } catch (e) {}
       return true;
     },
@@ -2823,6 +2829,41 @@ window.HelmUrl = HelmUrl;
         const { data, error } = await supa.rpc("team_account_status");
         if (error) { if (rpcMissing(error) || error.code === "42501") return null; throw error; }
         return data && typeof data === "object" ? data : null;
+      },
+      // R202 (0379): "Send sign-in link" for a teammate (an "Add user" login whose temporary password got lost, an
+      // invitation login without a password, anyone who can't get in). The DATABASE checks admin / Users edit, own
+      // studio, not deactivated, not yourself and once per 10 minutes per person, and logs it; then the SAME Supabase
+      // password-reset e-mail as "Forgot password?" goes to the address on their login (they choose their own
+      // password on /reset-password). A failed send lifts the 10-minute wait again.
+      //   -> { ok: true, email } | { ok: false, code: "rate_limited", retry_after_s, error }
+      async sendSignInLink(userId) {
+        if (!supa) throw new Error("Supabase not configured");
+        const { data, error } = await supa.rpc("team_signin_link_request", { p_user: userId });
+        if (error) throw error;
+        if (!data || data.ok !== true) return data || { ok: false, error: "Couldn't send the sign-in link." };
+        const fail = async (msg, code, cause) => {
+          try { await supa.rpc("team_signin_link_failed", { p_id: data.id }); } catch (e) {}
+          const e = new Error(msg); e.code = code; if (cause) e.cause = cause; throw e;
+        };
+        if (CAPTCHA) return fail("The sign-in page's security check is on, so this link can't be sent from Settings. Ask them to open the sign-in page and use “Forgot password?” with " + data.email + ".", "captcha_required");
+        if (await staffGoogleOnlyFor(data.email)) return fail("This address signs in with Google only - there is no password to set.", "google_only");
+        const { error: e2 } = await supa.auth.resetPasswordForEmail(scrubEmail(data.email), { redirectTo: location.origin + "/reset-password" });
+        if (e2) {
+          const st = Number(e2.status) || 0, m = String(e2.message || "");
+          if (st === 429 || /rate limit|too many/i.test(m)) return fail("Too many e-mails were sent in the last few minutes - please try again a little later.", "rate_limited", e2);
+          if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(e2)) return fail("No connection - the link was not sent. Try again.", "network", e2);
+          const info = authErrorInfo(e2, "email"); reportAuthError("email", e2, info);
+          return fail("The e-mail couldn't be sent" + (info && info.message ? " (" + info.message + ")" : "") + ". Try again later.", "email_send_failed", e2);
+        }
+        return { ok: true, email: data.email };
+      },
+      // R202 (0379): "New temporary password" - admins only, and only for a never-signed-in "Add user" login of this
+      // studio (the database decides). Same as Add user: shown ONCE, they choose their own at first sign-in.
+      //   -> { ok: true, user_id, temp_password } | { ok: false, code: "rate_limited", retry_after_s, error }
+      async newTempPassword(userId) {
+        if (!supa) throw new Error("Supabase not configured");
+        return withStepUp(async () => { const { data, error } = await supa.rpc("team_temp_password_reset", { p_user: userId });
+          if (error) throw error; return data; });
       },
       async listUsers() {
         if (!supa) throw new Error("Supabase not configured");
