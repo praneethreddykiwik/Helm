@@ -27,7 +27,7 @@ t('no client page loads store-api.js or preloads supabase-js; each loads client-
     const h = html(p);
     assert.ok(!/store-api\.js/.test(h), p + '.html still references store-api.js');
     assert.ok(!/supabase-js-[\d.]+\.min\.js/.test(h), p + '.html still preloads supabase-js (client-api.js does not use it)');
-    assert.equal((h.match(/<script src="\/client-api\.js\?v=\d+"><\/script>/g) || []).length, 1, p + '.html must load /client-api.js?v=N exactly once');
+    assert.equal((h.match(/<script src="\/client-api\.js\?v=\d+"( defer)?><\/script>/g) || []).length, 1, p + '.html must load /client-api.js?v=N exactly once');   // R224: deferred on the invitation
   }
 });
 t('every page reached by a client link (vercel.json rewrites) is in the client list', () => {

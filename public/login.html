@@ -5,7 +5,8 @@
 <script src="/trusted-types.js?v=9"></script>
 <script src="/console-warning.js?v=1" defer></script>
 <script src="/auth-handoff.js?v=2"></script>
-<script src="/login-submit-guard.js?v=2"></script>
+<script src="/login-submit-guard.js?v=3"></script>
+<script>/* R224: /signup (or #signup, ?signup=1, ?mode=trial|paid|sales, ?plan=, ?trial=1, ?direct=1) shows the sign-up rows from the FIRST paint (no jump when setMode("signup") runs). Not for an invitation, an auth-link return or the sign-in notices: their page logic picks the mode. */(function(){try{var l=location,q=new URLSearchParams(l.search),h=String(l.hash||"").toLowerCase(),m=String(q.get("mode")||"").toLowerCase();var md=m==="trial"||m==="paid"||m==="sales"?m:"";if(!md&&q.get("trial")==="1")md="trial";if(!md&&q.get("direct")==="1")md="paid";var pl=/^[a-z0-9][a-z0-9_-]{1,39}$/.test(String(q.get("plan")||"").toLowerCase());var su=/^\/signup\/?$/.test(l.pathname)||h==="#signup"||q.get("signup")==="1"||!!md||pl;if(!su||q.has("invite")||q.has("code")||q.get("expired")==="1"||q.get("reason")==="signout"||!!q.get("confirmed")||q.get("reset")==="1"||/(^#|&)(access_token|refresh_token|error|error_code)=/.test(l.hash||""))return;try{if(sessionStorage.getItem("bp_pending_invite")||localStorage.getItem("bp_pending_invite"))return;}catch(e){}var c=document.documentElement.classList;c.add("is-signup");if(md==="trial")c.add("is-su-trial");}catch(e){}})();</script>
 <title>Sign in · Helm</title>
 <meta name="description" content="Sign in to Helm, or create your studio's private workspace to run every event from first enquiry to final bill.">
 <meta name="robots" content="noindex,nofollow,noarchive">
@@ -23,7 +24,6 @@
 <meta name="twitter:title" content="Sign in · Helm">
 <meta name="twitter:description" content="Sign in to Helm, or create your studio&#x27;s private workspace to run every event from first enquiry to final bill.">
 <meta name="twitter:image" content="https://www.helm.events/og.png">
-<link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <style>
 @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:optional;src:url(/fonts/ibm-plex-mono-cyrillic-ext.woff2?v=1) format('woff2');unicode-range:U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;}
 @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:optional;src:url(/fonts/ibm-plex-mono-cyrillic.woff2?v=1) format('woff2');unicode-range:U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;}
@@ -138,6 +138,15 @@
   input.is-ok{border-color:#12b76a}
   .pwwrap{position:relative} .pwwrap input{padding-right:46px}
   #pwLabel[hidden],.pwwrap[hidden],#submit[hidden],#staffGoogleNote[hidden],#pw2Row[hidden]{display:none}   /* r39: Helm staff sign in with Google only */
+  /* R224: sign-up from the first paint - html.is-signup (set by the inline head script on /signup) shows the rows that
+     setMode("signup") shows, so nothing moves when it runs; the page script drops the class before its first setMode() */
+  .su-t{display:none}
+  html.is-signup .su-t.su-in{display:none} html.is-signup .su-t.su-up{display:inline} html.is-signup.is-su-trial .su-t.su-up{display:none} html.is-signup.is-su-trial .su-t.su-tr{display:inline}
+  .su-t.su-in{display:inline}
+  html.is-signup #nameField[hidden],html.is-signup #pw2Row[hidden],html.is-signup #agreeRow[hidden],html.is-signup #pwRules[hidden],html.is-signup #pwHint[hidden],html.is-signup #haveAcct[hidden]{display:block}
+  html.is-signup #pwMeter[hidden]{display:flex} html.is-signup #fullnameReq[hidden]{display:inline}
+  html.is-signup #forgotRow,html.is-signup #newHere,html.is-signup #confirmHelp,html.is-signup #agreeFoot,html.is-signup #fullnameOpt{display:none}
+  #pwRules{list-style:none;margin:6px 0 10px;padding:0;font-size:12.5px;line-height:1.7} #pwRules li{color:#6b6577;font-weight:400}
   .eye{position:absolute;right:4px;top:4px;width:36px;height:36px;border:0;background:transparent;border-radius:8px;cursor:pointer;color:var(--ink-3);display:flex;align-items:center;justify-content:center}
   /* invite join: only e-mail (locked), name, password, confirm, one button */
   body.invite-join .modetabs, body.invite-join #pwMeter, body.invite-join #confirmHelp{display:none!important}
@@ -219,15 +228,13 @@
   .plan-chip-x:hover{text-decoration:underline}
   .sales-note{margin:-8px 0 18px;font-size:13px;color:var(--ink-2)} .sales-note a{color:var(--accent);font-weight:700}
 </style>
-<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3" media="print" data-lazy-css><script src="/ui-pickers.js?v=4" defer></script>
-<link rel="stylesheet" href="/public-v2.css?v=9">
+<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3" media="print" data-lazy-css><script type="text/plain" data-login-lazy src="/ui-pickers.js?v=4"></script>
+<link rel="stylesheet" href="/public-v2.css?v=10">
 <meta name="bp-theme-toggle" content="off">
 <script src="/marketing-theme.js?v=3" defer></script>
-<link rel="stylesheet" href="/marketing-loader.css?v=1">
 <link rel="stylesheet" href="/trial-terms.css?v=4" media="print" data-lazy-css>
 <link rel="stylesheet" href="/plan-cards.css?v=1" media="print" data-lazy-css>
 <link rel="stylesheet" href="/referral-signup.css?v=1" media="print" data-lazy-css>
-<script src="/marketing-loader.js?v=3"></script>
 <style>
   /* emerald auth polish + mode toggle (login/reset only) */
   .mk-modebtn{position:fixed;top:14px;right:14px;z-index:50;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:var(--shadow)}
@@ -270,8 +277,8 @@
     </section>
     <form class="card" id="loginForm">
       <div class="mmk"></div>
-      <h1 id="formTitle">Welcome back</h1>
-      <p class="sub" id="formSub">Sign in with your Helm account.</p>
+      <h1 id="formTitle"><span class="su-t su-in">Welcome back</span><span class="su-t su-up">Create your Helm account</span><span class="su-t su-tr">Start your 8-day free trial</span></h1>
+      <p class="sub" id="formSub"><span class="su-t su-in">Sign in with your Helm account.</span><span class="su-t su-up">Step 1 of 4. Next you verify your e-mail, name your studio and choose how to start: contact sales, or try Helm free for 8 days.</span><span class="su-t su-tr">No payment needed. Step 1 of 4: your account. Next you verify your e-mail and name your studio, then your trial starts.</span></p>
       <!-- r29 referrals (phase 1, UI only): shown on sign-up when the link carries ?ref= (referral-signup.js) -->
       <div class="rfs-banner" id="rfsBanner" role="status" hidden><span class="rfs-gift" aria-hidden="true"></span><div><b id="rfsBannerT"></b><span id="rfsBannerS"></span></div></div>
       <div class="info" id="expiredMsg" role="status" hidden>Your session expired — sign in again.</div>
@@ -303,7 +310,7 @@
       <p class="ferr" id="pw_err" hidden></p>
       <div class="meter" id="pwMeter" data-level="0" hidden><span></span><span></span><span></span><span></span><b id="pwMeterTxt" aria-live="polite"></b></div>
       <p class="hint" id="pwHint" hidden>Use 12 or more characters with a mix of uppercase and lowercase letters, numbers &amp; symbols.</p>
-      <ul id="pwRules" hidden></ul>
+      <ul id="pwRules" hidden><li>○ 12 or more characters</li><li>○ A lowercase letter</li><li>○ An uppercase letter</li><li>○ A number</li><li>○ A symbol</li></ul>
       <div id="pw2Row" hidden>
         <label for="pw2">Confirm password</label>
         <input id="pw2" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="new-password" passwordrules="minlength: 12; required: lower; required: upper; required: digit; required: [-!#$%&amp;*+=?@^_~.,:;/]; max-consecutive: 2;" placeholder="Type the password again">
@@ -323,7 +330,7 @@
         <p class="ferr" id="agree_err" hidden></p>
       </div>
       <div class="captcha" id="captcha" hidden></div>
-      <button class="btn" id="submit" type="submit">Sign in →</button>
+      <button class="btn" id="submit" type="submit"><span class="su-t su-in">Sign in →</span><span class="su-t su-up su-tr">Create account →</span></button>
       <div class="or"><span>or</span></div>
       <button type="button" class="gbtn" id="googleBtn">
         <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -520,24 +527,30 @@
 
 <script src="telemetry.js?v=12"></script>
 <script src="config.js?v=113"></script>
-<!-- r26 speed: the app scripts are deferred (they download in parallel and run, in this order, once the page has
-     been drawn); config.js stays a normal script (it may add config.staging.js before them). The page script below
-     runs at DOMContentLoaded, i.e. right after them - the same order as before, without blocking the first paint. -->
-<script src="event-name.js?v=9" defer></script>
-<script src="country-profile.js?v=7" defer></script><script src="store-api.js?v=382" defer></script>
-<script src="auth-ui.js?v=64" defer></script>
-<script src="/auth-visual.js?v=1" defer></script>
-<script src="/trial-facts.js?v=9" defer></script>
-<script src="/trial-signup.js?v=14" defer></script>
-<script src="/plan-cards.js?v=4" defer></script>
-<script src="/signup-flow.js?v=8" defer></script>
-<script src="/referral-rules.js?v=2" defer></script>
-<script src="/referral-demo-gate.js?v=1" defer></script>
-<script src="/referral-signup.js?v=5" defer></script>
-<script src="/google-gis.js?v=2" defer></script>
+<!-- R224 speed: the app scripts (store-api + supabase-js, Google sign-in, the sign-up steps) are NOT fetched during the first
+     paint: they are inert type="text/plain" data-login-lazy tags, and login-submit-guard.js loads them, in this
+     order, right after the first paint, then fires "helm:login-ready". The page script below runs on that event - the same
+     order as before (app scripts first, then the page), and a Sign in tapped meanwhile is held and replayed by the guard.
+     config.js stays a normal script (it may add config.staging.js before them). -->
+<script type="text/plain" data-login-lazy src="event-name.js?v=9"></script>
+<script type="text/plain" data-login-lazy src="country-profile.js?v=7"></script><script type="text/plain" data-login-lazy src="store-api.js?v=382"></script>
+<script type="text/plain" data-login-lazy src="auth-ui.js?v=64"></script>
+<script type="text/plain" data-login-lazy src="/auth-visual.js?v=1"></script>
+<script type="text/plain" data-login-lazy src="/trial-facts.js?v=9"></script>
+<script type="text/plain" data-login-lazy src="/trial-signup.js?v=14"></script>
+<script type="text/plain" data-login-lazy src="/plan-cards.js?v=4"></script>
+<script type="text/plain" data-login-lazy src="/signup-flow.js?v=8"></script>
+<script type="text/plain" data-login-lazy src="/referral-rules.js?v=2"></script>
+<script type="text/plain" data-login-lazy src="/referral-demo-gate.js?v=1"></script>
+<script type="text/plain" data-login-lazy src="/referral-signup.js?v=5"></script>
+<script type="text/plain" data-login-lazy src="/google-gis.js?v=2"></script>
 <script>
-document.addEventListener("DOMContentLoaded", function(){
+document.addEventListener("helm:login-ready", function(){
   const $=(s)=>document.querySelector(s);
+  // R224: the first paint showed the sign-up rows by CSS (html.is-signup) and both wordings; hand the form back to
+  // setMode() exactly as it was before (sign-in words, hidden attributes decide), then the usual mode logic runs
+  document.documentElement.classList.remove("is-signup","is-su-trial");
+  ["#formTitle","#formSub","#submit"].forEach((id)=>{ const e=$(id), w=e&&e.querySelector(".su-t.su-in"); if(w) e.textContent=w.textContent; });
   const PENDING="bp_pending_studio";
   // Matches the Supabase Auth password policy + 0030 (min 12 with a lowercase letter,
   // an uppercase letter, a number and a symbol — docs/AUTH-DASHBOARD-SETTINGS.md).

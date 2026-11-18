@@ -7,8 +7,9 @@
 //     sets (data-pt / data-hb-theme = emerald, data-theme = light, data-mk-lock) are written in the <html> tag itself,
 //     so the first paint is the same green light theme (color-scheme:light comes from public-v2.css html[data-pt]).
 //  4. What the first paint really needs stays blocking, in the same order: trusted-types.js, auth-handoff.js,
-//     login-submit-guard.js, theme.css, public-v2.css, marketing-loader.css/.js; config.js +
-//     telemetry.js stay normal scripts before the deferred app scripts (config.js may document.write staging).
+//     login-submit-guard.js, theme.css, public-v2.css; config.js + telemetry.js stay normal scripts before the app
+//     scripts (config.js may document.write staging). R224: the marketing intro overlay (marketing-loader) is gone from
+//     the sign-in page, and the app scripts load after the first paint (test/r224-public-speed.test.mjs).
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -37,7 +38,7 @@ t('1 sign-up-only stylesheets do not block the first paint (media="print" data-l
 });
 
 t('2 the first-paint stylesheets stay render-blocking', () => {
-  for (const f of ['theme.css', '/public-v2.css', '/marketing-loader.css']) {
+  for (const f of ['theme.css', '/public-v2.css']) {
     const re = new RegExp('<link rel="stylesheet" href="' + f.replace('.', '\\.') + '\\?v=\\d+">');
     assert.match(HEAD, re, f + ' is a normal stylesheet in <head>');
   }
@@ -51,7 +52,7 @@ t('3 login-submit-guard.js switches the lazy sheets on at DOMContentLoaded, befo
     querySelectorAll: (sel) => { assert.equal(sel, 'link[data-lazy-css]'); return links; },
   };
   vm.runInNewContext(GUARD, { document: doc, window: {}, setTimeout: () => {} });
-  assert.equal(L.DOMContentLoaded.length, 2, 'lazy-css + replay listeners');
+  assert.equal(L.DOMContentLoaded.length, 2, 'lazy-css + after-first-paint loader listeners');
   L.DOMContentLoaded[0]({});
   assert.deepEqual(links.map((l) => l.media), LAZY.map(() => 'all'), 'every lazy sheet now applies');
   // a document without querySelectorAll (old harnesses) never throws
@@ -59,9 +60,9 @@ t('3 login-submit-guard.js switches the lazy sheets on at DOMContentLoaded, befo
   vm.runInNewContext(GUARD, { document: { addEventListener: (ty, fn) => { (L2[ty] = L2[ty] || []).push(fn); } }, window: {}, setTimeout: () => {} });
   assert.doesNotThrow(() => L2.DOMContentLoaded.forEach((f) => f({})));
   // listener order = registration order: the guard (in <head>) registers before login.html's page script (in <body>)
-  const g = LOGIN.indexOf('<script src="/login-submit-guard.js?v=2"></script>');
-  const page = LOGIN.indexOf('<script>\ndocument.addEventListener("DOMContentLoaded"');
-  assert.ok(g > 0 && g < HEAD.length && page > g, 'guard v=2 in <head>, page script later');
+  const g = LOGIN.search(/<script src="\/login-submit-guard\.js\?v=\d+"><\/script>/);
+  const page = LOGIN.indexOf('<script>\ndocument.addEventListener("helm:login-ready"');
+  assert.ok(g > 0 && g < HEAD.length && page > g, 'guard in <head>, page script later');
 });
 
 t('4 console-warning.js + marketing-theme.js deferred (theme attrs static); first-paint scripts stay blocking, same order', () => {
@@ -71,7 +72,8 @@ t('4 console-warning.js + marketing-theme.js deferred (theme attrs static); firs
   const mt = read('public/marketing-theme.js');
   for (const a of ["'data-pt', 'emerald'", "'data-hb-theme', 'emerald'", "'data-theme', 'light'", "'data-mk-lock', ''"]) assert.ok(mt.includes(a), 'static attrs match marketing-theme.js: ' + a);
   assert.match(read('public/public-v2.css'), /html\[data-pt\] \{[^}]*color-scheme:light; \}/);
-  const blocking = ['/trusted-types.js', '/auth-handoff.js', '/login-submit-guard.js', '/marketing-loader.js'];
+  const blocking = ['/trusted-types.js', '/auth-handoff.js', '/login-submit-guard.js'];
+  assert.ok(!/marketing-loader/.test(LOGIN), 'R224: no intro overlay on the sign-in page');
   let at = -1;
   for (const f of blocking) {
     const m = new RegExp('<script src="' + f.replace('.', '\\.') + '\\?v=\\d+"></script>').exec(HEAD);
@@ -79,9 +81,10 @@ t('4 console-warning.js + marketing-theme.js deferred (theme attrs static); firs
     assert.ok(m.index > at, f + ' keeps its order'); at = m.index;
   }
   assert.match(LOGIN, /<script src="telemetry\.js\?v=\d+"><\/script>\n<script src="config\.js\?v=\d+"><\/script>/);
-  assert.ok(LOGIN.indexOf('<script src="config.js') < LOGIN.indexOf('<script src="event-name.js'), 'config.js before the app scripts');
+  assert.ok(LOGIN.indexOf('<script src="config.js') < LOGIN.indexOf('data-login-lazy src="event-name.js'), 'config.js before the app scripts');
+  // R224: the app scripts are not even fetched during the first paint (login-submit-guard.js loads them right after it)
   for (const f of ['store-api.js', 'auth-ui.js', 'google-gis.js', 'signup-flow.js', 'referral-signup.js', 'plan-cards.js', 'trial-signup.js']) {
-    assert.match(LOGIN, new RegExp('<script src="/?' + f.replace('.', '\\.') + '\\?v=\\d+" defer></script>'), f + ' deferred');
+    assert.match(LOGIN, new RegExp('<script type="text/plain" data-login-lazy src="/?' + f.replace('.', '\\.') + '\\?v=\\d+"></script>'), f + ' after the first paint');
   }
 });
 

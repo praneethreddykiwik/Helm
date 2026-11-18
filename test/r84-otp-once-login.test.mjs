@@ -47,31 +47,34 @@ t('B1 login.html loads the external guard in <head> (no inline script added)', (
   assert.ok(g > 0 && g < body, 'guard runs in <head>');
   assert.ok(!/ defer|async/.test(LOGIN.slice(g, LOGIN.indexOf('</script>', g))), 'guard is a normal (blocking) script');
 });
+// R224: the guard now also loads the app scripts after the first paint; the page script runs on "helm:login-ready" and
+// the held submit is replayed a tick after that (no app-script tags in this harness = ready once DOMContentLoaded ran)
 function harness() {
   const L = {}; const timers = [];
   const doc = { addEventListener: (type, fn, cap) => { (L[type] = L[type] || []).push(fn); } };
   const win = {};
   vm.runInNewContext(GUARD, { document: doc, window: win, setTimeout: (f) => timers.push(f) });
   const fire = (type, ev) => (L[type] || []).forEach((f) => f(ev));
-  return { L, timers, win, fire };
+  const drain = () => { let n = 0; while (timers.length && n++ < 50) timers.shift()(); };
+  return { L, timers, win, fire, drain };
 }
-t('B2 guard: a submit before ready is prevented + stopped, then replayed once after DOMContentLoaded', () => {
+t('B2 guard: a submit before ready is prevented + stopped, then replayed once when the page is ready', () => {
   const h = harness(); let prevented = 0, stopped = 0, replays = 0;
   const form = { isConnected: true, hidden: false, requestSubmit: (s) => { replays++; assert.equal(s, btn); } };
   const btn = { form };
   h.fire('submit', { target: form, submitter: btn, preventDefault: () => prevented++, stopImmediatePropagation: () => stopped++ });
   assert.equal(prevented, 1); assert.equal(stopped, 1);
-  h.fire('DOMContentLoaded', {}); assert.equal(replays, 0, 'replay waits a tick for the page handlers');
-  h.timers.forEach((f) => f());
+  h.fire('DOMContentLoaded', {}); assert.equal(replays, 0, 'replay waits for the app scripts + a tick for the page handlers');
+  h.drain();
   assert.equal(replays, 1); assert.equal(h.win.HelmLoginSubmitReady, true);
   h.fire('submit', { target: form, preventDefault: () => prevented++, stopImmediatePropagation: () => stopped++ });
   assert.equal(prevented, 1, 'after ready the page handler owns submit');
 });
 t('B3 guard: no pending submit -> nothing replayed; hidden form not replayed', () => {
-  const h = harness(); h.fire('DOMContentLoaded', {}); h.timers.forEach((f) => f()); assert.equal(h.win.HelmLoginSubmitReady, true);
+  const h = harness(); h.fire('DOMContentLoaded', {}); h.drain(); assert.equal(h.win.HelmLoginSubmitReady, true);
   const h2 = harness(); let n = 0; const f = { isConnected: true, hidden: true, requestSubmit: () => n++ };
   h2.fire('submit', { target: f, preventDefault() {}, stopImmediatePropagation() {} });
-  h2.fire('DOMContentLoaded', {}); h2.timers.forEach((x) => x()); assert.equal(n, 0);
+  h2.fire('DOMContentLoaded', {}); h2.drain(); assert.equal(n, 0);
 });
 
 t('C1 store-api org.current(): returns null when there is no studio id (no id=eq.null query)', () => {
