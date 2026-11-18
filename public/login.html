@@ -2,7 +2,7 @@
 <html lang="en" data-theme="light" data-pt="emerald" data-hb-theme="emerald" data-mk-lock>
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="/trusted-types.js?v=8"></script>
+<script src="/trusted-types.js?v=9"></script>
 <script src="/console-warning.js?v=1" defer></script>
 <script src="/auth-handoff.js?v=2"></script>
 <script src="/login-submit-guard.js?v=2"></script>
@@ -518,14 +518,14 @@
     </section>
   </main>
 
-<script src="telemetry.js?v=11"></script>
+<script src="telemetry.js?v=12"></script>
 <script src="config.js?v=113"></script>
 <!-- r26 speed: the app scripts are deferred (they download in parallel and run, in this order, once the page has
      been drawn); config.js stays a normal script (it may add config.staging.js before them). The page script below
      runs at DOMContentLoaded, i.e. right after them - the same order as before, without blocking the first paint. -->
 <script src="event-name.js?v=9" defer></script>
-<script src="country-profile.js?v=7" defer></script><script src="store-api.js?v=378" defer></script>
-<script src="auth-ui.js?v=63" defer></script>
+<script src="country-profile.js?v=7" defer></script><script src="store-api.js?v=379" defer></script>
+<script src="auth-ui.js?v=64" defer></script>
 <script src="/auth-visual.js?v=1" defer></script>
 <script src="/trial-facts.js?v=9" defer></script>
 <script src="/trial-signup.js?v=14" defer></script>
@@ -737,11 +737,13 @@ document.addEventListener("DOMContentLoaded", function(){
   }
   // ----- field rules (owner form rules): inline errors on blur, polite + specific -----
   const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-  const NAME_RE=/^[\p{L} '\-]{1,50}$/u;
+  // audit C (r218): letters of every script WITH their vowel signs / virama (\p{M}: Telugu, Hindi, Tamil ... names failed before),
+  // the joiners some Indian keyboards type (U+200C / U+200D), and initials with a full stop ("K. Srinivas")
+  const NAME_RE=/^[\p{L}\p{M}](?:[\p{L}\p{M}\u200C\u200D '\u2019.\-]*[\p{L}\p{M}.\u200C\u200D])?$/u;
   const normEmail=(v)=>String(v||"").trim().toLowerCase();
   const HQ_PRE={};   // r27 (0277): helm.events addresses the server says are pre-authorised Helm HQ staff (k9@, sales@ ...)
   function emailProblem(v){ const e=normEmail(v); if(!e) return "Please enter your email address."; if(e.length>254||!EMAIL_RE.test(e)) return "That doesn't look like a valid email — check for typos (e.g. name@studio.com)."; if(mode==="signup" && window.BPStore && BPStore.reservedEmailDomain && BPStore.reservedEmailDomain(e) && !HQ_PRE[e]) return BPStore.RESERVED_EMAIL_MESSAGE; return null; }   // r21 0248: Helm's own domains are for the Helm team (the server refuses them too)
-  function nameProblem(v){ const n=String(v||"").trim(); if(!n) return (mode==="signup" && !J()) ? "Please enter your name." : null; if(n.length>50) return "Please keep your name to 50 characters or fewer."; if(!NAME_RE.test(n)) return "Names can use letters, spaces, hyphens (-) and apostrophes (') only."; return null; }
+  function nameProblem(v){ const n=String(v||"").trim(); if(!n) return (mode==="signup" && !J()) ? "Please enter your name." : null; if(n.length>50) return "Please keep your name to 50 characters or fewer."; if(!NAME_RE.test(n)||/[-'.]{2,}|\s[-'.]/.test(n)) return "Names can use letters, spaces, hyphens (-), apostrophes (') and full stops (.) only."; return null; }
   function studioProblem(v){ const n=String(v||"").trim(); if(!n && TRIAL()) return null; if(n.length<2) return "Please enter your studio or business name (at least 2 characters)."; if(n.length>80) return "Please keep the studio name to 80 characters or fewer."; return null; }
   function setFieldErr(input, msg){
     const box=document.getElementById(input.id+"_err"); if(!box) return !msg;

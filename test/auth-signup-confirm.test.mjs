@@ -53,7 +53,7 @@ t('form rules: blur validation, eye toggle, meter, email normalised, name rule',
   assert.match(LOGIN, /id="pwEye"[^>]*aria-label="Show password"/);
   assert.ok(LOGIN.includes('id="pwMeter"'));
   assert.match(LOGIN, /trim\(\)\.toLowerCase\(\)/);
-  assert.ok(LOGIN.includes("NAME_RE=/^[\\p{L} '\\-]{1,50}$/u"));
+  assert.ok(LOGIN.includes("NAME_RE=/^[\\p{L}\\p{M}](?:[\\p{L}\\p{M}\\u200C\\u200D '\\u2019.\\-]*[\\p{L}\\p{M}.\\u200C\\u200D])?$/u"));   // r218: Indian scripts + initials
   assert.match(LOGIN, /<span class="opt">\(optional\)<\/span>/);
   assert.match(LOGIN, /class="req"/);
 });

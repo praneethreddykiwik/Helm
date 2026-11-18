@@ -50,4 +50,12 @@ assert.match(crumb, /"url":"https:\/\/h\/p"/, "URL keys inside arrays lose their
 const ex = JSON.stringify(T.redactEvent({ extra: { arguments: ["a@b.in", ["9876543210"]] } }).extra);
 assert.doesNotMatch(ex, /a@b\.in|9876543210/, ex);
 assert.doesNotMatch(T.redact("failed otp=482913 / OTP: 123456"), /482913|123456/);
+// G (audit 2026-11-18): the local Playwright proof found a bare "token=SECRETTOKEN123" in an error message
+// (not after ? or &) reached the payload. Free-text key=value / key: value / JSON secrets are scrubbed now,
+// while ordinary words after "token" are kept.
+const g = T.redact('Save failed token=SECRETTOKEN123 secret: s3cr3t {"password":"hunter2x"} pwd=abc sig=f00d');
+assert.doesNotMatch(g, /SECRETTOKEN123|s3cr3t|hunter2x|pwd=abc|f00d/, g);
+assert.equal(T.redact("JWT token expired"), "JWT token expired", "plain words after 'token' are left alone");
+assert.equal(T.redact("token=abc"), "token=[REDACTED]");
+assert.equal(T.redact("/p?token=abc"), "/p?token=[REDACTED]", "an already-scrubbed query value is not scrubbed twice");
 console.log("r138-sentry-self-host: ok");
