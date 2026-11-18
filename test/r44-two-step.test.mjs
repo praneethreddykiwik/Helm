@@ -289,7 +289,7 @@ t('C3 Team wiring: fetched with the list for admins only (never blocks it); refr
 });
 t('C4 with r33 (0283): the badge sits next to the Team view (owner / deactivated / Deactivate buttons) in the same table', () => {
   assert.match(CC, /canEdit:isAdmin, twoStep:ucTwoStep,\s*\n\s*q:\$\("#uc_q"\)\.value, filter:ucProfiles\?\$\("#uc_f"\)\.value:"", team, acct:ucAcct, now:Date\.now\(\)\}\);/);
-  assert.match(CC, /let ucRows=\[\], ucProfiles=false, ucTeam=null, ucTwoStep=null;/);
+  assert.match(CC, /let ucRows=\[\], ucProfiles=false, ucTeam=null, ucTwoStep=null(, ucTeamView=null)?;/);
   assert.match(CC, /\$\{roleSel\(u,self\)\}\$\{ts\(u\)\}/);
   assert.match(CC, /\/\/ r33 \(0283\): "Remove" is now Deactivate/);
 });
