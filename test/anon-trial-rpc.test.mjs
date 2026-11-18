@@ -26,6 +26,7 @@ function sandbox({ user = null, session = null } = {}) {
     rpc: async (fn) => { calls.push(fn); return fn === 'my_trial_status' ? { status: 'trial' } : { is_trial_org: true }; },
     rpcMissing: () => false,
     memoRead: (k, ms, f) => f(), swr: (k, f) => f(),
+    afterBoot: (f) => f(),   // R219: no page_bootstrap in flight here (it only waits while one is)
   };
   vm.createContext(ctx);
   vm.runInContext(fnSrc('async function trialSignedIn()') + '\n' + fnSrc('function trialOrgStatus()') + '\nvar sub = { ' + TRIAL_LINE + ' };', ctx);
