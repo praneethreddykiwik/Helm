@@ -11,6 +11,13 @@ Status legend: ☐ = to do · the "Verify" line is how you *know* it worked.
 
 ## 1. Error tracking — Sentry (≈20 min)
 
+> **Status 18 Nov 2026 (audit E): DONE.** The DSN of the owner's Sentry project "helm" is in
+> `public/config.js` (R45, errors only). The SDK is no longer loaded from `browser.sentry-cdn.com`: it is a
+> self-hosted, SRI-pinned copy (`public/vendor/sentry-10.78.0.bundle.min.js`, R138/R140) and `connect-src`
+> allows only the DSN's exact ingest host (`node scripts/gen-csp.mjs`). The steps below are kept for a
+> re-setup; the CDN / version details in them are out of date. Still open: the Sentry alert rule (step 3),
+> the edge `SENTRY_DSN` secret, and a per-deploy `release` (today it only changes when config.js changes).
+
 `telemetry.js` is already wired: it installs global `error` + `unhandledrejection`
 handlers, **auto-loads** the Sentry browser SDK (`browser.sentry-cdn.com/8.35.0`),
 and inits it with a `beforeSend` that **redacts** JWTs, tokens, OTPs, emails and
@@ -44,7 +51,8 @@ Sentry **within a minute**, with PII redacted. `window.HelmTelemetry.enabled ===
 ## 2. Uptime monitoring (≈10 min)
 
 Separate from error tracking — catches *fully down*, not just erroring. Helm exposes
-`GET /api/health` → `{ ok: true }` (HTTP 200), a perfect liveness probe.
+`GET /api/health` → `{ ok: true }` (HTTP 200), a liveness probe for the Vercel site only (it does not
+touch Supabase). Use `https://www.helm.events/api/health` (the bare `helm.events` host answers 307 -> www).
 
 **Activate** (UptimeRobot / Better Uptime / Checkly — all have free tiers):
 1. Monitor **A**: `https://<your-domain>/api/health` — HTTP keyword monitor,
