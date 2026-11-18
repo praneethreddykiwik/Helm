@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (337 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (338 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4445 objects): body 173, bucket 9, col 242, con 415, cron 19, exec 17, fn 1995, idx 528, marker 72, pol 189, polexpr 4, pre 109, pub 5, seq 1, tbl 290, trg 375, view 2.
+-- What is checked (4466 objects): body 173, bucket 9, col 242, con 415, cron 19, exec 17, fn 1997, idx 528, marker 90, pol 189, polexpr 4, pre 110, pub 5, seq 1, tbl 290, trg 375, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -1227,7 +1227,6 @@ with o(m, k, s, n, x) as (values
   ('0049_db_gates', 'fn', 'public', '_a49_close_gate', 'uuid,text'),
   ('0049_db_gates', 'fn', 'public', 'close_event', 'uuid,boolean,text'),
   ('0049_db_gates', 'fn', 'public', '_a49_default_matrix', ''),
-  ('0049_db_gates', 'fn', 'public', '_a49_seed_clean_matrix', 'uuid'),
   ('0049_db_gates', 'col', 'public.helm_plans', 'storage_quota_bytes', null),
   ('0049_db_gates', 'col', 'public.helm_plans', 'uploads_per_hour', null),
   ('0049_db_gates', 'col', 'public.studio_subscriptions', 'storage_quota_bytes', null),
@@ -1239,6 +1238,7 @@ with o(m, k, s, n, x) as (values
   ('0049_db_gates', 'pol', 'storage.objects', 'upload_quota_insert', null),
   ('0049_db_gates', 'pre', null, '__pre0049', null),
   ('0049_db_gates', 'fn', 'public', '_a49_close_blockers', 'uuid'),
+  ('0049_db_gates', 'fn', 'public', '_a49_seed_clean_matrix', 'uuid'),
   ('0050_auth_limits', 'tbl', 'public.auth_rate_hits', null, null),
   ('0050_auth_limits', 'fn', 'public', 'rate_hit', 'text,text,integer,integer'),
   ('0050_auth_limits', 'tbl', 'public.auth_mfa_attempts', null, null),
@@ -2431,7 +2431,6 @@ with o(m, k, s, n, x) as (values
   ('0238_trial_quotes_cap_two', 'trg', 'public.quotes', 'zzzz_tl173_cap', null),
   ('0238_trial_quotes_cap_two', 'trg', 'public.quotes', 'zzzz_tl181_cap', null),
   ('0238_trial_quotes_cap_two', 'trg', 'public.quotes', 'zzzz_tl181_cap_log', null),
-  ('0239_business_area_admin_only', 'body', 'public', '_a49_default_matrix', '|aa908e12a7f8d5314bb53e1e72e340d9'),
   ('0239_business_area_admin_only', 'fn', 'public', 'vendor_payables_summary__pre0239', ''),
   ('0239_business_area_admin_only', 'fn', 'public', 'business_pnl__pre0239', 'date,date'),
   ('0239_business_area_admin_only', 'body', 'public', 'vendor_payables_summary', '|3ea170da458eb6c7b94608fe3e5f0fe1'),
@@ -4469,7 +4468,29 @@ with o(m, k, s, n, x) as (values
   ('0384_r206_api_timeouts', 'idx', 'public.ix_audit_log_org_at_id_0384', null, null),
   ('0384_r206_api_timeouts', 'pre', null, '__pre0384', null),
   ('0384_r206_api_timeouts', 'marker', 'public', 'event_timesheet', 'uuid|r206-0384'),
-  ('0384_r206_api_timeouts', 'exec', 'public', 'event_timesheet', 'uuid|authenticated')
+  ('0384_r206_api_timeouts', 'exec', 'public', 'event_timesheet', 'uuid|authenticated'),
+  ('0385_r208_task_assign_access', 'fn', 'public', '_r385_can_assign', ''),
+  ('0385_r208_task_assign_access', 'fn', 'public', '_a49_seed_clean_matrix__pre0385', 'uuid'),
+  ('0385_r208_task_assign_access', 'body', 'public', '_a49_seed_clean_matrix', 'uuid|b74d6607e2d8a0dbfcc936bb8dac276b'),
+  ('0385_r208_task_assign_access', 'pre', null, '__pre0385', null),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'assign_tasks', 'uuid,text,text[],uuid,text,text|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'assign_tasks_vendor', 'uuid,text,text[],uuid|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', '_r311_reassign_task', 'uuid,uuid,text,text|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'reassign_task__pre0311', 'uuid,uuid,text,text|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'cancel_task', 'uuid,text|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'set_task_schedule', 'uuid,timestamp with time zone,timestamp with time zone,uuid|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'set_task_special', 'uuid,boolean,integer|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'set_task_reminders', 'uuid,integer[]|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'set_task_reminder_times', 'uuid,timestamp with time zone[]|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'run_task_triggers', 'uuid|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'run_task_reminders', 'uuid|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'staff_email_send', 'uuid,boolean|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'staff_email_hold', 'uuid,uuid|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'staff_whatsapp_send', 'uuid|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'staff_link_get', 'uuid|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', 'work_links_for_event', 'uuid|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', '_r300_area_ok', 'text|r208-0385'),
+  ('0385_r208_task_assign_access', 'marker', 'public', '_r385_can_assign', '|r208-0385')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4808,7 +4829,8 @@ mig(ord, m, ov, note) as (values
   (334, '0379_r202_signin_help', null, 'Users & invites sign-in help: Send sign-in link + New temporary password (team_signin_help log), team_account_status + signin_link_at / can_new_temp, checked by the r202-0379 markers'),
   (335, '0381_r203_test_studio_two_step', null, 'test-studio two-step switch: new private tables studio_test_mode + studio_test_mode_log, new hq_set_test_studio / my_test_studio / _r381_two_step_exempt, _r285_step_up re-issued in place, checked by the r203-0381 marker'),
   (336, '0383_r205_signin_notice', null, 'teammate sign-in notices: triggers zz_r383_signin_notice (auth.users, after last_sign_in_at) + zz_r383_join_notice (profiles), tables signin_notice_settings / signin_notice_log, settings + fallback ping; _r23_visible, bell_feed, notification_catalog, notification_type_of and notify_default wrapped once (old bodies kept as __pre0383), checked by the r205-0383 marker (the wrappers name the r190-0373 / r186-0369 / r24-ci-0270 / r163-0357 / r163-0358 / r156-0354 bodies they keep, so those markers still hold). Only the auth.users trigger missing = this project refused triggers on auth.users: the app fallback signin_notice_ping is used, nothing to paste'),
-  (337, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes')
+  (337, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes'),
+  (338, '0385_r208_task_assign_access', null, 'Assign & send tasks: new server-only _r385_can_assign; the Staff-edit check inside 16 task calls and the _r300_area_ok area list are patched in place from the live body (dynamic SQL the parser cannot see), checked by the r208-0385 marker; _a49_seed_clean_matrix wrapped once (old body kept as __pre0385) to seed the tasks row for new studios')
 ),
 env as (
   select

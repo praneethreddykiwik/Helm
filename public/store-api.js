@@ -1815,6 +1815,9 @@ window.HelmUrl = HelmUrl;
     // 0095: photo-realistic renders (builder ✦ Render). edit = may make photos (also needs quotes edit)
     { key: "photo_render", label: "Photo renders",    icon: "✦", page: null,             group: "Workspace" },
     { key: "staff",      label: "Staff",             icon: "👷", page: "staff.html",     group: "Resources" },
+    // R208 (0385): giving out work on events (Tasks & crew + the Event-day monitor Nudge) - ONE switch (view + edit).
+    // No row yet = the role's "Staff - Can change" switch (defaultFrom, like the server's _r385_can_assign).
+    { key: "tasks",      label: "Assign & send tasks", icon: "🛠", page: null,            group: "Resources", defaultFrom: "staff", permission: true },
     { key: "inventory",  label: "Inventory",         icon: "📦", page: "inventory.html", group: "Resources" },
     { key: "vendors",    label: "Vendors",           icon: "🤝", page: "vendors.html",   group: "Resources" },
     { key: "calendar",   label: "Calendar",          icon: "📅", page: "calendar.html",  group: "Resources" },
@@ -2353,6 +2356,22 @@ window.HelmUrl = HelmUrl;
         return !!(acc.map[area] && acc.map[area].edit);
       }
       return EDIT_ROLES.includes(r);
+    },
+    // R208 (0385): may this person give out work on events (assign, reassign, times, reminders, special, cancel, e-mail /
+    // WhatsApp, task links)? Mirrors the server's _r385_can_assign(): no 'tasks' row for the role = Staff - Can change
+    // (today's rule); a saved row decides and also needs Staff - Can see; never a client / crew login.
+    async canAssignTasks() {
+      if (mode !== "supabase") return true;
+      if (!currentUser) return false;
+      const [r, ro] = await Promise.all([getRole(), studioReadOnly()]);
+      if (ro) return false;
+      if (r === "admin") return true;
+      const acc = await loadAccess();
+      if (acc.unknown) return false;
+      if (!acc.map) return EDIT_ROLES.includes(r);
+      const row = acc.map.tasks, staff = acc.map.staff;
+      if (!row) return !!(staff && staff.edit);
+      return !["client", "crew", "worker"].includes(r) && !!(row.view && row.edit) && !!(staff && staff.view);
     },
     areas: () => AREAS.slice(),
     // Force a fresh read of the access matrix (drop the in-memory + sessionStorage
