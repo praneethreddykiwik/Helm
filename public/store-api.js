@@ -1071,6 +1071,11 @@ window.HelmUrl = HelmUrl;
       if (isMissingFn(error)) { const v = { missing: true }; sessSet(PROFILE_SESS_KEY, uid, v); return v; }
       throw error;
     }
+    return profileStatusFrom(uid, data);
+  }
+  // R217: the answer of my_profile_status() -> the gate's value (+ the per-tab cache); shared by the call above and
+  // page_bootstrap() (same answer, same caching rule)
+  function profileStatusFrom(uid, data) {
     if (!data || typeof data !== "object") return null;
     const v = { complete: data.complete === true, required: data.required === true, nudge: data.nudge === true };
     if (!v.required) sessSet(PROFILE_SESS_KEY, uid, v); else { try { sessionStorage.removeItem(PROFILE_SESS_KEY); } catch (e) {} }
@@ -1126,6 +1131,10 @@ window.HelmUrl = HelmUrl;
       if (isMissingFn(error)) { const v = { missing: true }; sessSet(CHECKOUT_SESS_KEY, uid, v); return v; }
       throw error;
     }
+    return checkoutStatusFrom(uid, data);
+  }
+  // R217: the answer of my_checkout_status() -> the gate's value (+ the per-tab cache); shared with page_bootstrap()
+  function checkoutStatusFrom(uid, data) {
     if (!data || typeof data !== "object") return null;
     const v = { required: data.required === true, is_admin: data.is_admin === true, has_subscription: data.has_subscription === true,
       reason: typeof data.reason === "string" ? data.reason : "", pending_payment: data.pending_payment === true };
@@ -1138,6 +1147,117 @@ window.HelmUrl = HelmUrl;
   }
   function checkoutUrl(next) {
     return "/" + CHECKOUT_PAGE + "?next=" + encodeURIComponent(safeNext(next));
+  }
+  /* ---- R217 (0389): page_bootstrap() - the startup reads of a signed-in page in ONE request ----
+     A protected page used to open with these separate requests (each one a trip to the database and back, about
+     250 ms from India; role + access switches were two trips in a row):
+       current_org_id, my_profile_status, my_checkout_status, password_change_required (the sign-in gate),
+       profiles?select=role (my role), role_access?role=eq.<role> (what my role may see / change),
+       my_trial_org + my_trial_status + my_demo_status + my_subscription + my_test_studio (trial strip, read-only
+       check, demo card, plan banner, test-studio banner), get_pricing_config + get_item_rate_cards (phone country / tax,
+       item prices - every page reads them at start).
+     page_bootstrap() returns each of those answers from the SAME server functions / rows. Its answers are put into the
+     SAME per-tab caches those calls fill (same keys, same TTLs, same "never cache a must-do-this-step answer" rules),
+     so every existing helper (orgIdStrict, fetchProfileStatus, evaluateGate, getRole, loadAccess, canView,
+     canEditArea, trialOrg.status, subscription.trial / mine, demo.status, mfa.testStudio, config.getPricing / itemRates)
+     answers exactly as before,
+     only without its own request. Nothing is removed: a part that is missing / failed, a page_bootstrap that is not
+     installed yet (PGRST202 / 404: not asked again in this tab for 10 minutes), errors or does not answer within
+     BOOT_TIMEOUT_MS = the old separate calls, unchanged. A tab whose startup answers are all still fresh asks nothing
+     (as before). Display / routing caches only: the database (RLS, has_area, every RPC's own check) still decides
+     every read and write. */
+  const BOOT_RPC = "page_bootstrap", BOOT_TIMEOUT_MS = 4000, BOOT_MISSING_KEY = "bp_boot_missing", BOOT_MISSING_TTL = 10 * 60000;
+  const BOOT_PEEK_TTL = 15000;   // my_subscription has no cache of its own: the startup answer serves this page for 15 s
+  let bootAns = null;            // { uid, parts } - this page load's page_bootstrap() answer
+  function bootHas(name) { return !!(bootAns && currentUser && bootAns.uid === currentUser.id && Object.prototype.hasOwnProperty.call(bootAns.parts, name)); }
+  function bootVal(name) { return bootHas(name) ? bootAns.parts[name] : undefined; }
+  // pure (exported for tests): every startup answer is already fresh in this tab -> false (ask nothing, as before)
+  function bootNeeded(uid, store) {
+    const ss = store || sessionStorage;
+    const ent = (k) => { try { const raw = ss.getItem(k); if (!raw) return null; const o = JSON.parse(raw); const age = Date.now() - o.ts;
+      if (!(age >= 0) || age > SESS_STALE || !uid || o.uid !== uid) return null; return { val: o.val, fresh: age <= SESS_TTL }; } catch (e) { return null; } };
+    const fresh = (k) => { const e = ent(k); return !!(e && e.val && e.fresh); };
+    const any = (k) => { const e = ent(k); return !!(e && e.val && typeof e.val === "object"); };   // fetchProfile / CheckoutStatus use any age
+    let pw = null; try { pw = ss.getItem(PW_OK_KEY); } catch (e) {}
+    return !(fresh("bp_sess_org") && any(PROFILE_SESS_KEY) && any(CHECKOUT_SESS_KEY) && pw === uid && fresh("bp_sess_role") && fresh("bp_sess_access"));
+  }
+  // pure (exported for tests): a page_bootstrap() answer -> its parts, or null when it can't be used
+  function bootParse(data) {
+    if (!data || typeof data !== "object" || data.v !== 1) return null;
+    const p = data.parts;
+    return p && typeof p === "object" && !Array.isArray(p) ? p : null;
+  }
+  // pure (exported for tests): the role_access rows -> the access cache value loadAccess() builds from the same rows
+  function bootAccess(role, rows) {
+    if (!Array.isArray(rows)) return null;
+    const map = {};
+    rows.forEach((row) => { if (row && typeof row.area === "string") map[row.area] = { view: !!row.can_view, edit: !!row.can_edit }; });
+    return { role: role, map: map };
+  }
+  function bootMissingNoted() { try { const t = Number(sessionStorage.getItem(BOOT_MISSING_KEY)) || 0; return t > 0 && Date.now() - t < BOOT_MISSING_TTL; } catch (e) { return false; } }
+  function memoPut(key, val) { try { if (!_memo) _memo = new Map(); _memo.set(key, { t: Date.now(), uid: currentUser.id, p: Promise.resolve(val) }); } catch (e) {} }
+  function memoPeek(key, ttl) {
+    const hit = _memo && currentUser ? _memo.get(key) : null;
+    return hit && hit.uid === currentUser.id && Date.now() - hit.t < ttl ? hit.p.then(memoCopy) : null;
+  }
+  async function pageBootstrap() {
+    bootAns = null;
+    if (!supa || !currentUser || mode !== "supabase") return null;
+    const uid = currentUser.id;
+    if (!bootNeeded(uid) || bootMissingNoted()) return null;
+    let timer = null;
+    try {
+      const late = new Promise((res) => { timer = setTimeout(() => res({ data: null, error: { code: "boot_timeout" } }), BOOT_TIMEOUT_MS); });
+      const { data, error } = await Promise.race([Promise.resolve().then(() => supa.rpc(BOOT_RPC)), late]);
+      if (error) {
+        if (isMissingFn(error) || Number(error.status) === 404) { try { sessionStorage.setItem(BOOT_MISSING_KEY, String(Date.now())); } catch (e) {} }
+        return null;
+      }
+      const parts = bootParse(data);
+      if (!parts || !currentUser || currentUser.id !== uid) return null;
+      // the studio changed since this tab cached it: drop the tab's caches first (what the background re-check does)
+      if (Object.prototype.hasOwnProperty.call(parts, "current_org_id")) {
+        const had = sessEntry("bp_sess_org", uid);
+        if (had && had.val && had.val !== parts.current_org_id) sessClear();
+      }
+      bootAns = { uid: uid, parts: parts };
+      bootFillShared(uid);
+      return bootAns;
+    } catch (e) { bootAns = null; return null; }
+    finally { if (timer) clearTimeout(timer); }
+  }
+  // the studio id (fetchOrgId's rule: only a found id is cached) -> null = no studio (routeNoStudio, as before)
+  function bootOrg(uid) { const o = bootVal("current_org_id") || null; if (o) sessSet("bp_sess_org", uid, o); return o; }
+  // the temp-password answer (evaluateGate's rule: "no" is remembered for the tab; "yes" is asked again by evaluateGate).
+  // Only inside a studio (current_org_id() is null while two-step / a temporary password is pending) and never while a
+  // password-reset link waits for its new password.
+  function bootFillPw(uid) {
+    if (bootVal("password_change_required") === false && bootVal("current_org_id") && lsGet(RECOVERY_KEY) !== uid) {
+      try { sessionStorage.setItem(PW_OK_KEY, uid); } catch (e) {}
+    }
+  }
+  // role + access switches (getRole / loadAccess caches) - only after the sign-in gate passed, only inside a studio
+  function bootFillAccess(uid) {
+    if (!bootHas("profile_role") || !bootHas("role_access") || !bootVal("current_org_id")) return;
+    const r = bootVal("profile_role") || "client";   // getRole(): (data && data.role) || "client"
+    const acc = bootAccess(r, bootVal("role_access"));
+    if (!acc) return;
+    sessSet("bp_sess_role", uid, r);
+    sessSet("bp_sess_access", uid, acc);
+  }
+  // trial strip / read-only check / demo card / pricing config / rate cards (per-tab swr, keyed by user + studio),
+  // test-studio banner + plan (memo)
+  function bootFillShared(uid) {
+    const oid = bootVal("current_org_id");
+    if (!oid) return;   // swr keeps nothing without a studio (as before)
+    const now = Date.now();
+    [["my_trial_org", "trialorg"], ["my_trial_status", "trial"], ["my_demo_status", "demo"], ["get_pricing_config", "pricing"], ["get_item_rate_cards", "rates"]].forEach((x) => {
+      if (!bootHas(x[0])) return;
+      const v = bootVal(x[0]);
+      try { sessionStorage.setItem(SWR_PREFIX + x[1], JSON.stringify({ ts: now, uid: uid, oid: oid, val: v === undefined ? null : v })); } catch (e) {}
+    });
+    if (bootHas("my_test_studio")) memoPut("mfa.testStudio", bootVal("my_test_studio") === true);
+    if (bootHas("my_subscription")) memoPut("boot:my_subscription", bootVal("my_subscription"));
   }
   async function runPageGate() {
     if (!PAGE_GATED) return;
@@ -1340,7 +1460,7 @@ window.HelmUrl = HelmUrl;
   // la-fetch (audit 25): the list below also names the STABLE (read-only) RPCs every page asks while it
   // boots (trial / upgrade status, seat use, prefs, shelf list, mentions, PIN status). Before, each one was
   // treated as a write and dropped every shared read of the page, so the page's own reads ran again.
-  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_test_studio|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
+  const READ_RPCS = /\/rest\/v1\/rpc\/(page_bootstrap|current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_test_studio|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
   const readCache = new Map();
   function hdrOf(init, input, name) {
     try {
@@ -2100,13 +2220,18 @@ window.HelmUrl = HelmUrl;
             // USED after the step check passed — the page still shows only after both).
             if (currentUser && gatePage()) {
               if (PAGE_GATED) {
-                orgEarly = orgIdStrict(); orgEarly.catch(() => {});
-                profEarly = fetchProfileStatus(false); profEarly.catch(() => {});   // 0041 profile step, same round-trip
-                coEarly = fetchCheckoutStatus(false); coEarly.catch(() => {});      // 0056 checkout step, same round-trip
+                // R217 (0389): one request for the startup reads; whatever it did not answer is asked below the old way
+                await pageBootstrap();
+                const bu = currentUser && currentUser.id;
+                orgEarly = bootHas("current_org_id") ? Promise.resolve(bootOrg(bu)) : orgIdStrict(); orgEarly.catch(() => {});
+                profEarly = bootHas("my_profile_status") ? Promise.resolve(profileStatusFrom(bu, bootVal("my_profile_status"))) : fetchProfileStatus(false); profEarly.catch(() => {});   // 0041 profile step, same round-trip
+                coEarly = bootHas("my_checkout_status") ? Promise.resolve(checkoutStatusFrom(bu, bootVal("my_checkout_status"))) : fetchCheckoutStatus(false); coEarly.catch(() => {});      // 0056 checkout step, same round-trip
+                if (bu) bootFillPw(bu);
               }
               await evaluateGate();
               // role + access matrix are needed by nearly every page right after it
               // shows: start them now (cached per tab; failures are retried by the page)
+              if (PAGE_GATED && !pendingStep && currentUser) bootFillAccess(currentUser.id);   // R217: from page_bootstrap when it answered
               if (PAGE_GATED && !pendingStep) loadAccess().catch(() => {});
             }
             mode = "supabase";
@@ -2292,6 +2417,8 @@ window.HelmUrl = HelmUrl;
     // true; otherwise resolve false (caller shows onboarding). Never creates anything.
     operatorToHq: () => operatorToHq(),
     role: getRole,
+    // R217 (0389): the pure parts of the one-request startup read (unit tests); used() = this page took its startup answers from it
+    _bootstrap: { needed: (uid, store) => bootNeeded(uid, store), parse: bootParse, access: bootAccess, used: () => !!bootAns },
     // Synchronous, cache-only role (null if not loaded yet / unknown). Never fetches.
     cachedRole: () => roleCache || (currentUser ? sessGet("bp_sess_role", currentUser.id) : null),
     // Route an error through the session-expiry check. Resolves true if a redirect started.
@@ -11862,7 +11989,7 @@ window.HelmUrl = HelmUrl;
     // studio admins also get plan, period and payments. invoice(): admins, own studio only.
     checkout,
     subscription: {
-      mine: () => (supa ? rpc("my_subscription").catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+      mine: () => (supa ? (memoPeek("boot:my_subscription", BOOT_PEEK_TTL) || rpc("my_subscription").catch((e) => { if (rpcMissing(e)) return null; throw e; })) : Promise.resolve(null)),   // R217: the startup answer for 15 s
       invoice: (id) => rpc("my_invoice", { p_payment_id: id }),
       account: () => (supa ? rpc("my_studio_account").catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
       updateAccount: (patch) => rpc("my_studio_account_update", { p_account: patch || {} }),
