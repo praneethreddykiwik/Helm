@@ -56,6 +56,11 @@ run "audit-p2-0156"      "AUDIT-P2-0156: ALL PASS \(77/77\)" psql -q -f tests/db
 run "r23-cancel-links-0260" "R23-CANCEL-LINKS-0260: ALL PASS \(40/40\)" psql -q -f tests/db/r23-cancel-links-0260.sql
 # r188 (0371): crew settings + inbox settings each read by their own function - the prod bug reproduced (callers on _r23_cfg with the 0266 body live: day off saved, staff link lists none, crew switches null), then fixed (0371 twice): days off listed, availability / self check-in switches respected, saved crew settings come back, inbox settings save + read, an old 0265 / 0266 body put back breaks neither, owner / grants / definer / search_path kept; rolled back. Early: later suites commit grant changes (anon loses the crew link RPCs) that 16b probes
 run "r188-r23-cfg-split-0371" "R188-R23-CFG-0371: ALL PASS \(19/19\)" psql -q -f tests/db/r188-r23-cfg-split-0371.sql
+# r218 (audit C, 0390): two vendor payments with the SAME key at the same moment = one payout + "already recorded" (before: a duplicate-key error for a payment that was saved)
+run "r218-vendor-pay-race-0390" "R218-VENDOR-PAY-RACE \(vendor_bill_pay\): PASS" bash tests/db/r218-vendor-pay-same-key-race.sh vendor_bill_pay
+run "r218-vendor-payout-race-0390" "R218-VENDOR-PAY-RACE \(record_vendor_payout\): PASS" bash tests/db/r218-vendor-pay-same-key-race.sh record_vendor_payout
+# audit B (0391) EARLY (later suites re-apply 0032, which narrows the organizations mass-assign guard back to plan / created_by): whole-database access-control invariants - RLS on every table, no bare-true write policy, studio tables scoped, anon holds no table privilege, no dead signed-in privilege (0391 revokes the last), secret tables closed + hashes only, every definer pins search_path, anon runs only the allow-listed public / token endpoints, auth hooks for supabase_auth_admin only, views security_invoker, cross-studio / bare sign-up / self-escalation refused; 0391 applied twice, rolled back
+run "b-auth-invariants-0391" "B-AUTH-INVARIANTS-0391: ALL PASS \(19/19\)" psql -q -f tests/db/b-auth-invariants-0391.sql
 run "pending-fixes"      "PENDING-FIXES: ALL PASS \(30/30\)" psql -q -f tests/db/pending-fixes.sql
 run "inv-fixes"          "INV-FIXES: ALL PASS \(24/24\)" psql -q -f tests/db/inv-fixes.sql
 run "checkout-shortage-0105" "CHECKOUT-SHORTAGE-0105: ALL PASS \(24/24\)" psql -q -f tests/db/checkout-shortage-0105.sql
@@ -429,6 +434,8 @@ run "r212-money-speed-0387" "R212-MONEY-SPEED-0387: ALL PASS \(12/12\)" psql -q 
 run "r213-bell-speed-0388" "R213-BELL-SPEED-0388: ALL PASS \(14/14\)" psql -q -f tests/db/r213-bell-speed-0388.sql
 # r217 (0389): page_bootstrap() = the old separate startup calls for every role (admin, manager, planner, coordinator, supervisor, operations, quality, designer, sales, crew, worker, client) in both studios, a planner with custom switches, another studio never gets this studio's rows / settings, deactivated member + must-change-password = the old calls, anon refused, a user-less token refused, read-only (no transaction id), definer + empty search_path, re-applying 0389 twice changes no other function; rolled back
 run "r217-page-bootstrap-0389" "R217-PAGE-BOOTSTRAP-0389: ALL PASS \(34/34\)" psql -q -f tests/db/r217-page-bootstrap-0389.sql
+# audit D (0393): Leads / Quotes newest-first list indexes - a small studio next to 200 busy ones: the old ordered path walks every studio (10,000+ rows dropped), the new index reads the page only; same ids in the same order on every path; isolation kept; rolled back
+run "audit-d-list-indexes-0393" "AUDIT-D-LIST-INDEXES-0393: ALL PASS \(11/11\)" psql -q -f tests/db/audit-d-list-indexes-0393.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
 run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f tests/db/r136-audit-via-0340.sql
 # r139 (0341): per-network limits on the approval link (240), client portal (240) and invitation (600) per 10 minutes - same answers as before, call N+1 from one network refused with a clean 22023 sentence, other networks / no address / read-only calls never blocked, kept __pre0341 copies with no app privilege, crew links untouched (0154), _tl173_trial_locked closed to anon; re-applies itself twice, rolled back
@@ -459,6 +466,8 @@ run "r154e-suggestion-box-0351" "R154E-SUGGESTION-BOX-0351: ALL PASS \(50/50\)" 
 run "r154f-email-probe-0352" "R154F-EMAIL-PROBE-0352: ALL PASS \(21/21\)" psql -q -f tests/db/r154f-email-probe-0352.sql
 # r156 (0354): WhatsApp templates in the background - idempotent enqueue, claim within the hourly Meta budget (leased rows never twice), retry with a growing wait / 8 tries / clean Meta error (no link, no token) / rate-limit pause, sync (category change, older templates), ONE bell notice per round (admins only), Fix and resubmit (admin, own studio, rejected / failed only), row security (admins read own rows, nobody writes), health notice once per set, sender variant, cron kick without secrets; re-applies itself twice, rolled back
 run "r156-wa-template-jobs-0354" "R156-WA-TEMPLATE-JOBS-0354: ALL PASS \(48/48\)" psql -q -f tests/db/r156-wa-template-jobs-0354.sql
+# audit E (0394): menu packages write to the Audit log through the shared tg_audit trigger - add / price change / no-change save / other studio sees nothing / re-apply; rolled back
+run "e-menu-audit-0394" "E-MENU-AUDIT-0394: ALL PASS \(10/10\)" psql -q -f tests/db/e-menu-audit-0394.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

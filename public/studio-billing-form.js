@@ -9,6 +9,7 @@
  *    value that is not in the list stays selected as "(as saved)" so nothing is lost.
  *  - Errors are shown under the field itself (red border, message, focus + scroll),
  *    not at the top of the card.
+ *  - An error clears when the field changes (input, change, or leaving it with a new value).
  *  - The "still missing" list is recomputed from what is on screen / what was saved.
  * Pure helpers work in Node (tests); the DOM helpers use createElement/textContent only.
  */
@@ -82,9 +83,13 @@
       el.setAttribute("aria-invalid", "true"); b.classList.add("is-invalid");
       var d = (el.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
       if (d.indexOf(id) < 0) d.push(id); el.setAttribute("aria-describedby", d.join(" "));
+      el.__ferrVal = el.value;
       if (!el.__ferrBound) { el.__ferrBound = true;
         var clr = function () { if (el.getAttribute("aria-invalid") === "true") api.clearError(el); };
-        el.addEventListener("input", clr); el.addEventListener("change", clr); }
+        el.addEventListener("input", clr); el.addEventListener("change", clr);
+        // F-audit: some phone autofill fills a field without input/change - leaving the field with a
+        // different value than when the error was shown also clears it (Save re-checks everything)
+        el.addEventListener("blur", function () { if (el.getAttribute("aria-invalid") === "true" && el.value !== el.__ferrVal) api.clearError(el); }); }
     };
     // errs: [{el, msg}] -> mark every field, focus + scroll the first one in page order
     api.showErrors = function (errs) {

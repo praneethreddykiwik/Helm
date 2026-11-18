@@ -27,7 +27,7 @@ t('B1 one shared form-metadata source: tax ID / region / postal / phone per coun
   assert.equal(H.formMeta('GB', 'VAT number').taxIdLabel, 'VAT number');
   const ob = read('public/onboarding.js');
   // a country change updates the form in place (no full re-render of the select)
-  assert.equal((ob.match(/bill = \{ values: vals, errors: \{\} \}; applyBillCountry\(ev\.target\.value\); return;/g) || []).length, 2);
+  assert.equal((ob.match(/bill = \{ values: vals, errors: \{\}, locOwn: bill\.locOwn \}; applyBillCountry\(ev\.target\.value\); return;/g) || []).length, 2);
   assert.match(ob, /function applyBillCountry\(cc\)/); assert.match(ob, /hp && !hp\.national\(\)\) hp\.setCountry\(cc\)/);
   assert.match(ob, /data-country="\$\{esc\(cc\)\}"/); assert.match(ob, /list="ob_b_state_list"/);
   assert.match(read('public/control.html'), /HC\.formMeta\(r\.country\)/);

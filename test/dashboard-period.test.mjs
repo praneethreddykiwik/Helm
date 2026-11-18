@@ -34,7 +34,7 @@ ok(dl.length > 50 && !/hd-delta-new|hd-delta-same|"new"|no change/.test(js.slice
 ok(/dpTile\(tiles\[0\], "up", true/.test(js) && /dpTile\(tiles\[1\], "conf"/.test(js) && /dpTile\(tiles\[2\], "quotes"/.test(js) && /dpTile\(tiles\[3\], "leads"/.test(js), "all four money-role tiles follow the period");
 ok(!/hd-kpi-per/.test(js) && !/hd-kpi-per/.test(css), "per-tile dropdowns removed");
 ok(/el\("div", "hd-per-seg"\)/.test(js) && /root\.appendChild\(perRow\)/.test(js) && /perRow\.hidden = false/.test(js) && /dpDraws\.forEach\(function \(f\) \{ f\(dpCur\); \}\)/.test(js), "one segmented control above the row re-renders every tile");
-ok(/b\.setAttribute\("aria-pressed"/.test(js) && /b\.setAttribute\("aria-label", dpLabel\(o\[0\], false, false\)\)/.test(js), "buttons expose pressed state + full label");
+ok(/b\.setAttribute\("aria-pressed"/.test(js) && /b\.setAttribute\("aria-label", DP_SHORT\[o\[0\]\] \+ ", " \+ dpLabel\(o\[0\], false, false\)\)/.test(js), "buttons expose pressed state + full label");
 const kp = js.slice(js.indexOf("var dpUid"), js.indexOf("// task-centric roles"));
 ok(!/HelmMoney|data-money|\.total\b/.test(kp), "period tiles show counts only (no amounts to hide)");
 ok(/\.hd-kpi-l \{ min-width: 0; white-space: normal/.test(css), "tile labels wrap instead of truncating");

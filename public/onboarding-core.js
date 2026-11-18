@@ -549,6 +549,9 @@
     data.pin = india ? data.pin.replace(/\s+/g, "") : data.pin.trim().toUpperCase();
     // UAE audit: the UAE has no postal codes - a P.O. box is optional there (digits only, up to 6)
     const ae = data.country === "AE";
+    // F-audit: the primary location follows the City unless the studio typed a different one -
+    // an empty location never blocks the save while a City is filled in.
+    if (!data.location && data.city) data.location = data.city.slice(0, 80);
     BILLING_FIELDS.forEach((f) => { if (f.required && !data[f.key] && !(ae && f.key === "pin")) errors[f.key] = f.label + " is required."; });
     if (data.legal_name && !/[A-Za-z0-9]/.test(data.legal_name)) errors.legal_name = "Enter a real business name.";
     if (data.pin && india && !PIN_RE.test(data.pin)) errors.pin = "PIN code must be 6 digits (not starting with 0).";
@@ -569,6 +572,10 @@
     return { country: countryCode(bl.country), legal_name: s(bl.legal_name) || "", line1: s(bl.line1), line2: s(bl.line2), city: s(bl.city), state: s(bl.state), pin: pinText(bl.pin),
       phone: s(b.phone), location: s(o.location), gstin: s(o.gst_number) };
   }
+  // F-audit: "Primary location / city" is linked to City (auto-filled) when it is empty or the same
+  // city; a different saved value is the studio's own choice and is shown + kept as it is.
+  const locKey = (v) => String(v == null ? "" : v).toLowerCase().replace(/[^a-z0-9\u0080-\uffff]+/g, "");
+  function locationLinked(location, city) { const l = locKey(location); return !l || l === locKey(city); }
   // fields still missing on an existing studio (labels) — [] when complete
   function billingMissing(o) {
     const v = validateBilling(billingFromOrg(o)); return BILLING_FIELDS.filter((f) => v.errors[f.key]).map((f) => f.label);
@@ -584,7 +591,7 @@
   }
 
   const api = {
-    GSTIN_RE, PIN_RE, TAX_IDS, pinText, taxIdOf, countryCode, BILLING_FIELDS, validateBilling, billingFromOrg, billingMissing, billingPatch,
+    GSTIN_RE, PIN_RE, TAX_IDS, pinText, taxIdOf, countryCode, BILLING_FIELDS, validateBilling, billingFromOrg, locationLinked, billingMissing, billingPatch,
     MAX_ROWS, CHUNK, MAX_FILE_BYTES, MAX_PRICE, MAX_QTY, KINDS,
     cleanText, neutralise, safeText, normKey, parseNumber, decodeBytes, parseCSV, detectDelimiter, csvEscapeCell, templateCSV,
     mapHeaders, sanitizeMapping, validateRow, buildPreview, summarise, setAction, tableFromManual,

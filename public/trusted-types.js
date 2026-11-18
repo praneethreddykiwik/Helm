@@ -60,6 +60,9 @@
   function urlOk(name, v) {
     var s = String(v).replace(/[\u0000- \u007f-\u009f]/g, '');
     if (/^data:/i.test(s)) return name !== 'href' && SAFE_DATA_IMG.test(s);
+    // audit 2026-11-18 (A): "//host", "/\host", "\\host" and "\/host" all resolve to ANOTHER site (browsers read "\" as "/"
+    // in http(s) URLs), so a relative-looking link can never leave Helm. No Helm markup uses protocol-relative URLs.
+    if (/^[\\\/][\\\/]/.test(s)) return false;
     return SAFE_URL.test(s) && !/^(?:javascript|vbscript):/i.test(s);
   }
 

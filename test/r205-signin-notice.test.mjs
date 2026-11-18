@@ -163,7 +163,7 @@ await t('MANIFEST, checker override, run-all (+ quiet switch), release lists, CH
 await t('asset pins: store-api v376 + page-tours v56 on every page that loads them', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const h = read('public/' + f);
-    const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '379', f);
+    const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '381', f);
     const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '57', f);
   }
 });
