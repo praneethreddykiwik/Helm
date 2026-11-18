@@ -8,6 +8,7 @@
          key: active | never | setup | off | unknown     (acct = the 0378 row for u, or null on a database without 0378)
      HelmTeamStatus.invite(inv, now)      -> { key: invited | expired, tone, label, detail, title }
      HelmTeamStatus.signInHelp(state, acct, { self, isAdmin, canEdit, deactivated }) -> R202: Send sign-in link / New temporary password
+     HelmTeamStatus.rowActions(state, acct, { invite, self, owner, deactivated, canEdit, isAdmin }) -> R211: the row's buttons, in order
      HelmTeamStatus.profileHint(u, priv)  -> "Profile: mobile number missing" | "" (complete)
      HelmTeamStatus.ago(iso, now) / until(iso, now) / when(iso, time)
      HelmTeamStatus.matches(state, filter) -> does this row pass the "Show" filter
@@ -92,6 +93,37 @@
     return { row: never, link: true, temp: !!(o.isAdmin && a.can_new_temp === true), reactivateFirst: false, linkSentAt: a.signin_link_at || null,
       why: never ? "E-mails them a secure link to choose their own password (the same e-mail as “Forgot password?”). Once every 10 minutes."
                  : "E-mails them a secure link to set a new password (the same e-mail as “Forgot password?”). Once every 10 minutes." };
+  }
+
+  /* R211 (owner 18 Nov 2026): the buttons on ONE row of the members table, in order - every person who is not active yet
+     gets ONE obvious next step first (primary). Pure: the page draws them, the database still decides every action.
+     state = member() / invite() answer, acct = the 0378/0379 row (or null), o = { invite, self, owner, deactivated, canEdit, isAdmin }
+     -> [{ key, primary? }] with key one of:
+        resend / copy / cancel   an invitation: Resend invite, Copy link, Cancel invite (an expired link: no Copy link)
+        link                     Send sign-in link (never signed in / no password yet; admins + Users edit, never yourself)
+        react / work             Reactivate (the right next step shows straight after) / Open work - a deactivated person
+        view / edit              View details (New temporary password lives there) / Edit profile
+        remove                   Remove access = deactivate someone who never signed in (nothing is deleted)
+        deactivate               Deactivate someone who has signed in
+     Signed in normally -> no invite / sign-in actions at all. */
+  function rowActions(state, acct, o) {
+    o = o || {}; var k = state && state.key, out = [];
+    var add = function (key, primary) { out.push(primary ? { key: key, primary: true } : { key: key }); };
+    if (o.invite) {
+      if (!o.canEdit) return out;
+      add("resend", true); if (k !== "expired") add("copy"); add("cancel"); add("view");
+      return out;
+    }
+    if (k === "off" || o.deactivated) {
+      if (o.canEdit && !o.self && !o.owner) { add("react", true); add("work"); }
+      add("view"); if (o.canEdit) add("edit");
+      return out;
+    }
+    var help = signInHelp(state, acct, { self: o.self, isAdmin: o.isAdmin, canEdit: o.canEdit, deactivated: false });
+    if (help.row) add("link", true);
+    add("view"); if (o.canEdit) add("edit");
+    if (o.canEdit && !o.self && !o.owner) add(help.row ? "remove" : "deactivate");   // view-only: no Deactivate / Remove access
+    return out;
   }
 
   /* an open invitation (0378 invites[] row, or an invitations.list() row) */
@@ -222,7 +254,7 @@
     return "";
   }
 
-  var api = { roleSaved: roleSaved, roleError: roleError, member: member, invite: invite, signInHelp: signInHelp, profileHint: profileHint, matches: matches, ago: ago, until: until, when: when,
+  var api = { roleSaved: roleSaved, roleError: roleError, member: member, invite: invite, signInHelp: signInHelp, rowActions: rowActions, profileHint: profileHint, matches: matches, ago: ago, until: until, when: when,
     openDrawer: openDrawer, closeDrawer: closeDrawer, copyText: copyText };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HelmTeamStatus = api;

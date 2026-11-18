@@ -3,7 +3,7 @@
 //   1. team-status.js roleSaved(): the words after a role change come from the role the DATABASE holds on a fresh read
 //   2. control.html: the role drop-down no longer writes the picked role into its own copy - it re-reads the team
 //      (renderUsers -> true / false) and shows roleSaved(); nothing sent -> the saved value again; refused -> error
-//   3. 0386 + APPLY-0386 + MANIFEST + checker overrides + run-all wiring; asset pin team-status.js v3
+//   3. 0386 + APPLY-0386 + MANIFEST + checker overrides + run-all wiring; asset pin team-status.js v4 (above R211 v3)
 // Behaviour of 0386: tests/db/r210-role-sync-0386.sql.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -68,8 +68,8 @@ t('renderUsers answers whether the fresh read worked (false on a load error, tru
   assert.match(ru, /BPUI\.loadError\(tb, e, renderUsers, \{what:"team members"\}\); return false; \}/);
   assert.match(ru, /drawUsers\(\);\n    return true;/);
 });
-t('asset pin: team-status.js v3 on Settings + Staff', () => {
-  for (const f of ['public/control.html', 'public/staff.html']) assert.match(read(f), /<script src="team-status\.js\?v=3"><\/script>/, f);
+t('asset pin: team-status.js v4 on Settings + Staff', () => {
+  for (const f of ['public/control.html', 'public/staff.html']) assert.match(read(f), /<script src="team-status\.js\?v=4"><\/script>/, f);
 });
 
 /* ---------------------------------------------------------------- 3. 0386 wiring */
@@ -104,7 +104,7 @@ t('MANIFEST + checker overrides + generated checker + run-all + release lists kn
   assert.match(chk, /\('0386_r210_role_sync', 'trg', 'public\.profiles', 'zzzzz_r386_role_sync', null\)/);
   assert.match(chk, /\('0386_r210_role_sync', 'marker', 'public', '_r386_tg_role_sync', '\|r210-0386'\)/);
   assert.match(read('scripts/db-test/run-all.sh'), /run "r210-role-sync-0386" "R210-ROLE-SYNC-0386: ALL PASS \\\(16\/16\\\)" psql -q -f tests\/db\/r210-role-sync-0386\.sql/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0379', '0386'\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0385', '0386'(, '\d{4}')*\]/, f);
 });
 
 console.log(`r210-role-sync: ${n} passed`);

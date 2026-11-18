@@ -33,6 +33,8 @@ export function notifLink(n) {
     if (k.indexOf("chat_") === 0) return "chat.html";
     if (k === "studio_identity_changed") return "control.html#general";   // r23 (0257): Helm changed the studio name / link
     if (k === "team_safety") return "control.html#users";   // r33 (0283): admin / owner changes -> Settings -> Team
+    // R205 (0383): "Ravi (Planner) signed in" -> Settings -> Users & invites with that person's details open
+    if (k === "team_signin") return "control.html" + (/^[0-9a-f-]{36}$/i.test(String(d.user_id || "")) ? "?person=" + enc(d.user_id) : "") + "#users";
     if (k === "crew_cantwork_request") return "staff.html#cantwork-requests";   // R187 (0370): day-off requests -> Staff page list
     // r35 (0285): payment details / sensitive settings (admins only - the server decides)
     if (k === "studio_security") {

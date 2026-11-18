@@ -384,6 +384,36 @@ window.HelmUrl = HelmUrl;
       return Array.isArray(claims.amr) ? claims.amr.map((a) => String((a && a.method) || a || "")) : [];
     } catch (e) { return []; }
   }
+  // R205 (0383): the session id claim of a signed access token ("" when unreadable)
+  function jwtSessionId(token) {
+    try {
+      const part = String(token || "").split(".")[1]; if (!part) return "";
+      const b64 = part.replace(/-/g, "+").replace(/_/g, "/"); const pad = b64 + "===".slice((b64.length + 3) % 4);
+      const sid = String(JSON.parse(atob(pad)).session_id || "");
+      return /^[0-9a-f-]{36}$/i.test(sid) ? sid : "";
+    } catch (e) { return ""; }
+  }
+  // R205 (0383): the sign-in notice FALLBACK. The server tells the studio admins about a sign-in by itself (a trigger on
+  // Supabase Auth's sign-in time); only on a project that refused that trigger does this tab's "I am signed in" do it.
+  // Once per session per tab, a few seconds after the page settled, never blocking anything; the server ignores a session
+  // it has already seen, and answers via "trigger" while the trigger is on - then this browser stops asking for a week.
+  function signinPing(sess) {
+    try {
+      if (!supa || !sess || !sess.user || typeof window === "undefined") return;
+      const sid = jwtSessionId(sess.access_token); if (!sid) return;
+      const KEY = "helm.r383.via", now = Date.now();
+      try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v && v.until > now) return; } catch (e) {}
+      try { if (sessionStorage.getItem("helm.r383.ping") === sid) return; sessionStorage.setItem("helm.r383.ping", sid); } catch (e) {}
+      setTimeout(function () {
+        try {
+          supa.rpc("signin_notice_ping", { p_ua: String((navigator && navigator.userAgent) || "").slice(0, 400) || null }).then(function (r) {
+            const via = r && r.data && r.data.via, missing = r && r.error && /PGRST202|42883|not find the function/i.test(String((r.error.code || "") + " " + (r.error.message || "")));
+            if (via === "trigger" || missing) { try { localStorage.setItem(KEY, JSON.stringify({ via: via || "none", until: now + (via === "trigger" ? 7 : 1) * 864e5 })); } catch (e) {} }
+          }, function () {});
+        } catch (e) {}
+      }, 4000);
+    } catch (e) {}
+  }
   // R204: a reset link opened on /auth/confirm is verified with verifyOtp(), and Supabase signs THAT session
   // amr "otp" (never "recovery" - only the old ?code= link gives "recovery"). Supabase itself counts otp /
   // magiclink / recovery sessions as recovery sessions (no current password needed). Here an "otp" session
@@ -691,6 +721,62 @@ window.HelmUrl = HelmUrl;
       e.name = "HelmAuthError";
       if (global.HelmTelemetry && global.HelmTelemetry.report) global.HelmTelemetry.report("auth_error", e);
     } catch (x) {}
+  }
+  /* R203: an Auth call that SENDS an e-mail and did not answer in time (our 75 s wait passed) or got a gateway 502 / 503 /
+     504. Supabase sends the e-mail before it answers, so the mail may well be on its way: say so honestly, never "check your
+     connection", and keep a cool-down so a second press does not send a second e-mail. -> "timeout" | "gateway" | null.
+     Pure (unit-tested). A plain offline / DNS failure (status 0, no time-out) stays a network error. */
+  const AUTH_MAIL_UNCONFIRMED = "We couldn't confirm the e-mail was sent. It may still arrive in a few minutes \u2014 check your inbox and spam before trying again.";
+  function authMailUnconfirmed(error) {
+    if (!error) return null;
+    const st = Number(error.status) || 0, m = String(error.message || "");
+    if (error.authMail === true || /did not answer in time/i.test(m)) return "timeout";
+    // a bare gateway answer (no Supabase error code): the proxy gave up while Auth was still sending; a coded answer
+    // (e.g. request_timeout) keeps its own r29 message
+    if ((st === 502 || st === 503 || st === 504) && !error.code) return "gateway";
+    return null;
+  }
+  function reportAuthMailTimeout(endpoint, kind, error) {
+    try {
+      const e = new Error("auth_mail_timeout endpoint=" + String(endpoint || "").replace(/[^a-z_]/g, "").slice(0, 20) + " kind=" + kind
+        + " status=" + (Number(error && error.status) || 0));
+      e.name = "HelmAuthMailTimeout";
+      if (global.HelmTelemetry && global.HelmTelemetry.report) global.HelmTelemetry.report("auth_mail_timeout", e);
+    } catch (x) {}
+  }
+  // per address + kind of e-mail: when one was last asked for (this browser). Only a short hash of the address is kept.
+  const AUTH_MAIL_CD_KEY = "helm.authmail.cd", AUTH_MAIL_COOLDOWN_MS = { sent: 60000, unconfirmed: 180000 };
+  function authMailKey(kind, email) {
+    let h = 5381; const s = String(kind) + "|" + String(email || "").trim().toLowerCase();
+    for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }
+  function authMailCooldownLeft(kind, email, now) {
+    try {
+      const all = JSON.parse(localStorage.getItem(AUTH_MAIL_CD_KEY) || "{}") || {};
+      const row = all[authMailKey(kind, email)];
+      if (!row || typeof row.t !== "number") return 0;
+      const left = row.t + (AUTH_MAIL_COOLDOWN_MS[row.s] || 60000) - (now || Date.now());
+      return left > 0 ? left : 0;
+    } catch (e) { return 0; }
+  }
+  function authMailCooldownSet(kind, email, state) {
+    try {
+      const now = Date.now(), all = JSON.parse(localStorage.getItem(AUTH_MAIL_CD_KEY) || "{}") || {};
+      for (const k of Object.keys(all)) if (!all[k] || now - Number(all[k].t) > 600000) delete all[k];
+      all[authMailKey(kind, email)] = { t: now, s: state };
+      localStorage.setItem(AUTH_MAIL_CD_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+  function authMailCooldownError(left) {
+    const sec = Math.max(1, Math.ceil(left / 1000));
+    const e = new Error("We asked for this e-mail a moment ago. Check your inbox and spam first \u2014 you can ask again in "
+      + (sec >= 90 ? Math.ceil(sec / 60) + " minutes" : sec + " seconds") + ".");
+    e.code = "mail_cooldown"; e.authMapped = true; e.retryAfter = sec; return e;
+  }
+  function authMailUnconfirmedError(endpoint, kind, error) {
+    reportAuthMailTimeout(endpoint, kind, error);
+    const e = new Error(AUTH_MAIL_UNCONFIRMED); e.code = "mail_unconfirmed"; e.authMapped = true; e.cause = error; return e;
   }
   // the Error a BPStore auth call throws: message for people, .authMapped so every page shows it as-is
   function authError(error, ctx) {
@@ -1254,7 +1340,7 @@ window.HelmUrl = HelmUrl;
   // la-fetch (audit 25): the list below also names the STABLE (read-only) RPCs every page asks while it
   // boots (trial / upgrade status, seat use, prefs, shelf list, mentions, PIN status). Before, each one was
   // treated as a write and dropped every shared read of the page, so the page's own reads ran again.
-  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
+  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_test_studio|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
   const readCache = new Map();
   function hdrOf(init, input, name) {
     try {
@@ -1274,13 +1360,30 @@ window.HelmUrl = HelmUrl;
      their own deadlines; renders use their own fetch). */
   const FETCH_TIMEOUT_MS = 30000;
   const NO_FETCH_TIMEOUT = /\/(storage|functions)\/v1\//;
+  /* R203 (prod 18 Nov 2026): Supabase Auth SENDS ITS E-MAIL BEFORE IT ANSWERS (recover / otp / resend / signup / invite /
+     an e-mail change / reauthenticate). Through the studio's Gmail SMTP that took longer than 30 s, so the wrapper above cut
+     the call off and "Forgot password?" said "Couldn't reach the server" - although the reset e-mail then arrived (Auth logs:
+     "context canceled"). Those calls now wait AUTH_MAIL_TIMEOUT_MS, and a call that still passes it is reported as "we
+     couldn't confirm the e-mail was sent" (authMailUnconfirmed below), never as the user's connection. */
+  const AUTH_MAIL_TIMEOUT_MS = 75000;
+  const AUTH_MAIL_POST = /\/auth\/v1\/(recover|otp|resend|signup|magiclink|invite)(\?|$)/;
+  function fetchTimeoutFor(input, init) {
+    const m = String((init && init.method) || "GET").toUpperCase();
+    if (m === "POST" && AUTH_MAIL_POST.test(input)) return AUTH_MAIL_TIMEOUT_MS;
+    if (m === "PUT" && /\/auth\/v1\/user(\?|$)/.test(input)) return AUTH_MAIL_TIMEOUT_MS;   // e-mail change sends a confirmation
+    if (/\/auth\/v1\/reauthenticate(\?|$)/.test(input)) return AUTH_MAIL_TIMEOUT_MS;
+    return FETCH_TIMEOUT_MS;
+  }
   function timedFetch(input, init) {
     if ((init && init.signal) || typeof input !== "string" || NO_FETCH_TIMEOUT.test(input) ||
         typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function") return global.fetch(input, init);
-    const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+    const ms = fetchTimeoutFor(input, init);
+    const signal = AbortSignal.timeout(ms);
     return global.fetch(input, Object.assign({}, init || {}, { signal })).catch((err) => {
       if (signal.aborted && err && (err.name === "TimeoutError" || err.name === "AbortError")) {
-        const e = new TypeError("Failed to fetch: the server did not answer in time"); e.timeout = true; throw e;
+        const e = new TypeError("Failed to fetch: the server did not answer in time"); e.timeout = true;
+        if (ms === AUTH_MAIL_TIMEOUT_MS) e.authMail = true;
+        throw e;
       }
       throw err;
     });
@@ -1318,7 +1421,9 @@ window.HelmUrl = HelmUrl;
      network call. Public pages (approval, invitation, site) use other RPCs and are untouched. */
   // R193 (prod log 17 Nov 2026): + audit_log (home "Recent activity") and the signed-in RPCs a page polls or opens with
   // (live_events_today = home "Live today" card; the share-booklet reads) - a sleeping laptop's tab sent them with the anon key
-  const SIGNED_IN_ONLY = /\/rest\/v1\/(leads|quotes|audit_log|chat_[a-z_]+|rpc\/(?:live_events_today|booklet_current|booklet_image_info|booklet_staff_image|booklet_layout_auto_on))(\?|$)/;
+  // R206 (prod API log 18 Nov 2026): + event_costs (Budget summary on the event page) and the quote page's stage history /
+  // valid-until reads - the same lapsed-sign-in tab sent them with the anon key (403 in the log)
+  const SIGNED_IN_ONLY = /\/rest\/v1\/(leads|quotes|audit_log|event_costs|chat_[a-z_]+|rpc\/(?:live_events_today|booklet_current|booklet_image_info|booklet_staff_image|booklet_layout_auto_on|quote_stage_history|quote_validity_get))(\?|$)/;
   function anonDenied(input, init) {
     try {
       const u = typeof input === "string" ? input : (input && input.url) || "";
@@ -1576,7 +1681,7 @@ window.HelmUrl = HelmUrl;
     loadAuthUi();
   }
   // Account menu / two-step banner live in auth-ui.js (loaded on signed-in staff pages only).
-  const AUTH_UI_VERSION = "62";
+  const AUTH_UI_VERSION = "63";
   let authUiLoading = null;
   function loadAuthUi() {
     if (authUiLoading || typeof document === "undefined") return authUiLoading;
@@ -1710,6 +1815,9 @@ window.HelmUrl = HelmUrl;
     // 0095: photo-realistic renders (builder ✦ Render). edit = may make photos (also needs quotes edit)
     { key: "photo_render", label: "Photo renders",    icon: "✦", page: null,             group: "Workspace" },
     { key: "staff",      label: "Staff",             icon: "👷", page: "staff.html",     group: "Resources" },
+    // R208 (0385): giving out work on events (Tasks & crew + the Event-day monitor Nudge) - ONE switch (view + edit).
+    // No row yet = the role's "Staff - Can change" switch (defaultFrom, like the server's _r385_can_assign).
+    { key: "tasks",      label: "Assign & send tasks", icon: "🛠", page: null,            group: "Resources", defaultFrom: "staff", permission: true },
     { key: "inventory",  label: "Inventory",         icon: "📦", page: "inventory.html", group: "Resources" },
     { key: "vendors",    label: "Vendors",           icon: "🤝", page: "vendors.html",   group: "Resources" },
     { key: "calendar",   label: "Calendar",          icon: "📅", page: "calendar.html",  group: "Resources" },
@@ -1972,6 +2080,7 @@ window.HelmUrl = HelmUrl;
                 }
                 // first sign-in in this browser (e.g. returning from Google): start the session clock
                 if (event === "SIGNED_IN" && sess && sess.user) { const st = sessionStart(); if (!st || st.uid !== sess.user.id) stampSessionStart(sess.user.id, true); }
+                if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && sess && sess.user) signinPing(sess);   // R205 (0383) fallback only
                 rtTokenExp = sess && sess.access_token ? (Number(sess.expires_at) || 0) * 1000 : 0;   // R193
                 if (sess && sess.user) { hadSession = true; if (!explicitSignOut) currentUser = sess.user; }
                 if ((event === "SIGNED_OUT" && !explicitSignOut) || (event === "TOKEN_REFRESHED" && !sess)) {
@@ -2248,6 +2357,22 @@ window.HelmUrl = HelmUrl;
       }
       return EDIT_ROLES.includes(r);
     },
+    // R208 (0385): may this person give out work on events (assign, reassign, times, reminders, special, cancel, e-mail /
+    // WhatsApp, task links)? Mirrors the server's _r385_can_assign(): no 'tasks' row for the role = Staff - Can change
+    // (today's rule); a saved row decides and also needs Staff - Can see; never a client / crew login.
+    async canAssignTasks() {
+      if (mode !== "supabase") return true;
+      if (!currentUser) return false;
+      const [r, ro] = await Promise.all([getRole(), studioReadOnly()]);
+      if (ro) return false;
+      if (r === "admin") return true;
+      const acc = await loadAccess();
+      if (acc.unknown) return false;
+      if (!acc.map) return EDIT_ROLES.includes(r);
+      const row = acc.map.tasks, staff = acc.map.staff;
+      if (!row) return !!(staff && staff.edit);
+      return !["client", "crew", "worker"].includes(r) && !!(row.view && row.edit) && !!(staff && staff.view);
+    },
     areas: () => AREAS.slice(),
     // Force a fresh read of the access matrix (drop the in-memory + sessionStorage
     // cache). Used when a just-granted permission must show up without waiting for
@@ -2356,6 +2481,12 @@ window.HelmUrl = HelmUrl;
           // "already registered" must look exactly like a fresh sign-up awaiting confirmation
           if (/user_already_exists|email_exists|already registered|already exists/i.test(c + " " + m)) return { user: null, session: null, generic: GENERIC_SENT };
           if (c === "user_banned") return { user: null, session: null, generic: GENERIC_SENT };   // r29: same - its own message would say the account exists
+          // R203: Supabase sends the confirmation e-mail before it answers - the account may already be made
+          if (authMailUnconfirmed(error)) {
+            reportAuthMailTimeout("signup", authMailUnconfirmed(error), error);
+            const e = new Error("We couldn't confirm your sign-up e-mail was sent. It may still arrive in a few minutes \u2014 check your inbox and spam, then sign in or use \u201cResend\u201d instead of signing up again.");
+            e.code = "mail_unconfirmed"; e.authMapped = true; e.cause = error; throw e;
+          }
           if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(error)) throw error;
           // r29: every other Supabase Auth error -> a clear message + "Ref: AUTH-<code>" (was "Something went wrong")
           throw authError(error, "signup");
@@ -2502,6 +2633,8 @@ window.HelmUrl = HelmUrl;
     passwordRule: { min: PW_MIN, symbols: PW_SYMBOLS, hint: PW_HINT, problem: passwordProblem, checks: passwordChecks, attachChecklist: attachPasswordChecklist, guessable: passwordGuessable, guessReasons: passwordGuessReasons, pwnedMessage: PW_PWNED_MSG, mismatchMessage: PW_MISMATCH, strengthLabels: ["", "Weak", "Weak", "Fair", "Strong"], rulesAttr: PW_RULES_ATTR },
     // r29: Supabase Auth error -> { code, message, field, ref } (pure; exported for tests and other pages)
     authErrorInfo: authErrorInfo,
+    // R203: pure helpers (unit-tested): auth e-mail call -> its time-out; error -> "timeout" | "gateway" | null
+    authMailTimeoutFor: fetchTimeoutFor, authMailUnconfirmed: authMailUnconfirmed, authMailUnconfirmedMessage: AUTH_MAIL_UNCONFIRMED,
     // Resolves the same way whether or not the email has an account (the caller
     // shows one generic message). Only rate-limit / network / CAPTCHA errors throw.
     async requestPasswordReset(email, opts) {
@@ -2511,16 +2644,25 @@ window.HelmUrl = HelmUrl;
       if (await staffGoogleOnlyFor(email)) throw staffGoogleError();   // r39 (0288): no reset link for Helm staff (the server never stores one)
       const o = { redirectTo: (opts && opts.redirectTo) || (location.origin + "/reset-password") };
       if (captchaToken) o.captchaToken = captchaToken;
-      const { error } = await supa.auth.resetPasswordForEmail(scrubEmail(email), o);   // r166: strip control chars
+      // R203: one reset e-mail per address per minute from this browser (3 minutes after an unconfirmed send)
+      const cdLeft = authMailCooldownLeft("recover", email);
+      if (cdLeft > 0) throw authMailCooldownError(cdLeft);
+      let error = null;
+      try { ({ error } = await supa.auth.resetPasswordForEmail(scrubEmail(email), o)); }   // r166: strip control chars
+      catch (x) { error = x; }
       if (error) {
         const st = Number(error.status) || 0, m = String(error.message || "");
         if (st === 429 || /rate limit|too many/i.test(m)) { const e = new Error("Too many requests — please wait a few minutes and try again."); e.code = "rate_limited"; throw e; }
         if (/captcha/i.test(m)) { const e = new Error("The security check failed — please try again."); e.code = "captcha_failed"; throw e; }
+        // R203: Supabase sends the e-mail before it answers - a time-out / gateway error is "not confirmed", not "offline"
+        const un = authMailUnconfirmed(error);
+        if (un) { authMailCooldownSet("recover", email, "unconfirmed"); throw authMailUnconfirmedError("recover", un, error); }
         if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(error)) throw error;
         // anything else (e.g. "user not found" on older GoTrue builds) is deliberately not shown (no enumeration:
         // a send failure only happens for a real account) - r29: but the code goes to telemetry so support can see it
         reportAuthError("email", error, authErrorInfo(error, "email"));
       }
+      authMailCooldownSet("recover", email, "sent");
       return true;
     },
     // Re-send the sign-up confirmation email. Resolves the same way whether or not the
@@ -2532,14 +2674,20 @@ window.HelmUrl = HelmUrl;
       if (!em) return true;
       const o = { emailRedirectTo: (opts && opts.emailRedirectTo) || (location.origin + "/login.html") };
       if (opts && opts.captchaToken) o.captchaToken = opts.captchaToken;
-      const { error } = await supa.auth.resend({ type: "signup", email: em, options: o });
+      const cdLeft = authMailCooldownLeft("resend", em);   // R203: no second e-mail within the cool-down
+      if (cdLeft > 0) throw authMailCooldownError(cdLeft);
+      let error = null;
+      try { ({ error } = await supa.auth.resend({ type: "signup", email: em, options: o })); } catch (x) { error = x; }
       if (error) {
         const st = Number(error.status) || 0, m = String(error.message || "");
         if (st === 429 || /rate limit|too many|seconds/i.test(m)) { const e = new Error("Too many requests — please wait a minute and try again."); e.code = "rate_limited"; throw e; }
         if (/captcha/i.test(m)) { const e = new Error("The security check failed — please try again."); e.code = "captcha_failed"; throw e; }
+        const un = authMailUnconfirmed(error);   // R203: sent before Supabase answered - not "offline"
+        if (un) { authMailCooldownSet("resend", em, "unconfirmed"); throw authMailUnconfirmedError("resend", un, error); }
         if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(error)) throw error;
         reportAuthError("email", error, authErrorInfo(error, "email"));   // r29: stays generic on screen (no enumeration)
       }
+      authMailCooldownSet("resend", em, "sent");
       return true;
     },
     // Re-check the CURRENT password before a change (signs in again as the same
@@ -2773,6 +2921,14 @@ window.HelmUrl = HelmUrl;
       },
       requiredForAdmins: () => AUTH_CFG.mfaRequiredForAdmins,
       _operatorDecision: operatorMfaDecision,
+      // R203 (0381): is MY studio a Helm HQ "test studio" (two-step not enforced)? true | false; null = unknown (signed
+      // out, offline, 0381 not applied). Only Helm HQ can switch it; the server decides, this only drives the banner / notes.
+      testStudio() {
+        if (!supa || !currentUser) return Promise.resolve(null);
+        return memoRead("mfa.testStudio", 60000, async () => {
+          try { const { data, error } = await supa.rpc("my_test_studio"); return error ? null : data === true; } catch (e) { return null; }
+        });
+      },
     },
     // ---- CAPTCHA (Cloudflare Turnstile through Supabase's captchaToken) ----------
     captcha: { enabled: () => !!CAPTCHA, siteKey: () => (CAPTCHA ? CAPTCHA.siteKey : ""), provider: () => (CAPTCHA ? CAPTCHA.provider : ""),
@@ -3198,7 +3354,10 @@ window.HelmUrl = HelmUrl;
     async get(id) {
       // a truncated/garbled id from a link would reach Postgres as a 22P02 error — answer "not found" instead
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""))) { const e = new Error("This event link is incomplete or no longer exists."); e.code = "PGRST116"; throw e; }
-      const { data: q, error } = await supa.from("quotes").select("*").eq("id", id).single(); if (error) throw error;
+      // R206 (prod API log 18 Nov 2026): .maybeSingle() - a deleted / another studio's quote is 0 rows, which .single() asked
+      // the server to refuse (HTTP 406 in the log). The caller still gets the same "not found" (PGRST116) error as before.
+      const { data: q, error } = await supa.from("quotes").select("*").eq("id", id).maybeSingle(); if (error) throw error;
+      if (!q) { const e = new Error("This quote doesn't exist or was deleted."); e.code = "PGRST116"; throw e; }
       const { data: vs, error: e2 } = await supa.from("quote_versions")
         .select("id,version_no,label,object_count,created_at").eq("quote_id", id).order("version_no", { ascending: false });
       if (e2) throw e2;
@@ -6163,7 +6322,7 @@ window.HelmUrl = HelmUrl;
       if (res.ok && j && j.sent === true) return { sent: true };
       if (res.ok && j && j.account === "new") return { account: "new" };
       if (res.ok && j && j.requested === true) return { requested: true, studio: String(j.studio || "").slice(0, 120) };   // expired: the studio was asked
-      if (j && j.code && (res.status < 500 || j.code === "send_failed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));
+      if (j && j.code && (res.status < 500 || j.code === "send_failed" || j.code === "send_unconfirmed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));   // R203: send_unconfirmed = may still arrive
       throw fail("We couldn't send a new link from here — ask your studio admin to re-send the invitation.", "unavailable");
     },
     async signupDirect(token, email, password, fullName) {
@@ -6184,6 +6343,8 @@ window.HelmUrl = HelmUrl;
       } catch (e) { return { fallback: true }; }          // not deployed / CORS / offline → old path
       const j = await res.json().catch(() => ({}));
       if (res.ok) return j && j.ok ? { ok: true } : { fallback: true };
+      // R203: the server could not make the login right now (Supabase Auth slow) - a clear message, no e-mail sent instead
+      if (res.status === 503 && j && j.code === "create_failed") { const e = new Error(String(j.error || "We couldn't create your account just now.").slice(0, 300)); e.code = "create_failed"; e.status = 503; if (j.reason) e.reason = String(j.reason).slice(0, 20); throw e; }
       if (res.status === 404 || res.status >= 500 || !j || !j.code) return { fallback: true };
       const e = new Error(String(j.error || "Couldn't create the account.")); e.code = j.code; e.status = res.status; if (j.reason) e.reason = String(j.reason).slice(0, 20); throw e;
     },
@@ -6223,7 +6384,7 @@ window.HelmUrl = HelmUrl;
       } catch (e) { throw fail("We couldn't reach Helm — check your connection and try again.", "network"); }
       const j = await res.json().catch(() => ({}));
       if (res.ok && j && j.ok === true) return { sent: j.sent === true };
-      if (j && (j.code === "rate_limited" || j.code === "send_failed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));
+      if (j && (j.code === "rate_limited" || j.code === "send_failed" || j.code === "send_unconfirmed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));   // R203
       throw fail("We couldn't send it from here — open the invitation e-mail you already have.", "unavailable");
     },
     async preview(token) {                                                                   // anon-safe banner info (SEC-06); falls back until deployed
@@ -9310,10 +9471,17 @@ window.HelmUrl = HelmUrl;
      up to 3 "Needs attention" items, the frozen figure for a closed + frozen event. The server does every sum; the page
      only shows it. Finance view only (re-checked on the server). null = signed out / not this studio's event / a database
      without 0376 (the pages keep their older cards). */
+  // R206 (prod API log 17 Nov 2026: 404 event_money_header before 0376 was applied): a read call the database does not have
+  // yet is asked ONCE per page load - every later redraw (money changed, settlement loaded ...) answers null without a call.
+  const goneReads = new Set();
+  async function softRead(fn, args) {
+    if (goneReads.has(fn)) return null;
+    try { return await rpc(fn, args); } catch (e) { if (rpcMissing(e)) { goneReads.add(fn); return null; } throw e; }
+  }
   const moneyHeader = {
     async get(quoteId) {
       if (mode !== "supabase" || !quoteId) return null;
-      try { return await rpc("event_money_header", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+      return softRead("event_money_header", { p_quote: quoteId });
     },
   };
 
@@ -9325,7 +9493,7 @@ window.HelmUrl = HelmUrl;
   const moneyCash = {
     async get(quoteId) {
       if (mode !== "supabase" || !quoteId) return null;
-      try { return await rpc("event_money_cash", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+      return softRead("event_money_cash", { p_quote: quoteId });
     },
   };
 
@@ -9367,6 +9535,8 @@ window.HelmUrl = HelmUrl;
     if (k.indexOf("chat_") === 0) return "chat.html";
     if (k === "studio_identity_changed") return "control.html#general";   // r23 (0257): Helm changed the studio name / link
     if (k === "team_safety") return "control.html#users";   // r33 (0283): admin / owner changes -> Settings -> Team
+    // R205 (0383): "Ravi (Planner) signed in" -> Settings -> Users & invites with that person's details open
+    if (k === "team_signin") return "control.html" + (/^[0-9a-f-]{36}$/i.test(String(d.user_id || "")) ? "?person=" + enc(d.user_id) : "") + "#users";
     if (k === "crew_cantwork_request") return "staff.html#cantwork-requests";   // R187 (0370): day-off requests -> Staff page list
     // r35 (0285): payment details / sensitive settings (admins only - the server decides)
     if (k === "studio_security") {
@@ -9432,6 +9602,7 @@ window.HelmUrl = HelmUrl;
     if (k === "payment" || k === "payment_received") return "payment_receipt";
     if (k === "trial_reminder") return "billing_trial";
     if (k === "plan_active") return "plan_active";   // r121 (0329): muted on its own (catalog type plan_active)
+    if (k === "team_signin") return "team_signin";   // R205 (0383): teammate sign-ins (owner + admins only)
     if (/^pkg_(selected|accepted|declined|payment)$/.test(k)) return k;
     if (/^task_(accept|reject|start|complete)$/.test(k)) return "task_update";
     if (k.indexOf("design_") === 0) return "design_update";
@@ -9446,7 +9617,7 @@ window.HelmUrl = HelmUrl;
     task_reminder: "Task reminders", task_due: "Tasks due", payment_link: "Payment links", payment_reminder: "Payment reminders",
     payment_receipt: "Payment receipts", advance_paid: "Payments received", payment_reconcile: "Payments needing attention",
     chat_message: "Chat messages", pkg_selected: "Client package choices", pkg_accepted: "Package choices accepted",
-    pkg_declined: "Package choices declined", pkg_payment: "Package payments", security_alert: "Security alerts (Helm HQ only)", billing_trial: "Free trial reminders", plan_active: "Plan active",
+    pkg_declined: "Package choices declined", pkg_payment: "Package payments", security_alert: "Security alerts (Helm HQ only)", billing_trial: "Free trial reminders", plan_active: "Plan active", team_signin: "Teammate sign-ins",
     inventory_low_stock: "Low stock warnings", client_follow_up: "Client follow-ups",
     client_link_viewed: "Client opened their link", client_view_followup: "Viewed but not approved", other: "Other updates" };
   // A4: a chat row's read key carries its newest message time, so marking a conversation read
@@ -9782,6 +9953,8 @@ window.HelmUrl = HelmUrl;
       payment_overdue: ["⏰", String(d.label || "A client payment is overdue")],
       // r33 (0283): an admin change waiting 24 hours / cancelled / done, a studio ownership change (admins only - the server decides)
       team_safety: ["🛡️", String(d.label || "Team change")],
+      // R205 (0383): a teammate signed in (owner + admins named on it only - the server decides); time is the studio clock
+      team_signin: ["👋", String(d.label || ((d.name || "A teammate") + " signed in" + (d.first_time ? " for the first time" : "")))],
       // 0269: a new lead from the studio's public enquiry form (name + event type only)
       lead_new: ["📥", String(d.label || "New enquiry")],
       // r22 (0254): "request to close anyway" + the approval (admins / coordinators / managers only - the server decides)
@@ -10710,7 +10883,8 @@ window.HelmUrl = HelmUrl;
       "booklet.snapshot": "Snapshot", "booklet.snap": "Snapshot", "pkg.view": "Viewed", "pkg.choose": "Chose", "pkg.accept": "Accepted",
       "pkg.decline": "Declined", "pkg.adjust": "Adjusted", "quote.moved_to_archive": "Archived", "quote.moved_to_deleted": "Moved to bin",
       "quote.restored": "Restored", "design.advance": "Stage moved", "upload.rejected": "Rejected",
-      "studio.renamed": "Studio renamed", "studio.link_renamed": "Link changed", "hq.studio.identity": "Renamed by Helm" };
+      "studio.renamed": "Studio renamed", "studio.link_renamed": "Link changed", "hq.studio.identity": "Renamed by Helm",
+      "auth.sign_in": "Signed in", "signin_notice.settings": "Sign-in notices changed" };
     if (fixed[a]) return fixed[a];
     const last = a.split(".").pop(); return auditHuman(last) || "—";
   }
@@ -10732,6 +10906,9 @@ window.HelmUrl = HelmUrl;
       case "booklet.share": return "Booklet shared with the client" + ev + (c.expires_at ? " (link valid until " + String(c.expires_at).slice(0, 10) + ")" : "");
       case "booklet.revoke": return "Booklet link revoked" + ev;
       // r23 (0257): studio name / link changes (Helm support only; old links keep working)
+      // R205 (0383): one sign-in (the person is the actor); browser / system only, never the network address
+      case "auth.sign_in": return "Signed in" + (c.first_time === true ? " for the first time" : "") + (c.device ? " (" + String(c.device).slice(0, 60) + ")" : "");
+      case "signin_notice.settings": return "Changed the sign-in notices" + (c.to && c.to.mode ? " to " + ({ off: "Off", first_daily: "First sign-in each day", every: "Every sign-in" }[c.to.mode] || "") : "");
       case "studio.renamed": return "Studio renamed" + (c.from || c.to ? " from \u201c" + String(c.from || "").slice(0, 120) + "\u201d to \u201c" + String(c.to || "").slice(0, 120) + "\u201d" : "");
       case "studio.link_renamed": return "Studio link changed" + (c.from || c.to ? " from " + String(c.from || "").slice(0, 60) + " to " + String(c.to || "").slice(0, 60) + " (old links keep working)" : "");
       // R120: a free-trial preview reads like the bell ("... ready (trial preview — not sent)")
@@ -11324,6 +11501,12 @@ window.HelmUrl = HelmUrl;
       p_steps: (Array.isArray(steps) ? steps : []).map((x) => Math.round(Number(x))) }) : Promise.reject(new Error("Needs a signed-in studio."))),
   };
 
+  // R205 (0383): Settings -> Notifications -> Teammate sign-ins (admins). null = server without 0383.
+  const signinNotice = {
+    settings: () => (supa ? rpc("signin_notice_settings_get", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+    saveSettings: (patch) => (supa ? rpc("signin_notice_settings_set", { p: patch || {} }) : Promise.reject(new Error("Needs a signed-in studio."))),
+  };
+
   // R125 (0334): the free-trial preview pop-up (trial-preview.js). Signed-in staff of the studio only; no token is ever made.
   const trialPreview = {
     bundle: (kind, quoteId, opts) => rpc("trial_preview_bundle", { p_kind: kind, p_quote: quoteId || null, p_opts: opts || {} }),
@@ -11612,6 +11795,7 @@ window.HelmUrl = HelmUrl;
     moneyLock,   // R189 (0372)
     moneyHeader, // R197 (0376)
     moneyCash, // R198 (0377)
+    signinNotice,    // R205 (0383)
     taskReminders,   // R130 (0338)
     activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
     // User manual (migration 0031): lives in the PRIVATE storage bucket "helm-manual",

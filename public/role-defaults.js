@@ -4,7 +4,7 @@
  * (role_access rows read by has_area). This file only helps the Settings screen:
  *   - SECTIONS: groups the existing areas into plain-English sections with a one-line help text each.
  *   - defaultFor(role, area): what a NEW studio starts with. It mirrors the database template
- *     _a49_default_matrix() (migrations 0049 + 0239) and the Designer / Crew starter set (0143).
+ *     _a49_default_matrix() (migrations 0049 + 0239; "tasks" = the 0385 seed: Staff-edit roles + supervisor) and the Designer / Crew starter set (0143).
  *     test/r85-roles-settings.test.mjs fails if this copy and the SQL template ever drift apart.
  *     Returns null for an area the template does not cover (the screen then shows no Default / Changed badge
  *     and "Reset to defaults" leaves it alone).
@@ -22,6 +22,8 @@
     layouts:    [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["planner"]],
     design:     [["manager", "planner"], ["manager", "planner"]],
     staff:      [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator", "operations"]],
+    // r208 (0385): Assign & send tasks = the Staff "Can change" roles + supervisor (one switch: view + edit together)
+    tasks:      [["manager", "planner", "coordinator", "supervisor", "operations"], ["manager", "planner", "coordinator", "supervisor", "operations"]],
     inventory:  [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator", "operations"]],
     vendors:    [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator", "operations"]],
     calendar:   [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator"]],
@@ -86,7 +88,8 @@
       { area: "venues",       help: "The studio's list of venues." }
     ] },
     { key: "team", title: "Team, stock & suppliers", blurb: "People, equipment and vendors.", rows: [
-      { area: "staff",        help: "Crew list, shifts and wages." },
+      { area: "staff",        help: "Crew list. Change = staff records and wages, open shifts, approving days off and new staff links." },
+      { area: "tasks",        label: "Assign & send tasks (Tasks & crew)", help: "Give out work on events: assign, reassign, times, reminders, special, cancel, e-mail or WhatsApp the person. Not staff records, wages, open shifts or days off." },
       { area: "inventory",    help: "Equipment and stock." },
       { area: "vendors",      help: "Suppliers and what they are booked for." }
     ] },

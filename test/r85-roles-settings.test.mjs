@@ -1,7 +1,7 @@
 // r85 - Settings -> Roles & access, made clear for non-technical admins (owner: "Managers CAN close events by
 // default; each studio admin can turn it off with a clear toggle").
 //   * the screen's copy of the default matrix (public/role-defaults.js) equals the database template
-//     _a49_default_matrix() (latest body: migration 0239), so "Default" / "Changed" / "Reset to defaults" are honest
+//     _a49_default_matrix() (latest body: migration 0239; 'tasks' is seeded by 0385), so "Default" / "Changed" / "Reset to defaults" are honest
 //   * managers can close events + settle by default (closure + settlement view + edit)
 //   * every access area is in exactly one plain-English section with a one-line help text
 //   * the page wires the "Managers can close events" switch, the sticky role header, Reset (with confirm)
@@ -22,9 +22,9 @@ const rows = [...body.matchAll(/\('(\w+)',\s+'\{([^}]*)\}'(?:::text\[\])?,\s+'\{
   .map((m) => [m[1], m[2] ? m[2].split(',') : [], m[3] ? m[3].split(',') : []]);
 const sqlRoles = [...body.slice(body.indexOf('roles(role) as')).matchAll(/\('(\w+)'\)/g)].map((m) => m[1]).slice(0, 11);
 
-t('role-defaults.js TEMPLATE equals the SQL _a49_default_matrix areas (0239)', () => {
+t('role-defaults.js TEMPLATE equals the SQL _a49_default_matrix areas (0239; + tasks from the 0385 seed, test/r208)', () => {
   assert.ok(rows.length >= 28, 'parsed ' + rows.length);
-  assert.deepEqual(Object.keys(RD.TEMPLATE).sort(), rows.map((x) => x[0]).sort());
+  assert.deepEqual(Object.keys(RD.TEMPLATE).filter((k) => k !== 'tasks').sort(), rows.map((x) => x[0]).sort());   // r208: 'tasks' = 0385 seed
   for (const [area, v, e] of rows) assert.deepEqual(RD.TEMPLATE[area], [v, e], area);
   assert.ok(!fs.readdirSync(new URL('../supabase/migrations/', import.meta.url))
     .some((f) => f.slice(0, 4) > '0239' && /\.sql$/.test(f) && fs.readFileSync(new URL('../supabase/migrations/' + f, import.meta.url), 'utf8')

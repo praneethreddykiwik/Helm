@@ -24,7 +24,7 @@ test("pages wire it up; approve.html carries the test-mode instructions + existi
   assert.ok(!ap.includes(TEXT), "approve.html no longer shows the pre-R113 skip text");
   assert.match(ap, /<p class="muted" id="trialSkipInfo"><b>Test mode<\/b> &mdash; [^<]*No code is sent to you; use the test code 000000\.<\/p>/);
   assert.ok(ap.includes('id="trialSkipBtn"')); assert.ok(ap.includes("trialTestMode("));
-  for (const p of ["flow", "settlement"]) assert.ok(readFileSync(new URL(`../public/${p}.html`, import.meta.url), "utf8").includes('src="trial-test-note.js?v=4"'));
+  for (const p of ["flow", "settlement"]) assert.ok(readFileSync(new URL(`../public/${p}.html`, import.meta.url), "utf8").includes('src="trial-test-note.js?v=5"'));
   const js = readFileSync(new URL("../public/trial-test-note.js", import.meta.url), "utf8");
   assert.ok(!/innerHTML|\.style\.|setAttribute\("style"/.test(js));
 });

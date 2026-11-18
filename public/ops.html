@@ -390,15 +390,18 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=373"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=377"></script>
 <script src="task-status.js?v=1"></script>
-<script src="ops-board.js?v=1"></script>
+<script src="ops-board.js?v=2"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   let quoteId=new URLSearchParams(location.search).get("quote");
   let CATS=["Stage setup","Carpets","Backdrops","Flower decoration","Mandapam","Lighting","Catering","Labour","Transport","AV & sound"];
   let quote=null, crew=[], vendors=[], tasks=[], tokens=[], evidence=[], activeCat=CATS[0], canVerify=false, canEditOps=false;
+  // R208 (0385): canEditOps = "Assign & send tasks" (no row = Staff - Can change, as before). canTpl = Templates - Can change:
+  // without it a typed task is added for THIS event only (never saved to the studio checklist); oneOff = those, per section
+  let canTpl=false, oneOff={};
   // R192: the Add & assign sheet - which day the start time is on (no tick box: "before" | "event" | "none" | "keep"),
   // everyone ranked for the active section (BPStore.staff.suggest: free / booked elsewhere / department match)
   let asDay="event", sugg={}, lastOkMsg="";
@@ -430,7 +433,9 @@
     // one after another behind the loading overlay); the role checks below come from the cached session.
     const pQuote=BPStore.quotes.get(quoteId), pCats=BPStore.ops.categories().catch(()=>null), pOps=fetchOps();
     pQuote.catch(()=>{}); pOps.catch(()=>{});
-    const [canEdit, role]=await Promise.all([BPStore.auth.canEditArea("staff"), BPStore.auth.role()]);
+    const [canEdit, role, tplEdit]=await Promise.all([BPStore.auth.canAssignTasks ? BPStore.auth.canAssignTasks() : BPStore.auth.canEditArea("staff"),
+      BPStore.auth.role(), BPStore.auth.canEditArea("templates").catch(()=>false)]);
+    canTpl=!!tplEdit;
     canVerify=['admin','manager','planner','quality'].includes(role);
     canEditOps=canEdit;
     // photos for linked members (one chat_directory read; the page never waits for it)
@@ -453,7 +458,8 @@
     $("#catTabs").innerHTML=CATS.map(c=>`<button type="button" class="tc-opt" data-c="${esc(c)}" aria-pressed="${c===activeCat}">${esc(c)}</button>`).join("");
     $("#catTabs").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{ activeCat=b.dataset.c;
       $("#catTabs").querySelectorAll("button").forEach(x=>{ x.setAttribute("aria-pressed",String(x===b)); }); $("#selAll").checked=false; renderTasks(); renderSuggestions(); }));
-    if(!canEdit){ ["assignBtn","tpl_add"].forEach(id=>{const e=$("#"+id); if(e)e.disabled=true;}); /* planner-1023: server needs staff edit; the page shows "View only" and no action buttons */ }
+    if(!canEdit){ ["assignBtn","tpl_add"].forEach(id=>{const e=$("#"+id); if(e)e.disabled=true;}); /* planner-1023 / R208: server needs Assign & send tasks (no row = Staff edit); the page shows "View only" and no action buttons */ }
+    else if(!canTpl){ const b=$("#tpl_add"), i=$("#tpl_title"); if(b) b.textContent="+ Add for this event"; if(i) i.placeholder="Or type a task for this event only"; }
     try{ await refresh(pOps); }
     catch(e){ BPUI.loadError($("#view"), e, async()=>{ await refresh(); }, {what:"staff and tasks"}); }
     if(window.OpsBoard) OpsBoard.init();   // R192: header, Before / On the day, attention boxes, views, task panel, one 30 s refresh
@@ -523,8 +529,10 @@
   window.addEventListener("pageshow", resetAssignEmail);
   async function renderTasks(){
     let tpl; try{ tpl=await BPStore.ops.templates(activeCat); }catch(e){ BPUI.loadError($("#taskList"), e, renderTasks, {what:"task templates"}); return; }
-    if(!tpl.length){ $("#taskList").innerHTML='<span class="muted">No task templates in this section yet.</span>'; updateSel(); return; }
-    $("#taskList").innerHTML=tpl.map(t=>`<label class="titem"><input type="checkbox" class="tk" value="${esc(t.title)}"> ${esc(t.title)}</label>`).join("");
+    const extra=(oneOff[activeCat]||[]).filter(x=>!tpl.some(t=>t.title===x));
+    if(!tpl.length && !extra.length){ $("#taskList").innerHTML=`<span class="muted">${canTpl?"No task templates in this section yet.":"No ready-made tasks you can see in this section - type a task below."}</span>`; updateSel(); return; }
+    $("#taskList").innerHTML=tpl.map(t=>`<label class="titem"><input type="checkbox" class="tk" value="${esc(t.title)}"> ${esc(t.title)}</label>`).join("")
+      +extra.map(x=>`<label class="titem"><input type="checkbox" class="tk" value="${esc(x)}" checked> ${esc(x)} <span class="muted">(this event only)</span></label>`).join("");
     $("#taskList").querySelectorAll(".tk").forEach(c=>c.addEventListener("change",updateSel)); updateSel();
   }
   // task templates had no create UI — add a task to the org's template catalog (R192: typed in the sheet's "What" step,
@@ -533,6 +541,9 @@
     setMsg();
     const cat=String(activeCat||"").trim(), title=($("#tpl_title").value||"").trim();
     if(!cat||!title){ setMsg("err","Type the new task first."); $("#tpl_title").focus(); return; }
+    // R208: no Templates - Can change -> this event only (assign_tasks takes any task title; nothing saved to the checklist)
+    if(!canTpl){ const l=oneOff[cat]=oneOff[cat]||[]; if(!l.includes(title.slice(0,120))) l.push(title.slice(0,120));
+      $("#tpl_title").value=""; await renderTasks(); setMsg("ok",`Added "${title.slice(0,120)}" for this event - ticked below.`); lastOkMsg=""; return; }
     try{ await BPStore.ops.addTemplate(cat,title); }
     catch(e){ setMsg("err", /duplicate|unique|23505/i.test(String(e&&(e.message||e.code)))?"That task is already in this section.":"Could not add the task: "+((e&&e.message)||e)); return; }
     $("#tpl_title").value=""; await renderTasks();

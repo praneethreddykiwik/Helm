@@ -112,7 +112,7 @@ await t('members table: open + expired invites are rows (Resend invite / Cancel 
   assert.match(r.body, /<span class="dnTxt em ucinv-em">new\.person@very-long-studio-domain\.test<\/span><\/div><div class="ucsub">Invited by Asha<\/div>/);
   assert.match(r.body, /data-inv="i1"[\s\S]*?Invited – not signed up yet[\s\S]*?link expires/);
   assert.match(r.body, /data-inv="i2"[\s\S]*?<span class="ucst ucst-off"[^>]*>Invite expired – not signed up<\/span>/);
-  assert.match(r.body, /class="btn sm ucInvResend" aria-label="Resend invite to old@studio\.test">Resend invite<\/button><button type="button" class="btn sm ucInvCancel" aria-label="Cancel invite for old@studio\.test">Cancel invite<\/button>/);
+  assert.match(r.body, /class="btn sm primary ucInvResend" title="The link expired - this sends a new link that works 7 days" aria-label="Resend invite to old@studio\.test">Resend invite \(new link\)<\/button><button type="button" class="btn sm ucInvCancel" aria-label="Cancel invite for old@studio\.test">Cancel invite<\/button>/);
   const e = T([], { profiles: true, meId: 'u1', roles: [], q: '', filter: '', acct: evil, now: NOW, canEdit: true });
   assert.doesNotMatch(e.body, /<img|<b>r/); assert.match(e.body, /&quot;&gt;&lt;img src=x onerror=alert\(1\)&gt;@x\.test/);
   const noEdit = T([ROW(1)], { profiles: true, meId: 'u9', roles: ['crew'], q: '', filter: '', acct: ACCT, now: NOW });
@@ -283,7 +283,7 @@ await t('MANIFEST, checker override, run-all, release lists, CHECK-PROD carries 
   assert.match(read('supabase/CHECK-PROD-MIGRATIONS.sql'), /0378_r199_team_account_status/);
   assert.match(read('tests/db/r199-team-status-0378.sql'), /now\(\) \+ interval '7 days'/, 'dates relative to now');
 });
-await t('asset pins: store-api v370 on every page, team-status.js / .css v1 on Settings + Staff, flow-resume bumped', () => {
+await t('asset pins: store-api v371 (R205) on every page, team-status.js / .css v1 on Settings + Staff, flow-resume bumped', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.ok(Number(m[1]) >= 370, f);   // R204: later rounds bump it again
   }

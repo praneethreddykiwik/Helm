@@ -34,3 +34,15 @@ The older staging E2E suite (`tests/e2e`, separate) needs `HELM_E2E_STAGING_URL`
 npm run smoke          # staging
 npm run smoke:prod     # production (read-only)
 ```
+
+## Optional: auth e-mail speed check (R203) - by hand, owner only
+Supabase Auth sends its own e-mails (password reset, invitation, sign-up confirmation) **before** it answers the browser.
+When the studio SMTP (Gmail, `notifications@helm.events`) is slow, the reset still arrives but the page used to say
+"Couldn't reach the server". The app now waits up to 75 s for these calls and reports a slow one to Sentry as
+**`auth_mail_timeout`** (`endpoint=recover|resend|signup kind=timeout|gateway`); invite-signup logs `INVSU_MAIL_TIMEOUT` /
+`INVSU_CREATE_TIMEOUT` / `INVSU_CREATE_FAILED`. Not automated (each run sends a real e-mail and Supabase limits e-mails
+per hour). To check it after an SMTP change:
+1. On production, **Forgot password?** for your own account. Time it: the green note should come within ~10 s.
+2. Supabase → Logs → Auth: filter `path = /recover` and read `duration` (anything near 30 s+ = SMTP is slow).
+3. Sentry → Issues: search `auth_mail_timeout` - any event means a user waited longer than 75 s.
+4. If 1-3 are slow, see the PR R203 checklist (Gmail app password, port 587, Auth e-mail rate limit).
