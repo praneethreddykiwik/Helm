@@ -75,7 +75,8 @@ await t('team-status.js: the drawer is built with textContent only; copy buttons
   assert.match(TSJS, /if \(e\.key === "Escape"\) \{ e\.stopPropagation\(\); closeDrawer\(\); \}/);
   assert.match(TSJS, /if \(opt\.copy\) \{ var b = mk\("button", "btn sm tsd-copy", "Copy"\)/);
   assert.match(CSS, /\.tsd-val\{overflow-wrap:anywhere;word-break:break-word;min-width:0;user-select:text\}/, 'the full e-mail wraps, never cut off');
-  assert.match(CSS, /@media \(max-width:560px\)\{\s*\.tsd-modal\{padding:0;align-items:flex-end\}/, 'a bottom sheet on a phone');
+  assert.match(CSS, /\.tsd-modal,html\[data-shell\] \.lmodal\.tsd-modal\{padding:0;align-items:flex-end;/, 'a bottom sheet on a phone, over the shell centred-card rule');
+  assert.match(CSS, /html\[data-shell\] \.lmodal\.tsd-modal>\.tsd-sheet\{width:100%;max-width:100%;margin:0;/);
 });
 
 /* ---------------------------------------------------------------- 2. control.html */
@@ -203,6 +204,8 @@ await t('banner -> toast wiring: one observer, baseline (no toast for banners al
   assert.match(API, /if \(global\.matchMedia && global\.matchMedia\("\(max-width:640px\)"\)\.matches\) return "main";/, 'phones: the one bottom stack');
   assert.match(API, /doc\.querySelectorAll\("\.bpui-toasts \.bpui-toast"\)/, 'the same message is one card across both stacks');
   assert.match(API, /floatBanner: mirrorBanner,/);
+  assert.match(API, /if \(place === "top"\) \{ try \{ topRoot\.style\.top = Math\.max\(16, Math\.round\(headerBottom\(\)\) \+ 12\) \+ "px";/, 'measured: always under the app header');
+  assert.match(fnSrc(API, 'headerBottom'), /doc\.querySelectorAll\("\.hb-header, header"\)/);
   assert.match(API, /if \(node\.closest && node\.closest\("\.bpui-toasts"\)\) return;/, 'a toast never copies itself');
 });
 

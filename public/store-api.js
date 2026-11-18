@@ -12578,6 +12578,16 @@ window.HelmUrl = HelmUrl;
     doc.body.appendChild(toastRoot);
     return true;
   }
+  // R199: the lowest edge of a page header still on screen (0 when none) - the top-right toasts start under it
+  function headerBottom() {
+    var best = 0, vh = global.innerHeight || 800;
+    Array.prototype.forEach.call(doc.querySelectorAll(".hb-header, header"), function (e) {
+      if (e.closest && e.closest(".bpui-toasts, [role=dialog], dialog, .lmodal")) return;
+      var r = e.getBoundingClientRect(); if (!r.width || !r.height || r.top > 8 || r.bottom <= 0 || r.bottom > vh / 3) return;
+      if (r.bottom > best) best = r.bottom;
+    });
+    return best;
+  }
   // R199: place "top" = the top-right stack on a wide screen (page banners copied into a toast); phones: the one bottom stack
   function toastPlace(o) {
     if (!o || o.place !== "top") return "main";
@@ -12611,6 +12621,9 @@ window.HelmUrl = HelmUrl;
       var fresh = !(place === "top" ? (topRoot && topRoot.isConnected) : (toastRoot && toastRoot.isConnected));
       if (!ensureToasts(place)) return;
       var root = place === "top" ? topRoot : toastRoot;
+      // R199: the top-right stack sits BELOW the app header (measured each time: the shell's sticky bar, an older page's
+      // header) so it never covers the search, bell or New quote buttons
+      if (place === "top") { try { topRoot.style.top = Math.max(16, Math.round(headerBottom()) + 12) + "px"; topRoot.style.bottom = "auto"; } catch (e) {} }
       var lane = o.quiet ? L.quiet : (type === "err" || type === "sec") ? L.assertive : L.polite;
       var text = String(msg == null ? "" : msg), title = o.title != null ? String(o.title) : "";
       var key = type + "|" + title + "|" + text, same = title + "|" + text, existing = null;

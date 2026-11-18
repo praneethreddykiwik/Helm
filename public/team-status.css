@@ -69,8 +69,10 @@ html[data-theme="dark"] .um-err{background:rgba(220,38,38,.12);border-color:rgba
 .tsd-acts .tsd-danger{color:#b42318;border-color:#f5c6c6}
 .tsd-copy{padding:2px 10px;min-height:28px}
 @media (max-width:560px){
-  .tsd-modal{padding:0;align-items:flex-end}
-  .tsd-sheet{width:100%;max-height:88vh;border-radius:16px 16px 0 0;padding:16px}
+  /* a real bottom sheet on phones - beats the app shell's centred-card rule for every .lmodal (shell-b-pages.css) */
+  .tsd-modal,html[data-shell] .lmodal.tsd-modal{padding:0;align-items:flex-end;justify-content:stretch;z-index:1200}
+  .tsd-sheet,html[data-shell] .lmodal.tsd-modal>.tsd-sheet{width:100%;max-width:100%;margin:0;max-height:88dvh;border-radius:16px 16px 0 0;border-bottom:0;
+    padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))}
   .tsd-row{grid-template-columns:1fr;gap:2px}
   .tsd-acts .btn{flex:1 1 auto}
 }
