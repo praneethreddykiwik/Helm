@@ -156,7 +156,7 @@
       template: [["name", "category", "kind"], ["Paneer Butter Masala", "Main course", "veg"], ["Chicken Biryani", "Main course", "nonveg"], ["Gulab Jamun", "Dessert", "veg"]],
     },
     pricing: {
-      label: "Rates", noun: "rate", area: "admin",
+      label: "Item prices", noun: "rate", area: "admin",   // r221: same name as the onboarding step list
       fields: [
         { key: "name", label: "Name", required: true, type: "text", syn: ["name", "item", "rate", "ratename", "title", "package"] },
         { key: "price", label: "Price (₹)", required: true, type: "price", syn: ["price", "rate", "amount", "cost", "rs", "inr", "unitprice", "perunit", "charge"] },

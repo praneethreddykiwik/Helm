@@ -24,7 +24,7 @@ test("payment totals use theme tokens, not hard-coded inline colours", () => {
 });
 
 test("budget revenue breakdown adds up (ex-tax base + changes)", () => {
-  assert.match(budget, /quote \$\{inr\(sum\.revenueExTax - chX\)\} \+ changes \$\{inr\(chX\)\}/);
+  assert.match(budget, /\["quote ", M\$\(sum\.revenueExTax - chX\), " \+ changes ", M\$\(chX\)\]/);   // r221: [data-money] spans
 });
 
 test("settlement explains a server overpayment refusal instead of 'values are invalid'", () => {

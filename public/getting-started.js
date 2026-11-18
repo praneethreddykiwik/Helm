@@ -272,6 +272,8 @@
       await addWhatsappStep(data, store);
     }
     const m = model(data);
+    // r221: the dashboard "Get set up" strip reads the same server flags (e.g. "Invite your team" done)
+    api.last = m; try { global.document.dispatchEvent(new CustomEvent("helm:gs-model", { detail: m })); } catch (e) {}
     if (!m || m.dismissed) { card.hidden = true; return m; }
     css();
     let collapsed = lsGet(COLLAPSE_KEY) === "1";

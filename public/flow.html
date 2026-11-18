@@ -119,14 +119,14 @@
 </style>
 <link rel="stylesheet" href="flow-polish.css?v=9">
 <link rel="stylesheet" href="share-checklist.css?v=5">
-<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="venues.css?v=8">
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="wa-proposal.css?v=3">
 <link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=5">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=95" id="shellProto"></script>
+<script src="/shell-proto.js?v=96" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -436,7 +436,7 @@
 </div>
 
 <div class="mbar" id="mPriceBar" role="region" aria-label="Live price summary" hidden>
-  <span class="mbar-l">Total <b id="mPriceTotal">—</b></span>
+  <span class="mbar-l">Total <b id="mPriceTotal" data-money>—</b></span>
   <span class="mbar-s" id="mPriceStep"></span>
   <a class="btn sm" href="#priceCard" id="mPriceOpen">Price &amp; steps</a>
 </div>
@@ -462,7 +462,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=380"></script><script src="/trial-sim.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=382"></script><script src="/trial-sim.js?v=3"></script>
 <script src="page-tours.js?v=57"></script>
 <script src="tour.js?v=72"></script>
 <script src="payment-schedule.js?v=6"></script>
@@ -526,6 +526,10 @@
   const exemptOn=()=>{ const x=document.getElementById&&document.getElementById("q_taxExempt"); return !!(x&&x.checked); };
   const fTax=()=>BPStore.tax.resolve(Object.assign({}, quoteKeep&&ev ? BPStore.quoteTaxCfg(ev) : (rates||{}), { taxExempt: exemptOn() }));
   const inr=(n)=>{ const r=fTax(); return r.country!=="IN" ? BPStore.tax.money(Math.round(n||0), r) : "₹"+Math.round(n||0).toLocaleString("en-IN"); };
+  // r221 "Hide amounts": every amount this page draws sits in a [data-money] element, so it is masked by CSS + shell-b-privacy.js
+  // even before the privacy scan reaches it. putMoney(el, "text", M$(n), "text"...) writes a sentence whose amounts are such spans.
+  const M$=(n)=>({__m:n});
+  const putMoney=(el,...parts)=>{ el.replaceChildren(...parts.flat(4).map(x=>{ if(x&&typeof x==="object"&&"__m" in x){ const sp=document.createElement("span"); sp.setAttribute("data-money",""); sp.textContent=inr(x.__m); return sp; } return document.createTextNode(x==null?"":String(x)); })); };
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   // R193: the page's own quote check, shared with the widgets that read by the URL id (booklet card, link views, quote
   // validity): they wait for it and stay hidden for a quote that is not found (deleted / another studio) instead of
@@ -771,22 +775,22 @@
     const cnt=(n)=>FV.fmt(n);
     // owner: chairs default to 70% of guests - say which rule priced them (the count stays editable in step 8)
     const chairRule=chairsManual?"(set by hand)":($("#c_guests").value!==""?"(70% of guests)":"");
-    if(p.chairs>0) rows+=`<div class="prow"><span>Chairs${chairRule?' <span class="q">'+chairRule+'</span>':''} <span class="q">${cnt(p.chairs)} × ${inr(p.chairPrice)}</span></span><span class="amt">${inr(p.chairs*p.chairPrice)}</span></div>`;
+    if(p.chairs>0) rows+=`<div class="prow"><span>Chairs${chairRule?' <span class="q">'+chairRule+'</span>':''} <span class="q">${cnt(p.chairs)} × <span data-money>${inr(p.chairPrice)}</span></span></span><span class="amt" data-money>${inr(p.chairs*p.chairPrice)}</span></div>`;
     const np=pkgNoPrice();
     if(np && p.guests>0) rows+=`<div class="prow warnrow" role="status"><span>⚠ ${esc(np)} has no price set — set it in Settings › Menus. Catering is not priced until then.</span></div>`;
-    else if(p.guests>0) rows+=`<div class="prow"><span>Catering${p._packageName?' <span class="q">'+esc(p._packageName)+'</span>':''} <span class="q">${cnt(p.guests)} × ${inr(p.platePrice)}</span></span><span class="amt">${inr(p.guests*p.platePrice)}</span></div>`;
-    if(p.other>0) rows+=`<div class="prow"><span>Décor / setup</span><span class="amt">${inr(p.other)}</span></div>`;
-    rows+=`<div class="prow sub"><span>Subtotal</span><span class="amt">${inr(t.subtotal)}</span></div>`;
+    else if(p.guests>0) rows+=`<div class="prow"><span>Catering${p._packageName?' <span class="q">'+esc(p._packageName)+'</span>':''} <span class="q">${cnt(p.guests)} × <span data-money>${inr(p.platePrice)}</span></span></span><span class="amt" data-money>${inr(p.guests*p.platePrice)}</span></div>`;
+    if(p.other>0) rows+=`<div class="prow"><span>Décor / setup</span><span class="amt" data-money>${inr(p.other)}</span></div>`;
+    rows+=`<div class="prow sub"><span>Subtotal</span><span class="amt" data-money>${inr(t.subtotal)}</span></div>`;
     // PL1027 #1: a % discount from the Quotes list is kept on save - show it (and its ₹ value) beside the ₹ field
     { const h=$("#q_discountPctHint"); if(h){ const dp=+p.discountPct||0; h.hidden=!(dp>0);
-      h.textContent=dp>0?(dp+"% discount (− "+inr(t.subtotal*dp/100)+") — stays a % when the quote is re-priced."):""; } }
+      if(dp>0) putMoney(h, dp+"% discount (− ", M$(t.subtotal*dp/100), ") — stays a % when the quote is re-priced."); else h.textContent=""; } }
     // confirm-1018 #1: the coupon and the discount each get their own line (same rule + numbers as Confirm & lock)
     if(t.discount>0){ (window.HelmPriceLines?HelmPriceLines.discountLines(p,t):[{key:"discount",label:"Discount",amount:t.discount}]).forEach(l=>{
-        rows+=`<div class="prow" data-line="${esc(l.key)}"><span>${esc(l.label)}</span><span class="amt">− ${inr(l.amount)}</span></div>`; });
-      rows+=`<div class="prow"><span>Taxable value <span class="q">after discounts</span></span><span class="amt">${inr(Math.max(0,t.subtotal-t.discount))}</span></div>`; }
-    rows+=`<div class="prow"><span>${esc(fTax().name)}${t.taxExempt?" (exempt)":t.taxInclusive?" (included)":""}</span><span class="amt">${inr(t.totalGst)}</span></div>`;
+        rows+=`<div class="prow" data-line="${esc(l.key)}"><span>${esc(l.label)}</span><span class="amt" data-money>− ${inr(l.amount)}</span></div>`; });
+      rows+=`<div class="prow"><span>Taxable value <span class="q">after discounts</span></span><span class="amt" data-money>${inr(Math.max(0,t.subtotal-t.discount))}</span></div>`; }
+    rows+=`<div class="prow"><span>${esc(fTax().name)}${t.taxExempt?" (exempt)":t.taxInclusive?" (included)":""}</span><span class="amt" data-money>${inr(t.totalGst)}</span></div>`;
     if(fTax().country==="IN" && !t.taxExempt && t.totalGst>0) rows+=`<div class="prow posHint" style="color:var(--ink-3);font-size:11px"><span>${p.placeOfSupply==="inter"?"IGST (inter-state)":"CGST+SGST (intra-state)"}</span><span></span></div>`;
-    rows+=`<div class="prow total"><span>Total</span><span class="amt">${inr(t.total)}</span></div>`;
+    rows+=`<div class="prow total"><span>Total</span><span class="amt" data-money>${inr(t.total)}</span></div>`;
     rows+=`<div class="prow" data-money style="font-style:italic;color:var(--ink-3);font-size:11px;justify-content:flex-end">${fTax().country!=="IN"?"":esc(BPStore.amountInWords(t.total))}</div>`;
     $("#priceRows").innerHTML=rows;
     try{ updateAdvance(); }catch(_){ }   // QA1026 #1: coupon / discount changes re-derive the advance from the final total
@@ -984,7 +988,7 @@
     const box=$("#q_otherLayout"); if(!box) return;
     const v=$("#q_other").value, auto=layoutOtherAuto();
     const show=!!canEdit && (layoutItems||[]).length>0 && auto>0 && v!=="" && +v!==auto && !quoteBlocked();
-    box.hidden=!show; if(show){ $("#q_otherLayoutTxt").textContent="Layout suggests "+inr(auto)+" (object prices)."; box.dataset.n=String(auto); }
+    box.hidden=!show; if(show){ putMoney($("#q_otherLayoutTxt"), "Layout suggests ", M$(auto), " (object prices)."); box.dataset.n=String(auto); }
   }
   // an unsaved hand entry survives the trip to the floor builder (same tab) and wins over the layout on return
   function rememberTypedOther(){ try{ const v=$("#q_other").value;
@@ -1183,10 +1187,11 @@
     const d=canEdit ? repriceDiff() : null;
     let dismissed=""; try{ dismissed=sessionStorage.getItem(dismissKey())||""; }catch(_){}
     if(!d || dismissed===d.sig){ b.hidden=true; return; }
-    $("#repriceMeta").textContent="Settings prices changed after this quote was saved. Total "+inr(d.oldTotal)+" → "+inr(d.newTotal)+" at today's prices. Nothing changes until you re-price.";
+    putMoney($("#repriceMeta"), "Settings prices changed after this quote was saved. Total ", M$(d.oldTotal), " → ", M$(d.newTotal), " at today's prices. Nothing changes until you re-price.");
     const ul=$("#repriceLines"); ul.textContent="";
     d.lines.forEach(l=>{ const li=document.createElement("li");
-      li.textContent=l.label+": "+(l.flag ? ((l.from?"yes":"no")+" → "+(l.to?"yes":"no")) : l.pct ? (l.from+"% → "+l.to+"%") : (inr(l.from)+" → "+inr(l.to)+(l.a!=null && l.label.indexOf("·")>0 ? " ("+inr(l.a)+" → "+inr(l.b)+")" : "")));
+      if(l.flag || l.pct) li.textContent=l.label+": "+(l.flag ? ((l.from?"yes":"no")+" → "+(l.to?"yes":"no")) : (l.from+"% → "+l.to+"%"));
+      else putMoney(li, l.label+": ", M$(l.from), " → ", M$(l.to), l.a!=null && l.label.indexOf("·")>0 ? [" (", M$(l.a), " → ", M$(l.b), ")"] : []);
       ul.appendChild(li); });
     b.hidden=false;
   }
@@ -1222,8 +1227,8 @@
     const differs=HelmVersionLabel.differs(live, vs[0]&&vs[0].total);
     const sd=v=>{ try{ return BPStore.fmtStudioDate(v.created_at,{fmt:{day:"numeric",month:"short"}}); }catch(_){ return ""; } };   // LA-27: studio locale + timezone
     box.innerHTML='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:4px">Quotation versions</div>'+
-      (differs?`<div class="rowline"><span class="g"><b>Current (unsaved changes)</b> <span class="pill">current</span></span><span>${inr(live)}</span><span class="meta">Save the quotation to make this a new version</span></div>`:'')+
-      vs.map((v,i)=>`<div class="rowline"><span class="g"><b>${esc(v.label)}</b>${i===0&&!differs?' <span class="pill">current</span>':''}</span><span>${inr(v.total)}</span><span class="meta">${differs&&i===0?'saved '+esc(sd(v)):esc(BPStore.fmtDateTime(v.created_at)||'')}</span></div>`).join("");
+      (differs?`<div class="rowline"><span class="g"><b>Current (unsaved changes)</b> <span class="pill">current</span></span><span data-money>${inr(live)}</span><span class="meta">Save the quotation to make this a new version</span></div>`:'')+
+      vs.map((v,i)=>`<div class="rowline"><span class="g"><b>${esc(v.label)}</b>${i===0&&!differs?' <span class="pill">current</span>':''}</span><span data-money>${inr(v.total)}</span><span class="meta">${differs&&i===0?'saved '+esc(sd(v)):esc(BPStore.fmtDateTime(v.created_at)||'')}</span></div>`).join("");
   }
   async function downloadQuotePDF(){
     // 0197: guests over the linked venue (seated + floating) need a decision first (capacity-shortage.js)
@@ -1231,7 +1236,7 @@
     const p=currentInputs(), t=BPStore.pricing.quoteTotal(p), cl=ev.client||{};
     const reason=quoteEmptyReason(p,t);
     if(reason){ BPUI.toast("This quote is empty ("+inr(0)+"). Add seating, catering, or décor before downloading a PDF.",{type:"info"}); return; }   // LA-11: the quote's own currency
-    const line=(l,a)=>`<tr><td>${l}</td><td style="text-align:right">${inr(a)}</td></tr>`;
+    const line=(l,a)=>`<tr><td>${l}</td><td style="text-align:right" data-money>${inr(a)}</td></tr>`;
     const rows=[];
     if(p.chairs>0) rows.push(line(`Seating — ${p.chairs} chairs × ${inr(p.chairPrice)}`, p.chairs*p.chairPrice));
     if(p.guests>0) rows.push(line(`Catering${p._packageName?' ('+esc(p._packageName)+')':''} — ${p.guests} × ${inr(p.platePrice)}`, p.guests*p.platePrice));
@@ -1247,10 +1252,10 @@
       <div class="hd"><div><h1>Quotation</h1><div style="font-weight:600;margin-top:4px">${esc(fTitle)}</div><div class="muted">Ref ${esc(ev.code||'')} · ${esc(BPStore.quoteDate(Date.now(), fTax()))}</div></div>
         <div style="text-align:right"><div style="font-weight:700">${esc(cl.name||'')}</div><div class="muted">${esc(cl.phone||'')} ${esc(cl.email||'')}</div><div class="muted">${esc(cl.venue||'')}</div></div></div>
       <table>${rows.join('')}
-        <tr><td>Subtotal</td><td style="text-align:right">${inr(t.subtotal)}</td></tr>
-        ${t.discount>0?`<tr><td>Discount</td><td style="text-align:right">− ${inr(t.discount)}</td></tr>`:''}
-        <tr><td>${esc(fTax().name)}${t.taxInclusive?" (included)":""}</td><td style="text-align:right">${inr(t.totalGst)}</td></tr>
-        <tr class="tot"><td>Total</td><td style="text-align:right">${inr(t.total)}</td></tr>
+        <tr><td>Subtotal</td><td style="text-align:right" data-money>${inr(t.subtotal)}</td></tr>
+        ${t.discount>0?`<tr><td>Discount</td><td style="text-align:right" data-money>− ${inr(t.discount)}</td></tr>`:''}
+        <tr><td>${esc(fTax().name)}${t.taxInclusive?" (included)":""}</td><td style="text-align:right" data-money>${inr(t.totalGst)}</td></tr>
+        <tr class="tot"><td>Total</td><td style="text-align:right" data-money>${inr(t.total)}</td></tr>
       </table>
       <p class="muted" style="margin-top:20px">Generated by Helm Events. This is a quotation, not a tax invoice.</p>
       </body></html>`;
@@ -1315,7 +1320,7 @@
       const on = appliedPkg && appliedPkg.id===p.id;
       return `<button type="button" class="pkgcard ${on?'on':''}" data-id="${esc(p.id)}" aria-pressed="${!!on}"${on?' title="Selected - click again to remove the package"':''}>
         <b>${esc(p.name)}</b><div class="m">${esc(p.diet||'')} · ${Array.isArray(p.dishes)?p.dishes.length:0} dishes</div>
-        <div class="p">${inr(p.price_per_plate)} / plate</div></button>`;
+        <div class="p"><span data-money>${inr(p.price_per_plate)}</span> / plate</div></button>`;
     }).join("")}` : '<div class="meta">No menu packages set up yet — <a href="control.html#menu">add them in Settings</a>.</div>';
     $("#pkgCards").querySelectorAll(".pkgcard").forEach(b=>b.addEventListener("click",()=>{
       if(b.dataset.none==="1" || (appliedPkg && String(appliedPkg.id)===String(b.dataset.id))) clearPackage(b);
@@ -1420,10 +1425,11 @@
       let sd=null; try{ sd=PSCH&&PSCH.data; }catch(_){ sd=null; }
       const r0=sd&&Array.isArray(sd.rows)?sd.rows.find(r=>r&&r.state!=="waived"):null;
       if(r0 && PAID_SUM>0){ const rem=Math.max(0,Number(r0.remaining)||0);
-        h.textContent=`${r0.label||"First payment"} ${inr(r0.amount)} · Paid ${inr(Math.min(Number(r0.amount)||0, Number(r0.paid)||0))} · Remaining ${inr(rem)}${rem>0.5?" (part paid)":""} · Outstanding ${inr(sd.outstanding)}`;
+        putMoney(h, (r0.label||"First payment")+" ", M$(r0.amount), " · Paid ", M$(Math.min(Number(r0.amount)||0, Number(r0.paid)||0)), " · Remaining ", M$(rem), (rem>0.5?" (part paid)":"")+" · Outstanding ", M$(sd.outstanding));
         h.hidden=false; }
       else { const rem=Math.max(0,amt-PAID_SUM);
-        h.textContent = PAID_SUM>0 ? `Advance (${pct}%) ${inr(amt)} · Paid ${inr(PAID_SUM)} · Remaining ${inr(rem)}${rem>0.5?" (part paid)":""}` : ""; h.hidden=!(PAID_SUM>0); } }
+        if(PAID_SUM>0) putMoney(h, `Advance (${pct}%) `, M$(amt), " · Paid ", M$(PAID_SUM), " · Remaining ", M$(rem), rem>0.5?" (part paid)":""); else h.textContent="";
+        h.hidden=!(PAID_SUM>0); } }
   }
   let PAID_SUM=0;
   async function recordPayment(){
@@ -1567,7 +1573,7 @@
     paintBookingBadge(paid.length);
     PAID_SUM=paid.reduce((a,p)=>a+(Number(p.amount)||0),0); try{ updateAdvance(); }catch(_){ } try{ paintStatusBadge(); }catch(_){ }
     $("#pay_receipts").innerHTML = paid.length ? '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:4px">Receipts</div>'+
-      paid.map(p=>`<div class="rowline"><span class="g">${esc(p.receipt_no||p.provider_ref||'')} · ${esc(p.method||p.provider)}</span><span>${inr(p.amount)}</span><span class="meta">${esc(p.paid_at?BPStore.fmtStudioDate(p.paid_at):'')}</span></div>`).join('')
+      paid.map(p=>`<div class="rowline"><span class="g">${esc(p.receipt_no||p.provider_ref||'')} · ${esc(p.method||p.provider)}</span><span data-money>${inr(p.amount)}</span><span class="meta">${esc(p.paid_at?BPStore.fmtStudioDate(p.paid_at):'')}</span></div>`).join('')
       : '<div style="font-size:12px;color:var(--ink-3)">No payments recorded yet.</div>';
   }
   async function renderActivity(){

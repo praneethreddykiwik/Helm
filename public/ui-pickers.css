@@ -50,14 +50,18 @@ label > .uip-date-wrap, .field .uip-date-wrap, div > .uip-date-wrap { display: b
 
 /* ---- popover shell ---- */
 .uip-pop {
-  position: fixed; z-index: 2147483000; box-sizing: border-box;
+  /* r221: always a SOLID card on top of the page - the list was drawn see-through over the buttons behind it (onboarding
+     Menu dishes over "Smart import from Excel / CSV"): opaque white fallback under the theme colour, no fade-in (only a
+     short slide), its own stacking context above everything on the page */
+  position: fixed; z-index: 2147483000; box-sizing: border-box; isolation: isolate;
   display: flex; flex-direction: column;
-  background: var(--bg-raised, #fff); color: var(--ink, #1b1930);
-  border: 1px solid rgba(0, 0, 0, .06); border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, .14), 0 2px 6px rgba(15, 23, 42, .08);
+  background-color: #fff; background: var(--bg-raised, #fff); background-clip: padding-box; color: var(--ink, #1b1930);
+  -webkit-backdrop-filter: none; backdrop-filter: none; mix-blend-mode: normal;
+  border: 1px solid rgba(0, 0, 0, .1); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, .18), 0 2px 6px rgba(15, 23, 42, .1);
   overflow: hidden;
-  opacity: 0; transform: translateY(-4px) scale(.98); transform-origin: top center;
-  transition: opacity .16s ease, transform .18s cubic-bezier(.2, .8, .2, 1);
+  opacity: 1; transform: translateY(-4px) scale(.98); transform-origin: top center;
+  transition: transform .18s cubic-bezier(.2, .8, .2, 1);
   font-size: 14px;
 }
 .uip-pop.uip-up { transform-origin: bottom center; transform: translateY(4px) scale(.98); }

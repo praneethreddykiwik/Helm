@@ -92,14 +92,14 @@
 <link rel="stylesheet" href="booklet-share.css?v=8">
 <link rel="stylesheet" href="pkg-review.css?v=4">
 <link rel="stylesheet" href="share-checklist.css?v=5">
-<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="event-ui.css?v=3">
 <link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=5">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=95" id="shellProto"></script>
+<script src="/shell-proto.js?v=96" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -138,7 +138,7 @@
           <div class="meta ev-date s-fe7b497" id="dateRow"></div>
         </div>
         <div class="ev-side">
-          <div class="tot"><div class="muted">Total</div><div class="amt" id="total">—</div></div>
+          <div class="tot"><div class="muted">Total</div><div class="amt" id="total" data-money>—</div></div>
           <!-- r21: the client-facing pair + a ••• menu; r22: Invitation site / Cancel event are back on the card (footer) too -->
           <div class="ev-tools">
             <a class="client-link" id="clientLink" href="#" hidden>Client page →</a>
@@ -231,7 +231,7 @@
 <script src="telemetry.js?v=12"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=380"></script><script src="money-header-ui.js?v=2"></script><script src="/trial-sim.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=382"></script><script src="money-header-ui.js?v=2"></script><script src="/trial-sim.js?v=3"></script>
 <script src="flow-resume.js?v=10"></script>
 <script src="event-reminders.js?v=6"></script>
 <script src="page-tours.js?v=57"></script>
@@ -248,6 +248,11 @@
   // B11: this event's OWN currency (India/INR without a snapshot), never the studio's current country
   let evTax=null;
   const inr=(n)=>evTax?BPStore.quoteMoney(n,evTax):BPStore.studioMoney(n);
+  // r221 "Hide amounts": every amount this page draws sits in a [data-money] element, so it is masked by CSS + shell-b-privacy.js
+  // even before the privacy scan reaches it. mh(n) = the amount as HTML; putMoney(el, "text", M$(n), ...) = a sentence with amounts.
+  const mh=(n)=>'<span data-money>'+esc(inr(n))+'</span>';
+  const M$=(n)=>({__m:n});
+  const putMoney=(el,...parts)=>{ el.replaceChildren(...parts.flat(4).map(x=>{ if(x&&typeof x==="object"&&"__m" in x){ const sp=document.createElement("span"); sp.setAttribute("data-money",""); sp.textContent=inr(x.__m); return sp; } return document.createTextNode(x==null?"":String(x)); })); };
   let id=new URLSearchParams(location.search).get("id");
   // R193: the page's own event check, shared with the widgets that read by the URL id (link views chip, quote validity):
   // they wait for it and stay hidden for an event that is not found instead of calling the server about it.
@@ -291,7 +296,7 @@
   const advanceIn=()=> !!ev && (ev.approvalStatus==="paid" || Number(paidSoFar)>0 || !!(settleSummary && Number(settleSummary.received)>0));
   const paidAmount=()=>{ const a=Number(paidSoFar)||0, b=settleSummary?(Number(settleSummary.receivedGross!=null?settleSummary.receivedGross:settleSummary.received)||0):0; return Math.max(a,b); };
   // "Advance recorded ₹X — record another payment" (the amount only for roles that can see money)
-  const advanceDoneLabel=()=>{ const amt=paidAmount(); return "Advance recorded"+(canFin&&amt>0?" "+inr(amt):"")+" — record another payment"; };
+  const advanceDoneParts=()=>{ const amt=paidAmount(); return canFin&&amt>0 ? ["Advance recorded ", M$(amt), " — record another payment"] : ["Advance recorded — record another payment"]; };
   const effStage=()=>{ const k=(ev&&ev.lifecycleStage)||"quote";
     if(ev && k!=="cancelled" && (k==="closed" || !!ev.closedAt || !!(closureSummary&&closureSummary.closed))) return "closed";   // r22: closed = every step done
     return (ev && stageIndex(k)<stageIndex("confirmed") && BPStore.quoteStatus(ev,{advance:advanceIn()}).confirmed) ? "confirmed" : k; };
@@ -309,7 +314,7 @@
   // 0198 stage strip: clicking a stage OPENS it (view only); moving the event is a separate, gated action
   let viewK=null, myRole="", conflictAcks=undefined, linkState=null;
   const stageInfo={};   // "<stage>|<stored stage>|<status>" -> blockers list (null = old database)
-  let ev=null, canEdit=false, canFin=false, canPipe=false, tasksSummary=null, staffSummary=null, vendorSummary=null, vendorReqSummary=null, discSummary=null, propSummary=null, invSummary=null, resSummary=null, runSummary=null, budgetSummary=null, planSummary=null, logiSummary=null, readySummary=null, daySummary=null, issuesSummary=null, teardownSummary=null, settleSummary=null, layoutSummary=null, billsDelta=0, closureSummary=null, mediaSummary=null, conflictSummary=null;
+  let ev=null, canEdit=false, canFin=false, canPipe=false, tasksSummary=null, staffSummary=null, vendorSummary=null, vendorReqSummary=null, discSummary=null, propSummary=null, invSummary=null, resSummary=null, runSummary=null, budgetSummary=null, planSummary=null, logiSummary=null, readySummary=null, daySummary=null, issuesSummary=null, teardownSummary=null, settleSummary=null, layoutSummary=null, qvLabel=null, billsDelta=0, closureSummary=null, mediaSummary=null, conflictSummary=null;
   const evTotal=()=> (ev && (ev.total!=null?ev.total:(ev.pricing&&ev.pricing.total))) || 0;
   let hdrChange=null;   // qts-1018: this event's approved change-order sum (null = not read yet)
   const budgetRange=()=>{ const cb=ev&&ev.client&&ev.client.budget; if(cb!=null&&cb!==""&&isFinite(+cb)) return inr(+cb);   // budget-single-source: the quote's budget first
@@ -383,6 +388,8 @@
       S(async()=>{ budgetSummary=await BPStore.budget.summary(id); }),
       S(async()=>{ planSummary=await BPStore.plan.get(id); }),
       // qa-quote-flow B28: the Floor layout card says how many objects the current layout has
+      // r221: the quotation's own number (Q1, Q2 ... - the quote flow's numbering), not the floor-plan layout version
+      S(async()=>{ const qv=BPStore.quotationVersions?await BPStore.quotationVersions.list(id):[]; qvLabel=(Array.isArray(qv)&&qv[0]&&qv[0].label)?String(qv[0].label):""; }),
       S(async()=>{ const v=await BPStore.quotes.getVersion(id, ev.currentVersion); const it=(v&&v.data&&Array.isArray(v.data.items))?v.data.items:[]; layoutSummary={ objects:it.length }; }),
       S(async()=>{ const m=await BPStore.eventMenu.list(id); menuCount=(m||[]).length; }),
       S(async()=>{ const g=await BPStore.checklist.list(id,"guests");
@@ -445,7 +452,7 @@
     if(!staleInfo){ el.hidden=true; el.innerHTML=""; return; }
     const amt=(v)=> (v==null||!canFin) ? "" : inr(Number(v));
     const was=amt(staleInfo.prev), now=amt(staleInfo.next);
-    el.innerHTML=`<b>⚠ Price changed after approval — client must approve again.</b>${was&&now?` <span>Approved ${esc(was)} → now ${esc(now)}.</span>`:""}
+    el.innerHTML=`<b>⚠ Price changed after approval — client must approve again.</b>${was&&now?` <span>Approved <span data-money>${esc(was)}</span> → now <span data-money>${esc(now)}</span>.</span>`:""}
       <div class="muted" style="font-size:13px;margin-top:2px">Confirming, locking the plan and client payments are paused until the client approves the new total.</div>
       ${canEdit?`<button type="button" class="btn" id="reapprBtn" style="margin-top:6px">Send new approval link</button>`:""}`;
     el.hidden=false;
@@ -569,7 +576,7 @@
     if(pb){ const owed=settleSummary&&settleSummary.balance!=null?Number(settleSummary.balance):null;
       const show=isConfirmed() && advanceIn() && cur<stageIndex("closed") && (owed==null || owed>0.5);
       pb.hidden=!show;
-      if(show){ pb.textContent=advanceDoneLabel(); let ph="flow.html?quote="+q+"#sec-pay"; if(window.HelmUrl&&HelmUrl.upgrade) ph=HelmUrl.upgrade(ph); pb.setAttribute("href",ph); } }
+      if(show){ putMoney(pb, advanceDoneParts()); let ph="flow.html?quote="+q+"#sec-pay"; if(window.HelmUrl&&HelmUrl.upgrade) ph=HelmUrl.upgrade(ph); pb.setAttribute("href",ph); } }
     return true;
   }
   // Event group (0035): after confirmation, a clear button at the bottom — "Create event group"
@@ -747,10 +754,10 @@
       : canLockMenu ? `<div class="muted lockwhy">Locking fixes the package and dishes the price is based on. You can unlock it later in details.</div>`
       : (canEditPlan && !menuChosen) ? `<div class="muted lockwhy">Pick a package or add dishes in details, then lock the menu.</div>` : "";
     const discSum = discSummary && (discSummary.total || (discSummary.disc))
-      ? `${discSummary.total} requirement${discSummary.total===1?"":"s"}${discSummary.must?` · <b>${discSummary.must} must-have${discSummary.must===1?"":"s"}</b>`:""}${budgetRange()?` · budget ${budgetRange()}`:""}`
+      ? `${discSummary.total} requirement${discSummary.total===1?"":"s"}${discSummary.must?` · <b>${discSummary.must} must-have${discSummary.must===1?"":"s"}</b>`:""}${budgetRange()?` · budget <span data-money>${budgetRange()}</span>`:""}`
       : "Meet the client and capture requirements &amp; budget.";
     const fromDisc = (!canPipe && discSummary && (budgetRange()||discSummary.must))
-      ? `<div class="muted" style="margin-top:4px">From discovery: ${budgetRange()?budgetRange():""}${(budgetRange()&&discSummary.must)?" · ":""}${discSummary.must?discSummary.must+" must-have"+(discSummary.must===1?"":"s"):""}</div>` : "";
+      ? `<div class="muted" style="margin-top:4px">From discovery: ${budgetRange()?`<span data-money>${budgetRange()}</span>`:""}${(budgetRange()&&discSummary.must)?" · ":""}${discSummary.must?discSummary.must+" must-have"+(discSummary.must===1?"":"s"):""}</div>` : "";
     // 0256 (r23): status pills for the vendor requests of this event (counts only, no money)
     const vendorReqPills = () => { const r=vendorReqSummary; if(!r) return "";
       const p=[]; const n=(k)=>Number(r[k])||0;
@@ -774,7 +781,7 @@
         acts:[{t: canEdit?"Open proposal":"View proposal", href:"proposal.html?quote="+encodeURIComponent(id), primary:true}] },
       { key:"layout", ic:"📐", title:"Floor layout", sum: layoutSummary&&layoutSummary.objects>0 ? `${layoutSummary.objects} object${layoutSummary.objects===1?"":"s"} on the floor plan · open the builder to adjust it.` : `Design the 2D/3D plan for this event.`,
         acts:[{t:"Open builder", href:"builder.html?quote="+encodeURIComponent(id), primary:true}] },
-      { key:"quote", ic:"🧾", title:"Quote & approval", sum:`Version v${esc(ev.currentVersion)}${canFin&&!evTotal()?" · not priced yet":""}<div class="muted">${approvalText()}</div>${fromDisc}`,
+      { key:"quote", ic:"🧾", title:"Quote & approval", sum:`${qvLabel?"Quotation "+esc(qvLabel):qvLabel===""?"No quotation saved yet":"Quotation"}${canFin&&!evTotal()?" · not priced yet":""}<div class="muted">${approvalText()}</div>${fromDisc}`,
         acts:[{t:"Open this quote", href:"quotes.html?focus="+encodeURIComponent(ev.code||id), primary:true}] },
       { key:"tasks", ic:"🛠️", title:"Tasks & staff", sum: tasksSummary&&tasksSummary.total?`${tasksSummary.done}/${tasksSummary.total} tasks done${staffSummary&&staffSummary.people?` · ${staffSummary.people} of our people assigned`:""}`:"Assign our people to the event's tasks.",
         acts:[{t:"Open Tasks & staff", href:"ops.html?quote="+encodeURIComponent(id), primary:true}] },
@@ -800,19 +807,19 @@
         sum: logiSummary && logiSummary.guests ? `${logiSummary.guests} guests` : (canFin?"Guests, permits, comms &amp; the payment schedule.":"Guests, permits &amp; comms."),
         acts:[{t: canEdit?"Open logistics":"View logistics", href:"logistics.html?quote="+encodeURIComponent(id), primary:true}] },
       { key:"closure", ic:"📊", title:"Closure & P&L",
-        sum: closureSummary && noCosts() ? `${closureSummary.closed?'<span class="stat ok">Closed</span> · ':''}Profit ${NOCOST}` : closureSummary ? `${closureSummary.closed?'<span class="stat ok">Closed</span> · ':''}Profit <b class="${closureSummary.profit>=0?'t-ok':'t-bad'}">${inr(closureSummary.profit)}</b>${closureSummary.pct!=null?` (${closureSummary.pct}%)`:""}` : "Feedback, P&amp;L, ratings &amp; archive.",
+        sum: closureSummary && noCosts() ? `${closureSummary.closed?'<span class="stat ok">Closed</span> · ':''}Profit ${NOCOST}` : closureSummary ? `${closureSummary.closed?'<span class="stat ok">Closed</span> · ':''}Profit <b class="${closureSummary.profit>=0?'t-ok':'t-bad'}" data-money>${inr(closureSummary.profit)}</b>${closureSummary.pct!=null?` (${closureSummary.pct}%)`:""}` : "Feedback, P&amp;L, ratings &amp; archive.",
         acts:[{t:"Open closure", href:"closure.html?quote="+encodeURIComponent(id), primary:true}] },
       { key:"media", ic:"📸", title:"Media & gallery",
         sum: mediaSummary && mediaSummary.total ? `${mediaSummary.photos} photo${mediaSummary.photos===1?"":"s"} · ${mediaSummary.videos} video${mediaSummary.videos===1?"":"s"} · ${mediaSummary.gallery} in gallery` : "Collect photos &amp; videos and pick the client gallery.",
         acts:[{t: canEdit?"Open media":"View media", href:"media.html?quote="+encodeURIComponent(id), primary:true}] },
       { key:"settle", ic:"💳", title:"Payments & invoice",
-        sum: settleSummary ? `${settleSummary.balance>0?`<b class="t-bad">${inr(settleSummary.balance)} due</b>`:'<span class="stat ok">client settled</span>'}${settleSummary.vendorOutstanding?` · ${inr(settleSummary.vendorOutstanding)} to vendors`:""}` : "Final invoice, vendor settlement &amp; expenses.",
+        sum: settleSummary ? `${settleSummary.balance>0?`<b class="t-bad">${mh(settleSummary.balance)} due</b>`:'<span class="stat ok">client settled</span>'}${settleSummary.vendorOutstanding?` · ${mh(settleSummary.vendorOutstanding)} to vendors`:""}` : "Final invoice, vendor settlement &amp; expenses.",
         acts:[{t: canEdit?"Open settlement":"View settlement", href:settleHref(), primary:true}] },
       { key:"teardown", ic:"📦", title:"Teardown & returns",
         sum: teardownSummary && (teardownSummary.retTotal||teardownSummary.tdTotal) ? `${teardownSummary.retDone}/${teardownSummary.retTotal} stock returned · ${teardownSummary.tdDone}/${teardownSummary.tdTotal} teardown done` : "Return stock, exit vendors, hand over the venue.",
         acts:[{t: canEdit?"Open teardown":"View teardown", href:"teardown.html?quote="+encodeURIComponent(id), primary:true}] },
       { key:"budget", ic:"💰", title:"Budget & margin",
-        sum: budgetSummary && noCosts() && budgetSummary.revenue ? `${inr(budgetSummary.revenueExTax!=null?budgetSummary.revenueExTax:budgetSummary.revenue)} rev (ex-tax) · margin ${NOCOST}` : budgetSummary && (budgetSummary.estCost || budgetSummary.revenue) ? `${inr(budgetSummary.revenueExTax!=null?budgetSummary.revenueExTax:budgetSummary.revenue)} rev (ex-tax) · ${inr(budgetSummary.estCost)} cost · <b class="${budgetSummary.estMargin>=0?'t-ok':'t-bad'}">${inr(budgetSummary.estMargin)} margin${budgetSummary.estMarginPct!=null?` (${budgetSummary.estMarginPct}%)`:""}</b>${budgetSummary.pendingChanges?` · ${budgetSummary.pendingChanges} change${budgetSummary.pendingChanges===1?"":"s"} pending`:""}` : "Track costs vs the quote and see your margin.",
+        sum: budgetSummary && noCosts() && budgetSummary.revenue ? `${mh(budgetSummary.revenueExTax!=null?budgetSummary.revenueExTax:budgetSummary.revenue)} rev (ex-tax) · margin ${NOCOST}` : budgetSummary && (budgetSummary.estCost || budgetSummary.revenue) ? `${mh(budgetSummary.revenueExTax!=null?budgetSummary.revenueExTax:budgetSummary.revenue)} rev (ex-tax) · ${mh(budgetSummary.estCost)} cost · <b class="${budgetSummary.estMargin>=0?'t-ok':'t-bad'}">${mh(budgetSummary.estMargin)} margin${budgetSummary.estMarginPct!=null?` (${budgetSummary.estMarginPct}%)`:""}</b>${budgetSummary.pendingChanges?` · ${budgetSummary.pendingChanges} change${budgetSummary.pendingChanges===1?"":"s"} pending`:""}` : "Track costs vs the quote and see your margin.",
         acts:[{t: canEdit?"Open budget":"View budget", href:"budget.html?quote="+encodeURIComponent(id), primary:true}] },
       { key:"resourceplan", ic:"🧩", title:"Resource plan",
         sum: resSummary && resSummary.total ? `${resSummary.total} need${resSummary.total===1?"":"s"} · ${resSummary.gaps?`<b class="t-bad">${resSummary.gaps} missing</b>`:(resSummary.outsourced?`<span class="stat ok">all covered</span> · ${resSummary.outsourced} by vendors / client`:'<span class="stat ok">all covered by us</span>')}` : "List what the event needs and see what's still missing.",
@@ -980,7 +987,7 @@
     return ({ lead:[["Open discovery","discovery.html?quote="+q]], discovery:[["Open discovery","discovery.html?quote="+q]],
       proposal:[["Open proposal","proposal.html?quote="+q],["Open floor layout","builder.html?quote="+q]],
       quote:[["Open this quote","quotes.html?focus="+fq],["Venue & menu","plan.html?quote="+q]],
-      confirmed:[["Quote & approval","quotes.html?focus="+fq],[advanceIn()?advanceDoneLabel():"Record advance","flow.html?quote="+q+"#sec-pay"]],
+      confirmed:[["Quote & approval","quotes.html?focus="+fq],[advanceIn()?advanceDoneParts():"Record advance","flow.html?quote="+q+"#sec-pay"]],
       planning:[["Open run-sheet","runsheet.html?quote="+q],["Open Tasks & staff","ops.html?quote="+q],["Venue & menu","plan.html?quote="+q]],
       resources:[["1 Reserve our stock","inventory.html?quote="+q],["2 Assign our people","ops.html?quote="+q],["3 What's missing","resources.html?quote="+q]],
       ready:[["Open readiness","ready.html?quote="+q],["Open logistics","logistics.html?quote="+q]],
@@ -1113,7 +1120,7 @@
     const info=stageInfo[infoKey(s.k)];
     if(info===undefined) loadStageInfo(s.k);
     const why=el("div",{class:"sp-why"}), acts=el("div",{class:"sp-act"});
-    stagePages(s.k).forEach(([t,href],i)=>acts.appendChild(el("a",{class:"btn sm"+(i?"":" primary"),href:(window.HelmUrl&&HelmUrl.upgrade)?HelmUrl.upgrade(href):href,text:t})));
+    stagePages(s.k).forEach(([t,href],i)=>{ const a=el("a",{class:"btn sm"+(i?"":" primary"),href:(window.HelmUrl&&HelmUrl.upgrade)?HelmUrl.upgrade(href):href,text:Array.isArray(t)?"":t}); if(Array.isArray(t)) putMoney(a,t); acts.appendChild(a); });
     if(ev.status==="cancelled") why.textContent="This event is cancelled - its stages are view-only.";
     else if(evClosedNow()) why.textContent="This event is closed - its stages are view-only. An admin can re-open it from Closure.";
     else if(s.k==="closed"){
@@ -1123,9 +1130,9 @@
       else if(early && !b) why.textContent="You can close this event after "+niceDay(d)+" (event day).";
       else if(b&&b.too_early) why.textContent="You can close this event after "+(b.close_after||niceDay(b.event_date))+" (event day).";
       else if(b&&b.blocked){ const l=[]; if(b.no_event_date) l.push("set the event date"); if(b.not_booked==="unconfirmed") l.push("the client must confirm the booking");
-        if(b.not_booked==="unpriced") l.push("price the quote"); if(Number(b.balance_owed)>0) l.push("collect the balance ("+inr(Number(b.balance_owed))+")");
+        if(b.not_booked==="unpriced") l.push("price the quote"); if(Number(b.balance_owed)>0) l.push(["collect the balance (", M$(Number(b.balance_owed)), ")"]);
         if(Number(b.open_checkouts)>0) l.push("return "+b.open_checkouts+" equipment checkout"+(b.open_checkouts>1?"s":""));
-        why.textContent="Closing needs: "+(l.join(", ")||"a few things first")+"."; }
+        putMoney(why, "Closing needs: ", l.length ? l.map((x,i)=>i?[", ",x]:[x]) : "a few things first", "."); }
       else why.textContent=b?"Ready to close - settle up and close it on the Closure page.":"Close the event on its Closure page once the event day is over.";
     } else if(canEdit && vis!==cur){
       // the move button is always there, and DISABLED with the reason whenever a gate blocks the move

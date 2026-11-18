@@ -195,7 +195,7 @@ t('trial-lock.js: opening an event page or the builder ticks the trial step', ()
 t('dashboard chip: hides when complete, says "Trial steps" in the trial', () => {
   const s = read('public/shell-b-dash.js');
   assert.match(s, /gs\.getAttribute\("data-gs-complete"\) === "1"/);
-  assert.match(s, /data-gs-mode"\) === "trial" \? "Trial steps " : "Setup "/);
+  assert.match(s, /data-gs-mode"\) === "trial" \? "Trial steps " : "Getting started "/);   // r221: names the card it opens
 });
 t('onboarding: step numbers match "Step N of M"; typed teammate e-mail is invited; plain section name', () => {
   const s = read('public/onboarding.js');
