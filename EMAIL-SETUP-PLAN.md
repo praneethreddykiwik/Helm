@@ -105,7 +105,7 @@ Two things, both mostly owner-side:
 | **Verified sending domain (SPF/DKIM/DMARC)** | n/a | **Owner DNS + Resend/Workspace dashboard** |
 | **Resend account + API key** | n/a | **Owner: create key, set `RESEND_API_KEY` + `RESEND_FROM`** |
 | Mailer cron schedules | n/a | **Owner: per `docs/ops/EMAIL-SETUP.md` (each needs its own secret)** |
-| Dark-mode email rendering | ✅ Built (dark-friendly) | **Owner decision: keep vs. force light-only** |
+| Dark-mode email rendering | ✅ Decided (R207): light-only | Owner: re-paste auth templates + redeploy mail functions |
 | `pkg-client-notify` honoring studio's saved Sender name | ⚠️ Not wired (see §5) | Owner decision (changes live From name) |
 
 ---
@@ -139,10 +139,9 @@ Two things, both mostly owner-side:
   emails honor the saved Sender name would need a DB read of `comms_settings.email_from_name` and would
   **change the From line on real client emails**, so it is left for the owner to approve. (Payment-receipt
   naming looks intentional per the docs and is probably best left as-is.)
-- **Dark-mode transactional emails** (project memory: pending since 2026-10-29). Emails are currently
-  dark-mode-friendly (`_shared/email-layout.mjs` emits a `prefers-color-scheme` block). Two Deno edge tests
-  still assert "light-only" and would need aligning once the owner decides keep vs. force-light. Changing
-  this alters how real emails render, so it waits on the owner.
+- **Dark-mode transactional emails: DECIDED (R207) - light-only.** `_shared/email-layout.mjs` now emits
+  `color-scheme: light only` and no dark-mode rules; the tests (test/r207-email-light, email-redesign,
+  auth-signup-confirm, tests/edge/trial-reminder-email, tests/edge/pkg-client-notify) pin light-only.
 - **`billing-reminder` / nurture greetings** remain intentionally dormant pending owner decisions — not a
   code gap.
 
