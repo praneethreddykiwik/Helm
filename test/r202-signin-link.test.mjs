@@ -139,6 +139,10 @@ await t('0379: admin / Users edit for the link, admins for temp, own studio, not
   assert.match(MIG, /Reactivate them first, then send a sign-in link\./);
   assert.doesNotMatch(MIG.replace(/--.*$/gm, ''), /\b(delete|truncate|drop)\b\s/i, 'nothing deleted or dropped');
   assert.match(MIG, /alter table public\.team_signin_help enable row level security;/);
+  // privacy: studio data, emptied by the free-trial purge (0184) like the other studio tables
+  assert.match(MIG, /create table if not exists public\.team_signin_help \(\n  id         bigserial primary key,\n  org_id     uuid not null,/);
+  assert.match(MIG, /else execute replace\(v_def, '''notifications''', '''notifications'', ''team_signin_help'''\); end if;/);
+  assert.match(APPLY, /'07 free-trial purge empties team_signin_help with the studio/);
   assert.match(MIG, /-- r199-0378: account status/, 'the 0378 marker stays on the re-issued status body');
   assert.doesNotMatch(MIG, /[^\x00-\x7F]/); assert.doesNotMatch(APPLY, /[^\x00-\x7F]/);
 });
@@ -151,7 +155,7 @@ await t('APPLY-0379: begin; the migration verbatim; one all-true check list; com
 await t('MANIFEST, checker override, run-all, release lists, CHECK-PROD carry 0379', () => {
   assert.ok(read('supabase/migrations/MANIFEST').includes('forward  supabase/migrations/0379_r202_signin_help.sql'));
   assert.match(read('supabase/check-prod-overrides.json'), /"0379": \{ "note": "Users & invites sign-in help[^\n]*"marker public\.team_signin_link_request\(uuid\) r202-0379"/);
-  assert.match(read('scripts/db-test/run-all.sh'), /run "r202-signin-help-0379" "R202-SIGNIN-HELP-0379: ALL PASS \\\(21\/21\\\)" psql -q -f tests\/db\/r202-signin-help-0379\.sql/);
+  assert.match(read('scripts/db-test/run-all.sh'), /run "r202-signin-help-0379" "R202-SIGNIN-HELP-0379: ALL PASS \\\(22\/22\\\)" psql -q -f tests\/db\/r202-signin-help-0379\.sql/);
   for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0378', '0379'\];/, f);
   assert.match(read('supabase/CHECK-PROD-MIGRATIONS.sql'), /0379_r202_signin_help/);
 });

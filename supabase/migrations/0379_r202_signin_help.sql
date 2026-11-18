@@ -19,14 +19,16 @@
 --         studio. Recorded in the activity log (never the password).
 --     team_account_status() re-issued with two more facts per member: signin_link_at (the last sign-in link sent)
 --         and can_new_temp (New temporary password is allowed for them). Everything it returned before is unchanged.
---   One new private table, team_signin_help (who asked, for whom, when; no password, no link, no token).
+--   One new private table, team_signin_help (who asked, for whom, when; no password, no link, no token). It is studio
+--   data: the free-trial purge (0184) empties it with the rest of a purged trial studio (_tr184_purge_tables).
 --
 -- Changes: one new table (RLS on, no client access), three new functions, one function re-issued (same answer plus two
 -- keys). No existing row is changed or deleted except the target login's password hash when an admin asks for a new
 -- temporary password (the same thing Add user does). Nothing is ever deleted.
 -- Undo: drop function public.team_signin_link_request(uuid); drop function public.team_signin_link_failed(bigint);
 --       drop function public.team_temp_password_reset(uuid); drop function public._r379_temp_ok(uuid, uuid);
---       re-run 0378 (the older team_account_status body); the table team_signin_help may stay (it is only a log).
+--       re-run 0378 (the older team_account_status body); the table team_signin_help may stay (it is only a log) and
+--       stays in _tr184_purge_tables (harmless).
 
 do $$ begin
   if to_regclass('public.auth_temp_passwords') is null then raise exception '0379: auth_temp_passwords is not installed (apply 0028 first)'; end if;
@@ -37,18 +39,17 @@ do $$ begin
 end $$;
 
 -- ---- 1) the private log: who asked for a sign-in link / a new temporary password, for whom, when ----------------------
--- (column studio_id, not org_id - like r282_acu_refusals: a private rate-limit / who-asked log, not studio data, so the
---  trial retention / read-only guards that look for org_id do not apply; trial purge never needs it)
+-- studio data: emptied with the rest of a free-trial studio by the 0184 trial purge (added to _tr184_purge_tables below)
 create table if not exists public.team_signin_help (
   id         bigserial primary key,
-  studio_id  uuid not null,
+  org_id     uuid not null,
   user_id    uuid not null,
   actor      uuid,
   kind       text not null check (kind in ('link', 'temp')),
   created_at timestamptz not null default now(),
   failed_at  timestamptz                       -- the page could not send the e-mail (does not count for the 10 minutes)
 );
-create index if not exists team_signin_help_user_idx on public.team_signin_help (studio_id, user_id, kind, created_at desc);
+create index if not exists team_signin_help_user_idx on public.team_signin_help (org_id, user_id, kind, created_at desc);
 alter table public.team_signin_help enable row level security;
 revoke all on table public.team_signin_help from public;
 do $$ begin
@@ -58,6 +59,19 @@ do $$ begin
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
     execute 'revoke all on table public.team_signin_help from authenticated';
     execute 'revoke all on sequence public.team_signin_help_id_seq from authenticated'; end if;
+end $$;
+
+-- free-trial retention (0184): a purged trial studio's sign-in help log goes with the rest of its data (privacy).
+-- Patched in place the way 0198 / 0206 / 0372 add their tables; an unexpected body is left alone (notice).
+do $$ declare v_def text; begin
+  if to_regprocedure('public._tr184_purge_tables()') is not null then
+    v_def := pg_get_functiondef('public._tr184_purge_tables()'::regprocedure);
+    if position('''team_signin_help''' in v_def) = 0 then
+      if (length(v_def) - length(replace(v_def, '''notifications''', ''))) / length('''notifications''') <> 1 then
+        raise notice '0379: _tr184_purge_tables has an unexpected body - left unchanged';
+      else execute replace(v_def, '''notifications''', '''notifications'', ''team_signin_help'''); end if;
+    end if;
+  end if;
 end $$;
 
 -- ---- 2) may this studio give that login a new temporary password? -------------------------------------------------------
@@ -104,13 +118,13 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtextextended('r379:link:' || p_user::text, 0));
   select max(h.created_at) into v_last from public.team_signin_help h
-   where h.studio_id = v_org and h.user_id = p_user and h.kind = 'link' and h.failed_at is null and h.created_at > now() - interval '10 minutes';
+   where h.org_id = v_org and h.user_id = p_user and h.kind = 'link' and h.failed_at is null and h.created_at > now() - interval '10 minutes';
   if v_last is not null then
     return jsonb_build_object('ok', false, 'code', 'rate_limited', 'sent_at', v_last,
       'retry_after_s', greatest(1, ceil(extract(epoch from (v_last + interval '10 minutes' - now())))::int),
       'error', 'A sign-in link was sent to them a few minutes ago. You can send another 10 minutes after the last one.');
   end if;
-  insert into public.team_signin_help(studio_id, user_id, actor, kind) values (v_org, p_user, v_me, 'link') returning id into v_id;
+  insert into public.team_signin_help(org_id, user_id, actor, kind) values (v_org, p_user, v_me, 'link') returning id into v_id;
   perform public._r283_audit(v_org, 'team.signin_link', p_user, jsonb_build_object('help_id', v_id));
   return jsonb_build_object('ok', true, 'id', v_id, 'email', v_email);
 end $$;
@@ -123,7 +137,7 @@ declare v_me uuid := auth.uid(); v_org uuid := public.current_org_id();
 begin
   if v_me is null or v_org is null then raise exception 'not authorized' using errcode = '42501'; end if;
   update public.team_signin_help set failed_at = now()
-   where id = p_id and studio_id = v_org and actor = v_me and kind = 'link' and failed_at is null and created_at > now() - interval '15 minutes';
+   where id = p_id and org_id = v_org and actor = v_me and kind = 'link' and failed_at is null and created_at > now() - interval '15 minutes';
 end $$;
 
 -- ---- 4) "New temporary password" (admins; a never-used Add user login of this studio) --------------------------------
@@ -147,13 +161,13 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtextextended('r379:temp:' || v_org::text, 0));
   select max(h.created_at) into v_last from public.team_signin_help h
-   where h.studio_id = v_org and h.user_id = p_user and h.kind = 'temp' and h.created_at > now() - interval '10 minutes';
+   where h.org_id = v_org and h.user_id = p_user and h.kind = 'temp' and h.created_at > now() - interval '10 minutes';
   if v_last is not null then
     return jsonb_build_object('ok', false, 'code', 'rate_limited',
       'retry_after_s', greatest(1, ceil(extract(epoch from (v_last + interval '10 minutes' - now())))::int),
       'error', 'A new temporary password was made for them a few minutes ago. You can make another 10 minutes after the last one.');
   end if;
-  select count(*) into v_n from public.team_signin_help h where h.studio_id = v_org and h.kind = 'temp' and h.created_at > now() - interval '24 hours';
+  select count(*) into v_n from public.team_signin_help h where h.org_id = v_org and h.kind = 'temp' and h.created_at > now() - interval '24 hours';
   if v_n >= 50 then
     raise exception 'too many new temporary passwords today - send sign-in links instead' using errcode = '54000';
   end if;
@@ -167,7 +181,7 @@ begin
   on conflict (user_id) do update set pw_hash = excluded.pw_hash, created_at = now();
   update public.a155_admin_created a set pw_hash = u.encrypted_password from auth.users u
    where a.user_id = p_user and u.id = p_user and a.org_id = v_org and a.released_at is null;
-  insert into public.team_signin_help(studio_id, user_id, actor, kind) values (v_org, p_user, v_me, 'temp') returning id into v_id;
+  insert into public.team_signin_help(org_id, user_id, actor, kind) values (v_org, p_user, v_me, 'temp') returning id into v_id;
   perform public._r283_audit(v_org, 'team.temp_password_reset', p_user, jsonb_build_object('help_id', v_id));
   return jsonb_build_object('ok', true, 'user_id', p_user, 'temp_password', v_temp);
 end $$;
@@ -207,7 +221,7 @@ begin
            'invited_at', inv.created_at,
            'invited_by_name', inv.by_name,
            'signin_link_at', (select max(h.created_at) from public.team_signin_help h
-                               where h.studio_id = v_org and h.user_id = p.id and h.kind = 'link' and h.failed_at is null),
+                               where h.org_id = v_org and h.user_id = p.id and h.kind = 'link' and h.failed_at is null),
            'can_new_temp', coalesce(public.is_admin(), false) and p.id <> v_me and public._r379_temp_ok(p.id, v_org))
          order by p.id), '[]'::jsonb)
     into v_members

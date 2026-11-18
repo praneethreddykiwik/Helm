@@ -88,7 +88,7 @@ begin
   perform pg_temp.su();
   perform pg_temp.res('03 admin: sign-in link ok, e-mail returned, logged + activity log',
     (r ->> 'ok')::boolean and r ->> 'email' = 'r202_added@a.test'
-    and exists (select 1 from public.team_signin_help h where h.id = (r ->> 'id')::bigint and h.user_id = u_temp and h.actor = a_admin and h.kind = 'link' and h.studio_id = orgA)
+    and exists (select 1 from public.team_signin_help h where h.id = (r ->> 'id')::bigint and h.user_id = u_temp and h.actor = a_admin and h.kind = 'link' and h.org_id = orgA)
     and exists (select 1 from public.audit_log a where a.action = 'team.signin_link' and a.entity_id = u_temp::text and a.org_id = orgA and a.actor = a_admin), r::text);
   v_id := (r ->> 'id')::bigint;
 
@@ -203,6 +203,13 @@ begin
   perform pg_temp.su();
   perform pg_temp.res('20 no profile deleted', (select count(*) from public.profiles) = n0, n0::text);
 end $$;
+
+-- 22 free-trial retention: the log is purged with a trial studio, nothing left unclassified
+select pg_temp.res('22 trial retention: team_signin_help in _tr184_purge_tables once, not unclassified',
+  'team_signin_help' = any(public._tr184_purge_tables())
+  and (select count(*) from unnest(public._tr184_purge_tables()) x where x = 'team_signin_help') = 1
+  and not ('team_signin_help' = any(public._tr184_keep_tables()))
+  and not (public.trial_retention_dry_run() -> 'unclassified_tables' ? 'team_signin_help'));
 
 -- 21 grants + definer + search_path + markers
 select pg_temp.res('21 signed-in execute only, definer, empty search_path, markers (r199-0378 kept on the status body)',

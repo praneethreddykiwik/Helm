@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4380 objects): body 171, bucket 9, col 242, con 412, cron 19, exec 11, fn 1973, idx 521, marker 62, pol 186, polexpr 4, pre 107, pub 5, seq 1, tbl 286, trg 369, view 2.
+-- What is checked (4381 objects): body 171, bucket 9, col 242, con 412, cron 19, exec 11, fn 1973, idx 521, marker 63, pol 186, polexpr 4, pre 107, pub 5, seq 1, tbl 286, trg 369, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4393,7 +4393,7 @@ with o(m, k, s, n, x) as (values
   ('0378_r199_team_account_status', 'fn', 'public', 'team_account_status', ''),
   ('0378_r199_team_account_status', 'marker', 'public', 'team_account_status', '|r199-0378'),
   ('0378_r199_team_account_status', 'exec', 'public', 'team_account_status', '|authenticated'),
-  ('0379_r202_signin_help', 'body', 'public', 'team_account_status', '|e55f82fe0d688ec3fda6190364eba8d0'),
+  ('0379_r202_signin_help', 'body', 'public', 'team_account_status', '|39383cd888dab5343442921ab0c71057'),
   ('0379_r202_signin_help', 'tbl', 'public.team_signin_help', null, null),
   ('0379_r202_signin_help', 'idx', 'public.team_signin_help_user_idx', null, null),
   ('0379_r202_signin_help', 'fn', 'public', '_r379_temp_ok', 'uuid,uuid'),
@@ -4404,7 +4404,8 @@ with o(m, k, s, n, x) as (values
   ('0379_r202_signin_help', 'marker', 'public', 'team_temp_password_reset', 'uuid|r202-0379'),
   ('0379_r202_signin_help', 'exec', 'public', 'team_signin_link_request', 'uuid|authenticated'),
   ('0379_r202_signin_help', 'exec', 'public', 'team_temp_password_reset', 'uuid|authenticated'),
-  ('0379_r202_signin_help', 'exec', 'public', 'team_signin_link_failed', 'bigint|authenticated')
+  ('0379_r202_signin_help', 'exec', 'public', 'team_signin_link_failed', 'bigint|authenticated'),
+  ('0379_r202_signin_help', 'marker', 'public', '_tr184_purge_tables', '|team_signin_help')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
