@@ -283,7 +283,7 @@ await t('MANIFEST, checker override, run-all, release lists, CHECK-PROD carries 
   assert.match(read('supabase/CHECK-PROD-MIGRATIONS.sql'), /0378_r199_team_account_status/);
   assert.match(read('tests/db/r199-team-status-0378.sql'), /now\(\) \+ interval '7 days'/, 'dates relative to now');
 });
-await t('asset pins: store-api v370 on every page, team-status.js / .css v1 on Settings + Staff, flow-resume bumped', () => {
+await t('asset pins: store-api v371 (R205) on every page, team-status.js / .css v1 on Settings + Staff, flow-resume bumped', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.ok(Number(m[1]) >= 370, f);   // R204: later rounds bump it again
   }

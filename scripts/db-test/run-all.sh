@@ -27,10 +27,11 @@ export PGTZ="${PGTZ:-UTC}"
 # direct (system) change and keeps quiet. Suites expect normal sends, so pin the override off;
 # system-quiet-0164.sql clears it to test the real detection.
 # 0290: the older suites run as if every message were inside the studio send window; r41-send-window-0290.sql turns it on
+# 0383: fixtures / suites write auth.users.last_sign_in_at by hand - not sign-ins; r205-signin-notice-0383.sql turns the notices on
 # 0342: the older suites expect a failed send to be retried at once and to give up after 5 tries; r143-outbox-backoff-0342.sql turns the backoff on
 # 0296: fixtures / cleanups delete events and vendors as the superuser; the older suites run with the purge mark on
 # (it never helps a delete made AS anon / authenticated). r55-no-hard-delete-0296.sql + the 0184 re-run below turn it off.
-export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off -c helm.retry_backoff=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
+export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off -c helm.signin_notice=off -c helm.retry_backoff=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
 dropdb --if-exists helm_runall >/dev/null 2>&1; createdb helm_runall
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/00-supabase-shim.sql >/dev/null 2>&1
 
@@ -227,7 +228,7 @@ run "trial-signup-0180" "TRIAL-SIGNUP-0180: ALL PASS \(33/33\)" psql -q -f tests
 run "trial-guards-0181" "TRIAL-GUARDS-0181: ALL PASS \(60/60\)" psql -q -f tests/db/trial-guards-0181.sql
 run "trial-prices-0182" "TRIAL-PRICES-0182: ALL PASS \(21/21\)" psql -q -f tests/db/trial-prices-0182.sql
 run "trial-expiry-0183" "TRIAL-EXPIRY-0183: ALL PASS \(61/61\)" psql -q -f tests/db/trial-expiry-0183.sql
-run "trial-retention-0184" "TRIAL-RETENTION-0184: ALL PASS \(50/50\)" psql -q -f tests/db/trial-retention-0184.sql
+run "trial-retention-0184" "TRIAL-RETENTION-0184: ALL PASS \(51/51\)" psql -q -f tests/db/trial-retention-0184.sql
 run "trial-upgrade-0185" "TRIAL-UPGRADE-0185: ALL PASS \(45/45\)" psql -q -f tests/db/trial-upgrade-0185.sql
 run "trial-extension-0186" "TRIAL-EXTENSION-0186: ALL PASS \(55/55\)" psql -q -f tests/db/trial-extension-0186.sql
 run "trial-outbound-0187" "TRIAL-OUTBOUND-0187: ALL PASS \(17/17\)" psql -q -f tests/db/trial-outbound-0187.sql
@@ -342,7 +343,7 @@ run "r39-staff-google-0288" "R39-STAFF-GOOGLE-0288: ALL PASS \(49/49\)" psql -q 
 # skipped + logged; TRUNCATE refused); re-applies itself twice, purge mark off, rolled back
 run "r55-no-hard-delete-0296" "R55-NO-HARD-DELETE-0296: ALL PASS \(33/33\)" psql -q -f tests/db/r55-no-hard-delete-0296.sql
 # r55: the real 0184 trial purge again, with the 0296 guard live and NO purge mark (it deletes with its own helm.trial_purge_org)
-run "trial-retention-0184-r55-guard" "TRIAL-RETENTION-0184: ALL PASS \(50/50\)" env PGOPTIONS="$PGOPTIONS -c helm.allow_purge=off" psql -q -f tests/db/trial-retention-0184.sql
+run "trial-retention-0184-r55-guard" "TRIAL-RETENTION-0184: ALL PASS \(51/51\)" env PGOPTIONS="$PGOPTIONS -c helm.allow_purge=off" psql -q -f tests/db/trial-retention-0184.sql
 # r56 (0297): client links answer an allow-list, no rate rows for random tokens, purge, client_mailer_check; re-applies itself twice
 # (earlier suites re-apply 0042 / 0052 / 0090 / 0095 / 0260 / 0262 over these wrappers), rolled back
 run "r56-client-links-0297" "R56-CLIENT-LINKS-0297: ALL PASS \(40/40\)" psql -q -f tests/db/r56-client-links-0297.sql
@@ -416,6 +417,8 @@ run "r199-team-status-0378" "R199-TEAM-STATUS-0378: ALL PASS \(21/21\)" psql -q 
 run "r202-signin-help-0379" "R202-SIGNIN-HELP-0379: ALL PASS \(22/22\)" psql -q -f tests/db/r202-signin-help-0379.sql
 # r203 (0381): HQ-only TEST STUDIO switch for the r35 two-step rule - off (no row / false) -> inviting an Admin without two-step refused R35_SETUP_2STEP; on for studio A -> skipped for A only (B still refused), a flagged account still refused; studio admins / anon cannot read or set it (table, guard trigger, HQ call, helper); HQ Owner switches it off through hq_set_test_studio (note, HQ audit row); every change logged, log append-only; my_test_studio() for the banner; re-applies itself twice, rolled back
 run "r203-test-studio-0381" "R203-TEST-STUDIO-0381: ALL PASS \(27/27\)" psql -q -f tests/db/r203-test-studio-0381.sql
+# r205 (0383): teammate sign-in notices - a real sign-in (new session + last_sign_in_at) -> one bell row for the owner + admins only (never the person, never studio B), "Name (Role) signed in [for the first time] - h:mm AM - Browser on System" in the studio clock, audit auth.sign_in; token refresh ignored; 10-minute rule; first of the studio day (default) / every / off; only roles (crew off by default); HQ / helm.events / deactivated / sample studio never; invited person joining = first time; a broken notice never blocks the sign-in; fallback ping no-op while the trigger is on; settings admin-only + validated + audited; RLS; catalog type; grants; rolled back
+run "r205-signin-notice-0383" "R205-SIGNIN-NOTICE-0383: ALL PASS \(39/39\)" psql -q -f tests/db/r205-signin-notice-0383.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
 run "r136-audit-via-0340" "R136-AUDIT-VIA-0340: ALL PASS \(18/18\)" psql -q -f tests/db/r136-audit-via-0340.sql
 # r139 (0341): per-network limits on the approval link (240), client portal (240) and invitation (600) per 10 minutes - same answers as before, call N+1 from one network refused with a clean 22023 sentence, other networks / no address / read-only calls never blocked, kept __pre0341 copies with no app privilege, crew links untouched (0154), _tl173_trial_locked closed to anon; re-applies itself twice, rolled back

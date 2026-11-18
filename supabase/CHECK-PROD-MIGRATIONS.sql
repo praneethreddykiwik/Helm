@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (336 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (337 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4407 objects): body 173, bucket 9, col 242, con 412, cron 19, exec 14, fn 1979, idx 526, marker 67, pol 186, polexpr 4, pre 108, pub 5, seq 1, tbl 288, trg 372, view 2.
+-- What is checked (4445 objects): body 173, bucket 9, col 242, con 415, cron 19, exec 17, fn 1995, idx 528, marker 72, pol 189, polexpr 4, pre 109, pub 5, seq 1, tbl 290, trg 375, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -669,8 +669,8 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'export_tenant_organization_package', ''),
   ('base-v1-2026-09-25', 'fn', 'public', 'verify_and_consent', 'uuid,text,text,boolean,text,text,text,text'),
   ('base-v1-2026-09-25', 'fn', 'public', 'accept_invitation', 'text'),
-  ('base-v1-2026-09-25', 'fn', 'public', 'bell_feed', 'integer'),
   ('base-v1-2026-09-25', 'fn', 'public', 'worker_checkin_equipment', 'uuid,uuid,numeric'),
+  ('base-v1-2026-09-25', 'fn', 'public', 'bell_feed', 'integer'),
   ('0001_pricing_authority', 'body', 'public', 'enforce_pricing_total', '|906e8a4240c9079e5ecde18fd774d385'),
   ('0001_pricing_authority', 'fn', 'public', 'helm_quote_total_canonical', 'jsonb'),
   ('0003_money_integrity', 'fn', 'public', 'helm_total_paid', 'uuid,uuid,uuid'),
@@ -4423,6 +4423,44 @@ with o(m, k, s, n, x) as (values
   ('0381_r203_test_studio_two_step', 'marker', 'public', 'hq_set_test_studio', 'uuid,boolean,text|r203-0381'),
   ('0381_r203_test_studio_two_step', 'exec', 'public', 'my_test_studio', '|authenticated'),
   ('0381_r203_test_studio_two_step', 'exec', 'public', 'hq_set_test_studio', 'uuid,boolean,text|authenticated'),
+  ('0383_r205_signin_notice', 'tbl', 'public.signin_notice_settings', null, null),
+  ('0383_r205_signin_notice', 'con', 'public.signin_notice_settings', 'signin_notice_settings_mode_chk', null),
+  ('0383_r205_signin_notice', 'con', 'public.signin_notice_settings', 'signin_notice_settings_roles_chk', null),
+  ('0383_r205_signin_notice', 'tbl', 'public.signin_notice_log', null, null),
+  ('0383_r205_signin_notice', 'con', 'public.signin_notice_log', 'signin_notice_log_via_chk', null),
+  ('0383_r205_signin_notice', 'idx', 'public.signin_notice_log_user_idx', null, null),
+  ('0383_r205_signin_notice', 'idx', 'public.signin_notice_log_session_idx', null, null),
+  ('0383_r205_signin_notice', 'trg', 'public.signin_notice_settings', 'zzz_studio_read_only', null),
+  ('0383_r205_signin_notice', 'fn', 'public', '_r383_device', 'text'),
+  ('0383_r205_signin_notice', 'fn', 'public', '_r383_role_label', 'text'),
+  ('0383_r205_signin_notice', 'fn', 'public', '_r383_roles_all', ''),
+  ('0383_r205_signin_notice', 'fn', 'public', '_r383_cfg', 'uuid'),
+  ('0383_r205_signin_notice', 'fn', 'public', '_r383_is_hq', 'text'),
+  ('0383_r205_signin_notice', 'fn', 'public', '_r383_trigger_may', ''),
+  ('0383_r205_signin_notice', 'fn', 'public', '_r383_trigger_on', ''),
+  ('0383_r205_signin_notice', 'fn', 'public', '_r383_signin', 'uuid,uuid,text,boolean,text'),
+  ('0383_r205_signin_notice', 'fn', 'public', '_r383_session', 'uuid'),
+  ('0383_r205_signin_notice', 'fn', 'public', 'tg_r383_signin', ''),
+  ('0383_r205_signin_notice', 'fn', 'public', 'tg_r383_join', ''),
+  ('0383_r205_signin_notice', 'trg', 'public.profiles', 'zz_r383_join_notice', null),
+  ('0383_r205_signin_notice', 'trg', 'auth.users', 'zz_r383_signin_notice', null),
+  ('0383_r205_signin_notice', 'fn', 'public', 'signin_notice_ping', 'text'),
+  ('0383_r205_signin_notice', 'fn', 'public', 'signin_notice_settings_get', ''),
+  ('0383_r205_signin_notice', 'fn', 'public', 'signin_notice_settings_set', 'jsonb'),
+  ('0383_r205_signin_notice', 'fn', 'public', '_r23_visible__pre0383', 'uuid,uuid'),
+  ('0383_r205_signin_notice', 'fn', 'public', 'bell_feed__pre0383', 'integer'),
+  ('0383_r205_signin_notice', 'pol', 'public.notifications', 'r383_signin_read', null),
+  ('0383_r205_signin_notice', 'pol', 'public.notifications', 'r383_signin_ins', null),
+  ('0383_r205_signin_notice', 'pol', 'public.notifications', 'r383_signin_upd', null),
+  ('0383_r205_signin_notice', 'pre', null, '__pre0383', null),
+  ('0383_r205_signin_notice', 'marker', 'public', '_r23_visible', 'uuid,uuid|r205-0383'),
+  ('0383_r205_signin_notice', 'marker', 'public', 'bell_feed', 'integer|r205-0383'),
+  ('0383_r205_signin_notice', 'marker', 'public', 'notification_catalog', '|r205-0383'),
+  ('0383_r205_signin_notice', 'marker', 'public', 'notification_type_of', 'text,text|r205-0383'),
+  ('0383_r205_signin_notice', 'marker', 'public', 'notify_default', 'uuid,text,text,text|r205-0383'),
+  ('0383_r205_signin_notice', 'exec', 'public', 'signin_notice_settings_get', '|authenticated'),
+  ('0383_r205_signin_notice', 'exec', 'public', 'signin_notice_settings_set', 'jsonb|authenticated'),
+  ('0383_r205_signin_notice', 'exec', 'public', 'signin_notice_ping', 'text|authenticated'),
   ('0384_r206_api_timeouts', 'body', 'public', 'event_timesheet', 'uuid|90d39c2c74f21ee8db31c64bcc4e3b81'),
   ('0384_r206_api_timeouts', 'idx', 'public.ix_event_tasks_quote_crew_0384', null, null),
   ('0384_r206_api_timeouts', 'idx', 'public.ix_event_day_arrival_ref_0384', null, null),
@@ -4769,7 +4807,8 @@ mig(ord, m, ov, note) as (values
   (333, '0378_r199_team_account_status', null, 'Users & invites account status: new read-only team_account_status (admin / Users edit, own studio), checked by the r199-0378 marker'),
   (334, '0379_r202_signin_help', null, 'Users & invites sign-in help: Send sign-in link + New temporary password (team_signin_help log), team_account_status + signin_link_at / can_new_temp, checked by the r202-0379 markers'),
   (335, '0381_r203_test_studio_two_step', null, 'test-studio two-step switch: new private tables studio_test_mode + studio_test_mode_log, new hq_set_test_studio / my_test_studio / _r381_two_step_exempt, _r285_step_up re-issued in place, checked by the r203-0381 marker'),
-  (336, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes')
+  (336, '0383_r205_signin_notice', null, 'teammate sign-in notices: triggers zz_r383_signin_notice (auth.users, after last_sign_in_at) + zz_r383_join_notice (profiles), tables signin_notice_settings / signin_notice_log, settings + fallback ping; _r23_visible, bell_feed, notification_catalog, notification_type_of and notify_default wrapped once (old bodies kept as __pre0383), checked by the r205-0383 marker (the wrappers name the r190-0373 / r186-0369 / r24-ci-0270 / r163-0357 / r163-0358 / r156-0354 bodies they keep, so those markers still hold). Only the auth.users trigger missing = this project refused triggers on auth.users: the app fallback signin_notice_ping is used, nothing to paste'),
+  (337, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes')
 ),
 env as (
   select

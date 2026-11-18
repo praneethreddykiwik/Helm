@@ -37,6 +37,7 @@ const CASES = [
   ['security_alert', ['security_alert'], 'control.html#users'],
   ['billing_trial', ['trial_reminder'], 'checkout.html'],
   ['plan_active', ['plan_active'], 'checkout.html'],   // r121 (0329)
+  ['team_signin', ['team_signin'], 'control.html#users'],   // R205 (0383): no person id in the sample row -> the Users tab
   ['chat_message', ['chat_message'], 'chat.html'],
   ['pkg_selected', ['pkg_selected'], `event.html?id=${Q}#pkg-selections`],
   ['pkg_accepted', ['pkg_accepted'], `event.html?id=${Q}#pkg-selections`],

@@ -860,6 +860,9 @@
       <!-- R130 (0338): WhatsApp task reminders (task-reminders-ui.js) -->
       <div class="card" id="trmCard" hidden></div>
 
+      <!-- R205 (0383): "Ravi (Planner) signed in" bell notices for the owner + admins (signin-notice-ui.js; hidden before 0383) -->
+      <div class="card" id="sinCard" hidden></div>
+
       <!-- 0078: automatic client messages + WhatsApp forwarding (wired by comms-settings.js) -->
       <div class="card" id="commsCard" hidden>
         <h3>Automatic client messages &amp; WhatsApp</h3>
@@ -961,18 +964,18 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=375"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=376"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=55"></script>
+<script src="page-tours.js?v=56"></script>
 <script src="tour.js?v=72"></script>
 <script src="pkg-review.js?v=10"></script>
 <script src="onboarding-core.js?v=9"></script>
 <script src="studio-billing-form.js?v=3"></script>
-<script src="comms-settings.js?v=7"></script><script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=7"></script>
+<script src="comms-settings.js?v=7"></script><script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=7"></script><script src="signin-notice-ui.js?v=1"></script>
 <script src="delivery-tracker.js?v=3"></script>
 <script src="delivery-settings.js?v=3"></script>
 <script src="inbox-settings.js?v=4"></script><script src="crew-shifts.js?v=8"></script>
@@ -1076,7 +1079,7 @@
     try{ await settle(cards); } finally { focusHashCard(); }   // #account / #pricing open even if one card failed
     if(isAdmin){
       // the User-control tab (users + access matrix) loads on first open, not on every visit to Settings
-      if(location.hash==="#users") switchTab("users");
+      if(location.hash==="#users"){ switchTab("users"); openPersonFromLink(); }
       if(location.hash==="#notifications") switchTab("notify");
     }
   }
@@ -2434,6 +2437,15 @@
         { label:"Cancel invite", danger:true, onClick:(b)=>invCancel(inv, b) }] });
   }
   // the details drawer for one member (full e-mail, phone, role, title, joined, status, last sign-in, invited by)
+  // R205 (0383): the "signed in" bell notice opens control.html?person=<id>#users -> that person's details once the list is in
+  function openPersonFromLink(){
+    let pid=""; try{ pid=new URLSearchParams(location.search).get("person")||""; }catch(e){}
+    if(!/^[0-9a-f-]{36}$/i.test(pid) || !usersTabP) return;
+    usersTabP.then(()=>{ const u=ucRows.find(x=>ucId(x)===pid); if(!u) return;
+      const team=(typeof HelmTeam!=="undefined"&&ucTeam)?HelmTeam.view(ucTeam):null; viewMember(u, team);
+      try{ const url=new URL(location.href); url.searchParams.delete("person"); history.replaceState(history.state, "", url.pathname+url.search+url.hash); }catch(e){}
+    }).catch(()=>{});
+  }
   function viewMember(u, team){
     const TS=window.HelmTeamStatus; if(!TS) return;
     const a=ucAcct&&ucAcct.byId?(ucAcct.byId[ucId(u)]||null):null, off=!!(team&&team.isOff&&team.isOff(ucId(u)));
@@ -2771,6 +2783,7 @@
     if(typeof HelmDeliverySettings!=="undefined") HelmDeliverySettings.init();   // 0241 delivery reminders
     if(typeof HelmAutomations!=="undefined") HelmAutomations.init();   // r24 (0269) Automations
     if(typeof HelmTaskReminders!=="undefined") HelmTaskReminders.settingsCard($("#trmCard"));   // R130 (0338) task reminders
+    if(typeof HelmSigninNotice!=="undefined") HelmSigninNotice.settingsCard($("#sinCard"));   // R205 (0383) teammate sign-ins
     await loadNotify(); renderNotify();
     try{ npUsers=(await BPStore.auth.admin.listUsers())||[]; }catch(e){ npUsers=[]; }
     npUsers.sort((a,b)=>String(a.full_name||a.email||"").localeCompare(String(b.full_name||b.email||"")));
