@@ -276,7 +276,7 @@
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="control-split.css?v=16">
-<link rel="stylesheet" href="roles-matrix.css?v=1"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
+<link rel="stylesheet" href="roles-matrix.css?v=2"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=8"></script>
 <script src="/shell-proto.js?v=92" id="shellProto"></script>
 </head>
@@ -683,8 +683,10 @@
         <div class="rm-sticky" id="rmSticky">
           <div class="roletabs" id="roleTabs"></div>
           <div class="rm-bar" id="rmBar"></div>
+          <div class="rm-dep" id="rmDep" role="status" hidden></div>
         </div>
         <div class="rm-callout" id="mgrClose" hidden></div>
+        <div class="rm-sum" id="rmSum" hidden></div>
         <div id="matrix"></div>
       </div>
 
@@ -933,13 +935,13 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=371"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=372"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=53"></script>
+<script src="page-tours.js?v=54"></script>
 <script src="tour.js?v=71"></script>
 <script src="pkg-review.js?v=9"></script>
 <script src="onboarding-core.js?v=9"></script>
@@ -966,7 +968,7 @@
 <script src="settings-search-core.js?v=2"></script>
 <script src="search-catalog.js?v=11"></script>
 <script src="control-split.js?v=24"></script>
-<script src="role-defaults.js?v=1"></script>
+<script src="role-defaults.js?v=2"></script><script src="access-deps.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -2369,11 +2371,75 @@
     if(rest.length) out.push({title:"Other", blurb:"", rows:rest});
     return out;
   }
+  // R208: what each area NEEDS to work (access-deps.js) + "What can this role do?" in plain words. Nothing new is stored:
+  // the "Turn on" buttons save through the same queue and admin_set_role_access as every other switch (audit logged).
+  const AD = window.HelmAccessDeps || null;
+  let depHint = null;   // {role, area, kind:"needs"|"breaks", list:[need areas]} - shown once after a switch, until dismissed
+  function areaName(k){ const r=RD.SECTIONS.flatMap(x=>x.rows).find(x=>x.area===k), a=ALL_AREAS.find(x=>x.key===k); return (r&&r.label)||(a&&a.label)||k; }
+  function isPerm(k){ const a=ALL_AREAS.find(x=>x.key===k); return !!(a&&a.permission); }
+  function cellOf(role){ return (k)=> role==="admin" ? {view:true, edit:true} : cellNow(role,k); }
+  function needText(n){ return `${areaName(n.area)} \u2013 ${AD.levelText(n.level)}`; }
+  function needsHtml(role, a){
+    if(!AD || role==="admin") return "";
+    const line=AD.lineFor(a.key, cellOf(role)); if(!line.length) return "";
+    const miss=AD.unmet(a.key, cellOf(role), isPerm(a.key)), missU=AD.unmet(a.key, cellOf(role), isPerm(a.key), "uses");
+    const bad=(n)=>(n.uses?missU:miss).some(m=>m.area===n.area&&m.level===n.level);
+    // a missing NEED is yellow with "!"; a missing "also uses" (optional) is only dashed - it still works without it
+    const item=(n)=>`<span class="rm-need${n.ok?" ok":bad(n)?(n.uses?" opt":" miss"):""}" title="${esc(n.why)}"><span aria-hidden="true">${n.ok?"\u2713":bad(n)&&!n.uses?"!":"\u00b7"}</span> ${esc(needText(n))}</span>`;
+    const req=line.filter(n=>!n.uses), opt=line.filter(n=>n.uses);
+    return `<span class="rm-needs">${req.length?`<span class="rm-nl">Needs:</span> ${req.map(item).join(" ")}`:""}${opt.length?`<span class="rm-nl">Also uses:</span> ${opt.map(item).join(" ")}`:""}`
+      +`${miss.length?`<button type="button" class="btn sm rm-fix" data-fix="${esc(a.key)}">Turn on ${esc(miss.map(needText).join(" + "))}</button>`:""}</span>`;
+  }
+  function renderSummary(locked){
+    const box=$("#rmSum"); if(!box) return;
+    if(!AD || mtxErr){ box.hidden=true; return; }
+    const c=cellOf(selRole), hasRow=!!(MTX[selRole]&&MTX[selRole].tasks);
+    const items=AD.summary(selRole, c, AD.canAssign(selRole, c, hasRow)), rl=BPStore.auth.admin.roleLabel(selRole);
+    box.hidden=false;
+    box.innerHTML=`<b class="rm-sum-h">What can ${esc(rl)} do?</b>${locked?`<span class="rm-sum-s">Everything - admin always has full access.</span>`:""}
+      <ul class="rm-sum-l">${items.map(x=>`<li class="${x.yes?"y":"n"}" data-k="${esc(x.key)}"><span class="rm-yn">${x.yes?"Yes":"No"}</span>${esc(x.text)}</li>`).join("")}</ul>`;
+  }
+  // after a switch: does it need something that is off ("needs"), or did switching it off break another row ("breaks")?
+  function depAfter(role, area){
+    if(!AD || role==="admin"){ depHint=null; return; }
+    const own=AD.unmet(area, cellOf(role), isPerm(area));
+    if(own.length){ depHint={role, area, kind:"needs", list:own}; return; }
+    const broke=ALL_AREAS.filter(a=>AD.unmet(a.key, cellOf(role), isPerm(a.key)).some(n=>n.area===area)).map(a=>a.key);
+    depHint = broke.length ? {role, area, kind:"breaks", list:broke} : null;
+  }
+  function renderDep(){
+    const box=$("#rmDep"); if(!box) return;
+    if(depHint && (depHint.role!==selRole || (depHint.kind==="needs" && !AD.unmet(depHint.area, cellOf(selRole), isPerm(depHint.area)).length))) depHint=null;
+    if(!depHint || mtxErr){ box.hidden=true; box.innerHTML=""; return; }
+    const rl=BPStore.auth.admin.roleLabel(selRole), nm=areaName(depHint.area);
+    box.hidden=false;
+    box.innerHTML=`<span class="rm-dep-t">${depHint.kind==="needs"
+      ? `<b>${esc(nm)}</b> needs ${esc(depHint.list.map(needText).join(" and "))} for ${esc(rl)} to work. Turn ${depHint.list.length>1?"them":"it"} on?`
+      : `Without <b>${esc(nm)}</b>, ${esc(rl)} can no longer use: ${esc(depHint.list.map(areaName).join(", "))}. Turn ${esc(nm)} back on?`}</span><span class="rm-dep-b"><button type="button" class="btn sm primary" id="rmDepYes">${depHint.kind==="needs"?"Turn on":"Turn back on"}</button><button type="button" class="btn sm" id="rmDepNo">Not now</button></span>`;
+    $("#rmDepNo").addEventListener("click", ()=>{ depHint=null; renderDep(); });
+    $("#rmDepYes").addEventListener("click", (e)=>{ const h=depHint; depHint=null;
+      if(h.kind==="needs") fixDeps(h.role, h.area, e.currentTarget);
+      else { const need=ALL_AREAS.map(a=>AD.unmet(a.key, cellOf(h.role), isPerm(a.key))).flat().filter(n=>n.area===h.area);
+        const lv=need.some(n=>n.level==="edit"); setCell(h.role, h.area, {view:true, edit:lv||!!cellNow(h.role,h.area).edit}, true); } });
+  }
+  // one click: switch on what this row needs (only switches ON, never off; same serialized queue)
+  function fixDeps(role, area, btn){
+    if(btn) btn.disabled=true;
+    cellPending++; $("#matrix").setAttribute("aria-busy","true");
+    cellQueue = cellQueue.then(async()=>{
+      try{ for(const n of AD.unmet(area, cellOf(role), isPerm(area))){ const cur=cellNow(role,n.area);
+          await BPStore.auth.admin.setAccess(role, n.area, true, n.level==="edit" ? true : !!cur.edit); await loadMatrix(); }
+        BPUI.toast(`${BPStore.auth.admin.roleLabel(role)}: ${areaName(area)} now has what it needs`,{type:"ok",timeout:2500}); }
+      catch(err){ BPUI.toast(errMsg(err,"change access"),{type:"err"}); }
+      await loadMatrix();
+    }).catch(()=>{}).finally(()=>{ cellPending--; if(!cellPending) $("#matrix").removeAttribute("aria-busy"); renderMatrix(); });
+    return cellQueue;
+  }
   async function initMatrix(){
     // role tabs (admin first, shown as locked-full)
     $("#roleTabs").innerHTML = ROLES.map(r=>`<button type="button" class="rtab${r===selRole?" active":""}" data-role="${esc(r)}" aria-pressed="${r===selRole}">${esc(BPStore.auth.admin.roleLabel(r))}</button>`).join("");
     $("#roleTabs").querySelectorAll(".rtab").forEach(b=>b.addEventListener("click",()=>{
-      selRole=b.dataset.role;
+      selRole=b.dataset.role; depHint=null;
       $("#roleTabs").querySelectorAll(".rtab").forEach(x=>{ x.classList.toggle("active",x.dataset.role===selRole); x.setAttribute("aria-pressed",String(x.dataset.role===selRole)); });
       renderMatrix();
     }));
@@ -2414,7 +2480,7 @@
   function renderMatrix(){
     renderMgrClose();
     const locked = selRole==="admin";
-    renderBar(locked);
+    renderBar(locked); renderSummary(locked); renderDep();
     if(mtxErr){
       BPUI.loadError($("#matrix"), mtxErr, reloadMatrix, {what:"access control"});
       return;
@@ -2428,7 +2494,7 @@
         const ch = locked ? null : cellChanged(selRole,a);
         const badge = ch===null ? "" : `<span class="rm-badge${ch?" chg":""}">${ch?"Changed":"Default"}</span>`;
         const hl = r.highlight ? " hl" : "";
-        const txt=`<div class="rm-txt"><span class="rm-top"><span class="ic" aria-hidden="true">${a.icon}</span><span class="lb">${lb}</span>${badge}</span>${help}</div>`;
+        const txt=`<div class="rm-txt"><span class="rm-top"><span class="ic" aria-hidden="true">${a.icon}</span><span class="lb">${lb}</span>${badge}</span>${help}${locked?"":needsHtml(selRole,a)}</div>`;
         // r32 (0282): a money permission is ONE switch (allowed / not allowed) - no separate view / edit
         if(a.permission){
           const on=locked||!!(cell.view&&cell.edit);
@@ -2457,7 +2523,9 @@
       const area=chip.dataset.area;
       // r85: only the switches save (the text beside them never toggles anything by accident)
       // "Can change" toggles edit (auto-enables view); "Can see" toggles view (off view also clears edit)
-      chip.addEventListener("click", (e)=>{ if(!e.target.closest("button")) return; saveCell(selRole, area, chip.dataset.perm ? "perm" : (e.target.closest("[data-pen]") ? "edit" : "view")); });
+      chip.addEventListener("click", (e)=>{ if(!e.target.closest("button")) return;
+        const fx=e.target.closest("[data-fix]"); if(fx){ fixDeps(selRole, fx.dataset.fix, fx); return; }   // R208: "Turn on what it needs"
+        saveCell(selRole, area, chip.dataset.perm ? "perm" : (e.target.closest("[data-pen]") ? "edit" : "view")); });
     });
   }
   // r85: put one role back to the studio defaults (only the areas that have a known default and differ).
@@ -2477,14 +2545,14 @@
     return cellQueue;
   }
   // r85: set one cell to an exact value (the "Managers can close events" switch); same serialized queue
-  function setCell(role, area, want){
+  function setCell(role, area, want, generic){
     cellPending++; $("#matrix").setAttribute("aria-busy","true");
     cellQueue = cellQueue.then(async()=>{
       let saved=false;
       try{ await BPStore.auth.admin.setAccess(role, area, !!want.view, !!(want.view&&want.edit)); saved=true; }
       catch(e){ BPUI.toast(errMsg(e,"change access"),{type:"err"}); }
       await loadMatrix();
-      if(saved) BPUI.toast(`Managers can close events: ${want.edit?"on":"off"}`,{type:"ok",timeout:2500});
+      if(saved) BPUI.toast(generic ? `${BPStore.auth.admin.roleLabel(role)} \u00b7 ${areaName(area)}: ${want.edit?"view + edit":"view only"}` : `Managers can close events: ${want.edit?"on":"off"}`,{type:"ok",timeout:2500});
     }).catch(()=>{}).finally(()=>{ cellPending--; if(!cellPending) $("#matrix").removeAttribute("aria-busy"); renderMatrix(); });
     return cellQueue;
   }
@@ -2533,6 +2601,7 @@
       const ok=await loadMatrix();
       if(!ok && saved){ mtxErr=null; (MTX[role]=MTX[role]||{})[area]={view, edit}; BPUI.toast("Saved, but couldn't refresh access — reload to double-check.",{type:"info"}); }
       if(saved) BPUI.toast(`${BPStore.auth.admin.roleLabel(role)} · ${(AREAS.find(x=>x.key===area)||{}).label||area}: ${kind==="perm"?(edit?"allowed":"not allowed"):(view?(edit?"view + edit":"view only"):"no access")}`,{type:"ok",timeout:2500});
+      if(saved) depAfter(role, area);   // R208: hint when this switch needs another one, or switching it off broke another
     }).catch(()=>{}).finally(()=>{
       cellPending--;
       if(!cellPending){ $("#matrix").removeAttribute("aria-busy"); }

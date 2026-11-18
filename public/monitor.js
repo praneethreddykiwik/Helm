@@ -772,7 +772,8 @@
     var A = BPStore.auth;
     if (A.enabled() && A.required() && !A.user()) { location.replace("login.html?next=" + encodeURIComponent(location.pathname + location.search)); return; }
     if (!(await A.requireView("staff"))) { $("#monBoot").hidden = true; return; }
-    try { S.canEdit = !!(await A.canEditArea("staff")); } catch (e) { S.canEdit = false; }
+    // R208 (0385): Nudge = "Assign & send tasks" (no row for the role = Staff - Can change, as before)
+    try { S.canEdit = !!(await (A.canAssignTasks ? A.canAssignTasks() : A.canEditArea("staff"))); } catch (e) { S.canEdit = false; }
     await Promise.all([loadEvents(), loadCrew()]);
     $("#monBoot").hidden = true; $("#monApp").hidden = false;
     var want = null; try { want = new URLSearchParams(location.search).get("quote"); } catch (e) {}

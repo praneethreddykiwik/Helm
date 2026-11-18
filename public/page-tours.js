@@ -231,7 +231,7 @@
           { sel: "#inv_rows", title: "Pending invites", desc: "Links not used yet. Copy one again, resend it (an expired link gets a new one), or Cancel invite - the link stops working and nothing else changes." },
         ],
         access: [
-          { sel: "#roleTabs", title: "Pick a role", desc: "Choose the role you want to set up: manager, planner, sales and so on." },
+          { sel: "#roleTabs", title: "Pick a role", desc: "Choose the role you want to set up: manager, planner, sales and so on. The box below says in plain words what that role can do, and Needs under a row lists what else must be on (Turn on fixes it)." },
           { sel: '#roleTabs .rtab[data-role="admin"]', title: "Admin always has full access", desc: "The admin role can always see and change everything. Nothing to switch here." },
           { sel: "#matrix .chip:not(.perm) .cview", title: "Can see", desc: "Switch on Can see to let this role see it. Green means the role can open that page." },
           { sel: "#matrix .chip:not(.perm) .pen", title: "Can change", desc: "Switch on Can change to also let the role change things there. It switches Can see on too." },
