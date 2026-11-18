@@ -1054,6 +1054,34 @@ async function addAsset(type, atFt, opts){
   toast((lbl || a.label) + ' added');
 }
 
+/* R200 "3 screens (centre + 2 sides)": three separate screens, each with its own text or picture and its own size.
+   With a stage on the floor (not rotated) the stage's own backdrop screen becomes the CENTRE screen (layout Single)
+   and two portrait side screens stand beside the stage; with no stage, a 16:9 centre LED screen + two 9:16 side
+   screens go in the middle of the view. One Undo removes the lot. */
+function addScreenSet(){
+  if(RO) return;
+  const sa=ASSETS.sidescreen, gap=1.5, made=[];
+  const side=(x,y,lbl)=>{ const s=makeItem('sidescreen', x, y, {label:lbl}); s.properties.screenAspect='9:16'; clampItem(s); made.push(s); return s; };
+  const stage=store.items.find(o=>o.type==='stage' && !((o.rotation||0)%360));
+  let msg;
+  if(stage){
+    const P=stage.properties=stage.properties||{};
+    if(!P.screenLayout || P.screenLayout==='triple' || P.screenLayout==='none') P.screenLayout='single';   // keep a chosen Single / Wide wall
+    const y=stage.y+Math.max(0,Math.min(2,stage.height-sa.h));
+    side(stage.x-gap-sa.w, y, 'Left screen'); side(stage.x+stage.width+gap, y, 'Right screen');
+    msg='3 screens: the stage backdrop is the centre screen, plus a left and a right screen. Select each one to give it its own text or picture.';
+  } else {
+    const v=viewCenterFt(), cw=17, total=cw+2*(sa.w+gap), cx=clamp(v.x, total/2, Math.max(total/2, WORLD.w-total/2)), y=clamp(snapFt(v.y-1),0,Math.max(0,WORLD.h-2));
+    const c=makeItem('ledscreen', cx-cw/2, y, {width:cw, label:'Centre screen'}); c.properties.screenAspect='16:9'; clampItem(c); made.push(c);
+    side(cx-cw/2-gap-sa.w, y, 'Left screen'); side(cx+cw/2+gap, y, 'Right screen');
+    msg='3 screens added. Select each one to give it its own text or picture.';
+  }
+  made.forEach(m=>store.items.push(m));
+  setSelection(stage ? [stage.id, ...made.map(m=>m.id)] : made.map(m=>m.id));
+  commit(); renderAll(); toast(msg);
+}
+if(typeof window!=='undefined') window.HelmScreenSet = Object.freeze({ add: addScreenSet });
+
 /* ===================================================================
    RENDER — SVG scene
    =================================================================== */
@@ -1294,9 +1322,27 @@ function screenLogo2D(parent, sc, x, y, size){
   im.setAttribute('data-logo', sc.logo);        // R154: which logo this is, so an exported picture can bake its pixels
   im.setAttribute('href', url); parent.appendChild(im); return true;
 }
+// R200: an uploaded screen picture across a 2D face (an SVG <image> of the signed link, only once it has loaded).
+// The plan shows the screen from above, so the strip is always filled (centred crop); Fit / Fill applies in 3D.
+// Same class + data-logo as the logo, so an exported floor picture bakes its pixels and never the link.
+function screenPic2D(parent, sc, x, y, w, h){
+  if(!sc || !sc.pic || !HelmScreen.logoImage) return false;
+  HelmScreen.logoImage(sc.pic); const url=HelmScreen.logoUrl(sc.pic); if(!url) return false;
+  const im=el('image',{class:'scr-logo scr-pic', x, y, width:w, height:h, preserveAspectRatio:'xMidYMid slice', 'pointer-events':'none'});
+  im.setAttribute('crossorigin','anonymous'); im.setAttribute('data-logo', sc.pic);
+  im.setAttribute('href', url); parent.appendChild(im); return true;
+}
 function screenBand2D(body, it, sc, w, h, c){   // the stage's rear screen band, themed, with its line of text
   const T=HelmScreen.paletteOf ? HelmScreen.paletteOf(sc) : HelmScreen.themeOf(sc.theme), bh=Math.min(h*0.18,16);
   const line=HelmScreen.shortLine(sc), lay=sc.layout||'';
+  if(sc.pic){   // R200 picture mode: the picture on the centre screen (or across the band), side panels in the theme colour
+    body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:bh,fill:c,'fill-opacity':.35}));
+    const segs=lay ? HelmScreen.stageSegments(lay, it.width) : [{x:0,w:1,side:false}];
+    segs.forEach(sg=>{ const sw=w*sg.w, sx=w*sg.x, sh=bh*(lay?(sg.side?0.86:0.8):1), sy=-h/2+(bh-sh)/2;
+      body.appendChild(el('rect',{class:'scr-seg', x:sx-sw/2, y:sy, width:sw, height:sh, rx:.6, fill:sg.side?T.bg:'#05070a', stroke:T.accent,'stroke-width':.7}));
+      if(!sg.side) screenPic2D(body, sc, sx-sw/2, sy, sw, sh); });
+    return;
+  }
   if(!lay){   // R135 look (no screen layout chosen): one themed band across the stage back
     body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:bh,fill:T.bg,stroke:T.accent,'stroke-width':.8}));
     const lg=screenLogo2D(body, sc, -w*0.42, -h/2+bh/2, bh*0.8);
@@ -1317,6 +1363,8 @@ function screenBand2D(body, it, sc, w, h, c){   // the stage's rear screen band,
 }
 function screenFace2D(body, it, sc, w, h, c){   // a standalone screen item: themed face + its line of text
   const T=HelmScreen.paletteOf ? HelmScreen.paletteOf(sc) : HelmScreen.themeOf(sc.theme);
+  if(sc.pic){ body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:1,fill:'#05070a',stroke:c,'stroke-width':1.2}));   // R200 picture mode
+    screenPic2D(body, sc, -w/2+0.6, -h/2+0.6, Math.max(1,w-1.2), Math.max(1,h-1.2)); return; }
   body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:1,fill:T.bg,stroke:c,'stroke-width':1.2}));
   const line=HelmScreen.shortLine(sc), lg=screenLogo2D(body, sc, -w*0.38, 0, Math.min(h*0.8, w*0.2));
   if(line){ const fs=clamp(h*0.3,3.5,9); screenText2D(body, line, -h*0.22+fs*0.35, w*(lg?0.66:0.92), fs, T.ink); }
@@ -1722,7 +1770,7 @@ function renderItem(it){
   let scrText=false;
   if(it.type!=='stage' && window.HelmScreen && HelmScreen.isScreenType(it.type)){
     const sc=screenContent(it);
-    if(HelmScreen.hasContent(sc)){ screenFace2D(body, it, sc, w, h, c); scrText=HelmScreen.hasText(sc); }
+    if(HelmScreen.hasContent(sc)){ screenFace2D(body, it, sc, w, h, c); scrText=!sc.pic && HelmScreen.hasText(sc); }
     else { screenPlaceholder2D(body, -w/2, -h/2, w, h*0.5); scrText=screenPlaceholderOn(); }
   }
   g.appendChild(body);
@@ -3616,7 +3664,10 @@ toolboxSections().forEach(([name,types])=>types.forEach(t=>{ ASSETS[t].section=n
 /* Toolbox "most used" view (2026-10): new planners see the 20 everyday items first; "Show all tools" reveals the
    rest (remembered per browser). The product search still finds every item (CSS shows rare tiles while searching). */
 const COMMON_TOOLS = new Set(['stage','dancefloor','table','longtable','headtable','chairrow','seatblock','buffet','bar','mandap',
-  'backdrop','arch','photobooth','dj','speaker','lighting','exit','caketable','sofa','floralstand']);
+  'backdrop','arch','photobooth','dj','speaker','lighting','exit','caketable','sofa','floralstand',
+  'ledscreen','welcomeboard']);   // R200: the LED screen (+ its "3 screens" preset) and the welcome board are everyday items too
+// R200 toolbox presets: one tile that places several items at once (not an ASSETS type, so never priced as itself)
+const TOOL_PRESETS = { screens3: { after:'ledscreen', label:'3 screens (centre + 2 sides)' } };
 const TB_ALL_KEY='helm.builder.toolsAll';
 function tbAllPref(v){ try{ if(v===undefined) return localStorage.getItem(TB_ALL_KEY)==='1'; localStorage.setItem(TB_ALL_KEY, v?'1':'0'); }catch(e){ return false; } }
 function buildToolbox(){
@@ -3630,13 +3681,15 @@ function buildToolbox(){
     if(!types.some(t=>COMMON_TOOLS.has(t))) sec.classList.add('tb-rare');
     dot.style.background=catColor(first.category); h.append(dot, document.createTextNode(name)); sec.appendChild(h);
     const grid=mk('div','tools'); sec.appendChild(grid);
-    types.flatMap(type=>type==='exit'?[[type,'Entrance'],[type,null]]:[[type,null]]).forEach(([type,vl])=>{
-      const a=ASSETS[type], t=mk('div','tool'), lbl=vl||a.label;
-      t.draggable=true; t.setAttribute('role','button'); t.tabIndex=RO?-1:0; if(RO) t.setAttribute('aria-disabled','true');
+    types.flatMap(type=>{ const row=type==='exit'?[[type,'Entrance'],[type,null]]:[[type,null]];
+      Object.keys(TOOL_PRESETS).forEach(k=>{ if(TOOL_PRESETS[k].after===type) row.push([type,TOOL_PRESETS[k].label,k]); });
+      return row; }).forEach(([type,vl,preset])=>{
+      const a=ASSETS[type], t=mk('div','tool'+(preset?' tool-preset':'')), lbl=vl||a.label;
+      t.draggable=!preset; t.setAttribute('role','button'); t.tabIndex=RO?-1:0; if(RO) t.setAttribute('aria-disabled','true');
       if(!COMMON_TOOLS.has(type)) t.classList.add('tb-rare');
-      t.dataset.type=type; if(vl) t.dataset.label=vl; t.setAttribute('aria-label','Add '+lbl); t.title=lbl;
+      t.dataset.type=type; if(preset) t.setAttribute('data-preset', preset); else if(vl) t.dataset.label=vl; t.setAttribute('aria-label','Add '+lbl); t.title=lbl;
       t.style.color=catColor(a.category);
-      t.appendChild(glyphNode(vl?'entrance':type)); const sp=mk('span',null,lbl); sp.style.color='var(--ink)'; t.appendChild(sp);
+      t.appendChild(glyphNode(preset||(vl?'entrance':type))); const sp=mk('span',null,lbl); sp.style.color='var(--ink)'; t.appendChild(sp);
       grid.appendChild(t); });
     host.appendChild(sec);
   });
@@ -3647,7 +3700,8 @@ function buildToolbox(){
   host.querySelectorAll('.tool').forEach(t=>{
     t.addEventListener('click',()=>{
       const ty=t.dataset.type;
-      if(ty==='seatblock'||ty==='chairrow') openArrangeModal('chairs');   // pick a chair grid
+      if(t.dataset.preset==='screens3') addScreenSet();                   // R200: centre + two side screens at once
+      else if(ty==='seatblock'||ty==='chairrow') openArrangeModal('chairs');   // pick a chair grid
       else if(ty==='table') openArrangeModal('tables');                   // pick a table grid + shape
       else addAsset(ty, null, t.dataset.label ? {label:t.dataset.label} : undefined);
       closeDrawers();
@@ -3658,7 +3712,8 @@ function buildToolbox(){
       e.preventDefault();
       if(RO) return;
       const ty=t.dataset.type; if(!ASSETS[ty]) return;
-      addAsset(ty, null, t.dataset.label ? {label:t.dataset.label} : undefined);
+      if(t.dataset.preset==='screens3') addScreenSet();   // R200
+      else addAsset(ty, null, t.dataset.label ? {label:t.dataset.label} : undefined);
       closeDrawers(true);
     });
     t.addEventListener('dragstart',e=>{ e.dataTransfer.setData('type',t.dataset.type); e.dataTransfer.setData('label',t.dataset.label||''); e.dataTransfer.effectAllowed='copy'; });
@@ -3698,6 +3753,7 @@ function assetGlyph(type){
     case 'caketable': return wrap('<circle cx="13" cy="10" r="5"/><path d="M13 5v10"/>');
     case 'restroom': return wrap('<rect x="4" y="4" width="18" height="12" rx="1"/><path d="M13 4v12M9 8v4M17 8v4"/>');
     case 'ledscreen': return wrap('<rect x="3" y="5" width="20" height="10" rx="1"/><path d="M6 8h14M6 11h14"/>');
+    case 'screens3': return wrap('<rect x="8" y="5" width="10" height="8" rx="1"/><rect x="2" y="4" width="4" height="10" rx="1"/><rect x="20" y="4" width="4" height="10" rx="1"/><path d="M13 13v3M10 16h6"/>');
     case 'truss': return wrap('<path d="M7 4v12M19 4v12M7 4l12 12M19 4L7 16M7 8h12M7 12h12"/>');
     case 'speaker': return wrap('<rect x="8" y="3" width="10" height="14" rx="1"/><circle cx="13" cy="12" r="2.5"/><circle cx="13" cy="6" r="1"/>');
     case 'coatcheck': return wrap('<path d="M13 4a2 2 0 0 1 2 2c0 2-2 2-2 3M5 16h16M8 16v-3h10v3"/>');
@@ -4753,7 +4809,7 @@ function captureClientImages(silent){
 // R154: every logo on a screen of this layout has loaded (or failed) - at most 6 s
 function screenLogosReady(){
   const S=window.HelmScreen; if(!S || !S.whenLogos) return Promise.resolve([]);
-  const refs=store.items.filter(it=>S.isScreenType(it.type)).map(it=>S.contentOf(it, store.items).logo).filter(Boolean);
+  const refs=store.items.filter(it=>S.isScreenType(it.type)).flatMap(it=>{ const c=S.contentOf(it, store.items); return [c.logo, c.pic]; }).filter(Boolean);   // R200: + pictures
   return refs.length ? S.whenLogos(refs, 6000) : Promise.resolve([]);
 }
 async function captureClientImagesRun(silent){
@@ -5436,6 +5492,7 @@ const VARIANT_STYLES = {
   pathlights: [['','Pathway stake lights'],['rope','LED rope light']],
   installation: [['','Light tree sculpture'],['letters','Giant marquee letters'],['lighttunnel','Light tunnel']],
   jyothi: [['','Brass stand with oil lamps (diyas)'],['candle','Iron stand with candles']],
+  welcomeboard: [['','On a gold easel'],['standee','Standee (flat board on feet)']],   // R200
 };
 // R135: extra look fields beyond style / flower / palette (key, label, options) - visual only, never priced
 const VARIANT_EXTRA = {
@@ -5520,35 +5577,43 @@ function stageScreenMount(it, box){
     put(sec);
   }
   if(!window.HelmScreen || !HelmScreen.isScreenType(it.type)) return;
-  const S=HelmScreen, sec=mk('div','isec screen'); sec.setAttribute('aria-label','Screen');
-  sec.appendChild(mk('div','seclabel', it.type==='stage' ? 'Screen (backdrop behind the stage)' : 'Screen'));
+  const S=HelmScreen, sec=mk('div','isec screen'), board=it.type==='welcomeboard'; sec.setAttribute('aria-label', board ? 'Welcome board' : 'Screen');
+  sec.appendChild(mk('div','seclabel', it.type==='stage' ? 'Screen (backdrop behind the stage)' : board ? 'Welcome board' : 'Screen'));
+  if(board && P().screenMirror) delete P().screenMirror;   // a board never mirrors the stage screen
   const mirrored=it.type!=='stage' && P().screenMirror===true;
-  if(it.type!=='stage'){
+  if(it.type!=='stage' && !board){
     const lab=mk('label','scr-mirror'), cb=mk('input'); cb.type='checkbox'; cb.id='scr_mirror'; cb.checked=mirrored; if(RO) cb.disabled=true;
     cb.addEventListener('change',()=>{ if(RO) return; if(cb.checked) P().screenMirror=true; else delete P().screenMirror; commit(); renderAll(); });
     lab.appendChild(cb); lab.appendChild(document.createTextNode(' Same as main screen (the stage)')); sec.appendChild(lab);
   }
-  if(!mirrored){
-    const sw=mk('div','scr-themes'); sw.setAttribute('role','group'); sw.setAttribute('aria-label','Screen theme');
+  const picMode=!mirrored && S.guidance && screenPicturePanel(it, sec, mk, select);   // R200: size, shape, Text-or-Picture, upload
+  if(!mirrored && !picMode){
+    const sw=mk('div','scr-themes'); sw.setAttribute('role','group'); sw.setAttribute('aria-label', board ? 'Board design' : 'Screen theme');
     const cur=String(P().screenTheme||'');
-    S.THEME_ORDER.forEach(k=>{ const T=S.themeOf(k), b=mk('button','scr-theme'+(k===cur?' on':''));
+    (board ? ['', ...S.BOARD_THEMES] : S.THEME_ORDER).forEach(k=>{ const T=S.themeOf(k), b=mk('button','scr-theme'+(k===cur?' on':''));
       b.type='button'; b.title=T.name; b.setAttribute('aria-label','Theme: '+T.name); b.setAttribute('aria-pressed',String(k===cur));
       b.style.background='linear-gradient(135deg,'+T.bg+','+T.bg2+')'; b.style.color=T.ink; b.textContent='Aa';
       if(RO) b.disabled=true;
       b.addEventListener('click',()=>{ if(RO) return; if(k) P().screenTheme=k; else delete P().screenTheme; commit(); renderAll(); });
       sw.appendChild(b); });
     sec.appendChild(sw);
-    const tn=mk('div','pitchnote scr-themename','Theme: '+S.themeOf(cur).name); sec.appendChild(tn);
+    const tn=mk('div','pitchnote scr-themename',(board?'Design: ':'Theme: ')+S.themeOf(cur).name); sec.appendChild(tn);
     screenExtrasMount(it, sec, mk, select);   // R137: screen layout (stage), background colour, logo picture
-    S.FIELDS.forEach(([key,label,eg])=>{ const r=mk('div','irow'), f=mk('div','ifield'), l=mk('label',null,label), inp=mk('input');
+    (board ? S.BOARD_FIELDS : S.FIELDS).forEach(([key,label,eg])=>{ const r=mk('div','irow'), f=mk('div','ifield'), l=mk('label',null,label), inp=mk('input');
       inp.type='text'; inp.id='scr_'+key; inp.maxLength=S.MAX; inp.placeholder='e.g. '+eg; inp.value=String(P()[key]||''); inp.autocomplete='off';
       l.htmlFor=inp.id; if(RO) inp.disabled=true;
       const apply=()=>{ const v=S.cleanText(inp.value); if(v) P()[key]=v; else delete P()[key]; };
       inp.addEventListener('input',()=>{ if(RO) return; apply(); live(); });
       inp.addEventListener('change',()=>{ if(RO) return; apply(); commit(); });
       f.appendChild(l); f.appendChild(inp); r.appendChild(f); sec.appendChild(r); });
-    sec.appendChild(mk('div','pitchnote','Shows on the screen in 2D, 3D and the photo render. Leave it blank and the builder shows a hint only - client pictures never show placeholder text.'));
-  } else sec.appendChild(mk('div','pitchnote','Shows the main stage screen’s theme and text. Untick to give this screen its own.'));
+    sec.appendChild(mk('div','pitchnote',(board?'Shows on the board':'Shows on the screen')+' in 2D, 3D and the photo render. Leave it blank and the builder shows a hint only - client pictures never show placeholder text.'));
+  } else if(mirrored) sec.appendChild(mk('div','pitchnote','Shows the main stage screen’s theme and text. Untick to give this screen its own.'));
+  if(it.type==='stage'){   // R200: separate screens, each with its own picture, are one click away
+    const r=mk('div','scr-set'), b3=mk('button','btn scr-btn','Add 3 screens (centre + 2 sides)'); b3.type='button'; b3.id='scr_set3'; if(RO) b3.disabled=true;
+    b3.addEventListener('click',()=>{ if(RO) return; addScreenSet(); });
+    r.appendChild(b3); r.appendChild(mk('div','pitchnote','Makes this backdrop the centre screen and adds a left and a right screen, each with its own text or picture.'));
+    sec.appendChild(r);
+  }
   put(sec);
 }
 if(typeof window!=='undefined') window.HelmStageTools = Object.freeze({ stepOffsets: stageStepOffsets, STAGE_STEPS, snapStairs: snapStairsToStage, stairSteps: stairStepCount });
@@ -5618,7 +5683,7 @@ function screenExtrasMount(it, sec, mk, select){
   }
   // background colour over the theme (text colour is then picked for contrast)
   const c0=S.rawContent(P()), pal=S.paletteOf(c0), cw=mk('div','scr-colour'); cw.setAttribute('role','group'); cw.setAttribute('aria-label','Screen background colour');
-  const cl=mk('label',null,'Screen colour'), ci=mk('input'); ci.type='color'; ci.id='scr_bg'; cl.htmlFor=ci.id; ci.value=pal.bg; if(RO) ci.disabled=true;
+  const cl=mk('label',null,it.type==='welcomeboard'?'Board colour':'Screen colour'), ci=mk('input'); ci.type='color'; ci.id='scr_bg'; cl.htmlFor=ci.id; ci.value=pal.bg; if(RO) ci.disabled=true;
   const setBg=(v,save)=>{ const h=S.cleanHex(v); if(!h || RO) return; P().screenBg=h; if(save){ commit(); renderAll(); } else { renderSceneOnly(); if(window.__on3DStateChange) window.__on3DStateChange(); } };
   ci.addEventListener('input',()=>setBg(ci.value,false)); ci.addEventListener('change',()=>setBg(ci.value,true));
   cw.appendChild(cl); cw.appendChild(ci);
@@ -5649,6 +5714,163 @@ function screenExtrasMount(it, sec, mk, select){
   else { const g0=RO ? '' : screenLogoGate(); say(g0 || 'PNG, JPG or WebP up to 2 MB (drop it here). It replaces the brand letter on every screen.'); }   // trial / signed out: say why up front
   if(!RO && cur!=='studio') studioLogoUrl().then(u=>{ if(u) studio.hidden=false; }).catch(()=>{});
   sec.appendChild(lw);
+}
+/* ---- R200: a PICTURE on a screen / welcome board, its real size, and the welcome board's size ----
+   The picture rides the same pipeline as the R137 logo: bytes sniffed here (PNG / JPG / WebP, <= 15 MB, SVG + GIF
+   refused), then BPStore.sites.uploadPhoto re-encodes it on a canvas (EXIF + GPS location stripped, longest side
+   <= 2560 px) into the private 'invite-media' bucket under <studio>/<event>/<random> (own-studio storage rules, the
+   verify-upload scan). Only the storage PATH is kept (properties.screenPic) and it is shown through a short-lived
+   signed link. Text stays the other choice ("Text & theme" OR "Picture"); switching back keeps the picture. */
+const SCREEN_PIC_TRIAL_MSG='Screen pictures unlock on a paid plan. Use the text and theme for now.';
+function screenPicGate(){
+  if(RO) return 'This layout is read-only.';
+  if(builderInTrial()) return SCREEN_PIC_TRIAL_MSG;
+  if(!(window.BPStore && BPStore.mode && BPStore.mode()==='supabase' && BPStore.sites && BPStore.sites.uploadPhoto)) return 'Sign in to upload a picture. The screen keeps its text for now.';
+  if(!currentQuoteId) return 'Open this layout from an event to upload a picture.';
+  return '';
+}
+// the picture's pixel size (read locally, nothing is uploaded yet)
+async function picDims(file){
+  if(typeof createImageBitmap==='function'){ const b=await createImageBitmap(file); try{ return {w:b.width, h:b.height}; } finally { if(b.close) try{ b.close(); }catch(_){} } }
+  const url=URL.createObjectURL(file);
+  try{ return await new Promise((ok,no)=>{ const im=new Image(); im.onload=()=>ok({w:im.naturalWidth, h:im.naturalHeight}); im.onerror=()=>no(new Error('bad image')); im.src=url; }); }
+  finally { URL.revokeObjectURL(url); }
+}
+function screenPicError(e){
+  const m=String((e&&e.message)||''), sc=String((e&&(e.statusCode||e.status))||'');
+  if((e&&e.hint)==='trial_locked' || (e&&e.hint)==='trial_no_links') return SCREEN_PIC_TRIAL_MSG;
+  if(/bucket/i.test(m)&&/not.?found|does not exist/i.test(m)) return 'Picture uploads are not set up yet - please contact your administrator.';
+  if(/storage is full|too many uploads|too large|couldn.t be opened|unsupported/i.test(m)) return m.slice(0,200);
+  if(/row-level security|unauthori[sz]ed|permission denied|not authori[sz]ed/i.test(m)||sc==='403') return builderInTrial() ? SCREEN_PIC_TRIAL_MSG : 'Your role needs edit access to this event to upload a picture.';
+  return (window.BPUI && BPUI.friendlyError) ? BPUI.friendlyError(e,{action:'upload the picture'}) : 'The picture could not be uploaded.';
+}
+async function screenPicAdd(it, file, say){
+  const gate=screenPicGate(); if(gate){ say(gate); return false; }
+  const S=HelmScreen, head=new Uint8Array(await file.slice(0,16).arrayBuffer());
+  const v=S.validatePicture(file, head); if(!v.ok){ say(v.reason); return false; }
+  say('Checking the picture…');
+  let dims=null; try{ dims=await picDims(file); }catch(_){ dims=null; }
+  if(!dims || !(dims.w>0) || !(dims.h>0)){ say('That picture could not be opened. Please try another one.'); return false; }
+  if(dims.w*dims.h>80e6){ say('That picture is too large to use. Please save it at most 8000 px on its longest side.'); return false; }
+  say('Shrinking and uploading the picture…');
+  try{
+    // named + typed from its own bytes (AI tools often save a WebP / JPEG as ".png"); uploadPhoto re-encodes it
+    const named=new File([file], 'screen.'+v.ext, {type:v.mime});
+    const path=logoPathFromUrl(await BPStore.sites.uploadPhoto(currentQuoteId, named));
+    if(!path){ say('The picture was uploaded but could not be linked. Please try again.'); return false; }
+    if(RO) return false;
+    const P=it.properties=it.properties||{};
+    P.screenPic=path; P.screenMode='pic'; P.screenPicW=Math.round(dims.w); P.screenPicH=Math.round(dims.h);
+    commit(); renderAll(); return true;
+  }catch(e){ say(screenPicError(e)); return false; }
+}
+// Fit / Fill previews of the uploaded picture on this screen's shape (drawn locally from the cached picture)
+function screenPicPreview(host, ref, face, mk, onPick, cur){
+  const S=HelmScreen, wrap=mk('div','scr-prev'); wrap.setAttribute('role','group'); wrap.setAttribute('aria-label','Fit or fill preview');
+  const W=132, H=Math.max(40, Math.min(150, Math.round(W*face.h/Math.max(0.1,face.w)))), cw=Math.round(H>=150 ? 150*face.w/face.h : W);
+  const cells=S.FITS.map(([fit,label])=>{ const b=mk('button','scr-prevbtn'+(fit===cur?' on':'')); b.type='button'; b.setAttribute('aria-pressed',String(fit===cur)); if(RO) b.disabled=true;
+    const cv=mk('canvas'); cv.width=cw; cv.height=H; cv.setAttribute('aria-hidden','true');
+    b.appendChild(cv); b.appendChild(mk('span',null, fit==='cover' ? 'Fill (crops edges)' : 'Fit (nothing cut)'));
+    b.title=label; b.addEventListener('click',()=>{ if(!RO) onPick(fit); }); wrap.appendChild(b); return [cv,fit]; });
+  const paint=()=>{ const img=S.logoImage(ref); if(!img) return false;
+    cells.forEach(([cv,fit])=>{ const x=cv.getContext && cv.getContext('2d'); if(x) S.drawPicture(x, cv.width, cv.height, img, fit); }); return true; };
+  if(!paint() && S.whenLogos) S.whenLogos([ref], 8000).then(paint).catch(()=>{});
+  host.appendChild(wrap);
+}
+// returns true when the screen is in picture mode (the text / theme fields are then left out)
+function screenPicturePanel(it, sec, mk, select){
+  const S=window.HelmScreen; if(!S || !S.guidance) return false;
+  const P=()=>{ it.properties=it.properties||{}; return it.properties; };
+  const board=it.type==='welcomeboard', btn=(text,cls)=>{ const b=mk('button',cls||'btn scr-btn',text); b.type='button'; if(RO) b.disabled=true; return b; };
+  const numIn=(id,label,val,lo,hi,onSet)=>{ const f=mk('div','ifield'), l=mk('label',null,label), n=mk('input'); n.type='number'; n.id=id; n.min=String(lo); n.max=String(hi); n.step='0.5';
+    n.value=String(val); n.inputMode='decimal'; l.htmlFor=id; if(RO) n.disabled=true;
+    n.addEventListener('change',()=>{ if(RO) return; const v=Math.round(clamp(+n.value||lo,lo,hi)*10)/10; n.value=String(v); onSet(v); }); f.appendChild(l); f.appendChild(n); return f; };
+  // welcome board size (portrait panel); a chosen size sets the board's footprint width too
+  if(board){
+    const r=mk('div','irow scr-boardsize');
+    r.appendChild(select('scr_board','Board size',S.BOARD_SIZES,String(P().boardSize||''),v=>{
+      if(v) P().boardSize=v; else delete P().boardSize;
+      if(v==='custom'){ if(!P().boardW) P().boardW=3; if(!P().boardH) P().boardH=4; }
+      const b=S.boardOf(it); if(b.sized) it.width=clamp(Math.round((b.w+0.5)*10)/10, 1, WORLD.w);
+      clampItem(it); commit(); renderAll(); }));
+    sec.appendChild(r);
+    if(P().boardSize==='custom'){ const r2=mk('div','irow'), b=S.boardOf(it);
+      const set=(k)=>v=>{ P()[k]=v; const bb=S.boardOf(it); it.width=clamp(Math.round((bb.w+0.5)*10)/10, 1, WORLD.w); clampItem(it); commit(); renderAll(); };
+      r2.appendChild(numIn('scr_bw','Width (ft)',b.w,1,12,set('boardW'))); r2.appendChild(numIn('scr_bh','Height (ft)',b.h,1,12,set('boardH'))); sec.appendChild(r2); }
+  }
+  // standalone screens: the screen's shape (Standard keeps the model's own height)
+  if(S.ASPECT_TYPES[it.type]){
+    const r=mk('div','irow scr-aspect');
+    r.appendChild(select('scr_aspect','Screen shape',S.ASPECTS,String(P().screenAspect||''),v=>{
+      if(v) P().screenAspect=v; else delete P().screenAspect;
+      if(v==='custom' && !P().screenH){ const f=S.faceOf(Object.assign({}, it, {properties:Object.assign({}, P(), {screenAspect:''})}), store.items); if(f) P().screenH=Math.round(f.h*10)/10; }
+      commit(); renderAll(); }));
+    if(P().screenAspect==='custom'){ const f=S.faceOf(it, store.items); r.appendChild(numIn('scr_h','Screen height (ft)',f?Math.round(f.h*10)/10:9,1,60,v=>{ P().screenH=v; commit(); renderAll(); })); }
+    sec.appendChild(r);
+  }
+  const pic=P().screenMode==='pic';
+  // stage + picture: the screen layout still decides which screen the picture goes on
+  if(pic && it.type==='stage'){ const r=mk('div','irow scr-layout');
+    r.appendChild(select('scr_layout','Screen layout',S.LAYOUTS,String(P().screenLayout||''),v=>{ if(v) P().screenLayout=v; else delete P().screenLayout; commit(); renderAll(); }));
+    sec.appendChild(r); }
+  // Text OR Picture
+  const mode=mk('div','scr-mode'); mode.setAttribute('role','group'); mode.setAttribute('aria-label', board ? 'Board content' : 'Screen content');
+  [['', board ? 'Theme template' : 'Text & theme'], ['pic','Upload a picture']].forEach(([v,label],i)=>{
+    const b=btn(label,'scr-modebtn'+((v==='pic')===pic?' on':'')); b.id='scr_mode_'+(v||'text'); b.setAttribute('aria-pressed',String((v==='pic')===pic));
+    b.addEventListener('click',()=>{ if(RO) return; if(v) P().screenMode='pic'; else delete P().screenMode; commit(); renderAll(); });
+    mode.appendChild(b); if(!i) mode.appendChild(mk('span','scr-or','OR')); });
+  sec.appendChild(mode);
+  // the size guidance (always shown, so a picture can be made to measure before it is uploaded)
+  const g=S.guidance(it, store.items);
+  if(g){ const gd=mk('div','scr-guide'); gd.setAttribute('role','note'); gd.id='scr_guide';
+    const row=(k,v)=>{ const d=mk('div','scr-grow'); d.appendChild(mk('span','scr-gk',k)); d.appendChild(mk('b',null,v)); gd.appendChild(d); };
+    row(board ? 'Board size' : 'Screen size', g.size); row('Shape', g.ratio); row('Make the picture', g.pxW+' × '+g.pxH+' px'+(g.print?' or larger':' or larger, same shape'));
+    gd.appendChild(mk('div','scr-gnote', g.print
+      ? 'For printing, send the printer the original full-size file - this copy is a preview.'
+      : 'Tip: ask your AI tool for a '+g.ratio+' picture at '+g.pxW+' × '+g.pxH+' px.'));
+    sec.appendChild(gd); }
+  if(!pic) return false;
+  // the picture: upload / paste / drop, Fit or Fill, shape check
+  const ref=S.cleanPic(P().screenPic);
+  const lw=mk('div','scr-logobox scr-picbox'); lw.setAttribute('role','group'); lw.setAttribute('aria-label','Screen picture'); lw.tabIndex=RO?-1:0;
+  lw.appendChild(mk('div','scr-sublabel', board ? 'Board picture' : 'Screen picture'));
+  const msg=mk('div','pitchnote scr-picmsg'); msg.setAttribute('role','status'); msg.setAttribute('aria-live','polite');
+  const say=t=>{ msg.textContent=String(t||''); };
+  const fi=mk('input'); fi.type='file'; fi.accept='image/png,image/jpeg,image/webp'; fi.hidden=true; fi.id='scr_pic_file';
+  const add=btn(ref?'Change picture':'Upload picture'), paste=btn('Paste picture'), rm=btn('Remove picture'); add.id='scr_pic_add'; rm.hidden=!ref;
+  const busy=f=>Promise.resolve().then(f).catch(e=>say(screenPicError(e)));
+  const take=f=>{ if(f) busy(()=>screenPicAdd(it, f, say)); };
+  add.addEventListener('click',()=>{ if(RO) return; const gt=screenPicGate(); if(gt){ say(gt); return; } fi.click(); });
+  fi.addEventListener('change',()=>{ const f=fi.files&&fi.files[0]; fi.value=''; take(f); });
+  paste.addEventListener('click',()=>{ if(RO) return; const gt=screenPicGate(); if(gt){ say(gt); return; }
+    const hint='Copy the picture, click this box and press Ctrl+V (⌘V on a Mac).';
+    if(!(navigator.clipboard && navigator.clipboard.read)){ say(hint); lw.focus(); return; }
+    busy(async()=>{ let items=[]; try{ items=await navigator.clipboard.read(); }catch(_){ say(hint); lw.focus(); return; }
+      for(const ci of items){ const ty=(ci.types||[]).find(x=>/^image\/(png|jpeg|webp)$/.test(x)); if(ty){ const bl=await ci.getType(ty); take(new File([bl],'pasted.'+(ty.split('/')[1]==='jpeg'?'jpg':ty.split('/')[1]),{type:ty})); return; } }
+      say('No picture on the clipboard. Copy the picture first (right-click it → Copy image).'); }); });
+  lw.addEventListener('paste',e=>{ if(RO) return; const fs=e.clipboardData && e.clipboardData.files; const f=fs && fs[0]; if(f){ e.preventDefault(); take(f); } });
+  lw.addEventListener('dragover',e=>{ if(RO) return; e.preventDefault(); lw.classList.add('drag'); });
+  lw.addEventListener('dragleave',()=>lw.classList.remove('drag'));
+  lw.addEventListener('drop',e=>{ if(RO) return; e.preventDefault(); lw.classList.remove('drag'); const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; take(f); });
+  rm.addEventListener('click',()=>{ if(RO) return; ['screenPic','screenMode','screenPicW','screenPicH','screenFit'].forEach(k=>delete P()[k]); commit(); renderAll(); });
+  const row=mk('div','scr-logobtns'); row.appendChild(add); row.appendChild(paste); row.appendChild(rm);
+  lw.appendChild(row); lw.appendChild(fi); lw.appendChild(msg);
+  if(ref){ const st=S.logoState(ref); say(st==='fail' ? 'The picture could not be shown right now - the screen stays dark until it loads.' : 'Picture added - it fills this '+(board?'board':'screen')+' in 2D and 3D.'); }
+  else { const g0=RO ? '' : screenPicGate(); say(g0 || 'PNG, JPG or WebP up to 15 MB - upload, paste or drop it here. Big pictures are shrunk and their location data is removed.'); }
+  sec.appendChild(lw);
+  if(ref){
+    const fr=mk('div','irow scr-fit'), cur=P().screenFit==='cover'?'cover':'contain';
+    const pickFit=v=>{ if(v==='cover') P().screenFit='cover'; else delete P().screenFit; commit(); renderAll(); };
+    fr.appendChild(select('scr_fit','Picture fit',S.FITS,cur,pickFit)); sec.appendChild(fr);
+    const pw=+P().screenPicW, ph=+P().screenPicH, diff=g ? S.shapeDiff(pw, ph, g.w, g.h) : 0;
+    if(diff>5){
+      const wn=mk('div','scr-warn'); wn.setAttribute('role','alert');
+      wn.textContent='This picture is '+pw+' × '+ph+' px ('+S.ratioLabel(pw,ph)+'), a different shape from the '+(board?'board':'screen')+' ('+g.ratio+'). Pick Fit to show all of it, or Fill to cover the '+(board?'board':'screen')+' and crop the edges:';
+      sec.appendChild(wn);
+      screenPicPreview(sec, ref, g, mk, pickFit, cur);
+    }
+  }
+  return true;
 }
 // R137: logo references -> short-lived signed links; a loaded / failed logo repaints 2D + 3D (failure = the monogram)
 if(typeof window!=='undefined' && window.HelmScreen && HelmScreen.setLogoResolver){

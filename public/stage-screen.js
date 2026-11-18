@@ -15,6 +15,14 @@
  *   screenLogo   a REFERENCE to a logo picture, never the picture itself and never a data: URL:
  *                'studio' (the studio logo from Settings) or an invite-media storage path
  *                "<org uuid>/<event uuid>/<uuid>.(png|jpg|webp)" (private bucket, per-studio rules, signed to show)
+ *   R200 (picture screens + welcome board):
+ *   screenMode   'pic' = the screen shows an uploaded PICTURE instead of the theme + text (absent = text, as before;
+ *                switching back keeps the picture for later)
+ *   screenPic    the picture REFERENCE (same rules as screenLogo, never 'studio', never the picture / a data: URL)
+ *   screenFit    'cover' = Fill (edges may be cropped) | absent = Fit (whole picture, nothing cut - the default)
+ *   screenPicW/H the uploaded picture's pixel size (whole numbers) - only to warn when its shape differs
+ *   screenAspect standalone screens: '' (as before) | 16:9 | 4:3 | 21:9 | 32:9 | 9:16 | 1:1 | custom (+ screenH ft)
+ *   boardSize    welcome board: 2x3 | 3x4 | 4x6 | custom (+ boardW / boardH ft); absent = the size before R200
  * Every text is length-capped (60) and only ever drawn as TEXT (SVG textContent / canvas fillText),
  * never as HTML. Old layouts carry none of these keys, so they look exactly as before.
  * Pure data + drawing helpers + a small logo image cache. Browser: window.HelmScreen; Node: module.exports.
@@ -56,7 +64,22 @@
   ];
   var BG_SWATCHES = ['#0b2a5b', '#4a0b18', '#0a0614', '#ffffff', '#ffb703', '#14532d', '#1f2937', '#0f766e'];
   // which builder item types carry a screen: 'main' = the stage backdrop, 'side' = portrait side panel
-  var SCREEN_TYPES = { stage: 'main', ledscreen: 'screen', videowall: 'screen', led: 'screen', sidescreen: 'side', brandwall: 'screen', backdrop: 'screen' };
+  var SCREEN_TYPES = { stage: 'main', ledscreen: 'screen', videowall: 'screen', led: 'screen', sidescreen: 'side', brandwall: 'screen', backdrop: 'screen', welcomeboard: 'board' };
+  // R200: picture fit, standalone screen shapes, welcome board sizes and the board's template words
+  var FITS = [['contain', 'Fit - whole picture, nothing cut'], ['cover', 'Fill - covers it all, edges cropped']];
+  var ASPECTS = [['', 'Standard (as before)'], ['16:9', '16:9 widescreen (most screens)'], ['4:3', '4:3 classic'], ['21:9', '21:9 ultra-wide'],
+    ['32:9', '32:9 super-wide LED'], ['9:16', '9:16 portrait'], ['1:1', '1:1 square'], ['custom', 'Custom height']];
+  var ASPECT_TYPES = { ledscreen: 1, led: 1, videowall: 1, sidescreen: 1 };
+  var BOARD_SIZES = [['', 'Standard (as before)'], ['2x3', '2 x 3 ft'], ['3x4', '3 x 4 ft'], ['4x6', '4 x 6 ft'], ['custom', 'Custom size']];
+  var BOARD_FIELDS = [
+    ['subtitle', 'Heading', 'Welcome'],
+    ['tagline', 'Small line', 'to the wedding of'],
+    ['brand', 'Couple / host names', 'Priya & Arjun'],
+    ['title', 'Event name', 'Sangeet Night'],
+    ['dateLine', 'Date / venue', '12 Dec 2026 · Hyderabad']
+  ];
+  var BOARD_THEMES = ['floral', 'royal', 'minimal', 'marigold', 'blackgold'];   // the built-in welcome board designs
+  var PIC_MAX_BYTES = 15 * 1024 * 1024, PIC_MAX_PX = 2560;
   var PLACEHOLDER = 'Tap to add name & brand';
   var own = Object.prototype.hasOwnProperty;
   var HEX_RE = /^#[0-9a-f]{6}$/;
@@ -73,6 +96,9 @@
   function cleanHex(v) { if (typeof v !== 'string') return ''; var s = v.trim().toLowerCase(); return HEX_RE.test(s) ? s : ''; }
   function cleanLogo(v) { if (typeof v !== 'string') return ''; if (v === 'studio') return 'studio'; return LOGO_PATH_RE.test(v) ? v : ''; }
   function cleanLayout(v) { return (typeof v === 'string' && v && LAYOUTS.some(function (l) { return l[0] === v; })) ? v : ''; }
+  function cleanPic(v) { return (typeof v === 'string' && LOGO_PATH_RE.test(v)) ? v : ''; }
+  function cleanNum(v, lo, hi) { var n = +v; if (typeof v === 'boolean' || v === null || v === '' || !isFinite(n)) return 0; return Math.round(Math.max(lo, Math.min(hi, n)) * 10) / 10; }
+  function inList(list, v) { return typeof v === 'string' && !!v && list.some(function (l) { return l[0] === v; }); }
   function isScreenType(type) { return own.call(SCREEN_TYPES, String(type || '')); }
   function themeOf(key) { return own.call(THEMES, key) ? THEMES[key] : THEMES['']; }
 
@@ -113,6 +139,15 @@
     if (own.call(p, 'screenLayout')) { var l = cleanLayout(p.screenLayout); if (l) p.screenLayout = l; else delete p.screenLayout; }
     if (own.call(p, 'screenBg')) { var b = cleanHex(p.screenBg); if (b) p.screenBg = b; else delete p.screenBg; }
     if (own.call(p, 'screenLogo')) { var g = cleanLogo(p.screenLogo); if (g) p.screenLogo = g; else delete p.screenLogo; }
+    // R200
+    if (own.call(p, 'screenMode')) { if (p.screenMode !== 'pic') delete p.screenMode; }
+    if (own.call(p, 'screenPic')) { var pc = cleanPic(p.screenPic); if (pc) p.screenPic = pc; else delete p.screenPic; }
+    if (own.call(p, 'screenFit')) { if (p.screenFit !== 'cover') delete p.screenFit; }
+    ['screenPicW', 'screenPicH'].forEach(function (k) { if (!own.call(p, k)) return; var n = Math.round(+p[k]); if (typeof p[k] === 'number' && n >= 1 && n <= 20000) p[k] = n; else delete p[k]; });
+    if (own.call(p, 'screenAspect')) { if (!inList(ASPECTS, p.screenAspect)) delete p.screenAspect; }
+    if (own.call(p, 'screenH')) { var sh = cleanNum(p.screenH, 1, 60); if (sh) p.screenH = sh; else delete p.screenH; }
+    if (own.call(p, 'boardSize')) { if (!inList(BOARD_SIZES, p.boardSize)) delete p.boardSize; }
+    ['boardW', 'boardH'].forEach(function (k) { if (!own.call(p, k)) return; var n = cleanNum(p[k], 1, 12); if (n) p[k] = n; else delete p[k]; });
     return p;
   }
   function rawContent(p) {
@@ -120,10 +155,12 @@
     var c = { theme: (typeof p.screenTheme === 'string' && own.call(THEMES, p.screenTheme)) ? p.screenTheme : '' };
     FIELDS.forEach(function (f) { c[f[0]] = cleanText(p[f[0]]); });
     c.layout = cleanLayout(p.screenLayout); c.bg = cleanHex(p.screenBg); c.logo = cleanLogo(p.screenLogo);
+    // R200: the picture shows only in picture mode; Fit (contain) unless Fill was chosen
+    c.pic = p.screenMode === 'pic' ? cleanPic(p.screenPic) : ''; c.fit = p.screenFit === 'cover' ? 'cover' : 'contain';
     return c;
   }
   function hasText(c) { return !!(c && (c.title || c.brand || c.tagline || c.subtitle || c.dateLine)); }
-  function hasContent(c) { return !!(c && (c.theme || hasText(c) || c.bg || c.logo || (c.layout && c.layout !== 'none'))); }
+  function hasContent(c) { return !!(c && (c.theme || hasText(c) || c.bg || c.logo || c.pic || (c.layout && c.layout !== 'none'))); }
   // the stage whose screen is "the main screen" (first stage with content, else the first stage)
   function mainScreen(items) {
     var stages = (items || []).filter(function (o) { return o && o.type === 'stage'; });
@@ -139,6 +176,7 @@
       if (m && m !== it) { var mc = rawContent(m.properties); mc.layout = ''; mc.mirrored = true; return mc; }
     }
     var c = rawContent(p); if (it.type !== 'stage') c.layout = '';
+    if (SCREEN_TYPES[it.type] === 'board') c.board = true;
     return c;
   }
   /* R137 screen layout of a stage: the screens on its backdrop wall, as fractions of the stage width (x = centre,
@@ -159,7 +197,102 @@
   function shortLine(c) { if (!c) return ''; return [c.brand, c.title].filter(Boolean).join(' · ') || c.tagline || c.subtitle || c.dateLine || ''; }
   // stable key: the 3D view redraws a screen texture only when this changes (logo: only whether its picture is ready)
   function keyOf(c, side, w, h) {
-    return [c.theme, c.title, c.brand, c.tagline, c.subtitle, c.dateLine, side ? 's' : 'm', w, h, c.bg || '', c.logo ? c.logo + ':' + logoState(c.logo) : ''].join('\u0001');
+    return [c.theme, c.title, c.brand, c.tagline, c.subtitle, c.dateLine, side ? 's' : 'm', w, h, c.bg || '', c.logo ? c.logo + ':' + logoState(c.logo) : '',
+      c.pic ? c.pic + ':' + logoState(c.pic) + ':' + c.fit : '', c.board ? 'b' : ''].join('\u0001');
+  }
+
+  /* ---- R200 real screen size (ft) + picture guidance. faceOf mirrors the 3D models exactly (builder-3d.js reads the
+     frame height from here), so the size shown next to the upload is the size the picture is drawn on. ---- */
+  function aspectNum(a) { var m = /^(\d+):(\d+)$/.exec(String(a || '')); return m ? (+m[1]) / (+m[2]) : 0; }
+  // the screen face's wanted height for a face width, or 0 = keep the model's own height (Standard)
+  function wantH(p, fw) {
+    var a = aspectNum(p.screenAspect); if (a) return fw / a;
+    if (p.screenAspect === 'custom') return cleanNum(p.screenH, 1, 60);
+    return 0;
+  }
+  // welcome board panel size: { w, h } ft (portrait). Standard = the board before R200 (follows the item width)
+  function boardOf(it) {
+    var p = (it && it.properties) || {}, w = Math.max(0.5, +(it && it.width) || 3), s = p.boardSize;
+    if (s === '2x3') return { w: 2, h: 3, sized: true };
+    if (s === '3x4') return { w: 3, h: 4, sized: true };
+    if (s === '4x6') return { w: 4, h: 6, sized: true };
+    if (s === 'custom') { var bw = cleanNum(p.boardW, 1, 12) || 3, bh = cleanNum(p.boardH, 1, 12) || 4; return { w: bw, h: bh, sized: true }; }
+    var b = Math.max(2.4, w * 0.85); return { w: b, h: b * 1.3, sized: false };
+  }
+  // { w, h } = the visible screen face in ft, frame = the model's frame height (3D), or null (not a screen / no screen)
+  function faceOf(it, items) {
+    if (!it || !isScreenType(it.type)) return null;
+    var p = it.properties || {}, w = Math.max(0.5, +it.width || 1), d = Math.max(0.5, +it.height || 1), t = it.type;
+    var curved = p.style === 'curvedled' && (t === 'ledscreen' || t === 'videowall'), fw, fh, fr, k, H;
+    if (t === 'ledscreen' || t === 'videowall' || t === 'led' || t === 'sidescreen') {
+      fr = t === 'ledscreen' ? Math.max(8, w * 0.4) : t === 'videowall' ? Math.max(8, d) : t === 'led' ? Math.max(6, Math.round(w * 9 / 16)) : Math.max(9, Math.min(16, w * 1.8));
+      if (curved) { fw = w * 0.97; k = 0.94; }
+      else if (t === 'ledscreen') { fw = Math.max(0.5, w - 1); k = 0; }
+      else { fw = w * (t === 'sidescreen' ? 0.94 : 0.96); k = t === 'videowall' ? 0.9 : t === 'led' ? 0.94 : 0.95; }
+      H = wantH(p, fw);
+      if (H) { H = Math.max(1, Math.min(60, H)); fh = H; fr = k ? H / k : H + 1; }
+      else fh = k ? fr * k : fr - 1;
+      return { w: fw, h: fh, frame: fr };
+    }
+    if (t === 'brandwall') return { w: w * 0.96, h: 8 * 0.92, frame: 8 };
+    if (t === 'backdrop') return { w: w * 0.96, h: 8 * 0.9, frame: 8 };
+    if (t === 'welcomeboard') { var b = boardOf(it); return { w: b.w, h: b.h, frame: b.h }; }
+    if (t === 'stage') {
+      var c = contentOf(it, items || []), lay = layoutOf(c), bh = Math.min(14, Math.max(8, d * 0.8));
+      var seg = stageSegments(lay, w).filter(function (sg) { return !sg.side; })[0];
+      return seg ? { w: w * seg.w, h: bh * seg.h, frame: bh } : null;
+    }
+    return null;
+  }
+  var RATIOS = [[16, 9], [9, 16], [4, 3], [3, 4], [21, 9], [32, 9], [3, 2], [2, 3], [1, 1], [2, 1], [1, 2], [5, 4], [4, 5], [5, 2], [3, 1]];
+  // "16:9" for a shape close (within 1.5%) to a common ratio, else "2.71:1" (or "1:1.5" when portrait)
+  function ratioLabel(w, h) {
+    w = +w; h = +h; if (!(w > 0) || !(h > 0)) return '';
+    var r = w / h;
+    for (var i = 0; i < RATIOS.length; i++) { var q = RATIOS[i][0] / RATIOS[i][1]; if (Math.abs(r / q - 1) <= 0.015) return RATIOS[i][0] + ':' + RATIOS[i][1]; }
+    return r >= 1 ? (Math.round(r * 100) / 100) + ':1' : '1:' + (Math.round(100 / r) / 100);
+  }
+  // the picture size to make for a w x h ft face: long side 1920 px for screens (Full HD), 2400 px for printed boards
+  function recommendPx(w, h, print) {
+    w = +w; h = +h; if (!(w > 0) || !(h > 0)) return null;
+    var L = print ? 2400 : 1920, r = w / h, pw, ph;
+    if (r >= 1) { pw = L; ph = Math.round(L / r); } else { ph = L; pw = Math.round(L * r); }
+    if (!print && Math.abs(r / (16 / 9) - 1) <= 0.015) { pw = 1920; ph = 1080; }
+    if (!print && Math.abs(r / (9 / 16) - 1) <= 0.015) { pw = 1080; ph = 1920; }
+    return { w: Math.max(1, pw), h: Math.max(1, ph), ratio: ratioLabel(w, h) };
+  }
+  // how far (in %) a picture's shape is from the face's shape; > 5 = warn and offer Fit / Fill
+  function shapeDiff(pw, ph, w, h) {
+    pw = +pw; ph = +ph; w = +w; h = +h; if (!(pw > 0 && ph > 0 && w > 0 && h > 0)) return 0;
+    var a = (pw / ph) / (w / h); return Math.round(Math.abs(a >= 1 ? a - 1 : 1 / a - 1) * 1000) / 10;
+  }
+  function ft(n) { var v = Math.round(+n * 10) / 10; return (v === Math.round(v) ? String(Math.round(v)) : v.toFixed(1)); }
+  // "16 ft x 9 ft (4.9 x 2.7 m)"
+  function sizeText(w, h) { return ft(w) + ' ft × ' + ft(h) + ' ft (' + (Math.round(w * 0.3048 * 10) / 10) + ' × ' + (Math.round(h * 0.3048 * 10) / 10) + ' m)'; }
+  // the plain-words guidance shown next to the upload: { size, ratio, px, line }
+  function guidance(it, items) {
+    var f = faceOf(it, items); if (!f) return null;
+    var print = it.type === 'welcomeboard' || it.type === 'brandwall' || it.type === 'backdrop', rp = recommendPx(f.w, f.h, print);
+    return { w: f.w, h: f.h, size: sizeText(f.w, f.h), ratio: rp.ratio, pxW: rp.w, pxH: rp.h, print: print,
+      line: 'Make the picture ' + rp.w + ' × ' + rp.h + ' px (' + rp.ratio + ')' + (print ? ' or larger for print.' : ' or larger, same shape.') };
+  }
+  // { ok, reason } for a picture file (bytes sniffed, never the name / declared type). PNG / JPG / WebP, <= 15 MB.
+  function validatePicture(file, bytes) {
+    var size = file && +file.size, type = String((file && file.type) || '').toLowerCase(), name = String((file && file.name) || '').toLowerCase();
+    if (!file || !(size > 0)) return { ok: false, reason: 'That file is empty.' };
+    if (/svg/.test(type) || /\.svgz?$/.test(name)) return { ok: false, reason: 'SVG files are not accepted. Please use a PNG, JPG or WebP picture.' };
+    if (size > PIC_MAX_BYTES) return { ok: false, reason: 'That picture is over 15 MB. Please save it smaller (PNG, JPG or WebP) and try again.' };
+    var s = sniffLogo(bytes);
+    if (!s) return { ok: false, reason: 'That is not a picture Helm can use. Please choose a PNG, JPG or WebP image.' };
+    return { ok: true, mime: s.mime, ext: s.ext };
+  }
+  // canvas: a picture over the whole W x H face - Fit (contain, dark bars) or Fill (cover, centred crop)
+  function drawPicture(ctx, W, H, img, fit) {
+    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, W, H);
+    if (!img || !(img.naturalWidth > 0 || img.width > 0)) return false;
+    var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height || 1;
+    var k = fit === 'cover' ? Math.max(W / iw, H / ih) : Math.min(W / iw, H / ih), dw = iw * k, dh = ih * k;
+    try { ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh); return true; } catch (e) { return false; }
   }
 
   /* ---- R137 logo picture: validation (bytes, never the file name / declared type), then a small image cache ---- */
@@ -380,11 +513,13 @@
   // draws a full screen face. opts.side = portrait side panel (brand + tagline only); opts.logo = the loaded logo image
   function draw(ctx, W, H, c, opts) {
     opts = opts || {}; c = c || rawContent({});
+    if (c.pic) { drawPicture(ctx, W, H, opts.pic || null, c.fit); return; }   // R200: picture mode = the picture only
     var T = paletteOf(c), sans = '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif', serif = 'Georgia, "Times New Roman", serif';
     backdrop(ctx, W, H, T);
     motif(ctx, W, H, T);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     var mono = monogram(c.brand), cx = W / 2, img = c.logo ? (opts.logo || null) : null, pic = !!(img && img.naturalWidth > 0);
+    if (c.board || opts.board) { drawBoard(ctx, W, H, c, T, img, mono, sans, serif); return; }
     if (opts.side) {
       var r = Math.min(W * 0.28, H * 0.1);
       mark(ctx, cx, H * 0.3, r, mono, T, img, sans);
@@ -401,6 +536,22 @@
     line(ctx, (c.subtitle || '').toUpperCase(), cx, H * 0.66, W * 0.8, Math.round(H * 0.055), '600', sans, T.sub);
     line(ctx, c.dateLine, cx, H * 0.8, W * 0.7, Math.round(H * 0.05), '500', sans, T.sub);
   }
+
+  // R200 welcome board template (portrait): heading, small line, names, event name, date, logo / monogram at the foot
+  function drawBoard(ctx, W, H, c, T, img, mono, sans, serif) {
+    var cx = W / 2;
+    line(ctx, c.subtitle || 'Welcome', cx, H * 0.2, W * 0.8, Math.round(W * 0.16), 'italic 700', serif, T.ink);
+    line(ctx, (c.tagline || '').toUpperCase(), cx, H * 0.32, W * 0.8, Math.round(W * 0.05), '600', sans, T.sub);
+    var names = String(c.brand || ''), amp = names.indexOf('&');
+    if (amp > 0 && amp < names.length - 1) {
+      line(ctx, names.slice(0, amp).trim(), cx, H * 0.43, W * 0.8, Math.round(W * 0.12), '700', serif, T.ink);
+      line(ctx, '&', cx, H * 0.5, W * 0.3, Math.round(W * 0.08), 'italic 400', serif, T.accent || T.sub);
+      line(ctx, names.slice(amp + 1).trim(), cx, H * 0.57, W * 0.8, Math.round(W * 0.12), '700', serif, T.ink);
+    } else line(ctx, names, cx, H * 0.5, W * 0.8, Math.round(W * 0.12), '700', serif, T.ink);
+    line(ctx, c.title, cx, H * 0.68, W * 0.8, Math.round(W * 0.075), '600', sans, T.ink);
+    line(ctx, c.dateLine, cx, H * 0.76, W * 0.8, Math.round(W * 0.05), '500', sans, T.sub);
+    mark(ctx, cx, H * 0.87, Math.min(W * 0.08, H * 0.05), mono, T, img, sans);
+  }
   /* R160: what every screen of a layout shows, for the photo render (render-photo builds its SCREEN CONTENT
      section from this, and the dialog draws each spec as a flat artwork reference picture). Identical contents
      (mirrored side screens, copies) are merged with a count; screens with nothing on them are left out; the main
@@ -416,7 +567,7 @@
       if (lay === 'none') return;                               // a plain backdrop: no screen to show anything on
       var kind = stage ? 'stage' : (SCREEN_TYPES[it.type] === 'side' ? 'side' : 'screen');
       var T = paletteOf(c);
-      var k = [kind, it.type, lay, c.theme, c.bg, c.logo, c.title, c.brand, c.tagline, c.subtitle, c.dateLine].join('\u0001');
+      var k = [kind, it.type, lay, c.theme, c.bg, c.logo, c.title, c.brand, c.tagline, c.subtitle, c.dateLine, c.pic || '', c.pic ? c.fit : ''].join('\u0001');   // R200: + picture
       if (own.call(byKey, k)) { byKey[k].count++; return; }
       var s = { kind: kind, type: String(it.type), count: 1, layout: lay === 'legacy' ? 'single' : lay, theme: c.theme, themeName: themeOf(c.theme).name,
         bg: T.bg, ink: T.ink, sub: T.sub, accent: cleanHex(T.accent), accent2: cleanHex(T.accent2 || ''), customBg: !!c.bg,
@@ -436,6 +587,11 @@
     luminance: luminance, contrast: contrast, inkFor: inkFor, paletteOf: paletteOf,
     sniffLogo: sniffLogo, validateLogo: validateLogo, fitLogoSize: fitLogoSize,
     setLogoResolver: setLogoResolver, onLogoChange: onLogoChange, logoState: logoState, logoImage: logoImage, logoUrl: logoUrl, forgetLogo: forgetLogo,
-    whenLogos: whenLogos, logoSnapshot: logoSnapshot, LOGO_REFRESH_MS: LOGO_REFRESH_MS
+    whenLogos: whenLogos, logoSnapshot: logoSnapshot, LOGO_REFRESH_MS: LOGO_REFRESH_MS,
+    // R200
+    FITS: FITS, ASPECTS: ASPECTS, ASPECT_TYPES: ASPECT_TYPES, BOARD_SIZES: BOARD_SIZES, BOARD_FIELDS: BOARD_FIELDS, BOARD_THEMES: BOARD_THEMES,
+    PIC_MAX_BYTES: PIC_MAX_BYTES, PIC_MAX_PX: PIC_MAX_PX, cleanPic: cleanPic, aspectNum: aspectNum, boardOf: boardOf, faceOf: faceOf,
+    ratioLabel: ratioLabel, recommendPx: recommendPx, shapeDiff: shapeDiff, sizeText: sizeText, guidance: guidance,
+    validatePicture: validatePicture, drawPicture: drawPicture
   });
 });

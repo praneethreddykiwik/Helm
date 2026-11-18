@@ -167,7 +167,7 @@ t('placeholder is builder-only: never in exports, the capture host, read-only vi
 t('inspector Screen / steps / stairs sections use the DOM API only (CSP + Trusted Types), live in 2D + 3D', () => {
   const blk = b.slice(b.indexOf('R135 STAGE STEPS + STAIRS + SCREEN: BEGIN'), b.indexOf('R135 STAGE STEPS + STAIRS + SCREEN: END'));
   assert.ok(blk.length > 2000); assert.ok(!/innerHTML|insertAdjacentHTML|outerHTML/.test(blk), 'no HTML sinks');
-  assert.match(blk, /inp\.maxLength=S\.MAX/); assert.match(blk, /S\.THEME_ORDER\.forEach/); assert.match(blk, /Same as main screen/);
+  assert.match(blk, /inp\.maxLength=S\.MAX/); assert.match(blk, /\(board \? \[''\, \.\.\.S\.BOARD_THEMES\] : S\.THEME_ORDER\)\.forEach/); assert.match(blk, /Same as main screen/);   // R200: + welcome board designs
   assert.match(blk, /inp\.addEventListener\('input',\(\)=>\{ if\(RO\) return; apply\(\); live\(\); \}\);/);
   assert.match(b, /stageScreenMount\(it, box\);/);
   const helpers = b.slice(b.indexOf('function screenContent('), b.indexOf('function renderItem('));

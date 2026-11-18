@@ -135,7 +135,7 @@ t('logo display: signed link via mediaUrls, crossOrigin anonymous, failure -> mo
     drawn.length = 0; HS.draw(ctx, 1024, 512, HS.rawContent({ brand: 'CRISKA' }), { logo: HS.logoImage(PATH) }); assert.ok(drawn.includes('C'), 'no logo set -> monogram even if an image is passed');
     // 3D passes the logo image into the texture and the logo state into its cache key
     assert.match(b3, /const logo=c\.logo && HS\.logoImage \? HS\.logoImage\(c\.logo\) : null;/);
-    assert.match(b3, /HS\.draw\(x, W, H, c, \{ side, logo \}\)/);
+    assert.match(b3, /HS\.draw\(x, W, H, c, \{ side, logo, pic \}\)/);
     assert.match(b, /HelmScreen\.onLogoChange\(\(\)=>\{ try\{ renderSceneOnly\(\); if\(window\.__on3DStateChange\) window\.__on3DStateChange\(\);/);
     // exported pictures never carry the signed link
     // R154: the export bakes the logo PIXELS (HelmScreen.logoSnapshot) and drops the signed href + marker; no picture = removed

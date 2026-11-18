@@ -228,21 +228,30 @@
     const HS=typeof window!=='undefined' && window.HelmScreen;
     if(!HS || typeof document==='undefined' || typeof THREE==='undefined' || typeof THREE.CanvasTexture!=='function') return null;
     const asp=Math.max(0.1, wFt/Math.max(0.1,hFt));
-    const W=side ? Math.max(192, Math.min(1024, Math.round(1024*asp))) : 1024, H=side ? 1024 : Math.max(256, Math.min(1024, Math.round(1024/asp)));
+    let W=side ? Math.max(192, Math.min(1024, Math.round(1024*asp))) : 1024, H=side ? 1024 : Math.max(256, Math.min(1024, Math.round(1024/asp)));
+    // R200: a picture / welcome board keeps the face's true shape (portrait faces too), long side 1536 px for a picture
+    if(c.pic || c.board){ const L=c.pic ? 1536 : 1024; if(asp>=1){ W=L; H=Math.max(64, Math.round(L/asp)); } else { H=L; W=Math.max(64, Math.round(L*asp)); } }
     const logo=c.logo && HS.logoImage ? HS.logoImage(c.logo) : null;   // R137: null until loaded (then the monogram) - its arrival rebuilds
+    const pic=c.pic && HS.logoImage ? HS.logoImage(c.pic) : null;      // R200: same cache + signed-link rules as the logo; dark until loaded
     const key=HS.keyOf(c, side, W, H), hit=SCREEN_TEX.get(cacheId); screenSeen.add(cacheId);
     if(hit && hit.key===key) return hit.tex;
     if(hit && hit.tex) hit.tex.dispose();
     let t=null;
     try{ const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const x=cv.getContext('2d');
-      if(x){ HS.draw(x, W, H, c, { side, logo }); t=new THREE.CanvasTexture(cv); t.anisotropy=4; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; } }catch(_){ t=null; }
+      if(x){ HS.draw(x, W, H, c, { side, logo, pic }); t=new THREE.CanvasTexture(cv); t.anisotropy=4; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; } }catch(_){ t=null; }
     if(t) SCREEN_TEX.set(cacheId, { key, tex:t }); else SCREEN_TEX.delete(cacheId);
     return t;
   }
+  // R200: the frame height of a standalone screen (Standard = the model's own height; a chosen shape sets it)
+  function scrFrame(it, fallback){ try{ const HS=typeof window!=='undefined' && window.HelmScreen; const f=HS && HS.faceOf ? HS.faceOf(it, []) : null;
+      return f && f.frame>0 ? f.frame : fallback; }catch(_){ return fallback; } }
   function pruneScreenTextures(){ SCREEN_TEX.forEach((v,k)=>{ if(!screenSeen.has(k)){ if(v.tex) v.tex.dispose(); SCREEN_TEX.delete(k); } }); screenSeen=new Set(); }
   // a flat (or curved, R = bend radius) screen face facing +z, centre (x,y,z). Falls back to the theme colour (no canvas).
   function screenFace(g, it, c, wFt, hFt, x, y, z, opt){
-    opt=opt||{}; const side=!!opt.side, cacheId=String(it.id||it.type)+(opt.slot||'');
+    opt=opt||{}; const cacheId=String(it.id||it.type)+(opt.slot||'');
+    // R200 fix: a tall (portrait) text screen - e.g. an LED screen set to 9:16 - is laid out like a side panel instead of
+    // squeezing the landscape layout into a square texture (pictures and welcome boards keep their own true shape)
+    const side=!!opt.side || (!c.pic && !c.board && hFt>wFt*1.2);
     const tx0=screenTexture(cacheId, c, side, wFt, hFt), T=(typeof window!=='undefined' && window.HelmScreen && window.HelmScreen.themeOf(c.theme)) || { bg:'#2f6fed' };
     const geo=new THREE.PlaneGeometry(wFt, hFt, opt.R ? 16 : 1, 1);
     if(opt.R) bendPlane(geo, opt.R);
@@ -442,7 +451,8 @@
         else if(sc && HSx && HSx.stageSegments){   // R135/R137: themed screens per layout ('' = centre + two portrait side panels, as R135)
           HSx.stageSegments(HSx.layoutOf(sc), w).forEach(sg=>{ const sw2=w*sg.w, sh2=bh*sg.h, px=w*sg.x, py=H+bh*sg.y;
             const fb=boxMesh(sw2+(sg.side?0.25:0.3),sh2+(sg.side?0.25:0.3),0.15,'#11151f'); fb.position.set(px,py,-d/2+1.0); g.add(fb);
-            screenFace(g, it, sc, sw2, sh2, px, py, -d/2+1.09, sg.side ? { side:true, slot:':side' } : null); });
+            const sc2=sg.side && sc.pic ? Object.assign({}, sc, { pic:'' }) : sc;   // R200: the picture goes on the centre screen; side panels keep theme + brand
+            screenFace(g, it, sc2, sw2, sh2, px, py, -d/2+1.09, sg.side ? { side:true, slot:':side' } : null); });
         } else if(sc){   // (no screen model loaded) the R135 look
           const sb=boxMesh(w*0.42+0.3,bh*0.45+0.3,0.15,'#11151f'); sb.position.set(0,H+bh*0.6,-d/2+1.0); g.add(sb);
           screenFace(g, it, sc, w*0.42, bh*0.45, 0, H+bh*0.6, -d/2+1.09);
@@ -479,7 +489,7 @@
         for(let i=0;i<n;i++){ const x=-w/2+(i+0.5)*w/n, st2=cyl(0.06,0.06,2,'#3a4048',{},8); st2.position.set(x,1,0); g.add(st2); heads.push([x,2.1,0]); }
         bulbs(g, heads, '#ffe2a8', 0.22); return true; }
       case 'sidescreen': {  // tall portrait LED side screen on a ground-stack frame; shows brand + tagline when set
-        const H2=Math.max(9,Math.min(16,w*1.8)), base=1, sc=scrContent(it);
+        const H2=scrFrame(it, Math.max(9,Math.min(16,w*1.8))), base=1, sc=scrContent(it);
         const fr=boxMesh(w,H2,0.4,'#0a0c10'); fr.position.y=base+H2/2; g.add(fr);
         if(sc) screenFace(g, it, sc, w*0.94, H2*0.95, 0, base+H2/2, 0.22, { side:true });
         else { const sr=boxMesh(w*0.94,H2*0.95,0.1,'#2f6fed',{emissive:col('#2f6fed'),emissiveIntensity:.55}); sr.position.set(0,base+H2/2,0.2); g.add(sr); }
@@ -786,6 +796,23 @@
         const plate=boxMesh(fw*0.5,0.5,0.06,c); plate.position.set(0,y0+0.55,0.15); g.add(plate);
         return true; }
       case 'welcomeboard': {  // welcome sign on an easel with a floral spray
+        // R200: a chosen size (2x3 / 3x4 / 4x6 / custom) or a standee stand, and the board's template / picture on its face
+        const HSb=typeof window!=='undefined' && window.HelmScreen, BO=HSb && HSb.boardOf ? HSb.boardOf(it) : null, scb=scrContent(it);
+        if(BO && (BO.sized || VAR.style==='standee' || scb)){
+          const bw=BO.w, bh=BO.h, standee=VAR.style==='standee', y0=standee ? 0.35 : 1.4, cy=y0+bh/2, tilt=standee ? 0 : -0.1;
+          const pg=new THREE.Group(); pg.position.set(0,cy,0); pg.rotation.x=tilt; g.add(pg);
+          const board=boxMesh(bw,bh,0.12,'#fbf8f2',{roughness:.5}); pg.add(board);
+          const trim=boxMesh(bw+0.2,bh+0.2,0.08,standee?'#2b2f36':'#d9b45a',standee?{}:GOLD); trim.position.z=-0.08; pg.add(trim);
+          if(scb) screenFace(pg, it, scb, bw, bh, 0, 0, 0.07, { slot:':board' });
+          else { const band=boxMesh(bw*0.7,0.25,0.05,c); band.position.set(0,bh*0.12,0.12); pg.add(band); }
+          if(standee){ for(const s of [-1,1]){ const ft=boxMesh(0.25,0.3,Math.max(1.2,d*0.6),'#2b2f36'); ft.position.set(s*(bw/2-0.25),0.15,0); g.add(ft); } }
+          else { const L=Math.max(5, y0+bh*0.8);
+            for(const s of [-1,1]){ const leg=boxMesh(0.12,L,0.12,'#d9b45a',GOLD); leg.position.set(s*(bw/2+0.12),L/2-0.1,0.1); leg.rotation.x=0.12; g.add(leg); }   // at the board's edges, never across the picture
+            const ledge=boxMesh(bw+0.3,0.12,0.35,'#d9b45a',GOLD); ledge.position.set(0,y0-0.06,0.12); g.add(ledge);
+            const bl=boxMesh(0.12,L,0.12,'#d9b45a',GOLD); bl.position.set(0,L/2-0.2,-0.7); bl.rotation.x=-0.22; g.add(bl);
+            const an=[]; for(let k=0;k<6;k++) an.push([-bw/2+0.1+k*0.22,cy+bh/2-0.05-k*0.18,0.15]);
+            blooms(g, an, {rand, pal:pal(c,'blush'), rMin:.14, rMax:.26, per:3, spread:.2}); }
+          return true; }
         const bw=Math.max(2.4,w*0.85), bh=bw*1.3;
         const board=boxMesh(bw,bh,0.12,'#fbf8f2',{roughness:.5}); board.position.set(0,2.6+bh/2-1.2,0); board.rotation.x=-0.1; g.add(board);
         const trim=boxMesh(bw+0.2,bh+0.2,0.08,'#d9b45a',GOLD); trim.position.set(0,2.6+bh/2-1.2,-0.08); trim.rotation.x=-0.1; g.add(trim);
@@ -1413,7 +1440,7 @@
     const g=new THREE.Group();
     if(buildPremium(it, chairs, g)) return g;
     // R135: this item's look + whether it carries screen content (read here too, so the classic models stand alone)
-    const VR=(it.properties&&typeof it.properties==='object')?it.properties:{}, SCR=!!(VR.screenTheme||VR.title||VR.brand||VR.tagline||VR.subtitle||VR.dateLine||VR.screenMirror);            // refined / new models (premium kit above)
+    const VR=(it.properties&&typeof it.properties==='object')?it.properties:{}, SCR=!!(VR.screenTheme||VR.title||VR.brand||VR.tagline||VR.subtitle||VR.dateLine||VR.screenMirror||VR.screenBg||VR.screenLogo||VR.screenMode);   // R200 fix: a colour / logo / picture alone shows too            // refined / new models (premium kit above)
     const w=it.width, d=it.height, c=it.color;
     switch(it.type){
       case 'podium': {
@@ -1515,8 +1542,8 @@
         for(let i=0;i<cabins;i++){ const cab=boxMesh(w/cabins*0.9,7.5,d,c); cab.position.set(-w/2+(i+0.5)*(w/cabins),3.75,0); g.add(cab); }
         break; }
       case 'ledscreen': {
-        if(VR.style==='curvedled' && curvedScreen(g, it, Math.max(8,w*0.4), 1)) break;   // R135 curved LED
-        { const sc=SCR ? scrContent(it) : null, sh=Math.max(8,w*0.4); if(sc){ const fr=boxMesh(w,sh,0.4,'#1b2233'); fr.position.y=sh/2+1; g.add(fr);
+        if(VR.style==='curvedled' && curvedScreen(g, it, scrFrame(it, Math.max(8,w*0.4)), 1)) break;   // R135 curved LED (R200: + chosen shape)
+        { const sc=SCR ? scrContent(it) : null, sh=scrFrame(it, Math.max(8,w*0.4)); if(sc){ const fr=boxMesh(w,sh,0.4,'#1b2233'); fr.position.y=sh/2+1; g.add(fr);
             screenFace(g, it, sc, w-1, sh-1, 0, sh/2+1, 0.31);
             for(const sxx of [-1,1]){ const leg=boxMesh(0.6,1,0.6,'#6b7280'); leg.position.set(sxx*(w/2-0.5),0.5,0); g.add(leg); } break; } }
         const frame=boxMesh(w,Math.max(8,w*0.4),0.4,'#1b2233'); frame.position.y=Math.max(8,w*0.4)/2+1; g.add(frame);
@@ -1638,8 +1665,8 @@
         const beam=new THREE.Mesh(new THREE.CylinderGeometry(0.05,1.4,7,16,1,true),new THREE.MeshBasicMaterial({color:col(c),transparent:true,opacity:0.14,side:2}));
         beam.position.set(0,4.9,1.2); beam.rotation.x=0.25; g.add(beam); break; }
       case 'videowall': {
-        if(VR.style==='curvedled' && curvedScreen(g, it, Math.max(8,d), 1)) break;   // R135 curved LED
-        { const sc=SCR ? scrContent(it) : null, sh=Math.max(8,d); if(sc){ const fr=boxMesh(w,sh,0.5,'#0a0c10'); fr.position.y=sh/2+1; g.add(fr);
+        if(VR.style==='curvedled' && curvedScreen(g, it, scrFrame(it, Math.max(8,d)), 1)) break;   // R135 curved LED (R200: + chosen shape)
+        { const sc=SCR ? scrContent(it) : null, sh=scrFrame(it, Math.max(8,d)); if(sc){ const fr=boxMesh(w,sh,0.5,'#0a0c10'); fr.position.y=sh/2+1; g.add(fr);
             screenFace(g, it, sc, w*0.96, sh*0.9, 0, sh/2+1, 0.27);
             for(const sx2 of [-w/2+0.3,w/2-0.3]){ const leg=boxMesh(0.4,sh/2+1,0.6,'#3a4048'); leg.position.set(sx2,(sh/2+1)/2,-0.3); g.add(leg);} break; } }
         const frame=boxMesh(w,Math.max(8,d),0.5,'#0a0c10'); frame.position.y=Math.max(8,d)/2+1; g.add(frame);
@@ -1665,7 +1692,7 @@
           const glow=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.05,12),mat(c,{emissive:col(c),emissiveIntensity:.8})); glow.position.set(x,H-1.35,0.62); glow.rotation.x=0.5; g.add(glow); }
         break; }
       case 'led': {         // LED wall on a ground-stack frame (16:9 panel)
-        const sh=Math.max(6,Math.round(w*9/16)), base=2;
+        const sh=scrFrame(it, Math.max(6,Math.round(w*9/16))), base=2;
         const frame=boxMesh(w,sh,0.5,'#0a0c10'); frame.position.y=base+sh/2; g.add(frame);
         { const sc=SCR ? scrContent(it) : null; if(sc) screenFace(g, it, sc, w*0.96, sh*0.94, 0, base+sh/2, 0.27);   // R135 screen content
         else { const scr=new THREE.Mesh(new THREE.BoxGeometry(w*0.96,sh*0.94,0.1),new THREE.MeshStandardMaterial({color:col('#2f6fed'),emissive:col('#2f6fed'),emissiveIntensity:.55,roughness:.3}));

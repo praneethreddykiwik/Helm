@@ -82,7 +82,7 @@
         : "Zoom out / in, FIT the whole floor, the arrows to pan and fullscreen. These sit under the floor so they never cover it. To hide them, press the down arrow (⌄); the small “⊕ View” button brings them back."; } },
       { sel: ["#rightPanel", "#inspToggle", "#bimInsp"], side: "left", title: "Price & inspector", desc: "The menu package, guests and live price for this floor. Select an object to edit its size, position, rotation and colour here. On a phone, tap Inspector to open it." },
       // R135 + R137: the stage screen (layout, theme, colour, logo, words) + stairs, shown once a stage or a screen is selected
-      { sel: ["#inspector .isec.screen", "#rightPanel"], side: "left", title: "Stage screen, steps & stairs", desc: "Select the stage or a screen: pick Screen layout (Single, Triple, Wide wall, None), one of 8 themes or your own colour, Add logo (PNG/JPG/WebP, 2 MB) and type the words. Stages also get steps." },
+      { sel: ["#inspector .isec.screen", "#rightPanel"], side: "left", title: "Stage screen, steps & stairs", desc: "Select the stage or a screen: layout, theme or colour, logo and words - OR Upload a picture (Helm shows its real size and the pixels to make, e.g. 1920 x 1080). Toolbox: 3 screens (centre + 2 sides) and Welcome Board." },
     ],
     "quotes.html": [
       { sel: "#tabs", title: "Find confirmed fast", desc: "Active · Quotes · Confirmed · Archive · Deleted. Confirmed events rise to the top and are highlighted so you never scroll to find them." },

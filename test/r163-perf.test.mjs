@@ -86,7 +86,7 @@ await t('Past renders: no hidden lazy <img>, eager load before onload, fetch + d
   assert.match(PR, /img\.removeAttribute\('loading'\);/);
   assert.match(PR, /inTime\(A\.image\(id\), IMG_FETCH_MS\)/);
   assert.match(PR, /\}\), IMG_DECODE_MS\)\.catch/);
-  for (const f of ['builder.html', 'capture.html']) assert.match(read('public/' + f), /photo-render-ui\.js\?v=12/);
+  for (const f of ['builder.html', 'capture.html']) assert.match(read('public/' + f), /photo-render-ui\.js\?v=13/);
 });
 
 await t('Past renders: inTime settles a promise that never settles (behaviour)', async () => {
