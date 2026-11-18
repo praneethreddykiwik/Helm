@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (340 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (341 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4486 objects): body 176, bucket 9, col 242, con 415, cron 19, exec 19, fn 2003, idx 528, marker 96, pol 189, polexpr 4, pre 111, pub 5, seq 1, tbl 290, trg 377, view 2.
+-- What is checked (4488 objects): body 176, bucket 9, col 242, con 415, cron 19, exec 19, fn 2004, idx 528, marker 97, pol 189, polexpr 4, pre 111, pub 5, seq 1, tbl 290, trg 377, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4510,7 +4510,9 @@ with o(m, k, s, n, x) as (values
   ('0387_r212_money_speed', 'marker', 'public', '_r21_cost_lines__pre0372', 'uuid,uuid|r212-0387'),
   ('0387_r212_money_speed', 'marker', 'public', '_r387_event_pnl', 'uuid,uuid,jsonb|r212-0387'),
   ('0387_r212_money_speed', 'exec', 'public', 'event_money_header', 'uuid|authenticated'),
-  ('0387_r212_money_speed', 'exec', 'public', 'event_money_cash', 'uuid|authenticated')
+  ('0387_r212_money_speed', 'exec', 'public', 'event_money_cash', 'uuid|authenticated'),
+  ('0389_r217_page_bootstrap', 'fn', 'public', 'page_bootstrap', ''),
+  ('0389_r217_page_bootstrap', 'marker', 'public', 'page_bootstrap', '|r217-0389')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4852,7 +4854,8 @@ mig(ord, m, ov, note) as (values
   (337, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes'),
   (338, '0385_r208_task_assign_access', null, 'Assign & send tasks: new server-only _r385_can_assign; the Staff-edit check inside 16 task calls and the _r300_area_ok area list are patched in place from the live body (dynamic SQL the parser cannot see), checked by the r208-0385 marker; _a49_seed_clean_matrix wrapped once (old body kept as __pre0385) to seed the tasks row for new studios'),
   (339, '0386_r210_role_sync', null, 'Role sync: a role change also closes the studio''s open invitations for that e-mail, renames the linked staff record''s role words (only while they show the old role) and the login''s role words; a login moved to another studio is unlinked from the old studio''s staff record - two new trigger functions + two triggers on profiles, checked by the r210-0386 markers'),
-  (340, '0387_r212_money_speed', null, 'Event money reads fast: event_money_header + event_money_cash re-issued to build the cost ledger once (old bodies kept as __pre0387), the kept ledger body _r21_cost_lines__pre0372 re-issued with five offset 0 fences (old body kept as _r21_cost_lines__pre0372__pre0387), new server-only _r387_event_pnl; same answers, checked by the r212-0387 markers')
+  (340, '0387_r212_money_speed', null, 'Event money reads fast: event_money_header + event_money_cash re-issued to build the cost ledger once (old bodies kept as __pre0387), the kept ledger body _r21_cost_lines__pre0372 re-issued with five offset 0 fences (old body kept as _r21_cost_lines__pre0372__pre0387), new server-only _r387_event_pnl; same answers, checked by the r212-0387 markers'),
+  (341, '0389_r217_page_bootstrap', null, 'Page speed: one read-only startup call page_bootstrap() for signed-in pages (studio, sign-in steps, role + access switches, trial / demo / test studio / plan, pricing settings + rate cards), each part the existing function''s own answer - checked by the r217-0389 marker')
 ),
 env as (
   select
