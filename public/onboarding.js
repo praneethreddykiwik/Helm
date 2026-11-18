@@ -69,6 +69,7 @@
     ".ob-lock{padding:14px;border:1px dashed var(--line,#e8e3db);border-radius:12px;color:var(--ink-3,#6b6577)}",
     ".ob-bf{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 16px}.ob-bf .full{grid-column:1/-1}.ob-bf label{display:block;font-size:12.5px;font-weight:600;margin:0 0 6px}",
     ".ob-bf input{width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line,#e8e3db);border-radius:8px;font:inherit;background:var(--panel,#fff);color:inherit}",
+    ".ob-link{background:none;border:0;padding:4px 0;margin-top:2px;color:var(--accent,#047857);text-decoration:underline;font:inherit;font-size:12.5px;cursor:pointer;min-height:24px}",
     ".ob-bf input[aria-invalid=true]{border-color:#c43c3c}.ob-bf .ob-err{margin-top:3px}@media (max-width:640px){.ob-bf{grid-template-columns:1fr}}",
     ".ob-bar{height:8px;border-radius:99px;background:var(--line-2,#f1ede7);overflow:hidden}.ob-bar i{display:block;height:100%;background:var(--accent,#047857);width:0}",
     ".ob-bf select,.ob-bf textarea{width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line,#e8e3db);border-radius:8px;font:inherit;background:var(--panel,#fff);color:inherit;min-height:0}",
@@ -371,6 +372,9 @@
     const label = (f) => billLabel(f, meta);
     const ctry = (BPStore.tax && BPStore.tax.countries()) || [{ iso: "IN", name: "India" }];
     let others = []; try { others = (BPStore.countries() || []).filter((c) => !ctry.some((k) => k.iso === c.iso)); } catch (x) { others = []; }
+    // F-audit: Primary location follows City; a different one only behind "Different city shown to clients?"
+    const locLinked = !bill.locOwn && O.locationLinked(v.location, v.city);
+    if (locLinked) v.location = v.city || "";
     const fields = O.BILLING_FIELDS.map((f) => {
       const id = "ob_b_" + f.key, eid = id + "_err", bad = !!e[f.key];
       if (f.type === "country") {
@@ -383,10 +387,12 @@
       // country's states / emirates; postal + tax-ID placeholders per country (HelmCountry.formMeta)
       const im = f.key === "pin" ? ' inputmode="numeric"' : f.key === "phone" ? ` inputmode="tel" type="tel" data-country="${esc(cc)}"` : f.key === "state" ? ' list="ob_b_state_list"' : "";
       const ph = f.key === "pin" ? meta.postalPlaceholder : f.key === "gstin" ? (meta.taxIdExample || tid.eg || "") : "";
-      return `<div class="${full[f.key] ? "full" : ""}"><label for="${esc(id)}" id="${esc(id)}_lbl">${esc(label(f))}${f.required ? " *" : ""}</label>`
+      const hide = f.key === "location" && locLinked ? ' id="ob_b_location_wrap" hidden' : f.key === "location" ? ' id="ob_b_location_wrap"' : "";
+      const locLink = f.key === "city" && locLinked ? `<button type="button" class="ob-link" id="ob_b_locown" data-act="locown" aria-controls="ob_b_location_wrap" aria-expanded="false">Different city shown to clients?</button>` : "";
+      return `<div class="${full[f.key] ? "full" : ""}"${hide}><label for="${esc(id)}" id="${esc(id)}_lbl">${esc(label(f))}${f.required ? " *" : ""}</label>`
         + `<input id="${esc(id)}" data-bill="${esc(f.key)}" maxlength="${Number(f.key === "gstin" ? 30 : f.key === "pin" && india ? 6 : f.max)}" autocomplete="${esc(ac[f.key])}" value="${esc(v[f.key] || "")}" placeholder="${esc(ph)}"${im}${f.required ? ' aria-required="true"' : ""} aria-invalid="${bad}" aria-describedby="${esc(eid)}">`
         + (f.key === "state" ? `<datalist id="ob_b_state_list">${meta.regions.map((r) => `<option value="${esc(r.name)}"></option>`).join("")}</datalist>` : "")
-        + `<div class="ob-err" id="${esc(eid)}">${esc(e[f.key] || "")}</div></div>`;
+        + `<div class="ob-err" id="${esc(eid)}">${esc(e[f.key] || "")}</div>${locLink}</div>`;
     }).join("");
     return `<div class="ob-card"><h2>Business details</h2><p class="sub">Used on your quotations and invoices. Fields marked * are required to finish setup; <span data-taxid="1">${esc(tid.label)}</span> is optional. You can edit these later in Settings → General.</p>`
       + `<form id="obBill" novalidate><div class="ob-bf">${fields}</div><div id="obErr" class="ob-err" role="alert"></div>`
@@ -395,7 +401,7 @@
   async function saveBilling() {
     const form = $("#obBill"); if (!form) return;
     const vals = {}; form.querySelectorAll("[data-bill]").forEach((el) => { vals[el.dataset.bill] = el.value; });
-    const r = O.validateBilling(vals); bill = { values: vals, errors: r.errors };
+    const r = O.validateBilling(vals); bill = { values: vals, errors: r.errors, locOwn: bill.locOwn };
     if (!r.ok) {
       render(); const first = O.BILLING_FIELDS.find((f) => r.errors[f.key]); const el = first && $("#ob_b_" + first.key); if (el) el.focus();
       const live = $("#obLive"); if (live) live.textContent = "Please fix " + Object.keys(r.errors).length + " field(s).";
@@ -405,7 +411,7 @@
       const fresh = await BPStore.org.current({ fresh: true }); if (!fresh) throw new Error("Studio settings aren't available.");
       await BPStore.org.save(O.billingPatch(fresh, r.data));
       await syncTaxCountry(r.data.country);
-      org = await BPStore.org.current(); bill = { values: {}, errors: {} };
+      org = await BPStore.org.current(); bill = { values: {}, errors: {} };   // locOwn resets: the saved row decides again
       BPUI.toast("Business details saved.", { type: "ok" }); const cd = studioDefaults(r.data.country, r.data.state); setVals.studio = Object.assign({}, setVals.studio || {}, cd.currency ? { currency: cd.currency } : {}, cd.timezone ? { timezone: cd.timezone } : {}); go(0);
     } catch (err) { const x = $("#obErr"); if (x) x.textContent = BPUI.friendlyError(err, { action: "save your business details" }); }
   }
@@ -608,6 +614,7 @@
     const a = b.dataset.act, kind = KEYS[S.step], st = kind ? S.steps[kind] : null;
     if (a === "goto") return go(Number(b.dataset.i));
     if (a === "prev") return go(S.step - 1);
+    if (a === "locown") { bill.locOwn = true; const w = $("#ob_b_location_wrap"); if (w) w.hidden = false; b.hidden = true; b.setAttribute("aria-expanded", "true"); const l = $("#ob_b_location"); if (l) l.focus(); return; }
     if (a === "billsave") { ev.preventDefault(); return BPUI.guard(b, () => saveBilling(), { busyLabel: "Saving…" }); }
     if (a === "next") { if (st) st.skipped = false; return go(S.step + 1); }
     if (a === "skip") { if (st) st.skipped = true; return go(S.step + 1); }
@@ -635,11 +642,25 @@
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "helm-" + kind + "-template." + (xl ? "xlsx" : "csv");
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
+  // F-audit (mobile "X is required" on filled fields): a billing field's old error is cleared as soon
+  // as it gets a value - on input, change (some mobile autofill fires only change) or leaving the field -
+  // and what is typed is kept in bill.values so a re-render never shows a stale error or loses text.
+  function syncBillField(t) {
+    if (!t || !t.dataset || !t.dataset.bill || t.dataset.billcountry || !$("#obBill")) return false;
+    const k = t.dataset.bill; bill.values = Object.assign({}, bill.values, { [k]: t.value });
+    if (String(t.value || "").trim() && bill.errors && bill.errors[k]) {
+      bill.errors = Object.assign({}, bill.errors); delete bill.errors[k];
+      t.setAttribute("aria-invalid", "false"); const er = $("#ob_b_" + k + "_err"); if (er) er.textContent = "";
+    }
+    if (k === "city") { const w = $("#ob_b_location_wrap"), l = $("#ob_b_location"); if (w && w.hidden && l && !bill.locOwn) { l.value = t.value; syncBillField(l); } }
+    return true;
+  }
   function onInput(ev) {
     if (!S) return;
+    if (syncBillField(ev.target)) return;
     if (ev.target && ev.target.dataset && ev.target.dataset.billcountry) {
       const form = $("#obBill"); const vals = {}; if (form) form.querySelectorAll("[data-bill]").forEach((el) => { vals[el.dataset.bill] = el.value; });
-      bill = { values: vals, errors: {} }; applyBillCountry(ev.target.value); return;
+      bill = { values: vals, errors: {}, locOwn: bill.locOwn }; applyBillCountry(ev.target.value); return;
     }
     if (ev.target && ev.target.dataset && ev.target.dataset.pick) { const tx = $("#ob_s_" + ev.target.dataset.pick); if (tx) tx.value = ev.target.value; return; }
     const kind = KEYS[S.step]; if (!kind) return; const st = S.steps[kind], t = ev.target;
@@ -648,9 +669,10 @@
   }
   function onChange(ev) {
     if (!S) return;
+    if (syncBillField(ev.target)) return;
     if (ev.target && ev.target.dataset && ev.target.dataset.billcountry) {
       const form = $("#obBill"); const vals = {}; if (form) form.querySelectorAll("[data-bill]").forEach((el) => { vals[el.dataset.bill] = el.value; });
-      bill = { values: vals, errors: {} }; applyBillCountry(ev.target.value); return;
+      bill = { values: vals, errors: {}, locOwn: bill.locOwn }; applyBillCountry(ev.target.value); return;
     }
     const kind = KEYS[S.step]; if (!kind) return; const st = S.steps[kind], t = ev.target;
     if (t.id === "obFile") return readFile(kind, t.files && t.files[0]);
@@ -726,6 +748,7 @@
       if (ev.target && ev.target.id === "obSet") { ev.preventDefault(); const b = $('[data-act="setsave"]'); BPUI.guard(b, () => saveSetting(KEYS[S.step]), { busyLabel: "Saving…" }); }
     });
     document.addEventListener("click", onClick); document.addEventListener("input", onInput); document.addEventListener("change", onChange);
+    document.addEventListener("focusout", (ev) => { if (S) syncBillField(ev.target); });
     try { history.replaceState({ onb: 1, step: S.step, stage: cur ? S.steps[cur].stage : "finish" }, "", location.pathname + location.search + "#step-" + keyOf(S.step)); } catch (e) {}
     if (KEYS[S.step] === "templates") loadTplCounts();
     $("#app").hidden = false; render();
