@@ -44,7 +44,7 @@ t("1b Settings invite message: same rules, [kind, text]", () => {
   const sk = ctx.f({ status: "ok", sent: 0, skipped: 1 }, "a@x.com");
   assert.equal(sk[0], "info"); assert.match(sk[1], /wasn't sent/);
   const q = ctx.f({ status: "ok", sent: 0, skipped: 0, failed: 0 }, "a@x.com", true);
-  assert.equal(q[0], "info"); assert.match(q[1], /queued but not sent yet.*Resend email or use Copy link/);
+  assert.equal(q[0], "info"); assert.match(q[1], /queued but not sent yet.*Resend invite or use Copy link/);
   assert.doesNotMatch(ctx.f({ status: "ok", sent: 0, failed: 1 }, "a@x.com")[1], /It will retry/);
   assert.match(ctx.f({ status: "unavailable", reason: "unauthorized" }, "a@x.com")[1], /--no-verify-jwt/);
 });

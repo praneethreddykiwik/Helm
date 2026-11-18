@@ -24,7 +24,7 @@ function fnSrc(src, name) {
 }
 function ucTable() {
   const ctx = { esc };
-  vm.runInNewContext('const ucId=(u)=>u.user_id||u.id;' + ['ucDate', 'ucShownName', 'ucNameHtml', 'ucPhone', 'ucInitials', 'ucPrivateVisible', 'ucMatches', 'ucTable']
+  vm.runInNewContext('const ucId=(u)=>u.user_id||u.id;' + ['ucDate', 'ucShownName', 'ucNameHtml', 'ucPhone', 'ucInitials', 'ucPrivateVisible', 'ucMatches', 'ucState', 'ucAcctCell', 'ucInviteRows', 'ucTable']
     .map((f) => fnSrc(CTL, f)).join('\n') + '\nglobalThis.T=ucTable;', ctx);
   return ctx.T;
 }
@@ -42,12 +42,12 @@ t('members table: name cell = photo + (name + "you") line + e-mail line with a f
 t('members table: Department under the job title (one column), labelled cells, Edit + remove in one actions cell', () => {
   const T = ucTable();
   const r = T([ROW(1), ROW(2, { job_title: '', department: '' })], { profiles: true, meId: 'u1', roles: ['crew'], canEdit: true, q: '', filter: '' });
-  assert.equal(r.head, '<tr><th scope="col">Name</th><th scope="col">Phone</th><th scope="col">Job title</th><th scope="col">Role</th><th scope="col">Profile</th><th scope="col"><span class="sr-only">Actions</span></th></tr>');
+  assert.equal(r.head, '<tr><th scope="col">Name</th><th scope="col">Phone</th><th scope="col">Job title</th><th scope="col">Role</th><th scope="col">Account</th><th scope="col"><span class="sr-only">Actions</span></th></tr>');   // R199: Profile -> Account
   assert.doesNotMatch(r.head, /Department/);
   assert.match(r.body, /<td class="ucjob" data-label="Job title">Rigger<div class="ucsub ucdept">Production<\/div><\/td>/);
   assert.match(r.body, /<td class="ucjob" data-label="Job title">—<\/td>/, 'no empty department line');
-  for (const c of ['ucph" data-label="Phone"', 'ucrole" data-label="Role"', 'ucprof" data-label="Profile"']) assert.match(r.body, new RegExp('<td class="' + c));
-  assert.match(r.body, /<td class="ucact"><button type="button" class="btn sm ucEdit"[^>]*>Edit<\/button><button type="button" class="rm"/);
+  for (const c of ['ucph" data-label="Phone"', 'ucrole" data-label="Role"', 'ucprof" data-label="Account"']) assert.match(r.body, new RegExp('<td class="' + c));
+  assert.match(r.body, /<td class="ucact"><button type="button" class="btn sm ucView"[^>]*>View<\/button><button type="button" class="btn sm ucEdit"[^>]*>Edit<\/button><button type="button" class="rm"/);   // R199: View first
   assert.match(r.body, /<tr class="ucr" data-id="u1">/);
   const np = T([ROW(1), ROW(2, { whatsapp_same: null })], { profiles: true, meId: 'u1', roles: ['crew'], q: '', filter: '' });
   assert.match(np.body, /<tr class="ucr ucr-np" data-id="u1">/, 'no-phone rows get their own compact grid');

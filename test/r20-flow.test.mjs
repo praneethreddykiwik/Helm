@@ -86,7 +86,8 @@ t('6 stage strip: Discovery / Proposal ticked only when filled; unknown keeps th
 });
 
 t('7 toast: same text in either lane is one card; burst guard', () => {
-  assert.match(API, /toastRoot\.querySelectorAll\("\.bpui-toast"\), function \(t\) \{ if \(t\.__bpuiKey === key \|\| t\.__bpuiSame === same\) existing = t; \}\);/);
+  // R199: both stacks (main + the top-right one for page banners) are searched
+  assert.match(API, /doc\.querySelectorAll\("\.bpui-toasts \.bpui-toast"\), function \(t\) \{ if \(t\.__bpuiKey === key \|\| t\.__bpuiSame === same\) existing = t; \}\);/);
   assert.match(API, /if \(toastRecent\[same\] && nowMs - toastRecent\[same\] < 1500\) return;/);
 });
 

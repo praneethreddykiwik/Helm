@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=91"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=92"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -2755,6 +2755,16 @@ window.HelmUrl = HelmUrl;
         if (error) { if (error.code === "PGRST202" || error.code === "42883" || error.code === "42501") return null; throw error; }
         const out = {}; (Array.isArray(data) ? data : []).forEach((r) => { if (r && r.user_id) out[r.user_id] = r.two_step === true; });
         return out;
+      },
+      // R199 (0378): Settings -> Users & invites ACCOUNT STATUS - sign-in facts of MY studio's people (last sign-in, never
+      // signed in, invitation login without a password, temporary password, deactivated, joined + invited by) and the open
+      // invitations (newest per e-mail, sent / expires / expired, e-mail sent). Admins + Users EDIT only (the database
+      // decides). null = a database without 0378, or a role that may not see it (the table then shows "Member").
+      async accountStatus() {
+        if (!supa) return null;
+        const { data, error } = await supa.rpc("team_account_status");
+        if (error) { if (rpcMissing(error) || error.code === "42501") return null; throw error; }
+        return data && typeof data === "object" ? data : null;
       },
       async listUsers() {
         if (!supa) throw new Error("Supabase not configured");
@@ -12321,6 +12331,8 @@ window.HelmUrl = HelmUrl;
     "@keyframes bpuiIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}",
     "@media (max-width:640px){.bpui-toasts{top:auto;right:auto;left:50%;transform:translateX(-50%);bottom:max(16px,env(safe-area-inset-bottom,0px));flex-direction:column-reverse}",
     ".bpui-lane{flex-direction:column-reverse}@keyframes bpuiIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}}",
+    // R199: page banners copied into a toast float top-right on a wide screen (below the app header); phones use the bottom stack
+    "@media (min-width:641px){.bpui-toasts.bpui-toasts-top{top:72px;bottom:auto}}",
     "@media (pointer:coarse){.bpui-toast .bpui-x{width:44px;height:44px}}",
     "@media (prefers-reduced-motion:reduce){.bpui-toast-bar{display:none}}",
     /* offline banner */
@@ -12541,17 +12553,46 @@ window.HelmUrl = HelmUrl;
   }
 
   /* ------------------------------------------------------------- toasts */
-  var toastRoot = null, lanes = {};
-  function ensureToasts() {
+  var toastRoot = null, lanes = {}, topRoot = null, topLanes = {};
+  // R199: lanes.quiet / topLanes.quiet = no live region - a page banner copied into a toast (the banner itself is already
+  // announced to screen readers, so the copy must not be read out twice)
+  function ensureToasts(place) {
     injectCSS();
-    if (toastRoot && toastRoot.isConnected) return true;
     if (!doc.body) return false;
+    if (place === "top") {
+      if (topRoot && topRoot.isConnected) return true;
+      topRoot = h("div", { class: "bpui-toasts bpui-toasts-top", "data-bpui-keep": "" });
+      topLanes.polite = h("div", { class: "bpui-lane", role: "status", "aria-live": "polite" });
+      topLanes.assertive = h("div", { class: "bpui-lane", role: "alert", "aria-live": "assertive" });
+      topLanes.quiet = h("div", { class: "bpui-lane" });
+      topRoot.appendChild(topLanes.assertive); topRoot.appendChild(topLanes.quiet); topRoot.appendChild(topLanes.polite);
+      doc.body.appendChild(topRoot);
+      return true;
+    }
+    if (toastRoot && toastRoot.isConnected) return true;
     toastRoot = h("div", { class: "bpui-toasts", "data-bpui-keep": "" });
     lanes.polite = h("div", { class: "bpui-lane", role: "status", "aria-live": "polite" });
     lanes.assertive = h("div", { class: "bpui-lane", role: "alert", "aria-live": "assertive" });
-    toastRoot.appendChild(lanes.assertive); toastRoot.appendChild(lanes.polite);
+    lanes.quiet = h("div", { class: "bpui-lane" });
+    toastRoot.appendChild(lanes.assertive); toastRoot.appendChild(lanes.quiet); toastRoot.appendChild(lanes.polite);
     doc.body.appendChild(toastRoot);
     return true;
+  }
+  // R199: the lowest edge of a page header still on screen (0 when none) - the top-right toasts start under it
+  function headerBottom() {
+    var best = 0, vh = global.innerHeight || 800;
+    Array.prototype.forEach.call(doc.querySelectorAll(".hb-header, header"), function (e) {
+      if (e.closest && e.closest(".bpui-toasts, [role=dialog], dialog, .lmodal")) return;
+      var r = e.getBoundingClientRect(); if (!r.width || !r.height || r.top > 8 || r.bottom <= 0 || r.bottom > vh / 3) return;
+      if (r.bottom > best) best = r.bottom;
+    });
+    return best;
+  }
+  // R199: place "top" = the top-right stack on a wide screen (page banners copied into a toast); phones: the one bottom stack
+  function toastPlace(o) {
+    if (!o || o.place !== "top") return "main";
+    try { if (global.matchMedia && global.matchMedia("(max-width:640px)").matches) return "main"; } catch (e) {}
+    return "top";
   }
   // toast(msg, {type, title, timeout:ms (0 = sticky), action:{label,onClick}, href, linkLabel, icon})
   //   type: 'info' | 'ok'/'success' | 'warn'/'warning' | 'err'/'error' | 'security'
@@ -12576,14 +12617,19 @@ window.HelmUrl = HelmUrl;
     var timeout = o.timeout != null ? +o.timeout : (type === "err" ? 8000 : 5000);
     var handle = { close: function () {} };
     var run = function () {
-      var fresh = !(toastRoot && toastRoot.isConnected);
-      if (!ensureToasts()) return;
-      var lane = (type === "err" || type === "sec") ? lanes.assertive : lanes.polite;
+      var place = toastPlace(o), L = place === "top" ? topLanes : lanes;
+      var fresh = !(place === "top" ? (topRoot && topRoot.isConnected) : (toastRoot && toastRoot.isConnected));
+      if (!ensureToasts(place)) return;
+      var root = place === "top" ? topRoot : toastRoot;
+      // R199: the top-right stack sits BELOW the app header (measured each time: the shell's sticky bar, an older page's
+      // header) so it never covers the search, bell or New quote buttons
+      if (place === "top") { try { topRoot.style.top = Math.max(16, Math.round(headerBottom()) + 12) + "px"; topRoot.style.bottom = "auto"; } catch (e) {} }
+      var lane = o.quiet ? L.quiet : (type === "err" || type === "sec") ? L.assertive : L.polite;
       var text = String(msg == null ? "" : msg), title = o.title != null ? String(o.title) : "";
       var key = type + "|" + title + "|" + text, same = title + "|" + text, existing = null;
       // r20: the same title + text is ONE card in either lane (whatever its type) - a repeat restarts its timer
-      // instead of stacking another copy ("Step 1 not saved: Email is required." x5)
-      Array.prototype.forEach.call(toastRoot.querySelectorAll(".bpui-toast"), function (t) { if (t.__bpuiKey === key || t.__bpuiSame === same) existing = t; });
+      // instead of stacking another copy ("Step 1 not saved: Email is required." x5). R199: in either stack too.
+      Array.prototype.forEach.call(doc.querySelectorAll(".bpui-toasts .bpui-toast"), function (t) { if (t.__bpuiKey === key || t.__bpuiSame === same) existing = t; });
       if (existing) { if (existing.__bpuiArm) existing.__bpuiArm(true); handle.close = existing.__bpuiClose || handle.close; return; }
       // ...and a burst of the same message (several saves refusing at once) shows once, even if that card was just pushed out
       var nowMs = Date.now(); if (toastRecent[same] && nowMs - toastRecent[same] < 1500) return; if (Object.keys(toastRecent).length > 60) toastRecent = {}; toastRecent[same] = nowMs;
@@ -12632,7 +12678,7 @@ window.HelmUrl = HelmUrl;
       t.addEventListener("focusout", function () { arm(false); });
       lane.appendChild(t);
       // at most 3 visible across both lanes — drop the oldest
-      var all = function () { return Array.prototype.slice.call(toastRoot.querySelectorAll(".bpui-toast")); };
+      var all = function () { return Array.prototype.slice.call(root.querySelectorAll(".bpui-toast")); };
       var cards = all();
       while (cards.length > 2) { var old = cards.filter(function (c) { return c !== t; })[0]; if (!old) break; if (old.__bpuiClose) old.__bpuiClose(); else old.remove(); cards = all(); }
       // Set the text AFTER insertion (and after a tick when the live region is
@@ -12645,6 +12691,75 @@ window.HelmUrl = HelmUrl;
     whenBody(run);
     return handle;
   }
+
+  /* ------------------------------------- R199: page banners float as a toast too
+     Owner (17 Nov 2026): "Couldn't add the user ..." appeared in a red banner at the TOP of Settings while they were
+     scrolled down, so they never saw it. Every page shows its messages in the shared banner classes (.msg ok / err /
+     warn / info, .alert.err, .errbar). One observer here copies such a banner, the moment it appears or changes, into a
+     floating toast: top-right on a wide screen, bottom on a phone; errors stay until closed (x), the rest fade away. The
+     banner itself stays where it was (screen readers already hear it, so the copy sits in a lane with no live region).
+     Any other role="alert" message floats only when it is OFF screen (a message you can already see is not repeated).
+     Never copied: anything inside a dialog / modal (it shows its own errors next to the buttons), field-level messages,
+     or an element marked data-no-toast (or html[data-no-banner-toasts]). */
+  var BANNER_SEL = ".msg.err, .msg.ok, .msg.warn, .msg.info, .alert.err, .errbar";
+  // info = { cls: "msg err", text, hidden, inModal, optOut, onScreen, alertRole } -> { text, type, timeout } | null (pure)
+  function bannerToastSpec(info) {
+    if (!info || info.hidden || info.inModal || info.optOut) return null;
+    var cls = " " + String(info.cls || "") + " ";
+    var text = String(info.text == null ? "" : info.text).replace(/\s+/g, " ").trim();
+    if (!text || text.length < 3) return null;
+    if (text.length > 300) text = text.slice(0, 297).replace(/\s+\S*$/, "") + "…";
+    var shared = /\s(msg|alert)\s/.test(cls) && /\s(err|ok|warn|info)\s/.test(cls) || /\serrbar\s/.test(cls);
+    if (/\s(ferr|fmsg|fhint|cm-ferr|lerr|cc-row-errs)\s/.test(cls)) return null;   // field-level messages stay next to the field
+    if (!shared) { if (!info.alertRole || info.onScreen) return null; }            // other alerts: only when scrolled away
+    var type = /\s(err|errbar|error)\s/.test(cls) || (!shared && info.alertRole) ? "err" : /\s(ok|success)\s/.test(cls) ? "ok" : /\swarn\s/.test(cls) ? "warn" : "info";
+    return { text: text, type: type, timeout: type === "err" ? 0 : type === "ok" ? 5000 : 7000 };
+  }
+  var bannerSeen = typeof WeakMap === "function" ? new WeakMap() : null, bannerOpen = {};
+  function bannerInfo(el) {
+    var r = null; try { r = el.getBoundingClientRect(); } catch (e) {}
+    var vh = global.innerHeight || (doc.documentElement && doc.documentElement.clientHeight) || 0;
+    return { cls: el.className && typeof el.className === "string" ? el.className : String(el.getAttribute("class") || ""),
+      text: el.textContent, hidden: !!(el.hidden || (el.closest && el.closest("[hidden]")) || !el.getClientRects().length),
+      inModal: !!(el.closest && el.closest('[role="dialog"], dialog, .lmodal, .modal, [data-modal], .bpui-toasts, .bpui-dialog')),
+      optOut: !!((el.closest && el.closest("[data-no-toast]")) || (doc.documentElement && doc.documentElement.hasAttribute("data-no-banner-toasts"))),
+      onScreen: !!(r && r.bottom > 0 && r.top < vh), alertRole: el.getAttribute("role") === "alert" };
+  }
+  function mirrorBanner(el) {
+    if (!el || el.nodeType !== 1 || !el.isConnected) return;
+    var spec = bannerToastSpec(bannerInfo(el)); if (!spec) return;
+    if (bannerSeen) { if (bannerSeen.get(el) === spec.type + "|" + spec.text) return; bannerSeen.set(el, spec.type + "|" + spec.text); }
+    // one toast per banner place (#umsg, #msg, ...): a new message there replaces the previous card (a fixed error goes away)
+    var host = el.id ? el : (el.parentElement && el.parentElement.closest ? el.parentElement.closest("[id]") : null);
+    var k = host && host.id ? host.id : "";
+    if (k && bannerOpen[k]) { try { bannerOpen[k].close(); } catch (e) {} }
+    var hnd = toast(spec.text, { type: spec.type, timeout: spec.timeout, place: "top", quiet: true });
+    if (k) bannerOpen[k] = hnd;
+  }
+  function scanBanners(node) {
+    if (!node || node.nodeType !== 1) { if (node && node.parentElement) node = node.parentElement; else return; }
+    if (node.closest && node.closest(".bpui-toasts")) return;
+    var hit = node.matches && (node.matches(BANNER_SEL) || node.getAttribute("role") === "alert") ? node : (node.closest ? node.closest(BANNER_SEL) : null);
+    if (hit) mirrorBanner(hit);
+    if (node.querySelectorAll) Array.prototype.forEach.call(node.querySelectorAll(BANNER_SEL + ', [role="alert"]'), mirrorBanner);
+  }
+  function watchBanners() {
+    if (typeof MutationObserver !== "function" || !doc.body || watchBanners.on) return; watchBanners.on = true;
+    // banners already in the page when it loads are its normal content (not news): remembered, never popped
+    if (bannerSeen) Array.prototype.forEach.call(doc.querySelectorAll(BANNER_SEL), function (el) {
+      var s = bannerToastSpec(bannerInfo(el)); if (s) bannerSeen.set(el, s.type + "|" + s.text); });
+    var queue = [], sched = false;
+    var flush = function () { sched = false; var q = queue; queue = []; var done = [];
+      q.forEach(function (n) { if (done.indexOf(n) < 0) { done.push(n); try { scanBanners(n); } catch (e) {} } }); };
+    new MutationObserver(function (muts) {
+      muts.forEach(function (m) {
+        if (m.type === "childList") { queue.push(m.target); Array.prototype.forEach.call(m.addedNodes, function (n) { if (n.nodeType === 1) queue.push(n); }); }
+        else queue.push(m.target);
+      });
+      if (!sched && queue.length) { sched = true; setTimeout(flush, 30); }
+    }).observe(doc.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["hidden", "class"] });
+  }
+  whenBody(watchBanners);
 
   /* -------------------------------------------------- modal stack manager */
   var MODAL_SEL = '.lmodal, .modal, [role="dialog"], [data-modal]';
@@ -13395,6 +13510,7 @@ window.HelmUrl = HelmUrl;
     trialCap: trialCap, capText: capText, capGate: capGate,
     capDialog: capDialog, capDialogReset: capDialogReset, capLimit: capLimit, isCapError: isCapError, capToast: capToast, clearErrOnEdit: clearErrOnEdit,
     toast: toast,
+    floatBanner: mirrorBanner,   // R199: copy one page banner into a floating toast now (the observer does this by itself)
     alert: alertDlg, confirm: confirmDlg, prompt: promptDlg,
     guard: guard,
     isNotFound: isNotFound, isMissingTable: isMissingTable, isMissingFunction: isMissingFunction,

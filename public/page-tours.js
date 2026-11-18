@@ -124,6 +124,7 @@
       { sel: "#newBtn", title: "Add your team", desc: "Add an in-house team member with their name, phone and department (stage, lighting, catering…)." },
       { sel: "#cantwork-requests", title: "Day-off requests", desc: "Staff ask for days off from their link (at least 7 days ahead - closer days they call you). Approve or turn down with a note; they are told and tap OK, got it. Waiting and approved days warn you when you assign work." },
       { sel: "#grid", title: "Your people", desc: "Everyone on the team, by department. You assign them to event tasks from an event's Logistics page." },
+      { sel: ".person .tag.login-none, .person .tag.login-invited", title: "Login status", desc: "No login = a record only: they get their work through their task link. Invited - not signed up = an invite link is waiting; Cancel invite stops it if they only need the task link. Linked account = they sign in to Helm." },
       { sel: '[data-act="tlink"]', title: "Permanent task link", desc: "Task link copies one link per person that always shows their current tasks on every event - it is also in every task e-mail. New task link stops the old one at once." },
     ],
     "inventory.html": [
@@ -221,12 +222,13 @@
         ],
         users: [
           { sel: "#seat_meter", title: "Seats on your plan", desc: "How many team logins you use and how many your plan allows." },
-          { sel: "#uc_q", title: "Find a teammate", desc: "Search the team, or filter by role." },
+          { sel: "#uc_q", title: "Find a teammate", desc: "Search the team, or show only people who were invited but haven't signed up, who never signed in, or who are deactivated." },
           { sel: "#hauMfaNudge", title: "Set up two-step", desc: "Until you turn on two-step sign-in, a calm reminder sits here. Set up now (2 min) walks you through it; Later hides it for 7 days." },
-          { sel: "#um_rows", title: "Team members", desc: "Everyone with a login and their role. Change a role or remove someone here." },
+          { sel: "#um_rows", title: "Team members", desc: "Everyone with a login, plus people invited but not signed up yet. Account shows the real status: Invited (and when the link expires), Never signed in, Last signed in, or Deactivated." },
+          { sel: "#um_rows .ucView", title: "View a person", desc: "View opens their details: the full e-mail (with Copy), phone, role, when they joined and last signed in, and who invited them. On an invite: Resend invite, Copy invite link or Cancel invite." },
           { sel: "#um_rows .ts-badge", title: "Two-step badge", desc: "Next to each admin: “Two-step: on”, or “not set up”. Admins need two-step to change payment details and other sensitive settings." },
           { sel: "#inv_email", title: "Invite by e-mail link", desc: "Type their e-mail and pick a role. Helm sends a join link that works once." },
-          { sel: "#inv_rows", title: "Pending invites", desc: "Links not used yet. Copy one again, or cancel it." },
+          { sel: "#inv_rows", title: "Pending invites", desc: "Links not used yet. Copy one again, resend it (an expired link gets a new one), or Cancel invite - the link stops working and nothing else changes." },
         ],
         access: [
           { sel: "#roleTabs", title: "Pick a role", desc: "Choose the role you want to set up: manager, planner, sales and so on." },

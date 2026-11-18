@@ -271,14 +271,14 @@
 <link rel="stylesheet" href="venues.css?v=8">
 <link rel="stylesheet" href="studio-templates.css?v=5"><link rel="stylesheet" href="asset-price-grid.css?v=3">
 <link rel="stylesheet" href="menu-pkg-editor.css?v=6"><link rel="stylesheet" href="layout-rules.css?v=1">
-<link rel="stylesheet" href="team-safety.css?v=2">
+<link rel="stylesheet" href="team-safety.css?v=2"><link rel="stylesheet" href="team-status.css?v=1">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="control-split.css?v=16">
 <link rel="stylesheet" href="roles-matrix.css?v=1"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=91" id="shellProto"></script>
+<script src="/shell-proto.js?v=92" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -643,7 +643,7 @@
         <div id="team_work" aria-live="polite" hidden></div>
         <div class="uctools" id="uc_tools" hidden>
           <input id="uc_q" type="search" maxlength="100" placeholder="Search name, email, phone, title…" autocomplete="off" aria-label="Search team members">
-          <select id="uc_f" aria-label="Show"><option value="">Everyone</option><option value="incomplete">Incomplete profiles</option><option value="complete">Complete profiles</option></select>
+          <select id="uc_f" aria-label="Show"><option value="">Everyone</option><option value="invited">Invited – not signed up</option><option value="never">Never signed in</option><option value="active">Signed in</option><option value="off">Deactivated</option><option value="incomplete">Incomplete profiles</option><option value="complete">Complete profiles</option></select>
           <span class="uccount" id="uc_count" role="status" aria-live="polite"></span>
         </div>
         <div class="table-scroll ucm-wrap"><table class="utable ucm"><thead id="um_head"><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
@@ -654,6 +654,7 @@
           <select id="um_role" aria-label="New user role"></select>
           <button class="btn primary" type="submit" id="um_submit">Add user</button>
         </form>
+        <div class="um-err" id="um_err" role="alert" data-no-toast hidden><p class="um-err-t" id="um_err_t"></p><div class="um-err-acts" id="um_err_acts"></div></div>
         <p class="mnote s-fe7b497">No password needed — a one-time temporary password is generated and shown once. Share it with the person; they'll be asked to set their own on first sign-in.</p>
       </div>
 
@@ -670,7 +671,8 @@
           <button class="btn" type="button" id="inv_copy">Copy</button>
         </div>
         <h4 class="s-cafd282">Pending invites</h4>
-        <div class="table-scroll"><table class="utable"><thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Sent</th><th scope="col">Expires</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <p class="mnote">People you invited who haven't signed up yet. They also show in Team members above as <b>Invited – not signed up yet</b>. Cancel invite stops the link; nothing else changes.</p>
+        <div class="table-scroll"><table class="utable invtable"><thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Sent</th><th scope="col">Expires</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="inv_rows"><tr><td colspan="5" class="s-1a1aca0">Loading…</td></tr></tbody></table></div>
       </div>
 
@@ -931,14 +933,14 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=369"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=370"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=52"></script>
-<script src="tour.js?v=70"></script>
+<script src="page-tours.js?v=53"></script>
+<script src="tour.js?v=71"></script>
 <script src="pkg-review.js?v=9"></script>
 <script src="onboarding-core.js?v=9"></script>
 <script src="studio-billing-form.js?v=3"></script>
@@ -956,7 +958,7 @@
 <script src="venues-admin.js?v=10"></script>
 <script src="studio-templates-core.js?v=6"></script>
 <script src="studio-templates.js?v=15"></script>
-<script src="team-safety.js?v=3"></script>
+<script src="team-safety.js?v=3"></script><script src="team-status.js?v=1"></script>
 <script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=3"></script><script src="money-lock-ui.js?v=2"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=6"></script><script src="payment-schedule-settings.js?v=4"></script>
 <script src="asset-price-grid.js?v=7"></script><script src="pricing-form-core.js?v=4"></script><script src="menu-pkg-editor.js?v=5"></script><script src="layout-rules.js?v=2"></script>
 <script src="trial-demo.js?v=21"></script>
@@ -1740,7 +1742,11 @@
   [$("#dc_cat"),$("#dc_name")].forEach(x=>x.addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.isComposing){ e.preventDefault(); $("#dc_add").click(); } }));
 
   /* ---------------- USER CONTROL: team members ---------------- */
-  function setUMsg(k,t){ const m=$("#umsg"); m.innerHTML=t?`<div class="msg ${k}"${k==="err"?' role="alert"':""}>${esc(t)}</div>`:""; if(t) setTimeout(()=>{ if(m.firstChild) m.innerHTML=""; },4000); }
+  // R199: an error stays until the next message (one that vanished after 4 s was missed); ok / info fade after 6 s. The shared
+  // banner observer (store-api.js) also floats every message as a toast, so it is seen wherever the page is scrolled.
+  let uMsgT=0;
+  function setUMsg(k,t){ const m=$("#umsg"); clearTimeout(uMsgT); m.innerHTML=t?`<div class="msg ${k}"${k==="err"?' role="alert"':""}>${esc(t)}</div>`:"";
+    if(t&&k!=="err") uMsgT=setTimeout(()=>{ if(m.firstChild) m.innerHTML=""; },6000); }
   // r21: team role pickers (add user, change role, invite link, Roles & access tabs) never offer "Client" (the
   // no-access fallback role, kept server-side) nor "worker" (an old duplicate of Crew).
   const ROLES = BPStore.auth.admin.roles().filter(r=>r!=="client"&&r!=="worker");
@@ -1755,6 +1761,8 @@
   }
   // ---- User control table (0041 profiles; before 0041 → today's name / email / role list) ----
   let ucRows=[], ucProfiles=false, ucTeam=null, ucTwoStep=null;   // r44 (0291): { user id: two-step on? } for the admins' badge (null = not known)
+  // R199 (0378): sign-in facts + open invitations ({ byId: { user id: row }, invites: [...] }; null = older database / not allowed)
+  let ucAcct=null;
   const ucId=(u)=>u.user_id||u.id;
   // R20 (live QA): "Joined 18 Oct 2026" in the studio's own date style + timezone (was the browser's "Oct 18, 2026")
   function ucDate(iso){ if(!iso) return ""; try{ if(typeof BPStore!=="undefined"&&BPStore.fmtStudioDate){ const o=BPStore.fmtStudioDate(iso,{style:"long"}); if(o) return o; } return new Date(iso).toLocaleDateString("en-IN", {day:"numeric",month:"short",year:"numeric"}); }catch(e){ return ""; } }
@@ -1778,12 +1786,36 @@
     const others=list.filter(u=>ucId(u)!==meId);
     return (others.length?others:list).some(u=>typeof u.whatsapp_same==="boolean");
   }
-  function ucMatches(u, q, f){
-    if(f==="incomplete" && u.complete!==false) return false;
-    if(f==="complete" && u.complete!==true) return false;
+  function ucMatches(u, q, f, st){
+    if(f==="incomplete" && (u.__invite || u.complete!==false)) return false;
+    if(f==="complete" && (u.__invite || u.complete!==true)) return false;
+    // R199: account-status filters (Invited / Never signed in / Signed in / Deactivated)
+    if(f && f!=="incomplete" && f!=="complete" && st && typeof HelmTeamStatus!=="undefined" && !HelmTeamStatus.matches(st, f, u)) return false;
     q=String(q||"").trim().toLowerCase(); if(!q) return true;
     return [u.full_name,u.email,u.email_name,u.phone,u.job_title,u.department,u.city].some(v=>v&&String(v).toLowerCase().indexOf(q)>=0)
       || (u.phone && String(u.phone).replace(/\D/g,"").indexOf(q.replace(/\D/g,"")||"\u0000")>=0);
+  }
+  // R199: the account status of one row (a member or an open invitation) -> { key, tone, label, detail, title }
+  function ucState(u, o){
+    const TS=typeof HelmTeamStatus!=="undefined"?HelmTeamStatus:null;
+    if(u.__invite) return TS?TS.invite(u.inv, o&&o.now):{ key:"invited", tone:"warn", label:"Invited – not signed up yet", detail:"", title:"" };
+    const a=o&&o.acct&&o.acct.byId?(o.acct.byId[ucId(u)]||null):null;
+    const off=!!(o&&o.team&&o.team.isOff&&o.team.isOff(ucId(u)));
+    if(TS) return TS.member(off?Object.assign({}, u, { deactivated:true }):u, a, o&&o.now);
+    return off?{ key:"off", tone:"off", label:"Deactivated", detail:"", title:"" }:{ key:"unknown", tone:"muted", label:"Member", detail:u.created_at?"Joined "+ucDate(u.created_at):"", title:"" };
+  }
+  // R199: the Account cell - the status pill, its detail line, and the profile hint kept SEPARATE ("Profile: mobile number missing")
+  function ucAcctCell(u, st, priv){
+    const hint=u.__invite?"":(typeof HelmTeamStatus!=="undefined"?HelmTeamStatus.profileHint(u, priv):(u.complete===false?"Profile incomplete":""));
+    return `<span class="ucst ucst-${esc(st.tone||"muted")}"${st.title?` title="${esc(st.title)}"`:""}>${esc(st.label)}</span>`
+      +(st.detail?`<div class="ucsub ucst-d">${esc(st.detail)}</div>`:"")
+      +(hint?`<div class="ucsub ucst-hint" title="Fill it in with Edit">${esc(hint)}</div>`:"");
+  }
+  // R199: open invitations as rows of the members table (an e-mail that already has a member row is never shown twice)
+  function ucInviteRows(list, invites){
+    const have=new Set(list.map(u=>String(u.email||"").toLowerCase()).filter(Boolean));
+    return (invites||[]).filter(i=>i&&i.email&&!have.has(String(i.email).toLowerCase()))
+      .map(i=>({ __invite:true, id:"inv:"+i.id, email:String(i.email).toLowerCase(), role:i.role, inv:i }));
   }
   // → { head, body, shown, total } (pure: everything it shows goes through esc())
   function ucTable(list, o){
@@ -1820,23 +1852,35 @@
     const priv=ucPrivateVisible(list, meId);
     // r22: Department sits under the job title (one column, was two thin ones); every cell carries its label for the
     // compact / phone layouts (tables-mobile.js writes the same data-label)
+    // R199: "Profile" (Complete / Incomplete - read as "signed up") is now "Account": the real sign-up / sign-in status,
+    // with the profile completeness as a small separate hint; open invitations are rows too; every row has View.
     const cols=priv?6:5;
-    const head=`<tr><th scope="col">Name</th>${priv?'<th scope="col">Phone</th>':""}<th scope="col">Job title</th><th scope="col">Role</th><th scope="col">Profile</th><th scope="col"><span class="sr-only">Actions</span></th></tr>`;
-    const rows=list.filter(u=>ucMatches(u,o.q,o.filter));
-    const body=rows.map(u=>{ const self=meId&&ucId(u)===meId; const dn=(u.full_name||"").trim(); const who=dn||u.email||u.email_name||"user";
+    const head=`<tr><th scope="col">Name</th>${priv?'<th scope="col">Phone</th>':""}<th scope="col">Job title</th><th scope="col">Role</th><th scope="col">Account</th><th scope="col"><span class="sr-only">Actions</span></th></tr>`;
+    const all=list.concat(o.acct?ucInviteRows(list, o.acct.invites):[]);
+    const rows=all.filter(u=>ucMatches(u,o.q,o.filter,ucState(u,o)));
+    const body=rows.map(u=>{
+      const st=ucState(u,o);
+      if(u.__invite){ const i=u.inv||{}, by=i.invited_by_name?"Invited by "+i.invited_by_name:"Invitation";
+        return `<tr class="ucr ucinv${priv?"":" ucr-np"}" data-inv="${esc(i.id)}" data-email="${esc(u.email)}" data-role="${esc(u.role||"")}">
+        <td class="dn" data-label="Name"><div class="ucwho"><span class="ucav ucav-inv" aria-hidden="true">@</span><div class="ucwt"><div class="ucnm"><span class="dnTxt em ucinv-em">${esc(u.email)}</span></div><div class="ucsub">${esc(by)}</div></div></div></td>
+        ${priv?`<td class="ucph" data-label="Phone">—</td>`:""}
+        <td class="ucjob" data-label="Job title">—</td>
+        <td class="ucrole" data-label="Role"><span class="ucinv-role">${esc(rl(u.role||""))}</span></td>
+        <td class="ucprof" data-label="Account">${ucAcctCell(u,st,priv)}</td>
+        <td class="ucact">${o.canEdit?`<button type="button" class="btn sm ucView" aria-label="View invite for ${esc(u.email)}">View</button><button type="button" class="btn sm ucInvResend" aria-label="Resend invite to ${esc(u.email)}">Resend invite</button><button type="button" class="btn sm ucInvCancel" aria-label="Cancel invite for ${esc(u.email)}">Cancel invite</button>`:""}</td>
+      </tr>`; }
+      const self=meId&&ucId(u)===meId; const dn=(u.full_name||"").trim(); const who=dn||u.email||u.email_name||"user";
       const av=`<span class="ucav"${u.avatar_path?` data-avatar-path="${esc(u.avatar_path)}"`:""} aria-hidden="true">${esc(ucInitials(dn||u.email||u.email_name))}</span>`;
-      const joined=ucDate(u.created_at);
-      const st=u.complete?`<span class="ucok" title="${esc(u.profile_completed_at?"Completed "+ucDate(u.profile_completed_at):"Profile complete")}">✓ Complete</span>`:`<span class="ucno" title="No full name or mobile number yet">✗ Incomplete</span>`;
       const mail=u.email||u.email_name||"";
       return `<tr class="ucr${priv?"":" ucr-np"}${isOff(u)?" ucoff":""}" data-id="${esc(ucId(u))}">
         <td class="dn" data-label="Name"><div class="ucwho">${av}<div class="ucwt"><div class="ucnm">${ucNameHtml(ucShownName(u,self,o.meName))}${self?' <span class="me">you</span>':""}${badges(u)}</div><div class="ucsub em"${mail?` title="${esc(mail)}"`:""}>${esc(mail)}</div></div></div></td>
         ${priv?`<td class="ucph" data-label="Phone">${esc(u.phone?ucPhone(u.phone):"—")}</td>`:""}
         <td class="ucjob" data-label="Job title">${esc(u.job_title||"—")}${u.department?`<div class="ucsub ucdept">${esc(u.department)}</div>`:""}</td>
         <td class="ucrole" data-label="Role">${roleSel(u,self)}${ts(u)}</td>
-        <td class="ucprof" data-label="Profile">${st}${joined?`<div class="ucsub">Joined ${esc(joined)}</div>`:""}</td>
-        <td class="ucact">${o.canEdit?`<button type="button" class="btn sm ucEdit" aria-label="Edit profile for ${esc(who)}">Edit</button>`:""}${rm(u,self)}</td>
-      </tr>`; }).join("") || `<tr><td colspan="${cols}" style="color:var(--ink-3)">${list.length?"No one matches these filters.":"No users."}</td></tr>`;
-    return { head, body, shown:rows.length, total:list.length };
+        <td class="ucprof" data-label="Account">${ucAcctCell(u,st,priv)}</td>
+        <td class="ucact"><button type="button" class="btn sm ucView" aria-label="View details of ${esc(who)}">View</button>${o.canEdit?`<button type="button" class="btn sm ucEdit" aria-label="Edit profile for ${esc(who)}">Edit</button>`:""}${rm(u,self)}</td>
+      </tr>`; }).join("") || `<tr><td colspan="${cols}" style="color:var(--ink-3)">${all.length?"No one matches these filters.":"No users."}</td></tr>`;
+    return { head, body, shown:rows.length, total:all.length, members:list.length, invited:all.length-list.length };
   }
   async function renderUsers(){
     const tb=$("#um_rows");
@@ -1844,9 +1888,12 @@
     let res;
     // r44 (0291): who has two-step (admins only; yes / no per member of this studio) - never blocks the list
     const tsP=isAdmin&&BPStore.auth.admin.twoStepStatus?BPStore.auth.admin.twoStepStatus().catch(()=>null):Promise.resolve(null);
+    // R199 (0378): account status (signed up / last sign-in / invited) - never blocks the list (null on an older database)
+    const acP=isAdmin&&BPStore.auth.admin.accountStatus?BPStore.auth.admin.accountStatus().catch(()=>null):Promise.resolve(null);
     try{ res=await BPStore.auth.admin.members(); }
     catch(e){ BPUI.loadError(tb, e, renderUsers, {what:"team members"}); return; }
     ucTwoStep=await tsP;
+    { const a=await acP; ucAcct=a?{ byId:Object.fromEntries((a.members||[]).filter(m=>m&&m.user_id).map(m=>[m.user_id,m])), invites:Array.isArray(a.invites)?a.invites:[], now:a.now||null }:null; }
     ucProfiles=!!res.profiles; ucRows=res.rows||[];
     // r33 (0283): owner / deactivated / waiting changes (null on a database without 0283 -> the table as before)
     try{ ucTeam=BPStore.team?await BPStore.team.overview():null; }catch(e){ ucTeam=null; }
@@ -1860,14 +1907,20 @@
     const meMeta=(me&&me.user_metadata)||{};
     const team=(typeof HelmTeam!=="undefined"&&ucTeam)?HelmTeam.view(ucTeam):null;
     const t=ucTable(ucRows,{profiles:ucProfiles, meId:me&&me.id, meName:meMeta.full_name||meMeta.name||"", roles:ROLES, roleLabel:BPStore.auth.admin.roleLabel, canEdit:isAdmin, twoStep:ucTwoStep,
-      q:$("#uc_q").value, filter:ucProfiles?$("#uc_f").value:"", team});
+      q:$("#uc_q").value, filter:ucProfiles?$("#uc_f").value:"", team, acct:ucAcct, now:Date.now()});
     if(typeof HelmTeam!=="undefined") HelmTeam.paint($("#team_safety"), ucTeam, { store:BPStore.team, guard:BPUI.guard, confirm:BPUI.confirm, prompt:BPUI.prompt,
       mfa:BPStore.auth.mfa, msg:setUMsg, reload:renderUsers });
     $("#um_head").innerHTML=t.head; tb.innerHTML=t.body;
-    const inc=ucProfiles?ucRows.filter(u=>u.complete===false).length:0;
-    $("#uc_count").textContent=(t.shown===t.total?t.total+" member"+(t.total===1?"":"s"):t.shown+" of "+t.total)+(inc?" · "+inc+" incomplete":"");
+    const inc=ucProfiles?ucRows.filter(u=>u.complete===false).length:0, invd=t.invited||0, mem=t.members!=null?t.members:t.total;
+    $("#uc_count").textContent=(t.shown===t.total?mem+" member"+(mem===1?"":"s"):t.shown+" of "+t.total)+(invd?" · "+invd+" invited":"")+(inc?" · "+inc+" incomplete":"");
     try{ BPStore.chat.paintAvatars(tb); }catch(e){}
     const users=ucRows, rowOf=(tr)=>users.find(x=>ucId(x)===tr.dataset.id);
+    // R199: View (details drawer) for a member or an invite; Resend / Cancel invite on an invite row
+    const invOf=(tr)=>((ucAcct&&ucAcct.invites)||[]).find(i=>String(i.id)===tr.dataset.inv)||null;
+    tb.querySelectorAll(".ucView").forEach(btn=>btn.addEventListener("click",()=>{ const tr=btn.closest("tr");
+      if(tr.dataset.inv){ const i=invOf(tr); if(i) viewInvite(i); } else { const u=rowOf(tr); if(u) viewMember(u, team); } }));
+    tb.querySelectorAll(".ucInvResend").forEach(btn=>btn.addEventListener("click",()=>{ const i=invOf(btn.closest("tr")); if(i) invResend(i, btn); }));
+    tb.querySelectorAll(".ucInvCancel").forEach(btn=>btn.addEventListener("click",()=>{ const i=invOf(btn.closest("tr")); if(i) invCancel(i, btn); }));
     tb.querySelectorAll(".roleSel").forEach(sel=>sel.addEventListener("change", async (e)=>{
       const tr=e.target.closest("tr"), id=tr.dataset.id, role=e.target.value;
       const prev=[...e.target.options].find(o=>o.defaultSelected);
@@ -2022,9 +2075,22 @@
   function ccRoleOk(sel){ const CI=window.HelmCCInputs, r=CI?CI.role($(sel).value, ROLES):{ok:!!$(sel).value,error:"Choose a role."};
     if(!r.ok){ setUMsg("err",r.error); $(sel).focus(); } return r.ok; }
   ccTeam();
+  // R199 (owner 17 Nov 2026): an address that already has a Helm account (e.g. in another studio) - the refusal is right,
+  // but it showed only in the banner at the very top of Settings. Now it sits right under the form with the one-click
+  // right action ("Send invite link instead": the same role, the normal invitation), and it floats as a toast too.
+  function umErrShow(text, offer){
+    const box=$("#um_err"); if(!box) return;
+    $("#um_err_t").textContent=text; const acts=$("#um_err_acts"); acts.textContent="";
+    if(offer){ const b=document.createElement("button"); b.type="button"; b.className="btn primary sm"; b.id="um_err_invite"; b.textContent="Send invite link instead";
+      b.addEventListener("click",()=>{ umErrHide(); sendInvite(offer.email, offer.role, b); }); acts.appendChild(b); }
+    box.hidden=false;
+  }
+  function umErrHide(){ const box=$("#um_err"); if(box) box.hidden=true; }
+  $("#um_email").addEventListener("input",umErrHide);
   $("#um_add").addEventListener("submit", async (e)=>{
     e.preventDefault();
     if($("#um_submit").disabled) return;   // already adding (Enter pressed twice) or all seats in use
+    umErrHide();
     const T=ccTeam(); if(T&&T.member&&window.HelmCCInputs.first([T.member])) return;
     if(!ccRoleOk("#um_role")) return;
     const email=((T&&T.member&&T.member.value())||$("#um_email").value.trim()).toLowerCase(), role=$("#um_role").value;
@@ -2036,15 +2102,28 @@
       $("#um_email").value=""; if(T&&T.member) T.member.reset(); await renderUsers();
       // Show the one-time temp password prominently with a copy button.
       const m=$("#umsg");
-      m.innerHTML = `<div class="msg ok" style="line-height:1.6">Added <b>${esc(email)}</b> as ${esc(role)}.<br>`+
+      m.innerHTML = `<div class="msg ok" data-no-toast style="line-height:1.6">Added <b>${esc(email)}</b> as ${esc(role)}.<br>`+
         `Temporary password (share once): <code id="um_tp" style="font-size:1.05em">${esc(tp)}</code> `+
         `<button type="button" class="btn" id="um_tp_copy" style="padding:2px 8px">Copy</button><br>`+
         `<span style="color:var(--ink-3)">They'll be asked to set their own password on first sign-in.</span></div>`;
       const cp=$("#um_tp_copy"); if(cp) cp.addEventListener("click", async ()=>{
         try{ await navigator.clipboard.writeText(tp); cp.textContent="Copied"; }catch(_){ }
       });
+      // the password itself never goes into a toast - only that it is shown above
+      BPUI.toast(`Added ${email}. Their one-time temporary password is shown at the top of Users & invites.`,{type:"ok",timeout:7000,place:"top"});
     }
-    catch(err){ setUMsg("err",addUserErr(err)); }
+    catch(err){
+      const text=addUserErr(err), m=String((err&&err.message)||"");
+      if(/send them an invitation instead/i.test(m)){
+        // the right next step, in one click: an invitation link to the same address with the same role
+        const offer={ email, role }, txt="This e-mail already has a Helm account (maybe in another studio), so it can't be added with a temporary password. Send them an invitation link instead - they sign in with their own account and join your studio as "+BPStore.auth.admin.roleLabel(role)+".";
+        umErrShow(txt, offer);
+        BPUI.toast(txt,{ type:"err", title:"Couldn't add "+email, timeout:0, place:"top", action:{ label:"Send invite link instead", onClick:()=>{ umErrHide(); sendInvite(email, role, $("#um_err_invite")||$("#inv_submit")); } } });
+        try{ $("#um_err").scrollIntoView({block:"nearest"}); }catch(_){ }
+        return;
+      }
+      umErrShow(text, null); BPUI.toast(text,{ type:"err", timeout:0, place:"top" });
+    }
     }, {busyLabel:"Adding…"});
   });
 
@@ -2054,38 +2133,35 @@
     const tail=resend?"":" The link below also works.", diy=resend?"use Copy link":"copy the link below";
     // r21 email audit: only "sent" says sent; queued / skipped say plainly that nothing has gone out yet
     if(sent&&sent.status==="ok"&&sent.sent>0&&!(sent.failed>0)) return ["ok",`Invitation email sent to ${email}.`+tail];
-    if(sent&&sent.status==="ok"&&sent.failed>0) return ["err",`Couldn't send the email to ${email} — the mail service refused it (check the email setup). Please ${diy} and send it yourself, or press Resend email later.`];
+    if(sent&&sent.status==="ok"&&sent.failed>0) return ["err",`Couldn't send the email to ${email} — the mail service refused it (check the email setup). Please ${diy} and send it yourself, or press Resend invite later.`];
     if(sent&&sent.status==="ok"&&sent.skipped>0) return ["info",`The email to ${email} wasn't sent (the address or the link was not usable). Please ${diy} and send it yourself.`];
-    if(sent&&sent.status==="ok") return ["info",`Invitation email for ${email} is queued but not sent yet. If it hasn't arrived in 10 minutes, press Resend email or ${diy}.`];
+    if(sent&&sent.status==="ok") return ["info",`Invitation email for ${email} is queued but not sent yet. If it hasn't arrived in 10 minutes, press Resend invite or ${diy}.`];
     if(sent&&sent.status==="dormant") return ["info",`Automatic invite emails are switched off (HELM_INVITE_EMAILS_ENABLED=false) — ${diy} and send it to ${email} yourself.`];
     const why={not_deployed:"the invite-mailer service isn't deployed yet",unauthorized:"the invite-mailer service rejected the sign-in (deploy it with --no-verify-jwt)",
       forbidden:"only studio admins can send invite emails",rate_limited:"too many sends just now, try Resend in a minute",
       not_configured:"email isn't configured on this site",network:"the mail service couldn't be reached"}[sent&&sent.reason]||"the mail service had an error";
     return ["info",`The email to ${email} wasn't sent: ${why}. Please ${diy} and send it yourself.`];
   }
-  $("#inv_add").addEventListener("submit", async (e)=>{
-    e.preventDefault();
-    if($("#inv_submit").disabled) return;   // already creating, or all seats in use
-    const T=ccTeam(); if(T&&T.invite&&window.HelmCCInputs.first([T.invite])) return;
-    if(!ccRoleOk("#inv_role")) return;
-    const email=((T&&T.invite&&T.invite.value())||$("#inv_email").value.trim()).toLowerCase(), role=$("#inv_role").value;
-    { const r=BPStore.validate.email(email); if(!r.ok){ setUMsg("err",r.error); $("#inv_email").focus(); return; } }
+  // R199: ONE way to send an invitation (the invite form, "Send invite link instead", and "Resend invite" on an expired
+  // invite). create_invitation keeps its rules: admin only, seat limits, an open invite is re-used (same link), an
+  // expired one gets a NEW link valid 7 days. → true when an invite link exists afterwards.
+  async function sendInvite(email, role, btn, T){
     // R106: the button is busy ("Creating…") only while the invite is CREATED - the e-mail flush below can take a
     // while (or hang on a slow mail service) and used to keep the label stuck after the link was already shown.
     let made=null;
-    await BPUI.guard($("#inv_submit"), async()=>{
+    await BPUI.guard(btn||$("#inv_submit"), async()=>{
     try{
       const r=await BPStore.invitations.create(email, role);
       const link=location.origin+"/login?invite="+encodeURIComponent(r.token);
       $("#inv_link").value=link; $("#inv_out").hidden=false;
       setUMsg("ok",(r.reused?"Existing invite link ready for ":"Invite link created for ")+email+". Sending the invitation email…");
-      $("#inv_email").value=""; if(T&&T.invite) T.invite.reset();
+      if(T){ $("#inv_email").value=""; if(T&&T.invite) T.invite.reset(); }
       made=r;
     }catch(err){ setUMsg("err",errMsg(err,"create the invite")); }
     }, {busyLabel:"Creating…"}).catch(()=>{});
     // the guard has put the label back and re-enabled the button: the seat counter decides again (all seats in use -> locked)
     try{ await renderInvites(); }catch(_){ }
-    if(!made) return;
+    if(!made) return false;
     const r=made;
     try{
       // 0131: a NEW invite row queues its e-mail by trigger; a reused one does not, so re-queue it first.
@@ -2094,9 +2170,82 @@
         if(inv) await BPStore.invitations.resendEmail(inv.id); }catch(_){ /* rate-limited / old DB: flush anyway */ } }
       const sent=await BPStore.invitations.sendNow();
       setUMsg(...inviteMailMsg(sent,email));
-    }catch(err){ setUMsg("info",`The invite link for ${email} is ready, but the email couldn't be sent just now — copy the link below and send it yourself, or press Resend email later.`); }
+    }catch(err){ setUMsg("info",`The invite link for ${email} is ready, but the email couldn't be sent just now — copy the link below and send it yourself, or press Resend invite later.`); }
+    try{ await renderUsers(); }catch(_){ }
+    return true;
+  }
+  $("#inv_add").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    if($("#inv_submit").disabled) return;   // already creating, or all seats in use
+    const T=ccTeam(); if(T&&T.invite&&window.HelmCCInputs.first([T.invite])) return;
+    if(!ccRoleOk("#inv_role")) return;
+    const email=((T&&T.invite&&T.invite.value())||$("#inv_email").value.trim()).toLowerCase(), role=$("#inv_role").value;
+    { const r=BPStore.validate.email(email); if(!r.ok){ setUMsg("err",r.error); $("#inv_email").focus(); return; } }
+    await sendInvite(email, role, $("#inv_submit"), T||{});
   });
   $("#inv_link").addEventListener("click",(e)=>e.target.select());
+
+  // ---- R199: one set of invite actions (Team members rows, the View drawer, the Pending invites table) ----
+  // inv = { id, email, role, created_at, expires_at, expired?, invited_by_name?, emailed_at?, email_status? }
+  const invExpired=(inv)=>typeof HelmTeamStatus!=="undefined"?HelmTeamStatus.invite(inv).key==="expired":!!(inv&&inv.expires_at&&new Date(inv.expires_at).getTime()<=Date.now());
+  // Resend invite: an open invite -> its e-mail again (once per 10 minutes, server-enforced); an expired one -> a NEW link
+  async function invResend(inv, btn){
+    const email=inv.email||"this person";
+    if(invExpired(inv)){
+      if(!(await BPUI.confirm(`The invite link for ${email} has expired. Send a new link? It works for 7 days, with the same role (${BPStore.auth.admin.roleLabel(inv.role)}).`,{title:"Send a new invite link?",okLabel:"Send new link"}))) return;
+      await sendInvite(email, inv.role, btn); return;
+    }
+    try{ const r=await BPUI.guard(btn, ()=>BPStore.invitations.resendEmail(inv.id)); const st=r&&r.status;
+      if(st==="rate_limited"){ setUMsg("info",`Already sent recently — you can resend in ${Math.ceil((r.retry_in||600)/60)} min.`); return; }
+      if(st==="not_pending"){ setUMsg("err","This invite is no longer pending — create a new one."); await renderInvites(); await renderUsers(); return; }
+      const sent=await BPStore.invitations.sendNow();
+      setUMsg(...inviteMailMsg(sent,email,true)); await renderUsers(); }
+    catch(err){ setUMsg("err",errMsg(err,"resend the invite email")); }
+  }
+  // Copy invite link: create() answers the SAME live link for an open invite (nothing new is made)
+  async function invCopy(inv, btn){
+    if(invExpired(inv)){ setUMsg("info",`The invite link for ${inv.email} has expired — use Resend invite to send a new one.`); return; }
+    try{ const r=await BPUI.guard(btn, ()=>BPStore.invitations.create(inv.email, inv.role)); if(!r||!r.token) return;
+      const link=location.origin+"/login?invite="+encodeURIComponent(r.token); $("#inv_link").value=link; $("#inv_out").hidden=false;
+      try{ await navigator.clipboard.writeText(link); setUMsg("ok","Link copied."); }catch(_){ $("#inv_link").select(); setUMsg("ok","Link ready to copy below."); } }
+    catch(err){ setUMsg("err",errMsg(err,"get the invite link")); }
+  }
+  // Cancel invite: the invitation is marked revoked (its link stops working). Nothing is deleted; no account is touched.
+  async function invCancel(inv, btn){
+    const email=inv.email||"this person";
+    if(!(await BPUI.confirm(`Cancel the invite for ${email}? Their link stops working at once. Nothing else changes — no account or staff record is deleted, and you can invite them again later.`,{title:"Cancel invite?",okLabel:"Cancel invite",cancelLabel:"Keep invite",danger:true}))) return;
+    try{ await BPUI.guard(btn, ()=>BPStore.invitations.revoke(inv.id)); await renderInvites(); await renderUsers(); setUMsg("ok",`Invite cancelled for ${email}. Their link no longer works.`); }
+    catch(err){ setUMsg("err",errMsg(err,"cancel the invite")); }
+  }
+  // the details drawer for one open invitation
+  function viewInvite(inv){
+    const TS=window.HelmTeamStatus; if(!TS) return;
+    const st=TS.invite(inv), exp=st.key==="expired";
+    const mail=inv.email_status==="sent"&&inv.emailed_at?"Sent "+TS.when(inv.emailed_at,true):inv.email_status==="failed"?"Couldn't be sent - use Copy invite link":inv.email_status==="skipped"?"Not sent (address or link not usable)":inv.email_status==="pending"?"Queued, not sent yet":"";
+    TS.openDrawer({ title:inv.email, sub:st.label,
+      rows:[["E-mail", inv.email, { copy:true, mono:true }], ["Role", BPStore.auth.admin.roleLabel(inv.role)], ["Account status", st.label, { tone:st.tone }],
+        ["Invite sent", TS.when(inv.created_at,true)], [exp?"Link expired":"Link expires", TS.when(inv.expires_at,true)+(exp?"":(TS.until(inv.expires_at)?" ("+TS.until(inv.expires_at)+")":""))],
+        ["Invitation e-mail", mail], ["Invited by", inv.invited_by_name||""]],
+      actions:[{ label:exp?"Resend invite (new link)":"Resend invite", primary:true, onClick:(b)=>invResend(inv, b) },
+        { label:"Copy invite link", disabled:exp, title:exp?"The link expired - use Resend invite":"", onClick:(b)=>invCopy(inv, b) },
+        { label:"Cancel invite", danger:true, onClick:(b)=>invCancel(inv, b) }] });
+  }
+  // the details drawer for one member (full e-mail, phone, role, title, joined, status, last sign-in, invited by)
+  function viewMember(u, team){
+    const TS=window.HelmTeamStatus; if(!TS) return;
+    const a=ucAcct&&ucAcct.byId?(ucAcct.byId[ucId(u)]||null):null, off=!!(team&&team.isOff&&team.isOff(ucId(u)));
+    const st=TS.member(off?Object.assign({}, u, { deactivated:true }):u, a), priv=typeof u.whatsapp_same==="boolean"||!!u.phone;
+    const hint=TS.profileHint(u, priv), me=BPStore.auth.user(), self=!!(me&&me.id===ucId(u));
+    const two=ucTwoStep&&(ucId(u) in ucTwoStep)?(ucTwoStep[ucId(u)]?"On":"Not set up"):"";
+    const name=(u.full_name||"").trim()||u.email||"Team member";
+    TS.openDrawer({ title:name, sub:BPStore.auth.admin.roleLabel(u.role)+(self?" · you":""),
+      rows:[["E-mail", u.email||u.email_name||"", { copy:!!u.email, mono:true }], ["Phone", u.phone?ucPhone(u.phone):"", { copy:!!u.phone, mono:true }],
+        ["Role", u.role==="client"?"No access":BPStore.auth.admin.roleLabel(u.role)], ["Job title", u.job_title||""], ["Department", u.department||""],
+        ["Account status", st.label, { tone:st.tone }], ["Last signed in", a&&a.last_sign_in_at?TS.when(a.last_sign_in_at,true)+" ("+TS.ago(a.last_sign_in_at)+")":a?"Never":""],
+        ["Joined", (a&&a.joined_at)||u.created_at?TS.when((a&&a.joined_at)||u.created_at):""], ["Invited by", a&&a.invited_by_name?a.invited_by_name+(a.invited_at?" on "+TS.when(a.invited_at):""):""],
+        ["Deactivated", a&&a.deactivated_at?TS.when(a.deactivated_at):""], ["Two-step", two], ["Profile", hint||(u.complete===true?"Complete":"")]],
+      actions:isAdmin?[{ label:"Edit profile", primary:true, onClick:()=>openMemberEdit(u, null) }]:[] });
+  }
   // ---- pending invites (existing invitations.list / .revoke; "Copy link" re-uses create(), which returns the same live token) ----
   // ---- 0167: seat counter ("2 of 2 seats used") - a free trial is you + 2 people; open invites count ----
   async function renderSeats(){
@@ -2113,7 +2262,7 @@
       m.hidden=false; lock(!!r.at_limit); return;
     }
     m.textContent=`${used} of ${extra} seat${extra===1?"":"s"} used`+(r.trial?" (free trial: you + "+extra+" "+(extra===1?"person":"people")+")":"")+(pend?(pend===1?" \u00b7 1 pending invite counts as a seat":` \u00b7 ${pend} pending invites count as seats`):"")+".";
-    if(r.at_limit) m.textContent+=" All seats are in use. To add another person, revoke a pending invite or remove someone, or upgrade for more seats.";
+    if(r.at_limit) m.textContent+=" All seats are in use. To add another person, cancel a pending invite or deactivate someone, or upgrade for more seats.";
     m.hidden=false; lock(!!r.at_limit);
   }
   async function renderInvites(){
@@ -2122,33 +2271,21 @@
     try{ rows=await BPStore.invitations.list(); }
     catch(e){ BPUI.loadError(tb, e, renderInvites, {what:"pending invites"}); return; }
     const now=Date.now();
-    const pend=(rows||[]).filter(i=>i.status==="pending" && (!i.expires_at || new Date(i.expires_at).getTime()>now));
+    // R199: open invites AND expired ones nobody re-sent (newest per e-mail) - an expired link shows "Expired" + Resend invite
+    const seen=new Set(), memberMail=new Set(ucRows.map(u=>String(u.email||"").toLowerCase()).filter(Boolean));
+    const open=(rows||[]).filter(i=>i.status==="pending").filter(i=>{ const k=String(i.email||"").toLowerCase(); if(seen.has(k)||memberMail.has(k)) return false; seen.add(k); return true; });
+    const pend=open.filter(i=>!i.expires_at || new Date(i.expires_at).getTime()>now);
     invPending=pend.map(i=>({email:String(i.email||"").toLowerCase(), role:i.role}));
-    tb.innerHTML=pend.map(i=>`<tr data-id="${esc(i.id)}" data-email="${esc(i.email)}" data-role="${esc(i.role)}"><td>${esc(i.email)}</td><td>${esc(BPStore.auth.admin.roleLabel(i.role))}</td><td>${esc(ucDate(i.created_at))}</td><td>${esc(ucDate(i.expires_at))}</td><td><button type="button" class="btn invCopy">Copy link</button> <button type="button" class="btn invResend">Resend email</button> <button type="button" class="btn invRevoke">Revoke</button></td></tr>`).join("")
+    const TS=window.HelmTeamStatus;
+    tb.innerHTML=open.map(i=>{ const st=TS?TS.invite(i):null, exp=st?st.key==="expired":false;
+      return `<tr data-id="${esc(i.id)}" data-email="${esc(i.email)}" data-role="${esc(i.role)}"><td class="em invem">${esc(i.email)}</td><td>${esc(BPStore.auth.admin.roleLabel(i.role))}</td><td>${esc(ucDate(i.created_at))}</td><td>${exp?'<span class="ucst ucst-off">Expired</span>':esc(TS?TS.when(i.expires_at,true):ucDate(i.expires_at))}</td><td class="invacts"><button type="button" class="btn invCopy"${exp?' disabled title="The link expired - use Resend invite"':""}>Copy link</button> <button type="button" class="btn invResend">Resend invite</button> <button type="button" class="btn invRevoke">Cancel invite</button></td></tr>`; }).join("")
       || `<tr><td colspan="5" style="color:var(--ink-3)">No pending invites.</td></tr>`;
-    tb.querySelectorAll(".invRevoke").forEach(btn=>btn.addEventListener("click", async ()=>{
-      const tr=btn.closest("tr"), email=tr.dataset.email||"this person";
-      if(!(await BPUI.confirm(`Revoke the invite for ${email}? Their link will stop working.`,{title:"Revoke invite?",okLabel:"Revoke invite",danger:true}))) return;
-      try{ await BPUI.guard(btn, ()=>BPStore.invitations.revoke(tr.dataset.id)); await renderInvites(); setUMsg("ok","Invite revoked."); }
-      catch(err){ setUMsg("err",errMsg(err,"revoke the invite")); }
-    }));
-    // 0131: re-queue the invitation e-mail (once per 10 min per invite, server-enforced), then flush
-    tb.querySelectorAll(".invResend").forEach(btn=>btn.addEventListener("click", async ()=>{
-      const tr=btn.closest("tr"), email=tr.dataset.email||"this person";
-      try{ const r=await BPUI.guard(btn, ()=>BPStore.invitations.resendEmail(tr.dataset.id)); const st=r&&r.status;
-        if(st==="rate_limited"){ setUMsg("info",`Already sent recently — you can resend in ${Math.ceil((r.retry_in||600)/60)} min.`); return; }
-        if(st==="not_pending"){ setUMsg("err","This invite is no longer pending — create a new one."); await renderInvites(); return; }
-        const sent=await BPStore.invitations.sendNow();
-        setUMsg(...inviteMailMsg(sent,email,true)); }
-      catch(err){ setUMsg("err",errMsg(err,"resend the invite email")); }
-    }));
-    tb.querySelectorAll(".invCopy").forEach(btn=>btn.addEventListener("click", async ()=>{
-      const tr=btn.closest("tr");
-      try{ const r=await BPUI.guard(btn, ()=>BPStore.invitations.create(tr.dataset.email, tr.dataset.role)); if(!r||!r.token) return;
-        const link=location.origin+"/login?invite="+encodeURIComponent(r.token); $("#inv_link").value=link; $("#inv_out").hidden=false;
-        try{ await navigator.clipboard.writeText(link); setUMsg("ok","Link copied."); }catch(_){ $("#inv_link").select(); setUMsg("ok","Link ready to copy below."); } }
-      catch(err){ setUMsg("err",errMsg(err,"get the invite link")); }
-    }));
+    const invOfRow=(tr)=>{ const i=open.find(x=>String(x.id)===tr.dataset.id); return i||{ id:tr.dataset.id, email:tr.dataset.email, role:tr.dataset.role }; };
+    // "Cancel invite" (was Revoke): the invitation is marked revoked, its link stops working - nothing is deleted.
+    tb.querySelectorAll(".invRevoke").forEach(btn=>btn.addEventListener("click", ()=>invCancel(invOfRow(btn.closest("tr")), btn)));
+    // 0131: re-queue the invitation e-mail (once per 10 min per invite, server-enforced), then flush; expired -> a new link
+    tb.querySelectorAll(".invResend").forEach(btn=>btn.addEventListener("click", ()=>invResend(invOfRow(btn.closest("tr")), btn)));
+    tb.querySelectorAll(".invCopy").forEach(btn=>btn.addEventListener("click", ()=>invCopy(invOfRow(btn.closest("tr")), btn)));
     renderSeats();
   }
   // ---- GDPR / data portability export (Phase 85; r54: owner / admin only, confirm first, audited server-side) ----

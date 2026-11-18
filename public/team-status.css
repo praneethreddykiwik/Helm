@@ -1,0 +1,88 @@
+/* team-status.css - R199: account status pills, invite rows, the "View" details drawer (Settings -> Users & invites)
+   and the Staff Directory login pills. Loaded by control.html + staff.html. */
+
+/* status pill + its detail line + the separate profile hint */
+.ucst{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;border-radius:10px;padding:2px 8px;line-height:1.45;white-space:normal;max-width:100%}
+.ucst::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.ucst-ok{color:#0f7a43;background:#e7f6ee}
+.ucst-warn{color:#8a5a00;background:#fff4dc}
+.ucst-off{color:#5b566b;background:#efedf3}
+.ucst-muted{color:var(--ink-3,#5b566b);background:var(--panel-2,#f4f4f5)}
+.ucst-d{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+.ucst-hint{color:#8a5a00!important;white-space:normal!important}
+html[data-theme="dark"] .ucst-ok{background:rgba(46,184,114,.14);color:#6ee7a8}
+html[data-theme="dark"] .ucst-warn{background:rgba(245,158,11,.15);color:#fbbf24}
+html[data-theme="dark"] .ucst-off{background:rgba(255,255,255,.08);color:#c6c2d6}
+
+/* the members table: the Account column may wrap; e-mails are shown in full (wrap, never cut off) */
+#pane-users .utable.ucm td.ucprof{white-space:normal;min-width:150px;max-width:240px}
+#pane-users .utable.ucm .ucwt .ucsub.em,#pane-users .utable.ucm .ucinv-em{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:break-word}
+#pane-users .utable.ucm .ucnm .ucinv-em{font-weight:600}
+#pane-users .utable.ucm td.ucact{white-space:normal}
+#pane-users .utable.ucm td.ucact>.btn,#pane-users .utable.ucm td.ucact>.rm{margin:2px 4px 2px 0}
+#pane-users .utable.ucm .ucav-inv{background:#fff4dc;color:#8a5a00;font-size:14px}
+#pane-users .utable.ucm tr.ucinv .ucinv-role{font-size:12.5px;color:var(--ink-2,#3f3b4d)}
+@media (min-width:640px){
+  @container ucm (max-width:859.98px){
+    /* the Account column needs room for "Invited - not signed up yet"; the actions stack in one narrow column */
+    #pane-users .utable.ucm tr.ucr{grid-template-columns:auto minmax(0,1fr) 128px 150px 108px}
+    #pane-users .utable.ucm tr.ucr>td.ucprof .ucsub{display:block}
+    #pane-users .utable.ucm tr.ucr>td.ucact{display:flex;flex-direction:column;align-items:stretch;gap:4px;justify-self:stretch}
+    #pane-users .utable.ucm tr.ucr>td.ucact>.btn,#pane-users .utable.ucm tr.ucr>td.ucact>.rm{margin:0;width:100%;text-align:center}
+    #pane-users .utable.ucm tr.ucr>td.ucrole select{width:128px}
+    #pane-users .utable.ucm tr.ucr.ucinv{grid-template-areas:"who who role prof act"}
+    #pane-users .utable.ucm tr.ucr.ucinv>:is(td.ucph,td.ucjob){display:none}
+  }
+}
+/* pending invites table: the full address wraps */
+#pane-users .invtable td.invem{overflow-wrap:anywhere;word-break:break-word;min-width:14ch}
+#pane-users .invtable td.invacts{white-space:normal}
+#pane-users .invtable td.invacts .btn{margin:2px 0}
+
+/* "Add user" refused: the message sits right under the form, with the one-click right action */
+.um-err{margin:10px 0 0;padding:10px 12px;border-radius:10px;border:1px solid #f5c6c6;background:#fdecec;color:#8f1d1d;font-size:13px;line-height:1.5}
+.um-err[hidden]{display:none!important}
+.um-err-t{margin:0}
+.um-err-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.um-err-acts:empty{display:none}
+html[data-theme="dark"] .um-err{background:rgba(220,38,38,.12);border-color:rgba(248,113,113,.35);color:#fecaca}
+
+/* the details drawer (a centred sheet; full width on a phone) */
+.tsd-modal{position:fixed;inset:0;background:rgba(20,27,46,.5);z-index:90;display:flex;align-items:center;justify-content:center;padding:24px}
+.tsd-modal[hidden]{display:none!important}
+.tsd-sheet{background:var(--panel,#fff);color:var(--ink,#1b1930);border:1px solid var(--line,#e8e3db);border-radius:16px;box-shadow:var(--shadow,0 12px 32px rgba(20,27,46,.16));
+  width:min(520px,96vw);max-height:90vh;overflow:auto;padding:20px 22px;text-align:left}
+.tsd-head{display:flex;align-items:flex-start;gap:10px}
+.tsd-title{flex:1;min-width:0;margin:0;font-size:18px;text-transform:none;letter-spacing:0;overflow-wrap:anywhere;color:var(--ink,#1b1930)}
+.tsd-x{appearance:none;border:0;background:transparent;font-size:22px;line-height:1;cursor:pointer;color:var(--ink-3,#5b566b);width:36px;height:36px;border-radius:8px;flex:0 0 auto}
+.tsd-x:hover{background:var(--panel-2,#f4f4f5)}
+.tsd-sub{margin:4px 0 0;color:var(--ink-3,#5b566b);font-size:13px}
+.tsd-sub[hidden]{display:none}
+.tsd-list{margin:14px 0 0;padding:0;display:grid;gap:0}
+.tsd-row{display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;padding:8px 0;border-top:1px solid var(--line-2,#efeae3);align-items:center}
+.tsd-row dt{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3,#5b566b)}
+.tsd-row dd{margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;font-size:13.5px}
+.tsd-val{overflow-wrap:anywhere;word-break:break-word;min-width:0;user-select:text}
+.tsd-mono .tsd-val{font-family:var(--mono,ui-monospace,monospace);font-size:12.5px}
+.tsd-ok dd .tsd-val{color:#0f7a43;font-weight:700}.tsd-warn dd .tsd-val{color:#8a5a00;font-weight:700}.tsd-off dd .tsd-val{color:#5b566b;font-weight:700}
+.tsd-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line-2,#efeae3)}
+.tsd-acts .tsd-danger{color:#b42318;border-color:#f5c6c6}
+.tsd-copy{padding:2px 10px;min-height:28px}
+@media (max-width:560px){
+  /* a real bottom sheet on phones - beats the app shell's centred-card rule for every .lmodal (shell-b-pages.css) */
+  .tsd-modal,html[data-shell] .lmodal.tsd-modal{padding:0;align-items:flex-end;justify-content:stretch;z-index:1200}
+  .tsd-sheet,html[data-shell] .lmodal.tsd-modal>.tsd-sheet{width:100%;max-width:100%;margin:0;max-height:88dvh;border-radius:16px 16px 0 0;border-bottom:0;
+    padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+  .tsd-row{grid-template-columns:1fr;gap:2px}
+  .tsd-acts .btn{flex:1 1 auto}
+}
+
+/* Staff Directory: clearer login pills */
+.person .tag.login-invited{background:#fff4dc;color:#8a5a00}
+.person .tag.login-expired{background:#efedf3;color:#5b566b}
+.person .tag.login-none{background:var(--panel-2,#f4f4f5);color:var(--ink-3,#5b566b)}
+/* Add staff: "Save as a record only" is the default; "Save and invite to sign in" is the secondary choice */
+#s_access .acc-card:has(input[value="invite"]):not(:has(input:checked)){opacity:.85}
+#s_access .acc-card:has(input[value="invite"]) .acc-t::after{content:" (only if they use Helm)";font-weight:500;color:var(--ink-3,#5b566b)}
+/* phones (cards): an invite has no phone / job title yet - leave those lines out */
+@media (max-width:639.98px){ #pane-users .utable.ucm tr.ucinv>:is(td.ucph,td.ucjob){display:none} }

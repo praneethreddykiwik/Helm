@@ -4,7 +4,7 @@ const rd = (f) => fs.readFileSync(new URL("../public/" + f, import.meta.url), "u
 const ctl = rd("control.html"), chat = rd("chat.html"), login = rd("login.html"), tour = rd("tour.js"),
   auth = rd("auth-ui.js"), bk = rd("booklet.js"), ob = rd("onboarding.js"), ap = rd("approve.html");
 let n = 0; const t = (name, fn) => { fn(); n++; console.log("ok -", name); };
-t("A3 pending invites table with revoke+confirm", () => { assert.match(ctl, /id="inv_rows"/); assert.match(ctl, /invitations\.list\(\)/); assert.match(ctl, /invitations\.revoke\(/); assert.match(ctl, /Revoke the invite for/); });
+t("A3 pending invites table with revoke+confirm", () => { assert.match(ctl, /id="inv_rows"/); assert.match(ctl, /invitations\.list\(\)/); assert.match(ctl, /invitations\.revoke\(/); assert.match(ctl, /Cancel the invite for \$\{email\}\? Their link stops working at once/); });
 t("A5 chat maxlength 4000 + counter", () => { assert.match(chat, /id="msgInput"[^>]*maxlength="4000"/); assert.match(chat, /id="msgCount"/); assert.match(chat, /function syncCount/); });
 t("A6 media forwarding copies the file (0074 replaced the old disable)", () => { assert.match(chat, /m\.kind==="image"\|\|m\.kind==="voice"\)\) mp=\(await BPStore\.chat\.forwardMedia\(mp,to\)\)\.path/); });
 t("A7 new-chat rows are buttons", () => { assert.match(chat, /<button type="button" class="prow" data-id=/); });

@@ -93,9 +93,9 @@
 <link rel="stylesheet" href="staff-polish.css?v=4">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
-<link rel="stylesheet" href="crew-shifts.css?v=6">
+<link rel="stylesheet" href="crew-shifts.css?v=6"><link rel="stylesheet" href="team-status.css?v=1">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=91" id="shellProto"></script>
+<script src="/shell-proto.js?v=92" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -142,8 +142,8 @@
     <fieldset id="s_access" class="accessopt" hidden>
       <legend>Helm login</legend>
       <div class="acc-cards">
-        <label class="acc-card"><input type="radio" name="s_access" value="record" checked><span class="acc-txt"><b class="acc-t">Save as a record only</b><span class="acc-d">No login. For crew who don't need the app — you can still assign them, call them and pay them.</span></span></label>
-        <label class="acc-card"><input type="radio" name="s_access" value="invite"><span class="acc-txt"><b class="acc-t">Save and invite to sign in</b><span class="acc-d">They get an invitation e-mail (and a link you can copy) to create their own Helm login. Needs an e-mail and a role.</span></span></label>
+        <label class="acc-card"><input type="radio" name="s_access" value="record" checked><span class="acc-txt"><b class="acc-t">Save as a record only</b><span class="acc-d">No login (the usual choice). For crew who don't need the app — they get their work through their task link, and you can still assign them, call them and pay them.</span></span></label>
+        <label class="acc-card"><input type="radio" name="s_access" value="invite"><span class="acc-txt"><b class="acc-t">Save and invite to sign in</b><span class="acc-d">Only for people who will use Helm themselves (planners, managers). They get an invitation e-mail (and a link you can copy) to create their own Helm login. Needs an e-mail and a role.</span></span></label>
       </div>
     </fieldset>
     <div class="fgrid smgrid">
@@ -198,12 +198,13 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=369"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=370"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=52"></script>
-<script src="tour.js?v=70"></script>
+<script src="page-tours.js?v=53"></script>
+<script src="tour.js?v=71"></script>
+<script src="team-status.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -226,11 +227,22 @@
   // 0106: role shown on the card — a defined role's label, or the old free text as "Custom: …"
   // B29: a trial SAMPLE row's role is shown as written (no "Custom:" on every sample card)
   function roleText(s){ if(!s.role) return "—"; if(BPStore.staff.isDemo&&BPStore.staff.isDemo(s)) return esc(s.role); return BPStore.staff.matchRole(s.role)?esc(s.role):`<span title="Not one of the studio's roles yet — edit to pick one">Custom: ${esc(s.role)}</span>`; }
+  // R199: plain pills - "Active user · Role" (signs in), "Invited – not signed up" (sent / link expires), "Invite expired",
+  // "No login" (a record only: they get their work through their task link)
+  function inviteNewest(email){
+    const em=String(email||"").trim().toLowerCase(); if(!em) return null;
+    return (invites||[]).filter(i=>i&&i.status==="pending"&&String(i.email||"").toLowerCase()===em).sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||"")))[0]||null;
+  }
   function loginTag(s){
     const st=BPStore.staff.loginStatus(s,invites);
     if(st==="active"){ const r=loginRoles[s.profile_id]; return `<span class="tag login-active" title="Signs in to Helm${r?" as "+esc(BPStore.staff.roleLabel(r)):""}">Active user${r?" · "+esc(BPStore.staff.roleLabel(r)):""}</span>`; }
     if(!isAdminUser) return "";
-    return st==="invited"?`<span class="tag login-invited" title="An invite link is waiting to be used">Invited</span>`:`<span class="tag login-none" title="This person has no Helm login">No login</span>`;
+    const TS=window.HelmTeamStatus;
+    if(st==="invited"){ const iv=inviteFor(s.email), d=TS&&iv?TS.invite(iv).detail:"";
+      return `<span class="tag login-invited" title="${esc(d?d+". They haven't used the join link yet.":"An invite link is waiting to be used")}">Invited – not signed up</span>`; }
+    const old=inviteNewest(s.email);
+    if(old&&!s.profile_id) return `<span class="tag login-expired" title="${esc((TS?TS.invite(old).detail+". ":"")+"No login yet - they still get their work through their task link.")}">Invite expired · No login</span>`;
+    return `<span class="tag login-none" title="A record only: no Helm sign-in. They get their work through their task link.">No login</span>`;
   }
   async function loadLoginInfo(){
     if(!isAdminUser||!BPStore.auth.enabled()) return;
@@ -275,6 +287,17 @@
         BPUI.toast(msg,{type:sent&&sent.status==="ok"?"ok":"info"});
       }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"resend the invite email"}),{type:"err"}); }
     },{busyLabel:"Sending…"});
+  }
+  // R199: a teammate invited crew who only need the task link - "Cancel invite" stops the link (the invitation is marked
+  // revoked; nothing is deleted). The staff record stays as it is, as a record only.
+  async function cancelInvite(s,btn){
+    const inv=inviteFor(s.email);
+    if(!inv){ BPUI.toast("This invite is no longer pending.",{type:"info"}); await loadLoginInfo(); render(); return; }
+    if(!(await BPUI.confirm(`Cancel the sign-in invite for ${s.name} (${s.email})? Their invite link stops working. ${s.name} stays in the Staff Directory as a record only - you can still assign them, and their task link keeps working. Nothing is deleted.`,{title:"Cancel invite?",okLabel:"Cancel invite",cancelLabel:"Keep invite",danger:true}))) return;
+    await BPUI.guard(btn, async()=>{
+      try{ await BPStore.invitations.revoke(inv.id); await loadLoginInfo(); render(); BPUI.toast(`Invite cancelled. ${s.name} is a record only now (no login).`,{type:"ok"}); }
+      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"cancel the invite"}),{type:"err"}); }
+    },{busyLabel:"Cancelling…"});
   }
   async function inviteStaff(s,btn){
     // L14: a sample (is_demo, @example.com) staff row is never invited - it would use up one of the trial's 2 seats
@@ -321,7 +344,7 @@
         ${canEdit?`<button class="ic" data-act="edit">Edit</button>
         <button class="ic" data-act="toggle">${s.active===false?"Reactivate":"Deactivate"}</button>
         ${s.active!==false&&!(BPStore.staff.isDemo&&BPStore.staff.isDemo(s))?`<button class="ic" data-act="tlink" title="Copy ${esc(s.name||"this person")}'s permanent task link - it always shows their current tasks on every event">Task link</button><button class="ic" data-act="tlinknew" title="Make a new permanent task link - the old one stops working at once">New task link</button>`:""}
-        ${isAdminUser&&!linked&&s.email&&s.active!==false&&!BPStore.staff.isDemo(s)?`<button class="ic" data-act="invite" title="Create a sign-up link for ${esc(s.email)} with their role">${BPStore.staff.loginStatus(s,invites)==="invited"?"Copy invite link":"Invite to log in"}</button>${BPStore.staff.loginStatus(s,invites)==="invited"?`<button class="ic" data-act="resend" title="E-mail the invite link to ${esc(s.email)} again">Resend email</button>`:""}`:""}`:""}
+        ${isAdminUser&&!linked&&s.email&&s.active!==false&&!BPStore.staff.isDemo(s)?`<button class="ic" data-act="invite" title="Create a sign-up link for ${esc(s.email)} with their role">${BPStore.staff.loginStatus(s,invites)==="invited"?"Copy invite link":"Invite to log in"}</button>${BPStore.staff.loginStatus(s,invites)==="invited"?`<button class="ic" data-act="resend" title="E-mail the invite link to ${esc(s.email)} again">Resend email</button><button class="ic" data-act="uninvite" title="Stop the invite link - ${esc(s.name||"they")} stays here as a record only (task link still works)">Cancel invite</button>`:""}`:""}`:""}
       </div>
     </div>`;
   }
@@ -358,6 +381,7 @@
       if(b.dataset.act==="edit") openForm(s);
       else if(b.dataset.act==="invite") inviteStaff(s,b);
       else if(b.dataset.act==="resend") resendInviteEmail(s.email,b);
+      else if(b.dataset.act==="uninvite") cancelInvite(s,b);
       else if(b.dataset.act==="tlink") taskLink(s,b,false);
       else if(b.dataset.act==="tlinknew") taskLink(s,b,true);
       else toggleActive(s,b);
@@ -551,6 +575,22 @@
     ask=ask||sampleAsk;
     return ask?{ask}:null;
   }
+  // R199 (question 6): the deactivated staff record (not sample data) that has this phone number or e-mail -> { row, why } | null
+  async function inactiveTwin(rec){
+    try{
+      const ph=BPStore.staff.normPhone(rec.phone), em=String(rec.email||"").trim().toLowerCase(); if(!ph&&!em) return null;
+      // paged + searched on the server (no whole-table read): the e-mail, and the phone's last 5 digits (matches
+      // "+919811100005" and "+91 98111 00005" alike); every hit is then compared exactly
+      const tail=String(ph||"").replace(/\D/g,"").slice(-5), rows=[];
+      for(const q of [em, tail].filter(Boolean)) rows.push(...(((await BPStore.staff.page({ includeInactive:true, search:q, limit:200 }))||{}).rows||[]));
+      for(const r of rows){
+        if(r.active!==false || (BPStore.staff.isDemo&&BPStore.staff.isDemo(r))) continue;
+        if(ph && BPStore.staff.normPhone(r.phone)===ph) return { row:r, why:"phone number" };
+        if(em && String(r.email||"").trim().toLowerCase()===em) return { row:r, why:"e-mail" };
+      }
+    }catch(e){ /* lookup failed: don't block the save */ }
+    return null;
+  }
   async function saveStaff(){
     const fail=(m)=>{ $("#sm_err").textContent=m; $("#sm_err").hidden=false; };
     const V=BPStore.validate;
@@ -590,6 +630,19 @@
     if(attrEd){ if(editingRow&&editingRow.id){ const ch=attrEd.changes(); if(ch.any) attrCh=ch; } else { const at=attrEd.read(); if(Object.keys(at).length) rec.attributes=at; } }
     if(linked) BPStore.staff.LINKED_FIELDS.forEach(k=>{ delete rec[k]; });   // follow the profile; the DB refuses changes here
     await BPUI.guard($("#sm_save"),async()=>{
+      // R199 (question 6): a DEACTIVATED record with the same phone or e-mail -> offer to reactivate it. The database would
+      // take a second record (there is no unique rule), which splits one person's history, tasks and pay in two.
+      if(!linked && !editingId){
+        const twin=await inactiveTwin(rec);
+        if(twin){
+          if(await BPUI.confirm(`${twin.row.name} is already in the Staff Directory with this ${twin.why}, but deactivated. Reactivate that record instead of adding a second one? Their history, tasks and pay stay together - you can edit the details afterwards.`,{title:"Reactivate the existing record?",okLabel:"Reactivate "+twin.row.name,cancelLabel:"Back to the form"})){
+            try{ await BPStore.staff.setActive(twin.row.id,true); closeForm(); BPUI.toast(`${twin.row.name} is active again.`,{type:"ok"}); await load(); staffChanged(); }
+            catch(e){ fail(BPUI.friendlyError(e,{action:"reactivate the staff member"})); }
+            return;
+          }
+          fail(`${twin.row.name} (deactivated) already has this ${twin.why}. Reactivate that record (tick “Show inactive”), or use a different ${twin.why}.`); return;
+        }
+      }
       if(!linked){
         try{
           const dc=dupCheck((await BPStore.staff.page({includeInactive:true,search:(name.match(/[\p{L}\p{N}]{2,}/u)||[name])[0],limit:200})).rows,editingId,name,rec.phone,"staff member");

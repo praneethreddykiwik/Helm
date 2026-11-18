@@ -75,7 +75,7 @@ ok(/id="iv_resend">Resend email</.test(staff) && /id="iv_copy">Copy link</.test(
 ok(/id="iv_mail" role="status"/.test(staff) && /Invitation email sent to \$\{email\}/.test(staff) && /Invitation email queued for/.test(staff), 'sent / queued message');
 ok(/data-act="resend"/.test(staff) && /invites\.sendNow|invitations\.sendNow\(\)/.test(staff), 'card resend + flush');
 ok(/\$\("#iv_mail"\)\.textContent=/.test(staff) && !/\$\("#iv_mail"\)\.innerHTML/.test(staff), 'message via textContent');
-ok(/class="btn invResend">Resend email</.test(control) && /invitations\.resendEmail\(tr\.dataset\.id\)/.test(control), 'control center resend next to Copy/Revoke');
+ok(/class="btn invResend">Resend invite</.test(control) && /invitations\.resendEmail\(inv\.id\)/.test(control), 'control center resend next to Copy / Cancel invite (R199: one invResend for the table, the members rows and the drawer)');
 // fix/invite-auto-email: Create link always sends (re-queues a reused invite) and says why when it can't
 ok(/if\(r\.reused\)\{[\s\S]{0,300}invitations\.resendEmail\(inv\.id\)/.test(control), 'reused invite is re-queued before flush');
 ok(/function inviteMailMsg\(/.test(control) && /not_deployed:/.test(control) && /--no-verify-jwt/.test(control), 'control center explains why the email did not go');
