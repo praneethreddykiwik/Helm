@@ -5050,9 +5050,21 @@ async function init(){
     renderRulers(); }).observe(scrollEl); }catch(_){} }
   await initStore();
   initPanelToggles();   // after initStore so the saved state is per signed-in user
+  // R215: the startup reads below do not need one another's answers, so they are asked together (one wait instead of
+  // one after another). Each answer is still used at the same place, in the same order, with the same error handling;
+  // the sign-in gate and the role gate below are unchanged (a read started for someone the gate turns away is ignored).
+  const r215Start=(f)=>{ let p; try{ p=Promise.resolve(f()); }catch(e){ p=Promise.reject(e); } p.catch(()=>{}); return p; };
+  const r215In=!(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user());   // the sign-in gate lets this page go on
+  const r215Roles=BPStore.auth.enabled() && !!BPStore.auth.user();                             // the role gate below runs
+  const pricingP=r215Start(()=>BPStore.config.getPricing());
+  const packagesP=r215Start(()=>BPStore.menuTemplates.list());
+  const editableP=r215Roles ? r215Start(async()=>(await BPStore.auth.canEditArea('layouts')) || (await BPStore.auth.canEditArea('quotes'))) : null;
+  const canCreateP=r215Roles ? r215Start(()=>BPStore.auth.can('create')) : null;
+  const quoteP=(r215In && quoteId) ? r215Start(()=>BPStore.quotes.get(quoteId)) : null;
+  const layoutP=(r215In && !quoteId && evId) ? r215Start(()=>getLayout(evId)) : null;
   // load pricing rates from Settings (fallbacks stay if unavailable)
   try{
-    const pc = await BPStore.config.getPricing();
+    const pc = await pricingP;
     if(pc){
       if(pc.chairPrice!=null) PRICING.chairPrice=+pc.chairPrice;
       if(pc.platePrice!=null) PRICING.platePrice=+pc.platePrice;
@@ -5070,7 +5082,7 @@ async function init(){
     }
   }catch{}
   try{ applyCapHints(); }catch(e){}
-  try{ PRICING.packages = await BPStore.menuTemplates.list(); }catch{ PRICING.packages=[]; }
+  try{ PRICING.packages = await packagesP; }catch{ PRICING.packages=[]; }
   buildMenuControls();
   renderPrice();
   // Auth gate: if Supabase enforces login and nobody's signed in → go to the sign-in page
@@ -5082,14 +5094,14 @@ async function init(){
   // Role gate: view-only roles (crew/client) get a read-only builder; capture create capability
   if(BPStore.auth.enabled() && BPStore.auth.user()){
     // QA1017: editable follows the has_area matrix (what add_quote_version enforces), not the fixed ROLE_CAPS list
-    const editable = (await BPStore.auth.canEditArea('layouts')) || (await BPStore.auth.canEditArea('quotes'));
-    CAN_CREATE = await BPStore.auth.can('create');
+    const editable = editableP ? await editableP : ((await BPStore.auth.canEditArea('layouts')) || (await BPStore.auth.canEditArea('quotes')));
+    CAN_CREATE = canCreateP ? await canCreateP : await BPStore.auth.can('create');
     if(!editable) applyReadonly(await BPStore.auth.role());
   }
   await renderAccountChip();
   if(quoteId){
     try{
-      const q=await BPStore.quotes.get(quoteId);
+      const q=await (quoteP || BPStore.quotes.get(quoteId));
       currentQuoteId=q.id; currentQuoteCode=q.code; currentClient=q.client||{}; currentPricing=q.pricing||{};
       if(currentPricing.priceDisplay && typeof currentPricing.priceDisplay==='object') store.priceDisplay=priceDisp(currentPricing.priceDisplay);
       { const bb=$('#backToFlowBtn'); if(bb && params.get('from')==='flow') bb.hidden=false; }
@@ -5102,6 +5114,7 @@ async function init(){
       // empty V1 instead of locking. Nothing can be overwritten: add_quote_version numbers from max(version_no)+1,
       // so the first save simply becomes V1. Any other missing / unreadable version still locks (catch below).
       const _noVersionRows = !(q.versions||[]).length && +verNo===1 && (+q.currentVersion||1)===1;
+      const planP = r215Start(()=>BPStore.plan.get(q.id));   // R215: the event plan is read while the version loads (used below)
       const ver = _noVersionRows ? { versionNo:1, data:{ items:[] }, missing:true } : await BPStore.quotes.getVersion(q.id, verNo);
       currentVersionNo = ver.versionNo;
       PRICING.eventType = q.eventType || null;
@@ -5113,7 +5126,7 @@ async function init(){
           : (currentPricing.guests!=null ? +currentPricing.guests : (q.client && q.client.guests!=null ? +q.client.guests : null));
         if(pl!=null) PRICING.guests = +pl; }
       try{
-        const plan = await BPStore.plan.get(q.id);
+        const plan = await planP;
         if(plan){
           if(plan.menu_plate_price!=null) PRICING.menuPlatePrice = +plan.menu_plate_price;
           if(plan.menu_template) PRICING.menuPackageName = plan.menu_template;
@@ -5197,7 +5210,7 @@ async function init(){
       toast('Could not open that quote — editing is locked so nothing gets overwritten');
     }
   } else if(evId){
-    try{ const full=await getLayout(evId);
+    try{ const full=await (layoutP || getLayout(evId));
       if(full){ applyLayout(full.data); currentLayoutId=full.id;
         const pn=$('#projName'); if(pn) pn.value=full.name; setSavedBaseline(); toast('Opened “'+full.name+'”'); } }
     catch{ toast('Could not open that event'); }

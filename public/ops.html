@@ -433,6 +433,10 @@
     // one after another behind the loading overlay); the role checks below come from the cached session.
     const pQuote=BPStore.quotes.get(quoteId), pCats=BPStore.ops.categories().catch(()=>null), pOps=fetchOps();
     pQuote.catch(()=>{}); pOps.catch(()=>{});
+    // R215: the task list's ready-made tasks for the first section are asked as soon as the sections are known (they
+    // used to wait for the event too); renderTasks() below uses them for that one section, else asks as before
+    preTplP=pCats.then(cats=>{ const list=(cats&&cats.length)?cats:CATS, cat=list.includes(activeCat)?activeCat:list[0];
+      const p=Promise.resolve().then(()=>BPStore.ops.templates(cat)); p.catch(()=>{}); return { cat, p }; }); preTplP.catch(()=>{});
     const [canEdit, role, tplEdit]=await Promise.all([BPStore.auth.canAssignTasks ? BPStore.auth.canAssignTasks() : BPStore.auth.canEditArea("staff"),
       BPStore.auth.role(), BPStore.auth.canEditArea("templates").catch(()=>false)]);
     canTpl=!!tplEdit;
@@ -527,8 +531,10 @@
   function resetAssignEmail(){ const x=$("#assignEmail"); if(x) x.checked=true; }
   resetAssignEmail();
   window.addEventListener("pageshow", resetAssignEmail);
+  let preTplP=null;   // R215: { cat, p } - the first section's templates, asked early by load()
   async function renderTasks(){
-    let tpl; try{ tpl=await BPStore.ops.templates(activeCat); }catch(e){ BPUI.loadError($("#taskList"), e, renderTasks, {what:"task templates"}); return; }
+    const preP=preTplP; preTplP=null; const pre=preP ? await preP.catch(()=>null) : null;
+    let tpl; try{ tpl=await ((pre&&pre.cat===activeCat) ? pre.p : BPStore.ops.templates(activeCat)); }catch(e){ BPUI.loadError($("#taskList"), e, renderTasks, {what:"task templates"}); return; }
     const extra=(oneOff[activeCat]||[]).filter(x=>!tpl.some(t=>t.title===x));
     if(!tpl.length && !extra.length){ $("#taskList").innerHTML=`<span class="muted">${canTpl?"No task templates in this section yet.":"No ready-made tasks you can see in this section - type a task below."}</span>`; updateSel(); return; }
     $("#taskList").innerHTML=tpl.map(t=>`<label class="titem"><input type="checkbox" class="tk" value="${esc(t.title)}"> ${esc(t.title)}</label>`).join("")

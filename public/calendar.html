@@ -269,15 +269,26 @@
       return (rows||[]).filter(l=>l && !l.quote_id && validDate(l.event_date) && !["lost","won","quoted"].includes(String(l.status||"").toLowerCase())); }
     catch(e){ return []; }   // advisory only - the calendar still works without lead dates
   }
+  // R215: the calendar read and the "can't work" conflicts read are asked together - the conflicts read never needed
+  // the calendar's answer. The first load() uses the two reads boot started next to the access checks; every later
+  // load() (Retry, Undo, date set) asks again as before. The conflicts are still added after the calendar arrives,
+  // with the same dates (asked again if the studio's "today" moved meanwhile) and the same "advisory only" handling.
+  let preCal=null, preUnavailP=null;
+  const unavailRange=()=>{ const t0=BPStore.todayLocal(), t1=new Date(t0+"T12:00:00Z"); t1.setUTCDate(t1.getUTCDate()+90); return [t0, t1.toISOString().slice(0,10)]; };
+  const hasUnavail=()=>!!(BPStore.ops&&BPStore.ops.shifts&&BPStore.ops.shifts.unavailableConflicts);
+  function askUnavail(){ try{ const [t0, t90]=unavailRange(); const p=Promise.resolve(BPStore.ops.shifts.unavailableConflicts(t0, t90)); p.catch(()=>{}); return { t0, t90, p }; }catch(_){ return null; } }
   async function load(){
     const pLeads=loadLeadDates();
     const pSample=(canQuotes&&BPStore.calendar.sampleIds)?BPStore.calendar.sampleIds().catch(()=>[]):Promise.resolve([]);
-    try{ data=await BPStore.calendar.load(); }
+    const pCal=preCal||BPStore.calendar.load(), preP=preUnavailP; preCal=null; preUnavailP=null;
+    const pre=preP ? await preP.catch(()=>null) : null;   // no extra wait: it only follows the cached role / access answers
+    const ask=(canStaffView&&hasUnavail()) ? (pre||askUnavail()) : null;
+    try{ data=await pCal; }
     catch(e){ $("#conflicts").innerHTML=""; $("#nodateWrap").hidden=true; BPUI.loadError($("#agenda"), e, load, {what:"the calendar"}); return; }
     // R174 (0365): people given work on a day they marked "can't work" (their own task link or the Staff page)
-    if(canStaffView&&BPStore.ops&&BPStore.ops.shifts&&BPStore.ops.shifts.unavailableConflicts){ try{
-      const t0=BPStore.todayLocal(), t1=new Date(t0+"T12:00:00Z"); t1.setUTCDate(t1.getUTCDate()+90);
-      const uc=await BPStore.ops.shifts.unavailableConflicts(t0, t1.toISOString().slice(0,10));
+    if(canStaffView&&hasUnavail()){ try{
+      const [t0, t90]=unavailRange();
+      const uc=await ((ask&&ask.t0===t0&&ask.t90===t90) ? ask.p : BPStore.ops.shifts.unavailableConflicts(t0, t90));
       (uc||[]).forEach(u=>{ if(!u||!u.day) return; data.conflicts.push({ key:"unavail|"+u.crew_id+"|"+u.day, type:"unavailable", date:String(u.day).slice(0,10),
         label:u.name||"Staff member", detail:(u.approval==="pending"?"asked for this day off (waiting for approval)":"has this day off (approved)")+(u.note?" ("+u.note+")":"")+" but has tasks on", events:(u.events||[]).map(e=>({id:e.id,code:e.code})) }); });
     }catch(_){} }
@@ -392,6 +403,11 @@
     await BPStore.init(); await renderAccount();
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("calendar"))) return;
+    // R215: the calendar read starts now, alongside the access checks below (it needs none of their answers);
+    // load() further down uses it. The "can't work" read starts too when this person may see staff (same rule as setupViews).
+    preCal=BPStore.calendar.load(); preCal.catch(()=>{});
+    preUnavailP=BPStore.auth.role().catch(()=>"").then(async(r)=>{ const ro=String(r||"").toLowerCase(); if(ro==="crew"||ro==="worker") return null;
+      return (await BPStore.auth.canView("staff").catch(()=>false)) && hasUnavail() ? askUnavail() : null; }); preUnavailP.catch(()=>{});
     [canEdit, canLeads, canQuotes]=await Promise.all([BPStore.auth.canEditArea("calendar"), BPStore.auth.canView("leads").catch(()=>false), BPStore.auth.canView("quotes").catch(()=>false)]); $("#app").hidden=false;
     await setupViews();
     await load();

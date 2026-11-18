@@ -344,9 +344,12 @@
   const dateWin=()=>{ const S=typeof window!=="undefined"?window.HelmQuoteSmart:null; return (S&&S.range&&typeof dateFilter==="string"&&dateFilter)?S.range(dateFilter):null; };
   const inWin=(x,w)=>{ if(!w) return true; const d=String(x.eventDate||"").slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false; return (!w.from||d>=w.from)&&(!w.to||d<=w.to); };
   const showDiscarded=()=>!!($("#showDiscarded")&&$("#showDiscarded").checked);
-  async function loadShelf(){
+  // R215: the shelf asked early by load() (prefetchList), used once by the first list page
+  let preShelf=null;
+  function takeShelf(){ const pre=preShelf; preShelf=null; return pre; }
+  async function loadShelf(pre){
     if(BPStore.mode()!=="supabase" || !BPStore.quoteShelf){ shelf.ready=false; paintShelfTabs(); return; }
-    try{ const r=(await BPStore.quoteShelf.list())||{}; const rows=Array.isArray(r.rows)?r.rows:[];
+    try{ const r=(await (pre||BPStore.quoteShelf.list()))||{}; const rows=Array.isArray(r.rows)?r.rows:[];
       shelf.rows=rows; shelf.byId={}; rows.forEach(x=>{ shelf.byId[x.id]=x; });
       shelf.archived=Number(r.archived_count)||0; shelf.deleted=Number(r.deleted_count)||0; shelf.ready=true;
     }catch(e){ shelf.ready=false; shelf.rows=[]; shelf.byId={}; }   // 0040 not installed / no access → classic tabs
@@ -412,7 +415,7 @@
       .filter(x=>(!type || (x.eventType||"").toLowerCase()===type) && inWin(x,win)
                && (!term || [x.code,x.title,x.client.name].some(v=>String(v||"").toLowerCase().includes(term))));
     if(view==="deleted"){ if(!offset) await loadShelf(); return { rows: shelf.ready?mine():[], hasMore:false, offset:0 }; }
-    const [, r]=await Promise.all([offset?null:loadShelf(), base()]);
+    const [, r]=await Promise.all([offset?null:loadShelf(takeShelf()), base()]);
     // r23: Cancelled = a slice of the Archive - keeps a cancelled event that was also archived by hand
     const rows=((r&&r.rows)||[]).filter(x=>view==="cancelled" ? !(shelf.byId[x.id]&&shelf.byId[x.id].shelf==="deleted") : !shelf.byId[x.id]);
     return { rows: view==="archived"&&!offset ? mine().concat(rows) : rows, hasMore:!!(r&&r.hasMore), offset:r?r.offset:offset };
@@ -505,13 +508,19 @@
     // independent capability reads — in parallel (render() reads them)
     // r23-0260: Restore a cancelled event - admin / manager / coordinator with quotes edit (the server decides)
     BPStore.auth.role().then(r=>{ canUncancel=["admin","manager","coordinator"].includes(String(r||"")); if(quotes.length) render(); }).catch(()=>{});
+    // opened from an event workspace? focus that quote by pre-filling the search
+    // (R215: filled in before the first page is asked for below, so that page already carries it)
+    const focus=focusPending ? new URLSearchParams(location.search).get("focus") : null;
+    focusPending=false;   // apply the ?focus= prefill once, never overwrite what the user typed on later load()s
+    if(focus){ $("#search").value=focus; }
+    prefetchList();   // R215: the first page is asked now, alongside the access checks below
     [canEdit, canDelete, canCreate, canMarkPaid] = await Promise.all([BPStore.auth.canEditArea("quotes"),
       // planner-1023: move_quote_to_shelf needs quotes EDIT server-side too - no ✕ for a view-only role
       Promise.all([BPStore.auth.can("delete"), BPStore.auth.canEditArea("quotes")]).then(([d,e])=>!!(d&&e)),
       // create needs can_create() server-side (0147 quote_create switch) AND quotes edit - same as dashboard
       Promise.all([BPStore.auth.can("create"), BPStore.auth.canEditArea("quotes")]).then(([c,e])=>!!(c&&e)),
       // mark_paid is admin/manager only server-side (SEC-05 F11); offline mode has no roles — server: mark_paid needs has_area(finance,edit)
-      BPStore.auth.enabled() ? BPStore.auth.canEditArea("finance") : true]);
+      BPStore.auth.enabled() ? BPStore.auth.canEditArea("finance") : true]).catch((e)=>{ prePage=null; preShelf=null; throw e; });   // R215: same error, early reads dropped
     // r20-coord: layouts view-only (e.g. Event coordinator) -> the row says "View layout", not "Edit layout"
     canEditLayouts = BPStore.auth.enabled() ? await BPStore.auth.canEditArea("layouts").catch(()=>false) : true;
     $("#newBtn").hidden = !canCreate;
@@ -519,10 +528,6 @@
     runShelfTick();   // 0040: client link expired → Archive / Deleted (rate-limited server-side; never awaited)
     loadInProgressCount();   // 0206: "In progress (N)" tab (never awaited)
     loadCancelledCount();    // r23: "Cancelled (N)" tab (never awaited)
-    // opened from an event workspace? focus that quote by pre-filling the search
-    const focus=focusPending ? new URLSearchParams(location.search).get("focus") : null;
-    focusPending=false;   // apply the ?focus= prefill once, never overwrite what the user typed on later load()s
-    if(focus){ $("#search").value=focus; }
     // non-critical: event-group buttons + the type filter fill in after the rows
     loadEventGroups().then(()=>{ if(egReady) render();
       // opened from the event workspace's "Create event group" button → ?egroup=<quote id>
@@ -530,6 +535,7 @@
       if(egReady&&egq) openEventGroup(egq).catch(()=>{}); });
     fillTypeFilter().catch(()=>{});
     const [listR]=await Promise.allSettled([reloadList(), taxP]);
+    prePage=null; preShelf=null;   // R215: an early read is only ever used by this first list
     if(listR.status==="rejected"){ BPUI.loadError($("#rows"), listR.reason, load, {what:"quotes"}); return; }
     render();
     try{ performance.mark("quotes:first-rows"); performance.measure("quotes:time-to-first-rows","quotes:load-start","quotes:first-rows"); }catch(_){}
@@ -558,9 +564,25 @@
     try{ const n=await BPStore.quotes.countCancelled(); c.textContent=String(Number(n)||0); c.hidden=false; }catch(_){ c.hidden=true; }
   }
   // first page of the current tab / type / search (resolves after it painted)
+  // R215: one page of the list (the first page is also asked early by load(), see prefetchList)
+  function pageReq(offset){ return BPStore.quotes.page({ offset, view:viewOf(filter), eventType:typeFilter, search:($("#search").value||"").trim(), sort:"confirmedFirst", ...quoteDateArgs() }); }
+  // what decides the first page's arguments (tab / type / search / dates)
+  const listKey=()=>JSON.stringify([filter, typeFilter, ($("#search").value||"").trim(), dateFilter]);
+  // R215: load() asks for the first page (and the archive / deleted shelf it is filtered with) while the access checks
+  // are still on their way - the list never needed their answers. The rows are still drawn only after the checks
+  // (render() reads them), and only a page asked for exactly the same tab / type / search / dates is used; anything
+  // else (another tab clicked meanwhile, a later reload) asks again as before.
+  let prePage=null;
+  function prefetchList(){
+    prePage=null; preShelf=null;
+    if(filter==="inprogress" || filter==="deleted") return;   // these tabs never ask for a page (shelfPage)
+    prePage={ key:listKey(), p:Promise.resolve().then(()=>pageReq(0)) }; prePage.p.catch(()=>{});
+    if(BPStore.mode()==="supabase" && BPStore.quoteShelf){ preShelf=Promise.resolve().then(()=>BPStore.quoteShelf.list()); preShelf.catch(()=>{}); }
+  }
+  function takePage(){ const pre=prePage; prePage=null; return (pre && pre.key===listKey()) ? pre.p : null; }
   function reloadList(){
     if(!pager) pager=BPUI.pager({ after: $("#rows").closest(".card"), what:"quotes",
-      fetch:(offset)=>shelfPage(offset, ()=>BPStore.quotes.page({ offset, view:viewOf(filter), eventType:typeFilter, search:($("#search").value||"").trim(), sort:"confirmedFirst", ...quoteDateArgs() })),
+      fetch:(offset)=>shelfPage(offset, ()=>(!offset && takePage()) || pageReq(offset)),
       render:(rows,info)=>{ quotes=info.all; render(); refreshStale(); refreshChanges(); refreshValidity(); } });
     anyQuotes=null; chgKey=""; staleKey=""; qvKey="";   // qts-1018: a reload re-reads change orders + stale approvals too
     return pager.reset();
