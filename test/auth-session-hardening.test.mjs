@@ -306,7 +306,9 @@ t('forced temp-password change only runs while the server flags the account (pen
 t('reset-password.js trusts the signed recovery session, not the "#type=recovery" fragment alone', () => {
   const js = read('public/reset-password.js');
   assert.match(js, /isRecoverySession\(\)/);
-  assert.match(js, /recovering = realRecovery;/);
+  // R204: reset-link-core.js decides; only a real recovery session reaches the "set" screen
+  assert.match(js, /recovery: realRecovery/);
+  assert.match(js, /if \(d\.view === "set"\) \{[\s\S]{0,120}recovering = true;/);
   assert.ok(!/recovering = RECOVERY_LINK \|\|/.test(js), 'fragment alone must not skip the current-password step');
 });
 
@@ -538,7 +540,7 @@ t('PKCE: ?code= that cannot be exchanged (other browser) → linkError, pages ex
   await e.S.init();
   assert.equal(e.S.auth.pendingUser(), null);
   assert.equal(e.S.auth.linkError(), 'pkce_exchange_failed');
-  assert.match(read('public/reset-password.js'), /Open the link in the same browser you requested it from/);
+  assert.match(read('public/reset-password.js'), /opened in a different browser from the one you asked for it in/);   // R204 wording
   assert.match(read('public/login.html'), /Open the link in the same browser you requested it from/);
 });
 t('PKCE: tokens are never read from the URL fragment (legacy #access_token is stripped)', async () => {
@@ -548,7 +550,8 @@ t('PKCE: tokens are never read from the URL fragment (legacy #access_token is st
   assert.ok(!e.calls.some((x) => x[0] === 'location.replace' && /access_token/.test(x[1])), 'fragment not forwarded anywhere');
   const rp = read('public/reset-password.js');
   assert.ok(!/location\.hash/.test(rp), 'reset page reads ?code=, not the fragment');
-  assert.match(rp, /qp\.get\("code"\)/);
+  assert.ok(!/setSession|access_token/.test(rp), 'reset page never uses fragment tokens');   // R204: store-api reports only the type
+  assert.match(read('public/reset-link-core.js'), /code: !!q\.get\("code"\)/);
 });
 t('PKCE: a recovery code that lands on another page is sent to /reset-password', async () => {
   const e = makeEnv({ path: '/login.html', search: '?code=abc', accessToken: RECOVERY_JWT });
@@ -618,7 +621,8 @@ t('reset-password page: exists, no inline script, external logic, noindex, no-re
   const js = read('public/reset-password.js');
   assert.match(js, /BPStore\.auth\.updatePassword\(/);
   assert.match(js, /reverifyPassword\(/);
-  assert.match(js, /location\.replace\("login\?reset=1"\)/);
+  assert.match(js, /location\.replace\("login"\)/);   // R204: after a reset the person goes into the app
+  assert.match(h, /<script src="reset-link-core\.js\?v=\d+"><\/script>/);
 });
 t('vercel.json: reset-password is noindex + no-store; Turnstile CSP only on login/reset', () => {
   const v = JSON.parse(read('vercel.json'));

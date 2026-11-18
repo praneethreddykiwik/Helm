@@ -285,7 +285,7 @@ await t('MANIFEST, checker override, run-all, release lists, CHECK-PROD carries 
 });
 await t('asset pins: store-api v370 on every page, team-status.js / .css v1 on Settings + Staff, flow-resume bumped', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '370', f);
+    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.ok(Number(m[1]) >= 370, f);   // R204: later rounds bump it again
   }
   for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=1"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=1">/, f); }
   assert.match(read('public/flow.html'), /flow-resume\.js\?v=10/);
