@@ -524,8 +524,8 @@
      been drawn); config.js stays a normal script (it may add config.staging.js before them). The page script below
      runs at DOMContentLoaded, i.e. right after them - the same order as before, without blocking the first paint. -->
 <script src="event-name.js?v=9" defer></script>
-<script src="country-profile.js?v=7" defer></script><script src="store-api.js?v=373" defer></script>
-<script src="auth-ui.js?v=62" defer></script>
+<script src="country-profile.js?v=7" defer></script><script src="store-api.js?v=374" defer></script>
+<script src="auth-ui.js?v=63" defer></script>
 <script src="/auth-visual.js?v=1" defer></script>
 <script src="/trial-facts.js?v=9" defer></script>
 <script src="/trial-signup.js?v=14" defer></script>
@@ -824,7 +824,10 @@ document.addEventListener("DOMContentLoaded", function(){
     okEl.hidden=true; errEl.hidden=true;
     try{ await BPStore.auth.resendSignup(email,{ emailRedirectTo:confirmRedirect() });
       okEl.textContent=BPStore.auth.genericMessages.resend; okEl.hidden=false; cooldown(btn,label,COOLDOWN); }
-    catch(err){ showErr(errEl, err&&(err.code==="rate_limited"||err.code==="captcha_failed")? err.message : BPUI.friendlyError(err,{action:"resend the email"}));
+    catch(err){
+      // R203: not confirmed / asked a moment ago = the e-mail may be on its way: a calm note + the button rests
+      if(err&&/^(mail_unconfirmed|mail_cooldown)$/.test(err.code||"")){ okEl.textContent=err.message; okEl.hidden=false; cooldown(btn,label,COOLDOWN); return; }
+      showErr(errEl, err&&(err.code==="rate_limited"||err.code==="captcha_failed")? err.message : BPUI.friendlyError(err,{action:"resend the email"}));
       if(err&&err.code==="rate_limited") cooldown(btn,label,COOLDOWN); }
   }
   $("#inboxResend").addEventListener("click", ()=>{ const b=$("#inboxResend"); if(b.disabled) return; doResend(inboxAddr,$("#inboxOk"),$("#inboxErr"),b,"Resend email"); });
@@ -878,7 +881,7 @@ document.addEventListener("DOMContentLoaded", function(){
       const em=$("#fg_email").value.trim();
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ showErr($("#fgErr"),"Enter the email you sign in with."); $("#fg_email").focus(); return; }
       if(capMissing(fgCap)){ showErr($("#fgErr"),"Please complete the security check."); return; }
-      btn.textContent="Sending…";
+      btn.textContent="Sending… this can take up to a minute";   // R203: Supabase answers only after the e-mail is sent
       try{
         await BPStore.auth.requestPasswordReset(em,{ captchaToken:capToken(fgCap), redirectTo: location.origin+"/reset-password" });
         // Same message whether or not the account exists — never reveal which emails are registered.
@@ -886,7 +889,9 @@ document.addEventListener("DOMContentLoaded", function(){
         $("#fgOk").hidden=false;
       }catch(err){
         const c=(err&&err.code)||"";
-        showErr($("#fgErr"), /^(rate_limited|captcha_|staff_google_only)/.test(c) ? err.message : BPUI.friendlyError(err,{action:"send the reset link"}));
+        // R203: not confirmed / asked a moment ago = the e-mail may well be on its way: a calm note, not an error
+        if(/^(mail_unconfirmed|mail_cooldown)$/.test(c)){ $("#fgOk").textContent=err.message; $("#fgOk").hidden=false; }
+        else showErr($("#fgErr"), /^(rate_limited|captcha_|staff_google_only)/.test(c) ? err.message : BPUI.friendlyError(err,{action:"send the reset link"}));
       }finally{ capReset(fgCap); btn.textContent="Send reset link →"; }
     });
   });
@@ -1061,6 +1066,7 @@ document.addEventListener("DOMContentLoaded", function(){
       }
     }catch(x){
       if(x && /^(rate_limited|send_failed)$/.test(x.code||"")){ showErr(er, x.message); return true; }
+      if(x && x.code==="send_unconfirmed"){ ok.textContent=x.message; ok.hidden=false; er.hidden=true; return true; }   // R203: may still arrive
     }
     return false;
   }
@@ -1075,6 +1081,7 @@ document.addEventListener("DOMContentLoaded", function(){
       if(x&&x.code==="account_exists"){ showSignInForInvite(email); return "done"; }
       if(x&&/^(email_mismatch|invalid_invite|weak_password|bad_email|reserved_domain)$/.test(x.code||"")){ showErr($("#err"),x.message); return "done"; }
       if(x&&x.code==="trial_paused"){ showErr($("#err"),x.message); return "done"; }   // R121 (0329): the studio's free trial ended - no login made
+      if(x&&x.code==="create_failed"){ showErr($("#err"),x.message); return "done"; }   // R203: Supabase Auth slow - plain words, nothing e-mailed
       throw x;
     }
     if(d&&d.ok){
@@ -1271,7 +1278,7 @@ document.addEventListener("DOMContentLoaded", function(){
     }catch(err){
       const c=(err&&err.code)||"";
       if(c==="account_exists"){ showSignInForInvite(inviteAddr); return; }
-      showErr($("#ilErr"), /^(rate_limited|send_failed|invalid_invite|unavailable|network)$/.test(c) ? err.message : BPUI.friendlyError(err,{action:"send the link"}));
+      showErr($("#ilErr"), /^(rate_limited|send_failed|send_unconfirmed|invalid_invite|unavailable|network)$/.test(c) ? err.message : BPUI.friendlyError(err,{action:"send the link"}));
       wait=c==="rate_limited";
     }finally{
       if(wait) cooldown(b,label,COOLDOWN); else if(!b._cd){ b.disabled=false; b.textContent=label; }
@@ -1473,7 +1480,7 @@ document.addEventListener("DOMContentLoaded", function(){
           : "Open the invitation e-mail from "+ivStudio+" in "+ivEmail+" (check spam or promotions too) and tap “Accept invitation” — it opens the Join page in Helm.";
         $("#ivOk").hidden=false; wait=true;
       }catch(err){
-        showErr($("#ivErr"), (err&&/^(rate_limited|send_failed|unavailable|network)$/.test(err.code||""))? err.message : BPUI.friendlyError(err,{action:"send the invitation"}));
+        showErr($("#ivErr"), (err&&/^(rate_limited|send_failed|send_unconfirmed|unavailable|network)$/.test(err.code||""))? err.message : BPUI.friendlyError(err,{action:"send the invitation"}));
         wait=!!(err&&err.code==="rate_limited");
       }finally{
         if(wait) cooldown(b,"Join "+ivStudio,COOLDOWN); else { b.disabled=false; b.textContent="Join "+ivStudio; }

@@ -2082,7 +2082,7 @@
     "hq.sales_enquiry.update": "answered a sales enquiry", "hq.suggestion.update": "marked a suggestion", "hq.reveal": "showed a masked detail", "hq.credit.grant": "added a studio credit",
     "hq.self.signout_others": "logged out of all other devices", "hq.self.signout_one": "signed out one of their devices",
     "hq.subscription.set": "changed a subscription by hand", "hq.subscription.activated": "activated a plan", "hq.studio_account.set": "saved a studio's business details",
-    "hq.studio.owner_recover": "recovered a studio owner", "hq.studio.flag_clear": "cleared a studio flag", "hq.billing.auto_past_due": "marked a studio past due (automatic)",
+    "hq.studio.owner_recover": "recovered a studio owner", "hq.studio.flag_clear": "cleared a studio flag", "hq.studio.test_mode": "switched a test studio on / off", "hq.billing.auto_past_due": "marked a studio past due (automatic)",
     "hq.billing.refresh": "refreshed past-due", "hq.billing.settings": "changed invoice settings", "hq.checkout.settings": "changed checkout settings",
     "hq.payment.provider_settled": "a payment settled online", "hq.payment.realised": "marked an export payment realised", "hq.plan.checkout": "changed a plan's website text",
     "hq.plan.price": "changed a plan price", "hq.plan.upsert": "saved a plan", "hq.tax_rule.upsert": "saved a tax rule", "hq.operator.add": "added someone to HQ", "hq.operator.remove": "removed someone from HQ",

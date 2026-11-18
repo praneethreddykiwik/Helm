@@ -950,7 +950,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=373"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=374"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
@@ -1774,6 +1774,8 @@
   let umMy2Step=null;   // null = not known yet, true / false
   async function umMyTwoStep(){
     if(umMy2Step===true) return true;
+    // R203 (0381): a Helm HQ test studio does not ask for two-step - no note there (the server still decides)
+    try{ if(BPStore.auth.mfa&&BPStore.auth.mfa.testStudio&&(await BPStore.auth.mfa.testStudio())===true){ umMy2Step=true; return true; } }catch(_){}
     try{ const f=BPStore.auth.mfa&&BPStore.auth.mfa.verifiedTotp?await BPStore.auth.mfa.verifiedTotp():null; umMy2Step=Array.isArray(f)?f.length>0:null; }catch(_){ umMy2Step=null; }
     return umMy2Step;
   }
