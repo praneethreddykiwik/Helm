@@ -175,10 +175,10 @@ await t('Settings: R202\'s Admin two-step note (shown before the click) stays qu
   assert.ok(f.indexOf('testStudio') < f.indexOf('verifiedTotp'), 'test studio checked first');
   assert.ok(!/adminRoleNote|_admin_note/.test(CTL), 'one note only (R202\'s)');
 });
-await t('asset pins: store-api v373 + auth-ui v63 everywhere, page-tours v54', () => {
+await t('asset pins: store-api v374 + auth-ui v63 everywhere, page-tours v54', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const s = read('public/' + f);
-    const m = s.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '373', f);
+    const m = s.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '374', f);
     const a = s.match(/auth-ui\.js\?v=(\d+)/); if (a) assert.equal(a[1], '63', f);
     const p = s.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '54', f);
   }

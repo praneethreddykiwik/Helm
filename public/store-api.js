@@ -1198,6 +1198,7 @@ window.HelmUrl = HelmUrl;
   /* r91: stop the bell poller + chat realtime the moment this tab loses its user (sign-out, expiry, idle limit) */
   function stopSignedInPollers() {
     try { if (typeof window !== "undefined" && typeof window.__bpBellTeardown === "function") { const t = window.__bpBellTeardown; window.__bpBellTeardown = null; t(); } } catch (e) {}
+    try { presence.stop(); } catch (e) {}   // R209: leave the presence channel + free the tab lock too
   }
   function looksLikeAuthError(e) {
     if (global.BPUI && global.BPUI.isAuthError) return global.BPUI.isAuthError(e);
@@ -3570,12 +3571,17 @@ window.HelmUrl = HelmUrl;
      and on the next "tab visible". */
   const RT_RETRY_MS = 15000;
   function rtSessionOk() { return !!currentUser && rtTokenExp > Date.now() + 10000; }
+  /* R209: a cap on open Realtime channels per tab (Supabase allows 100 per connection; a normal page needs 2-4: bell chat,
+     page channel, presence). A page that somehow asks for more gets no new channel instead of a runaway. */
+  const RT_MAX_CHANNELS = 8;
+  let rtOpen = 0;
   function rtLive(make, onBack) {
     let ch = null, stopped = false, idleT = null, retryT = null, tries = 0;
     const open = () => { if (stopped || ch) return; clearTimeout(retryT); retryT = null;
       if (!rtSessionOk()) { if (++tries <= 40) retryT = setTimeout(() => { retryT = null; if (!(typeof document !== "undefined" && document.hidden)) { open(); try { if (ch) onBack && onBack(); } catch (e) {} } }, RT_RETRY_MS); return; }
-      tries = 0; try { ch = make(); } catch (e) { ch = null; } };
-    const close = () => { if (!ch) return; try { if (supa && typeof supa.removeChannel === "function") supa.removeChannel(ch); else if (ch.unsubscribe) ch.unsubscribe(); } catch (e) {} ch = null; };
+      if (rtOpen >= RT_MAX_CHANNELS) return;
+      tries = 0; try { ch = make(); } catch (e) { ch = null; } if (ch) rtOpen++; };
+    const close = () => { if (!ch) return; rtOpen = Math.max(0, rtOpen - 1); try { if (supa && typeof supa.removeChannel === "function") supa.removeChannel(ch); else if (ch.unsubscribe) ch.unsubscribe(); } catch (e) {} ch = null; };
     const onVis = () => {
       if (typeof document === "undefined") return;
       if (document.hidden) { clearTimeout(idleT); idleT = setTimeout(close, RT_IDLE_MS); return; }
@@ -11433,32 +11439,147 @@ window.HelmUrl = HelmUrl;
       p_user_agent: (typeof navigator !== "undefined" && navigator.userAgent) || null }),
   };
   /* ---------------- R174b (0366): who is online in my studio ----------------
-     Live: Supabase Realtime presence on ONE private channel per tab, "presence:org:<studio id>" (0366 realtime policies let
-     a signed-in person join only their own studio's channel). Each tab tracks only { u: user id, s: "online" | "away" }.
+     Live: Supabase Realtime presence on ONE private channel, "presence:org:<studio id>" (0366 realtime policies let a
+     signed-in person join only their own studio's channel). Only { u: user id, s: "online" | "away" } is tracked.
      Away = tab hidden, or no mouse / key / touch / scroll for 5 minutes. After a minute hidden, or when the tab closes, the
-     channel closes (rtLive, like every channel) and I show as offline with my last active time.
+     channel closes and I show as offline with my last active time.
      Last active: presence_touch() at most every 3 minutes while active (the server also writes at most once per 2 minutes);
      presence_list() (own studio, people who chose to be shown) is read at most every 2 minutes, and only while a page shows
-     dots. "Show when I am online" off (presence_set_visible): this tab stops tracking and the server hides my last active time.
-     Pages mark a dot with <span data-presence-uid="<user id>"></span>; paint() styles it (CSSOM only, no HTML strings). */
+     dots. "Show when I am online" off (presence_set_visible): no tracking, and the server hides my last active time.
+     Pages mark a dot with <span data-presence-uid="<user id>"></span>; paint() styles it (CSSOM only, no HTML strings).
+     R209 (prod Realtime log 17 Nov 2026: "ClientPresenceRateLimitReached", 11 in 24 h with a few testers): Supabase lets
+     each client make 5 presence calls (track / untrack) per 30 s - the same on every plan - and then shuts that channel.
+     R174b tracked on every tab show / hide, on every return from idle and on every (re)join, so flipping between tabs went
+     over, and the quick library rejoin + track kept it there. Now: presenceTracker() (one call per 30 s at most, coalesced,
+     rejoin with backoff + jitter) and presenceLeader() (one tracking tab per person per browser). */
+  /* R209: the only code that talks presence to the server.
+     - track() only when the payload really changes, and never more than one call per GAP (30 s): a change inside the gap
+       waits, and only the latest one is sent (nothing at all if it went back to what the server already has)
+     - CHANNEL_ERROR / TIMED_OUT / CLOSED: remove the channel (stops the library's own quick rejoin) and join again after
+       an exponential backoff with jitter (2.5-5 s, 5-10 s, ... up to 2.5-5 min); the 30 s gap survives a rejoin
+     - not ready (no live access token, R193): no join, try again later on the same backoff
+     d = { now, setTimeout, clearTimeout, random, ready(), make(onState) -> channel, remove(ch), payload() -> {u,s} | null,
+           onLive(presenceState | null), minGapMs?, baseMs?, maxMs? } */
+  function presenceTracker(d) {
+    const GAP = d.minGapMs || 30000, BASE = d.baseMs || 5000, MAX = d.maxMs || 300000;
+    let ch = null, joined = false, stopped = true, sent = "-", lastCall = -Infinity, pendT = null, retryT = null, fails = 0;
+    const st = { calls: 0, joins: 0 };
+    function backoff() { const x = Math.min(MAX, BASE * Math.pow(2, fails)); fails++; return Math.round(x / 2 + d.random() * x / 2); }
+    function retry() { if (stopped || retryT) return; retryT = d.setTimeout(() => { retryT = null; join(); }, backoff()); }
+    function drop() { const c = ch; ch = null; joined = false; d.clearTimeout(pendT); pendT = null; if (c) { try { d.remove(c); } catch (e) {} } }
+    function sync() {
+      if (!ch || !joined) return;
+      let p = null; try { p = d.payload(); } catch (e) { p = null; }
+      const key = p ? JSON.stringify(p) : "-";
+      if (key === sent) return;
+      const wait = lastCall + GAP - d.now();
+      if (wait > 0) { if (!pendT) pendT = d.setTimeout(() => { pendT = null; sync(); }, wait); return; }
+      lastCall = d.now(); sent = key; st.calls++;
+      try { const r = p ? ch.track(p) : ch.untrack(); if (r && typeof r.catch === "function") r.catch(() => {}); } catch (e) {}
+    }
+    function join() {
+      if (stopped || ch || retryT) return;
+      let ok = false; try { ok = !!d.ready(); } catch (e) { ok = false; }
+      if (!ok) { retry(); return; }
+      let c = null;
+      try { c = d.make((state) => { if (c && c === ch) d.onLive(state); }); } catch (e) { c = null; }
+      if (!c) { retry(); return; }
+      ch = c; st.joins++;
+      try {
+        c.subscribe((status) => {
+          if (c !== ch) return;
+          if (status === "SUBSCRIBED") { joined = true; fails = 0; sent = "-"; sync(); }   // a new join: the server has nothing of mine
+          else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") { drop(); try { d.onLive(null); } catch (e) {} retry(); }
+        });
+      } catch (e) { drop(); retry(); }
+    }
+    return {
+      start() { if (!stopped) return; stopped = false; join(); },
+      stop() { stopped = true; d.clearTimeout(retryT); retryT = null; drop(); },   // leaving the channel ends my presence: no untrack call
+      want: sync,
+      live: () => !!(ch && joined),
+      stats: () => ({ calls: st.calls, joins: st.joins }),
+    };
+  }
+  /* R209: one tracking tab per person per browser. The tabs of one person share a Web Lock ("helm-presence:<studio>:<user>");
+     only the tab holding it joins the presence channel and tracks. A tab asks for the lock only while visible and lets go
+     after HIDE (60 s) hidden, so a visible tab takes over; a hidden tab never joins. The other tabs get the live dots and
+     send their own online / away over a BroadcastChannel of the same name. No Web Locks (old browsers): every visible tab
+     leads, as before (still throttled by presenceTracker).
+     d = { name, locks, hidden(), onLead(), onFollow(), setTimeout, clearTimeout, hideMs? } */
+  function presenceLeader(d) {
+    const HIDE = d.hideMs || 60000;
+    const solo = !d.locks || typeof d.locks.request !== "function";
+    let leading = false, want = false, release = null, abort = null, hideT = null, stopped = false;
+    function lead(on) { if (on === leading) return; leading = on; try { if (on) d.onLead(); else d.onFollow(); } catch (e) {} }
+    function ask() {
+      if (stopped || want) return; want = true;
+      if (solo) { lead(true); return; }
+      let ac = null; try { ac = typeof AbortController !== "undefined" ? new AbortController() : null; } catch (e) { ac = null; }
+      abort = ac;
+      try {
+        const p = d.locks.request(d.name, ac ? { signal: ac.signal } : {}, () => new Promise((res) => {
+          if (!want || stopped) { res(); return; }
+          release = res; lead(true);
+        }));
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch (e) { lead(true); }   // a broken lock API: lead alone, like an old browser
+    }
+    function quit() {
+      if (!want) return; want = false;
+      try { if (abort) abort.abort(); } catch (e) {} abort = null;
+      if (release) { const r = release; release = null; try { r(); } catch (e) {} }
+      lead(false);
+    }
+    return {
+      start() { stopped = false; if (!d.hidden()) ask(); },
+      visibility() {
+        d.clearTimeout(hideT); hideT = null;
+        if (d.hidden()) hideT = d.setTimeout(quit, HIDE); else ask();
+      },
+      stop() { stopped = true; d.clearTimeout(hideT); hideT = null; quit(); },
+      leading: () => leading,
+    };
+  }
   const presence = (() => {
-    const IDLE_MS = 5 * 60000, TOUCH_MS = 3 * 60000, LIST_MS = 2 * 60000, TICK_MS = 60000;
-    let ch = null, started = false, live = {}, seen = {}, hidden = new Set(), meShow = true, myState = "", lastAct = Date.now(),
-      lastTouch = 0, listAt = 0, listing = null, timer = null, liveOk = false, listOk = true;
-    const subs = new Set();
+    const IDLE_MS = 5 * 60000, TOUCH_MS = 3 * 60000, LIST_MS = 2 * 60000, TICK_MS = 60000, PEER_MS = 150000;
+    let started = false, stopped = false, live = {}, seen = {}, hidden = new Set(), meShow = true, lastAct = Date.now(),
+      lastTouch = 0, listAt = 0, listing = null, timer = null, listOk = true, tracker = null, leader = null, bc = null, posted = "";
+    const subs = new Set(), peers = {};   // peers: other tabs of mine -> { s, t } (only the leading tab reads them)
+    const TAB = Math.random().toString(36).slice(2, 10);
     const uid = () => (currentUser && currentUser.id) || "";
     const emit = () => { subs.forEach((fn) => { try { fn(); } catch (e) {} }); try { paint(); } catch (e) {} };
+    const leading = () => !!(leader && leader.leading());
+    const post = (m) => { try { if (bc) bc.postMessage(m); } catch (e) {} };
     function stateNow() { return (typeof document !== "undefined" && document.hidden) || Date.now() - lastAct > IDLE_MS ? "away" : "online"; }
-    async function track(force) {
-      if (!ch || !liveOk || !meShow) return;
-      const st = stateNow(); if (!force && st === myState) return; myState = st;
-      try { await ch.track({ u: uid(), s: st }); } catch (e) {}
+    // what the leading tab tracks for me: online when ANY of my tabs in this browser is online
+    function mineNow() {
+      if (stateNow() === "online") return "online";
+      const now = Date.now();
+      return Object.keys(peers).some((k) => peers[k] && peers[k].s === "online" && now - peers[k].t < PEER_MS) ? "online" : "away";
     }
-    function readLive() {
-      const out = {}; let ps = {}; try { ps = ch ? ch.presenceState() : {}; } catch (e) { ps = {}; }
-      Object.keys(ps || {}).forEach((k) => (ps[k] || []).forEach((m) => { const u = m && m.u; if (!u) return;
+    function payload() { return meShow && uid() ? { u: uid(), s: mineNow() } : null; }
+    // my state may have changed: the leader asks the tracker (throttled), another tab tells the leader (local, free)
+    function changed(beat) {
+      if (leading()) { if (tracker) tracker.want(); return; }
+      const s = stateNow(); if (!beat && s === posted) return; posted = s;
+      post({ k: "st", tab: TAB, s: s });
+    }
+    function setLive(state) {
+      const out = {};
+      Object.keys(state || {}).forEach((k) => (state[k] || []).forEach((m) => { const u = m && m.u; if (!u) return;
         if (out[u] !== "online") out[u] = m.s === "online" ? "online" : "away"; }));
-      live = out; emit();
+      live = out; emit(); post({ k: "live", live: out });
+    }
+    function onMsg(ev) {
+      const m = ev && ev.data; if (!m || typeof m !== "object") return;
+      if (m.k === "live" && !leading() && m.live && typeof m.live === "object") {
+        const out = {}; Object.keys(m.live).forEach((u) => { if (/^[0-9a-f-]{36}$/i.test(u)) out[u] = m.live[u] === "online" ? "online" : "away"; });
+        live = out; emit();
+      } else if (m.k === "st" && typeof m.tab === "string") { peers[m.tab] = { s: m.s === "online" ? "online" : "away", t: Date.now() }; if (leading() && tracker) tracker.want(); }
+      else if (m.k === "bye" && typeof m.tab === "string") { delete peers[m.tab]; if (leading() && tracker) tracker.want(); }
+      else if (m.k === "hello") { if (leading()) post({ k: "live", live: live }); else { posted = ""; changed(true); } }
+      else if (m.k === "show" && typeof m.on === "boolean") { meShow = m.on; if (leading() && tracker) tracker.want(); emit(); }
     }
     async function touch(force) {
       if (!meShow || !supa || !uid()) return;
@@ -11479,36 +11600,63 @@ window.HelmUrl = HelmUrl;
     }
     function hasDots() { try { return typeof document !== "undefined" && !!document.querySelector("[data-presence-uid]"); } catch (e) { return false; } }
     function tick() {
-      track(false); if (stateNow() === "online") touch(false);
+      changed(true);   // other tabs: a heartbeat to the leader (local); leader: a no-op unless my state changed
+      if (leading() && mineNow() === "online") touch(false);
       if (hasDots()) refreshList(false);
     }
-    async function startLive(orgId) {
-      if (!supa || typeof supa.channel !== "function") return;   // joined even when I am hidden: I still see others (I just do not track)
-      // rtLive (as every channel): closed after a minute in a hidden tab (I then show as offline), reopened when it is back
-      try {
-        rtLive(() => {
+    function makeTracker(orgId) {
+      return presenceTracker({
+        now: () => Date.now(), setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (t) => clearTimeout(t), random: Math.random,
+        ready: () => rtSessionOk() && rtOpen < RT_MAX_CHANNELS,
+        make: (onState) => {
           const c = supa.channel("presence:org:" + orgId, { config: { private: true, presence: { key: uid() } } });
-          c.on("presence", { event: "sync" }, readLive).on("presence", { event: "join" }, readLive).on("presence", { event: "leave" }, readLive);
-          c.subscribe((status) => {
-            if (status === "SUBSCRIBED") { liveOk = true; myState = ""; track(true); }
-            else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") { liveOk = false; live = {}; emit(); }   // no live dots: last active times still show
-          });
-          ch = c; return c;
-        }, () => { myState = ""; });
-      } catch (e) { ch = null; }
+          const read = () => { let ps = {}; try { ps = c.presenceState() || {}; } catch (e) { ps = {}; } onState(ps); };
+          c.on("presence", { event: "sync" }, read).on("presence", { event: "join" }, read).on("presence", { event: "leave" }, read);
+          rtOpen++; return c;
+        },
+        remove: (c) => { rtOpen = Math.max(0, rtOpen - 1); if (supa && typeof supa.removeChannel === "function") supa.removeChannel(c); else if (c.unsubscribe) c.unsubscribe(); },
+        payload,
+        onLive: (state) => setLive(state || {}),   // null = channel lost: no live dots (last active times still show)
+      });
     }
-    function bump() { const was = stateNow(); lastAct = Date.now(); if (was !== "online") { track(false); touch(false); } }
+    function bump() { const was = stateNow(); lastAct = Date.now(); if (was !== "online") { changed(false); if (leading()) touch(false); } }
+    function onVis() {
+      if (stopped) return;
+      if (!document.hidden) lastAct = Date.now();
+      try { if (leader) leader.visibility(); } catch (e) {}
+      changed(false);
+      if (!document.hidden) { if (leading()) touch(false); if (hasDots()) refreshList(false); }
+    }
+    function stop() {
+      if (!started || stopped) return; stopped = true;
+      try { if (leader) leader.stop(); } catch (e) {}
+      try { if (tracker) tracker.stop(); } catch (e) {}
+      post({ k: "bye", tab: TAB }); if (timer) clearInterval(timer); timer = null;
+      try { if (bc) bc.close(); } catch (e) {} bc = null;
+    }
     async function autoStart() {
       if (started || mode !== "supabase" || !supa || !uid()) return;
       if (typeof document === "undefined" || document.documentElement.getAttribute("data-shell") !== "b") return;   // studio app pages only
+      if (typeof supa.channel !== "function") return;
       let orgId = null; try { orgId = swrOrg(uid()) || (await orgIdStrict()); } catch (e) { orgId = null; }
       if (!orgId || !/^[0-9a-f-]{36}$/i.test(String(orgId))) return;
       started = true;
       await refreshList(true);
-      if (meShow) touch(true);
-      await startLive(orgId);
+      const name = "helm-presence:" + orgId + ":" + uid();
+      try { if (typeof BroadcastChannel === "function") { bc = new BroadcastChannel(name); bc.addEventListener("message", onMsg); } } catch (e) { bc = null; }   // same-origin by spec; onMsg checks every field
+      tracker = makeTracker(orgId);
+      const locks = bc && typeof navigator !== "undefined" && navigator.locks ? navigator.locks : null;   // no tab-to-tab channel: every tab leads
+      leader = presenceLeader({
+        name, locks, hidden: () => !!document.hidden, setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (t) => clearTimeout(t),
+        onLead: () => { if (stopped) return; tracker.start(); post({ k: "hello" }); if (meShow) touch(true); },
+        onFollow: () => { tracker.stop(); live = {}; emit(); post({ k: "hello" }); },
+      });
+      leader.start();
+      if (!leading()) post({ k: "hello" });
+      changed(true);
       ["mousemove", "keydown", "touchstart", "scroll", "click"].forEach((ev) => { try { global.addEventListener(ev, bump, { passive: true }); } catch (e) {} });
-      try { document.addEventListener("visibilitychange", () => { if (!document.hidden) lastAct = Date.now(); track(false); if (!document.hidden) { touch(false); if (hasDots()) refreshList(false); } }); } catch (e) {}
+      try { document.addEventListener("visibilitychange", onVis); } catch (e) {}
+      try { global.addEventListener("pagehide", (e) => { if (!(e && e.persisted)) stop(); }); } catch (e) {}   // a closed / left page frees its channel + lock at once
       timer = setInterval(tick, TICK_MS);
     }
     // { status: "online" | "away" | "offline" | "hidden", lastSeen, label }
@@ -11546,7 +11694,7 @@ window.HelmUrl = HelmUrl;
       });
     }
     return {
-      autoStart, status, paint, lastSeenLabel,
+      autoStart, stop, status, paint, lastSeenLabel,
       onChange(fn) { if (typeof fn === "function") subs.add(fn); return () => subs.delete(fn); },
       // load last active times now (pages that show dots call this once after rendering)
       refresh: () => refreshList(true),
@@ -11556,8 +11704,8 @@ window.HelmUrl = HelmUrl;
         if (mode !== "supabase" || !supa) return { ok: false };
         const { data, error } = await supa.rpc("presence_set_visible", { p_show: !!on });
         if (error) { if (rpcMissing(error)) return { ok: false, missing: true }; throw error; }
-        meShow = !!on;
-        if (ch && liveOk) { try { if (meShow) { myState = ""; await track(true); } else await ch.untrack(); } catch (e) {} }
+        meShow = !!on; post({ k: "show", on: meShow });
+        if (leading() && tracker) tracker.want();   // R209: track / untrack through the throttle like every change
         if (meShow) touch(true);
         emit(); return data || { ok: true };
       },
