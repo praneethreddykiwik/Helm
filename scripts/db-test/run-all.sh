@@ -464,6 +464,8 @@ run "r154e-suggestion-box-0351" "R154E-SUGGESTION-BOX-0351: ALL PASS \(50/50\)" 
 run "r154f-email-probe-0352" "R154F-EMAIL-PROBE-0352: ALL PASS \(21/21\)" psql -q -f tests/db/r154f-email-probe-0352.sql
 # r156 (0354): WhatsApp templates in the background - idempotent enqueue, claim within the hourly Meta budget (leased rows never twice), retry with a growing wait / 8 tries / clean Meta error (no link, no token) / rate-limit pause, sync (category change, older templates), ONE bell notice per round (admins only), Fix and resubmit (admin, own studio, rejected / failed only), row security (admins read own rows, nobody writes), health notice once per set, sender variant, cron kick without secrets; re-applies itself twice, rolled back
 run "r156-wa-template-jobs-0354" "R156-WA-TEMPLATE-JOBS-0354: ALL PASS \(48/48\)" psql -q -f tests/db/r156-wa-template-jobs-0354.sql
+# audit E (0394): menu packages write to the Audit log through the shared tg_audit trigger - add / price change / no-change save / other studio sees nothing / re-apply; rolled back
+run "e-menu-audit-0394" "E-MENU-AUDIT-0394: ALL PASS \(10/10\)" psql -q -f tests/db/e-menu-audit-0394.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
