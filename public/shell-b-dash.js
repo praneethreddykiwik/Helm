@@ -1190,7 +1190,7 @@
         var dpCap = function () { perCap.textContent = dpLabel(dpCur, false, false) + " · upcoming: " + dpLabel(dpCur, true, false).toLowerCase() + " · compared with the period before"; };
         DP_OPTS.forEach(function (o) {
           var b = el("button", "hd-per-b", DP_SHORT[o[0]]); b.type = "button"; b.setAttribute("data-per", o[0]);
-          b.setAttribute("aria-label", dpLabel(o[0], false, false)); b.setAttribute("aria-pressed", String(o[0] === dpCur));
+          b.setAttribute("aria-label", DP_SHORT[o[0]] + ", " + dpLabel(o[0], false, false));   /* F-audit: the name starts with the visible text (voice control) */ b.setAttribute("aria-pressed", String(o[0] === dpCur));
           b.addEventListener("click", function () { if (!dpDays(o[0]) || o[0] === dpCur) return; dpCur = o[0]; dpSave(dpUid, dpCur);
             seg.querySelectorAll(".hd-per-b").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-per") === dpCur)); });
             dpCap(); dpDraws.forEach(function (f) { f(dpCur); }); });
@@ -1451,14 +1451,14 @@
       var prev = el("button", "hd-cal-btn"); prev.type = "button"; prev.setAttribute("aria-label", "Previous month"); prev.appendChild(icon("M15 6l-6 6 6 6"));
       var next = el("button", "hd-cal-btn"); next.type = "button"; next.setAttribute("aria-label", "Next month"); next.appendChild(icon("M9 6l6 6-6 6"));
       navH.appendChild(prev); navH.appendChild(title); navH.appendChild(next);
-      var gridC = el("div", "hd-cal-grid"); gridC.setAttribute("role", "grid");
+      var gridC = el("div", "hd-cal-grid"); gridC.setAttribute("role", "group"); gridC.setAttribute("aria-label", "Days of the month");   /* F-audit: a plain group of day buttons (role=grid needed rows; axe critical) */
       calBox.appendChild(navH); calBox.appendChild(gridC);
       var byDay = {}; events.forEach(function (e) { (byDay[e.date] = byDay[e.date] || []).push(e); });
       var chipM = pill("info", ""); chipM.classList.add("hd-count-pill"); tools(cCal).insertBefore(chipM, tools(cCal).firstChild);
       function stKey(e) { var t = e.q ? qTone(e.q) : "quote"; return t === "conf" ? "conf" : "quote"; }   /* qts-1018: booked = client approved */
       function showDay(ds) {
         sel = ds; clear(agenda);
-        Array.prototype.forEach.call(gridC.querySelectorAll(".hd-cd"), function (x) { var on = x.getAttribute("data-ds") === ds; x.classList.toggle("hd-sel", on); x.setAttribute("aria-selected", String(on)); });
+        Array.prototype.forEach.call(gridC.querySelectorAll(".hd-cd"), function (x) { var on = x.getAttribute("data-ds") === ds; x.classList.toggle("hd-sel", on); x.setAttribute("aria-pressed", String(on)); });
         var d = dOf(ds), hd = el("div", "hd-ag-head");
         hd.appendChild(el("small", "hd-eyebrow", ds === today ? "Today" : dfmt(d, { weekday: "long" })));
         hd.appendChild(el("b", null, dfmt(d, { day: "numeric", month: "long" })));
@@ -1485,7 +1485,7 @@
           var dt = new Date(view.getFullYear(), view.getMonth(), dd), ds = iso(dt), evs = byDay[ds] || [];
           var bt = el("button", "hd-cd" + (ds === today ? " hd-cd-today" : "") + (ds < today ? " hd-cd-past" : "") + (evs.length ? " hd-cd-has" : ""));
           if (evs.length) bt.title = evs.slice(0, 4).map(function (e) { return e.name; }).join("\n") + (evs.length > 4 ? "\n+" + (evs.length - 4) + " more" : "");
-          bt.type = "button"; bt.setAttribute("data-ds", ds); bt.setAttribute("role", "gridcell");
+          bt.type = "button"; bt.setAttribute("data-ds", ds);
           if (ds === today) bt.setAttribute("aria-current", "date");
           bt.setAttribute("aria-label", fmtDay(ds) + ": " + evs.length + (evs.length === 1 ? " event" : " events"));
           bt.appendChild(el("span", "hd-cd-n", dd));
@@ -1493,7 +1493,7 @@
           (function (x) { bt.addEventListener("click", function () { showDay(x); }); })(ds);
           gridC.appendChild(bt);
         }
-        var c = gridC.querySelector('[data-ds="' + sel + '"]'); if (c) { c.classList.add("hd-sel"); c.setAttribute("aria-selected", "true"); }
+        var c = gridC.querySelector('[data-ds="' + sel + '"]'); if (c) { c.classList.add("hd-sel"); c.setAttribute("aria-pressed", "true"); }
       }
       function goM(delta) {                                                   // panel follows the month: today, else its first event day, else the 1st
         view = new Date(view.getFullYear(), view.getMonth() + delta, 1); var pre = iso(view).slice(0, 7);

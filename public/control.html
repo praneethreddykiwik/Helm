@@ -47,7 +47,7 @@
   .msg.ok{background:#e7f6ee;color:#0f7a43;border:1px solid #b6e3ca} .msg.err{background:#fdecec;color:#b42318;border:1px solid #f5c6c6} .msg.info{background:#eef4ff;color:#1d4ed8;border:1px solid #c7d7fe}
   .actions{display:flex;justify-content:flex-end;margin-top:14px}
   /* r23 (0257): studio name + link are fixed at creation - shown read-only with a lock */
-  .lock-ico{vertical-align:-1px;margin-left:4px;color:var(--ink-3)} .lock-note{margin:6px 0 0;font-size:12.5px;color:var(--ink-3)}
+  .lock-ico{vertical-align:-1px;margin-left:4px;color:var(--ink-3)} .lock-note{margin:6px 0 0;font-size:12.5px;color:var(--ink-3)} .loc-link{background:none;border:0;padding:4px 0;margin-top:4px;color:var(--accent);text-decoration:underline;font:inherit;font-size:12.5px;cursor:pointer;min-height:24px}
   #o_name[readonly]{background:var(--panel-2,#f6f6f4);color:var(--ink-2);cursor:default}
   .slug-url{margin:0 0 6px;font-size:14px;word-break:break-all} .slug-url b{font-family:var(--mono,"IBM Plex Mono",monospace);font-weight:600;color:var(--ink)}
   .rm{border:0;background:transparent;color:var(--ink-3);cursor:pointer;font-size:13px;padding:4px 8px;border-radius:6px;min-height:32px;min-width:32px} .rm:hover{color:#e5484d;background:#fdecec}
@@ -279,7 +279,7 @@
 <link rel="stylesheet" href="control-split.css?v=16">
 <link rel="stylesheet" href="roles-matrix.css?v=2"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=94" id="shellProto"></script>
+<script src="/shell-proto.js?v=95" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -330,7 +330,7 @@
         <div class="fld"><label for="o_name">Studio / business name <svg class="lock-ico" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false"><path fill="currentColor" d="M5 7V5a3 3 0 0 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v5A1.5 1.5 0 0 1 11.5 15h-7A1.5 1.5 0 0 1 3 13.5v-5A1.5 1.5 0 0 1 4.5 7H5zm1.5 0h3V5a1.5 1.5 0 0 0-3 0v2z"/></svg></label><input id="o_name" maxlength="120" autocomplete="organization" placeholder="e.g. Aurora Events" readonly aria-readonly="true" aria-describedby="o_name_lock"><p class="lock-note" id="o_name_lock">Set when the studio was created. Contact Helm support to change it.</p></div>
         <div class="fld"><label for="o_email">Business email</label><input id="o_email" type="email" maxlength="254" autocomplete="email" spellcheck="false" placeholder="hello@studio.com" aria-describedby="o_email_hint"><p class="lock-note" id="o_email_hint">Client replies go here. If empty, they go to the studio owner's email.</p></div>
         <div class="fld"><label for="o_phone">Business phone *</label><input id="o_phone" type="tel" autocomplete="tel" maxlength="24" placeholder="Enter business phone" data-ph-own="1"></div>
-        <div class="fld"><label for="o_location">Location (city, country) *</label><input id="o_location" placeholder="e.g. Hyderabad, India"></div>
+        <div class="fld" id="o_location_fld"><label for="o_location">Location (city, country) *</label><input id="o_location" placeholder="e.g. Hyderabad, India"></div>
         <div class="fld"><label for="o_logo">Logo URL</label><input id="o_logo" type="url" maxlength="600" spellcheck="false" placeholder="https://…/logo.png"></div>
         <div class="fld"><label for="o_accent">Accent colour</label><input id="o_accent" maxlength="12" spellcheck="false" placeholder="#047857"></div>
         <div class="fld"><label for="o_currency">Currency</label><input id="o_currency" maxlength="8" autocapitalize="characters" spellcheck="false" placeholder="INR"></div>
@@ -343,7 +343,7 @@
         <div class="fld"><label for="o_legal">Legal / business name *</label><input id="o_legal" maxlength="120" autocomplete="organization"></div>
         <div class="fld"><label for="o_line1">Billing address *</label><input id="o_line1" maxlength="160" autocomplete="address-line1"></div>
         <div class="fld"><label for="o_line2">Address line 2</label><input id="o_line2" maxlength="160" autocomplete="address-line2"></div>
-        <div class="fld"><label for="o_city">City *</label><input id="o_city" maxlength="60" autocomplete="address-level2"></div>
+        <div class="fld"><label for="o_city">City *</label><input id="o_city" maxlength="60" autocomplete="address-level2"><button type="button" class="loc-link" id="o_locown" aria-controls="o_location_fld" aria-expanded="false" hidden>Different city shown to clients?</button></div>
         <div class="fld"><label for="o_state" id="o_state_lbl">State *</label><select id="o_state_sel" autocomplete="address-level1" hidden></select><input id="o_state" maxlength="60" autocomplete="address-level1" list="o_state_list"><datalist id="o_state_list"></datalist></div>
         <div class="fld"><label for="o_pin" id="o_pin_lbl">PIN code *</label><input id="o_pin" maxlength="6" inputmode="numeric" pattern="[1-9][0-9]{5}" autocomplete="postal-code" placeholder="6-digit PIN"></div>
       </div>
@@ -966,7 +966,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=379"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=380"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
@@ -975,8 +975,8 @@
 <script src="page-tours.js?v=57"></script>
 <script src="tour.js?v=72"></script>
 <script src="pkg-review.js?v=10"></script>
-<script src="onboarding-core.js?v=9"></script>
-<script src="studio-billing-form.js?v=3"></script>
+<script src="onboarding-core.js?v=10"></script>
+<script src="studio-billing-form.js?v=4"></script>
 <script src="comms-settings.js?v=7"></script><script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=7"></script><script src="signin-notice-ui.js?v=1"></script>
 <script src="delivery-tracker.js?v=3"></script>
 <script src="delivery-settings.js?v=3"></script>
@@ -1543,15 +1543,26 @@
     if(!OB) return; const v=OB.billingFromOrg(o);
     ["legal_name","line1","line2","city","state","pin"].forEach(k=>{ $("#"+BILL_IDS[k]).value=v[k]||""; });
     syncStateSelect();
+    paintLocationLink(o.location, v.city);
     showBillPrompt(OB.billingMissing(o));
   }
+  // F-audit: "Location" follows City (auto-filled, field tucked away) unless the studio saved a
+  // different city for clients - that saved value is shown and kept as it is.
+  function paintLocationLink(saved, city){
+    const fld=$("#o_location_fld"), loc=$("#o_location"), lnk=$("#o_locown"); if(!fld||!loc||!lnk||!OB||!OB.locationLinked) return;
+    const linked=OB.locationLinked(saved, city);
+    if(linked) loc.value=city||"";
+    fld.hidden=linked; lnk.hidden=!linked; lnk.setAttribute("aria-expanded", linked?"false":"true");
+  }
+  if($("#o_locown")) $("#o_locown").addEventListener("click",()=>{ const fld=$("#o_location_fld"), lnk=$("#o_locown"); fld.hidden=false; lnk.hidden=true; lnk.setAttribute("aria-expanded","true"); $("#o_location").focus(); });
+  ["input","change"].forEach(ev=>$("#o_city").addEventListener(ev,()=>{ const fld=$("#o_location_fld"); if(fld && fld.hidden){ $("#o_location").value=$("#o_city").value; } }));
   function showBillPrompt(miss){
     const bp=$("#billPrompt"); bp.hidden=!miss.length;
     bp.textContent=BF?BF.promptText(miss):(miss.length?("Please complete your studio's billing details so they appear on quotations and invoices. Missing: "+miss.join(", ")+"."):"");
   }
   function billVals(){ const vals={}; Object.keys(BILL_IDS).forEach(k=>{ vals[k]=$("#"+BILL_IDS[k]).value; }); return vals; }
   // the visible control for a billing key (India: the state dropdown)
-  function billEl(k){ if(k==="state"){ const s=$("#o_state_sel"); if(s && !s.hidden) return s; } return $("#"+BILL_IDS[k]); }
+  function billEl(k){ if(k==="location"){ const f=$("#o_location_fld"); if(f && f.hidden) return $("#o_city"); } if(k==="state"){ const s=$("#o_state_sel"); if(s && !s.hidden) return s; } return $("#"+BILL_IDS[k]); }
   // the "Missing: ..." list follows what is on screen (only while it is showing)
   let bpT=0;
   function billPromptLive(){ if(!OB||!BF) return;
