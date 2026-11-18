@@ -443,6 +443,15 @@
     // Perf (Oct 2026): "Your quotes" loads the latest page only (light columns, no
     // pricing JSON) with Load more / infinite scroll; the role-board KPIs come from
     // HEAD count queries and the next-code hint from just today's codes.
+    // R215: the personal feeds below the list (my_pending, my_tasks and, on a manager / designer board, the design
+    // queue) never needed the list's answer - ask for them now, together with it, instead of after it. They are the
+    // same shared one-call-per-load reads (getPending / getMyTasks / getQueue); the cards still fill in at the same
+    // place below with the same error handling.
+    const hasSec = (a, b) => !!($(a) && $(b));
+    if (hasSec("#myworkSection", "#mywork")) feedP(getPending);
+    if (hasSec("#mytasksSection", "#mytasks")) feedP(getMyTasks);
+    if (hasSec("#roleboard", "#rbcards")) BPStore.auth.role().then((r) => { if (!r) return;
+      feedP(getPending); feedP(getMyTasks); if (["manager", "designer"].includes(r)) feedP(getQueue); }).catch(() => {});
     if (!pager) pager = BPUI.pager({ after: $("#elist"), what: "quotes",
       fetch: (offset) => BPStore.quotes.page({ offset, sort: "updated" }),
       render: (rows, info) => { summaries = info.all; renderList(); refreshInvoiceTotals(); } });
@@ -465,6 +474,7 @@
     // r20 (0238): free trial "1 of 2 new quotes used" next to the button; off at 2 of 2 (paid studio: nothing)
     if (canCreate && window.BPUI && BPUI.capGate) BPUI.capGate([$("#createBtn")], "quotes", "new quotes", CAP_OPTS).catch(() => {});
     if (listRes.status === "rejected") {
+      clearFeed();   // R215: the feeds asked early are not shown now - Retry asks for them again, as before
       const err = listRes.reason;
       const box = BPUI.loadError($("#elist"), err, load, { what: "your quotes" });
       if (box) box.style.gridColumn = "1/-1";
@@ -581,6 +591,8 @@
   const getPending = () => (_feed.pending || (_feed.pending = BPStore.pending()));
   const getMyTasks = () => (_feed.tasks   || (_feed.tasks   = BPStore.myTasks()));
   const getQueue   = () => (_feed.queue   || (_feed.queue   = BPStore.design.queue()));
+  // R215: start one of the feeds above without waiting for it (a call that throws at once is reported like a failed answer)
+  const feedP = (get) => { let p; try { p = Promise.resolve(get()); } catch (e) { p = Promise.reject(e); } p.catch(() => {}); return p; };
   // A feed this role simply can't use (no access / not installed) is "not available",
   // not a load failure. Anything else (network, server) is a real error to surface.
   const softFail = (e) => BPUI.isPermissionError(e) || BPUI.isMissingFunction(e) || BPUI.isMissingTable(e) || BPUI.isAuthError(e);
@@ -658,10 +670,12 @@
     let pend = { upcoming: [], unread: 0 }, tasks = { counts:{} }, dq = [], hardErr = null;
     let pendOk = true, tasksOk = true, dqOk = true;
     // r47: my_pending is best-effort - a failure shows "—" on the Upcoming card, never an error over the whole board
-    try { pend = (await getPending()) || pend; } catch(e){ pendOk = false; }
-    try { tasks = (await getMyTasks()) || tasks; } catch(e){ tasksOk = false; if (!softFail(e)) hardErr = hardErr || e; }
+    // R215: the three feeds are asked together (each is one shared call per load), then read in the same order as before
+    const pendP = feedP(getPending), tasksP = feedP(getMyTasks), dqP = ["manager","designer"].includes(role) ? feedP(getQueue) : null;
+    try { pend = (await pendP) || pend; } catch(e){ pendOk = false; }
+    try { tasks = (await tasksP) || tasks; } catch(e){ tasksOk = false; if (!softFail(e)) hardErr = hardErr || e; }
     // only manager + designer boards actually use the design queue — don't fetch it otherwise
-    if (["manager","designer"].includes(role)) { try { dq = (await getQueue()) || []; } catch(e){ dqOk = false; if (!softFail(e)) hardErr = hardErr || e; } }
+    if (dqP) { try { dq = (await dqP) || []; } catch(e){ dqOk = false; if (!softFail(e)) hardErr = hardErr || e; } }
     if (hardErr) {
       $("#rbTitle").textContent = "Your workspace"; $("#rbSub").textContent = "";
       BPUI.loadError(host, hardErr, () => { clearFeed(); return renderRoleBoard(); }, { what: "your workspace" });
