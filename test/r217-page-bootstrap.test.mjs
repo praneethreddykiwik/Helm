@@ -296,7 +296,14 @@ t('bootNeeded / parse / access are pure', () => {
   assert.equal(B.needed('u-1', memStore()), true);
   const fresh = memStore({ bp_sess_org: entry('u-1', ORG, 1000), bp_pw_ok: 'u-1', bp_sess_profile: entry('u-1', { complete: true }, 9 * 60000),
     bp_sess_checkout: entry('u-1', { required: false }, 9 * 60000), bp_sess_role: entry('u-1', 'sales', 1000), bp_sess_access: entry('u-1', { role: 'sales', map: {} }, 1000) });
+  // R219: the trial / demo / pricing / rate-card answers count too (fresh = young enough that swr would not re-ask them)
+  const swrE = (age, oid = ORG) => JSON.stringify({ ts: Date.now() - age, uid: 'u-1', oid, val: {} });
+  for (const n of ['trialorg', 'trial', 'demo', 'pricing', 'rates']) fresh.setItem('bp_swr:' + n, swrE(1000));
   assert.equal(B.needed('u-1', fresh), false);
+  fresh.setItem('bp_swr:demo', swrE(25000)); assert.equal(B.needed('u-1', fresh), true, 'an answer swr would re-check -> one page_bootstrap');
+  fresh.setItem('bp_swr:demo', swrE(1000, 'org-OTHER')); assert.equal(B.needed('u-1', fresh), true, "another studio's answer never counts");
+  fresh.removeItem('bp_swr:demo'); assert.equal(B.needed('u-1', fresh), true, 'a missing answer -> one page_bootstrap');
+  fresh.setItem('bp_swr:demo', swrE(1000));
   assert.equal(B.needed('u-2', fresh), true, "another user's caches never count");
   assert.equal(B.parse(null), null); assert.equal(B.parse({ parts: {} }), null); assert.equal(B.parse({ v: 1, parts: [] }), null);
   assert.deepEqual(JSON.parse(JSON.stringify(B.parse({ v: 1, parts: { a: 1 } }))), { a: 1 });
@@ -349,7 +356,7 @@ t('store-api.js: page_bootstrap counted as a read (never drops the shared caches
     'supa.from("profiles").select("role")', 'supa.from("role_access").select("area,can_view,can_edit")', 'rpc("my_trial_org", {})', 'rpc("my_trial_status")',
     'rpc("my_demo_status")', 'rpc("my_subscription")', 'supa.rpc("my_test_studio")', 'rpc("get_pricing_config")', 'rpc("get_item_rate_cards")']) assert.ok(SRC.includes(c), 'old call kept: ' + c);
 });
-t('asset pin: every page that loads store-api.js asks for v=379', () => {
+t('asset pin: every page that loads store-api.js asks for v=382', () => {
   const pages = readdirSync(new URL('public/', ROOT)).filter((f) => f.endsWith('.html'));
   let n = 0;
   for (const f of pages) { const h = read('public/' + f); const m = h.match(/store-api\.js\?v=(\d+)/g); if (!m) continue; n++; for (const x of m) assert.equal(x, 'store-api.js?v=382', f); }

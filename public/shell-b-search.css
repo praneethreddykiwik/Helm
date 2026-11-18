@@ -1,8 +1,8 @@
-/* shell-b monochrome skin + mobile sheet for the Cmd/Ctrl+K palette (studio-search.js) */
+/* shell-b skin + mobile sheet for the Cmd/Ctrl+K palette (studio-search.js). r223: the palette's own CSS
+   carries the look (black selected row, line icons, keycaps); here only the shell colours + the phone sheet. */
 html[data-shell="b"] .hss-dlg{background:var(--hb-bg);color:var(--hb-ink);border-color:var(--hb-line)}
-html[data-shell="b"] .hss-dlg mark{background:transparent;color:var(--hb-ink);font-weight:700;text-decoration:underline}
-@media (max-width:819px){
-  html[data-shell="b"] .hss-ov{padding:0;align-items:stretch}
-  html[data-shell="b"] .hss-dlg{width:100%;max-height:none;height:100%;border-radius:0;border:0}
-  html[data-shell="b"] .hss-in{font-size:16px}
+@media (max-width:640px){
+  html[data-shell="b"] .hss-ov,html[data-shell="b"] .hss-ghost{padding:0;align-items:stretch}
+  html[data-shell="b"] .hss-dlg{width:100%;max-height:none;height:100%;height:100dvh;border-radius:0;border:0}
+  html[data-shell="b"] .hss-dlg input.hss-in{font-size:16px}
 }

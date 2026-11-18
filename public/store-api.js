@@ -294,7 +294,7 @@ window.HelmUrl = HelmUrl;
     // la-fetch (audit 25): + a per-page memo, so the trial strip, trial-lock and trial-demo share ONE answer even
     // before the per-tab swr entry can be written (it needs the studio id cached first)
     // anon-42501: signed out = "not a trial" without asking (my_trial_org is granted to authenticated only)
-    const p = trialSignedIn().then((ok) => (ok ? memoRead("trialorg", 15000, () => swr("trialorg", () => rpc("my_trial_org", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }))) : null));
+    const p = trialSignedIn().then((ok) => (ok ? afterBoot(() => memoRead("trialorg", 15000, () => swr("trialorg", () => rpc("my_trial_org", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; })))) : null));
     trialOrgInflight = p;
     const done = () => { if (trialOrgInflight === p) trialOrgInflight = null; };
     p.then(done, done);
@@ -310,7 +310,7 @@ window.HelmUrl = HelmUrl;
     if (!trialSubInflight) {
       // B29: the same per-page memo as subscription.trial(), so the role gate, the trial banner, trial-lock and the
       // demo card share ONE my_trial_status call per page (it went out 4 times on a cold load)
-      const p = Promise.resolve(memoRead("trial", 15000, () => swr("trial", () => rpc("my_trial_status").catch((e) => { if (rpcMissing(e)) return null; throw e; }))))
+      const p = Promise.resolve(afterBoot(() => memoRead("trial", 15000, () => swr("trial", () => rpc("my_trial_status").catch((e) => { if (rpcMissing(e)) return null; throw e; })))))
         .then((t) => !!(t && t.status === "trial"), () => false);
       trialSubInflight = p;
       p.then(() => { setTimeout(() => { if (trialSubInflight === p) trialSubInflight = null; }, 30000); });
@@ -332,7 +332,7 @@ window.HelmUrl = HelmUrl;
     return p;
   }
   // writes that cannot touch the cached reads above (everything else drops the cache)
-  const SWR_KEEP_RPCS = /\/rest\/v1\/rpc\/(my_(?!start_trial|studio_account_update)|get_|is_|current_org_id|recent_|chat_|bell|my_notification|mfa_|resolve_|list_|pkg_selection_list|password_change_required|audit_actor_names|dashboard_|insights_|studio_search|studio_avatars|mark_|telemetry|privacy_pin_(?:check|status)|link_expiry_shelf_tick)/;
+  const SWR_KEEP_RPCS = /\/rest\/v1\/rpc\/(my_(?!start_trial|studio_account_update)|get_|is_|current_org_id|recent_|chat_|bell|my_notification|mfa_|resolve_|list_|pkg_selection_list|password_change_required|audit_actor_names|dashboard_|insights_|studio_search|studio_avatars|mark_|telemetry|privacy_pin_(?:check|status)|link_expiry_shelf_tick|link_views_attention)/;
   const CHECKOUT_SESS_KEY = "bp_sess_checkout"; // per tab: my_checkout_status() answer (never a "must check out" one)
   const PROFILE_SESS_KEY = "bp_sess_profile";   // per tab: my_profile_status() answer (never a "must complete" one)
   const NUDGE_KEY = "helm_profile_nudge";       // localStorage {uid, until}: "complete your profile" banner snoozed
@@ -974,6 +974,7 @@ window.HelmUrl = HelmUrl;
   // is never mistaken for "no studio"); a found id is cached per tab for SESS_TTL.
   async function orgIdStrict() {
     if (!supa || !currentUser) return null;
+    if (bootReqP) { try { await bootReqP; } catch (e) {} if (!supa || !currentUser) return null; }   // R219: its answer refreshes bp_sess_org
     const uid = currentUser.id;
     const hit = sessEntry("bp_sess_org", uid);
     if (hit && hit.val) {
@@ -1169,6 +1170,20 @@ window.HelmUrl = HelmUrl;
   const BOOT_RPC = "page_bootstrap", BOOT_TIMEOUT_MS = 4000, BOOT_MISSING_KEY = "bp_boot_missing", BOOT_MISSING_TTL = 10 * 60000;
   const BOOT_PEEK_TTL = 15000;   // my_subscription has no cache of its own: the startup answer serves this page for 15 s
   let bootAns = null;            // { uid, parts } - this page load's page_bootstrap() answer
+  /* R219 (live dashboard 18 Nov 2026: page_bootstrap answered, yet role / trial / test-studio / plan were still asked on
+     their own): the shell scripts (rail, search, trial strip, banners) start asking BPStore while init() is still waiting
+     for page_bootstrap - each found an empty cache and sent its own request. While the startup answers are on their way,
+     these helpers now wait for them (never longer than BOOT_TIMEOUT_MS + 1 s), then read the same caches as before. */
+  let bootDoneP = null, bootDoneRes = null;
+  let bootReqP = null;           // the page_bootstrap() request itself (the studio id needs only this, not the sign-in gate)
+  function bootStart() { bootDoneP = new Promise((r) => { bootDoneRes = r; }); }
+  function bootEnd() { const r = bootDoneRes; bootDoneP = null; bootDoneRes = null; if (r) r(); }
+  function bootWait() {
+    if (!bootDoneP) return null;
+    let t = null;
+    return Promise.race([bootDoneP, new Promise((r) => { t = setTimeout(r, BOOT_TIMEOUT_MS + 1000); })]).then(() => { if (t) clearTimeout(t); });
+  }
+  function afterBoot(fn) { const w = bootWait(); return w ? w.then(fn) : fn(); }
   function bootHas(name) { return !!(bootAns && currentUser && bootAns.uid === currentUser.id && Object.prototype.hasOwnProperty.call(bootAns.parts, name)); }
   function bootVal(name) { return bootHas(name) ? bootAns.parts[name] : undefined; }
   // pure (exported for tests): every startup answer is already fresh in this tab -> false (ask nothing, as before)
@@ -1179,8 +1194,14 @@ window.HelmUrl = HelmUrl;
     const fresh = (k) => { const e = ent(k); return !!(e && e.val && e.fresh); };
     const any = (k) => { const e = ent(k); return !!(e && e.val && typeof e.val === "object"); };   // fetchProfile / CheckoutStatus use any age
     let pw = null; try { pw = ss.getItem(PW_OK_KEY); } catch (e) {}
-    return !(fresh("bp_sess_org") && any(PROFILE_SESS_KEY) && any(CHECKOUT_SESS_KEY) && pw === uid && fresh("bp_sess_role") && fresh("bp_sess_access"));
+    if (!(fresh("bp_sess_org") && any(PROFILE_SESS_KEY) && any(CHECKOUT_SESS_KEY) && pw === uid && fresh("bp_sess_role") && fresh("bp_sess_access"))) return true;
+    // R219: the gate answers are fresh, but the trial strip / demo card / pricing / rate cards would each be asked again
+    // (missing, or old enough for swr to re-check them in the background): one page_bootstrap answers all of them
+    let oid = null; try { const o = JSON.parse(ss.getItem("bp_sess_org")); oid = o && o.val; } catch (e) {}
+    return BOOT_SWR.some((n) => { try { const o = JSON.parse(ss.getItem(SWR_PREFIX + n) || "null"); const age = o ? Date.now() - o.ts : -1;
+      return !(o && o.uid === uid && o.oid === oid && age >= 0 && age <= SWR_REVAL); } catch (e) { return true; } });
   }
+  const BOOT_SWR = ["trialorg", "trial", "demo", "pricing", "rates"];
   // pure (exported for tests): a page_bootstrap() answer -> its parts, or null when it can't be used
   function bootParse(data) {
     if (!data || typeof data !== "object" || data.v !== 1) return null;
@@ -1221,6 +1242,7 @@ window.HelmUrl = HelmUrl;
         if (had && had.val && had.val !== parts.current_org_id) sessClear();
       }
       bootAns = { uid: uid, parts: parts };
+      if (bootHas("current_org_id")) bootOrg(uid);   // R219: the studio id is fresh for anyone who asks next (same rule as init)
       bootFillShared(uid);
       return bootAns;
     } catch (e) { bootAns = null; return null; }
@@ -1460,7 +1482,24 @@ window.HelmUrl = HelmUrl;
   // la-fetch (audit 25): the list below also names the STABLE (read-only) RPCs every page asks while it
   // boots (trial / upgrade status, seat use, prefs, shelf list, mentions, PIN status). Before, each one was
   // treated as a write and dropped every shared read of the page, so the page's own reads ran again.
-  const READ_RPCS = /\/rest\/v1\/rpc\/(page_bootstrap|current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_test_studio|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
+  const READ_RPCS = /\/rest\/v1\/rpc\/(page_bootstrap|current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_test_studio|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes|audit_actor_names|crew_unavailable_conflicts|dashboard_money_for|event_group_index|event_reminder_settings_get|link_views_summary|live_events_today|presence_list|quote_validity_list|recent_list)(\?|$)/;
+  /* R219: the last ten names above are STABLE (read-only) functions the dashboard / quotes / calendar / event pages ask while
+     they boot. They were missing here, so each one counted as a WRITE: it dropped every shared read, the per-page memo and the
+     per-tab trial / pricing caches, and the page's widgets read quotes, chat, trial status etc. a second and third time.
+     NARROW_WRITES: real writes whose effect is known and small - they still go out every time (never shared), but drop
+     only the shared reads (reads) and per-page memo entries (memo) that read what they change; the rest stays:
+       presence_touch        = the who-is-online heartbeat (member_presence only -> presence_list)
+       link_views_attention  = the dashboard's "client opened the link" list; its 5-minute sweep may open / close follow-ups
+                               and add a bell notification -> the bell / pending / inbox / link-view reads */
+  const NARROW_WRITES = {
+    presence_touch: { reads: /\/rest\/v1\/rpc\/presence_list(\?|$)/, memo: [] },
+    link_views_attention: { reads: /\/rest\/v1\/(rpc\/(bell_feed|my_pending|inbox_feed|link_views_[a-z_]+)(\?|$)|notifications\?|client_view_followups\?)/, memo: ["bell.feed:", "ops.pending"] },
+  };
+  function narrowWrite(u) { const m = /\/rest\/v1\/rpc\/([a-z_]+)(\?|$)/.exec(u); return m && Object.prototype.hasOwnProperty.call(NARROW_WRITES, m[1]) ? NARROW_WRITES[m[1]] : null; }
+  function narrowDrop(w) {
+    for (const k of [...readCache.keys()]) if (w.reads.test(k.split("\u0001")[1] || "")) readCache.delete(k);
+    if (_memo && w.memo.length) for (const k of [..._memo.keys()]) if (w.memo.some((p) => k.indexOf(p) === 0)) _memo.delete(k);
+  }
   const readCache = new Map();
   function hdrOf(init, input, name) {
     try {
@@ -1518,6 +1557,12 @@ window.HelmUrl = HelmUrl;
     if (!(init && init.cache)) init = Object.assign({}, init || {}, { cache: "no-store" });
     if (init.signal) return global.fetch(input, init);
     const isRead = method === "GET" || method === "HEAD" || (method === "POST" && READ_RPCS.test(u) && typeof (init && init.body || "") === "string");
+    const narrow = !isRead && method === "POST" ? narrowWrite(u) : null;
+    if (narrow) {   // R219
+      narrowDrop(narrow);
+      const wp = timedFetch(input, init); const after = () => narrowDrop(narrow);
+      wp.then(after, after); return wp;
+    }
     if (!isRead) {
       readCache.clear(); memoClear(); if (!SWR_KEEP_RPCS.test(u)) swrClear();
       // a list read that started while this write was running must not be kept as the fresh answer
@@ -1817,7 +1862,7 @@ window.HelmUrl = HelmUrl;
   // 0061 universal search (top-bar trigger + Cmd/Ctrl+K palette). Studio pages only:
   // never on HQ / public client pages; studio-search.js re-checks the role (no clients).
   // verify-166: PR #166 merged four branches that each shipped a different store-api.js as v=232 (and shell-b as 114) - re-bumped so no browser keeps a stale copy
-  const STUDIO_SEARCH_VERSION = "17";
+  const STUDIO_SEARCH_VERSION = "18";
   // nav trail (breadcrumbs + Recent records). Pages may call HelmTrail.setCurrent before
   // nav-trail.js loads: this stub queues the calls; nav-trail.js replays them after boot.
   const NAV_TRAIL_VERSION = "7";
@@ -2221,17 +2266,22 @@ window.HelmUrl = HelmUrl;
             if (currentUser && gatePage()) {
               if (PAGE_GATED) {
                 // R217 (0389): one request for the startup reads; whatever it did not answer is asked below the old way
-                await pageBootstrap();
+                bootStart();   // R219: helpers asked meanwhile wait for these answers (bootEnd below)
+                bootReqP = pageBootstrap();
+                try { await bootReqP; } finally { bootReqP = null; }
                 const bu = currentUser && currentUser.id;
                 orgEarly = bootHas("current_org_id") ? Promise.resolve(bootOrg(bu)) : orgIdStrict(); orgEarly.catch(() => {});
                 profEarly = bootHas("my_profile_status") ? Promise.resolve(profileStatusFrom(bu, bootVal("my_profile_status"))) : fetchProfileStatus(false); profEarly.catch(() => {});   // 0041 profile step, same round-trip
                 coEarly = bootHas("my_checkout_status") ? Promise.resolve(checkoutStatusFrom(bu, bootVal("my_checkout_status"))) : fetchCheckoutStatus(false); coEarly.catch(() => {});      // 0056 checkout step, same round-trip
                 if (bu) bootFillPw(bu);
               }
-              await evaluateGate();
-              // role + access matrix are needed by nearly every page right after it
-              // shows: start them now (cached per tab; failures are retried by the page)
-              if (PAGE_GATED && !pendingStep && currentUser) bootFillAccess(currentUser.id);   // R217: from page_bootstrap when it answered
+              try { await evaluateGate(); }
+              finally {
+                // role + access matrix are needed by nearly every page right after it
+                // shows: start them now (cached per tab; failures are retried by the page)
+                if (PAGE_GATED && !pendingStep && currentUser) bootFillAccess(currentUser.id);   // R217: from page_bootstrap when it answered
+                bootEnd();
+              }
               if (PAGE_GATED && !pendingStep) loadAccess().catch(() => {});
             }
             mode = "supabase";
@@ -2274,6 +2324,7 @@ window.HelmUrl = HelmUrl;
   async function getRole() {
     if (!supa || !currentUser) return null;
     if (roleCache) return roleCache;
+    if (bootDoneP) { await bootWait(); if (roleCache) return roleCache; if (!supa || !currentUser) return null; }   // R219
     const cached = sessEntry("bp_sess_role", currentUser.id);
     // rbac-1030: only a FRESH (<= SESS_TTL) snapshot is reused. A stale role/matrix used to be served for one more
     // navigation (stale-while-revalidate), so an admin's Roles & access change could take two page loads to show.
@@ -2301,6 +2352,7 @@ window.HelmUrl = HelmUrl;
   // callers fall back to the legacy VIEW_SCOPE. Cached until sign-in/out/role change.
   async function loadAccess() {
     if (accessCache) return accessCache;
+    if (bootDoneP) { await bootWait(); if (accessCache) return accessCache; }   // R219
     const csnap = currentUser && sessEntry("bp_sess_access", currentUser.id);
     // a snapshot is used only for the role this page resolved (never mixes two roles)
     if (csnap && csnap.val && csnap.fresh && csnap.val.role && (!roleCache || csnap.val.role === roleCache)) {   // rbac-1030: fresh only
@@ -3052,9 +3104,9 @@ window.HelmUrl = HelmUrl;
       // out, offline, 0381 not applied). Only Helm HQ can switch it; the server decides, this only drives the banner / notes.
       testStudio() {
         if (!supa || !currentUser) return Promise.resolve(null);
-        return memoRead("mfa.testStudio", 60000, async () => {
+        return afterBoot(() => memoRead("mfa.testStudio", 60000, async () => {
           try { const { data, error } = await supa.rpc("my_test_studio"); return error ? null : data === true; } catch (e) { return null; }
-        });
+        }));
       },
     },
     // ---- CAPTCHA (Cloudflare Turnstile through Supabase's captchaToken) ----------
@@ -4536,14 +4588,14 @@ window.HelmUrl = HelmUrl;
     // also loads the studio's item rate cards (0086) so pricing.fromItems() prices spec'd items
     // with them; a rate-card failure never blocks the pricing config (defaults apply).
     getPricing: () => Promise.all([mode === "supabase"
-      ? swr("pricing", () => rpc("get_pricing_config"))
+      ? afterBoot(() => swr("pricing", () => rpc("get_pricing_config")))
       : Promise.resolve(Object.assign({}, PRICING_DEFAULTS, (() => { try { return JSON.parse(localStorage.getItem("bp_pricing_cfg") || "{}"); } catch (e) { return {}; } })())),
       config.loadItemRates().catch(() => null)]).then((r) => { try { BPStore.rememberStudioTax && BPStore.rememberStudioTax(r[0]); } catch (e) {} return r[0]; }),
     // 0086 item rate cards: { rates:{type:{...}}, canEdit, custom:[types the studio changed] }.
     // Every reader gets the merged card (studio edits over the shipped defaults).
     _itemRatesP: null,
     itemRates: () => mode === "supabase"
-      ? swr("rates", () => rpc("get_item_rate_cards"))
+      ? afterBoot(() => swr("rates", () => rpc("get_item_rate_cards")))
       : Promise.resolve((() => { let o = {}; try { o = JSON.parse(localStorage.getItem("bp_item_rates") || "{}") || {}; } catch (e) {}
           return { rates: Object.assign({}, ITEM_SPEC.DEFAULT_RATES, o), canEdit: true, custom: Object.keys(o) }; })()),
     loadItemRates(force) {
@@ -11989,7 +12041,7 @@ window.HelmUrl = HelmUrl;
     // studio admins also get plan, period and payments. invoice(): admins, own studio only.
     checkout,
     subscription: {
-      mine: () => (supa ? (memoPeek("boot:my_subscription", BOOT_PEEK_TTL) || rpc("my_subscription").catch((e) => { if (rpcMissing(e)) return null; throw e; })) : Promise.resolve(null)),   // R217: the startup answer for 15 s
+      mine: () => (supa ? afterBoot(() => memoPeek("boot:my_subscription", BOOT_PEEK_TTL) || rpc("my_subscription").catch((e) => { if (rpcMissing(e)) return null; throw e; })) : Promise.resolve(null)),   // R217: the startup answer for 15 s
       invoice: (id) => rpc("my_invoice", { p_payment_id: id }),
       account: () => (supa ? rpc("my_studio_account").catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
       updateAccount: (patch) => rpc("my_studio_account_update", { p_account: patch || {} }),
@@ -11997,7 +12049,7 @@ window.HelmUrl = HelmUrl;
       // 0173: {trial, cap: 2, used: {leads, quotes, inventory_items, vendors, crew_members, venues}}; null before 0173
       limits: () => (supa ? rpc("my_trial_limits").catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
       // anon-42501: signed out = null ("not a trial") without asking the server
-      trial: () => (supa ? trialSignedIn().then((ok) => (ok ? memoRead("trial", 15000, () => swr("trial", () => rpc("my_trial_status").catch((e) => { if (rpcMissing(e)) return null; throw e; }))) : null)) : Promise.resolve(null)),
+      trial: () => (supa ? trialSignedIn().then((ok) => (ok ? afterBoot(() => memoRead("trial", 15000, () => swr("trial", () => rpc("my_trial_status").catch((e) => { if (rpcMissing(e)) return null; throw e; })))) : null)) : Promise.resolve(null)),
       // 0212 — what reaches this studio's clients: {trial, active, email, whatsapp, sms, payment_links,
       // email_per_day, email_per_recipient_day, email_used_today}. Paid studio: everything true. An ACTIVE free
       // trial: e-mail true (capped), WhatsApp / SMS / payment links false. null before 0212 / signed out / error
@@ -12338,7 +12390,7 @@ window.HelmUrl = HelmUrl;
     // is_admin}; null before 0097 / local mode. seed / clear / reset / setMode are studio-admin
     // only and touch ONLY this studio's rows flagged is_demo (enforced in the database).
     demo: {
-      status: () => (supa ? memoRead("demo", 15000, () => swr("demo", () => rpc("my_demo_status").catch((e) => { if (rpcMissing(e)) return null; throw e; }))) : Promise.resolve(null)),
+      status: () => (supa ? afterBoot(() => memoRead("demo", 15000, () => swr("demo", () => rpc("my_demo_status").catch((e) => { if (rpcMissing(e)) return null; throw e; })))) : Promise.resolve(null)),
       setMode: (mode) => rpc("set_trial_mode", { p_mode: mode === "demo" ? "demo" : "own" }),
       seed: () => rpc("seed_demo_data"),
       clear: () => rpc("clear_demo_data"),

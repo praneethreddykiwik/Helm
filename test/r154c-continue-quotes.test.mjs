@@ -180,7 +180,7 @@ await t('store-api: flowProgress.open() -> my_open_quotes, falls back to list() 
   assert.match(s, /async open\(opts\) \{/);
   assert.match(s, /const d = await rpc\("my_open_quotes", args\); return d && typeof d === "object" && Array\.isArray\(d\.rows\) \? d : null;/);
   assert.match(s, /if \(!rpcMissing\(e\)\) throw e;\n\s*flowProgress\._noOpen = true;/);
-  assert.match(s, /\|my_unfinished_quotes\|my_open_quotes\)\(\\\?\|\$\)\/;/);
+  assert.match(s.match(/const READ_RPCS = .*/)[0], /\|my_unfinished_quotes\|my_open_quotes[|)]/);   // R219: more read-only names follow it
 });
 
 await t('Quotes page: an open row leads with "▶ Continue" (editors only), safe link guard, one read feeds tab count + buttons', () => {
