@@ -161,7 +161,7 @@ t('client-image capture waits for screen logos (max 6 s); whenLogos settles on o
   } finally { delete globalThis.Image; HS.setLogoResolver(null); HS.forgetLogo(PATH); }
   const run = fnSrc(b, 'captureClientImagesRun');
   assert.ok(run.indexOf('await screenLogosReady()') >= 0 && run.indexOf('await screenLogosReady()') < run.indexOf("say('Capturing 2D…')"));
-  assert.match(fnSrc(b, 'screenLogosReady'), /S\.contentOf\(it, store\.items\)\.logo/, 'mirrored side screens count too');
+  assert.match(fnSrc(b, 'screenLogosReady'), /const c=S\.contentOf\(it, store\.items\); return \[c\.logo, c\.pic\];/, 'mirrored side screens count too');
   assert.match(fnSrc(b, 'screenLogosReady'), /S\.whenLogos\(refs, 6000\)/);
 });
 

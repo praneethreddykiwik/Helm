@@ -161,7 +161,7 @@ t('3D behaviour: every object of the layout builds parts; a 1 x 222 ft fence = a
     add(c) { assert.ok(c, 'add(undefined)'); this.children.push(c); return this; } translate() { return this; } rotateX() { return this; } rotateZ() { return this; } }
   const THREE = new Proxy({}, { get: () => Obj });
   const build = new Function('THREE', 'store', 'congestionOf', 'CONG_COLORS', 'label', 'chairs', [b3fn('rotOff'), b3line('const col = '), b3line('const mat = '),
-    b3fn('boxMesh'), 'function buildPremium(){ return false; }', b3fn('buildFurniture'), 'return buildFurniture;'].join('\n'))(THREE, {}, () => 'ok', {}, () => new Obj(), []);
+    b3fn('boxMesh'), b3fn('scrFrame'), 'function buildPremium(){ return false; }', b3fn('buildFurniture'), 'return buildFurniture;'].join('\n'))(THREE, {}, () => 'ok', {}, () => new Obj(), []);
   for (const it of items) {
     const g = build(JSON.parse(JSON.stringify(it)), []);
     if (it.type === 'seatblock') { assert.equal(g, null, 'seat blocks are instanced chairs'); continue; }

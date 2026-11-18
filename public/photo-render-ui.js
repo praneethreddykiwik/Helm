@@ -111,7 +111,8 @@
     try { return S.photoSpecs(items, 4); } catch (e) { return []; }
   }
   async function logosReady(c, specs) {
-    var S = window.HelmScreen, refs = specs.filter(function (s) { return s.logoRef; }).map(function (s) { return s.logoRef; });
+    var S = window.HelmScreen, refs = specs.filter(function (s) { return s.logoRef; }).map(function (s) { return s.logoRef; })
+      .concat(specs.map(function (s) { return s.content && s.content.pic; }).filter(Boolean));   // R200: screen pictures too
     if (!refs.length || !S) return;
     try { if (c && typeof c.logosReady === 'function') await c.logosReady(); else if (S.whenLogos) await S.whenLogos(refs, 6000); } catch (e) {}
   }
@@ -130,7 +131,9 @@
     var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     var g = cv.getContext('2d'); if (!g) return Promise.resolve(null);
     var logo = spec.logoRef && S.logoImage ? S.logoImage(spec.logoRef) : null;
-    try { S.draw(g, W, H, spec.content, { side: side, logo: logo }); } catch (e) { return Promise.resolve(null); }
+    var pic = spec.content && spec.content.pic && S.logoImage ? S.logoImage(spec.content.pic) : null;   // R200: the uploaded screen picture
+    if (spec.content && spec.content.pic && !pic) return Promise.resolve(null);   // not loaded: leave the artwork out rather than a dark face
+    try { S.draw(g, W, H, spec.content, { side: side, logo: logo, pic: pic }); } catch (e) { return Promise.resolve(null); }
     return new Promise(function (res) { try { cv.toBlob(function (b) { res(b || null); }, 'image/jpeg', 0.9); } catch (e) { res(null); } });   // a tainted canvas -> null (left out)
   }
   async function screenImages(specs) {
