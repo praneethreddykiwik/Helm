@@ -153,7 +153,7 @@ t('module: DOM building only, Finance-only mount, server call only, refreshes on
   assert.match(JS, /B\.moneyHeader\.get\(id\)/);
   assert.match(JS, /"helm:pnl-refresh", "helm:vendor-bills-changed", "helm:settlement-loaded"/);
   assert.match(JS, /global\.HelmPageQuote/);
-  assert.match(API, /rpc\("event_money_header", \{ p_quote: quoteId \}\)/);
+  assert.match(API, /softRead\("event_money_header", \{ p_quote: quoteId \}\)/);   // R206: asked once per page without 0376
   assert.match(API, /moneyHeader, \/\/ R197 \(0376\)/);
   assert.match(CSS, /@media \(max-width:760px\)/); assert.match(CSS, /\.mh-attn\{display:grid/);
 });

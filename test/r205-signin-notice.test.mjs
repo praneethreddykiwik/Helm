@@ -154,16 +154,16 @@ await t('MANIFEST, checker override, run-all (+ quiet switch), release lists, CH
   const RA = read('scripts/db-test/run-all.sh');
   assert.match(RA, /run "r205-signin-notice-0383" "R205-SIGNIN-NOTICE-0383: ALL PASS \\\(39\/39\\\)" psql -q -f tests\/db\/r205-signin-notice-0383\.sql/);
   assert.match(RA, /-c helm\.signin_notice=off -c helm\.retry_backoff=off"/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0379', '0383'\];/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0384', '0383'\];/, f);
   assert.match(read('supabase/CHECK-PROD-MIGRATIONS.sql'), /0383_r205_signin_notice/);
   const DB = read('tests/db/r205-signin-notice-0383.sql');
   assert.match(DB, /v_midnight := \(\(now\(\) at time zone tz\)::date\)::timestamp at time zone tz;/, 'the studio today');
   assert.match(DB, /now\(\) - interval '20 minutes'/); assert.match(DB, /^rollback;$/m);
 });
-await t('asset pins: store-api v373 + page-tours v55 on every page that loads them', () => {
+await t('asset pins: store-api v376 + page-tours v55 on every page that loads them', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const h = read('public/' + f);
-    const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '373', f);
+    const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '376', f);
     const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '55', f);
   }
 });

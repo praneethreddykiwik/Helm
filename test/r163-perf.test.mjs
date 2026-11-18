@@ -145,10 +145,10 @@ await t('Notifications 10 at a time: bell grows by 10 on scroll (max 100, back t
 
 await t('Realtime: the bell opens no channel off the Chat page; every channel closes while hidden; leads only this studio', () => {
   assert.match(STORE, /kicked = true; liveRefresh\(\);\n[^\n]*\n[^\n]*\n\s+if \(pageKey\(\) !== "chat"\) return;\n\s+try \{ if \(chat && chat\.subscribe\) \{ csub = chat\.subscribe\(/);
-  assert.match(STORE, /const RT_IDLE_MS = 60000;\n[\s\S]{0,900}?\n  function rtLive\(make, onBack\) \{/);
+  assert.match(STORE, /const RT_IDLE_MS = 60000;\n[\s\S]{0,1300}?\n  function rtLive\(make, onBack\) \{/);
   assert.equal((STORE.match(/return rtLive\(\(\) => supa\.channel\(/g) || []).length, 3, 'versions, leads, chat');
   assert.equal((STORE.match(/supa\.channel\(/g) || []).length, 4, 'no channel outside rtLive (R174b: + the presence channel)');
-  assert.match(STORE, /rtLive\(\(\) => \{\n\s+const c = supa\.channel\("presence:org:"/, 'R174b presence channel goes through rtLive');
+  assert.match(STORE, /make: \(onState\) => \{\n\s+const c = supa\.channel\("presence:org:"/, 'R209: the presence channel goes through presenceTracker (throttle + backoff + hidden close)');
   assert.match(STORE, /spec\.filter = "org_id=eq\." \+ oid;/);
 });
 
@@ -156,7 +156,7 @@ await t('rtLive behaviour: closes after the idle time while hidden, re-opens + c
   const m = /function rtLive\(make, onBack\) \{[\s\S]*?\n  \}/.exec(STORE); assert.ok(m);
   const ls = {}, doc = { hidden: false, addEventListener: (k, f) => { ls[k] = f; }, removeEventListener: (k) => { delete ls[k]; } };
   let opened = 0, removed = 0, back = 0; const timers = [];
-  const ctx = { document: doc, RT_IDLE_MS: 60000, RT_RETRY_MS: 15000, rtSessionOk: () => true, supa: { removeChannel: () => { removed++; } },
+  const ctx = { document: doc, RT_IDLE_MS: 60000, RT_RETRY_MS: 15000, RT_MAX_CHANNELS: 8, rtOpen: 0, rtSessionOk: () => true, supa: { removeChannel: () => { removed++; } },
     setTimeout: (f) => { timers.push(f); return timers.length; }, clearTimeout: () => {} };
   const rtLive = vm.runInNewContext('(' + m[0].replace('function rtLive', 'function') + ')', ctx);
   const h = rtLive(() => { opened++; return {}; }, () => { back++; });
@@ -173,7 +173,7 @@ await t('R193 rtLive: no live access token -> no channel (it would join as anon:
   assert.match(STORE, /rtTokenExp = sess && sess\.access_token \? \(Number\(sess\.expires_at\) \|\| 0\) \* 1000 : 0;   \/\/ R193/);
   const ls = {}, doc = { hidden: false, addEventListener: (k, f) => { ls[k] = f; }, removeEventListener: (k) => { delete ls[k]; } };
   let opened = 0, back = 0, ok = false; const timers = [];
-  const ctx = { document: doc, RT_IDLE_MS: 60000, RT_RETRY_MS: 15000, rtSessionOk: () => ok, supa: { removeChannel: () => {} },
+  const ctx = { document: doc, RT_IDLE_MS: 60000, RT_RETRY_MS: 15000, RT_MAX_CHANNELS: 8, rtOpen: 0, rtSessionOk: () => ok, supa: { removeChannel: () => {} },
     setTimeout: (f) => { timers.push(f); return timers.length; }, clearTimeout: () => {} };
   const rtLive = vm.runInNewContext('(' + m[0].replace('function rtLive', 'function') + ')', ctx);
   const h = rtLive(() => { opened++; return {}; }, () => { back++; });
@@ -204,8 +204,8 @@ await t('0358: catalog built once per request, _r23_tz without the time zone fil
 });
 
 await t('cache-bust: store-api v350 on every page', () => {
-  assert.match(EV, /store-api\.js\?v=373/);
-  assert.match(read('public/dashboard.html'), /store-api\.js\?v=373/);
+  assert.match(EV, /store-api\.js\?v=376/);
+  assert.match(read('public/dashboard.html'), /store-api\.js\?v=376/);
 });
 
 console.log(`\nr163-perf: ${pass} passed, ${fail} failed`);

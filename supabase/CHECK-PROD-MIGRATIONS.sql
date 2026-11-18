@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (335 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (337 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4419 objects): body 171, bucket 9, col 242, con 415, cron 19, exec 14, fn 1989, idx 523, marker 68, pol 189, polexpr 4, pre 108, pub 5, seq 1, tbl 288, trg 372, view 2.
+-- What is checked (4445 objects): body 173, bucket 9, col 242, con 415, cron 19, exec 17, fn 1995, idx 528, marker 72, pol 189, polexpr 4, pre 109, pub 5, seq 1, tbl 290, trg 375, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4406,6 +4406,23 @@ with o(m, k, s, n, x) as (values
   ('0379_r202_signin_help', 'exec', 'public', 'team_temp_password_reset', 'uuid|authenticated'),
   ('0379_r202_signin_help', 'exec', 'public', 'team_signin_link_failed', 'bigint|authenticated'),
   ('0379_r202_signin_help', 'marker', 'public', '_tr184_purge_tables', '|team_signin_help'),
+  ('0381_r203_test_studio_two_step', 'body', 'public', '_r285_step_up', 'uuid|e52079048deecce963861d139a65f95f'),
+  ('0381_r203_test_studio_two_step', 'tbl', 'public.studio_test_mode', null, null),
+  ('0381_r203_test_studio_two_step', 'tbl', 'public.studio_test_mode_log', null, null),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', '_r381_tg_test_mode_guard', ''),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', '_r381_tg_test_mode_log', ''),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', '_r381_tg_log_append_only', ''),
+  ('0381_r203_test_studio_two_step', 'trg', 'public.studio_test_mode', 'zz_r381_guard', null),
+  ('0381_r203_test_studio_two_step', 'trg', 'public.studio_test_mode', 'zz_r381_log', null),
+  ('0381_r203_test_studio_two_step', 'trg', 'public.studio_test_mode_log', 'zz_r381_append_only', null),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', '_r381_two_step_exempt', 'uuid'),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', 'hq_set_test_studio', 'uuid,boolean,text'),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', 'my_test_studio', ''),
+  ('0381_r203_test_studio_two_step', 'marker', 'public', '_r285_step_up', 'uuid|r203-0381'),
+  ('0381_r203_test_studio_two_step', 'marker', 'public', 'my_test_studio', '|r203-0381'),
+  ('0381_r203_test_studio_two_step', 'marker', 'public', 'hq_set_test_studio', 'uuid,boolean,text|r203-0381'),
+  ('0381_r203_test_studio_two_step', 'exec', 'public', 'my_test_studio', '|authenticated'),
+  ('0381_r203_test_studio_two_step', 'exec', 'public', 'hq_set_test_studio', 'uuid,boolean,text|authenticated'),
   ('0383_r205_signin_notice', 'tbl', 'public.signin_notice_settings', null, null),
   ('0383_r205_signin_notice', 'con', 'public.signin_notice_settings', 'signin_notice_settings_mode_chk', null),
   ('0383_r205_signin_notice', 'con', 'public.signin_notice_settings', 'signin_notice_settings_roles_chk', null),
@@ -4443,7 +4460,16 @@ with o(m, k, s, n, x) as (values
   ('0383_r205_signin_notice', 'marker', 'public', 'notify_default', 'uuid,text,text,text|r205-0383'),
   ('0383_r205_signin_notice', 'exec', 'public', 'signin_notice_settings_get', '|authenticated'),
   ('0383_r205_signin_notice', 'exec', 'public', 'signin_notice_settings_set', 'jsonb|authenticated'),
-  ('0383_r205_signin_notice', 'exec', 'public', 'signin_notice_ping', 'text|authenticated')
+  ('0383_r205_signin_notice', 'exec', 'public', 'signin_notice_ping', 'text|authenticated'),
+  ('0384_r206_api_timeouts', 'body', 'public', 'event_timesheet', 'uuid|90d39c2c74f21ee8db31c64bcc4e3b81'),
+  ('0384_r206_api_timeouts', 'idx', 'public.ix_event_tasks_quote_crew_0384', null, null),
+  ('0384_r206_api_timeouts', 'idx', 'public.ix_event_day_arrival_ref_0384', null, null),
+  ('0384_r206_api_timeouts', 'idx', 'public.ix_open_shift_claims_crew_0384', null, null),
+  ('0384_r206_api_timeouts', 'idx', 'public.ix_event_task_log_crew_0384', null, null),
+  ('0384_r206_api_timeouts', 'idx', 'public.ix_audit_log_org_at_id_0384', null, null),
+  ('0384_r206_api_timeouts', 'pre', null, '__pre0384', null),
+  ('0384_r206_api_timeouts', 'marker', 'public', 'event_timesheet', 'uuid|r206-0384'),
+  ('0384_r206_api_timeouts', 'exec', 'public', 'event_timesheet', 'uuid|authenticated')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4780,7 +4806,9 @@ mig(ord, m, ov, note) as (values
   (332, '0377_r198_event_money_cash', null, 'P&L clarity phase 2: new read-only event_money_cash (cash in & out + who owes what) and the server-only helper _r377_d, checked by the r198-0377 marker'),
   (333, '0378_r199_team_account_status', null, 'Users & invites account status: new read-only team_account_status (admin / Users edit, own studio), checked by the r199-0378 marker'),
   (334, '0379_r202_signin_help', null, 'Users & invites sign-in help: Send sign-in link + New temporary password (team_signin_help log), team_account_status + signin_link_at / can_new_temp, checked by the r202-0379 markers'),
-  (335, '0383_r205_signin_notice', null, 'teammate sign-in notices: triggers zz_r383_signin_notice (auth.users, after last_sign_in_at) + zz_r383_join_notice (profiles), tables signin_notice_settings / signin_notice_log, settings + fallback ping; _r23_visible, bell_feed, notification_catalog, notification_type_of and notify_default wrapped once (old bodies kept as __pre0383), checked by the r205-0383 marker (the wrappers name the r190-0373 / r186-0369 / r24-ci-0270 / r163-0357 / r163-0358 / r156-0354 bodies they keep, so those markers still hold). Only the auth.users trigger missing = this project refused triggers on auth.users: the app fallback signin_notice_ping is used, nothing to paste')
+  (335, '0381_r203_test_studio_two_step', null, 'test-studio two-step switch: new private tables studio_test_mode + studio_test_mode_log, new hq_set_test_studio / my_test_studio / _r381_two_step_exempt, _r285_step_up re-issued in place, checked by the r203-0381 marker'),
+  (336, '0383_r205_signin_notice', null, 'teammate sign-in notices: triggers zz_r383_signin_notice (auth.users, after last_sign_in_at) + zz_r383_join_notice (profiles), tables signin_notice_settings / signin_notice_log, settings + fallback ping; _r23_visible, bell_feed, notification_catalog, notification_type_of and notify_default wrapped once (old bodies kept as __pre0383), checked by the r205-0383 marker (the wrappers name the r190-0373 / r186-0369 / r24-ci-0270 / r163-0357 / r163-0358 / r156-0354 bodies they keep, so those markers still hold). Only the auth.users trigger missing = this project refused triggers on auth.users: the app fallback signin_notice_ping is used, nothing to paste'),
+  (337, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes')
 ),
 env as (
   select

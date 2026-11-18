@@ -159,9 +159,9 @@ await t('MANIFEST, checker override, run-all, release lists, CHECK-PROD carry 03
   for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0378', '0379'[,\]]/, f);
   assert.match(read('supabase/CHECK-PROD-MIGRATIONS.sql'), /0379_r202_signin_help/);
 });
-await t('asset pins: store-api v373 (R205) everywhere, team-status.js / .css v2 on Settings + Staff, page-tours has the new steps', () => {
+await t('asset pins: store-api v372 everywhere, team-status.js / .css v2 on Settings + Staff, page-tours has the new steps', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '373', f);
+    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '376', f);
   }
   for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=2"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=2">/, f); }
   const PT = read('public/page-tours.js');
