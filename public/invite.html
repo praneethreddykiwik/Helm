@@ -16,7 +16,6 @@
 <meta property="og:image:alt" content="You're invited">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png">
-<link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <link rel="stylesheet" href="/fonts/g/cormorant-garamond-11547996.css">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <style>
@@ -343,7 +342,7 @@
 <script src="/telemetry.js?v=11"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=378"></script><script src="/trial-sim.js?v=3" data-trial-sim="site"></script>
+<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=2"></script><script src="/trial-sim.js?v=3" data-trial-sim="site"></script>
 <script src="/invite-music.js?v=1"></script><script src="/invite-placement.js?v=1"></script><script src="/invite-extras.js?v=2"></script>
 <script>
   const $=(s,r=document)=>r.querySelector(s);
@@ -667,7 +666,10 @@
     if(!slug){ $("#loading").hidden=true; $("#missing").hidden=false; return; }
     $("#loadErr").hidden=true;
     let site;
-    try{ await BPStore.init(); await BPStore.links.require(LINK); site=await BPStore.sites.public(slug); }
+    try{ await BPStore.init();
+      // R216: the studio check and the invitation are asked at the same time (checked in the same order as before)
+      const [rq,gq]=await Promise.allSettled([BPStore.links.require(LINK), BPStore.sites.public(slug)]);
+      if(rq.status==="rejected") throw rq.reason; if(gq.status==="rejected") throw gq.reason; site=gq.value; }
     catch(e){
       $("#loading").hidden=true;
       if(BPUI.isNotFound(e)){ await showMissing(slug); return; }
@@ -680,9 +682,14 @@
       $("#loadErr").hidden=false; BPUI.loadError($("#loadErr"), e, load, {what:"this invitation"}); return;
     }
     if(!site){ $("#loading").hidden=true; await showMissing(slug); return; }
-    try{ INFO=await BPStore.sites.publicInfo(slug); }catch(_){ INFO=null; }   // r34: the studio's name for the footer
-    { const tok=readTok(); if(tok){ try{ const r=await BPStore.sites.reveal(slug,tok); if(r&&r.ok){ REVEAL=r.reveal||null; REPLY=r.reply||null; } }catch(_){} } }
-    try{ site=await signPhotos(site); }catch(e){}
+    // R216: the studio's name, this guest's earlier reply and the signed photo links are three separate questions - asked together
+    const tok=readTok();
+    const infoP=BPStore.sites.publicInfo(slug).catch(()=>null);   // r34: the studio's name for the footer
+    const revealP=tok?BPStore.sites.reveal(slug,tok).catch(()=>null):Promise.resolve(null);
+    const photosP=signPhotos(site).catch(()=>site);
+    const [info,rv,signed]=await Promise.all([infoP, revealP, photosP]);
+    INFO=info; if(rv&&rv.ok){ REVEAL=rv.reveal||null; REPLY=rv.reply||null; }
+    site=signed;
     render(site);
   }
   BPUI.boot(load);

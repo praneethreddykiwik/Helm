@@ -631,8 +631,13 @@
     let d;
     try {
       await global.BPStore.init();
-      if (pretty && !(await global.BPStore.booklet.studioOk(token, pretty.studio))) { show("#bad"); return; }
-      d = await global.BPStore.booklet.get(token);
+      // R216: the studio check and the booklet are asked at the same time; the answers are read in the same order as before
+      // (the view of the link is still only counted once the studio check passed)
+      const [ok, got] = await Promise.allSettled([pretty ? global.BPStore.booklet.studioOk(token, pretty.studio) : true, global.BPStore.booklet.get(token)]);
+      if (ok.status === "rejected") throw ok.reason;
+      if (pretty && !ok.value) { show("#bad"); return; }
+      if (got.status === "rejected") throw got.reason;
+      d = got.value;
     }
     catch (e) {
       if (/has been cancelled/i.test(String((e && e.message) || ""))) {   // r23-0260: the event was cancelled
@@ -647,13 +652,18 @@
     if (!d || typeof d !== "object") { show("#bad"); return; }
     d.__token = token;
     render(d); show("#app");
+    // R216: the payment term and the trial check below are separate questions - both start now, applied in the same order
+    let ptP = null, simP = null;
+    try { ptP = global.BPStore.booklet.payTerms ? global.BPStore.booklet.payTerms(token) : null; if (ptP) ptP.catch(() => {}); } catch (e) { ptP = Promise.reject(e); ptP.catch(() => {}); }
+    try { const TS = global.HelmTrialSim, B = global.BPStore;
+      if (TS && TS.simList && B.approval && B.approval.trialSimList && VISIBLE.payments !== false) { simP = B.approval.trialSimList("booklet", token); simP.catch(() => {}); } } catch (e) { simP = null; }
     // E6 (0101): the studio's balance-due term for this link; older servers -> the event-date fallback
-    try { const pt = global.BPStore.booklet.payTerms ? await global.BPStore.booklet.payTerms(token) : null;
+    try { const pt = ptP ? await ptP : null;
       if (pt && typeof pt === "object" && VISIBLE.payments !== false && $("#payTerm")) { d.payTerms = pt; renderPayments(d); } } catch (e) {}
     // R116 (0324): a trial studio's simulated payments (paid studio -> {simulation:false} -> nothing changes)
-    try { const TS = global.HelmTrialSim, B = global.BPStore;
-      if (TS && TS.simList && B.approval && B.approval.trialSimList && VISIBLE.payments !== false) {
-        const sim = TS.simList(await B.approval.trialSimList("booklet", token));
+    try { const TS = global.HelmTrialSim;
+      if (simP) {
+        const sim = TS.simList(await simP);
         if (sim && sim.rows.length) { d.__sim = sim; renderPayments(d); } } } catch (e) {}
     if (global.HelmBookletPkg && VISIBLE.packages !== false && !(d.menu && d.menu.mode === "hidden")) global.HelmBookletPkg.mount(token, d).catch(() => {});
     // r23 (0262): "This quote is valid until dd/mm/yyyy" / expired + "Request a new quote" (nothing once approved)

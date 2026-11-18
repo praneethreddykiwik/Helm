@@ -92,7 +92,8 @@ t('store-api exposes sites.mediaUrls that signs invite-media refs (short-lived)'
   assert.match(body, /object\\\/\(\?:public\|sign\|authenticated\)\\\/invite-media\\\//, 'must only rewrite invite-media refs');
 });
 t('public invitation signs photos before render (load + studio preview)', () => {
-  assert.match(invite, /site=await signPhotos\(site\);[\s\S]{0,40}render\(site\)/, 'load() must sign before render');
+  // R216: signed together with the studio name + reply reveal, still awaited before render
+  assert.match(invite, /const photosP=signPhotos\(site\)\.catch\(\(\)=>site\);[\s\S]{0,200}await Promise\.all\(\[infoP, revealP, photosP\]\);[\s\S]{0,120}site=signed;\s*render\(site\)/, 'load() must sign before render');
   assert.match(invite, /site=await signPhotos\(m\.site\)/, 'preview message must sign before render');
   assert.match(invite, /if\(seq!==pvSeq\) return;/, 'stale preview renders must be dropped');
   assert.match(invite, /BPStore\.sites\.mediaUrls\(need,undefined,\(site&&site\.slug\)\|\|getSlug\(\)\)/, "guest signing is slug-bound (0048)");

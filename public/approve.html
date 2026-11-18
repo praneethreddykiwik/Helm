@@ -6,7 +6,6 @@
 <title>Approve your event · Helm</title>
 <meta name="robots" content="noindex,nofollow,noarchive">
 <meta name="referrer" content="no-referrer">
-<link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
 <style>
   :root{--bg:#f6f4f1;--panel:#fff;--panel-2:#faf8f5;--ink:#1b1930;--ink-2:#4b475f;--ink-3:#6b6577;
@@ -171,7 +170,7 @@
 <script src="/config.js?v=113"></script>
 <script src="/phone-input.js?v=9"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=378"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/quote-validity.js?v=6"></script><script src="/approve-test-mode.js?v=2"></script>
+<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=2"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/quote-validity.js?v=6"></script><script src="/approve-test-mode.js?v=2"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s||"").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -310,7 +309,9 @@
     if(!token){ $("#loading").hidden=true; $("#badlink").hidden=false; return; }
     await BPStore.init();
     $("#loadErr").hidden=true;
-    try{ await BPStore.links.require(LINK); quote=await BPStore.approval.getByToken(token); }
+    try{ // R216: the studio check and the quote are asked at the same time (checked in the same order as before)
+      const [rq,gq]=await Promise.allSettled([BPStore.links.require(LINK), BPStore.approval.getByToken(token)]);
+      if(rq.status==="rejected") throw rq.reason; if(gq.status==="rejected") throw gq.reason; quote=gq.value; }
     catch(e){
       $("#loading").hidden=true;
       if(isCancelled(e)){ showCancelled($("#badlink")); return; }

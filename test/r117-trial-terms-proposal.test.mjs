@@ -99,7 +99,8 @@ t('3 vercel.json rewrites /<slug>/proposal/<token> to /proposal-view (the slug p
 t('3 proposal-view.html loads trial-sim (css + js, data-trial-sim="proposal") after store-api; has <main id="main">', () => {
   const h = read('public/proposal-view.html');
   assert.match(h, /<link rel="stylesheet" href="\/trial-sim\.css\?v=\d+">/);
-  assert.match(h, /<script src="\/store-api\.js\?v=\d+"><\/script><script src="\/trial-sim\.js\?v=\d+" data-trial-sim="proposal"><\/script>/);
+  // R216: the client page's data script is client-api.js (same BPStore.approval.trialSimPage as store-api.js)
+  assert.match(h, /<script src="\/client-api\.js\?v=\d+"><\/script><script src="\/trial-sim\.js\?v=\d+" data-trial-sim="proposal"><\/script>/);
   assert.match(h, /<main id="main">/);
 });
 t('3 store-api trialSimPage("proposal") -> public_trial_simulation_for_proposal({p_token}); others unchanged', () => {
