@@ -168,52 +168,73 @@
     ".hss-trig:focus-visible{outline:2px solid var(--accent,#047857);outline-offset:2px}",
     ".hss-trig .hss-tl{flex:1;text-align:left}",
     ".hss-kbd{display:inline-flex;align-items:center;gap:2px;font:600 11px var(--mono,ui-monospace,monospace);color:var(--ink-3,#6b6577);border:1px solid var(--line,#e8e3db);border-bottom-width:2px;border-radius:5px;padding:1px 5px;background:var(--panel-2,#faf8f5);white-space:nowrap}",
-    ".hss-ico{width:16px;height:16px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}",
-    ".hss-ov{position:fixed;inset:0;z-index:2147483000;display:flex;justify-content:center;align-items:flex-start;padding:12vh 16px 16px;background:rgba(17,15,30,.42);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);animation:hssFade .12s ease-out}",
-    ".hss-dlg{width:min(640px,100%);max-height:min(560px,76vh);display:flex;flex-direction:column;background:var(--panel,#fff);color:var(--ink,#1b1930);border:1px solid var(--line,#e8e3db);border-radius:14px;box-shadow:0 24px 70px rgba(20,16,40,.32),0 2px 6px rgba(20,16,40,.12);overflow:hidden;font-family:var(--font,system-ui);animation:hssPop .14s ease-out}",
-    ".hss-in-row{display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--line,#e8e3db)}",
-    ".hss-in-row .hss-ico{width:18px;height:18px;color:var(--ink-3,#6b6577)}",
-    ".hss-in{flex:1;min-width:0;height:54px;border:0;outline:0;background:transparent;color:var(--ink,#1b1930);font:400 16px var(--font,system-ui)}",
-    // the field is the dialog's only focus target: its focus indicator is the accent rule
-    // under the row (theme.css's global input ring would draw a box inside the header)
-    ".hss-in-row{box-shadow:inset 0 -2px 0 transparent;transition:box-shadow .12s}",
-    ".hss-in-row:focus-within{box-shadow:inset 0 -2px 0 var(--accent,#047857)}",
-    ".hss-dlg .hss-in:focus,.hss-dlg .hss-in:focus-visible{outline:none!important;box-shadow:none}",
-    "html[data-theme=dark] .hss-dlg input.hss-in{background-color:transparent}",
-    ".hss-in::placeholder{color:var(--ink-3,#6b6577)}",
+    ".hss-ico{width:16px;height:16px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}",
+    // r223 palette look (Spotlight / Linear style, Helm tokens): one clean search row, black selected row, line icons,
+    // keycap hints, light backdrop. Tokens fall back to theme.css names off the app shell.
+    ".hss-ov,.hss-ghost{position:fixed;inset:0;z-index:2147483000;display:flex;justify-content:center;align-items:flex-start;padding:12vh 16px 16px;background:rgba(16,20,18,.26);-webkit-backdrop-filter:blur(1.5px);backdrop-filter:blur(1.5px)}",
+    ".hss-ov{animation:hssFade .16s ease-out}",
+    ".hss-ghost{pointer-events:none;animation:hssFadeOut .16s ease-in forwards}",
+    ".hss-dlg{--hss-ink:var(--hb-ink,var(--ink,#1b1930));--hss-ink2:var(--hb-ink2,var(--ink-2,#4b475f));--hss-mute:var(--hb-ink3,var(--ink-3,#6b6577));--hss-line:var(--hb-line,var(--line,#e8e3db));--hss-bg:var(--hb-bg,var(--panel,#fff));--hss-bg2:var(--hb-bg2,var(--panel-2,#faf8f5));--hss-acc:var(--hb-acc,var(--accent,#047857));--hss-acc-text:var(--hb-acc-text,var(--accent,#047857));--hss-sel:#111;--hss-sel-ink:#fff;"
+      + "width:min(680px,100%);max-height:min(580px,calc(88vh - 32px));display:flex;flex-direction:column;background:var(--hss-bg);color:var(--hss-ink);border:1px solid var(--hss-line);border-radius:16px;box-shadow:0 28px 80px -12px rgba(10,14,12,.32),0 4px 14px rgba(10,14,12,.08);overflow:hidden;font-family:var(--font,system-ui);transform-origin:50% 0;animation:hssPop .2s cubic-bezier(.16,1,.3,1)}",
+    ".hss-ghost .hss-dlg{animation:hssPopOut .16s ease-in forwards}",
+    ".hss-in-row{display:flex;align-items:center;gap:12px;padding:0 12px 0 18px;border-bottom:1px solid var(--hss-line);box-shadow:inset 0 -2px 0 transparent;transition:box-shadow .15s}",
+    // the field is the dialog's only focus target: its focus indicator is the accent rule under the row
+    ".hss-in-row:focus-within{box-shadow:inset 0 -2px 0 var(--hss-acc)}",
+    ".hss-in-row>.hss-ico{width:20px;height:20px;color:var(--hss-mute)}",
+    ".hss-in-row:focus-within>.hss-ico{color:var(--hss-ink)}",
+    // theme.css / the shell give every input a border, radius, 44px min-height and a focus halo: none of that here (no box in a box)
+    ".hss-dlg input.hss-in,.hss-dlg input.hss-in:focus,.hss-dlg input.hss-in:focus-visible{flex:1;min-width:0;height:58px;min-height:0;margin:0;padding:0;border:0!important;border-radius:0!important;outline:none!important;box-shadow:none!important;background:transparent!important;color:var(--hss-ink);font:400 17px/1.3 var(--font,system-ui);letter-spacing:-.005em;-webkit-appearance:none;appearance:none}",
+    ".hss-in::placeholder{color:var(--hss-mute);opacity:1}",
     ".hss-in::-webkit-search-cancel-button{display:none}",
-    ".hss-x{border:0;background:transparent;color:var(--ink-3,#6b6577);font:600 12px var(--font,system-ui);cursor:pointer;padding:6px;border-radius:6px}",
-    ".hss-x:focus-visible{outline:2px solid var(--accent,#047857)}",
-    ".hss-spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line,#e8e3db);border-top-color:var(--accent,#047857);animation:hssSpin .7s linear infinite;flex:0 0 auto}",
-    ".hss-body{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:6px 0 8px}",
-    ".hss-grp{padding:4px 0}",
-    ".hss-gh{display:flex;align-items:center;gap:8px;padding:8px 16px 4px;font:700 11px var(--font,system-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3,#6b6577)}",
-    ".hss-gh button{margin-left:auto;border:0;background:none;color:var(--ink-3,#6b6577);font:500 11.5px var(--font,system-ui);text-transform:none;letter-spacing:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}",
-    ".hss-opt{display:flex;align-items:center;gap:11px;margin:0 6px;padding:8px 10px;border-radius:9px;cursor:pointer;min-height:44px}",
-    ".hss-opt[aria-selected=true]{background:var(--accent-soft,#e3f4ed)}",
-    ".hss-oi{flex:0 0 auto;width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:var(--panel-2,#faf8f5);border:1px solid var(--line-2,#f1ede7);font-size:14px}",
-    ".hss-ot{flex:1;min-width:0;display:flex;flex-direction:column}",
-    ".hss-t{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-    ".hss-s{font-size:12px;color:var(--ink-3,#6b6577);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-    ".hss-t mark,.hss-s mark{background:transparent;color:var(--accent,#047857);font-weight:700}",
-    ".hss-go{flex:0 0 auto;font-size:12px;color:var(--ink-3,#6b6577);opacity:0}",
-    ".hss-opt[aria-selected=true] .hss-go{opacity:1}",
-    ".hss-msg{padding:28px 20px;text-align:center;color:var(--ink-2,#4b475f);font-size:14px}",
-    ".hss-msg b{display:block;color:var(--ink,#1b1930);margin-bottom:4px;font-size:15px}",
-    ".hss-msg button{margin-top:12px;font:600 13px var(--font,system-ui);padding:7px 14px;border-radius:8px;border:1px solid var(--line,#e8e3db);background:var(--panel-2,#faf8f5);color:var(--ink,#1b1930);cursor:pointer}",
-    ".hss-foot{display:flex;align-items:center;gap:14px;padding:8px 14px;border-top:1px solid var(--line,#e8e3db);background:var(--panel-2,#faf8f5);font-size:11.5px;color:var(--ink-3,#6b6577)}",
-    ".hss-foot span{display:inline-flex;align-items:center;gap:5px}",
+    ".hss-key{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;box-sizing:border-box;border:1px solid var(--hss-line);border-radius:6px;background:var(--hss-bg);box-shadow:inset 0 -1px 0 var(--hss-line);color:var(--hss-ink2);font:600 11px/1 var(--font,system-ui);letter-spacing:.01em;white-space:nowrap}",
+    "button.hss-x{flex:0 0 auto;height:26px;min-height:0;padding:0 8px;cursor:pointer;color:var(--hss-mute)}",
+    "button.hss-x:hover{color:var(--hss-ink);border-color:var(--hss-mute)}",
+    "button.hss-x:focus-visible{outline:2px solid var(--hss-acc);outline-offset:2px}",
+    ".hss-spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--hss-line);border-top-color:var(--hss-acc);animation:hssSpin .7s linear infinite;flex:0 0 auto}",
+    ".hss-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 0 10px;scroll-padding:8px 0 28px}",
+    ".hss-body[data-more]{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 32px),transparent)}",
+    ".hss-grp{padding:2px 0 4px}",
+    ".hss-grp+.hss-grp{margin-top:2px}",
+    ".hss-gh{display:flex;align-items:center;gap:8px;padding:12px 18px 6px;font:600 11px/1.2 var(--font,system-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--hss-mute)}",
+    ".hss-gh button{margin-left:auto;min-height:0;height:auto;border:0;background:none;padding:2px 4px;color:var(--hss-mute);font:500 12px var(--font,system-ui);text-transform:none;letter-spacing:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}",
+    ".hss-gh button:hover{color:var(--hss-ink)}",
+    ".hss-opt{position:relative;display:flex;align-items:center;gap:12px;margin:1px 8px;padding:6px 10px 6px 8px;border-radius:10px;cursor:pointer;min-height:46px;box-sizing:border-box;color:var(--hss-ink);transition:background-color .08s ease}",
+    ".hss-opt[aria-selected=true]{background:var(--hss-sel);color:var(--hss-sel-ink)}",
+    ".hss-oi{flex:0 0 auto;width:32px;height:32px;display:grid;place-items:center;border-radius:9px;background:var(--hss-bg2);border:1px solid var(--hss-line);color:var(--hss-ink2);box-sizing:border-box}",
+    ".hss-oi .hss-kico{width:16px;height:16px;stroke-width:1.75}",
+    ".hss-opt[aria-selected=true] .hss-oi{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.16);color:var(--hss-sel-ink)}",
+    ".hss-ot{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}",
+    ".hss-t{font-size:14px;line-height:1.35;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".hss-s{font-size:12.5px;line-height:1.35;color:var(--hss-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".hss-opt[aria-selected=true] .hss-s{color:color-mix(in srgb,var(--hss-sel-ink) 74%,transparent)}",
+    ".hss-t mark,.hss-s mark{background:transparent;color:var(--hss-acc-text);font-weight:700}",
+    ".hss-opt[aria-selected=true] mark{color:inherit;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}",
+    ".hss-go{flex:0 0 auto;visibility:hidden}",
+    ".hss-opt[aria-selected=true] .hss-go{visibility:visible;background:transparent;border-color:rgba(255,255,255,.3);box-shadow:none;color:var(--hss-sel-ink)}",
+    ".hss-msg{padding:32px 24px;text-align:center;color:var(--hss-ink2);font-size:14px;line-height:1.5}",
+    ".hss-msg b{display:block;color:var(--hss-ink);margin-bottom:4px;font-size:15px;font-weight:600}",
+    ".hss-msg button{margin-top:14px;min-height:0;font:600 13px var(--font,system-ui);padding:8px 16px;border-radius:9px;border:1px solid var(--hss-sel);background:var(--hss-sel);color:var(--hss-sel-ink);cursor:pointer}",
+    ".hss-msg button:focus-visible{outline:2px solid var(--hss-acc);outline-offset:2px}",
+    ".hss-foot{display:flex;align-items:center;gap:16px;padding:9px 16px;border-top:1px solid var(--hss-line);background:var(--hss-bg2);font-size:12px;color:var(--hss-mute)}",
+    ".hss-foot span{display:inline-flex;align-items:center;gap:4px}",
+    ".hss-foot .hss-key{margin-right:2px}",
     ".hss-foot .hss-st{margin-left:auto}",
     ".hss-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}",
-    "html[data-theme=dark] .hss-ov{background:rgba(0,0,0,.6)}",
-    "html[data-theme=dark] .hss-opt[aria-selected=true]{background:rgba(139,92,246,.22)}",
+    "html[data-theme=dark] .hss-ov,html[data-theme=dark] .hss-ghost{background:rgba(0,0,0,.5)}",
+    "html[data-theme=dark] .hss-dlg{--hss-sel:#f2f2f2;--hss-sel-ink:#111}",
+    "html[data-theme=dark] .hss-opt[aria-selected=true] .hss-oi{background:rgba(0,0,0,.08);border-color:rgba(0,0,0,.12)}",
+    "html[data-theme=dark] .hss-opt[aria-selected=true] .hss-go{border-color:rgba(0,0,0,.3)}",
     "html[data-theme=dark] .hss-t mark,html[data-theme=dark] .hss-s mark{color:#6ee7b7}",
     "@keyframes hssFade{from{opacity:0}to{opacity:1}}",
-    "@keyframes hssPop{from{opacity:0;transform:translateY(-6px) scale(.985)}to{opacity:1;transform:none}}",
+    "@keyframes hssFadeOut{from{opacity:1}to{opacity:0}}",
+    "@keyframes hssPop{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}",
+    "@keyframes hssPopOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-4px) scale(.985)}}",
     "@keyframes hssSpin{to{transform:rotate(360deg)}}",
-    "@media (prefers-reduced-motion:reduce){.hss-ov,.hss-dlg{animation:none}.hss-spin{animation-duration:2s}}",
+    "@media (prefers-reduced-motion:reduce){.hss-ov,.hss-dlg{animation:none}.hss-ghost{display:none}.hss-opt,.hss-in-row{transition:none}.hss-spin{animation-duration:2s}}",
     "@media (max-width:900px){.hss-trig{min-width:0}.hss-trig .hss-tl,.hss-trig .hss-kbd{display:none}.hss-trig{width:36px;height:36px;justify-content:center;padding:0}}",
-    "@media (max-width:640px){.hss-ov{padding:0;align-items:stretch}.hss-dlg{width:100%;max-height:none;height:100%;border-radius:0;border:0}.hss-foot .hss-k{display:none}.hss-in{font-size:16px}}",
+    // phones: a full-width, full-height sheet (keyboard-safe), safe-area aware, bigger touch rows, no keyboard hints
+    "@media (max-width:640px){.hss-ov,.hss-ghost{padding:0;align-items:stretch;-webkit-backdrop-filter:none;backdrop-filter:none}.hss-dlg{width:100%;max-height:none;height:100%;height:100dvh;border-radius:0;border:0;box-shadow:none;animation-name:hssSheet}.hss-in-row{padding:env(safe-area-inset-top,0px) 10px 0 16px}.hss-dlg input.hss-in{height:56px;font-size:16px}.hss-opt{min-height:52px;margin:1px 6px}.hss-gh{padding:14px 16px 6px}.hss-foot{padding-bottom:calc(9px + env(safe-area-inset-bottom,0px))}.hss-foot .hss-k{display:none}}",
+    "@keyframes hssSheet{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}",
   ].join("\n");
   let cssDone = false;
   function css() {
@@ -229,6 +250,57 @@
     return n;
   }
   const SVGNS = "http://www.w3.org/2000/svg";
+  /* r223: one line-icon per kind (24px grid, stroke = currentColor) instead of emoji. Each entry is a list of
+     shapes: a string is a <path d>, ["c", cx, cy, r] a circle, ["r", x, y, w, h, rx] a rect. Built with
+     createElementNS + setAttribute only (no markup strings - CSP / Trusted Types safe). */
+  const ICO = {
+    calendar: [["r", 3, 5, 18, 16, 2], "M16 3v4M8 3v4M3 10h18"],
+    quote: ["M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z", "M14 3v5h5", "M9 13h6M9 17h4"],
+    lead: [["c", 12, 12, 9], ["c", 12, 12, 5], ["c", 12, 12, 1]],
+    user: [["c", 12, 8, 4], "M4 21c0-4 3.6-7 8-7s8 3 8 7"],
+    users: [["c", 9, 8, 3.5], "M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6", "M16 4.6a3.5 3.5 0 0 1 0 6.8", "M18 14.2c2.1.6 3.5 2.6 3.5 5.8"],
+    userPlus: [["c", 9, 8, 4], "M2 21c0-4 3.1-7 7-7s7 3 7 7", "M19 8v6M16 11h6"],
+    client: [["c", 12, 12, 9], ["c", 12, 10, 3], "M6.6 18.4c1.3-1.9 3.2-2.9 5.4-2.9s4.1 1 5.4 2.9"],
+    store: ["M3 9l1.6-5h14.8L21 9", "M3 9h18a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0", "M5 12v8h14v-8", "M10 20v-5h4v5"],
+    box: ["M21 8l-9-5-9 5 9 5z", "M3 8v8l9 5 9-5V8", "M12 13v8"],
+    receipt: ["M6 3h12v18l-3-2-3 2-3-2-3 2z", "M9 8h6M9 12h6"],
+    page: ["M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z", "M14 3v5h5"],
+    sliders: ["M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1", ["c", 15, 6, 2], ["c", 9, 12, 2], ["c", 17, 18, 2]],
+    toggle: [["r", 2, 7, 20, 10, 5], ["c", 16, 12, 2.5]],
+    clock: [["c", 12, 12, 9], "M12 7v5l3 2"],
+    plus: ["M12 5v14M5 12h14"],
+    arrow: ["M5 12h14", "M13 6l6 6-6 6"],
+    home: ["M3 11l9-7 9 7", "M5 10v10h14V10", "M10 20v-6h4v6"],
+    chat: ["M4 5h16v11H9l-5 4z"],
+    mail: [["r", 3, 5, 18, 14, 2], "M3 7l9 6 9-6"],
+    plan: [["r", 3, 3, 18, 18, 2], "M3 10h8v11", "M14 3v7h7"],
+    briefcase: [["r", 3, 7, 18, 13, 2], "M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2", "M3 13h18"],
+    chart: ["M3 20h18", "M7 16v-5M12 16V6M17 16v-8"],
+    shield: ["M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"],
+    drop: ["M12 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-4 3-7 6-11z"],
+    help: [["c", 12, 12, 9], "M9.5 9.2a2.6 2.6 0 0 1 5 .8c0 1.8-2.5 2.2-2.5 3.8", "M12 17.4v.1"],
+    layout: [["r", 3, 3, 18, 18, 2], "M3 9h18", "M9 21V9"],
+  };
+  // which icon each row kind shows (display only - the data and the search are unchanged)
+  const ICO_RESULT = { events: "calendar", leads: "lead", staff: "user", team: "users", vendors: "store", inventory: "box", payments: "receipt", clients: "client" };
+  const ICO_RECORD = { event: "calendar", quote: "quote", lead: "lead", builder: "plan", vendor: "store", staff: "user", client: "client", record: "page" };
+  const ICO_LOCAL = { page: "page", section: "sliders", setting: "toggle", account: "client" };
+  const ICO_ACTION = { "new-lead": "plus", "new-quote": "plus", "new-staff": "plus", "invite-user": "mail", "add-user": "userPlus", "new-item": "plus",
+    "new-vendor": "plus", "go-dash": "home", "go-cal": "calendar", "go-quotes": "quote", "go-leads": "lead", "go-staff": "user", "go-inv": "box",
+    "go-vendors": "store", "go-chat": "chat", "go-control": "sliders", "go-business": "briefcase", "go-reports": "chart", "go-audit": "shield",
+    "go-insights-b": "chart", "go-setup": "sliders", "go-templates": "layout", "hsb-theme": "drop", "hsb-tour": "help" };
+  function kindIcon(name) {
+    const s = doc.createElementNS(SVGNS, "svg");
+    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "hss-ico hss-kico"); s.setAttribute("aria-hidden", "true"); s.setAttribute("focusable", "false");
+    (ICO[name] || ICO.arrow).forEach((sh) => {
+      let n;
+      if (typeof sh === "string") { n = doc.createElementNS(SVGNS, "path"); n.setAttribute("d", sh); }
+      else if (sh[0] === "c") { n = doc.createElementNS(SVGNS, "circle"); n.setAttribute("cx", String(sh[1])); n.setAttribute("cy", String(sh[2])); n.setAttribute("r", String(sh[3])); }
+      else { n = doc.createElementNS(SVGNS, "rect"); n.setAttribute("x", String(sh[1])); n.setAttribute("y", String(sh[2])); n.setAttribute("width", String(sh[3])); n.setAttribute("height", String(sh[4])); n.setAttribute("rx", String(sh[5])); }
+      s.appendChild(n);
+    });
+    return s;
+  }
   function searchIcon() {
     const s = doc.createElementNS(SVGNS, "svg");
     s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "hss-ico"); s.setAttribute("aria-hidden", "true"); s.setAttribute("focusable", "false");
@@ -302,7 +374,7 @@
     // QA B5: filtered again at search time (the list is cached; the trial answer may arrive after it was built)
     if (typeof cat.forTrial === "function") list = cat.forTrial(list, trialOn());
     return cat.rank(q, list, global.HelmSettingsSearch, 8).map((e) => ({
-      kind: e.kind === "account" ? "account" : "nav", label: e.text, icon: LOCAL_ICON[e.kind] || "📄",
+      kind: e.kind === "account" ? "account" : "nav", label: e.text, icon: LOCAL_ICON[e.kind] || "📄", ico: ICO_LOCAL[e.kind] || "page",
       sub: e.kind === "setting" ? "Setting · " + e.context : LOCAL_SUB[e.kind] || "", href: e.href || "", open: e.open || null,
     }));
   }
@@ -320,14 +392,14 @@
       "aria-autocomplete": "list", "aria-haspopup": "listbox", autocomplete: "off", autocorrect: "off", autocapitalize: "off", spellcheck: "false",
       maxlength: String(MAX), placeholder: "Search pages, settings, leads, events, staff…", "aria-label": "Search your studio", enterkeyhint: "go" });
     const spin = el("span", { class: "hss-spin", "aria-hidden": "true" }); spin.hidden = true;
-    const x = el("button", { type: "button", class: "hss-x", "aria-label": "Close search" }, "Esc");
+    const x = el("button", { type: "button", class: "hss-x hss-key", "aria-label": "Close search" }, "Esc");
     row.appendChild(input); row.appendChild(spin); row.appendChild(x);
     const body = el("div", { class: "hss-body" });
     const list = el("div", { id: "hssList", role: "listbox", "aria-label": "Search results" });
     body.appendChild(list);
     const foot = el("div", { class: "hss-foot" });
-    [["↑↓", "move"], ["↵", "open"], ["Tab", "next group"]].forEach(([k, t]) => {
-      const sp = el("span", { class: "hss-k" }); sp.appendChild(el("kbd", { class: "hss-kbd" }, k)); sp.appendChild(doc.createTextNode(t)); foot.appendChild(sp);
+    [[["↑", "↓"], "move"], [["↵"], "open"], [["Tab"], "next group"]].forEach(([ks, t]) => {
+      const sp = el("span", { class: "hss-k" }); ks.forEach((k) => sp.appendChild(el("kbd", { class: "hss-key" }, k))); sp.appendChild(doc.createTextNode(t)); foot.appendChild(sp);
     });
     const status = el("span", { class: "hss-st", role: "status", "aria-live": "polite" });
     foot.appendChild(status);
@@ -338,7 +410,8 @@
     input.addEventListener("input", onInput);
     input.addEventListener("keydown", onKey);
     dlg.addEventListener("keydown", (e) => { if (e.key === "Tab" && e.target !== input) { e.preventDefault(); input.focus(); } });
-    Object.assign(S, { ov, input, list, status, spin });
+    body.addEventListener("scroll", moreHint, { passive: true });
+    Object.assign(S, { ov, input, list, status, spin, body });
   }
 
   async function open(initial) {
@@ -360,10 +433,35 @@
     S.open = false;
     if (S.ctrl) { try { S.ctrl.abort(); } catch (e) {} S.ctrl = null; }
     clearTimeout(S.timer);
-    if (S.ov && S.ov.parentNode) S.ov.parentNode.removeChild(S.ov);
+    if (S.ov && S.ov.parentNode) { fadeOut(S.ov); S.ov.parentNode.removeChild(S.ov); }
     try { doc.documentElement.classList.remove("hss-lock"); } catch (e) {}
     const r = S.returnFocus; S.returnFocus = null;
     if (r && typeof r.focus === "function" && doc.contains(r)) { try { r.focus(); } catch (e) {} }
+  }
+
+  // r223: soft fade at the list's bottom edge while more rows are below (no row looks "cut off")
+  function moreHint() {
+    const b = S.body; if (!b) return;
+    const more = (b.scrollHeight - b.scrollTop - b.clientHeight) > 4;
+    if (more) b.setAttribute("data-more", ""); else b.removeAttribute("data-more");
+  }
+  // r223: close animation. The real dialog leaves the DOM at once (focus, ids and tests stay exactly as before);
+  // an inert, id-less copy plays the fade-out and removes itself. Skipped for prefers-reduced-motion.
+  function fadeOut(ov) {
+    try {
+      if (typeof ov.cloneNode !== "function" || typeof global.matchMedia !== "function" || global.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const g = ov.cloneNode(true);
+      g.setAttribute("class", "hss-ghost"); g.setAttribute("aria-hidden", "true"); g.removeAttribute("data-hss");
+      try { g.inert = true; } catch (e) {}
+      g.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"));
+      g.querySelectorAll("[role]").forEach((n) => n.removeAttribute("role"));
+      const gi = g.querySelector(".hss-in"); if (gi && S.input) gi.value = S.input.value;
+      doc.body.appendChild(g);
+      const gb = g.querySelector(".hss-body"); if (gb && S.body) gb.scrollTop = S.body.scrollTop;
+      const done = () => { if (g.parentNode) g.parentNode.removeChild(g); };
+      g.addEventListener("animationend", (e) => { if (e.target === g) done(); });
+      setTimeout(done, 260);
+    } catch (e) {}
   }
 
   function onInput() {
@@ -409,7 +507,7 @@
       const href = r && typeof r.href === "string" ? r.href : "";
       if (!href || !/^[a-z0-9-]+\.html(?:[?#][^\s\\]*)?$/i.test(href)) return null;
       const kind = String(r.kind || "record");
-      return { title: String(r.title || "").slice(0, 120), href, icon: (t.ICONS && t.ICONS[kind]) || "📄",
+      return { title: String(r.title || "").slice(0, 120), href, icon: (t.ICONS && t.ICONS[kind]) || "📄", ico: ICO_RECORD[kind] || "page",
         sub: ((t.KIND_LABEL && t.KIND_LABEL[kind]) || "Record") + (r.at && t.timeAgo ? " · " + t.timeAgo(r.at) : "") };
     }).filter((r) => r && r.title);
   }
@@ -419,19 +517,19 @@
     if (q.length < MIN) {
       const recs = recentRecords();
       if (recs.length) out.push({ key: "records", label: "Recently opened",
-        rows: recs.map((r) => ({ kind: "record", label: r.title, sub: r.sub, icon: r.icon, href: r.href })) });
+        rows: recs.map((r) => ({ kind: "record", label: r.title, sub: r.sub, icon: r.icon, ico: r.ico, href: r.href })) });
       const rec = recentGet();
       if (rec.length) out.push({ key: "recent", label: "Recent searches", clear: true,
-        rows: rec.map((r) => ({ kind: "recent", label: r, sub: "", icon: "🕘", q: r })) });
+        rows: rec.map((r) => ({ kind: "recent", label: r, sub: "", icon: "🕘", ico: "clock", q: r })) });
     } else {
       const loc = localHits(q, S.local);
       if (loc.length) out.push({ key: "goto", label: "Pages & settings", rows: loc });
       S.groups.forEach((g) => out.push({ key: g.type, label: g.label,
-        rows: g.items.map((it) => ({ kind: "result", label: it.title, sub: it.subtitle, icon: g.icon, href: it.href })) }));
+        rows: g.items.map((it) => ({ kind: "result", label: it.title, sub: it.subtitle, icon: g.icon, ico: ICO_RESULT[g.type] || "page", href: it.href })) }));
     }
     const acts = (S.actions || []).filter((a) => trialAction(a) && matchAction(a, q)).slice(0, q.length ? 4 : 8);
     if (acts.length) out.push({ key: "actions", label: q.length ? "Actions" : "Quick actions",
-      rows: acts.map((a) => ({ kind: "action", label: a.label, sub: "", icon: a.icon, href: a.href })) });
+      rows: acts.map((a) => ({ kind: "action", label: a.label, sub: "", icon: a.icon, ico: ICO_ACTION[a.id] || (/^(new|add)\b/i.test(a.label) ? "plus" : "arrow"), href: a.href })) });
     return out;
   }
 
@@ -454,12 +552,12 @@
       sec.rows.forEach((r) => {
         const id = "hssO" + (n++);
         const o = el("div", { class: "hss-opt", role: "option", id, "aria-selected": "false", "data-g": String(gi) });
-        o.appendChild(el("span", { class: "hss-oi", "aria-hidden": "true" }, r.icon));
+        const oi = el("span", { class: "hss-oi", "aria-hidden": "true" }); oi.appendChild(kindIcon(r.ico)); o.appendChild(oi);
         const t = el("span", { class: "hss-ot" });
         t.appendChild(r.kind === "result" || r.kind === "nav" || r.kind === "account" ? hl(el("span", { class: "hss-t" }), r.label, q) : el("span", { class: "hss-t" }, r.label));
         if (r.sub) t.appendChild(hl(el("span", { class: "hss-s" }), r.sub, q));
         o.appendChild(t);
-        o.appendChild(el("span", { class: "hss-go", "aria-hidden": "true" }, "↵"));
+        o.appendChild(el("kbd", { class: "hss-go hss-key", "aria-hidden": "true" }, "↵"));
         o.addEventListener("mousemove", () => { const i = S.opts.findIndex((x) => x.node === o); if (i !== S.active) setActive(i, false); });
         o.addEventListener("mousedown", (e) => e.preventDefault());
         o.addEventListener("click", (e) => { const i = S.opts.findIndex((x) => x.node === o); choose(i, e.metaKey || e.ctrlKey); });
@@ -498,6 +596,7 @@
     }
     S.status.textContent = msg;
     if (S.opts.length) setActive(0, false); else S.input.removeAttribute("aria-activedescendant");
+    if (S.body) { S.body.scrollTop = 0; moreHint(); }
   }
 
   function setActive(i, scroll) {
