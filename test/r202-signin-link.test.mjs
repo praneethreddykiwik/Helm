@@ -57,8 +57,9 @@ await t('rows: Send sign-in link on never-signed-in rows; one who-cell with e-ma
   assert.match(CTL, /const head=`<tr><th scope="col">Name<\/th><th scope="col">Role<\/th><th scope="col">Account<\/th><th scope="col"><span class="sr-only">Actions<\/span><\/th><\/tr>`;/);
   assert.doesNotMatch(CTL, /class="ucph"|class="ucjob"|data-label="Phone"|data-label="Job title"/);
   assert.match(CTL, /<div class="ucsub ucmeta">\$\{meta\}<\/div>/);
-  assert.match(CTL, /\$\{help&&help\.row\?`<button type="button" class="btn sm primary ucLink"/);
-  assert.match(CTL, /HelmTeamStatus\.signInHelp\(st, o\.acct&&o\.acct\.byId\?o\.acct\.byId\[ucId\(u\)\]:null, \{ self, isAdmin:o\.canEdit, canEdit:o\.canEdit, deactivated:isOff\(u\) \}\)/);
+  // R211: the row's buttons come from HelmTeamStatus.rowActions (which uses signInHelp) - "link" = Send sign-in link, primary
+  assert.match(CTL, /case "link": return `<button type="button" class="btn sm\$\{p\} ucLink"/);
+  assert.match(CTL, /const ra=RA\?RA\(st, o\.acct&&o\.acct\.byId\?o\.acct\.byId\[ucId\(u\)\]:null, \{ self:!!self, owner:isOwner\(u\), deactivated:isOff\(u\), canEdit:o\.canEdit, isAdmin:o\.canEdit \}\)/);
   assert.match(CTL, /tb\.querySelectorAll\("\.ucLink"\)\.forEach\(btn=>btn\.addEventListener\("click", \(\)=>\{ const u=rowOf\(btn\.closest\("tr"\)\); if\(u\) sendSignInLink\(u, btn\); \}\)\);/);
 });
 await t('layout: grid rows from 640px (no table mode), two-line / one-column on narrow cards, nothing fixed wider than the card', () => {
@@ -94,8 +95,9 @@ await t('"Which should I use?" box + Learn more; "Add user (create login now)"; 
   assert.match(CTL, /<div class="um-which" id="um_which">\s*<p class="um-which-t"><b>Which should I use\?<\/b> <b>Invite by email link<\/b> \(recommended\)/);
   assert.match(CTL, /<details class="um-which-more"><summary>Learn more<\/summary>/);
   for (const k of ['Save as a record only', 'Save and invite to sign in', 'New temporary password', 'needs two-step sign-in on your own account']) assert.ok(CTL.includes(k), k);
-  assert.match(CTL, /<h4 class="um-add-h" id="um_add_h">Add user \(create login now\)<\/h4>\s*<form id="um_add" class="addrow s-0dff578" novalidate aria-labelledby="um_add_h">/);
-  assert.match(CTL, /<h3>Invite by email link <span class="tag um-rec">Recommended<\/span><\/h3>/);
+  // R211: Add user now sits behind "More options" with the no-e-mail warning between heading and form
+  assert.match(CTL, /<h4 class="um-add-h" id="um_add_h">Add user \(create login now\)<\/h4>\s*<p class="um-warn"[^>]*>[\s\S]*?<\/p>\s*<form id="um_add" class="addrow s-0dff578" novalidate aria-labelledby="um_add_h">/);
+  assert.match(CTL, /<h4 class="um-invite-h" id="inv_h">Invite by email link <span class="tag um-rec">Recommended<\/span><\/h4>/);
   assert.match(CTL, /no e-mail is sent\. Share it with the person/);
 });
 await t('two-step up front: picking Admin (Add user OR invite) without two-step shows the note + "Set up two-step now"; rule unchanged', () => {
@@ -163,9 +165,9 @@ await t('asset pins: store-api v372 everywhere, team-status.js / .css v2 on Sett
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '375', f);
   }
-  for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=2"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=2">/, f); }
+  for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=3"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=3">/, f); }   // R211: v3
   const PT = read('public/page-tours.js');
-  for (const s of ['"#um_which"', '"#um_rows .ucLink"', '"#um_email"']) assert.ok(PT.includes('sel: ' + s), s);
+  for (const s of ['"#um_which"', '"#um_rows .ucView"', '"#um_more"']) assert.ok(PT.includes('sel: ' + s), s);   // R211: Add user step -> More options
 });
 
 console.log(`r202-signin-link: ${n} passed`);

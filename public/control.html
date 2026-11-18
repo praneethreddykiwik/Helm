@@ -272,7 +272,7 @@
 <link rel="stylesheet" href="venues.css?v=8">
 <link rel="stylesheet" href="studio-templates.css?v=5"><link rel="stylesheet" href="asset-price-grid.css?v=3">
 <link rel="stylesheet" href="menu-pkg-editor.css?v=6"><link rel="stylesheet" href="layout-rules.css?v=1">
-<link rel="stylesheet" href="team-safety.css?v=2"><link rel="stylesheet" href="team-status.css?v=2">
+<link rel="stylesheet" href="team-safety.css?v=2"><link rel="stylesheet" href="team-status.css?v=3">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
@@ -639,10 +639,42 @@
       <div class="card">
         <h3>Team members</h3>
         <p class="mnote">Add teammates, set the name chat shows for each person, change each person's role, or deactivate someone who has left. Nobody is ever deleted: a deactivated person can't sign in, keeps their records, frees their seat, and can be reactivated. The studio owner can't be removed by other admins.</p>
+        <!-- R211 (owner 18 Nov 2026): "Invite by email link" is THE way to add a teammate - first, with "Send invite".
+             "Add user" (a login now + a temporary password) sits behind "More options", admins only, with a plain warning. -->
+        <section class="um-invite" id="um_invite" aria-labelledby="inv_h">
+          <h4 class="um-invite-h" id="inv_h">Invite by email link <span class="tag um-rec">Recommended</span></h4>
+          <p class="um-invite-n">Type their e-mail and pick a role. Helm e-mails them a join link that works for 7 days: they choose their own password (or sign in with Google) and join <b>your studio</b> with that role. Nothing is charged.</p>
+          <form id="inv_add" class="addrow s-0dff578" novalidate aria-labelledby="inv_h">
+            <input id="inv_email" type="email" maxlength="254" spellcheck="false" placeholder="name@studio.com" required autocomplete="off" aria-label="Invite email">
+            <select id="inv_role" aria-label="Invite role"></select>
+            <button class="btn primary" type="submit" id="inv_submit">Send invite</button>
+          </form>
+          <div class="um-err" id="inv_err" role="alert" data-no-toast hidden><p class="um-err-t" id="inv_err_t"></p><div class="um-err-acts" id="inv_err_acts"></div></div>
+          <div class="um-2step" id="inv_2step" role="note" hidden></div>
+          <div class="s-e93d1e1" id="inv_out" hidden>
+            <input class="s-59eddc6" id="inv_link" readonly aria-label="Invitation link">
+            <button class="btn" type="button" id="inv_copy">Copy</button>
+          </div>
+          <details class="um-more" id="um_more" hidden>
+            <summary>More options</summary>
+            <div class="um-more-b">
+              <h4 class="um-add-h" id="um_add_h">Add user (create login now)</h4>
+              <p class="um-warn" id="um_warn" role="note"><b>No e-mail is sent; you must give them the temporary password yourself.</b> Use only if they can't receive e-mail.</p>
+              <form id="um_add" class="addrow s-0dff578" novalidate aria-labelledby="um_add_h">
+                <input id="um_email" type="email" maxlength="254" spellcheck="false" placeholder="name@studio.com" required autocomplete="off" aria-label="New user email">
+                <select id="um_role" aria-label="New user role"></select>
+                <button class="btn" type="submit" id="um_submit">Add user</button>
+              </form>
+              <div class="um-err" id="um_err" role="alert" data-no-toast hidden><p class="um-err-t" id="um_err_t"></p><div class="um-err-acts" id="um_err_acts"></div></div>
+              <div class="um-2step" id="um_2step" role="note" hidden></div>
+              <p class="mnote s-fe7b497">Creates the login now and shows a one-time temporary password here, once - no e-mail is sent. Share it with the person; they'll be asked to set their own on first sign-in. Usually easier: <b>Invite by email link</b> above.</p>
+            </div>
+          </details>
+        </section>
         <div class="um-which" id="um_which">
           <p class="um-which-t"><b>Which should I use?</b> <b>Invite by email link</b> (recommended): they get an e-mail, choose their own password and join - the link works 7 days.
-            <b>Add user (create login now)</b>: the login exists at once and a temporary password is shown to you once - nothing is e-mailed, you pass it on yourself.
-            Someone stuck? Use <b>Send sign-in link</b> on their row.</p>
+            <b>Add user (create login now)</b>, under <b>More options</b> (admins only): the login exists at once and a temporary password is shown to you once - nothing is e-mailed, you pass it on yourself.
+            Someone stuck? Every person who isn't in yet has one main button on their row: <b>Resend invite</b>, <b>Send sign-in link</b> or <b>Reactivate</b>.</p>
           <details class="um-which-more"><summary>Learn more</summary>
             <ul>
               <li><b>Invite by email link</b> - best for most people. They confirm their own e-mail and pick their own password (or sign in with Google). Until they join they show as <i>Invited - not signed up yet</i>; <b>Resend invite</b> sends a fresh 7-day link.</li>
@@ -663,31 +695,10 @@
         <div class="table-scroll ucm-wrap"><table class="utable ucm"><thead id="um_head"><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="um_rows"><tr><td class="s-1a1aca0" colspan="4"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></td></tr></tbody>
         </table></div>
-        <h4 class="um-add-h" id="um_add_h">Add user (create login now)</h4>
-        <form id="um_add" class="addrow s-0dff578" novalidate aria-labelledby="um_add_h">
-          <input id="um_email" type="email" maxlength="254" spellcheck="false" placeholder="name@studio.com" required autocomplete="off" aria-label="New user email">
-          <select id="um_role" aria-label="New user role"></select>
-          <button class="btn primary" type="submit" id="um_submit">Add user</button>
-        </form>
-        <div class="um-err" id="um_err" role="alert" data-no-toast hidden><p class="um-err-t" id="um_err_t"></p><div class="um-err-acts" id="um_err_acts"></div></div>
-        <div class="um-2step" id="um_2step" role="note" hidden></div>
-        <p class="mnote s-fe7b497">Creates the login now and shows a one-time temporary password here, once - no e-mail is sent. Share it with the person; they'll be asked to set their own on first sign-in. Usually easier: <b>Invite by email link</b> below.</p>
       </div>
 
-      <div class="card">
-        <h3>Invite by email link <span class="tag um-rec">Recommended</span></h3>
-        <p class="mnote">Create a join link for a teammate. They sign up with it and are added to <b>your studio</b> with the role you pick. The link expires in 7 days; nothing is charged.</p>
-        <form id="inv_add" class="addrow s-0dff578" novalidate>
-          <input id="inv_email" type="email" maxlength="254" spellcheck="false" placeholder="name@studio.com" required autocomplete="off" aria-label="Invite email">
-          <select id="inv_role" aria-label="Invite role"></select>
-          <button class="btn primary" type="submit" id="inv_submit">Create invite link</button>
-        </form>
-        <div class="um-2step" id="inv_2step" role="note" hidden></div>
-        <div class="s-e93d1e1" id="inv_out" hidden>
-          <input class="s-59eddc6" id="inv_link" readonly aria-label="Invitation link">
-          <button class="btn" type="button" id="inv_copy">Copy</button>
-        </div>
-        <h4 class="s-cafd282">Pending invites</h4>
+      <div class="card" id="inv_card">
+        <h3 id="inv_list_h">Pending invites</h3>
         <p class="mnote">People you invited who haven't signed up yet. They also show in Team members above as <b>Invited – not signed up yet</b>. Cancel invite stops the link; nothing else changes.</p>
         <div class="table-scroll"><table class="utable invtable"><thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Sent</th><th scope="col">Expires</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="inv_rows"><tr><td colspan="5" class="s-1a1aca0">Loading…</td></tr></tbody></table></div>
@@ -956,7 +967,7 @@
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=54"></script>
+<script src="page-tours.js?v=55"></script>
 <script src="tour.js?v=72"></script>
 <script src="pkg-review.js?v=10"></script>
 <script src="onboarding-core.js?v=9"></script>
@@ -975,7 +986,7 @@
 <script src="venues-admin.js?v=10"></script>
 <script src="studio-templates-core.js?v=6"></script>
 <script src="studio-templates.js?v=15"></script>
-<script src="team-safety.js?v=3"></script><script src="team-status.js?v=2"></script>
+<script src="team-safety.js?v=3"></script><script src="team-status.js?v=3"></script>
 <script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=3"></script><script src="money-lock-ui.js?v=2"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=6"></script><script src="payment-schedule-settings.js?v=4"></script>
 <script src="asset-price-grid.js?v=7"></script><script src="pricing-form-core.js?v=4"></script><script src="menu-pkg-editor.js?v=5"></script><script src="layout-rules.js?v=2"></script>
 <script src="trial-demo.js?v=21"></script>
@@ -1807,11 +1818,13 @@
     const isel=$("#inv_role");
     if(isel && !isel.options.length){ isel.innerHTML = ROLES.map(r=>`<option value="${esc(r)}"${r==="coordinator"?" selected":""}>${esc(BPStore.auth.admin.roleLabel(r))}</option>`).join(""); }
     um2StepWire();
+    // R211: "Add user" (temporary password) is an admin-only extra under More options
+    { const mo=$("#um_more"); if(mo) mo.hidden=!isAdmin; }
     await renderUsers();
     if(typeof renderInvites==="function") renderInvites();
   }
   // ---- User control table (0041 profiles; before 0041 → today's name / email / role list) ----
-  let ucRows=[], ucProfiles=false, ucTeam=null, ucTwoStep=null;   // r44 (0291): { user id: two-step on? } for the admins' badge (null = not known)
+  let ucRows=[], ucProfiles=false, ucTeam=null, ucTwoStep=null, ucTeamView=null;   // R211: ucTeamView = HelmTeam.view(ucTeam) of the last draw   // r44 (0291): { user id: two-step on? } for the admins' badge (null = not known)
   // R199 (0378): sign-in facts + open invitations ({ byId: { user id: row }, invites: [...] }; null = older database / not allowed)
   let ucAcct=null;
   const ucId=(u)=>u.user_id||u.id;
@@ -1888,6 +1901,24 @@
     const rm=(u,self)=>self||isOwner(u)?"":isOff(u)
       ?`<button type="button" class="btn sm ucReact" aria-label="Reactivate ${esc(u.email||u.full_name||"")}">Reactivate</button><button type="button" class="btn sm ucWork" aria-label="Open work of ${esc(u.email||u.full_name||"")}">Open work</button>`
       :`<button type="button" class="rm" title="Deactivate - they can&#39;t sign in any more; their records are kept" aria-label="Deactivate ${esc(u.email||u.full_name||"")}">Deactivate</button>`;
+    // R211: one button per action key (HelmTeamStatus.rowActions); every label / e-mail goes through esc()
+    const RA=typeof HelmTeamStatus!=="undefined"&&HelmTeamStatus.rowActions?HelmTeamStatus.rowActions:null;
+    const acts=(list, u, st, who)=>(list||[]).map(a=>{ const p=a.primary?" primary":"", m=esc(u.email||u.full_name||""), w=esc(who||u.email||"");
+      switch(a.key){
+        case "resend": return st&&st.key==="expired"
+          ?`<button type="button" class="btn sm${p} ucInvResend" title="The link expired - this sends a new link that works 7 days" aria-label="Resend invite to ${m}">Resend invite (new link)</button>`
+          :`<button type="button" class="btn sm${p} ucInvResend" aria-label="Resend invite to ${m}">Resend invite</button>`;
+        case "copy": return `<button type="button" class="btn sm${p} ucInvCopy" aria-label="Copy invite link for ${m}">Copy link</button>`;
+        case "cancel": return `<button type="button" class="btn sm${p} ucInvCancel" aria-label="Cancel invite for ${m}">Cancel invite</button>`;
+        case "link": return `<button type="button" class="btn sm${p} ucLink" title="E-mails them a secure link to choose their own password" aria-label="Send sign-in link to ${w}">Send sign-in link</button>`;
+        case "react": return `<button type="button" class="btn sm${p} ucReact" aria-label="Reactivate ${m}">Reactivate</button>`;
+        case "work": return `<button type="button" class="btn sm ucWork" aria-label="Open work of ${m}">Open work</button>`;
+        case "view": return u.__invite?`<button type="button" class="btn sm ucView" aria-label="View invite for ${m}">View</button>`:`<button type="button" class="btn sm ucView" aria-label="View details of ${w}">View</button>`;
+        case "edit": return `<button type="button" class="btn sm ucEdit" aria-label="Edit profile for ${w}">Edit</button>`;
+        case "remove": return `<button type="button" class="rm" data-never="1" title="They never signed in. Their login is switched off (deactivated) - nothing is deleted, and you can reactivate them later" aria-label="Remove access for ${m}">Remove access</button>`;
+        case "deactivate": return `<button type="button" class="rm" title="Deactivate - they can&#39;t sign in any more; their records are kept" aria-label="Deactivate ${m}">Deactivate</button>`;
+        default: return "";
+      } }).join("");
     if(!o.profiles){
       const head=`<tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col"><span class="sr-only">Actions</span></th></tr>`;
       const rows=list.filter(u=>ucMatches(u,o.q,""));
@@ -1917,7 +1948,7 @@
         <td class="dn" data-label="Name"><div class="ucwho"><span class="ucav ucav-inv" aria-hidden="true">@</span><div class="ucwt"><div class="ucnm"><span class="dnTxt em ucinv-em">${esc(u.email)}</span></div><div class="ucsub">${esc(by)}</div></div></div></td>
         <td class="ucrole" data-label="Role"><span class="ucinv-role">${esc(rl(u.role||""))}</span></td>
         <td class="ucprof" data-label="Account">${ucAcctCell(u,st,priv)}</td>
-        <td class="ucact">${o.canEdit?`<button type="button" class="btn sm ucView" aria-label="View invite for ${esc(u.email)}">View</button><button type="button" class="btn sm ucInvResend" aria-label="Resend invite to ${esc(u.email)}">Resend invite</button><button type="button" class="btn sm ucInvCancel" aria-label="Cancel invite for ${esc(u.email)}">Cancel invite</button>`:""}</td>
+        <td class="ucact">${acts(RA?RA(st, null, { invite:true, canEdit:o.canEdit }):(o.canEdit?[{key:"view"},{key:"resend"},{key:"cancel"}]:[]), u, st)}</td>
       </tr>`; }
       const self=meId&&ucId(u)===meId; const dn=(u.full_name||"").trim(); const who=dn||u.email||u.email_name||"user";
       const av=`<span class="ucav"${u.avatar_path?` data-avatar-path="${esc(u.avatar_path)}"`:""} aria-hidden="true">${esc(ucInitials(dn||u.email||u.email_name))}</span>`;
@@ -1925,12 +1956,14 @@
       // R202: phone · job title · department under the e-mail (was two extra columns)
       const meta=[priv&&u.phone?`<span class="ucphn">${esc(ucPhone(u.phone))}</span>`:"", u.job_title?`<span class="ucjobt">${esc(u.job_title)}</span>`:"", u.department?`<span class="ucdept">${esc(u.department)}</span>`:""].filter(Boolean).join(" · ");
       // R202 (0379): "Send sign-in link" right on the row of someone who hasn't signed in yet (incl. just reactivated)
-      const help=typeof HelmTeamStatus!=="undefined"&&HelmTeamStatus.signInHelp?HelmTeamStatus.signInHelp(st, o.acct&&o.acct.byId?o.acct.byId[ucId(u)]:null, { self, isAdmin:o.canEdit, canEdit:o.canEdit, deactivated:isOff(u) }):null;
+      // R211: the row's buttons come from ONE matrix (HelmTeamStatus.rowActions) - the not-yet-active get one main next step first
+      const ra=RA?RA(st, o.acct&&o.acct.byId?o.acct.byId[ucId(u)]:null, { self:!!self, owner:isOwner(u), deactivated:isOff(u), canEdit:o.canEdit, isAdmin:o.canEdit })
+        :[{key:"view"}].concat(o.canEdit?[{key:"edit"}]:[], self||isOwner(u)?[]:isOff(u)?[{key:"react"},{key:"work"}]:[{key:"deactivate"}]);
       return `<tr class="ucr${isOff(u)?" ucoff":""}" data-id="${esc(ucId(u))}">
         <td class="dn" data-label="Name"><div class="ucwho">${av}<div class="ucwt"><div class="ucnm">${ucNameHtml(ucShownName(u,self,o.meName))}${self?' <span class="me">you</span>':""}${badges(u)}</div><div class="ucsub em"${mail?` title="${esc(mail)}"`:""}>${esc(mail)}</div>${meta?`<div class="ucsub ucmeta">${meta}</div>`:""}</div></div></td>
         <td class="ucrole" data-label="Role">${roleSel(u,self)}${ts(u)}</td>
         <td class="ucprof" data-label="Account">${ucAcctCell(u,st,priv)}</td>
-        <td class="ucact">${help&&help.row?`<button type="button" class="btn sm primary ucLink" title="E-mails them a secure link to choose their own password" aria-label="Send sign-in link to ${esc(who)}">Send sign-in link</button>`:""}<button type="button" class="btn sm ucView" aria-label="View details of ${esc(who)}">View</button>${o.canEdit?`<button type="button" class="btn sm ucEdit" aria-label="Edit profile for ${esc(who)}">Edit</button>`:""}${rm(u,self)}</td>
+        <td class="ucact">${acts(ra, u, st, who)}</td>
       </tr>`; }).join("") || `<tr><td colspan="${cols}" style="color:var(--ink-3)">${all.length?"No one matches these filters.":"No users."}</td></tr>`;
     return { head, body, shown:rows.length, total:all.length, members:list.length, invited:all.length-list.length };
   }
@@ -1958,6 +1991,7 @@
     const tb=$("#um_rows"), me=BPStore.auth.user();
     const meMeta=(me&&me.user_metadata)||{};
     const team=(typeof HelmTeam!=="undefined"&&ucTeam)?HelmTeam.view(ucTeam):null;
+    ucTeamView=team;
     const t=ucTable(ucRows,{profiles:ucProfiles, meId:me&&me.id, meName:meMeta.full_name||meMeta.name||"", roles:ROLES, roleLabel:BPStore.auth.admin.roleLabel, canEdit:isAdmin, twoStep:ucTwoStep,
       q:$("#uc_q").value, filter:ucProfiles?$("#uc_f").value:"", team, acct:ucAcct, now:Date.now()});
     if(typeof HelmTeam!=="undefined") HelmTeam.paint($("#team_safety"), ucTeam, { store:BPStore.team, guard:BPUI.guard, confirm:BPUI.confirm, prompt:BPUI.prompt,
@@ -1973,6 +2007,7 @@
       if(tr.dataset.inv){ const i=invOf(tr); if(i) viewInvite(i); } else { const u=rowOf(tr); if(u) viewMember(u, team); } }));
     tb.querySelectorAll(".ucInvResend").forEach(btn=>btn.addEventListener("click",()=>{ const i=invOf(btn.closest("tr")); if(i) invResend(i, btn); }));
     tb.querySelectorAll(".ucInvCancel").forEach(btn=>btn.addEventListener("click",()=>{ const i=invOf(btn.closest("tr")); if(i) invCancel(i, btn); }));
+    tb.querySelectorAll(".ucInvCopy").forEach(btn=>btn.addEventListener("click",()=>{ const i=invOf(btn.closest("tr")); if(i) invCopy(i, btn); }));
     tb.querySelectorAll(".roleSel").forEach(sel=>sel.addEventListener("change", async (e)=>{
       const tr=e.target.closest("tr"), id=tr.dataset.id, role=e.target.value;
       const prev=[...e.target.options].find(o=>o.defaultSelected);
@@ -1997,20 +2032,7 @@
     }));
     tb.querySelectorAll(".ucEdit").forEach(btn=>btn.addEventListener("click",()=>{ const u=rowOf(btn.closest("tr")); if(u) openMemberEdit(u, btn); }));
     // r33 (0283): Deactivate - nothing is deleted. A non-owner deactivating an admin waits 24 hours.
-    tb.querySelectorAll(".rm").forEach(btn=>btn.addEventListener("click", async ()=>{
-      const tr=btn.closest("tr"), id=tr.dataset.id, u=rowOf(tr)||{}, email=u.email||u.full_name||"this user";
-      const delayed=!!(team&&!team.iAmOwner&&u.role==="admin");
-      const text=delayed?`Deactivate ${email}? Only the studio owner can remove an admin at once - your request takes effect in 24 hours. The owner and ${email} are told now, and the owner can cancel it.`
-        :`Deactivate ${email}? They can't sign in or see studio data from now on, and they're signed out everywhere. Everything they made stays, with their name marked "(deactivated)". They no longer use a seat, and you can reactivate them later.`;
-      if(!(await BPUI.confirm(text,{title:delayed?"Deactivate an admin":"Deactivate team member",okLabel:delayed?"Ask to deactivate":"Deactivate",danger:true}))) return;
-      try{
-        const r=await BPUI.guard(btn, ()=>BPStore.team?BPStore.team.deactivate(id, null):BPStore.auth.admin.deleteUser(id));
-        await renderUsers();
-        if(r&&r.scheduled) setUMsg("ok","Asked. "+email+" is deactivated in 24 hours unless the owner cancels it.");
-        else { setUMsg("ok",email+" is deactivated. Their records are kept."); if(r&&r.open_work&&typeof HelmTeam!=="undefined") HelmTeam.paintWork($("#team_work"), u.full_name||email, r.open_work); }
-      }
-      catch(err){ setUMsg("err",typeof HelmTeam!=="undefined"?HelmTeam.errText(err,"Couldn't deactivate them."):errMsg(err,"deactivate the user")); }
-    }));
+    tb.querySelectorAll(".rm").forEach(btn=>btn.addEventListener("click", ()=>{ const u=rowOf(btn.closest("tr")); if(u) umDeactivate(u, btn, btn.dataset.never==="1"); }));
     tb.querySelectorAll(".ucReact").forEach(btn=>btn.addEventListener("click", ()=>{ const u=rowOf(btn.closest("tr")); if(u) reactivateMember(u, btn); }));
     // R202 (0379): Send sign-in link (a never-signed-in row)
     tb.querySelectorAll(".ucLink").forEach(btn=>btn.addEventListener("click", ()=>{ const u=rowOf(btn.closest("tr")); if(u) sendSignInLink(u, btn); }));
@@ -2120,7 +2142,7 @@
   // someone already in the team, an invite already pending; the role must be one from the list
   let invPending=[];
   function ccTeam(){ const CI=window.HelmCCInputs; return CI&&CI.bindTeam?CI.bindTeam({
-    self:()=>{ const u=BPStore.auth.user(); return (u&&u.email)||""; }, members:()=>ucRows.map(u=>u.email).filter(Boolean), pending:()=>invPending }):null; }
+    self:()=>{ const u=BPStore.auth.user(); return (u&&u.email)||""; }, members:()=>ucRows.filter(u=>!umIsOff(u)).map(u=>u.email).filter(Boolean), pending:()=>invPending }):null; }
   function ccRoleOk(sel){ const CI=window.HelmCCInputs, r=CI?CI.role($(sel).value, ROLES):{ok:!!$(sel).value,error:"Choose a role."};
     if(!r.ok){ setUMsg("err",r.error); $(sel).focus(); } return r.ok; }
   ccTeam();
@@ -2136,14 +2158,57 @@
   }
   function umErrHide(){ const box=$("#um_err"); if(box) box.hidden=true; }
   $("#um_email").addEventListener("input",umErrHide);
+
+  // ---- R211 (owner 18 Nov 2026): every refusal on this page = an inline message where you acted + a floating toast ----
+  // which: "inv" (Invite by email link) | "um" (Add user). buttons: [{ label, primary, onClick(btn) }]. DOM only, no HTML strings.
+  function umBoxShow(which, text, buttons, toastOpt){
+    const box=$(which==="inv"?"#inv_err":"#um_err"), tx=$(which==="inv"?"#inv_err_t":"#um_err_t"), acts=$(which==="inv"?"#inv_err_acts":"#um_err_acts");
+    if(!box||!tx||!acts) return;
+    tx.textContent=String(text||""); acts.textContent="";
+    (buttons||[]).forEach(o=>{ const b=document.createElement("button"); b.type="button"; b.className="btn sm"+(o.primary?" primary":""); b.textContent=o.label;
+      b.addEventListener("click",()=>o.onClick(b)); acts.appendChild(b); });
+    box.hidden=false;
+    if(which==="um"){ const d=$("#um_more"); if(d) d.open=true; }
+    try{ box.scrollIntoView({block:"nearest"}); }catch(_){ }
+    const first=(buttons||[])[0];
+    BPUI.toast(String(text||""),Object.assign({ type:"err", timeout:0, place:"top" }, first?{ action:{ label:first.label, onClick:()=>first.onClick(acts.querySelector("button")||null) } }:{}, toastOpt||{}));
+  }
+  function umBoxHide(which){ const box=$(which==="inv"?"#inv_err":"#um_err"); if(box) box.hidden=true; }
+  // a field-level refusal (cc-inputs: format, your own address, already a member, invite pending) floats too
+  function umFieldToast(id){ const f=$("#"+id+"_fv"), t=f&&!f.hidden?String(f.textContent||"").trim():""; if(t) BPUI.toast(t,{ type:"err", timeout:0, place:"top" }); }
+  // the submit button is locked because every seat is in use (renderSeats sets the title) -> say so instead of nothing
+  function umSeatRefusal(which, btn){ if(btn&&btn.disabled&&btn.title&&!btn.getAttribute("aria-busy")) umBoxShow(which, btn.title+". "+String(($("#seat_meter")||{}).textContent||"").trim()); }
+
+  // ---- R211: re-invite after deactivate ----
+  // Same studio: the e-mail of a DEACTIVATED member of this studio -> "Reactivate <name>" (one click, optionally + a sign-in
+  // link) instead of an error or a second login. (create_invitation / Add user refuse an existing member anyway - unchanged.)
+  // Another studio: a Helm login belongs to ONE studio, and being deactivated there does not free it (accept_invitation
+  // refuses "you already belong to an organization"; only a login that studio made with Add user moves - 0155). Studio B's
+  // admin never learns which studio: this sentence is all they see. Nothing is moved silently.
+  const UM_OTHER_STUDIO="If the invite link tells them this e-mail already belongs to another Helm studio: a login can be in one studio at a time, and being deactivated there doesn't free it. They need to be released from that studio first, or you can invite a different e-mail.";
+  function umIsOff(u){ const id=ucId(u); if(ucTeamView&&ucTeamView.isOff&&ucTeamView.isOff(id)) return true;
+    const a=ucAcct&&ucAcct.byId?ucAcct.byId[id]:null; return !!(a&&a.deactivated); }
+  function umOffMember(email){ const e=String(email||"").trim().toLowerCase(); if(!e) return null;
+    return ucRows.find(u=>String(u.email||"").trim().toLowerCase()===e&&umIsOff(u))||null; }
+  function umOfferReactivate(which, u){
+    const name=(u.full_name||"").trim()||u.email||"this person", a=ucAcct&&ucAcct.byId?ucAcct.byId[ucId(u)]:null;
+    const text=`${name}${u.email&&name!==u.email?" ("+u.email+")":""} is already in your studio, but deactivated. Reactivate them instead - they get their old role and records back. No new login and no second invite is made.`
+      +(a&&!a.last_sign_in_at?" They have never signed in, so you can e-mail them a sign-in link in the same step.":"");
+    const done=(ok)=>{ if(ok){ umBoxHide(which); const f=$(which==="inv"?"#inv_email":"#um_email"); if(f) f.value=""; } };
+    const btns=[{ label:"Reactivate "+name, primary:true, onClick:(b)=>reactivateMember(u, b).then(done) }];
+    if(a) btns.push({ label:"Reactivate and send sign-in link", onClick:(b)=>reactivateMember(u, b, { link:true }).then(done) });
+    umBoxShow(which, text, btns, { type:"warn", title:"Already in your studio" });
+  }
   $("#um_add").addEventListener("submit", async (e)=>{
     e.preventDefault();
-    if($("#um_submit").disabled) return;   // already adding (Enter pressed twice) or all seats in use
+    if($("#um_submit").disabled){ umSeatRefusal("um", $("#um_submit")); return; }   // already adding (Enter pressed twice) or all seats in use
     umErrHide();
-    const T=ccTeam(); if(T&&T.member&&window.HelmCCInputs.first([T.member])) return;
+    // R211: a deactivated member's e-mail -> the Reactivate offer (checked before the field rules, which would say "already a member")
+    { const off=umOffMember($("#um_email").value); if(off){ umOfferReactivate("um", off); return; } }
+    const T=ccTeam(); if(T&&T.member&&window.HelmCCInputs.first([T.member])){ umFieldToast("um_email"); return; }
     if(!ccRoleOk("#um_role")) return;
     const email=((T&&T.member&&T.member.value())||$("#um_email").value.trim()).toLowerCase(), role=$("#um_role").value;
-    { const r=BPStore.validate.email(email); if(!r.ok){ setUMsg("err",r.error); $("#um_email").focus(); return; } }
+    { const r=BPStore.validate.email(email); if(!r.ok){ umBoxShow("um", r.error); $("#um_email").focus(); return; } }
     await BPUI.guard($("#um_submit"), async()=>{
     try{
       const r = await BPStore.auth.admin.createUserTemp(email, role);   // { user_id, temp_password }
@@ -2171,6 +2236,8 @@
         try{ $("#um_err").scrollIntoView({block:"nearest"}); }catch(_){ }
         return;
       }
+      // R211: the database says this e-mail is already in the studio - a deactivated member -> the Reactivate offer
+      if((String((err&&err.code)||"")==="23505"||/already a user in your studio/i.test(m))&&umOffMember(email)){ umOfferReactivate("um", umOffMember(email)); return; }
       umErrShow(text, null); BPUI.toast(text,{ type:"err", timeout:0, place:"top" });
     }
     }, {busyLabel:"Adding…"});
@@ -2206,7 +2273,14 @@
       setUMsg("ok",(r.reused?"Existing invite link ready for ":"Invite link created for ")+email+". Sending the invitation email…");
       if(T){ $("#inv_email").value=""; if(T&&T.invite) T.invite.reset(); }
       made=r;
-    }catch(err){ setUMsg("err",errMsg(err,"create the invite")); }
+    }catch(err){
+      // R211: the database refuses an existing member ("already a member of this studio"): a deactivated one -> Reactivate offer
+      const m=String((err&&err.message)||""), off=/already a member of this studio/i.test(m)?umOffMember(email):null;
+      const txt=/already a member of this studio/i.test(m)?email+" is already in your studio - change their role in Team members instead.":errMsg(err,"create the invite");
+      if(off) umOfferReactivate("inv", off);
+      else if(btn&&btn.id==="inv_submit") umBoxShow("inv", txt);
+      else setUMsg("err", txt);
+    }
     }, {busyLabel:"Creating…"}).catch(()=>{});
     // the guard has put the label back and re-enabled the button: the seat counter decides again (all seats in use -> locked)
     try{ await renderInvites(); }catch(_){ }
@@ -2225,14 +2299,18 @@
   }
   $("#inv_add").addEventListener("submit", async (e)=>{
     e.preventDefault();
-    if($("#inv_submit").disabled) return;   // already creating, or all seats in use
-    const T=ccTeam(); if(T&&T.invite&&window.HelmCCInputs.first([T.invite])) return;
+    if($("#inv_submit").disabled){ umSeatRefusal("inv", $("#inv_submit")); return; }   // already creating, or all seats in use
+    umBoxHide("inv");
+    // R211: a deactivated member's e-mail -> "Reactivate <name>" instead of an error or a duplicate
+    { const off=umOffMember($("#inv_email").value); if(off){ umOfferReactivate("inv", off); return; } }
+    const T=ccTeam(); if(T&&T.invite&&window.HelmCCInputs.first([T.invite])){ umFieldToast("inv_email"); return; }
     if(!ccRoleOk("#inv_role")) return;
     const email=((T&&T.invite&&T.invite.value())||$("#inv_email").value.trim()).toLowerCase(), role=$("#inv_role").value;
-    { const r=BPStore.validate.email(email); if(!r.ok){ setUMsg("err",r.error); $("#inv_email").focus(); return; } }
+    { const r=BPStore.validate.email(email); if(!r.ok){ umBoxShow("inv", r.error); $("#inv_email").focus(); return; } }
     await sendInvite(email, role, $("#inv_submit"), T||{});
   });
   $("#inv_link").addEventListener("click",(e)=>e.target.select());
+  $("#inv_email").addEventListener("input",()=>umBoxHide("inv"));
 
   // ---- R199: one set of invite actions (Team members rows, the View drawer, the Pending invites table) ----
   // inv = { id, email, role, created_at, expires_at, expired?, invited_by_name?, emailed_at?, email_status? }
@@ -2266,15 +2344,36 @@
     try{ await BPUI.guard(btn, ()=>BPStore.invitations.revoke(inv.id)); await renderInvites(); await renderUsers(); setUMsg("ok",`Invite cancelled for ${email}. Their link no longer works.`); }
     catch(err){ setUMsg("err",errMsg(err,"cancel the invite")); }
   }
+  // r33 (0283): Deactivate - nothing is deleted. A non-owner deactivating an admin waits 24 hours.
+  // R211: for someone who NEVER signed in the same action is called "Remove access" (their temporary password / sign-in
+  // link can't be used any more) - explained in plain words, reversible with Reactivate.
+  async function umDeactivate(u, btn, never){
+    const id=ucId(u), email=u.email||u.full_name||"this user", team=ucTeamView;
+    const delayed=!!(team&&!team.iAmOwner&&u.role==="admin");
+    const text=delayed?`Deactivate ${email}? Only the studio owner can remove an admin at once - your request takes effect in 24 hours. The owner and ${email} are told now, and the owner can cancel it.`
+      :never?`Remove access for ${email}? They never signed in. Their login is switched off (deactivated): their temporary password or sign-in link can't be used any more and the seat is freed. Nothing is deleted, and you can reactivate them later.`
+      :`Deactivate ${email}? They can't sign in or see studio data from now on, and they're signed out everywhere. Everything they made stays, with their name marked "(deactivated)". They no longer use a seat, and you can reactivate them later.`;
+    if(!(await BPUI.confirm(text,{title:delayed?"Deactivate an admin":never?"Remove access":"Deactivate team member",okLabel:delayed?"Ask to deactivate":never?"Remove access":"Deactivate",danger:true}))) return;
+    try{
+      const r=await BPUI.guard(btn, ()=>BPStore.team?BPStore.team.deactivate(id, null):BPStore.auth.admin.deleteUser(id));
+      await renderUsers();
+      if(r&&r.scheduled) setUMsg("ok","Asked. "+email+" is deactivated in 24 hours unless the owner cancels it.");
+      else { setUMsg("ok",never?"Access removed for "+email+". Nothing was deleted - Reactivate on their row lets them back in.":email+" is deactivated. Their records are kept."); if(r&&r.open_work&&typeof HelmTeam!=="undefined") HelmTeam.paintWork($("#team_work"), u.full_name||email, r.open_work); }
+    }
+    catch(err){ setUMsg("err",typeof HelmTeam!=="undefined"?HelmTeam.errText(err,"Couldn't deactivate them."):errMsg(err,"deactivate the user")); }
+  }
   // r33 (0283) Reactivate; R202: afterwards the row is drawn again from fresh account facts, so someone who never signed in
   // shows "Send sign-in link" straight away (and the message says so)
-  async function reactivateMember(u, btn){
-    const id=ucId(u), email=u.email||u.full_name||"this user";
-    if(!(await BPUI.confirm(`Reactivate ${email}? They can sign in again with their old role, and they use a seat again.`,{title:"Reactivate team member",okLabel:"Reactivate"}))) return;
-    try{ await BPUI.guard(btn, ()=>BPStore.team.reactivate(id)); await renderUsers();
-      const a=ucAcct&&ucAcct.byId?ucAcct.byId[id]:null;
-      setUMsg("ok",email+" can sign in again."+(a&&!a.last_sign_in_at?" They haven't signed in yet - use “Send sign-in link” on their row to e-mail them a link to set their own password.":"")); }
-    catch(err){ setUMsg("err",HelmTeam.errText(err,"Couldn't reactivate them.")); }
+  // R211: o.link = "Reactivate and send sign-in link" (one click: reactivate, then the same sign-in link e-mail as the row button)
+  async function reactivateMember(u, btn, o){
+    const id=ucId(u), email=u.email||u.full_name||"this user", link=!!(o&&o.link);
+    if(!(await BPUI.confirm(`Reactivate ${email}? They can sign in again with their old role, and they use a seat again.`+(link?" Helm then e-mails them a secure link to choose their own password.":""),{title:"Reactivate team member",okLabel:link?"Reactivate and send link":"Reactivate"}))) return false;
+    try{ await BPUI.guard(btn, ()=>BPStore.team.reactivate(id)); await renderUsers(); }
+    catch(err){ setUMsg("err",typeof HelmTeam!=="undefined"?HelmTeam.errText(err,"Couldn't reactivate them."):errMsg(err,"reactivate them")); return false; }
+    const a=ucAcct&&ucAcct.byId?ucAcct.byId[id]:null;
+    if(link){ await sendSignInLink(u, null); return true; }
+    setUMsg("ok",email+" can sign in again."+(a&&!a.last_sign_in_at?" They haven't signed in yet - use “Send sign-in link” on their row to e-mail them a link to set their own password.":""));
+    return true;
   }
   const umWait=(sec)=>{ const m=Math.max(1,Math.ceil((Number(sec)||600)/60)); return m===1?"about a minute":m+" minutes"; };
   function umHelpErr(err, what){
@@ -2289,7 +2388,7 @@
   async function sendSignInLink(u, btn){
     const id=ucId(u), email=u.email||u.email_name||"them";
     try{
-      const r=await BPUI.guard(btn, ()=>BPStore.auth.admin.sendSignInLink(id));
+      const r=btn?await BPUI.guard(btn, ()=>BPStore.auth.admin.sendSignInLink(id)):await BPStore.auth.admin.sendSignInLink(id);
       if(!r||r.ok!==true){ setUMsg("err",(r&&r.code==="rate_limited")?`A sign-in link already went to ${email} a few minutes ago. You can send another in ${umWait(r.retry_after_s)}.`:String((r&&r.error)||"Couldn't send the sign-in link.")); return; }
       await renderUsers();
       setUMsg("ok",`Sign-in link sent to ${r.email||email}. It opens a page where they choose their own password, then they're in. Ask them to check spam too.`);
@@ -2327,7 +2426,9 @@
     TS.openDrawer({ title:inv.email, sub:st.label,
       rows:[["E-mail", inv.email, { copy:true, mono:true }], ["Role", BPStore.auth.admin.roleLabel(inv.role)], ["Account status", st.label, { tone:st.tone }],
         ["Invite sent", TS.when(inv.created_at,true)], [exp?"Link expired":"Link expires", TS.when(inv.expires_at,true)+(exp?"":(TS.until(inv.expires_at)?" ("+TS.until(inv.expires_at)+")":""))],
-        ["Invitation e-mail", mail], ["Invited by", inv.invited_by_name||""]],
+        ["Invitation e-mail", mail], ["Invited by", inv.invited_by_name||""],
+        // R211: the one refusal studio B's admin can't see - say it plainly (no other studio is ever named)
+        ["Can't join?", UM_OTHER_STUDIO]],
       actions:[{ label:exp?"Resend invite (new link)":"Resend invite", primary:true, onClick:(b)=>invResend(inv, b) },
         { label:"Copy invite link", disabled:exp, title:exp?"The link expired - use Resend invite":"", onClick:(b)=>invCopy(inv, b) },
         { label:"Cancel invite", danger:true, onClick:(b)=>invCancel(inv, b) }] });
@@ -2354,7 +2455,11 @@
         help&&help.link?[{ label:"Send sign-in link", primary:!!help.row, onClick:(b)=>sendSignInLink(u, b) }]:[],
         help&&help.temp?[{ label:"New temporary password", onClick:(b)=>newTempPassword(u, b), title:"Only for someone added with “Add user” who has never signed in" }]:[],
         help&&help.reactivateFirst&&!self?[{ label:"Reactivate", primary:true, onClick:(b)=>reactivateMember(u, b) }]:[],
-        [{ label:"Edit profile", primary:!(help&&(help.row||help.reactivateFirst)), onClick:()=>openMemberEdit(u, null) }]):[] });
+        // R211: someone who never signed in: one click to reactivate AND e-mail the sign-in link
+        help&&help.reactivateFirst&&!self&&a&&!a.last_sign_in_at?[{ label:"Reactivate and send sign-in link", onClick:(b)=>reactivateMember(u, b, { link:true }) }]:[],
+        [{ label:"Edit profile", primary:!(help&&(help.row||help.reactivateFirst)), onClick:()=>openMemberEdit(u, null) }],
+        // R211: Remove access (= deactivate) for a login that never signed in - not yourself, not the owner
+        help&&help.row&&!self&&!(team&&team.ownerId===ucId(u))?[{ label:"Remove access", danger:true, title:"Switches their login off (deactivate). Nothing is deleted; Reactivate lets them back in.", onClick:(b)=>umDeactivate(u, b, true) }]:[]):[] });
   }
   // ---- pending invites (existing invitations.list / .revoke; "Copy link" re-uses create(), which returns the same live token) ----
   // ---- 0167: seat counter ("2 of 2 seats used") - a free trial is you + 2 people; open invites count ----
