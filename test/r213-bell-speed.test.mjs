@@ -90,7 +90,7 @@ t('MANIFEST + checker overrides + generated checker + run-all + release lists kn
   assert.match(chk, /\('0388_r213_bell_speed', 'marker', 'public', '_r23_visible', 'uuid,uuid\|r213-0388'\)/);
   assert.match(chk, /\('0388_r213_bell_speed', 'fn', 'public', '_r388_vis', 'uuid,uuid'\)/);
   assert.match(read('scripts/db-test/run-all.sh'), /run "r213-bell-speed-0388" "R213-BELL-SPEED-0388: ALL PASS \\\(14\/14\\\)" psql -q -f tests\/db\/r213-bell-speed-0388\.sql/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0386', '0388'(, '\d{4}')*\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0387', '0388'(, '\d{4}')*\]/, f);
 });
 t('client: the bell poll already skips hidden tabs and other tabs of the same person (nothing to change)', () => {
   const s = read('public/store-api.js');

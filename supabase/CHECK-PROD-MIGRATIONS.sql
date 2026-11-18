@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (340 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (341 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4486 objects): body 173, bucket 9, col 242, con 415, cron 19, exec 17, fn 2006, idx 528, marker 98, pol 189, polexpr 4, pre 111, pub 5, seq 1, tbl 290, trg 377, view 2.
+-- What is checked (4500 objects): body 176, bucket 9, col 242, con 415, cron 19, exec 19, fn 2010, idx 528, marker 102, pol 189, polexpr 4, pre 112, pub 5, seq 1, tbl 290, trg 377, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4219,7 +4219,6 @@ with o(m, k, s, n, x) as (values
   ('0372_r189_money_lock', 'fn', 'public', '_r372_who', ''),
   ('0372_r189_money_lock', 'fn', 'public', '_r372_wage', 'jsonb,numeric,numeric,numeric,numeric,jsonb,numeric'),
   ('0372_r189_money_lock', 'fn', 'public', '_r372_suggest', 'uuid,uuid,uuid,jsonb'),
-  ('0372_r189_money_lock', 'fn', 'public', '_r21_cost_lines__pre0372', 'uuid,uuid'),
   ('0372_r189_money_lock', 'fn', 'public', '_r21_event_money__pre0372', 'uuid,uuid,boolean'),
   ('0372_r189_money_lock', 'fn', 'public', '_vb_event_pnl__pre0372', 'uuid,uuid'),
   ('0372_r189_money_lock', 'fn', 'public', '_a49_close_blockers__pre0372', 'uuid'),
@@ -4246,6 +4245,7 @@ with o(m, k, s, n, x) as (values
   ('0372_r189_money_lock', 'pre', null, '__pre0372', null),
   ('0372_r189_money_lock', 'fn', 'public', 'money_settings_get', ''),
   ('0372_r189_money_lock', 'fn', 'public', 'money_settings_set', 'jsonb'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r21_cost_lines__pre0372', 'uuid,uuid'),
   ('0372_r189_money_lock', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|r189-money-0372'),
   ('0372_r189_money_lock', 'marker', 'public', '_r21_event_money', 'uuid,uuid,boolean|r189-money-0372'),
   ('0372_r189_money_lock', 'marker', 'public', '_vb_event_pnl', 'uuid,uuid|r189-money-0372'),
@@ -4378,8 +4378,8 @@ with o(m, k, s, n, x) as (values
   ('0376_r197_event_money_header', 'body', 'public', 'money_settings_get', '|c13d059c21e26b20a7130b314783cca0'),
   ('0376_r197_event_money_header', 'body', 'public', 'money_settings_set', 'jsonb|aeee43e9788bdc468547cf8c5ed20aac'),
   ('0376_r197_event_money_header', 'fn', 'public', '_r376_lines', 'jsonb,boolean'),
-  ('0376_r197_event_money_header', 'fn', 'public', 'event_money_header', 'uuid'),
   ('0376_r197_event_money_header', 'pre', null, '__pre0376', null),
+  ('0376_r197_event_money_header', 'fn', 'public', 'event_money_header', 'uuid'),
   ('0376_r197_event_money_header', 'marker', 'public', 'money_settings_get', '|r197-0376'),
   ('0376_r197_event_money_header', 'marker', 'public', 'money_settings_set', 'jsonb|r197-0376'),
   ('0376_r197_event_money_header', 'marker', 'public', 'get_studio_target_margin', '|r197-0376'),
@@ -4497,6 +4497,20 @@ with o(m, k, s, n, x) as (values
   ('0386_r210_role_sync', 'trg', 'public.profiles', 'zzzzz_r386_left_studio', null),
   ('0386_r210_role_sync', 'marker', 'public', '_r386_tg_role_sync', '|r210-0386'),
   ('0386_r210_role_sync', 'marker', 'public', '_r386_tg_left_studio', '|r210-0386'),
+  ('0387_r212_money_speed', 'fn', 'public', '_r21_cost_lines__pre0372__pre0387', 'uuid,uuid'),
+  ('0387_r212_money_speed', 'fn', 'public', 'event_money_header__pre0387', 'uuid'),
+  ('0387_r212_money_speed', 'fn', 'public', 'event_money_cash__pre0387', 'uuid'),
+  ('0387_r212_money_speed', 'body', 'public', '_r21_cost_lines__pre0372', 'uuid,uuid|f847832ffbce42b813825c8753ae4949'),
+  ('0387_r212_money_speed', 'fn', 'public', '_r387_event_pnl', 'uuid,uuid,jsonb'),
+  ('0387_r212_money_speed', 'body', 'public', 'event_money_header', 'uuid|d238d4388744362e92336f86f00d7216'),
+  ('0387_r212_money_speed', 'body', 'public', 'event_money_cash', 'uuid|7f830a1272be3779f29247a0c775baea'),
+  ('0387_r212_money_speed', 'pre', null, '__pre0387', null),
+  ('0387_r212_money_speed', 'marker', 'public', 'event_money_header', 'uuid|r212-0387'),
+  ('0387_r212_money_speed', 'marker', 'public', 'event_money_cash', 'uuid|r212-0387'),
+  ('0387_r212_money_speed', 'marker', 'public', '_r21_cost_lines__pre0372', 'uuid,uuid|r212-0387'),
+  ('0387_r212_money_speed', 'marker', 'public', '_r387_event_pnl', 'uuid,uuid,jsonb|r212-0387'),
+  ('0387_r212_money_speed', 'exec', 'public', 'event_money_header', 'uuid|authenticated'),
+  ('0387_r212_money_speed', 'exec', 'public', 'event_money_cash', 'uuid|authenticated'),
   ('0388_r213_bell_speed', 'fn', 'public', '_r388_vis', 'uuid,uuid'),
   ('0388_r213_bell_speed', 'fn', 'public', '_r23_visible__pre0388', 'uuid,uuid'),
   ('0388_r213_bell_speed', 'fn', 'public', '_r388_rows', 'uuid,uuid'),
@@ -4852,7 +4866,8 @@ mig(ord, m, ov, note) as (values
   (337, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes'),
   (338, '0385_r208_task_assign_access', null, 'Assign & send tasks: new server-only _r385_can_assign; the Staff-edit check inside 16 task calls and the _r300_area_ok area list are patched in place from the live body (dynamic SQL the parser cannot see), checked by the r208-0385 marker; _a49_seed_clean_matrix wrapped once (old body kept as __pre0385) to seed the tasks row for new studios'),
   (339, '0386_r210_role_sync', null, 'Role sync: a role change also closes the studio''s open invitations for that e-mail, renames the linked staff record''s role words (only while they show the old role) and the login''s role words; a login moved to another studio is unlinked from the old studio''s staff record - two new trigger functions + two triggers on profiles, checked by the r210-0386 markers'),
-  (340, '0388_r213_bell_speed', null, 'bell / badge / pending speed: new _r388_vis (the inbox rule in one pass, no details) + _r388_rows (inbox flags, no details); _r23_visible, _r23_counts, bell_feed__pre0299 and bell_feed__pre0042 re-issued (built with dynamic SQL, old bodies kept as __pre0388), checked by the r213-0388 marker (the new _r23_visible names the r24-ci-0270 / r163-0357 / r186-0369 / r190-0373 / r205-0383 rules it keeps, so those markers still hold)')
+  (340, '0387_r212_money_speed', null, 'Event money reads fast: event_money_header + event_money_cash re-issued to build the cost ledger once (old bodies kept as __pre0387), the kept ledger body _r21_cost_lines__pre0372 re-issued with five offset 0 fences (old body kept as _r21_cost_lines__pre0372__pre0387), new server-only _r387_event_pnl; same answers, checked by the r212-0387 markers'),
+  (341, '0388_r213_bell_speed', null, 'bell / badge / pending speed: new _r388_vis (the inbox rule in one pass, no details) + _r388_rows (inbox flags, no details); _r23_visible, _r23_counts, bell_feed__pre0299 and bell_feed__pre0042 re-issued (built with dynamic SQL, old bodies kept as __pre0388), checked by the r213-0388 marker (the new _r23_visible names the r24-ci-0270 / r163-0357 / r186-0369 / r190-0373 / r205-0383 rules it keeps, so those markers still hold)')
 ),
 env as (
   select
