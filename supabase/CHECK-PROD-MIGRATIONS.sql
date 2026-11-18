@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (339 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (340 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4472 objects): body 173, bucket 9, col 242, con 415, cron 19, exec 17, fn 1999, idx 528, marker 92, pol 189, polexpr 4, pre 110, pub 5, seq 1, tbl 290, trg 377, view 2.
+-- What is checked (4486 objects): body 173, bucket 9, col 242, con 415, cron 19, exec 17, fn 2006, idx 528, marker 98, pol 189, polexpr 4, pre 111, pub 5, seq 1, tbl 290, trg 377, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -2938,7 +2938,6 @@ with o(m, k, s, n, x) as (values
   ('0266_notification_inbox', 'fn', 'public', '_r23_important', 'text'),
   ('0266_notification_inbox', 'fn', 'public', '_r23_label', 'text,jsonb'),
   ('0266_notification_inbox', 'fn', 'public', '_r23_snooze_at', 'uuid,text,timestamp with time zone'),
-  ('0266_notification_inbox', 'fn', 'public', '_r23_counts', 'uuid,uuid'),
   ('0266_notification_inbox', 'fn', 'public', '_r23_my_settings', 'uuid,uuid'),
   ('0266_notification_inbox', 'fn', 'public', 'inbox_feed', 'text,text,uuid,integer,text'),
   ('0266_notification_inbox', 'fn', 'public', 'inbox_act', 'uuid[],text,timestamp with time zone,text'),
@@ -2954,6 +2953,7 @@ with o(m, k, s, n, x) as (values
   ('0266_notification_inbox', 'cron', null, 'helm_inbox_tick', null),
   ('0266_notification_inbox', 'pre', null, '__pre0266', null),
   ('0266_notification_inbox', 'fn', 'public', '_r23_visible', 'uuid,uuid'),
+  ('0266_notification_inbox', 'fn', 'public', '_r23_counts', 'uuid,uuid'),
   ('0268_stock_one_flow', 'col', 'public.inventory_checkouts', 'qty_damaged', null),
   ('0268_stock_one_flow', 'con', 'public.inventory_checkouts', 'inventory_checkouts_damaged_0268', null),
   ('0268_stock_one_flow', 'col', 'public.event_stock_requests', 'checkout_id', null),
@@ -3948,9 +3948,9 @@ with o(m, k, s, n, x) as (values
   ('0356_r161_open_quotes_order', 'pre', null, '__pre0356', null),
   ('0357_r163_bell_type_once', 'fn', 'public', '_r23_visible__pre0357', 'uuid,uuid'),
   ('0357_r163_bell_type_once', 'fn', 'public', 'bell_feed__pre0042__pre0357', 'integer'),
-  ('0357_r163_bell_type_once', 'fn', 'public', 'bell_feed__pre0042', 'integer'),
   ('0357_r163_bell_type_once', 'fn', 'public', 'my_open_quotes__pre0357', 'text,integer,integer,uuid,integer'),
   ('0357_r163_bell_type_once', 'pre', null, '__pre0357', null),
+  ('0357_r163_bell_type_once', 'fn', 'public', 'bell_feed__pre0042', 'integer'),
   ('0357_r163_bell_type_once', 'marker', 'public', '_r23_visible', 'uuid,uuid|r163-0357'),
   ('0357_r163_bell_type_once', 'marker', 'public', 'bell_feed__pre0042', 'integer|r163-0357'),
   ('0357_r163_bell_type_once', 'marker', 'public', 'my_open_quotes', 'text,integer,integer,uuid,integer|r163-0357'),
@@ -4496,7 +4496,21 @@ with o(m, k, s, n, x) as (values
   ('0386_r210_role_sync', 'fn', 'public', '_r386_tg_left_studio', ''),
   ('0386_r210_role_sync', 'trg', 'public.profiles', 'zzzzz_r386_left_studio', null),
   ('0386_r210_role_sync', 'marker', 'public', '_r386_tg_role_sync', '|r210-0386'),
-  ('0386_r210_role_sync', 'marker', 'public', '_r386_tg_left_studio', '|r210-0386')
+  ('0386_r210_role_sync', 'marker', 'public', '_r386_tg_left_studio', '|r210-0386'),
+  ('0388_r213_bell_speed', 'fn', 'public', '_r388_vis', 'uuid,uuid'),
+  ('0388_r213_bell_speed', 'fn', 'public', '_r23_visible__pre0388', 'uuid,uuid'),
+  ('0388_r213_bell_speed', 'fn', 'public', '_r388_rows', 'uuid,uuid'),
+  ('0388_r213_bell_speed', 'fn', 'public', '_r23_counts__pre0388', 'uuid,uuid'),
+  ('0388_r213_bell_speed', 'fn', 'public', 'bell_feed__pre0299__pre0388', 'integer'),
+  ('0388_r213_bell_speed', 'fn', 'public', 'bell_feed__pre0299', 'integer'),
+  ('0388_r213_bell_speed', 'fn', 'public', 'bell_feed__pre0042__pre0388', 'integer'),
+  ('0388_r213_bell_speed', 'pre', null, '__pre0388', null),
+  ('0388_r213_bell_speed', 'marker', 'public', '_r388_vis', 'uuid,uuid|r213-0388'),
+  ('0388_r213_bell_speed', 'marker', 'public', '_r388_rows', 'uuid,uuid|r213-0388'),
+  ('0388_r213_bell_speed', 'marker', 'public', '_r23_visible', 'uuid,uuid|r213-0388'),
+  ('0388_r213_bell_speed', 'marker', 'public', '_r23_counts', 'uuid,uuid|r213-0388'),
+  ('0388_r213_bell_speed', 'marker', 'public', 'bell_feed__pre0299', 'integer|r213-0388'),
+  ('0388_r213_bell_speed', 'marker', 'public', 'bell_feed__pre0042', 'integer|r213-0388')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4837,7 +4851,8 @@ mig(ord, m, ov, note) as (values
   (336, '0383_r205_signin_notice', null, 'teammate sign-in notices: triggers zz_r383_signin_notice (auth.users, after last_sign_in_at) + zz_r383_join_notice (profiles), tables signin_notice_settings / signin_notice_log, settings + fallback ping; _r23_visible, bell_feed, notification_catalog, notification_type_of and notify_default wrapped once (old bodies kept as __pre0383), checked by the r205-0383 marker (the wrappers name the r190-0373 / r186-0369 / r24-ci-0270 / r163-0357 / r163-0358 / r156-0354 bodies they keep, so those markers still hold). Only the auth.users trigger missing = this project refused triggers on auth.users: the app fallback signin_notice_ping is used, nothing to paste'),
   (337, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes'),
   (338, '0385_r208_task_assign_access', null, 'Assign & send tasks: new server-only _r385_can_assign; the Staff-edit check inside 16 task calls and the _r300_area_ok area list are patched in place from the live body (dynamic SQL the parser cannot see), checked by the r208-0385 marker; _a49_seed_clean_matrix wrapped once (old body kept as __pre0385) to seed the tasks row for new studios'),
-  (339, '0386_r210_role_sync', null, 'Role sync: a role change also closes the studio''s open invitations for that e-mail, renames the linked staff record''s role words (only while they show the old role) and the login''s role words; a login moved to another studio is unlinked from the old studio''s staff record - two new trigger functions + two triggers on profiles, checked by the r210-0386 markers')
+  (339, '0386_r210_role_sync', null, 'Role sync: a role change also closes the studio''s open invitations for that e-mail, renames the linked staff record''s role words (only while they show the old role) and the login''s role words; a login moved to another studio is unlinked from the old studio''s staff record - two new trigger functions + two triggers on profiles, checked by the r210-0386 markers'),
+  (340, '0388_r213_bell_speed', null, 'bell / badge / pending speed: new _r388_vis (the inbox rule in one pass, no details) + _r388_rows (inbox flags, no details); _r23_visible, _r23_counts, bell_feed__pre0299 and bell_feed__pre0042 re-issued (built with dynamic SQL, old bodies kept as __pre0388), checked by the r213-0388 marker (the new _r23_visible names the r24-ci-0270 / r163-0357 / r186-0369 / r190-0373 / r205-0383 rules it keeps, so those markers still hold)')
 ),
 env as (
   select
