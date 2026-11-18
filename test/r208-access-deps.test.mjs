@@ -235,7 +235,7 @@ await t('APPLY-0385: header, begin, the migration verbatim, the all-true check b
   assert.ok(!/^\\/m.test(APPLY) && !/temp table/i.test(APPLY), 'paste-safe');
   for (const l of APPLY.split('\n').filter((x) => x.trim().startsWith('--'))) assert.doesNotMatch(l, /['";]/, 'editor-safe comment: ' + l);
   const man = r('supabase/migrations/MANIFEST');
-  assert.match(man, /\nforward  supabase\/migrations\/0385_r208_task_assign_access\.sql\n$/);
+  assert.match(man, /\nforward  supabase\/migrations\/0385_r208_task_assign_access\.sql\n/);   // r210: 0386 follows, so not necessarily the last line
   assert.match(r('scripts/db-test/run-all.sh'), /run "r208-task-assign-0385" "R208-TASK-ASSIGN-0385: ALL PASS \\\(37\/37\\\)" psql -q -f tests\/db\/r208-task-assign-0385\.sql/);
   const ovr = JSON.parse(r('supabase/check-prod-overrides.json'))['0385'];
   assert.ok(ovr && ovr.add.length === 18 && ovr.add.every((x) => /^marker public\.[a-z0-9_]+\([^)]*\) r208-0385$/.test(x)));

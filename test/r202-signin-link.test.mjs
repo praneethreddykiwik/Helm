@@ -165,7 +165,7 @@ await t('asset pins: store-api v372 everywhere, team-status.js / .css v2 on Sett
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '377', f);
   }
-  for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=3"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=3">/, f); }   // R211: v3
+  for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=\d+"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=3">/, f); }   // R211: css v3 (js: R210 v4, pinned in test/r210)
   const PT = read('public/page-tours.js');
   for (const s of ['"#um_which"', '"#um_rows .ucView"', '"#um_more"']) assert.ok(PT.includes('sel: ' + s), s);   // R211: Add user step -> More options
 });

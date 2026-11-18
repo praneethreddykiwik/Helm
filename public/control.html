@@ -991,7 +991,7 @@
 <script src="venues-admin.js?v=10"></script>
 <script src="studio-templates-core.js?v=6"></script>
 <script src="studio-templates.js?v=15"></script>
-<script src="team-safety.js?v=3"></script><script src="team-status.js?v=3"></script>
+<script src="team-safety.js?v=3"></script><script src="team-status.js?v=4"></script>
 <script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=3"></script><script src="money-lock-ui.js?v=2"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=6"></script><script src="payment-schedule-settings.js?v=4"></script>
 <script src="asset-price-grid.js?v=7"></script><script src="pricing-form-core.js?v=4"></script><script src="menu-pkg-editor.js?v=5"></script><script src="layout-rules.js?v=2"></script>
 <script src="trial-demo.js?v=21"></script>
@@ -1981,7 +1981,7 @@
     // R199 (0378): account status (signed up / last sign-in / invited) - never blocks the list (null on an older database)
     const acP=isAdmin&&BPStore.auth.admin.accountStatus?BPStore.auth.admin.accountStatus().catch(()=>null):Promise.resolve(null);
     try{ res=await BPStore.auth.admin.members(); }
-    catch(e){ BPUI.loadError(tb, e, renderUsers, {what:"team members"}); return; }
+    catch(e){ BPUI.loadError(tb, e, renderUsers, {what:"team members"}); return false; }
     ucTwoStep=await tsP;
     { const a=await acP; ucAcct=a?{ byId:Object.fromEntries((a.members||[]).filter(m=>m&&m.user_id).map(m=>[m.user_id,m])), invites:Array.isArray(a.invites)?a.invites:[], now:a.now||null }:null; }
     ucProfiles=!!res.profiles; ucRows=res.rows||[];
@@ -1991,6 +1991,7 @@
     if(!ucProfiles) ucRows.sort((a,b)=>(a.email||"").localeCompare(b.email||""));
     $("#uc_tools").hidden=false; $("#uc_f").hidden=!ucProfiles;
     drawUsers();
+    return true;   // R210: the table now shows what the database holds
   }
   function drawUsers(){
     const tb=$("#um_rows"), me=BPStore.auth.user();
@@ -2021,9 +2022,17 @@
       if(delayed && !(await BPUI.confirm(`Change ${u0.email||u0.full_name||"this admin"} from Admin? Only the studio owner can do this at once - your request takes effect in 24 hours. The owner and this admin are told now, and the owner can cancel it.`,{title:"Change an admin's role",okLabel:"Ask for the change"}))){ if(prev) e.target.value=prev.value; return; }
       try{
         const r=await BPUI.guard(e.target, ()=>team&&BPStore.team?BPStore.team.setRole(id, role):BPStore.auth.admin.setRole(id, role));
+        // R210: nothing was sent (the previous change of this row is still being saved) -> show the saved value again
+        if(r===undefined){ if(prev) e.target.value=prev.value; setUMsg("err","The last role change for this person is still being saved - wait a moment, then try again."); return; }
         if(r&&r.scheduled){ if(prev) e.target.value=prev.value; setUMsg("ok","Asked. The change happens in 24 hours unless the owner cancels it."); await renderUsers(); return; }
-        setUMsg("ok","Role updated."); e.target.querySelectorAll("option").forEach(o=>o.defaultSelected=o.value===role); const na=tr.querySelector(".no-access"); if(na) na.remove(); const u=rowOf(tr); if(u) u.role=role; }
-      catch(err){ setUMsg("err",typeof HelmTeam!=="undefined"&&HelmTeam.HINT_TEXT[HelmTeam.hintOf(err)]?HelmTeam.errText(err):errMsg(err,"change the role")); if(prev) e.target.value=prev.value; }
+        // R210 (owner: "changed to Event manager, the person is getting Admin"): never trust the drop-down - read the
+        // team again (role, owner / admins, two-step badges, account status) and say what the DATABASE now holds
+        const loaded=await renderUsers(), u=(ucRows||[]).find(x=>ucId(x)===id);
+        const out=typeof HelmTeamStatus!=="undefined"&&HelmTeamStatus.roleSaved?HelmTeamStatus.roleSaved(role, u&&u.role, loaded!==false&&!!u, BPStore.auth.admin.roleLabel)
+          :{ ok:true, tone:"ok", text:"Role updated." };
+        setUMsg(out.ok?"ok":"err", out.text); }
+      catch(err){ const rt=typeof HelmTeamStatus!=="undefined"&&HelmTeamStatus.roleError?HelmTeamStatus.roleError(err):"";
+        setUMsg("err",typeof HelmTeam!=="undefined"&&HelmTeam.HINT_TEXT[HelmTeam.hintOf(err)]?HelmTeam.errText(err):rt||errMsg(err,"change the role")); if(prev) e.target.value=prev.value; }
     }));
     tb.querySelectorAll(".dnEdit").forEach(btn=>btn.addEventListener("click", async ()=>{
       const tr=btn.closest("tr"), id=tr.dataset.id, u=rowOf(tr); if(!u) return;

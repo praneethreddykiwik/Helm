@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (338 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (339 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4466 objects): body 173, bucket 9, col 242, con 415, cron 19, exec 17, fn 1997, idx 528, marker 90, pol 189, polexpr 4, pre 110, pub 5, seq 1, tbl 290, trg 375, view 2.
+-- What is checked (4472 objects): body 173, bucket 9, col 242, con 415, cron 19, exec 17, fn 1999, idx 528, marker 92, pol 189, polexpr 4, pre 110, pub 5, seq 1, tbl 290, trg 377, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4490,7 +4490,13 @@ with o(m, k, s, n, x) as (values
   ('0385_r208_task_assign_access', 'marker', 'public', 'staff_link_get', 'uuid|r208-0385'),
   ('0385_r208_task_assign_access', 'marker', 'public', 'work_links_for_event', 'uuid|r208-0385'),
   ('0385_r208_task_assign_access', 'marker', 'public', '_r300_area_ok', 'text|r208-0385'),
-  ('0385_r208_task_assign_access', 'marker', 'public', '_r385_can_assign', '|r208-0385')
+  ('0385_r208_task_assign_access', 'marker', 'public', '_r385_can_assign', '|r208-0385'),
+  ('0386_r210_role_sync', 'fn', 'public', '_r386_tg_role_sync', ''),
+  ('0386_r210_role_sync', 'trg', 'public.profiles', 'zzzzz_r386_role_sync', null),
+  ('0386_r210_role_sync', 'fn', 'public', '_r386_tg_left_studio', ''),
+  ('0386_r210_role_sync', 'trg', 'public.profiles', 'zzzzz_r386_left_studio', null),
+  ('0386_r210_role_sync', 'marker', 'public', '_r386_tg_role_sync', '|r210-0386'),
+  ('0386_r210_role_sync', 'marker', 'public', '_r386_tg_left_studio', '|r210-0386')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4830,7 +4836,8 @@ mig(ord, m, ov, note) as (values
   (335, '0381_r203_test_studio_two_step', null, 'test-studio two-step switch: new private tables studio_test_mode + studio_test_mode_log, new hq_set_test_studio / my_test_studio / _r381_two_step_exempt, _r285_step_up re-issued in place, checked by the r203-0381 marker'),
   (336, '0383_r205_signin_notice', null, 'teammate sign-in notices: triggers zz_r383_signin_notice (auth.users, after last_sign_in_at) + zz_r383_join_notice (profiles), tables signin_notice_settings / signin_notice_log, settings + fallback ping; _r23_visible, bell_feed, notification_catalog, notification_type_of and notify_default wrapped once (old bodies kept as __pre0383), checked by the r205-0383 marker (the wrappers name the r190-0373 / r186-0369 / r24-ci-0270 / r163-0357 / r163-0358 / r156-0354 bodies they keep, so those markers still hold). Only the auth.users trigger missing = this project refused triggers on auth.users: the app fallback signin_notice_ping is used, nothing to paste'),
   (337, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes'),
-  (338, '0385_r208_task_assign_access', null, 'Assign & send tasks: new server-only _r385_can_assign; the Staff-edit check inside 16 task calls and the _r300_area_ok area list are patched in place from the live body (dynamic SQL the parser cannot see), checked by the r208-0385 marker; _a49_seed_clean_matrix wrapped once (old body kept as __pre0385) to seed the tasks row for new studios')
+  (338, '0385_r208_task_assign_access', null, 'Assign & send tasks: new server-only _r385_can_assign; the Staff-edit check inside 16 task calls and the _r300_area_ok area list are patched in place from the live body (dynamic SQL the parser cannot see), checked by the r208-0385 marker; _a49_seed_clean_matrix wrapped once (old body kept as __pre0385) to seed the tasks row for new studios'),
+  (339, '0386_r210_role_sync', null, 'Role sync: a role change also closes the studio''s open invitations for that e-mail, renames the linked staff record''s role words (only while they show the old role) and the login''s role words; a login moved to another studio is unlinked from the old studio''s staff record - two new trigger functions + two triggers on profiles, checked by the r210-0386 markers')
 ),
 env as (
   select
