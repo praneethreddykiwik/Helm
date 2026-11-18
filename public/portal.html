@@ -5,7 +5,6 @@
 <title>Your event · Helm</title>
 <meta name="robots" content="noindex,nofollow,noarchive">
 <meta name="referrer" content="no-referrer">
-<link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
 <style>
   :root{--bg:#f6f4f1;--panel:#fff;--panel-2:#faf8f5;--ink:#1b1930;--ink-2:#4b475f;--ink-3:#6b6577;
@@ -131,7 +130,7 @@
 <script src="/telemetry.js?v=11"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=377"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script>
+<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=1"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -158,14 +157,20 @@
     if(!token){ $("#loading").hidden=true; $("#bad").hidden=false; return; }
     await BPStore.init();
     $("#loadErr").hidden=true;
-    let d; try{ await BPStore.links.require(LINK); d=await BPStore.portal.get(token); }
+    let d; try{ // R216: the studio check and the portal are asked at the same time (checked in the same order as before)
+      const [rq,gq]=await Promise.allSettled([BPStore.links.require(LINK), BPStore.portal.get(token)]);
+      if(rq.status==="rejected") throw rq.reason; if(gq.status==="rejected") throw gq.reason; d=gq.value; }
     catch(e){ $("#loading").hidden=true;
       if(isCancelled(e)){ showCancelled($("#bad")); return; }
       if(isBadLink(e)){ $("#bad").hidden=false; return; }
       $("#loadErr").hidden=false; BPUI.loadError($("#loadErr"), e, load, {what:"your event"}); return; }
     $("#loading").hidden=true;
     if(!d){ $("#bad").hidden=false; return; }
-    $("#app").hidden=false; render(d); ledgerPaid().finally(paySchedule).finally(trialSched); extras(d);
+    $("#app").hidden=false;
+    // R216: both payment reads start now, together; they are still applied in the same order (ledger, then schedule)
+    PRE_PAID = BPStore.approval.paidStatus(token); PRE_SCHED = BPStore.paySchedule.publicGet(token);
+    PRE_PAID.catch(()=>{}); PRE_SCHED.catch(()=>{});
+    render(d); ledgerPaid().finally(paySchedule).finally(trialSched); extras(d);
   }
   function render(d){
     const e=d.event||{};
@@ -213,8 +218,10 @@
         : `<img src="${isUrl(m.url)?esc(m.url):""}" alt="${esc(m.caption||("Event photo "+(++n)))}" loading="lazy" decoding="async">`).join(""); }
   }
   // 0098: "paid" status only means SOME money is in - the ledger says advance vs paid in full
+  let PRE_PAID=null, PRE_SCHED=null;   // R216: started together in load()
+  const takePre=(k)=>{ const p=k==="paid"?PRE_PAID:PRE_SCHED; if(k==="paid") PRE_PAID=null; else PRE_SCHED=null; return p; };
   async function ledgerPaid(){
-    let st=null; try{ st=await BPStore.approval.paidStatus(token); }catch(e){}
+    let st=null; try{ st=await (takePre("paid")||BPStore.approval.paidStatus(token)); }catch(e){}
     const ps=BPStore.paidState(st); if(!ps) return;
     const b=$("#paidBadge"); if(b) b.textContent=ps.full?"Paid in full":"Advance received";
     // the ledger is the authority: once it says paid in full, no schedule row may still read "due"
@@ -229,7 +236,7 @@
   // (UPI ID, payment note, the live online link). Older servers / no schedule: the rows above stay as they are.
   const PS_LBL={paid:"paid",part_paid:"part paid",due:"due",overdue:"overdue",invoiced:"invoiced"};
   async function paySchedule(){
-    let s=null; try{ s=await BPStore.paySchedule.publicGet(token); }catch(_){ s=null; }
+    let s=null; try{ s=await (takePre("sched")||BPStore.paySchedule.publicGet(token)); }catch(_){ s=null; }
     if(!s||!Array.isArray(s.rows)) return;
     if(s.rows.length){ const box=$("#milestones"); box.textContent=""; MS_N=s.rows.length; MS_ROWS=s.rows.map(m=>({label:m.label,amount:m.amount}));
       s.rows.forEach(m=>{ const row=document.createElement("div"); row.className="prow";
