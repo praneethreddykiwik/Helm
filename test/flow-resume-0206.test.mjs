@@ -250,7 +250,7 @@ await t('pages: Quotes "In progress (N)" tab, dashboard block, workspace banner,
   assert.match(s, /const flowProgress = \{/); assert.match(s, /rpc\("mark_flow_step", \{ p_quote: String\(quoteId\), p_step: step \}\)/);
   assert.match(s, /rpc\("mark_flow_resume_dismissed", \{ p_quote: String\(quoteId\) \}\)/); assert.match(s, /rpc\("my_unfinished_quotes", args\)/);
   assert.match(s, /auth, quotes, flowProgress, recents,/);
-  assert.match(s, /\|privacy_pin_status\|my_unfinished_quotes\|my_open_quotes\)\(\\\?\|\$\)\/;/, 'the lists are reads (do not drop shared reads)');
+  assert.match(s.match(/const READ_RPCS = .*/)[0], /\|privacy_pin_status\|my_unfinished_quotes\|my_open_quotes[|)]/, 'the lists are reads (do not drop shared reads)');   // R219: more read-only names follow
   // mark_ keeps the cached reads (SWR_KEEP_RPCS): frequent step saves don't throw the cache away
   assert.match(s, /const SWR_KEEP_RPCS = [^\n]*\|mark_\|/);
   assert.match(FR_SRC, /root\.addEventListener\("pageshow", function \(e\) \{ if \(e && e\.persisted\) mount\(\); \}\);/);

@@ -195,7 +195,7 @@ t('B29 Roles matrix hides the trial-off areas; the trial PIN prompt never points
   assert.match(CTL, /AREAS=ALL_AREAS\.filter\(a=>off\.indexOf\(a\.key\)<0\)/);
   assert.match(PRIV, /function canChangePin\(\) \{ return !pinTrial && /);
   assert.match(PRIV, /In the free trial the studio privacy PIN is always 0000/);
-  assert.match(STORE, /const p = Promise\.resolve\(memoRead\("trial", 15000, \(\) => swr\("trial"/, 'one shared my_trial_status per page');
+  assert.match(STORE, /const p = Promise\.resolve\((?:afterBoot\(\(\) => )?memoRead\("trial", 15000, \(\) => swr\("trial"/, 'one shared my_trial_status per page');
 });
 t('B29 pickers + cards: no raw "Demo · " in drop-downs, one phone format, sample roles without "Custom:", name limits', () => {
   const on = new Function(slice(INV, '  function optName(n){', '  function openItem(it){') + '\nreturn optName;')();
