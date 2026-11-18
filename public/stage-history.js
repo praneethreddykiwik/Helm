@@ -83,9 +83,17 @@
       box.appendChild(btn);
     }
   }
+  // R206 (prod API log 18 Nov 2026): flow.html / event.html publish their own quote check as window.HelmPageQuote (the
+  // opened quote id, or null when not found / another studio's) - a box read by the URL id waits for it, so a stale link
+  // no longer sends "not authorized for this event" calls (403 in the log). Pages without it: unchanged.
+  function pageQuoteOk(id) {
+    var p = global.HelmPageQuote; if (!p || typeof p.then !== "function") return Promise.resolve(true);
+    return p.then(function (q) { return !!q && String(q).toLowerCase() === String(id).toLowerCase(); }, function () { return false; });
+  }
   var boxes = [], tries = 0, busy = false;
   async function load(box) {
     var id = quoteIdFor(box), b = B(); if (!id || !b || !b.stages) return;
+    if (!box.getAttribute("data-quote") && !(await pageQuoteOk(id))) { box.hidden = true; return; }   // R206: the page did not find it
     var d = null;
     try { d = await b.stages.history(id); } catch (e) { d = null; }   // not allowed / older server: stays hidden
     if (!d || d.show_history === false) { box.hidden = true; return; }
