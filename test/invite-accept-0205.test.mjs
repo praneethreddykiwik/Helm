@@ -172,7 +172,7 @@ t("login: resend button cools down and shows only our own messages", () => {
   const blk = login.slice(i, i + 2200);
   assert.match(blk, /BPStore\.invitations\.resendLink\(inviteTok\|\|pendingInvite\(\)\)/);
   assert.match(blk, /cooldown\(b,label,COOLDOWN\)/);
-  assert.match(blk, /\/\^\(rate_limited\|send_failed\|invalid_invite\|unavailable\|network\)\$\/\.test\(c\)/);
+  assert.match(blk, /\/\^\(rate_limited\|send_failed\|(?:send_unconfirmed\|)?invalid_invite\|unavailable\|network\)\$\/\.test\(c\)/);
 });
 t("login: no inline style on the new card", () => {
   const i = login.indexOf('id="inviteLinkCard"'); const blk = login.slice(i, login.indexOf("</section>", i));

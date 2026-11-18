@@ -277,15 +277,15 @@ await t('APPLY-0378: begin; the migration; checks with select item, ok from (val
 });
 await t('MANIFEST, checker override, run-all, release lists, CHECK-PROD carries 0378', () => {
   assert.ok(read('supabase/migrations/MANIFEST').includes('forward  supabase/migrations/0378_r199_team_account_status.sql'));
-  assert.match(read('supabase/check-prod-overrides.json'), /"0378": \{ "note": "Users & invites account status[^\n]*"marker public\.team_account_status\(\) r199-0378", "execute authenticated public\.team_account_status\(\)"\] \}\n\}\n$/);
+  assert.match(read('supabase/check-prod-overrides.json'), /"0378": \{ "note": "Users & invites account status[^\n]*"marker public\.team_account_status\(\) r199-0378", "execute authenticated public\.team_account_status\(\)"\] \}(,\n|\n\}\n$)/);
   assert.match(read('scripts/db-test/run-all.sh'), /run "r199-team-status-0378" "R199-TEAM-STATUS-0378: ALL PASS \\\(21\/21\\\)" psql -q -f tests\/db\/r199-team-status-0378\.sql/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0377', '0378'\];/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0377', '0378'[\],]/, f);
   assert.match(read('supabase/CHECK-PROD-MIGRATIONS.sql'), /0378_r199_team_account_status/);
   assert.match(read('tests/db/r199-team-status-0378.sql'), /now\(\) \+ interval '7 days'/, 'dates relative to now');
 });
 await t('asset pins: store-api v370 on every page, team-status.js / .css v1 on Settings + Staff, flow-resume bumped', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '370', f);
+    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.ok(Number(m[1]) >= 370, f);   // R203 bumped it again
   }
   for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=1"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=1">/, f); }
   assert.match(read('public/flow.html'), /flow-resume\.js\?v=10/);

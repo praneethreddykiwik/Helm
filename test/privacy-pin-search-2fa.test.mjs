@@ -164,7 +164,7 @@ t('search UI: ARIA combobox, keyboard, roles + pages + account items, CSP-safe',
 /* ---------------------------------------------------------------- (3) two-step sign-in */
 const AUI = r('public/auth-ui.js');
 t('two-step: only admins are reminded / forced; everyone can turn it on in Account settings', () => {
-  const fn = AUI.match(/function adminTwoStep\(\) \{[\s\S]*?\n  \}\n/)[0];
+  const fn = AUI.match(/function adminTwoStep\(\) \{[\s\S]*?\n  function adminTwoStepNudge\(st\) \{[\s\S]*?\n  \}\n/)[0];   // R203: the nudge / forced set-up moved into adminTwoStepNudge (after the test-studio check)
   assert.match(fn, /if \(role !== "admin"\) return;/, 'non-admins: no nudge, no forced set-up');
   assert.ok(fn.indexOf('role !== "admin"') < fn.indexOf('forceEnroll()'), 'role check comes before forced enrolment');
   assert.match(AUI, /var mf = el\("div", \{ class: "hau-sec", id: "hauMfaSec" \}\);/);

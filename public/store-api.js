@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=92"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=93"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -645,6 +645,62 @@ window.HelmUrl = HelmUrl;
       if (global.HelmTelemetry && global.HelmTelemetry.report) global.HelmTelemetry.report("auth_error", e);
     } catch (x) {}
   }
+  /* R203: an Auth call that SENDS an e-mail and did not answer in time (our 75 s wait passed) or got a gateway 502 / 503 /
+     504. Supabase sends the e-mail before it answers, so the mail may well be on its way: say so honestly, never "check your
+     connection", and keep a cool-down so a second press does not send a second e-mail. -> "timeout" | "gateway" | null.
+     Pure (unit-tested). A plain offline / DNS failure (status 0, no time-out) stays a network error. */
+  const AUTH_MAIL_UNCONFIRMED = "We couldn't confirm the e-mail was sent. It may still arrive in a few minutes \u2014 check your inbox and spam before trying again.";
+  function authMailUnconfirmed(error) {
+    if (!error) return null;
+    const st = Number(error.status) || 0, m = String(error.message || "");
+    if (error.authMail === true || /did not answer in time/i.test(m)) return "timeout";
+    // a bare gateway answer (no Supabase error code): the proxy gave up while Auth was still sending; a coded answer
+    // (e.g. request_timeout) keeps its own r29 message
+    if ((st === 502 || st === 503 || st === 504) && !error.code) return "gateway";
+    return null;
+  }
+  function reportAuthMailTimeout(endpoint, kind, error) {
+    try {
+      const e = new Error("auth_mail_timeout endpoint=" + String(endpoint || "").replace(/[^a-z_]/g, "").slice(0, 20) + " kind=" + kind
+        + " status=" + (Number(error && error.status) || 0));
+      e.name = "HelmAuthMailTimeout";
+      if (global.HelmTelemetry && global.HelmTelemetry.report) global.HelmTelemetry.report("auth_mail_timeout", e);
+    } catch (x) {}
+  }
+  // per address + kind of e-mail: when one was last asked for (this browser). Only a short hash of the address is kept.
+  const AUTH_MAIL_CD_KEY = "helm.authmail.cd", AUTH_MAIL_COOLDOWN_MS = { sent: 60000, unconfirmed: 180000 };
+  function authMailKey(kind, email) {
+    let h = 5381; const s = String(kind) + "|" + String(email || "").trim().toLowerCase();
+    for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }
+  function authMailCooldownLeft(kind, email, now) {
+    try {
+      const all = JSON.parse(localStorage.getItem(AUTH_MAIL_CD_KEY) || "{}") || {};
+      const row = all[authMailKey(kind, email)];
+      if (!row || typeof row.t !== "number") return 0;
+      const left = row.t + (AUTH_MAIL_COOLDOWN_MS[row.s] || 60000) - (now || Date.now());
+      return left > 0 ? left : 0;
+    } catch (e) { return 0; }
+  }
+  function authMailCooldownSet(kind, email, state) {
+    try {
+      const now = Date.now(), all = JSON.parse(localStorage.getItem(AUTH_MAIL_CD_KEY) || "{}") || {};
+      for (const k of Object.keys(all)) if (!all[k] || now - Number(all[k].t) > 600000) delete all[k];
+      all[authMailKey(kind, email)] = { t: now, s: state };
+      localStorage.setItem(AUTH_MAIL_CD_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+  function authMailCooldownError(left) {
+    const sec = Math.max(1, Math.ceil(left / 1000));
+    const e = new Error("We asked for this e-mail a moment ago. Check your inbox and spam first \u2014 you can ask again in "
+      + (sec >= 90 ? Math.ceil(sec / 60) + " minutes" : sec + " seconds") + ".");
+    e.code = "mail_cooldown"; e.authMapped = true; e.retryAfter = sec; return e;
+  }
+  function authMailUnconfirmedError(endpoint, kind, error) {
+    reportAuthMailTimeout(endpoint, kind, error);
+    const e = new Error(AUTH_MAIL_UNCONFIRMED); e.code = "mail_unconfirmed"; e.authMapped = true; e.cause = error; return e;
+  }
   // the Error a BPStore auth call throws: message for people, .authMapped so every page shows it as-is
   function authError(error, ctx) {
     const info = authErrorInfo(error, ctx);
@@ -1206,7 +1262,7 @@ window.HelmUrl = HelmUrl;
   // la-fetch (audit 25): the list below also names the STABLE (read-only) RPCs every page asks while it
   // boots (trial / upgrade status, seat use, prefs, shelf list, mentions, PIN status). Before, each one was
   // treated as a write and dropped every shared read of the page, so the page's own reads ran again.
-  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
+  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_test_studio|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
   const readCache = new Map();
   function hdrOf(init, input, name) {
     try {
@@ -1226,13 +1282,30 @@ window.HelmUrl = HelmUrl;
      their own deadlines; renders use their own fetch). */
   const FETCH_TIMEOUT_MS = 30000;
   const NO_FETCH_TIMEOUT = /\/(storage|functions)\/v1\//;
+  /* R203 (prod 18 Nov 2026): Supabase Auth SENDS ITS E-MAIL BEFORE IT ANSWERS (recover / otp / resend / signup / invite /
+     an e-mail change / reauthenticate). Through the studio's Gmail SMTP that took longer than 30 s, so the wrapper above cut
+     the call off and "Forgot password?" said "Couldn't reach the server" - although the reset e-mail then arrived (Auth logs:
+     "context canceled"). Those calls now wait AUTH_MAIL_TIMEOUT_MS, and a call that still passes it is reported as "we
+     couldn't confirm the e-mail was sent" (authMailUnconfirmed below), never as the user's connection. */
+  const AUTH_MAIL_TIMEOUT_MS = 75000;
+  const AUTH_MAIL_POST = /\/auth\/v1\/(recover|otp|resend|signup|magiclink|invite)(\?|$)/;
+  function fetchTimeoutFor(input, init) {
+    const m = String((init && init.method) || "GET").toUpperCase();
+    if (m === "POST" && AUTH_MAIL_POST.test(input)) return AUTH_MAIL_TIMEOUT_MS;
+    if (m === "PUT" && /\/auth\/v1\/user(\?|$)/.test(input)) return AUTH_MAIL_TIMEOUT_MS;   // e-mail change sends a confirmation
+    if (/\/auth\/v1\/reauthenticate(\?|$)/.test(input)) return AUTH_MAIL_TIMEOUT_MS;
+    return FETCH_TIMEOUT_MS;
+  }
   function timedFetch(input, init) {
     if ((init && init.signal) || typeof input !== "string" || NO_FETCH_TIMEOUT.test(input) ||
         typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function") return global.fetch(input, init);
-    const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+    const ms = fetchTimeoutFor(input, init);
+    const signal = AbortSignal.timeout(ms);
     return global.fetch(input, Object.assign({}, init || {}, { signal })).catch((err) => {
       if (signal.aborted && err && (err.name === "TimeoutError" || err.name === "AbortError")) {
-        const e = new TypeError("Failed to fetch: the server did not answer in time"); e.timeout = true; throw e;
+        const e = new TypeError("Failed to fetch: the server did not answer in time"); e.timeout = true;
+        if (ms === AUTH_MAIL_TIMEOUT_MS) e.authMail = true;
+        throw e;
       }
       throw err;
     });
@@ -1528,7 +1601,7 @@ window.HelmUrl = HelmUrl;
     loadAuthUi();
   }
   // Account menu / two-step banner live in auth-ui.js (loaded on signed-in staff pages only).
-  const AUTH_UI_VERSION = "62";
+  const AUTH_UI_VERSION = "63";
   let authUiLoading = null;
   function loadAuthUi() {
     if (authUiLoading || typeof document === "undefined") return authUiLoading;
@@ -2301,6 +2374,12 @@ window.HelmUrl = HelmUrl;
           // "already registered" must look exactly like a fresh sign-up awaiting confirmation
           if (/user_already_exists|email_exists|already registered|already exists/i.test(c + " " + m)) return { user: null, session: null, generic: GENERIC_SENT };
           if (c === "user_banned") return { user: null, session: null, generic: GENERIC_SENT };   // r29: same - its own message would say the account exists
+          // R203: Supabase sends the confirmation e-mail before it answers - the account may already be made
+          if (authMailUnconfirmed(error)) {
+            reportAuthMailTimeout("signup", authMailUnconfirmed(error), error);
+            const e = new Error("We couldn't confirm your sign-up e-mail was sent. It may still arrive in a few minutes \u2014 check your inbox and spam, then sign in or use \u201cResend\u201d instead of signing up again.");
+            e.code = "mail_unconfirmed"; e.authMapped = true; e.cause = error; throw e;
+          }
           if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(error)) throw error;
           // r29: every other Supabase Auth error -> a clear message + "Ref: AUTH-<code>" (was "Something went wrong")
           throw authError(error, "signup");
@@ -2447,6 +2526,8 @@ window.HelmUrl = HelmUrl;
     passwordRule: { min: PW_MIN, symbols: PW_SYMBOLS, hint: PW_HINT, problem: passwordProblem, checks: passwordChecks, attachChecklist: attachPasswordChecklist, guessable: passwordGuessable, guessReasons: passwordGuessReasons, pwnedMessage: PW_PWNED_MSG, mismatchMessage: PW_MISMATCH, strengthLabels: ["", "Weak", "Weak", "Fair", "Strong"], rulesAttr: PW_RULES_ATTR },
     // r29: Supabase Auth error -> { code, message, field, ref } (pure; exported for tests and other pages)
     authErrorInfo: authErrorInfo,
+    // R203: pure helpers (unit-tested): auth e-mail call -> its time-out; error -> "timeout" | "gateway" | null
+    authMailTimeoutFor: fetchTimeoutFor, authMailUnconfirmed: authMailUnconfirmed, authMailUnconfirmedMessage: AUTH_MAIL_UNCONFIRMED,
     // Resolves the same way whether or not the email has an account (the caller
     // shows one generic message). Only rate-limit / network / CAPTCHA errors throw.
     async requestPasswordReset(email, opts) {
@@ -2456,16 +2537,25 @@ window.HelmUrl = HelmUrl;
       if (await staffGoogleOnlyFor(email)) throw staffGoogleError();   // r39 (0288): no reset link for Helm staff (the server never stores one)
       const o = { redirectTo: (opts && opts.redirectTo) || (location.origin + "/reset-password") };
       if (captchaToken) o.captchaToken = captchaToken;
-      const { error } = await supa.auth.resetPasswordForEmail(scrubEmail(email), o);   // r166: strip control chars
+      // R203: one reset e-mail per address per minute from this browser (3 minutes after an unconfirmed send)
+      const cdLeft = authMailCooldownLeft("recover", email);
+      if (cdLeft > 0) throw authMailCooldownError(cdLeft);
+      let error = null;
+      try { ({ error } = await supa.auth.resetPasswordForEmail(scrubEmail(email), o)); }   // r166: strip control chars
+      catch (x) { error = x; }
       if (error) {
         const st = Number(error.status) || 0, m = String(error.message || "");
         if (st === 429 || /rate limit|too many/i.test(m)) { const e = new Error("Too many requests — please wait a few minutes and try again."); e.code = "rate_limited"; throw e; }
         if (/captcha/i.test(m)) { const e = new Error("The security check failed — please try again."); e.code = "captcha_failed"; throw e; }
+        // R203: Supabase sends the e-mail before it answers - a time-out / gateway error is "not confirmed", not "offline"
+        const un = authMailUnconfirmed(error);
+        if (un) { authMailCooldownSet("recover", email, "unconfirmed"); throw authMailUnconfirmedError("recover", un, error); }
         if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(error)) throw error;
         // anything else (e.g. "user not found" on older GoTrue builds) is deliberately not shown (no enumeration:
         // a send failure only happens for a real account) - r29: but the code goes to telemetry so support can see it
         reportAuthError("email", error, authErrorInfo(error, "email"));
       }
+      authMailCooldownSet("recover", email, "sent");
       return true;
     },
     // Re-send the sign-up confirmation email. Resolves the same way whether or not the
@@ -2477,14 +2567,20 @@ window.HelmUrl = HelmUrl;
       if (!em) return true;
       const o = { emailRedirectTo: (opts && opts.emailRedirectTo) || (location.origin + "/login.html") };
       if (opts && opts.captchaToken) o.captchaToken = opts.captchaToken;
-      const { error } = await supa.auth.resend({ type: "signup", email: em, options: o });
+      const cdLeft = authMailCooldownLeft("resend", em);   // R203: no second e-mail within the cool-down
+      if (cdLeft > 0) throw authMailCooldownError(cdLeft);
+      let error = null;
+      try { ({ error } = await supa.auth.resend({ type: "signup", email: em, options: o })); } catch (x) { error = x; }
       if (error) {
         const st = Number(error.status) || 0, m = String(error.message || "");
         if (st === 429 || /rate limit|too many|seconds/i.test(m)) { const e = new Error("Too many requests — please wait a minute and try again."); e.code = "rate_limited"; throw e; }
         if (/captcha/i.test(m)) { const e = new Error("The security check failed — please try again."); e.code = "captcha_failed"; throw e; }
+        const un = authMailUnconfirmed(error);   // R203: sent before Supabase answered - not "offline"
+        if (un) { authMailCooldownSet("resend", em, "unconfirmed"); throw authMailUnconfirmedError("resend", un, error); }
         if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(error)) throw error;
         reportAuthError("email", error, authErrorInfo(error, "email"));   // r29: stays generic on screen (no enumeration)
       }
+      authMailCooldownSet("resend", em, "sent");
       return true;
     },
     // Re-check the CURRENT password before a change (signs in again as the same
@@ -2708,6 +2804,14 @@ window.HelmUrl = HelmUrl;
       },
       requiredForAdmins: () => AUTH_CFG.mfaRequiredForAdmins,
       _operatorDecision: operatorMfaDecision,
+      // R203 (0381): is MY studio a Helm HQ "test studio" (two-step not enforced)? true | false; null = unknown (signed
+      // out, offline, 0381 not applied). Only Helm HQ can switch it; the server decides, this only drives the banner / notes.
+      testStudio() {
+        if (!supa || !currentUser) return Promise.resolve(null);
+        return memoRead("mfa.testStudio", 60000, async () => {
+          try { const { data, error } = await supa.rpc("my_test_studio"); return error ? null : data === true; } catch (e) { return null; }
+        });
+      },
     },
     // ---- CAPTCHA (Cloudflare Turnstile through Supabase's captchaToken) ----------
     captcha: { enabled: () => !!CAPTCHA, siteKey: () => (CAPTCHA ? CAPTCHA.siteKey : ""), provider: () => (CAPTCHA ? CAPTCHA.provider : ""),
@@ -6058,7 +6162,7 @@ window.HelmUrl = HelmUrl;
       if (res.ok && j && j.sent === true) return { sent: true };
       if (res.ok && j && j.account === "new") return { account: "new" };
       if (res.ok && j && j.requested === true) return { requested: true, studio: String(j.studio || "").slice(0, 120) };   // expired: the studio was asked
-      if (j && j.code && (res.status < 500 || j.code === "send_failed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));
+      if (j && j.code && (res.status < 500 || j.code === "send_failed" || j.code === "send_unconfirmed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));   // R203: send_unconfirmed = may still arrive
       throw fail("We couldn't send a new link from here — ask your studio admin to re-send the invitation.", "unavailable");
     },
     async signupDirect(token, email, password, fullName) {
@@ -6079,6 +6183,8 @@ window.HelmUrl = HelmUrl;
       } catch (e) { return { fallback: true }; }          // not deployed / CORS / offline → old path
       const j = await res.json().catch(() => ({}));
       if (res.ok) return j && j.ok ? { ok: true } : { fallback: true };
+      // R203: the server could not make the login right now (Supabase Auth slow) - a clear message, no e-mail sent instead
+      if (res.status === 503 && j && j.code === "create_failed") { const e = new Error(String(j.error || "We couldn't create your account just now.").slice(0, 300)); e.code = "create_failed"; e.status = 503; if (j.reason) e.reason = String(j.reason).slice(0, 20); throw e; }
       if (res.status === 404 || res.status >= 500 || !j || !j.code) return { fallback: true };
       const e = new Error(String(j.error || "Couldn't create the account.")); e.code = j.code; e.status = res.status; if (j.reason) e.reason = String(j.reason).slice(0, 20); throw e;
     },
@@ -6118,7 +6224,7 @@ window.HelmUrl = HelmUrl;
       } catch (e) { throw fail("We couldn't reach Helm — check your connection and try again.", "network"); }
       const j = await res.json().catch(() => ({}));
       if (res.ok && j && j.ok === true) return { sent: j.sent === true };
-      if (j && (j.code === "rate_limited" || j.code === "send_failed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));
+      if (j && (j.code === "rate_limited" || j.code === "send_failed" || j.code === "send_unconfirmed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));   // R203
       throw fail("We couldn't send it from here — open the invitation e-mail you already have.", "unavailable");
     },
     async preview(token) {                                                                   // anon-safe banner info (SEC-06); falls back until deployed

@@ -227,7 +227,7 @@
           { sel: "#um_rows", title: "Team members", desc: "Everyone with a login, plus people invited but not signed up yet. Account shows the real status: Invited (and when the link expires), Never signed in, Last signed in, or Deactivated." },
           { sel: "#um_rows .ucView", title: "View a person", desc: "View opens their details: the full e-mail (with Copy), phone, role, when they joined and last signed in, and who invited them. On an invite: Resend invite, Copy invite link or Cancel invite." },
           { sel: "#um_rows .ts-badge", title: "Two-step badge", desc: "Next to each admin: “Two-step: on”, or “not set up”. Admins need two-step to change payment details and other sensitive settings." },
-          { sel: "#inv_email", title: "Invite by e-mail link", desc: "Type their e-mail and pick a role. Helm sends a join link that works once." },
+          { sel: "#inv_email", title: "Invite by e-mail link", desc: "Type their e-mail and pick a role. Helm sends a join link that works once. Pick Admin and a line under the form says first what that needs (two-step on your account)." },
           { sel: "#inv_rows", title: "Pending invites", desc: "Links not used yet. Copy one again, resend it (an expired link gets a new one), or Cancel invite - the link stops working and nothing else changes." },
         ],
         access: [

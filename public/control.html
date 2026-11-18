@@ -278,7 +278,7 @@
 <link rel="stylesheet" href="control-split.css?v=16">
 <link rel="stylesheet" href="roles-matrix.css?v=1"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=92" id="shellProto"></script>
+<script src="/shell-proto.js?v=93" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -654,6 +654,7 @@
           <select id="um_role" aria-label="New user role"></select>
           <button class="btn primary" type="submit" id="um_submit">Add user</button>
         </form>
+        <p class="mnote" id="um_admin_note" role="status" aria-live="polite" hidden></p>
         <div class="um-err" id="um_err" role="alert" data-no-toast hidden><p class="um-err-t" id="um_err_t"></p><div class="um-err-acts" id="um_err_acts"></div></div>
         <p class="mnote s-fe7b497">No password needed — a one-time temporary password is generated and shown once. Share it with the person; they'll be asked to set their own on first sign-in.</p>
       </div>
@@ -666,6 +667,7 @@
           <select id="inv_role" aria-label="Invite role"></select>
           <button class="btn primary" type="submit" id="inv_submit">Create invite link</button>
         </form>
+        <p class="mnote" id="inv_admin_note" role="status" aria-live="polite" hidden></p>
         <div class="s-e93d1e1" id="inv_out" hidden>
           <input class="s-59eddc6" id="inv_link" readonly aria-label="Invitation link">
           <button class="btn" type="button" id="inv_copy">Copy</button>
@@ -933,14 +935,14 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=370"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=371"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=53"></script>
-<script src="tour.js?v=71"></script>
+<script src="page-tours.js?v=54"></script>
+<script src="tour.js?v=72"></script>
 <script src="pkg-review.js?v=9"></script>
 <script src="onboarding-core.js?v=9"></script>
 <script src="studio-billing-form.js?v=3"></script>
@@ -1756,8 +1758,35 @@
     if(!sel.options.length){ sel.innerHTML = ROLES.map(r=>`<option value="${esc(r)}"${r==="crew"?" selected":""}>${esc(BPStore.auth.admin.roleLabel(r))}</option>`).join(""); }
     const isel=$("#inv_role");
     if(isel && !isel.options.length){ isel.innerHTML = ROLES.map(r=>`<option value="${esc(r)}"${r==="coordinator"?" selected":""}>${esc(BPStore.auth.admin.roleLabel(r))}</option>`).join(""); }
+    adminRoleNote(sel,"#um_admin_note"); if(isel) adminRoleNote(isel,"#inv_admin_note");
     await renderUsers();
     if(typeof renderInvites==="function") renderInvites();
+  }
+  // R203: say BEFORE the click what adding / inviting an Admin needs (the r35 two-step rule) - the server still decides.
+  // A Helm HQ test studio (0381) does not ask for two-step; elsewhere: no two-step yet -> "Set it up first", else a fresh code.
+  function adminRoleNote(sel, noteSel){
+    if(!sel || sel.dataset.r203) return; sel.dataset.r203="1";
+    const note=$(noteSel); if(!note) return;
+    const show=async ()=>{
+      if(sel.value!=="admin"){ note.hidden=true; return; }
+      const mfa=BPStore.auth.mfa||{};
+      let test=null, has=null;
+      try{ test=mfa.testStudio? await mfa.testStudio() : null; }catch(e){ test=null; }
+      if(sel.value!=="admin") return;
+      note.textContent="";
+      if(test===true){ note.textContent="Test studio: two-step is not asked for here (Helm HQ setting)."; note.hidden=false; return; }
+      try{ has=mfa.verifiedTotp? (await mfa.verifiedTotp()).length>0 : null; }catch(e){ has=null; }
+      if(sel.value!=="admin") return;
+      if(has===false){
+        note.appendChild(document.createTextNode("Adding an Admin needs two-step verification on your account. "));
+        const b=document.createElement("button"); b.type="button"; b.className="btn"; b.textContent="Set up two-step (2 min)";
+        b.addEventListener("click",()=>{ try{ window.HelmAuthUI&&HelmAuthUI.openTwoStepSetup&&HelmAuthUI.openTwoStepSetup(); }catch(e){} });
+        note.appendChild(b);
+      } else note.textContent="Adding an Admin asks for a fresh code from your authenticator app.";
+      note.hidden=false;
+    };
+    sel.addEventListener("change",()=>{ show().catch(()=>{}); });
+    show().catch(()=>{});
   }
   // ---- User control table (0041 profiles; before 0041 → today's name / email / role list) ----
   let ucRows=[], ucProfiles=false, ucTeam=null, ucTwoStep=null;   // r44 (0291): { user id: two-step on? } for the admins' badge (null = not known)

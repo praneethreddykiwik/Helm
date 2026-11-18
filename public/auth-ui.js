@@ -1897,24 +1897,40 @@
       if (role !== "admin") return;
       return st.auth.mfa.verifiedTotp().then(function (fs) {
         if (fs.length) return;
-        // r22: a studio on its free trial is never made to set up two-step (and never nudged, below)
-        if (st.auth.mfa.requiredForAdmins()) return inTrialStudio().then(function (t) { if (!t) forceEnroll(); });
-        // r44 (owner): a calm notice on the dashboard and Settings only, until dismissed (then 7 days quiet)
-        if (noteSnoozed("twostep") || banner || !onTwoStepPage()) return;
-        // 0203: never in the free trial (the trial studio is sample data; the strip is the only notice)
-        if (doc.documentElement.classList.contains("helm-trial")) return;
-        var tries = 0;
-        function waitTour() {
-          if (banner) return;
-          if (tourActive() && tries++ < 200) { setTimeout(waitTour, 3000); return; }
-          if (tourActive()) return;
-          inTrialStudio().then(function (t) {
-            if (t || banner) return;
-            showMfaNudge();
-          });
-        }
-        setTimeout(waitTour, 1200);
+        // R203 (0381): a Helm HQ "test studio" does not enforce two-step - no nudge, no forced set-up there
+        return Promise.resolve(st.auth.mfa.testStudio ? st.auth.mfa.testStudio() : null).then(function (ts) { if (ts !== true) adminTwoStepNudge(st); });
       });
+    }).catch(function () {});
+  }
+  function adminTwoStepNudge(st) {
+    // r22: a studio on its free trial is never made to set up two-step (and never nudged, below)
+    if (st.auth.mfa.requiredForAdmins()) return inTrialStudio().then(function (t) { if (!t) forceEnroll(); });
+    // r44 (owner): a calm notice on the dashboard and Settings only, until dismissed (then 7 days quiet)
+    if (noteSnoozed("twostep") || banner || !onTwoStepPage()) return;
+    // 0203: never in the free trial (the trial studio is sample data; the strip is the only notice)
+    if (doc.documentElement.classList.contains("helm-trial")) return;
+    var tries = 0;
+    function waitTour() {
+      if (banner) return;
+      if (tourActive() && tries++ < 200) { setTimeout(waitTour, 3000); return; }
+      if (tourActive()) return;
+      inTrialStudio().then(function (t) {
+        if (t || banner) return;
+        showMfaNudge();
+      });
+    }
+    setTimeout(waitTour, 1200);
+  }
+  /* R203 (0381): the owner's TEST studio (Helm HQ switch, shared tester login) - everyone in it sees one calm, persistent
+     notice so nobody mistakes it for a real studio's rules. Real studios never get it (the server says no). */
+  function testStudioBanner() {
+    var st = S(); if (!st || !st.auth.user() || !st.auth.mfa || !st.auth.mfa.testStudio) return;
+    st.auth.mfa.testStudio().then(function (t) {
+      if (t !== true || !doc.body) return;
+      try { doc.documentElement.classList.add("helm-test-studio"); } catch (e) {}
+      showNote({ id: "hauTestStudio", priority: 1, icon: "shield", tone: "warn", compact: true,
+        title: "Test studio \u2014 two-step not enforced",
+        body: "Helm HQ marked this studio for testing: adding admins and other sensitive changes don't ask for two-step here. Real studios always do." });
     }).catch(function () {});
   }
   // r44: the dashboard and Settings (Settings; pretty URL /<studio>/settings)
@@ -2463,6 +2479,7 @@
     profileNudge();
     subscriptionStatus();
     trialStatus();
+    testStudioBanner();
     accountCard(S());
   }
 
