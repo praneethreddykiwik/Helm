@@ -66,10 +66,22 @@ begin
   insert into public.profiles(id, email, role, org_id, must_change_password, created_at)
     values (u, 'r385_supervisor@b.test', 'supervisor', orgB, false, now())
     on conflict (id) do update set role = excluded.role, org_id = excluded.org_id;
+  -- a studio with NO saved role_access rows at all (prod case: Helm Studio has no supervisor rows) + its supervisor
+  insert into public.organizations(id, name, currency, timezone, brand, plan, created_at)
+    values ('c3850000-0000-4000-8000-0000000000aa', 'R385 Zero-row Studio', 'INR', 'Asia/Kolkata', '{}'::jsonb, 'pro', now())
+    on conflict (id) do nothing;
+  select id into u from auth.users where email = 'r385_supz@z.test';
+  if u is null then u := auth.seed_user('r385_supz@z.test'); end if;
+  insert into public.profiles(id, email, role, org_id, must_change_password, created_at)
+    values (u, 'r385_supz@z.test', 'supervisor', 'c3850000-0000-4000-8000-0000000000aa', false, now())
+    on conflict (id) do update set role = excluded.role, org_id = excluded.org_id;
+  delete from public.role_access where org_id = 'c3850000-0000-4000-8000-0000000000aa';
   -- the default matrix as a studio has it before 0385: the template rows, no 'tasks' rows
   perform public._a49_seed_clean_matrix(orgA);
   perform public._a49_seed_clean_matrix(orgB);
   delete from public.role_access where area = 'tasks';
+  -- Studio B: the Supervisor has rows but cannot see Staff -> 0385 adds no tasks row there
+  update public.role_access set can_view = false, can_edit = false where org_id = orgB and role = 'supervisor' and area = 'staff';
   -- the 'sales' fixture person (a_staff) keeps the template sales rows
   insert into _b385(role, email) values ('admin', 'a_admin@a.test'), ('sales', 'a_staff@a.test'),
     ('manager', 'r385_manager@a.test'), ('planner', 'r385_planner@a.test'), ('coordinator', 'r385_coordinator@a.test'),
@@ -140,12 +152,18 @@ begin
   perform pg_temp.res('03 after 0385 nobody lost the task gate', not exists (select 1 from _b385 b where b.before_gate and not (v_after ->> b.role)::boolean), v_after::text);
   perform pg_temp.res('04 after 0385 the ONLY role that gained it is the Supervisor',
     (select string_agg(b.role, ',') from _b385 b where not b.before_gate and (v_after ->> b.role)::boolean) = 'supervisor', v_after::text);
-  perform pg_temp.res('05 rows written: one (supervisor, tasks, on) per studio whose Supervisor sees Staff, nothing else added or changed',
-    (select count(*) from _rows_once o where not exists (select 1 from _rows_before b where b.org_id = o.org_id and b.role = o.role and b.area = o.area))
-      = (select count(*) from _rows_before b where b.role = 'supervisor' and b.area = 'staff' and b.can_view)
+  perform pg_temp.res('05 rows written: zero-row studio = the standard Supervisor rows + tasks; elsewhere only (supervisor, tasks, on) where Staff is seen; nothing changed',
+    not exists (select 1 from _rows_once o
+                 where not exists (select 1 from _rows_before b where b.org_id = o.org_id and b.role = o.role and b.area = o.area)
+                   and not (o.role = 'supervisor' and o.area = 'tasks' and o.can_view and o.can_edit)
+                   and not (o.role = 'supervisor' and not exists (select 1 from _rows_before b where b.org_id = o.org_id and b.role = 'supervisor')
+                            and exists (select 1 from public._a49_default_matrix() d where d.role = 'supervisor' and d.area = o.area
+                                          and d.can_view = o.can_view and d.can_edit = o.can_edit)))
+    and (select count(*) from _rows_once o where o.org_id = 'c3850000-0000-4000-8000-0000000000aa' and o.role = 'supervisor')
+          = (select count(*) from public._a49_default_matrix() d where d.role = 'supervisor') + 1
     and exists (select 1 from _rows_once o where o.org_id = orgA and o.role = 'supervisor' and o.area = 'tasks' and o.can_view and o.can_edit)
-    and not exists (select 1 from _rows_once o where not exists (select 1 from _rows_before b where b.org_id = o.org_id and b.role = o.role and b.area = o.area)
-                      and not (o.role = 'supervisor' and o.area = 'tasks' and o.can_view and o.can_edit))
+    and not exists (select 1 from _rows_once o where o.org_id = orgB and o.role = 'supervisor' and o.area = 'tasks')
+    and not exists (select 1 from _rows_once o where o.org_id = 'c3850000-0000-4000-8000-0000000000aa' and o.role <> 'supervisor')
     and not exists (select 1 from _rows_before b join _rows_once o using (org_id, role, area)
                      where (b.can_view, b.can_edit) is distinct from (o.can_view, o.can_edit)),
     (select string_agg(o.org_id::text || ':' || o.role || ':' || o.area, ' ') from _rows_once o
@@ -153,6 +171,14 @@ begin
   perform pg_temp.res('06 second run wrote nothing',
     (select count(*) from public.role_access) = (select count(*) from _rows_once)
     and not exists (select 1 from public.role_access r join _rows_once o using (org_id, role, area) where (r.can_view, r.can_edit) is distinct from (o.can_view, o.can_edit)), '');
+  -- zero-row studio: after 0385 the Supervisor has the standard rows + Assign & send tasks
+  perform pg_temp.login('r385_supz@z.test');
+  ok := pg_temp.can_assign();
+  v := (coalesce(public.has_area('staff', 'view'), false) and coalesce(public.has_area('quotes', 'view'), false)
+        and not coalesce(public.has_area('staff', 'edit'), false) and not coalesce(public.has_area('finance', 'view'), false))::text;
+  perform pg_temp.su();
+  perform pg_temp.res('05b studio with no saved supervisor rows: now sees events + crew and can assign; no Staff edit, no money',
+    ok and v = 'true', ok::text || '/' || v);
 
   -- (2) the Supervisor can give out work on an event of its own studio
   perform pg_temp.login('r385_supervisor@a.test');

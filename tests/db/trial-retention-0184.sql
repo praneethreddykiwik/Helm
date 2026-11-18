@@ -142,6 +142,10 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0373_r190_vendor_bills_finish.sql
 -- 0374 (R191) adds inventory_stock_events + event_stock_windows (stock history) to the purge list, inventory_settings to the keep list
 \ir ../../supabase/migrations/0374_r191_inventory_upgrade.sql
+-- 0379 (R202) adds team_signin_help (the Send sign-in link / New temporary password log) to the purge list after notifications
+\ir ../../supabase/migrations/0379_r202_signin_help.sql
+-- 0383 (R205) adds signin_notice_log (teammate sign-in record) to the purge list after notifications, signin_notice_settings to the keep list
+\ir ../../supabase/migrations/0383_r205_signin_notice.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin
@@ -296,6 +300,9 @@ do $$ declare j jsonb; k text; s_before jsonb := '{}'::jsonb; s_after jsonb := '
     coalesce(public._tr184_wait_reason(pg_temp.org('A')), '-') || ' / ' || coalesce(public._tr184_wait_reason(pg_temp.org('N')), '-'));
   perform pg_temp.res('25 dry run shows the cross-studio link for G', (public.trial_retention_dry_run(pg_temp.org('G')) -> 'studios' -> 0
     -> 'cross_studio_links') ? 'inv_shortage_alerts.item_id->inventory_items');
+  -- 0383 (R205): A has a teammate sign-in on record + its own sign-in notice setting
+  insert into public.signin_notice_log(org_id, user_id, signed_in_at, notified) values (pg_temp.org('A'), gen_random_uuid(), now() - interval '2 days', true);
+  insert into public.signin_notice_settings(org_id, mode) values (pg_temp.org('A'), 'every') on conflict (org_id) do nothing;
   foreach k in array array['X', 'P', 'C', 'H', 'N', 'G', 'M'] loop
     s_before := s_before || jsonb_build_object(k, pg_temp.snap(pg_temp.org(k)));
   end loop;
@@ -309,6 +316,9 @@ do $$ declare j jsonb; k text; s_before jsonb := '{}'::jsonb; s_after jsonb := '
     and not exists (select 1 from public.venues where org_id = pg_temp.org('A'))
     and not exists (select 1 from public.studio_layout_templates where org_id = pg_temp.org('A'))
     and not exists (select 1 from public.lead_archive where org_id = pg_temp.org('A')), pg_temp.snap(pg_temp.org('A'))::text);
+  perform pg_temp.res('27b free-trial purge empties signin_notice_log (A''s sign-in record gone, its setting kept)',
+    not exists (select 1 from public.signin_notice_log where org_id = pg_temp.org('A'))
+    and exists (select 1 from public.signin_notice_settings where org_id = pg_temp.org('A')));
   perform pg_temp.res('28 A: studio row, owner login + profile, subscription, settings kept',
     exists (select 1 from public.organizations where id = pg_temp.org('A'))
     and exists (select 1 from public.profiles p join auth.users u on u.id = p.id where p.org_id = pg_temp.org('A') and u.email = 'tr184_a@t.test')

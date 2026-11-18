@@ -1,7 +1,7 @@
 -- APPLY-0385 (R208 Assign & send tasks: a Supervisor can give out work on events). Run on STAGING first, then production. Safe to run twice.
 -- Adds ONE access switch, Assign & send tasks (Settings -> Users & invites -> Access control). Assigning, reassigning, times, reminders,
 -- special, cancel, e-mail / WhatsApp and task links no longer need Staff - Can change. Nobody loses access: a role without the new switch
--- keeps the current rule (Staff - Can change). Supervisors who can see Staff get the switch ON. No money, no policy, nothing deleted.
+-- keeps the current rule (Staff - Can change). Supervisors who can see Staff get the switch ON, a studio with no saved Supervisor rows first gets the standard ones. No money, no policy, nothing deleted.
 -- Paste the whole file into the Supabase SQL editor and press Run. The last result lists checks - every ok must be true.
 begin;
 -- 0385_r208_task_assign_access.sql - R208 (owner 18 Nov 2026: How can a Supervisor assign tasks? Is giving access to
@@ -27,8 +27,10 @@ begin;
 --     anything about money. Those stay with Staff - Can change (and the money switches).
 --   NOBODY LOSES ANYTHING: a role with no tasks row follows its Staff - Can change switch exactly as before (the
 --   new helper is has_area(staff, edit) word for word for such a role). The only rows this file writes are
---   (supervisor, tasks, on) for each studio whose Supervisor can already see Staff and has no tasks row yet -
---   so Supervisors can assign tasks for events and nothing else. Once a studio has a tasks row for a role, that row
+--   (supervisor, tasks, on) for each studio whose Supervisor can see Staff and has no tasks row yet - so Supervisors
+--   can assign tasks for events. A studio with NO saved supervisor rows at all (has_area has no fallback, so such a
+--   Supervisor could open nothing) first gets the standard Supervisor rows every new studio gets (_a49_default_matrix),
+--   then the tasks row. Existing rows are never changed. Once a studio has a tasks row for a role, that row
 --   decides (an admin can switch it off for a role that keeps Staff - Can change).
 --
 --   1  _r385_can_assign(): no tasks row for my role -> has_area(staff, edit) (todays rule). A tasks row ->
@@ -45,8 +47,10 @@ begin;
 --   3  _r300_area_ok (the access matrix accepts known areas only) learns tasks (patched in place, the list kept).
 --   4  A NEW studio starts with tasks on for the roles that can change Staff in the default matrix + supervisor:
 --      _a49_seed_clean_matrix is wrapped once (old body kept as __pre0385), _a49_default_matrix itself is unchanged.
---   5  Existing studios: (supervisor, tasks, on) where the Supervisor can see Staff and no tasks row exists yet.
---      Written as a normal row (the audit trigger logs it), never overwrites a row an admin saved.
+--   5  Existing studios: a studio with no saved supervisor rows at all gets the new-studio Supervisor rows (5a), then
+--      (supervisor, tasks, on) where the Supervisor can see Staff and no tasks row exists yet (5b). Written as normal
+--      rows (the audit trigger logs them), insert only, never overwrites a row an admin saved. A re-run after an
+--      earlier copy of this file (which skipped studios with no supervisor rows) completes them.
 --   Nothing dropped, nothing deleted, no policy changed. If it stops with a STOP message nothing was applied.
 --
 -- Undo (manual, if ever needed): remove the role_access rows of area tasks - everyone then follows Staff again
@@ -174,7 +178,15 @@ do $$ begin
     execute 'grant execute on function public._a49_seed_clean_matrix(uuid) to service_role'; end if;
 end $$;
 
--- ---- 5) existing studios: Supervisors may assign tasks (only where they can see Staff and no tasks row exists yet) ---
+-- ---- 5a) a studio with NO saved supervisor rows: the standard Supervisor rows a new studio gets (insert only) ----------
+insert into public.role_access(org_id, role, area, can_view, can_edit, updated_at)
+  select o.id, d.role, d.area, d.can_view, d.can_edit, now()
+    from public.organizations o
+    join public._a49_default_matrix() d on d.role = 'supervisor'
+   where not exists (select 1 from public.role_access r where r.org_id = o.id and r.role = 'supervisor')
+on conflict (org_id, role, area) do nothing;
+
+-- ---- 5b) Supervisors may assign tasks (where they can see Staff and no tasks row exists yet) ----------------------------
 insert into public.role_access(org_id, role, area, can_view, can_edit, updated_at)
   select s.org_id, 'supervisor', 'tasks', true, true, now()
     from public.role_access s
@@ -214,9 +226,11 @@ select item, ok from (values
      and not exists (select 1 from public._a49_default_matrix() d where d.area = 'tasks')
      and (not exists (select 1 from pg_roles where rolname = 'authenticated')
           or not has_function_privilege('authenticated', 'public._a49_seed_clean_matrix(uuid)', 'execute'))),
-  ('06 every studio whose Supervisor sees Staff has a supervisor tasks row (nothing else written)',
-     not exists (select 1 from public.role_access s where s.role = 'supervisor' and s.area = 'staff' and s.can_view
-                   and not exists (select 1 from public.role_access t where t.org_id = s.org_id and t.role = 'supervisor' and t.area = 'tasks'))),
+  ('06 every studio has supervisor rows, and every studio whose Supervisor sees Staff has a supervisor tasks row',
+     not exists (select 1 from public.organizations o
+                  where not exists (select 1 from public.role_access r where r.org_id = o.id and r.role = 'supervisor'))
+     and not exists (select 1 from public.role_access s where s.role = 'supervisor' and s.area = 'staff' and s.can_view
+                       and not exists (select 1 from public.role_access t where t.org_id = s.org_id and t.role = 'supervisor' and t.area = 'tasks'))),
   ('07 row policies unchanged: event_tasks writes still need Staff - Can change',
      exists (select 1 from pg_policy where polrelid = 'public.event_tasks'::regclass and polcmd = 'w'
               and pg_get_expr(polqual, polrelid) like '%has_area(''staff''::text, ''edit''::text)%'))

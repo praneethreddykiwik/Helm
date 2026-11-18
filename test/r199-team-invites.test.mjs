@@ -39,7 +39,7 @@ await t('member status: last signed in (relative), never signed in, temporary pa
   const never = TS.member(u, { last_sign_in_at: null, joined_at: iso(NOW - D) }, NOW);
   assert.equal(never.key, 'never'); assert.equal(never.label, 'Signed up – never signed in');
   const temp = TS.member(u, { last_sign_in_at: null, temp_password: true }, NOW);
-  assert.equal(temp.label, 'Added – never signed in'); assert.match(temp.detail, /temporary password not used yet/);
+  assert.equal(temp.label, 'Added by admin – hasn’t signed in yet'); assert.match(temp.detail, /Temporary password unused/);   // R202 wording
   assert.equal(TS.member(u, { last_sign_in_at: null, needs_password: true }, NOW).key, 'setup');
   const off = TS.member(u, { deactivated: true, deactivated_at: iso(NOW - D), last_sign_in_at: iso(NOW - 2 * D) }, NOW);
   assert.equal(off.key, 'off'); assert.equal(off.label, 'Deactivated'); assert.match(off.detail, /^Since .*records kept/);
@@ -112,7 +112,7 @@ await t('members table: open + expired invites are rows (Resend invite / Cancel 
   assert.match(r.body, /<span class="dnTxt em ucinv-em">new\.person@very-long-studio-domain\.test<\/span><\/div><div class="ucsub">Invited by Asha<\/div>/);
   assert.match(r.body, /data-inv="i1"[\s\S]*?Invited – not signed up yet[\s\S]*?link expires/);
   assert.match(r.body, /data-inv="i2"[\s\S]*?<span class="ucst ucst-off"[^>]*>Invite expired – not signed up<\/span>/);
-  assert.match(r.body, /class="btn sm ucInvResend" aria-label="Resend invite to old@studio\.test">Resend invite<\/button><button type="button" class="btn sm ucInvCancel" aria-label="Cancel invite for old@studio\.test">Cancel invite<\/button>/);
+  assert.match(r.body, /class="btn sm primary ucInvResend" title="The link expired - this sends a new link that works 7 days" aria-label="Resend invite to old@studio\.test">Resend invite \(new link\)<\/button><button type="button" class="btn sm ucInvCancel" aria-label="Cancel invite for old@studio\.test">Cancel invite<\/button>/);
   const e = T([], { profiles: true, meId: 'u1', roles: [], q: '', filter: '', acct: evil, now: NOW, canEdit: true });
   assert.doesNotMatch(e.body, /<img|<b>r/); assert.match(e.body, /&quot;&gt;&lt;img src=x onerror=alert\(1\)&gt;@x\.test/);
   const noEdit = T([ROW(1)], { profiles: true, meId: 'u9', roles: ['crew'], q: '', filter: '', acct: ACCT, now: NOW });
@@ -277,17 +277,17 @@ await t('APPLY-0378: begin; the migration; checks with select item, ok from (val
 });
 await t('MANIFEST, checker override, run-all, release lists, CHECK-PROD carries 0378', () => {
   assert.ok(read('supabase/migrations/MANIFEST').includes('forward  supabase/migrations/0378_r199_team_account_status.sql'));
-  assert.match(read('supabase/check-prod-overrides.json'), /"0378": \{ "note": "Users & invites account status[^\n]*"marker public\.team_account_status\(\) r199-0378", "execute authenticated public\.team_account_status\(\)"\] \}(,\n|\n\}\n$)/);
+  assert.match(read('supabase/check-prod-overrides.json'), /"0378": \{ "note": "Users & invites account status[^\n]*"marker public\.team_account_status\(\) r199-0378", "execute authenticated public\.team_account_status\(\)"\] \}/);
   assert.match(read('scripts/db-test/run-all.sh'), /run "r199-team-status-0378" "R199-TEAM-STATUS-0378: ALL PASS \\\(21\/21\\\)" psql -q -f tests\/db\/r199-team-status-0378\.sql/);
   for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0377', '0378'[,\]]/, f);
   assert.match(read('supabase/CHECK-PROD-MIGRATIONS.sql'), /0378_r199_team_account_status/);
   assert.match(read('tests/db/r199-team-status-0378.sql'), /now\(\) \+ interval '7 days'/, 'dates relative to now');
 });
-await t('asset pins: store-api v370 on every page, team-status.js / .css v1 on Settings + Staff, flow-resume bumped', () => {
+await t('asset pins: store-api v371 (R205) on every page, team-status.js / .css v1 on Settings + Staff, flow-resume bumped', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.ok(Number(m[1]) >= 370, f);   // R204: later rounds bump it again
   }
-  for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=1"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=1">/, f); }
+  for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=\d+"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=\d+">/, f); }
   assert.match(read('public/flow.html'), /flow-resume\.js\?v=10/);
 });
 

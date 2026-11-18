@@ -250,8 +250,8 @@ t('B4 store-api: Team status RPC (null when 0291 is missing / not allowed), bell
   assert.match(API, /if \(error\.code === "PGRST202" \|\| error\.code === "42883" \|\| error\.code === "42501"\) return null;/);
   assert.match(API, /out\[r\.user_id\] = r\.two_step === true/);
   assert.match(API, /if \(ev === "two_step_intro"\) return "dashboard\.html#two-step-setup";/);
-  assert.match(API, /const AUTH_UI_VERSION = "62";/);
-  assert.match(read('public/dashboard.html'), /store-api\.js\?v=372/); assert.match(CC, /store-api\.js\?v=372/);
+  assert.match(API, /const AUTH_UI_VERSION = "63";/);
+  assert.match(read('public/dashboard.html'), /store-api\.js\?v=377/); assert.match(CC, /store-api\.js\?v=377/);
 });
 
 /* ------------------------------------------------------------------ C. Settings -> Team badge */
@@ -289,7 +289,7 @@ t('C3 Team wiring: fetched with the list for admins only (never blocks it); refr
 });
 t('C4 with r33 (0283): the badge sits next to the Team view (owner / deactivated / Deactivate buttons) in the same table', () => {
   assert.match(CC, /canEdit:isAdmin, twoStep:ucTwoStep,\s*\n\s*q:\$\("#uc_q"\)\.value, filter:ucProfiles\?\$\("#uc_f"\)\.value:"", team, acct:ucAcct, now:Date\.now\(\)\}\);/);
-  assert.match(CC, /let ucRows=\[\], ucProfiles=false, ucTeam=null, ucTwoStep=null;/);
+  assert.match(CC, /let ucRows=\[\], ucProfiles=false, ucTeam=null, ucTwoStep=null(, ucTeamView=null)?;/);
   assert.match(CC, /\$\{roleSel\(u,self\)\}\$\{ts\(u\)\}/);
   assert.match(CC, /\/\/ r33 \(0283\): "Remove" is now Deactivate/);
 });

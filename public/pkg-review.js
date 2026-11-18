@@ -72,6 +72,12 @@
     if (r.credit && Number(r.credit.amount) > 0) bits.push("Client has paid more than the new total — " + (r.credit.mode === "manual_refund" ? "refund " : "credit ") + money(r.credit.amount) + ".");
     return { msg: bits.join(" "), url: safeUrl(r.approve_url, linkBase()) };
   }
+  // R206 (prod API log 18 Nov 2026): event.html publishes its own quote check as window.HelmPageQuote (the opened quote id,
+  // or null when not found / another studio's) - a panel read by the URL id waits for it and stays hidden otherwise.
+  function pageQuoteOk(id) {
+    const p = global.HelmPageQuote; if (!p || typeof p.then !== "function") return Promise.resolve(true);
+    return p.then((q) => !!q && String(q).toLowerCase() === String(id).toLowerCase(), () => false);
+  }
   function quoteIdFor(n) {
     const q = n && n.getAttribute("data-quote");
     if (q && UUID_RE.test(q)) return q;
@@ -190,6 +196,7 @@
         try { const id = await global.HelmUrl.get("id"); if (id && UUID_RE.test(String(id))) q = String(id); } catch (e) { q = null; }
       }
       if (!view || !q) { p.hidden = true; continue; }
+      if (!UUID_RE.test(p.getAttribute("data-quote") || "") && !(await pageQuoteOk(q))) { p.hidden = true; continue; }   // R206: the page did not find it
       if (p.dataset.pkrWired === q) continue; p.dataset.pkrWired = q;
       p.dataset.pkrEdit = edit ? "1" : "0"; build(p); p.hidden = false; load(p, q, null);
     }

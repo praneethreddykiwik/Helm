@@ -54,6 +54,8 @@
 //   account_exists  — this e-mail already has a real account → sign in instead
 //   weak_password   — fails Helm's password rule (same rule as the browser + 0030)
 //   rate_limited / send_failed — resend only
+//   send_unconfirmed — R203 (504): Supabase Auth did not confirm the e-mail went out (slow SMTP); it may still arrive
+//   create_failed    — R203 (503): the login could not be made right now (reason "timeout" = no answer in time)
 //   trial_paused    — R121 (0329): the inviting studio's free trial ended (409, every mode): no login, no link;
 //                     the invitation stays valid and works again once the studio chooses a plan
 //
@@ -62,13 +64,37 @@
 //   { fallback: true } for every call.
 // Logs carry only error tags — never an address, a name, a password or a token.
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
-import { errTag, responders } from "../_shared/cors.ts";
+import { errTag, reportToSentry, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
 import { clean, inviteEmail, MAIL_KEY_RE, mintMailKey, newLinkEmail, roleLabel, sha256Hex } from "../invite-mailer/templates.ts";
 import { mailConfig, sendMail } from "../_shared/mailer.ts";
 import { isReservedEmail, RESERVED_EMAIL_MESSAGE } from "../_shared/reserved-email.mjs";
 import { logger } from "../_shared/log.ts";
+import { fetchWithTimeout } from "../_shared/http.ts";
 const L = logger("invite-signup");
+
+// R203 (prod 18 Nov 2026): Supabase Auth sends its own e-mails (invite / magic link / OTP) BEFORE it answers, and through
+// the Gmail SMTP that took longer than 30 s. The service-role client now gives every Auth / database call a deadline
+// (AUTH_CALL_MS: long enough for a slow mail send, well inside the platform's 150 s request limit) so the function always
+// answers with a clear code instead of the browser seeing the request die:
+//   create_failed    - the login could not be made (Auth error / did not answer): nothing to e-mail; try again in a minute
+//   send_unconfirmed - Supabase did not confirm the e-mail was sent (time-out / 502-504): it may still arrive
+// Account creation never depends on an e-mail: createUser with the password the invitee chose + email_confirm true (the
+// e-mailed link's mail key proves the address), then the browser signs in.
+export const AUTH_CALL_MS = 70_000;
+const timedFetch = (u: string | URL | Request, init?: RequestInit) =>
+  u instanceof Request ? fetchWithTimeout(u.url, { ...init, method: u.method, headers: u.headers, body: u.body }, AUTH_CALL_MS)
+    : fetchWithTimeout(u, init || {}, AUTH_CALL_MS);
+const adminClient = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  { auth: { persistSession: false }, global: { fetch: timedFetch } });
+// an Auth error that means "no answer in time / gateway" (the e-mail may still go out) - exported for tests
+// deno-lint-ignore no-explicit-any
+export function authUnanswered(e: any): boolean {
+  if (!e) return false;
+  const st = Number(e?.status) || 0, t = String(e?.name || "") + " " + String(e?.message || "");
+  return st === 502 || st === 503 || st === 504 || /TimeoutError|timed? ?out|signal is aborted|context canceled/i.test(t);
+}
+const SEND_UNCONFIRMED_MSG = "We couldn't confirm the e-mail was sent. It may still arrive in a few minutes - check your inbox and spam before asking again.";
 
 const TOKEN = /^[0-9a-f]{48}$/;
 const EMAIL = /^[^\s@<>"',;:\\]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/;
@@ -177,7 +203,7 @@ async function byEmail(mode: "lookup" | "send", email: string, ip: string, json:
       code: "rate_limited", retry_after: wait }, 429);
   }
   if (!EMAIL.test(email) || email.length > 254) return json(mode === "send" ? { ok: true, sent: false } : { invited: false });
-  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+  const admin = adminClient();
   // r21 (0248): Helm's own domains (helm.events, ...) are never offered a studio login from here
   if (await isReservedEmail(admin, email)) {
     return mode === "send" ? json({ error: RESERVED_EMAIL_MESSAGE, code: "reserved_domain" }, 403) : json({ invited: false });
@@ -217,10 +243,12 @@ async function byEmail(mode: "lookup" | "send", email: string, ip: string, json:
   const { error: iErr } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo: link, data: meta });
   if (!iErr) return json({ ok: true, sent: true });
   if (isRateLimited(iErr)) return json({ error: "We sent it a moment ago - check your inbox (and spam), or try again in a minute.", code: "rate_limited" }, 429);
+  if (authUnanswered(iErr)) { L.error("email_send invite unconfirmed", "INVSU_MAIL_TIMEOUT", { step: "invite" }); return json({ error: SEND_UNCONFIRMED_MSG, code: "send_unconfirmed" }, 504); }
   if (isAlready(iErr)) {
     const { error: oErr } = await admin.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: link } });
     if (!oErr) return json({ ok: true, sent: true });
     if (isRateLimited(oErr)) return json({ error: "We sent it a moment ago - check your inbox (and spam), or try again in a minute.", code: "rate_limited" }, 429);
+    if (authUnanswered(oErr)) { L.error("email_send magic link unconfirmed", "INVSU_MAIL_TIMEOUT", { step: "otp" }); return json({ error: SEND_UNCONFIRMED_MSG, code: "send_unconfirmed" }, 504); }
     L.error("email_send magic link failed", errTag(oErr));
   } else L.error("email_send invite failed", errTag(iErr));
   return json({ error: "We couldn't send the e-mail just now - open the invitation e-mail you already have, or ask the studio to re-send it.", code: "send_failed" }, 502);
@@ -258,7 +286,7 @@ Deno.serve(async (req) => {
       return json({ error: "Use 12 or more characters with a mix of uppercase and lowercase letters, numbers & symbols.", code: "weak_password" }, 400);
     }
 
-    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+    const admin = adminClient();
     // R32 AUTH-1: + mail_key_hash (0282); before 0282 the column is missing -> read without it (no key = fallback)
     let { data: inv, error: iErr } = await admin.from("invitations")
       .select("id,email,status,expires_at,org_id,role,invited_by,mail_key_hash").eq("token", token).maybeSingle();
@@ -360,6 +388,7 @@ Deno.serve(async (req) => {
         if (!error) return json({ ok: true, sent: true });
       }
       if (isRateLimited(sendErr)) return json({ error: "A new link was sent a moment ago — check your inbox (and spam), or try again in a minute.", code: "rate_limited" }, 429);
+      if (authUnanswered(sendErr)) { log.error("resend unconfirmed", "INVSU_MAIL_TIMEOUT", { step: "resend" }); return json({ error: SEND_UNCONFIRMED_MSG, code: "send_unconfirmed" }, 504); }
       log.error("resend failed", errTag(sendErr));
       return json({ error: "We couldn't send the e-mail just now — try again in a minute, or ask your studio admin to re-send the invitation.", code: "send_failed" }, 502);
     }
@@ -391,7 +420,15 @@ Deno.serve(async (req) => {
       if (/pwned|known to be weak|easy to guess|leaked/i.test(t) || ((cErr as { reasons?: string[] }).reasons || []).includes("pwned"))
         return json({ error: "This password is too common. Try a different one. (Ref: AUTH-weak_password)", code: "weak_password" }, 400);
       if (/password/i.test(t)) return json({ error: "Choose a stronger password.", code: "weak_password" }, 400);
-      return serverError(cErr);
+      // R203: a clear, tagged answer the join page maps to plain words (was a bare 500 -> "couldn't create your account")
+      const late = authUnanswered(cErr);
+      log.error("create user failed", late ? "INVSU_CREATE_TIMEOUT" : "INVSU_CREATE_FAILED",
+        { status: Number((cErr as { status?: number }).status) || 0, tag: errTag(cErr) });
+      reportToSentry(req, cErr);
+      return json({ error: late
+        ? "Helm's sign-in service is slow right now and didn't confirm your account. Wait a minute, then try signing in with the e-mail and password you just chose - if that doesn't work, press Create account again."
+        : "We couldn't create your account just now. Wait a minute and press Create account again - your invitation still works.",
+        code: "create_failed", ...(late ? { reason: "timeout" } : {}) }, 503);
     }
     // R32 AUTH-1: a login made from an invitation link is recorded like an admin-made one (a155_admin_created,
     // 0155) - if it ever turns out not to be the mailbox owner's, accepting another studio's invitation

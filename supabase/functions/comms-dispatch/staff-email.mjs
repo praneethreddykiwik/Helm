@@ -166,7 +166,7 @@ export function staffUpdateMessage(row, origin) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // R185: designed HTML for the staff e-mails. Pure. Every dynamic value is HTML-escaped here (L.escHtml); links are the
-// already-validated staffLink() URLs. Light design on the shared layout (which also carries its dark-mode rules).
+// already-validated staffLink() URLs. Light design on the shared layout (light-only since R207).
 // The owner can swap the logo by adding a new PNG and pointing L.LOGO_URL (_shared/email-layout.mjs) at it.
 const e = (v) => L.escHtml(v);
 const TONE = {

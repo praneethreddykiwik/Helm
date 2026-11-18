@@ -147,9 +147,10 @@ await t('studio link: fixed at creation (r23 / 0257) - shown read-only, no edito
 });
 
 await t('Users & invites: forms use page messages (novalidate), one submit at a time, role checked, field reset after success', () => {
-  assert.match(ctl, /<form id="um_add" class="addrow s-0dff578" novalidate>/);
-  assert.match(ctl, /<form id="inv_add" class="addrow s-0dff578" novalidate>/);
-  assert.match(ctl, /if\(\$\("#um_submit"\)\.disabled\) return;/); assert.match(ctl, /if\(\$\("#inv_submit"\)\.disabled\) return;/);
+  assert.match(ctl, /<form id="um_add" class="addrow s-0dff578" novalidate( aria-labelledby="um_add_h")?>/);
+  assert.match(ctl, /<form id="inv_add" class="addrow s-0dff578" novalidate( aria-labelledby="inv_h")?>/);
+  // R211: a locked (busy / all seats in use) button still stops the submit - and now says why when seats are full
+  assert.match(ctl, /if\(\$\("#um_submit"\)\.disabled\)\{ umSeatRefusal\("um", \$\("#um_submit"\)\); return; \}/); assert.match(ctl, /if\(\$\("#inv_submit"\)\.disabled\)\{ umSeatRefusal\("inv", \$\("#inv_submit"\)\); return; \}/);
   assert.match(ctl, /if\(!ccRoleOk\("#um_role"\)\) return;/); assert.match(ctl, /if\(!ccRoleOk\("#inv_role"\)\) return;/);
   assert.match(ctl, /invPending=pend\.map\(i=>\(\{email:String\(i\.email\|\|""\)\.toLowerCase\(\), role:i\.role\}\)\);/);
   assert.match(ctl, /\$\("#um_email"\)\.value=""; if\(T&&T\.member\) T\.member\.reset\(\);/);

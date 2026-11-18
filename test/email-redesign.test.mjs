@@ -13,7 +13,8 @@ const html = L.layout('T <x>', 'Pre <y>', L.h1('Hi') + L.button('https://a.test/
 ok(html.includes('width="600"') && html.includes('max-width:600px'), '600px container');
 ok(html.includes('src="https://www.helm.events/email/helm-logo-v3.png"') && html.includes('alt="Helm Events"'), 'hosted logo (r19 compass-H, versioned URL)');
 ok((html.match(/<img\b/g) || []).length === 1, 'exactly one image (logo), no tracking pixel');
-ok(/prefers-color-scheme:dark/.test(html) && /\[data-ogsc\]/.test(html), 'dark-mode friendly');
+// R207 owner decision: LIGHT-ONLY (was 'dark-mode friendly'). No dark overrides; color-scheme light only.
+ok(!/prefers-color-scheme\s*:\s*dark/.test(html) && !/data-og[sc][cb]/.test(html) && html.includes('<meta name="color-scheme" content="light only">'), 'light-only (no dark-mode overrides)');
 ok(html.includes('Helm Events &middot;') && html.includes('helm.events</a>'), 'footer');
 ok(html.includes('Pre &lt;y&gt;') && html.includes('<title>T &lt;x&gt;</title>'), 'title + preheader escaped');
 ok(/role="presentation"/.test(html) && !/<script/i.test(html), 'tables, no script');

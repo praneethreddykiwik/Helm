@@ -218,8 +218,9 @@ await t('0385: additive + idempotent; exactly the task calls patched; supervisor
     assert.ok(!list.some((x) => x.startsWith(no)), no + ' stays Staff - Can change');
   assert.match(code, /if n <> 1 then raise notice '0385: % has % Staff-edit checks \(expected exactly 1\) - left unchanged'/);
   assert.match(code, /if position\('r208-0385' in v_def\) > 0 then continue; end if;/);
-  assert.match(code, /insert into public\.role_access\(org_id, role, area, can_view, can_edit, updated_at\)\s+select s\.org_id, 'supervisor', 'tasks', true, true, now\(\)[\s\S]*s\.role = 'supervisor' and s\.area = 'staff' and s\.can_view[\s\S]*on conflict \(org_id, role, area\) do nothing;/);
-  assert.equal((code.match(/insert into public\.role_access/g) || []).length, 2, 'existing studios (supervisor only) + the new-studio seed');
+  assert.match(code, /select o\.id, d\.role, d\.area, d\.can_view, d\.can_edit, now\(\)\s+from public\.organizations o\s+join public\._a49_default_matrix\(\) d on d\.role = 'supervisor'\s+where not exists \(select 1 from public\.role_access r where r\.org_id = o\.id and r\.role = 'supervisor'\)\s+on conflict \(org_id, role, area\) do nothing;/);
+  assert.match(code, /select s\.org_id, 'supervisor', 'tasks', true, true, now\(\)[\s\S]*s\.role = 'supervisor' and s\.area = 'staff' and s\.can_view[\s\S]*on conflict \(org_id, role, area\) do nothing;/);
+  assert.equal((code.match(/insert into public\.role_access/g) || []).length, 3, 'zero-row supervisor rows + supervisor tasks + the new-studio seed');
   // the helper: no row = has_area('staff','edit') word for word
   assert.match(code, /else coalesce\(public\.has_area\('staff', 'edit'\), false\)\n  end;/);
   assert.match(code, /revoke all on function public\._r385_can_assign\(\) from authenticated/);
@@ -235,7 +236,7 @@ await t('APPLY-0385: header, begin, the migration verbatim, the all-true check b
   for (const l of APPLY.split('\n').filter((x) => x.trim().startsWith('--'))) assert.doesNotMatch(l, /['";]/, 'editor-safe comment: ' + l);
   const man = r('supabase/migrations/MANIFEST');
   assert.match(man, /\nforward  supabase\/migrations\/0385_r208_task_assign_access\.sql\n$/);
-  assert.match(r('scripts/db-test/run-all.sh'), /run "r208-task-assign-0385" "R208-TASK-ASSIGN-0385: ALL PASS \\\(36\/36\\\)" psql -q -f tests\/db\/r208-task-assign-0385\.sql/);
+  assert.match(r('scripts/db-test/run-all.sh'), /run "r208-task-assign-0385" "R208-TASK-ASSIGN-0385: ALL PASS \\\(37\/37\\\)" psql -q -f tests\/db\/r208-task-assign-0385\.sql/);
   const ovr = JSON.parse(r('supabase/check-prod-overrides.json'))['0385'];
   assert.ok(ovr && ovr.add.length === 18 && ovr.add.every((x) => /^marker public\.[a-z0-9_]+\([^)]*\) r208-0385$/.test(x)));
   assert.match(r('supabase/CHECK-PROD-MIGRATIONS.sql'), /'0385_r208_task_assign_access'/);

@@ -221,14 +221,14 @@
           { sel: "#cf_add", title: "Add a field", desc: "Pick where it goes, name it, choose its type, then Add field." },
         ],
         users: [
-          { sel: "#seat_meter", title: "Seats on your plan", desc: "How many team logins you use and how many your plan allows." },
+          { sel: "#inv_email", title: "Invite by email link (recommended)", desc: "The main way to add a teammate: type their e-mail, pick a role, Send invite. They get a join link (7 days), choose their own password and join. A deactivated teammate's e-mail offers Reactivate instead." },
+          { sel: "#um_which", title: "Which should I use?", desc: "Invite by email link (recommended): they choose their own password. Add user (More options, admins only): the login exists now and a temporary password is shown to you once. Learn more compares them with the Staff page options." },
           { sel: "#uc_q", title: "Find a teammate", desc: "Search the team, or show only people who were invited but haven't signed up, who never signed in, or who are deactivated." },
-          { sel: "#hauMfaNudge", title: "Set up two-step", desc: "Until you turn on two-step sign-in, a calm reminder sits here. Set up now (2 min) walks you through it; Later hides it for 7 days." },
           { sel: "#um_rows", title: "Team members", desc: "Everyone with a login, plus people invited but not signed up yet. Account shows the real status: Invited (and when the link expires), Never signed in, Last signed in, or Deactivated." },
-          { sel: "#um_rows .ucView", title: "View a person", desc: "View opens their details: the full e-mail (with Copy), phone, role, when they joined and last signed in, and who invited them. On an invite: Resend invite, Copy invite link or Cancel invite." },
+          { sel: "#um_rows .btn.primary", title: "One main button per person", desc: "Anyone not in yet has one clear next step first: Resend invite (an expired link gets a new 7-day one), Send sign-in link (never signed in), or Reactivate. Signed-in people have none." },
+          { sel: "#um_rows .ucView", title: "View a person", desc: "View opens their details: the full e-mail (with Copy), phone, role, when they joined and last signed in, who invited them, and New temporary password for a never-used Add user login." },
           { sel: "#um_rows .ts-badge", title: "Two-step badge", desc: "Next to each admin: “Two-step: on”, or “not set up”. Admins need two-step to change payment details and other sensitive settings." },
-          { sel: "#inv_email", title: "Invite by e-mail link", desc: "Type their e-mail and pick a role. Helm sends a join link that works once." },
-          { sel: "#inv_rows", title: "Pending invites", desc: "Links not used yet. Copy one again, resend it (an expired link gets a new one), or Cancel invite - the link stops working and nothing else changes." },
+          { sel: "#um_more", title: "More options: Add user", desc: "Admins only. Makes the login at once with a one-time temporary password - no e-mail is sent, you give it to them yourself. Use only if they can't receive e-mail." },
         ],
         access: [
           { sel: "#roleTabs", title: "Pick a role", desc: "Choose the role you want to set up: manager, planner, sales and so on. The box below says in plain words what that role can do, and Needs under a row lists what else must be on (Turn on fixes it)." },
@@ -250,6 +250,7 @@
           { sel: "#nf_reset", title: "Back to defaults", desc: "Puts every notification back to how Helm set it up." },
           { sel: "#np_user", title: "Per-person overrides", desc: "Pick one person to mute or add alerts just for them." },
           { sel: "#trmCard", title: "Task reminders and escalation", desc: "Reminders for the person on each task. For special tasks not started, set when the coordinator, the manager and the admin / owner are told (0, 5 and 10 minutes after the start by default). It stops once the task is started." },
+          { sel: "#sinCard", title: "Teammate sign-ins", desc: "When a teammate signs in, the owner and admins get a bell notice: name, role, time and browser. Choose Off, First sign-in each day (the default) or Every sign-in, and which roles count." },
         ],
         reminders: [
           { sel: "#evrCard", title: "Event reminders", desc: "Reminders to the team before each event." },
