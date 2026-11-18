@@ -67,7 +67,7 @@ await t('dashboard: a degraded answer renders like any other answer (no crash, b
 
 await t('dashboard: "Your workspace" never becomes an error card because of my_pending (Upcoming shows "-")', () => {
   const rb = between(DASH, 'async function renderRoleBoard', 'const CFG = {');
-  assert.match(rb, /try \{ pend = \(await getPending\(\)\) \|\| pend; \} catch\(e\)\{ pendOk = false; \}/);
+  assert.match(rb, /try \{ pend = \(await (getPending\(\)|pendP)\) \|\| pend; \} catch\(e\)\{ pendOk = false; \}/);
   assert.doesNotMatch(rb, /getPending\(\)\)[^\n]*hardErr/, 'a pending failure does not set hardErr');
   assert.match(rb, /const up = pendOk \?/);
 });
