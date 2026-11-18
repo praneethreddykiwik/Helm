@@ -186,13 +186,16 @@
 
   /* ---------- optional owner assets (manifest avoids 404s) ---------- */
   var heroVideo = $('#heroVideo'), heroVidWrap = $('#heroVidWrap');
-  /* HQ film (1920x1080) on >=1024px screens unless Save-Data; light 1600px encode otherwise. */
+  /* Film size, picked once by screen (the page markup names the phone files):
+     >=1024px without Save-Data: HQ 1920x1080 (hero-hq.*); tablets and Save-Data desktops: 720p (hero.*);
+     r214 phones (<768px wide, or a phone held sideways <=500px tall): ~1 MB small encode (hero-m.*). */
   var heroConn = navigator.connection || {};
   var heroHQ = !!(window.matchMedia && window.matchMedia('(min-width: 1024px)').matches) && !heroConn.saveData;
+  var heroPhone = !heroHQ && !!(window.matchMedia && window.matchMedia('(max-width: 767px), (max-height: 500px)').matches);
   var heroPosterSrc = heroHQ ? '/home-assets/hero-hq-poster.webp' : '/home-assets/hero-poster.webp';
-  if (heroVideo && heroHQ) {
+  if (heroVideo && !heroPhone) {
     $$('source[data-src]', heroVideo).forEach(function (s) {
-      s.setAttribute('data-src', s.getAttribute('data-src').replace('/hero.', '/hero-hq.'));
+      s.setAttribute('data-src', s.getAttribute('data-src').replace('/hero-m.', heroHQ ? '/hero-hq.' : '/hero.'));
     });
   }
   Promise.resolve(window.DEMO9_MANIFEST || {}).then(function (m) {

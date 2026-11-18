@@ -193,7 +193,7 @@ t('cache policy: versioned assets / vendor immutable, config.js short, marketing
     assert.equal(serverHeaders(p, q)['cache-control'], want, `server.js ${p}${q}`);
   }
   // r26 speed: the landing film + posters are cached for a day on every host
-  for (const p of ['/home-assets/hero-hq.mp4', '/home-assets/hero.webm', '/home-assets/hero-poster.jpg']) {
+  for (const p of ['/home-assets/hero-hq.mp4', '/home-assets/hero.webm', '/home-assets/hero-m.webm', '/home-assets/hero-m.mp4', '/home-assets/hero-poster.jpg']) {
     assert.equal(vercelHeaders(p)['cache-control'], 'public, max-age=86400, stale-while-revalidate=604800', p);
     assert.equal(serverHeaders(p)['cache-control'], vercelHeaders(p)['cache-control'], `server.js Cache-Control ≠ vercel.json for ${p}`);
     assert.equal(netlifyHeaders(p)['cache-control'], vercelHeaders(p)['cache-control'], `_headers Cache-Control ≠ vercel.json for ${p}`);
