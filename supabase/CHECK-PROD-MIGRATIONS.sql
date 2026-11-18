@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (342 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (343 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -4870,7 +4870,8 @@ mig(ord, m, ov, note) as (values
   (339, '0386_r210_role_sync', null, 'Role sync: a role change also closes the studio''s open invitations for that e-mail, renames the linked staff record''s role words (only while they show the old role) and the login''s role words; a login moved to another studio is unlinked from the old studio''s staff record - two new trigger functions + two triggers on profiles, checked by the r210-0386 markers'),
   (340, '0387_r212_money_speed', null, 'Event money reads fast: event_money_header + event_money_cash re-issued to build the cost ledger once (old bodies kept as __pre0387), the kept ledger body _r21_cost_lines__pre0372 re-issued with five offset 0 fences (old body kept as _r21_cost_lines__pre0372__pre0387), new server-only _r387_event_pnl; same answers, checked by the r212-0387 markers'),
   (341, '0388_r213_bell_speed', null, 'bell / badge / pending speed: new _r388_vis (the inbox rule in one pass, no details) + _r388_rows (inbox flags, no details); _r23_visible, _r23_counts, bell_feed__pre0299 and bell_feed__pre0042 re-issued (built with dynamic SQL, old bodies kept as __pre0388), checked by the r213-0388 marker (the new _r23_visible names the r24-ci-0270 / r163-0357 / r186-0369 / r190-0373 / r205-0383 rules it keeps, so those markers still hold)'),
-  (342, '0389_r217_page_bootstrap', null, 'Page speed: one read-only startup call page_bootstrap() for signed-in pages (studio, sign-in steps, role + access switches, trial / demo / test studio / plan, pricing settings + rate cards), each part the existing function''s own answer - checked by the r217-0389 marker')
+  (342, '0389_r217_page_bootstrap', null, 'Page speed: one read-only startup call page_bootstrap() for signed-in pages (studio, sign-in steps, role + access switches, trial / demo / test studio / plan, pricing settings + rate cards), each part the existing function''s own answer - checked by the r217-0389 marker'),
+  (343, '0391_b_auth_dead_grants', 'skip', 'grants only: revokes signed-in table privileges no RLS policy uses (audit_log / role_access / organizations / chat_* / quote_otps) - nothing to detect by object; verify with the APPLY-0391 check rows')
 ),
 env as (
   select
