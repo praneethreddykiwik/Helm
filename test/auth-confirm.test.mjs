@@ -78,7 +78,7 @@ t("handler: token out of the address bar, no silent account swap, sign-up sessio
   const api = r("public/store-api.js");
   assert.match(api, /supa\.auth\.verifyOtp\(\{ token_hash: String\(tokenHash \|\| ""\), type: type === "signup" \? "email" : type \}\)/);
   assert.match(api, /localStorage\.setItem\(SIGNUP_MARK_KEY/);
-  assert.match(r("public/reset-password.js"), /qp\.get\("via"\) === "confirm"/);
+  assert.match(r("public/reset-link-core.js"), /viaConfirm: q\.get\("via"\) === "confirm"/);   // R204: parsing moved to the core
 });
 t("e-mails never show the Supabase project URL", () => {
   for (const f of ["confirm-signup", "invite-user", "magic-link", "reset-password", "change-email"]) {
@@ -93,7 +93,7 @@ t("e-mails never show the Supabase project URL", () => {
 t("Outlook-safe button: VML + table cell with a real <a href>, plain URL line after", () => {
   const lay = r("supabase/functions/_shared/email-layout.mjs");
   assert.match(lay, /<!--\[if mso\]><v:roundrect[^>]*href="\$\{href\}"/);
-  assert.match(lay, /<td align="center" bgcolor="\$\{C\.brand\}"[^>]*><a href="\$\{href\}" target="_blank"/);
+  assert.match(lay, /<td align="center" bgcolor="\$\{C\.accent\}"[^>]*><a href="\$\{href\}" target="_blank"/);
   assert.ok(!/<!--\[if !mso\]>/.test(lay.slice(lay.indexOf("export function button"), lay.indexOf("export const fallback")).replace(/^\s*\/\/.*$/gm, "")), "no !mso wrapper");
   const inv = r("docs/ops/email-templates/invite-user.html");
   assert.match(inv, /Button not working\? Copy and paste this link/);

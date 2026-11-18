@@ -15,25 +15,13 @@ html[data-theme="dark"] .ucst-warn{background:rgba(245,158,11,.15);color:#fbbf24
 html[data-theme="dark"] .ucst-off{background:rgba(255,255,255,.08);color:#c6c2d6}
 
 /* the members table: the Account column may wrap; e-mails are shown in full (wrap, never cut off) */
-#pane-users .utable.ucm td.ucprof{white-space:normal;min-width:150px;max-width:240px}
+#pane-users .utable.ucm td.ucprof{white-space:normal;min-width:0}
 #pane-users .utable.ucm .ucwt .ucsub.em,#pane-users .utable.ucm .ucinv-em{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:break-word}
 #pane-users .utable.ucm .ucnm .ucinv-em{font-weight:600}
 #pane-users .utable.ucm td.ucact{white-space:normal}
 #pane-users .utable.ucm td.ucact>.btn,#pane-users .utable.ucm td.ucact>.rm{margin:2px 4px 2px 0}
 #pane-users .utable.ucm .ucav-inv{background:#fff4dc;color:#8a5a00;font-size:14px}
 #pane-users .utable.ucm tr.ucinv .ucinv-role{font-size:12.5px;color:var(--ink-2,#3f3b4d)}
-@media (min-width:640px){
-  @container ucm (max-width:859.98px){
-    /* the Account column needs room for "Invited - not signed up yet"; the actions stack in one narrow column */
-    #pane-users .utable.ucm tr.ucr{grid-template-columns:auto minmax(0,1fr) 128px 150px 108px}
-    #pane-users .utable.ucm tr.ucr>td.ucprof .ucsub{display:block}
-    #pane-users .utable.ucm tr.ucr>td.ucact{display:flex;flex-direction:column;align-items:stretch;gap:4px;justify-self:stretch}
-    #pane-users .utable.ucm tr.ucr>td.ucact>.btn,#pane-users .utable.ucm tr.ucr>td.ucact>.rm{margin:0;width:100%;text-align:center}
-    #pane-users .utable.ucm tr.ucr>td.ucrole select{width:128px}
-    #pane-users .utable.ucm tr.ucr.ucinv{grid-template-areas:"who who role prof act"}
-    #pane-users .utable.ucm tr.ucr.ucinv>:is(td.ucph,td.ucjob){display:none}
-  }
-}
 /* pending invites table: the full address wraps */
 #pane-users .invtable td.invem{overflow-wrap:anywhere;word-break:break-word;min-width:14ch}
 #pane-users .invtable td.invacts{white-space:normal}
@@ -84,5 +72,23 @@ html[data-theme="dark"] .um-err{background:rgba(220,38,38,.12);border-color:rgba
 /* Add staff: "Save as a record only" is the default; "Save and invite to sign in" is the secondary choice */
 #s_access .acc-card:has(input[value="invite"]):not(:has(input:checked)){opacity:.85}
 #s_access .acc-card:has(input[value="invite"]) .acc-t::after{content:" (only if they use Helm)";font-weight:500;color:var(--ink-3,#5b566b)}
-/* phones (cards): an invite has no phone / job title yet - leave those lines out */
-@media (max-width:639.98px){ #pane-users .utable.ucm tr.ucinv>:is(td.ucph,td.ucjob){display:none} }
+
+
+/* R202: "Which should I use?" (Users & invites), the Add user heading, the up-front two-step note, the one-time password box */
+.um-which{margin:10px 0 12px;padding:10px 12px;border-radius:10px;background:var(--panel-2,#f4f4f5);border:1px solid var(--line-2,#efeae3);font-size:13px;line-height:1.55;color:var(--ink-2,#3f3b4d)}
+.um-which-t{margin:0}
+.um-which-more{margin-top:6px}
+.um-which-more>summary{cursor:pointer;font-weight:600;color:var(--hb-acc-text,var(--accent,#059669));width:fit-content}
+.um-which-more ul{margin:6px 0 0;padding-left:18px}
+.um-which-more li{margin:4px 0}
+.um-add-h{margin:16px 0 6px;font-size:13px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--ink,#1b1930)}
+.tag.um-rec{margin-left:6px;font-size:11px;font-weight:700;vertical-align:middle;background:#e7f6ee;color:#0f7a43;text-transform:none;letter-spacing:0}
+.um-2step{margin:8px 0 0;padding:10px 12px;border-radius:10px;border:1px solid #f3d9a4;background:#fff8e8;color:#6b4700;font-size:13px;line-height:1.5;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.um-2step[hidden]{display:none!important}
+.um-2step-t{margin:0;flex:1 1 260px}
+.um-tp{line-height:1.6}
+.um-tp-code{font-size:1.05em;font-family:var(--mono,ui-monospace,monospace);user-select:all;overflow-wrap:anywhere}
+.um-tp-note{color:var(--ink-3,#5b566b)}
+#pane-users .utable.ucm td.ucact .ucLink{white-space:nowrap}
+html[data-theme="dark"] .um-2step{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35);color:#fbd38d}
+html[data-theme="dark"] .tag.um-rec{background:rgba(46,184,114,.14);color:#6ee7a8}

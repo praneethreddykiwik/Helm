@@ -19,10 +19,10 @@ Deno.test("trial templates: one per kind, distinct subjects, branded, shared lay
   for (const k of TRIAL_KINDS) {
     const m = trialMessage(k, "Studio A", "2026-10-20", "https://app.helm.test");
     subjects.add(m.subject);
-    assert(m.html.includes("#0d8a5c"), k + " brand colour");
+    assert(m.html.includes("#34d399") && m.html.includes("#e8f5ee"), k + " R207 light-green brand colours");
     assert(m.html.includes("Helm Events"), k + " footer");
     assert(m.html.includes("https://www.helm.events/email/helm-logo-v3.png"), k + " hosted logo");
-    assert(m.html.includes("prefers-color-scheme:dark"), k + " dark-mode aware");
+    assert(!m.html.includes("prefers-color-scheme:dark") && !m.html.includes("data-ogsc") && m.html.includes('content="light only"'), k + " light-only (R207)");
     assert(m.html.includes(">Choose a plan<"), k + " CTA");
     assert(m.html.includes('href="https://app.helm.test/checkout"'), k + " checkout link");
     assert(m.html.includes("2026-10-20"), k + " date");

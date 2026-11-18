@@ -70,9 +70,8 @@ Deno.test("pkg-client-notify: e-mail + WhatsApp sent to fixed hosts, marked sent
     assertEquals(b.to, ["alice@client.test"]);
     assert(b.html.includes("https://www.helm.events/approve?token=" + TOK));
     assert(b.html.includes("Studio &lt;A&gt;") && !b.html.includes("Studio <A>"));
-    // the 2026-10 redesign put every Helm e-mail on _shared/email-layout.mjs (dark-mode friendly, like trial-reminder-email
-    // and test/email-redesign); the old "light-only" check predates it. Owner decision on dark-mode e-mails still open.
-    assert(/prefers-color-scheme:dark/.test(b.html), "shared e-mail layout");
+    // every Helm e-mail is on _shared/email-layout.mjs. R207 owner decision: LIGHT-ONLY (no dark-mode overrides).
+    assert(b.html.includes('<meta name="color-scheme" content="light only">') && !/prefers-color-scheme:dark|data-ogsc/.test(b.html), "shared light-only e-mail layout");
     assertEquals((mail.init?.headers as Record<string, string>)["Idempotency-Key"], "pkg-" + ID1);
     // codeql[js/incomplete-url-substring-sanitization] -- false positive: filters a captured fetch log by expected host; not a security sanitizer on untrusted input.
     const waCalls = fetchLog().filter((x) => x.url.includes("graph.facebook.com"));

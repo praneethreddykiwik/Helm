@@ -157,7 +157,7 @@ await t('0381 wiring: MANIFEST, checker override (last), run-all, CHECK-PROD, re
   assert.match(read('supabase/check-prod-overrides.json'), /"0381": \{ "note": "test-studio two-step switch[^\n]*"marker public\._r285_step_up\(uuid\) r203-0381"[^\n]*\] \}\n\}\n$/);
   assert.match(read('scripts/db-test/run-all.sh'), /run "r203-test-studio-0381" "R203-TEST-STUDIO-0381: ALL PASS \\\(27\/27\\\)" psql -q -f tests\/db\/r203-test-studio-0381\.sql/);
   assert.match(read('supabase/CHECK-PROD-MIGRATIONS.sql'), /0381_r203_test_studio_two_step/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0378', '0381'\];/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0379', '0381'\];/, f);
 });
 await t('banner + nudges: my_test_studio read (cached, READ_RPCS), banner for everyone in a test studio, no two-step nudge there', () => {
   assert.match(API, /\|my_seat_usage\|my_test_studio\|my_notification_prefs\|/);
@@ -169,19 +169,16 @@ await t('banner + nudges: my_test_studio read (cached, READ_RPCS), banner for ev
   assert.match(AUI, /    trialStatus\(\);\n    testStudioBanner\(\);/);
   assert.match(fnSrc(AUI, 'adminTwoStep'), /if \(ts !== true\) adminTwoStepNudge\(st\);/);
 });
-await t('Settings: the Admin note shows BEFORE the click (both forms), DOM only, server still decides', () => {
-  assert.match(CTL, /<p class="mnote" id="um_admin_note" role="status" aria-live="polite" hidden><\/p>/);
-  assert.match(CTL, /<p class="mnote" id="inv_admin_note" role="status" aria-live="polite" hidden><\/p>/);
-  assert.match(CTL, /adminRoleNote\(sel,"#um_admin_note"\); if\(isel\) adminRoleNote\(isel,"#inv_admin_note"\);/);
-  const f = fnSrc(CTL, 'adminRoleNote');
-  assert.ok(!/innerHTML/.test(f)); assert.match(f, /Adding an Admin needs two-step verification on your account\. /);
-  assert.match(f, /HelmAuthUI\.openTwoStepSetup\(\)/);
-  assert.match(read('public/page-tours.js'), /Pick Admin and a line under the form says first what that needs \(two-step on your account\)\./);
+await t('Settings: R202\'s Admin two-step note (shown before the click) stays quiet in a Helm HQ test studio', () => {
+  const f = fnSrc(CTL, 'umMyTwoStep');
+  assert.match(f, /BPStore\.auth\.mfa\.testStudio\(\)\)===true\)\{ umMy2Step=true; return true; \}/);
+  assert.ok(f.indexOf('testStudio') < f.indexOf('verifiedTotp'), 'test studio checked first');
+  assert.ok(!/adminRoleNote|_admin_note/.test(CTL), 'one note only (R202\'s)');
 });
-await t('asset pins: store-api v371 + auth-ui v63 everywhere, page-tours v54', () => {
+await t('asset pins: store-api v373 + auth-ui v63 everywhere, page-tours v54', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const s = read('public/' + f);
-    const m = s.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '371', f);
+    const m = s.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '373', f);
     const a = s.match(/auth-ui\.js\?v=(\d+)/); if (a) assert.equal(a[1], '63', f);
     const p = s.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '54', f);
   }

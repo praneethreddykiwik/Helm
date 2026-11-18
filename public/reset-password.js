@@ -1,8 +1,10 @@
 /* reset-password.js — the "choose a new password" page (audit Phase 3-4 follow-up).
    Two ways in:
-     1. the link from a "Forgot password?" email (PKCE: ?code= exchanged for a
-        recovery session in the same browser that requested it) → set a new password → every session is signed
-        out → back to the sign-in page;
+     1. the link from a "Forgot password?" email - /auth/confirm (?via=confirm, verified there, works in any
+        browser) or the older PKCE ?code= link (same browser only) → "Set a new password" (New + Confirm, no
+        current password) → every OTHER session is signed out → into the app. R204: a page opened from a reset
+        link never shows the current-password form; a link that gave no reset session says why + "Send a new link";
+        a different account signed in here is signed out first and the page says so (reset-link-core.js decides);
      2. Account → "Change password" (?mode=change, already signed in) → confirm the
         current password (+ CAPTCHA when on) → set a new one → other devices are
         signed out, this one stays signed in.
@@ -15,18 +17,25 @@
   // PKCE flow: the reset email link lands here as ?code=… (never tokens in the
   // fragment). store-api init exchanges it using the code verifier saved in the
   // browser that REQUESTED the reset; read the query BEFORE init cleans it up.
-  var qp = new URLSearchParams(location.search || "");
-  // 0205: or ?via=confirm from /auth/confirm (own-domain e-mail link, verified there). Either way only
-  // the signed token's "recovery" method (isRecoverySession) skips the current-password step.
-  var RECOVERY_LINK = !!qp.get("code") || qp.get("via") === "confirm";
-  var LINK_ERROR = qp.get("error_code") || qp.get("error") || "";
-  var MODE_CHANGE = new URLSearchParams(location.search).get("mode") === "change";
+  // R204: read the link BEFORE store-api init cleans the address bar (reset-link-core.js decides the screen)
+  var R = window.HelmResetLink;
+  var LINK = R.parseLink(location.search || "", "");   // the #fragment is read by store-api only (error code / token type, then stripped)
   var recovering = false, cap = null;
+  // the account /auth/confirm signed out of this browser for this link (one-shot, this tab only)
+  var PREV = null;
+  try { PREV = JSON.parse(sessionStorage.getItem("bp_reset_prev") || "null"); sessionStorage.removeItem("bp_reset_prev"); } catch (e) { PREV = null; }
 
-  function show(id) { ["#vCurrent", "#vMfa", "#vSet", "#vDone"].forEach(function (s) { $(s).hidden = s !== id; }); }
+  function show(id) { ["#vCurrent", "#vMfa", "#vSet", "#vDone", "#vLink"].forEach(function (s) { $(s).hidden = s !== id; }); }
   function err(t) { var e = $("#err"); e.textContent = t; e.hidden = !t; }
   function ok(t) { var e = $("#ok"); e.textContent = t; e.hidden = !t; }
   function sub(t) { $("#sub").textContent = t; }
+  function note(t) { var e = $("#note"); e.textContent = t || ""; e.hidden = !t; }
+  // a link that cannot be used: say why, one clear button to get a new one (never the change-password form)
+  function deadLink(title, text) {
+    $("#title").textContent = title; sub(text); show("#vLink");
+    $("#toLogin").setAttribute("href", "login"); $("#toLogin").textContent = "← Back to sign in";
+    setTimeout(function () { try { $("#newLink").focus(); } catch (e) {} }, 50);
+  }
   function friendly(e, action) {
     if (e && (/^(mfa_invalid|bad_current_password|captcha_|rate_limited)/.test(e.code || "") ||
         /^(Too short|Add |Use at least|Include at least|Enter the 6-digit|Choose a password)/.test(e.message || ""))) return e.message;
@@ -49,55 +58,52 @@
   async function start() {
     await BPStore.init();
     if (!BPStore.auth.enabled()) { $("#title").textContent = "Password reset unavailable"; sub("Accounts aren't enabled in this environment."); return; }
-    // an expired / used link can also return its error in the #fragment: store-api init
-    // records only that short error code (never tokens) as linkError()
-    if (!LINK_ERROR && BPStore.auth.linkError && /otp_expired|access_denied/.test(String(BPStore.auth.linkError() || ""))) LINK_ERROR = String(BPStore.auth.linkError());
-    if (!LINK_ERROR && RECOVERY_LINK && BPStore.auth.linkError && BPStore.auth.linkError() && !BPStore.auth.pendingUser()) {
-      // the code could not be exchanged: almost always a different browser / device
-      $("#title").textContent = "Open the link in the same browser";
-      sub("Open the link in the same browser you requested it from. If you did, the link may have been used or expired — request a new one.");
-      $("#toLogin").setAttribute("href", "login#forgot"); $("#toLogin").textContent = "Request a new link →";
+    var A = BPStore.auth;
+    if (A.linkFragmentToken && A.linkFragmentToken()) LINK.hashToken = true;
+    var u = A.pendingUser();
+    var realRecovery = u ? await A.isRecoverySession() : false;
+    var prior = (A.linkPriorUser && A.linkPriorUser()) || null;
+    if (PREV && PREV.email) prior = PREV;
+    var d = R.decide({ link: LINK, linkError: A.linkError ? A.linkError() : "", user: u, recovery: realRecovery, prior: prior,
+      pendingStep: A.pendingStep(), hasPassword: A.hasPassword ? A.hasPassword() : true });
+    if (d.view !== "set" && PREV && PREV.email) note("You were signed out of " + PREV.email + " in this browser.");
+
+    if (d.view === "set") {
+      // only a session whose signed token / verified link says "reset" gets here (?code= alone is no proof)
+      recovering = true;
+      A.recovery.mark(u.id);   // until the new password is set, app pages in this browser come back here
+      $("#acct_email").value = u.email || ""; $("#cur_email").value = u.email || "";   // R29b: password managers match the account
+      $("#title").textContent = "Set a new password";
+      if (d.switchedFrom) note("You were signed out of " + d.switchedFrom + " so you can reset the password for " + (u.email || "this account") + ".");
+      await toNewPassword();
       return;
     }
-    if (LINK_ERROR) {
-      $("#title").textContent = "This link has expired";
-      sub("Reset links work once and expire after a short time. Request a new one from the sign-in page.");
-      $("#toLogin").setAttribute("href", "login#forgot"); $("#toLogin").textContent = "Request a new link →";
-      return;
+    if (d.view === "expired") return deadLink("This link has expired", "Reset links work once and expire after an hour. Send yourself a new link and use the newest e-mail.");
+    if (d.view === "wrong_browser") return deadLink("This link can't be used here",
+      "It has already been used or has expired, or it was opened in a different browser from the one you asked for it in. Send yourself a new link and open it on this device.");
+    if (d.view === "old_link") return deadLink("This link can't be used", "This reset link is in an old format Helm no longer accepts. Send yourself a new link.");
+    if (d.view === "login_change") { location.replace("login?next=dashboard"); return; }
+    if (d.view === "need_link") {
+      return deadLink("Open the link from your email", "To reset your password, use the link we emailed you. No email? Send yourself a new link.");
     }
-    var u = BPStore.auth.pendingUser();
-    if (!u) {
-      if (MODE_CHANGE) { location.replace("login?next=dashboard"); return; }
-      $("#title").textContent = "Open the link from your email";
-      sub("To reset your password, use the link we emailed you. No email? Request a new link.");
-      $("#toLogin").setAttribute("href", "login#forgot"); $("#toLogin").textContent = "Request a reset link →";
-      return;
-    }
-    $("#acct_email").value = u.email || ""; $("#cur_email").value = u.email || "";   // R29b: password managers match the account
-    // "?code=" in the URL is NOT proof (anyone can type it): only a session
-    // whose signed token says it came from a reset link skips the current-password step.
-    var realRecovery = await BPStore.auth.isRecoverySession();
-    if (RECOVERY_LINK && realRecovery) BPStore.auth.recovery.mark(u.id);
-    recovering = realRecovery;
-    if (recovering) { await toNewPassword(); return; }
-    if (RECOVERY_LINK || BPStore.auth.pendingStep() === "recovery") {
+    if (d.view === "login") { location.replace("login"); return; }
+    // ---- signed in, no reset link: the ordinary Account -> "Change password" (current password first)
+    $("#acct_email").value = u.email || ""; $("#cur_email").value = u.email || "";
+    if (d.staleRecovery) {
       // a stale / spoofed reset marker: fall back to the normal signed-in change flow
-      BPStore.auth.recovery.clear();
-      try { await BPStore.auth.resolveGate(); } catch (x) {}
+      A.recovery.clear();
+      try { await A.resolveGate(); } catch (x) {}
+      if (A.pendingStep()) { location.replace("login"); return; }
     }
-    // change mode: the session must be fully signed in (two-step done etc.)
-    var step = BPStore.auth.pendingStep();
-    if (step) { location.replace("login"); return; }
     $("#title").textContent = "Change your password";
     $("#toLogin").setAttribute("href", "dashboard"); $("#toLogin").textContent = "← Back to Helm";
-    if (BPStore.auth.hasPassword && !BPStore.auth.hasPassword()) {
+    if (d.view === "google_only") {
       // Google-only account: there is no Helm password to confirm or change
       sub("You sign in to Helm with Google, so there's no Helm password to change. Manage your password in your Google account.");
       return;
     }
     sub("Signed in as " + (u.email || "") + ". First confirm your current password.");
     show("#vCurrent");
-    $("#toLogin").setAttribute("href", "dashboard"); $("#toLogin").textContent = "← Back to Helm";
     if (window.HelmAuthUI) cap = HelmAuthUI.mountCaptcha($("#captcha"), { action: "reauth" });
     setTimeout(function () { $("#cur_pw").focus(); }, 50);
   }
@@ -143,10 +149,13 @@
         await BPStore.auth.updatePassword(a, opts);   // also signs out every OTHER session
         $("#new_pw").value = ""; $("#new_pw2").value = "";
         if (recovering) {
-          // reset via email: end this session too and sign in fresh with the new password
+          // R204: reset via email - every OTHER session was signed out (updatePassword); this one is
+          // now an ordinary sign-in, so straight into the app (the sign-in page routes to the right home)
           BPStore.auth.recovery.clear();
-          try { await BPStore.auth.signOut(); } catch (x) {}
-          location.replace("login?reset=1");
+          show("#vDone"); $("#title").textContent = "Password changed"; sub(""); note("");
+          ok("Your new password is saved and your other devices were signed out. Opening Helm…");
+          $("#doneLink").setAttribute("href", "login");
+          location.replace("login");
           return;
         }
         show("#vDone"); $("#title").textContent = "Password changed";

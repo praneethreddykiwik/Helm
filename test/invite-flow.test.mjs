@@ -43,14 +43,15 @@ t("hash error fragments (otp_expired / access_denied) are read and stripped", ()
   assert.match(login, /otp_expired\|access_denied\|expired/);
   // 0205: links work once, within 24 h; the page then offers the right way in (new link / form / sign in)
   assert.ok(login.includes("This email link has expired or was already used — each link works once, within 24 hours."));
-  assert.match(reset, /otp_expired\|access_denied\/\.test\(String\(BPStore\.auth\.linkError\(\)/);
+  assert.match(reset, /linkError: A\.linkError \? A\.linkError\(\) : ""/);   // R204: reset-link-core.js treats otp_expired / access_denied as "expired"
+  assert.match(r("public/reset-link-core.js"), /otp_expired\|access_denied/);
   assert.ok(!/location\.hash/.test(reset), "reset page never reads the fragment itself");
 });
-t("reset flow: forgot → /reset-password redirect → updatePassword → login?reset=1", () => {
+t("reset flow: forgot → /reset-password redirect → updatePassword → into the app (R204)", () => {
   assert.match(login, /requestPasswordReset\(em,\{[^}]*redirectTo: location\.origin\+"\/reset-password"/);
   assert.match(store, /redirectTo: \(opts && opts\.redirectTo\) \|\| \(location\.origin \+ "\/reset-password"\)/);
   assert.match(reset, /BPStore\.auth\.updatePassword\(a, opts\)/);
-  assert.match(reset, /location\.replace\("login\?reset=1"\)/);
+  assert.match(reset, /recovery\.clear\(\);[\s\S]{0,400}location\.replace\("login"\)/);
   assert.match(login, /QS\.get\("reset"\)==="1"/);
 });
 t("invite-mailer metadata keys match the template variables", () => {
@@ -61,7 +62,7 @@ t("invite-mailer metadata keys match the template variables", () => {
 t("all five branded templates + doc exist", () => {
   for (const f of ["invite-user", "magic-link", "reset-password", "confirm-signup", "change-email"]) {
     const h = r("docs/ops/email-templates/" + f + ".html");
-    assert.ok(h.includes("{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}") && !h.includes("ConfirmationURL") && h.includes("#0d8a5c") && h.includes("https://www.helm.events/email/helm-logo-v3.png") && h.includes("Helm"), f);
+    assert.ok(h.includes("{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}") && !h.includes("ConfirmationURL") && h.includes("#34d399") && h.includes("https://www.helm.events/email/helm-logo-v3.png") && h.includes("Helm"), f);
     assert.ok(!/<script/i.test(h), f + " no script");
   }
   assert.ok(r("docs/ops/email-templates/change-email.html").includes("{{ .NewEmail }}"));
