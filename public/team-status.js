@@ -11,6 +11,9 @@
      HelmTeamStatus.profileHint(u, priv)  -> "Profile: mobile number missing" | "" (complete)
      HelmTeamStatus.ago(iso, now) / until(iso, now) / when(iso, time)
      HelmTeamStatus.matches(state, filter) -> does this row pass the "Show" filter
+     HelmTeamStatus.roleSaved(asked, saved, loaded, label) -> R210: what the Users table says after a role change, from the
+         role the DATABASE answers on a fresh read (never the one picked in the drop-down) -> { ok, tone, text }
+     HelmTeamStatus.roleError(err) -> R210: the database's refusal of a role change in plain words, or "" (not one of them)
      HelmTeamStatus.openDrawer({ title, sub, rows: [[label, value, { copy, mono }]], actions: [{ label, onClick, danger, primary }] }) */
 (function (root) {
   "use strict";
@@ -196,7 +199,30 @@
     return dr;
   }
 
-  var api = { member: member, invite: invite, signInHelp: signInHelp, profileHint: profileHint, matches: matches, ago: ago, until: until, when: when,
+  // R210 (owner 18 Nov 2026: "Even if I change this to Event manager, the person is getting Admin"): the Users table used
+  // to write the picked role into its own copy and say "Role updated." without asking the database again. Now the page
+  // re-reads the team after the change and this decides the words from the role the database actually holds.
+  //   asked = the role picked, saved = the role on the fresh read (null / "" when it could not be read), loaded = the
+  //   fresh read worked, label = role key -> words ("Event manager").
+  function roleSaved(asked, saved, loaded, label) {
+    var lb = typeof label === "function" ? label : function (r) { return String(r || ""); };
+    if (!loaded || !saved) return { ok: false, tone: "warn", text: "The change was sent, but Helm couldn't read the team again to confirm it. Reload this page to see the role Helm has saved." };
+    if (String(saved) === String(asked)) return { ok: true, tone: "ok", text: "Role saved: " + lb(saved) + "." };
+    return { ok: false, tone: "err", text: "The role was NOT changed - Helm still has them as " + lb(saved) + ". Try again, or reload the page." };
+  }
+
+  // R210: the database's own refusals of a role change, in plain words ("" = not one of them -> the page's usual text).
+  // They used to show as the generic "You don't have permission to change the role." for every 42501.
+  function roleError(err) {
+    var m = String((err && err.message) || "");
+    if (/at least one admin/i.test(m)) return "Couldn't change the role. A studio must keep at least one Admin - make someone else Admin first.";
+    if (/remove your own admin role/i.test(m)) return "Couldn't change the role. You can't remove your own Admin role - another admin (or the owner) has to do it.";
+    if (/no such user/i.test(m)) return "Couldn't change the role. This person is no longer in your studio - reload the page.";
+    if (/invalid role/i.test(m)) return "Couldn't change the role. That role isn't available - reload the page and pick it again.";
+    return "";
+  }
+
+  var api = { roleSaved: roleSaved, roleError: roleError, member: member, invite: invite, signInHelp: signInHelp, profileHint: profileHint, matches: matches, ago: ago, until: until, when: when,
     openDrawer: openDrawer, closeDrawer: closeDrawer, copyText: copyText };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HelmTeamStatus = api;

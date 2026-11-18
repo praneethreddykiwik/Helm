@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (334 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (335 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4381 objects): body 171, bucket 9, col 242, con 412, cron 19, exec 11, fn 1973, idx 521, marker 63, pol 186, polexpr 4, pre 107, pub 5, seq 1, tbl 286, trg 369, view 2.
+-- What is checked (4387 objects): body 171, bucket 9, col 242, con 412, cron 19, exec 11, fn 1975, idx 521, marker 65, pol 186, polexpr 4, pre 107, pub 5, seq 1, tbl 286, trg 371, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4405,7 +4405,13 @@ with o(m, k, s, n, x) as (values
   ('0379_r202_signin_help', 'exec', 'public', 'team_signin_link_request', 'uuid|authenticated'),
   ('0379_r202_signin_help', 'exec', 'public', 'team_temp_password_reset', 'uuid|authenticated'),
   ('0379_r202_signin_help', 'exec', 'public', 'team_signin_link_failed', 'bigint|authenticated'),
-  ('0379_r202_signin_help', 'marker', 'public', '_tr184_purge_tables', '|team_signin_help')
+  ('0379_r202_signin_help', 'marker', 'public', '_tr184_purge_tables', '|team_signin_help'),
+  ('0386_r210_role_sync', 'fn', 'public', '_r386_tg_role_sync', ''),
+  ('0386_r210_role_sync', 'trg', 'public.profiles', 'zzzzz_r386_role_sync', null),
+  ('0386_r210_role_sync', 'fn', 'public', '_r386_tg_left_studio', ''),
+  ('0386_r210_role_sync', 'trg', 'public.profiles', 'zzzzz_r386_left_studio', null),
+  ('0386_r210_role_sync', 'marker', 'public', '_r386_tg_role_sync', '|r210-0386'),
+  ('0386_r210_role_sync', 'marker', 'public', '_r386_tg_left_studio', '|r210-0386')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4741,7 +4747,8 @@ mig(ord, m, ov, note) as (values
   (331, '0376_r197_event_money_header', null, 'P&L clarity phase 1: new read-only event_money_header + money_settings.margin_band; money_settings_get / money_settings_set wrapped once (old bodies kept as __pre0376, which still carry the r189-money-0372 marker) and get_studio_target_margin re-issued in place (default 25), checked by the r197-0376 marker'),
   (332, '0377_r198_event_money_cash', null, 'P&L clarity phase 2: new read-only event_money_cash (cash in & out + who owes what) and the server-only helper _r377_d, checked by the r198-0377 marker'),
   (333, '0378_r199_team_account_status', null, 'Users & invites account status: new read-only team_account_status (admin / Users edit, own studio), checked by the r199-0378 marker'),
-  (334, '0379_r202_signin_help', null, 'Users & invites sign-in help: Send sign-in link + New temporary password (team_signin_help log), team_account_status + signin_link_at / can_new_temp, checked by the r202-0379 markers')
+  (334, '0379_r202_signin_help', null, 'Users & invites sign-in help: Send sign-in link + New temporary password (team_signin_help log), team_account_status + signin_link_at / can_new_temp, checked by the r202-0379 markers'),
+  (335, '0386_r210_role_sync', null, 'Role sync: a role change also closes the studio''s open invitations for that e-mail, renames the linked staff record''s role words (only while they show the old role) and the login''s role words; a login moved to another studio is unlinked from the old studio''s staff record - two new trigger functions + two triggers on profiles, checked by the r210-0386 markers')
 ),
 env as (
   select
