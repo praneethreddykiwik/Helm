@@ -363,10 +363,10 @@ select pg_temp.res('38 settings / ping: signed-in only, not anon; helpers + trig
            'public.tg_r383_join()'::regprocedure, 'public.signin_notice_ping(text)'::regprocedure, 'public.signin_notice_settings_get()'::regprocedure,
            'public.signin_notice_settings_set(jsonb)'::regprocedure, 'public.bell_feed(integer)'::regprocedure)));
 
--- 39 free-trial retention: both tables KEPT (never purged), nothing unclassified
-select pg_temp.res('39 trial retention: signin_notice_settings + signin_notice_log are KEPT tables, never purged',
-  'signin_notice_settings' = any (public._tr184_keep_tables()) and 'signin_notice_log' = any (public._tr184_keep_tables())
-  and not ('signin_notice_log' = any (public._tr184_purge_tables())));
+-- 39 free-trial retention: the sign-in log is studio data (purged with a trial studio), the setting is kept
+select pg_temp.res('39 trial retention: signin_notice_log on the PURGE list (not kept), signin_notice_settings KEPT',
+  'signin_notice_log' = any (public._tr184_purge_tables()) and not ('signin_notice_log' = any (public._tr184_keep_tables()))
+  and 'signin_notice_settings' = any (public._tr184_keep_tables()) and not ('signin_notice_settings' = any (public._tr184_purge_tables())));
 
 select pg_temp.su();
 do $$ declare n int; f int; r record; begin

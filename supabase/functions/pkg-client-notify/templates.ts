@@ -23,7 +23,7 @@ export function approveLink(path: unknown): string {
 // 0092: the payload's own currency, grouped for that currency (INR output unchanged)
 const money = codeMoney;
 
-// 2026-10: shared Helm layout (hosted logo, emerald, dark-mode aware, preheader)
+// 2026-10: shared Helm layout (hosted logo, light-only green R207, preheader)
 const shell = (title: string, inner: string, pre = title) => layout(title, pre, inner, { sub: "" });
 const h1 = (t: string) => L.h1(t);
 const para = (t: string) => L.para(t, "0 0 18px");

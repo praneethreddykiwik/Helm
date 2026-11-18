@@ -44,8 +44,9 @@
 --   zz_r383_join_notice (profiles); three restrictive policies on notifications (kind team_signin).
 -- Wrapped once (old bodies kept as __pre0383, no app privilege): _r23_visible, bell_feed, notification_catalog,
 --   notification_type_of, notify_default.
--- ZERO DATA LOSS: no existing table, column, row or policy is changed or deleted; nothing is ever deleted by this feature. The
---   free-trial retention (0184) lists both new tables as KEPT (like the audit log), so they are never purged either.
+-- ZERO DATA LOSS: no existing table, column, row or policy is changed or deleted; this file deletes nothing. Studio data rule
+--   (privacy): the free-trial purge (0184) empties signin_notice_log with the rest of a purged trial studio
+--   (_tr184_purge_tables); the studio setting signin_notice_settings is KEPT like the other studio settings.
 -- Undo: drop trigger zz_r383_signin_notice on auth.users; drop trigger zz_r383_join_notice on public.profiles;
 --   (the notices stop; everything else can stay - the setting "Off" does the same from the app).
 
@@ -523,14 +524,24 @@ do $$ begin
   end if;
 end $$;
 
--- ---- 9a) free-trial retention (0184): both tables are KEPT with the studio settings / audit log (never purged by this feature) --
+-- ---- 9a) free-trial retention (0184): a purged trial studio's sign-in log goes with the rest of its data (privacy, DPDP);
+--      the studio setting is KEPT like every other studio setting (task_reminder_settings, vendor_bill_settings ...).
+--      Patched in place the way 0198 / 0206 / 0372 / 0379 add their tables; an unexpected body is left alone (notice).
 do $$ declare v_def text; begin
+  if to_regprocedure('public._tr184_purge_tables()') is not null then
+    v_def := pg_get_functiondef('public._tr184_purge_tables()'::regprocedure);
+    if position('''signin_notice_log''' in v_def) = 0 then
+      if (length(v_def) - length(replace(v_def, '''notifications''', ''))) / length('''notifications''') <> 1 then
+        raise notice '0383: _tr184_purge_tables has an unexpected body - left unchanged';
+      else execute replace(v_def, '''notifications''', '''notifications'', ''signin_notice_log'''); end if;
+    end if;
+  end if;
   if to_regprocedure('public._tr184_keep_tables()') is not null then
     v_def := pg_get_functiondef('public._tr184_keep_tables()'::regprocedure);
     if position('''signin_notice_settings''' in v_def) = 0 then
       if (length(v_def) - length(replace(v_def, '''task_reminder_settings''', ''))) / length('''task_reminder_settings''') <> 1 then
         raise notice '0383: _tr184_keep_tables has an unexpected body - left unchanged';
-      else execute replace(v_def, '''task_reminder_settings''', '''task_reminder_settings'', ''signin_notice_settings'', ''signin_notice_log'''); end if;
+      else execute replace(v_def, '''task_reminder_settings''', '''task_reminder_settings'', ''signin_notice_settings'''); end if;
     end if;
   end if;
 end $$;

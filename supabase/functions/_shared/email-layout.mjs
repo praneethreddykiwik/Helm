@@ -1,23 +1,32 @@
 // Shared Helm e-mail layout (2026-10 redesign). Plain JS so both the Deno edge functions and the
 // Node generator (scripts/gen-email-templates.mjs, which writes the Supabase Auth templates) use the
-// SAME markup. Table-based, inline styles, 600px, preheader, dark-mode friendly (prefers-color-scheme
-// + Outlook.com [data-ogsc]), hosted logo PNG (no tracking pixels, no other images), footer
-// "Helm Events · helm.events". Callers must pass ALREADY-ESCAPED HTML into the block helpers.
+// SAME markup. Table-based, inline styles, 600px, preheader, hosted logo PNG (no tracking pixels, no
+// other images), footer "Helm Events · helm.events". Callers must pass ALREADY-ESCAPED HTML into the
+// block helpers.
+// R207 (owner decision): LIGHT-ONLY. Outlook showed the reset e-mail as a dark card because of the old
+// dark-mode overrides (a dark media query, Outlook.com dark selectors, color-scheme "light dark"). Now:
+// color-scheme "light only", no dark rules at all, every background is also a bgcolor attribute, a
+// soft light-green header band, and the button is light green with DARK text (never white text on a
+// colour, so a client that still force-inverts keeps it readable). WCAG AA contrast is checked in
+// test/r207-email-light.test.mjs (button text ~7:1, link green ~5:1 on white, footer ~5:1 on the page).
 
 import { DEFAULT_POSTAL_ADDRESS } from "./email-compliance.mjs";
 
 export const SITE = "https://www.helm.events";
 // r19: current compass-H app tile (public/brand/helm-email-emerald.svg rendered to an 80x80 PNG = 2x the
-// 40px display size; own dark-green tile, so it reads on light AND dark backgrounds). The file NAME is
-// versioned on purpose: /*.png is served "immutable" for a year and Gmail/Outlook image proxies cache by
-// URL, so overwriting helm-logo.png in place kept showing the old two-pill mark. Never overwrite an
-// e-mail image in place - add a new file name and point LOGO_URL at it (keep the old file for old mail).
+// 40px display size). The file NAME is versioned on purpose: /*.png is served "immutable" for a year and
+// Gmail/Outlook image proxies cache by URL, so overwriting helm-logo.png in place kept showing the old
+// two-pill mark. Never overwrite an e-mail image in place - add a new file name and point LOGO_URL at it
+// (keep the old file for old mail).
 export const LOGO_URL = "https://www.helm.events/email/helm-logo-v3.png";
 export const LOGO_ALT = "Helm Events";
 export const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+// R207 light palette. brand = the green used for TEXT (links, chips, eyebrow) - AA on white and on
+// brandSoft. accent = the light-green button fill; text on it is btnInk (never white). band = header band.
 export const C = {
-  bg: "#f4f6f3", card: "#ffffff", ink: "#101511", body: "#3d4540", muted: "#66706a",
-  faint: "#8a948d", rule: "#e3e8e4", brand: "#0d8a5c", brandSoft: "#e7f4ec",
+  bg: "#f2f8f4", card: "#ffffff", ink: "#101511", body: "#3d4540", muted: "#66706a",
+  faint: "#626c66", rule: "#dcebe2", brand: "#0b7a4b", brandSoft: "#e8f5ee",
+  accent: "#34d399", accentEdge: "#10b981", btnInk: "#052e1c", band: "#e8f5ee", bandRule: "#c9e9d6",
 };
 
 export const escHtml = (s) =>
@@ -38,9 +47,10 @@ export function button(href, label) {
   // (Outlook web / new Outlook, Gmail, Apple Mail) gets a table cell + a real <a href> with inline
   // styles - no <!--[if !mso]> wrapper that some webmail sanitisers drop. The plain URL line
   // (fallback()) always follows, so the link works even when buttons are stripped.
+  // R207: light-green fill + dark text (stays readable when a client inverts colours).
   return `<tr><td align="left" style="padding:4px 0 24px;">
-<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${href}" style="height:48px;v-text-anchor:middle;width:280px;" arcsize="22%" fillcolor="${C.brand}" stroke="f"><w:anchorlock/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${label}</center></v:roundrect><![endif]-->
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;mso-hide:all;"><tr><td align="center" bgcolor="${C.brand}" style="background:${C.brand};border-radius:10px;mso-hide:all;"><a href="${href}" target="_blank" rel="noopener" class="btn" style="display:inline-block;background:${C.brand};color:#ffffff;font-family:${FONT};font-size:16px;font-weight:600;line-height:20px;padding:14px 30px;border:1px solid ${C.brand};border-radius:10px;text-decoration:none;mso-hide:all;">${label}</a></td></tr></table>
+<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${href}" style="height:48px;v-text-anchor:middle;width:280px;" arcsize="22%" fillcolor="${C.accent}" strokecolor="${C.accentEdge}" strokeweight="1px"><w:anchorlock/><center style="color:${C.btnInk};font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${label}</center></v:roundrect><![endif]-->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;mso-hide:all;"><tr><td align="center" bgcolor="${C.accent}" style="background:${C.accent};border-radius:10px;mso-hide:all;"><a href="${href}" target="_blank" rel="noopener" class="btn" style="display:inline-block;background:${C.accent};color:${C.btnInk};font-family:${FONT};font-size:16px;font-weight:700;line-height:20px;padding:14px 30px;border:1px solid ${C.accentEdge};border-radius:10px;text-decoration:none;mso-hide:all;">${label}</a></td></tr></table>
 </td></tr>`;
 }
 
@@ -50,7 +60,7 @@ export const fallback = (href) =>
 
 /** one-time code panel */
 export const codeBox = (code) =>
-  `<tr><td style="padding:4px 0 24px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="codebox" style="background:${C.brandSoft};border-radius:12px;padding:16px 28px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:30px;line-height:36px;font-weight:700;letter-spacing:8px;color:${C.ink};">${code}</td></tr></table></td></tr>`;
+  `<tr><td style="padding:4px 0 24px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="codebox" bgcolor="${C.brandSoft}" style="background:${C.brandSoft};border:1px solid ${C.bandRule};border-radius:12px;padding:16px 28px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:30px;line-height:36px;font-weight:700;letter-spacing:8px;color:${C.ink};">${code}</td></tr></table></td></tr>`;
 
 /** label / value rows (values already escaped) */
 export const facts = (rows) =>
@@ -73,34 +83,32 @@ export function layout(title, preheader, inner, opts = {}) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
 <meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
-<meta name="color-scheme" content="light dark">
-<meta name="supported-color-schemes" content="light dark">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light">
 <title>${escHtml(title)}</title>
 <style>
-  :root{color-scheme:light dark;supported-color-schemes:light dark;}
+  :root{color-scheme:light only;supported-color-schemes:light;}
   @media (max-width:620px){ .container{width:100%!important} .px{padding-left:22px!important;padding-right:22px!important} .btn{display:block!important;text-align:center!important} }
-  @media (prefers-color-scheme:dark){
-    .bg{background:#0f1411!important} .card{background:#18201b!important;border-color:#2a352e!important;border-top-color:#0d8a5c!important}
-    .ink{color:#f1f5f2!important} .body{color:#cdd6d0!important} .muted{color:#a9b5ad!important}
-    .rule{border-color:#2a352e!important} .lnk{color:#4ade9a!important} .codebox{background:#1f3a2b!important;color:#f1f5f2!important}
-  }
-  [data-ogsc] .ink{color:#f1f5f2!important} [data-ogsc] .body{color:#cdd6d0!important} [data-ogsc] .muted{color:#a9b5ad!important} [data-ogsc] .lnk{color:#4ade9a!important}
 </style>
 </head>
-<body class="bg" style="margin:0;padding:0;background:${C.bg};-webkit-text-size-adjust:100%;">
+<body class="bg" bgcolor="${C.bg}" style="margin:0;padding:0;background:${C.bg};color-scheme:light only;-webkit-text-size-adjust:100%;">
 <div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;mso-hide:all;font-size:1px;line-height:1px;color:${C.bg};">${escHtml(preheader)}&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="bg" style="background:${C.bg};">
-<tr><td align="center" style="padding:36px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="bg" bgcolor="${C.bg}" style="background:${C.bg};">
+<tr><td align="center" bgcolor="${C.bg}" style="padding:32px 12px;background:${C.bg};">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" class="container" style="width:600px;max-width:600px;">
-<tr><td style="padding:0 4px 22px;" align="left">
+<tr><td class="card" bgcolor="${C.card}" style="background:${C.card};border:1px solid ${C.rule};border-radius:18px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td class="band px" bgcolor="${C.band}" align="left" style="background:${C.band};border-bottom:1px solid ${C.bandRule};border-radius:17px 17px 0 0;padding:20px 44px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
     <td width="40" height="40" valign="middle" style="width:40px;height:40px;"><a href="${site}" style="text-decoration:none;"><img src="${LOGO_URL}" width="40" height="40" alt="${LOGO_ALT}" style="display:block;width:40px;height:40px;border:0;outline:none;text-decoration:none;border-radius:8px;"></a></td>
-    <td class="ink" valign="middle" style="padding-left:12px;font-family:${FONT};font-size:20px;line-height:24px;font-weight:700;letter-spacing:-.02em;color:${C.ink};">Helm <span class="muted" style="font-weight:500;color:${C.muted};">Events</span></td>
+    <td class="ink" valign="middle" style="padding-left:12px;font-family:${FONT};font-size:20px;line-height:24px;font-weight:700;letter-spacing:-.02em;color:${C.ink};">Helm <span style="font-weight:500;color:${C.brand};">Events</span></td>
   </tr></table>
 </td></tr>
-<tr><td class="card px" style="background:${C.card};border:1px solid ${C.rule};border-top:4px solid ${C.brand};border-radius:18px;padding:40px 44px;">
+<tr><td class="px" bgcolor="${C.card}" style="background:${C.card};border-radius:0 0 17px 17px;padding:36px 44px 40px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 ${inner}
+</table>
+</td></tr>
 </table>
 </td></tr>
 <tr><td align="center" class="muted" style="padding:22px 8px 0;font-family:${FONT};font-size:12px;line-height:18px;color:${C.faint};">

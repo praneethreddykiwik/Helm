@@ -228,7 +228,7 @@ run "trial-signup-0180" "TRIAL-SIGNUP-0180: ALL PASS \(33/33\)" psql -q -f tests
 run "trial-guards-0181" "TRIAL-GUARDS-0181: ALL PASS \(60/60\)" psql -q -f tests/db/trial-guards-0181.sql
 run "trial-prices-0182" "TRIAL-PRICES-0182: ALL PASS \(21/21\)" psql -q -f tests/db/trial-prices-0182.sql
 run "trial-expiry-0183" "TRIAL-EXPIRY-0183: ALL PASS \(61/61\)" psql -q -f tests/db/trial-expiry-0183.sql
-run "trial-retention-0184" "TRIAL-RETENTION-0184: ALL PASS \(50/50\)" psql -q -f tests/db/trial-retention-0184.sql
+run "trial-retention-0184" "TRIAL-RETENTION-0184: ALL PASS \(51/51\)" psql -q -f tests/db/trial-retention-0184.sql
 run "trial-upgrade-0185" "TRIAL-UPGRADE-0185: ALL PASS \(45/45\)" psql -q -f tests/db/trial-upgrade-0185.sql
 run "trial-extension-0186" "TRIAL-EXTENSION-0186: ALL PASS \(55/55\)" psql -q -f tests/db/trial-extension-0186.sql
 run "trial-outbound-0187" "TRIAL-OUTBOUND-0187: ALL PASS \(17/17\)" psql -q -f tests/db/trial-outbound-0187.sql
@@ -343,7 +343,7 @@ run "r39-staff-google-0288" "R39-STAFF-GOOGLE-0288: ALL PASS \(49/49\)" psql -q 
 # skipped + logged; TRUNCATE refused); re-applies itself twice, purge mark off, rolled back
 run "r55-no-hard-delete-0296" "R55-NO-HARD-DELETE-0296: ALL PASS \(33/33\)" psql -q -f tests/db/r55-no-hard-delete-0296.sql
 # r55: the real 0184 trial purge again, with the 0296 guard live and NO purge mark (it deletes with its own helm.trial_purge_org)
-run "trial-retention-0184-r55-guard" "TRIAL-RETENTION-0184: ALL PASS \(50/50\)" env PGOPTIONS="$PGOPTIONS -c helm.allow_purge=off" psql -q -f tests/db/trial-retention-0184.sql
+run "trial-retention-0184-r55-guard" "TRIAL-RETENTION-0184: ALL PASS \(51/51\)" env PGOPTIONS="$PGOPTIONS -c helm.allow_purge=off" psql -q -f tests/db/trial-retention-0184.sql
 # r56 (0297): client links answer an allow-list, no rate rows for random tokens, purge, client_mailer_check; re-applies itself twice
 # (earlier suites re-apply 0042 / 0052 / 0090 / 0095 / 0260 / 0262 over these wrappers), rolled back
 run "r56-client-links-0297" "R56-CLIENT-LINKS-0297: ALL PASS \(40/40\)" psql -q -f tests/db/r56-client-links-0297.sql
@@ -411,6 +411,8 @@ run "r197-money-header-0376" "R197-MONEY-HEADER-0376: ALL PASS \(22/22\)" psql -
 run "r198-money-cash-0377" "R198-MONEY-CASH-0377: ALL PASS \(19/19\)" psql -q -f tests/db/r198-money-cash-0377.sql
 # r199 (0378): Users & invites account status - admin / Users edit only (anon, no Users edit, Users view only refused), own studio only (A never sees B), last sign-in / never / invitation login without a password / temporary password, deactivated + date, joined via an invitation + who invited, open invites newest per e-mail, expired flagged, revoked / accepted / already-a-member left out, e-mail sent + status, no secrets, reading writes nothing; question 6: a deactivated staff record re-added with the same e-mail + phone is taken (no unique rule), the phone of a linked account refused 23505 even when deactivated; re-applies itself twice, rolled back
 run "r199-team-status-0378" "R199-TEAM-STATUS-0378: ALL PASS \(21/21\)" psql -q -f tests/db/r199-team-status-0378.sql
+# r202 (0379): Users & invites sign-in help - Send sign-in link (admin / Users edit, own studio, not yourself, not deactivated, once per 10 min per person, a failed send lifts the wait only for the caller, activity log) + New temporary password (admins only, a never-signed-in Add user login of this studio, the login takes the new one and the old stops working, must still be changed, once per 10 min, no take-over after a first sign-in, other studio refused, password never in the log), account status + signin_link_at + can_new_temp (0378 keys kept), log table closed + emptied by the free-trial purge, nothing deleted; re-applies itself twice, rolled back
+run "r202-signin-help-0379" "R202-SIGNIN-HELP-0379: ALL PASS \(22/22\)" psql -q -f tests/db/r202-signin-help-0379.sql
 # r205 (0383): teammate sign-in notices - a real sign-in (new session + last_sign_in_at) -> one bell row for the owner + admins only (never the person, never studio B), "Name (Role) signed in [for the first time] - h:mm AM - Browser on System" in the studio clock, audit auth.sign_in; token refresh ignored; 10-minute rule; first of the studio day (default) / every / off; only roles (crew off by default); HQ / helm.events / deactivated / sample studio never; invited person joining = first time; a broken notice never blocks the sign-in; fallback ping no-op while the trigger is on; settings admin-only + validated + audited; RLS; catalog type; grants; rolled back
 run "r205-signin-notice-0383" "R205-SIGNIN-NOTICE-0383: ALL PASS \(39/39\)" psql -q -f tests/db/r205-signin-notice-0383.sql
 # r136 (0340): a lead Helm creates / updates by itself from a saved quote is marked in the audit log (_via quote_sync + quote id, person stays the actor), marker gone after the sync, 0199 sync unchanged, maintenance tag kept; re-applies itself, no audit row changed, rolled back
