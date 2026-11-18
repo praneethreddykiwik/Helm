@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (334 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (336 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4377 objects): body 171, bucket 9, col 242, con 412, cron 19, exec 9, fn 1969, idx 525, marker 61, pol 186, polexpr 4, pre 108, pub 5, seq 1, tbl 285, trg 369, view 2.
+-- What is checked (4407 objects): body 173, bucket 9, col 242, con 412, cron 19, exec 14, fn 1979, idx 526, marker 67, pol 186, polexpr 4, pre 108, pub 5, seq 1, tbl 288, trg 372, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4393,6 +4393,36 @@ with o(m, k, s, n, x) as (values
   ('0378_r199_team_account_status', 'fn', 'public', 'team_account_status', ''),
   ('0378_r199_team_account_status', 'marker', 'public', 'team_account_status', '|r199-0378'),
   ('0378_r199_team_account_status', 'exec', 'public', 'team_account_status', '|authenticated'),
+  ('0379_r202_signin_help', 'body', 'public', 'team_account_status', '|39383cd888dab5343442921ab0c71057'),
+  ('0379_r202_signin_help', 'tbl', 'public.team_signin_help', null, null),
+  ('0379_r202_signin_help', 'idx', 'public.team_signin_help_user_idx', null, null),
+  ('0379_r202_signin_help', 'fn', 'public', '_r379_temp_ok', 'uuid,uuid'),
+  ('0379_r202_signin_help', 'fn', 'public', 'team_signin_link_request', 'uuid'),
+  ('0379_r202_signin_help', 'fn', 'public', 'team_signin_link_failed', 'bigint'),
+  ('0379_r202_signin_help', 'fn', 'public', 'team_temp_password_reset', 'uuid'),
+  ('0379_r202_signin_help', 'marker', 'public', 'team_signin_link_request', 'uuid|r202-0379'),
+  ('0379_r202_signin_help', 'marker', 'public', 'team_temp_password_reset', 'uuid|r202-0379'),
+  ('0379_r202_signin_help', 'exec', 'public', 'team_signin_link_request', 'uuid|authenticated'),
+  ('0379_r202_signin_help', 'exec', 'public', 'team_temp_password_reset', 'uuid|authenticated'),
+  ('0379_r202_signin_help', 'exec', 'public', 'team_signin_link_failed', 'bigint|authenticated'),
+  ('0379_r202_signin_help', 'marker', 'public', '_tr184_purge_tables', '|team_signin_help'),
+  ('0381_r203_test_studio_two_step', 'body', 'public', '_r285_step_up', 'uuid|e52079048deecce963861d139a65f95f'),
+  ('0381_r203_test_studio_two_step', 'tbl', 'public.studio_test_mode', null, null),
+  ('0381_r203_test_studio_two_step', 'tbl', 'public.studio_test_mode_log', null, null),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', '_r381_tg_test_mode_guard', ''),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', '_r381_tg_test_mode_log', ''),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', '_r381_tg_log_append_only', ''),
+  ('0381_r203_test_studio_two_step', 'trg', 'public.studio_test_mode', 'zz_r381_guard', null),
+  ('0381_r203_test_studio_two_step', 'trg', 'public.studio_test_mode', 'zz_r381_log', null),
+  ('0381_r203_test_studio_two_step', 'trg', 'public.studio_test_mode_log', 'zz_r381_append_only', null),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', '_r381_two_step_exempt', 'uuid'),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', 'hq_set_test_studio', 'uuid,boolean,text'),
+  ('0381_r203_test_studio_two_step', 'fn', 'public', 'my_test_studio', ''),
+  ('0381_r203_test_studio_two_step', 'marker', 'public', '_r285_step_up', 'uuid|r203-0381'),
+  ('0381_r203_test_studio_two_step', 'marker', 'public', 'my_test_studio', '|r203-0381'),
+  ('0381_r203_test_studio_two_step', 'marker', 'public', 'hq_set_test_studio', 'uuid,boolean,text|r203-0381'),
+  ('0381_r203_test_studio_two_step', 'exec', 'public', 'my_test_studio', '|authenticated'),
+  ('0381_r203_test_studio_two_step', 'exec', 'public', 'hq_set_test_studio', 'uuid,boolean,text|authenticated'),
   ('0384_r206_api_timeouts', 'body', 'public', 'event_timesheet', 'uuid|90d39c2c74f21ee8db31c64bcc4e3b81'),
   ('0384_r206_api_timeouts', 'idx', 'public.ix_event_tasks_quote_crew_0384', null, null),
   ('0384_r206_api_timeouts', 'idx', 'public.ix_event_day_arrival_ref_0384', null, null),
@@ -4737,7 +4767,9 @@ mig(ord, m, ov, note) as (values
   (331, '0376_r197_event_money_header', null, 'P&L clarity phase 1: new read-only event_money_header + money_settings.margin_band; money_settings_get / money_settings_set wrapped once (old bodies kept as __pre0376, which still carry the r189-money-0372 marker) and get_studio_target_margin re-issued in place (default 25), checked by the r197-0376 marker'),
   (332, '0377_r198_event_money_cash', null, 'P&L clarity phase 2: new read-only event_money_cash (cash in & out + who owes what) and the server-only helper _r377_d, checked by the r198-0377 marker'),
   (333, '0378_r199_team_account_status', null, 'Users & invites account status: new read-only team_account_status (admin / Users edit, own studio), checked by the r199-0378 marker'),
-  (334, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes')
+  (334, '0379_r202_signin_help', null, 'Users & invites sign-in help: Send sign-in link + New temporary password (team_signin_help log), team_account_status + signin_link_at / can_new_temp, checked by the r202-0379 markers'),
+  (335, '0381_r203_test_studio_two_step', null, 'test-studio two-step switch: new private tables studio_test_mode + studio_test_mode_log, new hq_set_test_studio / my_test_studio / _r381_two_step_exempt, _r285_step_up re-issued in place, checked by the r203-0381 marker'),
+  (336, '0384_r206_api_timeouts', null, 'API timeouts: event_timesheet re-issued in place (same answer, bounded by the event; old body kept as __pre0384), checked by the r206-0384 marker; five additive indexes')
 ),
 env as (
   select

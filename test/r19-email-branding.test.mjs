@@ -47,7 +47,7 @@ ok(mint > 60, 'mint compass points/ring present (' + mint + ' px)');
 // 3. the layout + every generated template carries ONLY the new logo, alt "Helm Events"
 const html = L.layout('T', 'P', L.h1('x') + L.button('https://a.test/', 'Go'));
 ok(html.includes(`<img src="${L.LOGO_URL}" width="40" height="40" alt="Helm Events"`), 'layout <img> uses LOGO_URL, 40x40, alt');
-const files = [...readdirSync(new URL('docs/ops/email-templates/', root)).map((f) => 'docs/ops/email-templates/' + f),
+const files = [...readdirSync(new URL('docs/ops/email-templates/', root)).filter((f) => f.endsWith('.html')).map((f) => 'docs/ops/email-templates/' + f),
   ...readdirSync(new URL('docs/email-templates/', root)).filter((f) => f.endsWith('.html')).map((f) => 'docs/email-templates/' + f)];
 ok(files.length >= 18, 'all auth templates + welcome previews scanned (' + files.length + ')');
 for (const f of files) {
@@ -59,7 +59,7 @@ for (const f of files) {
 // buttons + links unchanged: Outlook VML + table button, links on Helm's own /auth/confirm
 for (const f of ['confirm-signup', 'invite-user', 'magic-link', 'reset-password', 'change-email']) {
   const h = r('docs/ops/email-templates/' + f + '.html');
-  ok(h.includes('<v:roundrect') && h.includes('bgcolor="#0d8a5c"') && h.includes('{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}') && !h.includes('ConfirmationURL'), f + ': Outlook-safe button + /auth/confirm');
+  ok(h.includes('<v:roundrect') && h.includes('bgcolor="#34d399"') && h.includes('{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}') && !h.includes('ConfirmationURL'), f + ': Outlook-safe button + /auth/confirm');
 }
 execFileSync(process.execPath, [new URL('scripts/gen-email-templates.mjs', root).pathname, '--check'], { stdio: 'pipe' });
 ok(true, 'generated templates up to date');

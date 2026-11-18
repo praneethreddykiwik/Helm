@@ -74,7 +74,6 @@
   .ucwho{display:flex;align-items:center;gap:10px;min-width:0}
   .ucav{width:34px;height:34px;border-radius:50%;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:12px;position:relative;overflow:hidden}
   .ucsub{font-size:11.5px;color:var(--ink-3);font-weight:400;margin-top:1px}
-  .utable td.ucph{white-space:nowrap;font-family:var(--mono);font-size:12px}
   .ucok{display:inline-block;font-size:11.5px;font-weight:700;color:#0f7a43;background:#e7f6ee;border-radius:10px;padding:2px 8px;white-space:nowrap}
   .ucno{display:inline-block;font-size:11.5px;font-weight:700;color:#8a5a00;background:#fff4dc;border-radius:10px;padding:2px 8px;white-space:nowrap}
   .ts-badge{display:inline-flex;align-items:center;gap:4px;margin:6px 0 0 6px;font-size:11.5px;font-weight:700;border-radius:10px;padding:2px 8px;white-space:nowrap;vertical-align:middle}
@@ -82,49 +81,51 @@
   .ts-badge.off{color:#8a5a00;background:#fff4dc}
   @media (max-width:760px){.utable.ucm td.ucrole{white-space:normal}.utable.ucm td.ucrole .ts-badge{display:flex;width:fit-content;margin:8px 0 0 auto}}
   .utable td.ucact{text-align:right;white-space:nowrap}
-  /* r22 members table: photo + name + "you" on ONE line, e-mail under it (ellipsis, full address on hover); the name
-     column can't be squeezed to a few letters any more, the role picker has a real width and Edit / remove never clip.
-     Wide card: a normal table. Narrower card (side nav + pinned rail, tablets): each member is a two-line row.
-     Phones (<640px): tables-mobile.css stacks each member as a card (Name = card title). */
+  /* r22 -> R202 members table: ONE "who" cell (photo + name + "you", the full e-mail under it, then phone · job title ·
+     department), a compact role picker, the Account status and the actions. From 640px every member is a grid row that
+     always fits its card (no sideways scroll at 1024-1440px with the Settings side menu); a narrow card moves Account +
+     actions to a second line. Phones (<640px): tables-mobile.css stacks each member as a card (Name = card title). */
   .ucm-wrap{container:ucm/inline-size}
   .utable.ucm td{vertical-align:middle;padding-left:6px;padding-right:6px}
-  .utable.ucm td.dn{width:34%;min-width:210px;white-space:normal}
+  .utable.ucm td.dn{white-space:normal;min-width:0}
   .ucwt{flex:1 1 0;min-width:0;width:0}
-  .ucnm{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}
-  .ucnm .dnTxt{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .ucnm{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;min-width:0}
+  .ucnm .dnTxt{min-width:0;overflow-wrap:anywhere}
   .utable .ucnm .me{flex:0 0 auto;margin-left:0;line-height:1.3}
-  .ucwt .ucsub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .utable.ucm td.ucjob{min-width:110px;max-width:200px;overflow-wrap:break-word}
+  .ucwt .ucsub{overflow-wrap:anywhere;word-break:break-word;white-space:normal}
+  .ucwt .ucmeta{color:var(--ink-2);font-size:11.5px}
+  .ucwt .ucmeta .ucphn{font-family:var(--mono);white-space:nowrap}
   .utable.ucm td.ucrole{white-space:nowrap}
-  .utable.ucm td.ucrole select{width:136px;max-width:100%}
-  .utable.ucm td.ucprof{white-space:nowrap}
-  .utable.ucm td.ucact{white-space:nowrap;text-align:left}   /* Edit buttons line up (my own row has no remove button) */
+  .utable.ucm td.ucrole select{width:170px;max-width:100%}
+  .utable.ucm td.ucprof{white-space:normal}
+  .utable.ucm td.ucact{white-space:normal;text-align:left}
   .utable.ucm td.ucact .rm{margin-left:2px}
   @media (max-width:639.98px){   /* phone cards (tables-mobile.css): cells use the card's full width, one divider between fields */
     #pane-users .utable.ucm.tm-stack td{width:auto;min-width:0;max-width:none;border-bottom:0}
     #pane-users .utable.ucm.tm-stack td.dn{text-align:left}
+    #pane-users .utable.ucm.tm-stack td.ucact{display:flex;flex-wrap:wrap;gap:6px}
   }
   @media (min-width:640px){
-    @container ucm (max-width:859.98px){
-      #pane-users .utable.ucm,#pane-users .utable.ucm>tbody{display:block;width:100%}
-      #pane-users .utable.ucm>thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-      #pane-users .utable.ucm tr.ucr{display:grid;grid-template-columns:auto minmax(0,1fr) 136px 108px 96px;grid-template-areas:"who who role prof act" "ph job job job job";
-        column-gap:14px;row-gap:4px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-2)}
-      #pane-users .utable.ucm tr.ucr.ucr-np{grid-template-areas:"who who role prof act" "job job job job job"}
-      #pane-users .utable.ucm tr.ucr>td{padding:0;border:0;min-width:0;max-width:none;width:auto}
-      #pane-users .utable.ucm tr.ucr>td.dn{grid-area:who}
-      #pane-users .utable.ucm tr.ucr>td.ucph{grid-area:ph;padding-left:44px}
-      #pane-users .utable.ucm tr.ucr>td.ucjob{grid-area:job}
-      #pane-users .utable.ucm tr.ucr.ucr-np>td.ucjob{padding-left:44px}
-      #pane-users .utable.ucm tr.ucr>td.ucrole{grid-area:role;white-space:normal}   /* a "No access" tag stacks above the picker */
-      #pane-users .utable.ucm tr.ucr>td.ucprof{grid-area:prof}
-      #pane-users .utable.ucm tr.ucr>td.ucact{grid-area:act;justify-self:start}
-      #pane-users .utable.ucm tr.ucr>td.ucrole select{width:136px}
-      #pane-users .utable.ucm tr.ucr>td.ucprof .ucsub{display:none}
-      #pane-users .utable.ucm tr.ucr>:is(td.ucph,td.ucjob){font-size:12.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      #pane-users .utable.ucm tr.ucr>:is(td.ucph,td.ucjob)::before{content:attr(data-label);margin-right:6px;font-family:var(--font);font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
-      #pane-users .utable.ucm tr.ucr>td.ucjob .ucdept{display:inline;font-size:inherit;color:inherit}
-      #pane-users .utable.ucm tr.ucr>td.ucjob .ucdept::before{content:" · "}
+    #pane-users .utable.ucm,#pane-users .utable.ucm>tbody{display:block;width:100%}
+    #pane-users .utable.ucm>thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+    #pane-users .utable.ucm tr.ucr{display:grid;grid-template-columns:minmax(0,1fr) 170px minmax(150px,210px) minmax(0,auto);grid-template-areas:"who role prof act";
+      column-gap:14px;row-gap:8px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-2)}
+    #pane-users .utable.ucm tr.ucr>td{padding:0;border:0;min-width:0;max-width:none;width:auto}
+    #pane-users .utable.ucm tr.ucr>td.dn{grid-area:who}
+    #pane-users .utable.ucm tr.ucr>td.ucrole{grid-area:role;white-space:normal}   /* a "No access" tag stacks above the picker */
+    #pane-users .utable.ucm tr.ucr>td.ucprof{grid-area:prof}
+    #pane-users .utable.ucm tr.ucr>td.ucact{grid-area:act;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:260px}
+    #pane-users .utable.ucm tr.ucr>td.ucact>.btn,#pane-users .utable.ucm tr.ucr>td.ucact>.rm{margin:0}
+    #pane-users .utable.ucm tr.ucr>td.ucrole select{width:170px}
+    @container ucm (max-width:879.98px){
+      #pane-users .utable.ucm tr.ucr{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"who role" "prof act"}
+      #pane-users .utable.ucm tr.ucr>td.ucprof{padding-left:44px}
+      #pane-users .utable.ucm tr.ucr>td.ucact{max-width:none;flex-wrap:nowrap}
+      #pane-users .utable.ucm tr.ucr>:is(td.ucrole,td.ucact){justify-self:end}
+    }
+    @container ucm (max-width:519.98px){
+      #pane-users .utable.ucm tr.ucr{grid-template-columns:minmax(0,1fr);grid-template-areas:"who" "role" "prof" "act"}
+      #pane-users .utable.ucm tr.ucr>:is(td.ucrole,td.ucprof,td.ucact){padding-left:44px;justify-content:flex-start}
     }
   }
   html[data-theme="dark"] .ucok{background:rgba(46,184,114,.14);color:#6ee7a8}
@@ -271,14 +272,14 @@
 <link rel="stylesheet" href="venues.css?v=8">
 <link rel="stylesheet" href="studio-templates.css?v=5"><link rel="stylesheet" href="asset-price-grid.css?v=3">
 <link rel="stylesheet" href="menu-pkg-editor.css?v=6"><link rel="stylesheet" href="layout-rules.css?v=1">
-<link rel="stylesheet" href="team-safety.css?v=2"><link rel="stylesheet" href="team-status.css?v=1">
+<link rel="stylesheet" href="team-safety.css?v=2"><link rel="stylesheet" href="team-status.css?v=2">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="control-split.css?v=16">
 <link rel="stylesheet" href="roles-matrix.css?v=1"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=8"></script>
-<script src="/shell-proto.js?v=92" id="shellProto"></script>
+<script src="/shell-proto.js?v=93" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -638,6 +639,19 @@
       <div class="card">
         <h3>Team members</h3>
         <p class="mnote">Add teammates, set the name chat shows for each person, change each person's role, or deactivate someone who has left. Nobody is ever deleted: a deactivated person can't sign in, keeps their records, frees their seat, and can be reactivated. The studio owner can't be removed by other admins.</p>
+        <div class="um-which" id="um_which">
+          <p class="um-which-t"><b>Which should I use?</b> <b>Invite by email link</b> (recommended): they get an e-mail, choose their own password and join - the link works 7 days.
+            <b>Add user (create login now)</b>: the login exists at once and a temporary password is shown to you once - nothing is e-mailed, you pass it on yourself.
+            Someone stuck? Use <b>Send sign-in link</b> on their row.</p>
+          <details class="um-which-more"><summary>Learn more</summary>
+            <ul>
+              <li><b>Invite by email link</b> - best for most people. They confirm their own e-mail and pick their own password (or sign in with Google). Until they join they show as <i>Invited - not signed up yet</i>; <b>Resend invite</b> sends a fresh 7-day link.</li>
+              <li><b>Add user (create login now)</b> - for someone sitting next to you, or with no time to open an e-mail. You get a one-time temporary password (shown once); they must change it at first sign-in. Until then they show as <i>Added by admin - hasn't signed in yet</i>. Lost the password? <b>Send sign-in link</b> e-mails them a link to set their own, or <b>View &rarr; New temporary password</b> makes a new one.</li>
+              <li><b>Staff page</b> - <b>Save as a record only</b> keeps a staff record with no Helm login (they get task links on WhatsApp). <b>Save and invite to sign in</b> sends the same invitation e-mail as Invite by email link and links it to their staff record.</li>
+              <li>Making someone an <b>Admin</b> (either way) needs two-step sign-in on your own account.</li>
+            </ul>
+          </details>
+        </div>
         <p class="mnote" id="seat_meter" role="status" aria-live="polite" hidden></p>
         <div id="team_safety" aria-live="polite" hidden></div>
         <div id="team_work" aria-live="polite" hidden></div>
@@ -649,23 +663,26 @@
         <div class="table-scroll ucm-wrap"><table class="utable ucm"><thead id="um_head"><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="um_rows"><tr><td class="s-1a1aca0" colspan="4"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></td></tr></tbody>
         </table></div>
-        <form id="um_add" class="addrow s-0dff578" novalidate>
+        <h4 class="um-add-h" id="um_add_h">Add user (create login now)</h4>
+        <form id="um_add" class="addrow s-0dff578" novalidate aria-labelledby="um_add_h">
           <input id="um_email" type="email" maxlength="254" spellcheck="false" placeholder="name@studio.com" required autocomplete="off" aria-label="New user email">
           <select id="um_role" aria-label="New user role"></select>
           <button class="btn primary" type="submit" id="um_submit">Add user</button>
         </form>
         <div class="um-err" id="um_err" role="alert" data-no-toast hidden><p class="um-err-t" id="um_err_t"></p><div class="um-err-acts" id="um_err_acts"></div></div>
-        <p class="mnote s-fe7b497">No password needed — a one-time temporary password is generated and shown once. Share it with the person; they'll be asked to set their own on first sign-in.</p>
+        <div class="um-2step" id="um_2step" role="note" hidden></div>
+        <p class="mnote s-fe7b497">Creates the login now and shows a one-time temporary password here, once - no e-mail is sent. Share it with the person; they'll be asked to set their own on first sign-in. Usually easier: <b>Invite by email link</b> below.</p>
       </div>
 
       <div class="card">
-        <h3>Invite by email link</h3>
+        <h3>Invite by email link <span class="tag um-rec">Recommended</span></h3>
         <p class="mnote">Create a join link for a teammate. They sign up with it and are added to <b>your studio</b> with the role you pick. The link expires in 7 days; nothing is charged.</p>
         <form id="inv_add" class="addrow s-0dff578" novalidate>
           <input id="inv_email" type="email" maxlength="254" spellcheck="false" placeholder="name@studio.com" required autocomplete="off" aria-label="Invite email">
           <select id="inv_role" aria-label="Invite role"></select>
           <button class="btn primary" type="submit" id="inv_submit">Create invite link</button>
         </form>
+        <div class="um-2step" id="inv_2step" role="note" hidden></div>
         <div class="s-e93d1e1" id="inv_out" hidden>
           <input class="s-59eddc6" id="inv_link" readonly aria-label="Invitation link">
           <button class="btn" type="button" id="inv_copy">Copy</button>
@@ -933,14 +950,14 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=371"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=375"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=53"></script>
-<script src="tour.js?v=71"></script>
+<script src="page-tours.js?v=54"></script>
+<script src="tour.js?v=72"></script>
 <script src="pkg-review.js?v=10"></script>
 <script src="onboarding-core.js?v=9"></script>
 <script src="studio-billing-form.js?v=3"></script>
@@ -958,7 +975,7 @@
 <script src="venues-admin.js?v=10"></script>
 <script src="studio-templates-core.js?v=6"></script>
 <script src="studio-templates.js?v=15"></script>
-<script src="team-safety.js?v=3"></script><script src="team-status.js?v=1"></script>
+<script src="team-safety.js?v=3"></script><script src="team-status.js?v=2"></script>
 <script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=3"></script><script src="money-lock-ui.js?v=2"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=6"></script><script src="payment-schedule-settings.js?v=4"></script>
 <script src="asset-price-grid.js?v=7"></script><script src="pricing-form-core.js?v=4"></script><script src="menu-pkg-editor.js?v=5"></script><script src="layout-rules.js?v=2"></script>
 <script src="trial-demo.js?v=21"></script>
@@ -1751,11 +1768,45 @@
   // no-access fallback role, kept server-side) nor "worker" (an old duplicate of Crew).
   const ROLES = BPStore.auth.admin.roles().filter(r=>r!=="client"&&r!=="worker");
 
+  // R202: making someone an ADMIN (Add user OR Invite by email link - 0285 checks both) needs two-step on MY account.
+  // Say so as soon as Admin is picked, instead of failing after the click. The rule itself is unchanged (the database decides).
+  const UM_2STEP_ROLES=["admin"];
+  let umMy2Step=null;   // null = not known yet, true / false
+  async function umMyTwoStep(){
+    if(umMy2Step===true) return true;
+    // R203 (0381): a Helm HQ test studio does not ask for two-step - no note there (the server still decides)
+    try{ if(BPStore.auth.mfa&&BPStore.auth.mfa.testStudio&&(await BPStore.auth.mfa.testStudio())===true){ umMy2Step=true; return true; } }catch(_){}
+    try{ const f=BPStore.auth.mfa&&BPStore.auth.mfa.verifiedTotp?await BPStore.auth.mfa.verifiedTotp():null; umMy2Step=Array.isArray(f)?f.length>0:null; }catch(_){ umMy2Step=null; }
+    return umMy2Step;
+  }
+  function um2StepPaint(selId, boxId){
+    const sel=$(selId), box=$(boxId); if(!sel||!box) return;
+    if(!UM_2STEP_ROLES.includes(sel.value)||umMy2Step!==false){ box.hidden=true; box.textContent=""; return; }
+    box.textContent="";
+    const p=document.createElement("p"); p.className="um-2step-t";
+    p.textContent="Adding an Admin needs two-step sign-in on your account - for “Add user” and for “Invite by email link” alike. Set it up now (about 2 minutes), or pick another role now and make them Admin later (that also asks for two-step).";
+    const b=document.createElement("button"); b.type="button"; b.className="btn sm primary"; b.textContent="Set up two-step now";
+    b.addEventListener("click", async ()=>{
+      const A=window.HelmAuthUI; let on=false;
+      try{ if(A&&A.openTwoStepSetup) on=(await A.openTwoStepSetup({ reason:"Adding an Admin needs two-step sign-in on your account. Set it up now (about 2 minutes).", doneLabel:"Back to Users & invites" }))===true;
+        else if(A&&A.openAccount) A.openAccount({ section:"settings", focus:"mfa" }); }catch(_){ on=false; }
+      if(on){ umMy2Step=true; um2StepPaintAll(); setUMsg("ok","Two-step is on. You can add an Admin now."); }
+    });
+    box.append(p,b); box.hidden=false;
+  }
+  function um2StepPaintAll(){ um2StepPaint("#um_role","#um_2step"); um2StepPaint("#inv_role","#inv_2step"); }
+  let um2StepWired=false;
+  function um2StepWire(){
+    if(um2StepWired) return; um2StepWired=true;
+    ["#um_role","#inv_role"].forEach(id=>{ const el=$(id); if(el) el.addEventListener("change", async ()=>{ if(UM_2STEP_ROLES.includes(el.value)) await umMyTwoStep(); um2StepPaintAll(); }); });
+    document.addEventListener("helm:two-step-on",()=>{ umMy2Step=true; um2StepPaintAll(); });
+  }
   async function initUsers(){
     const sel=$("#um_role");
     if(!sel.options.length){ sel.innerHTML = ROLES.map(r=>`<option value="${esc(r)}"${r==="crew"?" selected":""}>${esc(BPStore.auth.admin.roleLabel(r))}</option>`).join(""); }
     const isel=$("#inv_role");
     if(isel && !isel.options.length){ isel.innerHTML = ROLES.map(r=>`<option value="${esc(r)}"${r==="coordinator"?" selected":""}>${esc(BPStore.auth.admin.roleLabel(r))}</option>`).join(""); }
+    um2StepWire();
     await renderUsers();
     if(typeof renderInvites==="function") renderInvites();
   }
@@ -1854,17 +1905,16 @@
     // compact / phone layouts (tables-mobile.js writes the same data-label)
     // R199: "Profile" (Complete / Incomplete - read as "signed up") is now "Account": the real sign-up / sign-in status,
     // with the profile completeness as a small separate hint; open invitations are rows too; every row has View.
-    const cols=priv?6:5;
-    const head=`<tr><th scope="col">Name</th>${priv?'<th scope="col">Phone</th>':""}<th scope="col">Job title</th><th scope="col">Role</th><th scope="col">Account</th><th scope="col"><span class="sr-only">Actions</span></th></tr>`;
+    // R202: name + e-mail + phone + job title in ONE cell (the table no longer scrolls sideways on a laptop)
+    const cols=4;
+    const head=`<tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Account</th><th scope="col"><span class="sr-only">Actions</span></th></tr>`;
     const all=list.concat(o.acct?ucInviteRows(list, o.acct.invites):[]);
     const rows=all.filter(u=>ucMatches(u,o.q,o.filter,ucState(u,o)));
     const body=rows.map(u=>{
       const st=ucState(u,o);
       if(u.__invite){ const i=u.inv||{}, by=i.invited_by_name?"Invited by "+i.invited_by_name:"Invitation";
-        return `<tr class="ucr ucinv${priv?"":" ucr-np"}" data-inv="${esc(i.id)}" data-email="${esc(u.email)}" data-role="${esc(u.role||"")}">
+        return `<tr class="ucr ucinv" data-inv="${esc(i.id)}" data-email="${esc(u.email)}" data-role="${esc(u.role||"")}">
         <td class="dn" data-label="Name"><div class="ucwho"><span class="ucav ucav-inv" aria-hidden="true">@</span><div class="ucwt"><div class="ucnm"><span class="dnTxt em ucinv-em">${esc(u.email)}</span></div><div class="ucsub">${esc(by)}</div></div></div></td>
-        ${priv?`<td class="ucph" data-label="Phone">—</td>`:""}
-        <td class="ucjob" data-label="Job title">—</td>
         <td class="ucrole" data-label="Role"><span class="ucinv-role">${esc(rl(u.role||""))}</span></td>
         <td class="ucprof" data-label="Account">${ucAcctCell(u,st,priv)}</td>
         <td class="ucact">${o.canEdit?`<button type="button" class="btn sm ucView" aria-label="View invite for ${esc(u.email)}">View</button><button type="button" class="btn sm ucInvResend" aria-label="Resend invite to ${esc(u.email)}">Resend invite</button><button type="button" class="btn sm ucInvCancel" aria-label="Cancel invite for ${esc(u.email)}">Cancel invite</button>`:""}</td>
@@ -1872,13 +1922,15 @@
       const self=meId&&ucId(u)===meId; const dn=(u.full_name||"").trim(); const who=dn||u.email||u.email_name||"user";
       const av=`<span class="ucav"${u.avatar_path?` data-avatar-path="${esc(u.avatar_path)}"`:""} aria-hidden="true">${esc(ucInitials(dn||u.email||u.email_name))}</span>`;
       const mail=u.email||u.email_name||"";
-      return `<tr class="ucr${priv?"":" ucr-np"}${isOff(u)?" ucoff":""}" data-id="${esc(ucId(u))}">
-        <td class="dn" data-label="Name"><div class="ucwho">${av}<div class="ucwt"><div class="ucnm">${ucNameHtml(ucShownName(u,self,o.meName))}${self?' <span class="me">you</span>':""}${badges(u)}</div><div class="ucsub em"${mail?` title="${esc(mail)}"`:""}>${esc(mail)}</div></div></div></td>
-        ${priv?`<td class="ucph" data-label="Phone">${esc(u.phone?ucPhone(u.phone):"—")}</td>`:""}
-        <td class="ucjob" data-label="Job title">${esc(u.job_title||"—")}${u.department?`<div class="ucsub ucdept">${esc(u.department)}</div>`:""}</td>
+      // R202: phone · job title · department under the e-mail (was two extra columns)
+      const meta=[priv&&u.phone?`<span class="ucphn">${esc(ucPhone(u.phone))}</span>`:"", u.job_title?`<span class="ucjobt">${esc(u.job_title)}</span>`:"", u.department?`<span class="ucdept">${esc(u.department)}</span>`:""].filter(Boolean).join(" · ");
+      // R202 (0379): "Send sign-in link" right on the row of someone who hasn't signed in yet (incl. just reactivated)
+      const help=typeof HelmTeamStatus!=="undefined"&&HelmTeamStatus.signInHelp?HelmTeamStatus.signInHelp(st, o.acct&&o.acct.byId?o.acct.byId[ucId(u)]:null, { self, isAdmin:o.canEdit, canEdit:o.canEdit, deactivated:isOff(u) }):null;
+      return `<tr class="ucr${isOff(u)?" ucoff":""}" data-id="${esc(ucId(u))}">
+        <td class="dn" data-label="Name"><div class="ucwho">${av}<div class="ucwt"><div class="ucnm">${ucNameHtml(ucShownName(u,self,o.meName))}${self?' <span class="me">you</span>':""}${badges(u)}</div><div class="ucsub em"${mail?` title="${esc(mail)}"`:""}>${esc(mail)}</div>${meta?`<div class="ucsub ucmeta">${meta}</div>`:""}</div></div></td>
         <td class="ucrole" data-label="Role">${roleSel(u,self)}${ts(u)}</td>
         <td class="ucprof" data-label="Account">${ucAcctCell(u,st,priv)}</td>
-        <td class="ucact"><button type="button" class="btn sm ucView" aria-label="View details of ${esc(who)}">View</button>${o.canEdit?`<button type="button" class="btn sm ucEdit" aria-label="Edit profile for ${esc(who)}">Edit</button>`:""}${rm(u,self)}</td>
+        <td class="ucact">${help&&help.row?`<button type="button" class="btn sm primary ucLink" title="E-mails them a secure link to choose their own password" aria-label="Send sign-in link to ${esc(who)}">Send sign-in link</button>`:""}<button type="button" class="btn sm ucView" aria-label="View details of ${esc(who)}">View</button>${o.canEdit?`<button type="button" class="btn sm ucEdit" aria-label="Edit profile for ${esc(who)}">Edit</button>`:""}${rm(u,self)}</td>
       </tr>`; }).join("") || `<tr><td colspan="${cols}" style="color:var(--ink-3)">${all.length?"No one matches these filters.":"No users."}</td></tr>`;
     return { head, body, shown:rows.length, total:all.length, members:list.length, invited:all.length-list.length };
   }
@@ -1959,12 +2011,9 @@
       }
       catch(err){ setUMsg("err",typeof HelmTeam!=="undefined"?HelmTeam.errText(err,"Couldn't deactivate them."):errMsg(err,"deactivate the user")); }
     }));
-    tb.querySelectorAll(".ucReact").forEach(btn=>btn.addEventListener("click", async ()=>{
-      const tr=btn.closest("tr"), id=tr.dataset.id, u=rowOf(tr)||{}, email=u.email||u.full_name||"this user";
-      if(!(await BPUI.confirm(`Reactivate ${email}? They can sign in again with their old role, and they use a seat again.`,{title:"Reactivate team member",okLabel:"Reactivate"}))) return;
-      try{ await BPUI.guard(btn, ()=>BPStore.team.reactivate(id)); await renderUsers(); setUMsg("ok",email+" can sign in again."); }
-      catch(err){ setUMsg("err",HelmTeam.errText(err,"Couldn't reactivate them.")); }
-    }));
+    tb.querySelectorAll(".ucReact").forEach(btn=>btn.addEventListener("click", ()=>{ const u=rowOf(btn.closest("tr")); if(u) reactivateMember(u, btn); }));
+    // R202 (0379): Send sign-in link (a never-signed-in row)
+    tb.querySelectorAll(".ucLink").forEach(btn=>btn.addEventListener("click", ()=>{ const u=rowOf(btn.closest("tr")); if(u) sendSignInLink(u, btn); }));
     tb.querySelectorAll(".ucWork").forEach(btn=>btn.addEventListener("click", async ()=>{
       const tr=btn.closest("tr"), id=tr.dataset.id, u=rowOf(tr)||{};
       try{ const w=await BPUI.guard(btn, ()=>BPStore.team.openWork(id)); HelmTeam.paintWork($("#team_work"), u.full_name||u.email||"This person", w); }
@@ -2217,6 +2266,59 @@
     try{ await BPUI.guard(btn, ()=>BPStore.invitations.revoke(inv.id)); await renderInvites(); await renderUsers(); setUMsg("ok",`Invite cancelled for ${email}. Their link no longer works.`); }
     catch(err){ setUMsg("err",errMsg(err,"cancel the invite")); }
   }
+  // r33 (0283) Reactivate; R202: afterwards the row is drawn again from fresh account facts, so someone who never signed in
+  // shows "Send sign-in link" straight away (and the message says so)
+  async function reactivateMember(u, btn){
+    const id=ucId(u), email=u.email||u.full_name||"this user";
+    if(!(await BPUI.confirm(`Reactivate ${email}? They can sign in again with their old role, and they use a seat again.`,{title:"Reactivate team member",okLabel:"Reactivate"}))) return;
+    try{ await BPUI.guard(btn, ()=>BPStore.team.reactivate(id)); await renderUsers();
+      const a=ucAcct&&ucAcct.byId?ucAcct.byId[id]:null;
+      setUMsg("ok",email+" can sign in again."+(a&&!a.last_sign_in_at?" They haven't signed in yet - use “Send sign-in link” on their row to e-mail them a link to set their own password.":"")); }
+    catch(err){ setUMsg("err",HelmTeam.errText(err,"Couldn't reactivate them.")); }
+  }
+  const umWait=(sec)=>{ const m=Math.max(1,Math.ceil((Number(sec)||600)/60)); return m===1?"about a minute":m+" minutes"; };
+  function umHelpErr(err, what){
+    const m=String((err&&err.message)||""), c=String((err&&err.code)||"");
+    if(c==="42501"&&/not authorized/i.test(m)) return "Only admins (and roles allowed to change Users) can "+what+".";
+    if(c==="P0002") return "This person is not in your studio any more. Reload the page.";
+    if(c==="22023"||err&&err.stepUp||/^(captcha_required|google_only|rate_limited|network|email_send_failed)$/.test(c)) return m;
+    if(c==="PGRST202"||c==="42883") return "This needs the database update 0379 (APPLY-0379.sql). Until then they can use “Forgot password?” on the sign-in page.";
+    return errMsg(err, what);
+  }
+  // R202 (0379): e-mail a teammate a secure "choose your own password" link (the Supabase password-reset e-mail)
+  async function sendSignInLink(u, btn){
+    const id=ucId(u), email=u.email||u.email_name||"them";
+    try{
+      const r=await BPUI.guard(btn, ()=>BPStore.auth.admin.sendSignInLink(id));
+      if(!r||r.ok!==true){ setUMsg("err",(r&&r.code==="rate_limited")?`A sign-in link already went to ${email} a few minutes ago. You can send another in ${umWait(r.retry_after_s)}.`:String((r&&r.error)||"Couldn't send the sign-in link.")); return; }
+      await renderUsers();
+      setUMsg("ok",`Sign-in link sent to ${r.email||email}. It opens a page where they choose their own password, then they're in. Ask them to check spam too.`);
+    }catch(err){ setUMsg("err",umHelpErr(err,"send a sign-in link")); }
+  }
+  // the one-time password box at the top (DOM only; the password never goes into a toast)
+  function umShowTemp(lead, email, tp){
+    const m=$("#umsg"); clearTimeout(uMsgT); m.textContent="";
+    const d=document.createElement("div"); d.className="msg ok um-tp"; d.setAttribute("data-no-toast","");
+    const l1=document.createElement("div"); l1.append(lead+" "); const b=document.createElement("b"); b.textContent=email; l1.append(b, ".");
+    const l2=document.createElement("div"); l2.append("Temporary password (share once): ");
+    const code=document.createElement("code"); code.id="um_tp"; code.className="um-tp-code"; code.textContent=tp;
+    const cp=document.createElement("button"); cp.type="button"; cp.className="btn sm"; cp.id="um_tp_copy"; cp.textContent="Copy";
+    cp.addEventListener("click", async ()=>{ try{ await navigator.clipboard.writeText(tp); cp.textContent="Copied"; }catch(_){ } });
+    l2.append(code," ",cp);
+    const l3=document.createElement("div"); l3.className="um-tp-note"; l3.textContent="It is shown only now. They'll be asked to set their own password on first sign-in. Easier: “Send sign-in link” e-mails them a link instead.";
+    d.append(l1,l2,l3); m.appendChild(d);
+  }
+  // R202 (0379): New temporary password - admins, a never-used "Add user" login only (the database decides)
+  async function newTempPassword(u, btn){
+    const id=ucId(u), email=u.email||u.email_name||"this person";
+    if(!(await BPUI.confirm(`Make a new temporary password for ${email}? The old one stops working. The new one is shown once, here - you share it with them yourself (nothing is e-mailed). Sending a sign-in link is usually easier.`,{title:"New temporary password",okLabel:"Make a new one"}))) return;
+    try{
+      const r=await BPUI.guard(btn, ()=>BPStore.auth.admin.newTempPassword(id));
+      if(!r||r.ok!==true){ setUMsg("err",(r&&r.code==="rate_limited")?`A new temporary password was made for ${email} a few minutes ago. You can make another in ${umWait(r.retry_after_s)}.`:String((r&&r.error)||"Couldn't make a new temporary password.")); return; }
+      await renderUsers(); umShowTemp("New temporary password for", email, String(r.temp_password||""));
+      BPUI.toast(`New temporary password for ${email} is shown at the top of Users & invites.`,{type:"ok",timeout:7000,place:"top"});
+    }catch(err){ setUMsg("err",umHelpErr(err,"make a new temporary password")); }
+  }
   // the details drawer for one open invitation
   function viewInvite(inv){
     const TS=window.HelmTeamStatus; if(!TS) return;
@@ -2237,14 +2339,22 @@
     const st=TS.member(off?Object.assign({}, u, { deactivated:true }):u, a), priv=typeof u.whatsapp_same==="boolean"||!!u.phone;
     const hint=TS.profileHint(u, priv), me=BPStore.auth.user(), self=!!(me&&me.id===ucId(u));
     const two=ucTwoStep&&(ucId(u) in ucTwoStep)?(ucTwoStep[ucId(u)]?"On":"Not set up"):"";
+    const help=TS.signInHelp?TS.signInHelp(st, a, { self, isAdmin, canEdit:isAdmin, deactivated:off }):null;
     const name=(u.full_name||"").trim()||u.email||"Team member";
     TS.openDrawer({ title:name, sub:BPStore.auth.admin.roleLabel(u.role)+(self?" · you":""),
       rows:[["E-mail", u.email||u.email_name||"", { copy:!!u.email, mono:true }], ["Phone", u.phone?ucPhone(u.phone):"", { copy:!!u.phone, mono:true }],
         ["Role", u.role==="client"?"No access":BPStore.auth.admin.roleLabel(u.role)], ["Job title", u.job_title||""], ["Department", u.department||""],
         ["Account status", st.label, { tone:st.tone }], ["Last signed in", a&&a.last_sign_in_at?TS.when(a.last_sign_in_at,true)+" ("+TS.ago(a.last_sign_in_at)+")":a?"Never":""],
         ["Joined", (a&&a.joined_at)||u.created_at?TS.when((a&&a.joined_at)||u.created_at):""], ["Invited by", a&&a.invited_by_name?a.invited_by_name+(a.invited_at?" on "+TS.when(a.invited_at):""):""],
-        ["Deactivated", a&&a.deactivated_at?TS.when(a.deactivated_at):""], ["Two-step", two], ["Profile", hint||(u.complete===true?"Complete":"")]],
-      actions:isAdmin?[{ label:"Edit profile", primary:true, onClick:()=>openMemberEdit(u, null) }]:[] });
+        ["Deactivated", a&&a.deactivated_at?TS.when(a.deactivated_at):""], ["Two-step", two], ["Profile", hint||(u.complete===true?"Complete":"")],
+        // R202 (0379): how to get them in
+        ["Sign-in link", help&&help.linkSentAt?"Sent "+TS.when(help.linkSentAt,true)+" ("+TS.ago(help.linkSentAt)+")":""],
+        ["Getting in", help&&help.reactivateFirst?"Reactivate first, then send a sign-in link.":help&&help.link?help.why+" They can also use “Forgot password?” on the sign-in page with this e-mail.":""]],
+      actions:isAdmin?[].concat(
+        help&&help.link?[{ label:"Send sign-in link", primary:!!help.row, onClick:(b)=>sendSignInLink(u, b) }]:[],
+        help&&help.temp?[{ label:"New temporary password", onClick:(b)=>newTempPassword(u, b), title:"Only for someone added with “Add user” who has never signed in" }]:[],
+        help&&help.reactivateFirst&&!self?[{ label:"Reactivate", primary:true, onClick:(b)=>reactivateMember(u, b) }]:[],
+        [{ label:"Edit profile", primary:!(help&&(help.row||help.reactivateFirst)), onClick:()=>openMemberEdit(u, null) }]):[] });
   }
   // ---- pending invites (existing invitations.list / .revoke; "Copy link" re-uses create(), which returns the same live token) ----
   // ---- 0167: seat counter ("2 of 2 seats used") - a free trial is you + 2 people; open invites count ----

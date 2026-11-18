@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=92"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=93"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -215,6 +215,7 @@ window.HelmUrl = HelmUrl;
   let mode = "local";           // resolved backend: 'supabase' | 'server' | 'local'
   let supa = null;              // Supabase client (lazy)
   let urlAuthCode = false, urlAuthError = "";   // PKCE ?code= return (see init)
+  let urlPriorUser = null, urlHashToken = "";    // R204: who was signed in before a link landed / a #access_token= link (its type only)
   let ready = null;             // init() promise
   let currentUser = null;       // signed-in Supabase user (or null)
   let rtTokenExp = 0;           // R193: when this tab's access token expires (ms; 0 = no live session) - rtLive() joins only before it
@@ -383,14 +384,60 @@ window.HelmUrl = HelmUrl;
       return Array.isArray(claims.amr) ? claims.amr.map((a) => String((a && a.method) || a || "")) : [];
     } catch (e) { return []; }
   }
+  // R204: a reset link opened on /auth/confirm is verified with verifyOtp(), and Supabase signs THAT session
+  // amr "otp" (never "recovery" - only the old ?code= link gives "recovery"). Supabase itself counts otp /
+  // magiclink / recovery sessions as recovery sessions (no current password needed). Here an "otp" session
+  // counts ONLY when this tab verified a reset link for exactly this session (proof below: user id + the
+  // token's session_id, set by verifyEmailLink(type "recovery"), 1 hour). A sign-in by e-mail link or an
+  // invite never qualifies, and the proof cannot outlive or move to another session.
+  const RECOVERY_LINK_KEY = "bp_recovery_link";
+  const RECOVERY_LINK_MS = 60 * 60 * 1000;
+  function jwtClaim(token, name) {
+    try {
+      const part = String(token || "").split(".")[1]; if (!part) return "";
+      const b64 = part.replace(/-/g, "+").replace(/_/g, "/"); const pad = b64 + "===".slice((b64.length + 3) % 4);
+      const v = JSON.parse(atob(pad))[name]; return v == null ? "" : String(v);
+    } catch (e) { return ""; }
+  }
+  function recoveryLinkProof() {
+    try { const v = JSON.parse(sessionStorage.getItem(RECOVERY_LINK_KEY) || "null"); return v && typeof v === "object" ? v : null; } catch (e) { return null; }
+  }
+  function recoveryLinkMark(session) {
+    try {
+      if (!session || !session.user || !session.user.id) return;
+      sessionStorage.setItem(RECOVERY_LINK_KEY, JSON.stringify({ uid: session.user.id, sid: jwtClaim(session.access_token, "session_id"), at: Date.now() }));
+    } catch (e) {}
+  }
+  function recoveryLinkClear() { try { sessionStorage.removeItem(RECOVERY_LINK_KEY); } catch (e) {} }
+  function recoveryLinkMatches(s) {
+    const p = recoveryLinkProof();
+    if (!p || !s || !s.user || p.uid !== s.user.id) return false;
+    if (!(Number(p.at) > 0) || Date.now() - Number(p.at) > RECOVERY_LINK_MS || Number(p.at) > Date.now() + 60000) return false;
+    const sid = jwtClaim(s.access_token, "session_id");
+    if (p.sid || sid) { if (!p.sid || p.sid !== sid) return false; }
+    const amr = jwtAmrMethods(s.access_token);
+    return amr.indexOf("otp") !== -1 || amr.indexOf("magiclink") !== -1;
+  }
   async function isRecoverySession() {
     if (!supa || !currentUser) return false;
     try {
       const { data } = await supa.auth.getSession();
       const s = data && data.session;
       if (!s || !s.user || s.user.id !== currentUser.id) return false;
-      return jwtAmrMethods(s.access_token).indexOf("recovery") !== -1;
+      return jwtAmrMethods(s.access_token).indexOf("recovery") !== -1 || recoveryLinkMatches(s);
     } catch (e) { return false; }
+  }
+  // R204: the account stored in this browser before init() (a reset link may replace it) - id + e-mail only
+  function storedSessionUser() {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!/^sb-[a-z0-9]+-auth-token$/.test(k || "")) continue;
+        const v = JSON.parse(localStorage.getItem(k) || "null"); const u = v && (v.user || (v.currentSession && v.currentSession.user));
+        if (u && u.id) return { id: String(u.id), email: String(u.email || "") };
+      }
+    } catch (e) {}
+    return null;
   }
   // Does this account have a Helm (email) password at all? Google-only → false.
   function hasPasswordLogin(u) {
@@ -644,6 +691,62 @@ window.HelmUrl = HelmUrl;
       e.name = "HelmAuthError";
       if (global.HelmTelemetry && global.HelmTelemetry.report) global.HelmTelemetry.report("auth_error", e);
     } catch (x) {}
+  }
+  /* R203: an Auth call that SENDS an e-mail and did not answer in time (our 75 s wait passed) or got a gateway 502 / 503 /
+     504. Supabase sends the e-mail before it answers, so the mail may well be on its way: say so honestly, never "check your
+     connection", and keep a cool-down so a second press does not send a second e-mail. -> "timeout" | "gateway" | null.
+     Pure (unit-tested). A plain offline / DNS failure (status 0, no time-out) stays a network error. */
+  const AUTH_MAIL_UNCONFIRMED = "We couldn't confirm the e-mail was sent. It may still arrive in a few minutes \u2014 check your inbox and spam before trying again.";
+  function authMailUnconfirmed(error) {
+    if (!error) return null;
+    const st = Number(error.status) || 0, m = String(error.message || "");
+    if (error.authMail === true || /did not answer in time/i.test(m)) return "timeout";
+    // a bare gateway answer (no Supabase error code): the proxy gave up while Auth was still sending; a coded answer
+    // (e.g. request_timeout) keeps its own r29 message
+    if ((st === 502 || st === 503 || st === 504) && !error.code) return "gateway";
+    return null;
+  }
+  function reportAuthMailTimeout(endpoint, kind, error) {
+    try {
+      const e = new Error("auth_mail_timeout endpoint=" + String(endpoint || "").replace(/[^a-z_]/g, "").slice(0, 20) + " kind=" + kind
+        + " status=" + (Number(error && error.status) || 0));
+      e.name = "HelmAuthMailTimeout";
+      if (global.HelmTelemetry && global.HelmTelemetry.report) global.HelmTelemetry.report("auth_mail_timeout", e);
+    } catch (x) {}
+  }
+  // per address + kind of e-mail: when one was last asked for (this browser). Only a short hash of the address is kept.
+  const AUTH_MAIL_CD_KEY = "helm.authmail.cd", AUTH_MAIL_COOLDOWN_MS = { sent: 60000, unconfirmed: 180000 };
+  function authMailKey(kind, email) {
+    let h = 5381; const s = String(kind) + "|" + String(email || "").trim().toLowerCase();
+    for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }
+  function authMailCooldownLeft(kind, email, now) {
+    try {
+      const all = JSON.parse(localStorage.getItem(AUTH_MAIL_CD_KEY) || "{}") || {};
+      const row = all[authMailKey(kind, email)];
+      if (!row || typeof row.t !== "number") return 0;
+      const left = row.t + (AUTH_MAIL_COOLDOWN_MS[row.s] || 60000) - (now || Date.now());
+      return left > 0 ? left : 0;
+    } catch (e) { return 0; }
+  }
+  function authMailCooldownSet(kind, email, state) {
+    try {
+      const now = Date.now(), all = JSON.parse(localStorage.getItem(AUTH_MAIL_CD_KEY) || "{}") || {};
+      for (const k of Object.keys(all)) if (!all[k] || now - Number(all[k].t) > 600000) delete all[k];
+      all[authMailKey(kind, email)] = { t: now, s: state };
+      localStorage.setItem(AUTH_MAIL_CD_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+  function authMailCooldownError(left) {
+    const sec = Math.max(1, Math.ceil(left / 1000));
+    const e = new Error("We asked for this e-mail a moment ago. Check your inbox and spam first \u2014 you can ask again in "
+      + (sec >= 90 ? Math.ceil(sec / 60) + " minutes" : sec + " seconds") + ".");
+    e.code = "mail_cooldown"; e.authMapped = true; e.retryAfter = sec; return e;
+  }
+  function authMailUnconfirmedError(endpoint, kind, error) {
+    reportAuthMailTimeout(endpoint, kind, error);
+    const e = new Error(AUTH_MAIL_UNCONFIRMED); e.code = "mail_unconfirmed"; e.authMapped = true; e.cause = error; return e;
   }
   // the Error a BPStore auth call throws: message for people, .authMapped so every page shows it as-is
   function authError(error, ctx) {
@@ -1095,6 +1198,7 @@ window.HelmUrl = HelmUrl;
   /* r91: stop the bell poller + chat realtime the moment this tab loses its user (sign-out, expiry, idle limit) */
   function stopSignedInPollers() {
     try { if (typeof window !== "undefined" && typeof window.__bpBellTeardown === "function") { const t = window.__bpBellTeardown; window.__bpBellTeardown = null; t(); } } catch (e) {}
+    try { presence.stop(); } catch (e) {}   // R209: leave the presence channel + free the tab lock too
   }
   function looksLikeAuthError(e) {
     if (global.BPUI && global.BPUI.isAuthError) return global.BPUI.isAuthError(e);
@@ -1206,7 +1310,7 @@ window.HelmUrl = HelmUrl;
   // la-fetch (audit 25): the list below also names the STABLE (read-only) RPCs every page asks while it
   // boots (trial / upgrade status, seat use, prefs, shelf list, mentions, PIN status). Before, each one was
   // treated as a write and dropped every shared read of the page, so the page's own reads ran again.
-  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
+  const READ_RPCS = /\/rest\/v1\/rpc\/(current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_test_studio|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes)(\?|$)/;
   const readCache = new Map();
   function hdrOf(init, input, name) {
     try {
@@ -1226,13 +1330,30 @@ window.HelmUrl = HelmUrl;
      their own deadlines; renders use their own fetch). */
   const FETCH_TIMEOUT_MS = 30000;
   const NO_FETCH_TIMEOUT = /\/(storage|functions)\/v1\//;
+  /* R203 (prod 18 Nov 2026): Supabase Auth SENDS ITS E-MAIL BEFORE IT ANSWERS (recover / otp / resend / signup / invite /
+     an e-mail change / reauthenticate). Through the studio's Gmail SMTP that took longer than 30 s, so the wrapper above cut
+     the call off and "Forgot password?" said "Couldn't reach the server" - although the reset e-mail then arrived (Auth logs:
+     "context canceled"). Those calls now wait AUTH_MAIL_TIMEOUT_MS, and a call that still passes it is reported as "we
+     couldn't confirm the e-mail was sent" (authMailUnconfirmed below), never as the user's connection. */
+  const AUTH_MAIL_TIMEOUT_MS = 75000;
+  const AUTH_MAIL_POST = /\/auth\/v1\/(recover|otp|resend|signup|magiclink|invite)(\?|$)/;
+  function fetchTimeoutFor(input, init) {
+    const m = String((init && init.method) || "GET").toUpperCase();
+    if (m === "POST" && AUTH_MAIL_POST.test(input)) return AUTH_MAIL_TIMEOUT_MS;
+    if (m === "PUT" && /\/auth\/v1\/user(\?|$)/.test(input)) return AUTH_MAIL_TIMEOUT_MS;   // e-mail change sends a confirmation
+    if (/\/auth\/v1\/reauthenticate(\?|$)/.test(input)) return AUTH_MAIL_TIMEOUT_MS;
+    return FETCH_TIMEOUT_MS;
+  }
   function timedFetch(input, init) {
     if ((init && init.signal) || typeof input !== "string" || NO_FETCH_TIMEOUT.test(input) ||
         typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function") return global.fetch(input, init);
-    const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+    const ms = fetchTimeoutFor(input, init);
+    const signal = AbortSignal.timeout(ms);
     return global.fetch(input, Object.assign({}, init || {}, { signal })).catch((err) => {
       if (signal.aborted && err && (err.name === "TimeoutError" || err.name === "AbortError")) {
-        const e = new TypeError("Failed to fetch: the server did not answer in time"); e.timeout = true; throw e;
+        const e = new TypeError("Failed to fetch: the server did not answer in time"); e.timeout = true;
+        if (ms === AUTH_MAIL_TIMEOUT_MS) e.authMail = true;
+        throw e;
       }
       throw err;
     });
@@ -1530,7 +1651,7 @@ window.HelmUrl = HelmUrl;
     loadAuthUi();
   }
   // Account menu / two-step banner live in auth-ui.js (loaded on signed-in staff pages only).
-  const AUTH_UI_VERSION = "62";
+  const AUTH_UI_VERSION = "63";
   let authUiLoading = null;
   function loadAuthUi() {
     if (authUiLoading || typeof document === "undefined") return authUiLoading;
@@ -1878,6 +1999,9 @@ window.HelmUrl = HelmUrl;
         // #error=access_denied&error_code=otp_expired&error_description=… : note the code
         // (short, allow-listed shape only) so the page can say so, then drop the fragment
         const hErr = String(hp.get("error_code") || hp.get("error") || "");
+        // R204: a #access_token= link (implicit flow) is never used - the reset page asks for a new link
+        if (hp.get("access_token")) urlHashToken = /^[a-z_]{1,32}$/i.test(String(hp.get("type") || "")) ? String(hp.get("type")).toLowerCase() : "token";
+        urlPriorUser = storedSessionUser();
         if (!urlAuthError && /^[a-z0-9_]{1,64}$/i.test(hErr)) urlAuthError = hErr.toLowerCase();
         if (/(^#|&)(access_token|refresh_token|provider_token|error|error_code|error_description)=/.test(location.hash || "") && global.history && global.history.replaceState)
           global.history.replaceState(null, "", location.pathname + location.search);
@@ -2118,6 +2242,10 @@ window.HelmUrl = HelmUrl;
     // could not be exchanged (opened in a different browser, or used / expired).
     linkError: () => urlAuthError,
     linkReturned: () => urlAuthCode,
+    // R204: the account this browser was signed in as before the link landed ({ id, email } | null) and
+    // the type of a #access_token= link that was dropped ("" = none) - reset page only
+    linkPriorUser: () => (urlPriorUser ? { id: urlPriorUser.id, email: urlPriorUser.email } : null),
+    linkFragmentToken: () => urlHashToken,
     pendingStep: () => pendingStep,
     resolveGate: () => evaluateGate(),
     // same-site ?next= sanitiser (login.html) — always returns one of the app's own pages
@@ -2303,6 +2431,12 @@ window.HelmUrl = HelmUrl;
           // "already registered" must look exactly like a fresh sign-up awaiting confirmation
           if (/user_already_exists|email_exists|already registered|already exists/i.test(c + " " + m)) return { user: null, session: null, generic: GENERIC_SENT };
           if (c === "user_banned") return { user: null, session: null, generic: GENERIC_SENT };   // r29: same - its own message would say the account exists
+          // R203: Supabase sends the confirmation e-mail before it answers - the account may already be made
+          if (authMailUnconfirmed(error)) {
+            reportAuthMailTimeout("signup", authMailUnconfirmed(error), error);
+            const e = new Error("We couldn't confirm your sign-up e-mail was sent. It may still arrive in a few minutes \u2014 check your inbox and spam, then sign in or use \u201cResend\u201d instead of signing up again.");
+            e.code = "mail_unconfirmed"; e.authMapped = true; e.cause = error; throw e;
+          }
           if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(error)) throw error;
           // r29: every other Supabase Auth error -> a clear message + "Ref: AUTH-<code>" (was "Something went wrong")
           throw authError(error, "signup");
@@ -2449,6 +2583,8 @@ window.HelmUrl = HelmUrl;
     passwordRule: { min: PW_MIN, symbols: PW_SYMBOLS, hint: PW_HINT, problem: passwordProblem, checks: passwordChecks, attachChecklist: attachPasswordChecklist, guessable: passwordGuessable, guessReasons: passwordGuessReasons, pwnedMessage: PW_PWNED_MSG, mismatchMessage: PW_MISMATCH, strengthLabels: ["", "Weak", "Weak", "Fair", "Strong"], rulesAttr: PW_RULES_ATTR },
     // r29: Supabase Auth error -> { code, message, field, ref } (pure; exported for tests and other pages)
     authErrorInfo: authErrorInfo,
+    // R203: pure helpers (unit-tested): auth e-mail call -> its time-out; error -> "timeout" | "gateway" | null
+    authMailTimeoutFor: fetchTimeoutFor, authMailUnconfirmed: authMailUnconfirmed, authMailUnconfirmedMessage: AUTH_MAIL_UNCONFIRMED,
     // Resolves the same way whether or not the email has an account (the caller
     // shows one generic message). Only rate-limit / network / CAPTCHA errors throw.
     async requestPasswordReset(email, opts) {
@@ -2458,16 +2594,25 @@ window.HelmUrl = HelmUrl;
       if (await staffGoogleOnlyFor(email)) throw staffGoogleError();   // r39 (0288): no reset link for Helm staff (the server never stores one)
       const o = { redirectTo: (opts && opts.redirectTo) || (location.origin + "/reset-password") };
       if (captchaToken) o.captchaToken = captchaToken;
-      const { error } = await supa.auth.resetPasswordForEmail(scrubEmail(email), o);   // r166: strip control chars
+      // R203: one reset e-mail per address per minute from this browser (3 minutes after an unconfirmed send)
+      const cdLeft = authMailCooldownLeft("recover", email);
+      if (cdLeft > 0) throw authMailCooldownError(cdLeft);
+      let error = null;
+      try { ({ error } = await supa.auth.resetPasswordForEmail(scrubEmail(email), o)); }   // r166: strip control chars
+      catch (x) { error = x; }
       if (error) {
         const st = Number(error.status) || 0, m = String(error.message || "");
         if (st === 429 || /rate limit|too many/i.test(m)) { const e = new Error("Too many requests — please wait a few minutes and try again."); e.code = "rate_limited"; throw e; }
         if (/captcha/i.test(m)) { const e = new Error("The security check failed — please try again."); e.code = "captcha_failed"; throw e; }
+        // R203: Supabase sends the e-mail before it answers - a time-out / gateway error is "not confirmed", not "offline"
+        const un = authMailUnconfirmed(error);
+        if (un) { authMailCooldownSet("recover", email, "unconfirmed"); throw authMailUnconfirmedError("recover", un, error); }
         if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(error)) throw error;
         // anything else (e.g. "user not found" on older GoTrue builds) is deliberately not shown (no enumeration:
         // a send failure only happens for a real account) - r29: but the code goes to telemetry so support can see it
         reportAuthError("email", error, authErrorInfo(error, "email"));
       }
+      authMailCooldownSet("recover", email, "sent");
       return true;
     },
     // Re-send the sign-up confirmation email. Resolves the same way whether or not the
@@ -2479,14 +2624,20 @@ window.HelmUrl = HelmUrl;
       if (!em) return true;
       const o = { emailRedirectTo: (opts && opts.emailRedirectTo) || (location.origin + "/login.html") };
       if (opts && opts.captchaToken) o.captchaToken = opts.captchaToken;
-      const { error } = await supa.auth.resend({ type: "signup", email: em, options: o });
+      const cdLeft = authMailCooldownLeft("resend", em);   // R203: no second e-mail within the cool-down
+      if (cdLeft > 0) throw authMailCooldownError(cdLeft);
+      let error = null;
+      try { ({ error } = await supa.auth.resend({ type: "signup", email: em, options: o })); } catch (x) { error = x; }
       if (error) {
         const st = Number(error.status) || 0, m = String(error.message || "");
         if (st === 429 || /rate limit|too many|seconds/i.test(m)) { const e = new Error("Too many requests — please wait a minute and try again."); e.code = "rate_limited"; throw e; }
         if (/captcha/i.test(m)) { const e = new Error("The security check failed — please try again."); e.code = "captcha_failed"; throw e; }
+        const un = authMailUnconfirmed(error);   // R203: sent before Supabase answered - not "offline"
+        if (un) { authMailCooldownSet("resend", em, "unconfirmed"); throw authMailUnconfirmedError("resend", un, error); }
         if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(error)) throw error;
         reportAuthError("email", error, authErrorInfo(error, "email"));   // r29: stays generic on screen (no enumeration)
       }
+      authMailCooldownSet("resend", em, "sent");
       return true;
     },
     // Re-check the CURRENT password before a change (signs in again as the same
@@ -2505,9 +2656,12 @@ window.HelmUrl = HelmUrl;
       if (!/^(invite|magiclink|recovery|signup|email|email_change)$/.test(String(type || ""))) { const e = new Error("bad link type"); e.code = "bad_type"; throw e; }
       localAuthOp++;
       try {
+        if (type === "recovery") recoveryLinkClear();
         const { data, error } = await supa.auth.verifyOtp({ token_hash: String(tokenHash || ""), type: type === "signup" ? "email" : type });
         if (error) throw error;
         if (data && data.user) { currentUser = data.user; hadSession = true; }
+        // R204: this exact session came from a reset link (Supabase signs it amr "otp", not "recovery")
+        if (type === "recovery" && data && data.session) recoveryLinkMark(data.session);
         return { user: (data && data.user) || null };
       } finally { localAuthOp--; }
     },
@@ -2598,6 +2752,13 @@ window.HelmUrl = HelmUrl;
       }
       reauthClear();
       lsDel(RECOVERY_KEY);
+      recoveryLinkClear();   // R204: the reset link is used up
+      // R202: a person who came in through a reset / "sign-in link" e-mail while still on an admin-given temporary
+      // password has now chosen their own - lift "must change password" too (the database only allows it once the
+      // login no longer has the temporary one, 0028), so they are not asked for that lost temporary password next.
+      if (recovery) {
+        try { const { error: ce } = await supa.rpc("clear_password_change_required"); if (!ce && currentUser) { try { sessionStorage.setItem(PW_OK_KEY, currentUser.id); } catch (e) {} } } catch (e) {}
+      }
       try { await supa.auth.signOut({ scope: "others" }); } catch (e) {}
       return true;
     },
@@ -2605,7 +2766,7 @@ window.HelmUrl = HelmUrl;
     // every staff page in this browser sends the person back to the reset page.
     recovery: {
       mark(uid) { if (uid) lsSet(RECOVERY_KEY, uid); if (currentUser && uid === currentUser.id) pendingStep = "recovery"; },
-      clear() { lsDel(RECOVERY_KEY); },
+      clear() { lsDel(RECOVERY_KEY); recoveryLinkClear(); },
     },
     // ---- two-step verification (TOTP, Supabase Auth MFA) ------------------------
     mfa: {
@@ -2710,6 +2871,14 @@ window.HelmUrl = HelmUrl;
       },
       requiredForAdmins: () => AUTH_CFG.mfaRequiredForAdmins,
       _operatorDecision: operatorMfaDecision,
+      // R203 (0381): is MY studio a Helm HQ "test studio" (two-step not enforced)? true | false; null = unknown (signed
+      // out, offline, 0381 not applied). Only Helm HQ can switch it; the server decides, this only drives the banner / notes.
+      testStudio() {
+        if (!supa || !currentUser) return Promise.resolve(null);
+        return memoRead("mfa.testStudio", 60000, async () => {
+          try { const { data, error } = await supa.rpc("my_test_studio"); return error ? null : data === true; } catch (e) { return null; }
+        });
+      },
     },
     // ---- CAPTCHA (Cloudflare Turnstile through Supabase's captchaToken) ----------
     captcha: { enabled: () => !!CAPTCHA, siteKey: () => (CAPTCHA ? CAPTCHA.siteKey : ""), provider: () => (CAPTCHA ? CAPTCHA.provider : ""),
@@ -2767,6 +2936,41 @@ window.HelmUrl = HelmUrl;
         const { data, error } = await supa.rpc("team_account_status");
         if (error) { if (rpcMissing(error) || error.code === "42501") return null; throw error; }
         return data && typeof data === "object" ? data : null;
+      },
+      // R202 (0379): "Send sign-in link" for a teammate (an "Add user" login whose temporary password got lost, an
+      // invitation login without a password, anyone who can't get in). The DATABASE checks admin / Users edit, own
+      // studio, not deactivated, not yourself and once per 10 minutes per person, and logs it; then the SAME Supabase
+      // password-reset e-mail as "Forgot password?" goes to the address on their login (they choose their own
+      // password on /reset-password). A failed send lifts the 10-minute wait again.
+      //   -> { ok: true, email } | { ok: false, code: "rate_limited", retry_after_s, error }
+      async sendSignInLink(userId) {
+        if (!supa) throw new Error("Supabase not configured");
+        const { data, error } = await supa.rpc("team_signin_link_request", { p_user: userId });
+        if (error) throw error;
+        if (!data || data.ok !== true) return data || { ok: false, error: "Couldn't send the sign-in link." };
+        const fail = async (msg, code, cause) => {
+          try { await supa.rpc("team_signin_link_failed", { p_id: data.id }); } catch (e) {}
+          const e = new Error(msg); e.code = code; if (cause) e.cause = cause; throw e;
+        };
+        if (CAPTCHA) return fail("The sign-in page's security check is on, so this link can't be sent from Settings. Ask them to open the sign-in page and use “Forgot password?” with " + data.email + ".", "captcha_required");
+        if (await staffGoogleOnlyFor(data.email)) return fail("This address signs in with Google only - there is no password to set.", "google_only");
+        const { error: e2 } = await supa.auth.resetPasswordForEmail(scrubEmail(data.email), { redirectTo: location.origin + "/reset-password" });
+        if (e2) {
+          const st = Number(e2.status) || 0, m = String(e2.message || "");
+          if (st === 429 || /rate limit|too many/i.test(m)) return fail("Too many e-mails were sent in the last few minutes - please try again a little later.", "rate_limited", e2);
+          if (global.BPUI && global.BPUI.isNetworkError && global.BPUI.isNetworkError(e2)) return fail("No connection - the link was not sent. Try again.", "network", e2);
+          const info = authErrorInfo(e2, "email"); reportAuthError("email", e2, info);
+          return fail("The e-mail couldn't be sent" + (info && info.message ? " (" + info.message + ")" : "") + ". Try again later.", "email_send_failed", e2);
+        }
+        return { ok: true, email: data.email };
+      },
+      // R202 (0379): "New temporary password" - admins only, and only for a never-signed-in "Add user" login of this
+      // studio (the database decides). Same as Add user: shown ONCE, they choose their own at first sign-in.
+      //   -> { ok: true, user_id, temp_password } | { ok: false, code: "rate_limited", retry_after_s, error }
+      async newTempPassword(userId) {
+        if (!supa) throw new Error("Supabase not configured");
+        return withStepUp(async () => { const { data, error } = await supa.rpc("team_temp_password_reset", { p_user: userId });
+          if (error) throw error; return data; });
       },
       async listUsers() {
         if (!supa) throw new Error("Supabase not configured");
@@ -3372,12 +3576,17 @@ window.HelmUrl = HelmUrl;
      and on the next "tab visible". */
   const RT_RETRY_MS = 15000;
   function rtSessionOk() { return !!currentUser && rtTokenExp > Date.now() + 10000; }
+  /* R209: a cap on open Realtime channels per tab (Supabase allows 100 per connection; a normal page needs 2-4: bell chat,
+     page channel, presence). A page that somehow asks for more gets no new channel instead of a runaway. */
+  const RT_MAX_CHANNELS = 8;
+  let rtOpen = 0;
   function rtLive(make, onBack) {
     let ch = null, stopped = false, idleT = null, retryT = null, tries = 0;
     const open = () => { if (stopped || ch) return; clearTimeout(retryT); retryT = null;
       if (!rtSessionOk()) { if (++tries <= 40) retryT = setTimeout(() => { retryT = null; if (!(typeof document !== "undefined" && document.hidden)) { open(); try { if (ch) onBack && onBack(); } catch (e) {} } }, RT_RETRY_MS); return; }
-      tries = 0; try { ch = make(); } catch (e) { ch = null; } };
-    const close = () => { if (!ch) return; try { if (supa && typeof supa.removeChannel === "function") supa.removeChannel(ch); else if (ch.unsubscribe) ch.unsubscribe(); } catch (e) {} ch = null; };
+      if (rtOpen >= RT_MAX_CHANNELS) return;
+      tries = 0; try { ch = make(); } catch (e) { ch = null; } if (ch) rtOpen++; };
+    const close = () => { if (!ch) return; rtOpen = Math.max(0, rtOpen - 1); try { if (supa && typeof supa.removeChannel === "function") supa.removeChannel(ch); else if (ch.unsubscribe) ch.unsubscribe(); } catch (e) {} ch = null; };
     const onVis = () => {
       if (typeof document === "undefined") return;
       if (document.hidden) { clearTimeout(idleT); idleT = setTimeout(close, RT_IDLE_MS); return; }
@@ -6063,7 +6272,7 @@ window.HelmUrl = HelmUrl;
       if (res.ok && j && j.sent === true) return { sent: true };
       if (res.ok && j && j.account === "new") return { account: "new" };
       if (res.ok && j && j.requested === true) return { requested: true, studio: String(j.studio || "").slice(0, 120) };   // expired: the studio was asked
-      if (j && j.code && (res.status < 500 || j.code === "send_failed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));
+      if (j && j.code && (res.status < 500 || j.code === "send_failed" || j.code === "send_unconfirmed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));   // R203: send_unconfirmed = may still arrive
       throw fail("We couldn't send a new link from here — ask your studio admin to re-send the invitation.", "unavailable");
     },
     async signupDirect(token, email, password, fullName) {
@@ -6084,6 +6293,8 @@ window.HelmUrl = HelmUrl;
       } catch (e) { return { fallback: true }; }          // not deployed / CORS / offline → old path
       const j = await res.json().catch(() => ({}));
       if (res.ok) return j && j.ok ? { ok: true } : { fallback: true };
+      // R203: the server could not make the login right now (Supabase Auth slow) - a clear message, no e-mail sent instead
+      if (res.status === 503 && j && j.code === "create_failed") { const e = new Error(String(j.error || "We couldn't create your account just now.").slice(0, 300)); e.code = "create_failed"; e.status = 503; if (j.reason) e.reason = String(j.reason).slice(0, 20); throw e; }
       if (res.status === 404 || res.status >= 500 || !j || !j.code) return { fallback: true };
       const e = new Error(String(j.error || "Couldn't create the account.")); e.code = j.code; e.status = res.status; if (j.reason) e.reason = String(j.reason).slice(0, 20); throw e;
     },
@@ -6123,7 +6334,7 @@ window.HelmUrl = HelmUrl;
       } catch (e) { throw fail("We couldn't reach Helm — check your connection and try again.", "network"); }
       const j = await res.json().catch(() => ({}));
       if (res.ok && j && j.ok === true) return { sent: j.sent === true };
-      if (j && (j.code === "rate_limited" || j.code === "send_failed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));
+      if (j && (j.code === "rate_limited" || j.code === "send_failed" || j.code === "send_unconfirmed")) throw fail(String(j.error || "Couldn't send the e-mail."), String(j.code));   // R203
       throw fail("We couldn't send it from here — open the invitation e-mail you already have.", "unavailable");
     },
     async preview(token) {                                                                   // anon-safe banner info (SEC-06); falls back until deployed
@@ -11240,32 +11451,147 @@ window.HelmUrl = HelmUrl;
       p_user_agent: (typeof navigator !== "undefined" && navigator.userAgent) || null }),
   };
   /* ---------------- R174b (0366): who is online in my studio ----------------
-     Live: Supabase Realtime presence on ONE private channel per tab, "presence:org:<studio id>" (0366 realtime policies let
-     a signed-in person join only their own studio's channel). Each tab tracks only { u: user id, s: "online" | "away" }.
+     Live: Supabase Realtime presence on ONE private channel, "presence:org:<studio id>" (0366 realtime policies let a
+     signed-in person join only their own studio's channel). Only { u: user id, s: "online" | "away" } is tracked.
      Away = tab hidden, or no mouse / key / touch / scroll for 5 minutes. After a minute hidden, or when the tab closes, the
-     channel closes (rtLive, like every channel) and I show as offline with my last active time.
+     channel closes and I show as offline with my last active time.
      Last active: presence_touch() at most every 3 minutes while active (the server also writes at most once per 2 minutes);
      presence_list() (own studio, people who chose to be shown) is read at most every 2 minutes, and only while a page shows
-     dots. "Show when I am online" off (presence_set_visible): this tab stops tracking and the server hides my last active time.
-     Pages mark a dot with <span data-presence-uid="<user id>"></span>; paint() styles it (CSSOM only, no HTML strings). */
+     dots. "Show when I am online" off (presence_set_visible): no tracking, and the server hides my last active time.
+     Pages mark a dot with <span data-presence-uid="<user id>"></span>; paint() styles it (CSSOM only, no HTML strings).
+     R209 (prod Realtime log 17 Nov 2026: "ClientPresenceRateLimitReached", 11 in 24 h with a few testers): Supabase lets
+     each client make 5 presence calls (track / untrack) per 30 s - the same on every plan - and then shuts that channel.
+     R174b tracked on every tab show / hide, on every return from idle and on every (re)join, so flipping between tabs went
+     over, and the quick library rejoin + track kept it there. Now: presenceTracker() (one call per 30 s at most, coalesced,
+     rejoin with backoff + jitter) and presenceLeader() (one tracking tab per person per browser). */
+  /* R209: the only code that talks presence to the server.
+     - track() only when the payload really changes, and never more than one call per GAP (30 s): a change inside the gap
+       waits, and only the latest one is sent (nothing at all if it went back to what the server already has)
+     - CHANNEL_ERROR / TIMED_OUT / CLOSED: remove the channel (stops the library's own quick rejoin) and join again after
+       an exponential backoff with jitter (2.5-5 s, 5-10 s, ... up to 2.5-5 min); the 30 s gap survives a rejoin
+     - not ready (no live access token, R193): no join, try again later on the same backoff
+     d = { now, setTimeout, clearTimeout, random, ready(), make(onState) -> channel, remove(ch), payload() -> {u,s} | null,
+           onLive(presenceState | null), minGapMs?, baseMs?, maxMs? } */
+  function presenceTracker(d) {
+    const GAP = d.minGapMs || 30000, BASE = d.baseMs || 5000, MAX = d.maxMs || 300000;
+    let ch = null, joined = false, stopped = true, sent = "-", lastCall = -Infinity, pendT = null, retryT = null, fails = 0;
+    const st = { calls: 0, joins: 0 };
+    function backoff() { const x = Math.min(MAX, BASE * Math.pow(2, fails)); fails++; return Math.round(x / 2 + d.random() * x / 2); }
+    function retry() { if (stopped || retryT) return; retryT = d.setTimeout(() => { retryT = null; join(); }, backoff()); }
+    function drop() { const c = ch; ch = null; joined = false; d.clearTimeout(pendT); pendT = null; if (c) { try { d.remove(c); } catch (e) {} } }
+    function sync() {
+      if (!ch || !joined) return;
+      let p = null; try { p = d.payload(); } catch (e) { p = null; }
+      const key = p ? JSON.stringify(p) : "-";
+      if (key === sent) return;
+      const wait = lastCall + GAP - d.now();
+      if (wait > 0) { if (!pendT) pendT = d.setTimeout(() => { pendT = null; sync(); }, wait); return; }
+      lastCall = d.now(); sent = key; st.calls++;
+      try { const r = p ? ch.track(p) : ch.untrack(); if (r && typeof r.catch === "function") r.catch(() => {}); } catch (e) {}
+    }
+    function join() {
+      if (stopped || ch || retryT) return;
+      let ok = false; try { ok = !!d.ready(); } catch (e) { ok = false; }
+      if (!ok) { retry(); return; }
+      let c = null;
+      try { c = d.make((state) => { if (c && c === ch) d.onLive(state); }); } catch (e) { c = null; }
+      if (!c) { retry(); return; }
+      ch = c; st.joins++;
+      try {
+        c.subscribe((status) => {
+          if (c !== ch) return;
+          if (status === "SUBSCRIBED") { joined = true; fails = 0; sent = "-"; sync(); }   // a new join: the server has nothing of mine
+          else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") { drop(); try { d.onLive(null); } catch (e) {} retry(); }
+        });
+      } catch (e) { drop(); retry(); }
+    }
+    return {
+      start() { if (!stopped) return; stopped = false; join(); },
+      stop() { stopped = true; d.clearTimeout(retryT); retryT = null; drop(); },   // leaving the channel ends my presence: no untrack call
+      want: sync,
+      live: () => !!(ch && joined),
+      stats: () => ({ calls: st.calls, joins: st.joins }),
+    };
+  }
+  /* R209: one tracking tab per person per browser. The tabs of one person share a Web Lock ("helm-presence:<studio>:<user>");
+     only the tab holding it joins the presence channel and tracks. A tab asks for the lock only while visible and lets go
+     after HIDE (60 s) hidden, so a visible tab takes over; a hidden tab never joins. The other tabs get the live dots and
+     send their own online / away over a BroadcastChannel of the same name. No Web Locks (old browsers): every visible tab
+     leads, as before (still throttled by presenceTracker).
+     d = { name, locks, hidden(), onLead(), onFollow(), setTimeout, clearTimeout, hideMs? } */
+  function presenceLeader(d) {
+    const HIDE = d.hideMs || 60000;
+    const solo = !d.locks || typeof d.locks.request !== "function";
+    let leading = false, want = false, release = null, abort = null, hideT = null, stopped = false;
+    function lead(on) { if (on === leading) return; leading = on; try { if (on) d.onLead(); else d.onFollow(); } catch (e) {} }
+    function ask() {
+      if (stopped || want) return; want = true;
+      if (solo) { lead(true); return; }
+      let ac = null; try { ac = typeof AbortController !== "undefined" ? new AbortController() : null; } catch (e) { ac = null; }
+      abort = ac;
+      try {
+        const p = d.locks.request(d.name, ac ? { signal: ac.signal } : {}, () => new Promise((res) => {
+          if (!want || stopped) { res(); return; }
+          release = res; lead(true);
+        }));
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch (e) { lead(true); }   // a broken lock API: lead alone, like an old browser
+    }
+    function quit() {
+      if (!want) return; want = false;
+      try { if (abort) abort.abort(); } catch (e) {} abort = null;
+      if (release) { const r = release; release = null; try { r(); } catch (e) {} }
+      lead(false);
+    }
+    return {
+      start() { stopped = false; if (!d.hidden()) ask(); },
+      visibility() {
+        d.clearTimeout(hideT); hideT = null;
+        if (d.hidden()) hideT = d.setTimeout(quit, HIDE); else ask();
+      },
+      stop() { stopped = true; d.clearTimeout(hideT); hideT = null; quit(); },
+      leading: () => leading,
+    };
+  }
   const presence = (() => {
-    const IDLE_MS = 5 * 60000, TOUCH_MS = 3 * 60000, LIST_MS = 2 * 60000, TICK_MS = 60000;
-    let ch = null, started = false, live = {}, seen = {}, hidden = new Set(), meShow = true, myState = "", lastAct = Date.now(),
-      lastTouch = 0, listAt = 0, listing = null, timer = null, liveOk = false, listOk = true;
-    const subs = new Set();
+    const IDLE_MS = 5 * 60000, TOUCH_MS = 3 * 60000, LIST_MS = 2 * 60000, TICK_MS = 60000, PEER_MS = 150000;
+    let started = false, stopped = false, live = {}, seen = {}, hidden = new Set(), meShow = true, lastAct = Date.now(),
+      lastTouch = 0, listAt = 0, listing = null, timer = null, listOk = true, tracker = null, leader = null, bc = null, posted = "";
+    const subs = new Set(), peers = {};   // peers: other tabs of mine -> { s, t } (only the leading tab reads them)
+    const TAB = Math.random().toString(36).slice(2, 10);
     const uid = () => (currentUser && currentUser.id) || "";
     const emit = () => { subs.forEach((fn) => { try { fn(); } catch (e) {} }); try { paint(); } catch (e) {} };
+    const leading = () => !!(leader && leader.leading());
+    const post = (m) => { try { if (bc) bc.postMessage(m); } catch (e) {} };
     function stateNow() { return (typeof document !== "undefined" && document.hidden) || Date.now() - lastAct > IDLE_MS ? "away" : "online"; }
-    async function track(force) {
-      if (!ch || !liveOk || !meShow) return;
-      const st = stateNow(); if (!force && st === myState) return; myState = st;
-      try { await ch.track({ u: uid(), s: st }); } catch (e) {}
+    // what the leading tab tracks for me: online when ANY of my tabs in this browser is online
+    function mineNow() {
+      if (stateNow() === "online") return "online";
+      const now = Date.now();
+      return Object.keys(peers).some((k) => peers[k] && peers[k].s === "online" && now - peers[k].t < PEER_MS) ? "online" : "away";
     }
-    function readLive() {
-      const out = {}; let ps = {}; try { ps = ch ? ch.presenceState() : {}; } catch (e) { ps = {}; }
-      Object.keys(ps || {}).forEach((k) => (ps[k] || []).forEach((m) => { const u = m && m.u; if (!u) return;
+    function payload() { return meShow && uid() ? { u: uid(), s: mineNow() } : null; }
+    // my state may have changed: the leader asks the tracker (throttled), another tab tells the leader (local, free)
+    function changed(beat) {
+      if (leading()) { if (tracker) tracker.want(); return; }
+      const s = stateNow(); if (!beat && s === posted) return; posted = s;
+      post({ k: "st", tab: TAB, s: s });
+    }
+    function setLive(state) {
+      const out = {};
+      Object.keys(state || {}).forEach((k) => (state[k] || []).forEach((m) => { const u = m && m.u; if (!u) return;
         if (out[u] !== "online") out[u] = m.s === "online" ? "online" : "away"; }));
-      live = out; emit();
+      live = out; emit(); post({ k: "live", live: out });
+    }
+    function onMsg(ev) {
+      const m = ev && ev.data; if (!m || typeof m !== "object") return;
+      if (m.k === "live" && !leading() && m.live && typeof m.live === "object") {
+        const out = {}; Object.keys(m.live).forEach((u) => { if (/^[0-9a-f-]{36}$/i.test(u)) out[u] = m.live[u] === "online" ? "online" : "away"; });
+        live = out; emit();
+      } else if (m.k === "st" && typeof m.tab === "string") { peers[m.tab] = { s: m.s === "online" ? "online" : "away", t: Date.now() }; if (leading() && tracker) tracker.want(); }
+      else if (m.k === "bye" && typeof m.tab === "string") { delete peers[m.tab]; if (leading() && tracker) tracker.want(); }
+      else if (m.k === "hello") { if (leading()) post({ k: "live", live: live }); else { posted = ""; changed(true); } }
+      else if (m.k === "show" && typeof m.on === "boolean") { meShow = m.on; if (leading() && tracker) tracker.want(); emit(); }
     }
     async function touch(force) {
       if (!meShow || !supa || !uid()) return;
@@ -11286,36 +11612,63 @@ window.HelmUrl = HelmUrl;
     }
     function hasDots() { try { return typeof document !== "undefined" && !!document.querySelector("[data-presence-uid]"); } catch (e) { return false; } }
     function tick() {
-      track(false); if (stateNow() === "online") touch(false);
+      changed(true);   // other tabs: a heartbeat to the leader (local); leader: a no-op unless my state changed
+      if (leading() && mineNow() === "online") touch(false);
       if (hasDots()) refreshList(false);
     }
-    async function startLive(orgId) {
-      if (!supa || typeof supa.channel !== "function") return;   // joined even when I am hidden: I still see others (I just do not track)
-      // rtLive (as every channel): closed after a minute in a hidden tab (I then show as offline), reopened when it is back
-      try {
-        rtLive(() => {
+    function makeTracker(orgId) {
+      return presenceTracker({
+        now: () => Date.now(), setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (t) => clearTimeout(t), random: Math.random,
+        ready: () => rtSessionOk() && rtOpen < RT_MAX_CHANNELS,
+        make: (onState) => {
           const c = supa.channel("presence:org:" + orgId, { config: { private: true, presence: { key: uid() } } });
-          c.on("presence", { event: "sync" }, readLive).on("presence", { event: "join" }, readLive).on("presence", { event: "leave" }, readLive);
-          c.subscribe((status) => {
-            if (status === "SUBSCRIBED") { liveOk = true; myState = ""; track(true); }
-            else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") { liveOk = false; live = {}; emit(); }   // no live dots: last active times still show
-          });
-          ch = c; return c;
-        }, () => { myState = ""; });
-      } catch (e) { ch = null; }
+          const read = () => { let ps = {}; try { ps = c.presenceState() || {}; } catch (e) { ps = {}; } onState(ps); };
+          c.on("presence", { event: "sync" }, read).on("presence", { event: "join" }, read).on("presence", { event: "leave" }, read);
+          rtOpen++; return c;
+        },
+        remove: (c) => { rtOpen = Math.max(0, rtOpen - 1); if (supa && typeof supa.removeChannel === "function") supa.removeChannel(c); else if (c.unsubscribe) c.unsubscribe(); },
+        payload,
+        onLive: (state) => setLive(state || {}),   // null = channel lost: no live dots (last active times still show)
+      });
     }
-    function bump() { const was = stateNow(); lastAct = Date.now(); if (was !== "online") { track(false); touch(false); } }
+    function bump() { const was = stateNow(); lastAct = Date.now(); if (was !== "online") { changed(false); if (leading()) touch(false); } }
+    function onVis() {
+      if (stopped) return;
+      if (!document.hidden) lastAct = Date.now();
+      try { if (leader) leader.visibility(); } catch (e) {}
+      changed(false);
+      if (!document.hidden) { if (leading()) touch(false); if (hasDots()) refreshList(false); }
+    }
+    function stop() {
+      if (!started || stopped) return; stopped = true;
+      try { if (leader) leader.stop(); } catch (e) {}
+      try { if (tracker) tracker.stop(); } catch (e) {}
+      post({ k: "bye", tab: TAB }); if (timer) clearInterval(timer); timer = null;
+      try { if (bc) bc.close(); } catch (e) {} bc = null;
+    }
     async function autoStart() {
       if (started || mode !== "supabase" || !supa || !uid()) return;
       if (typeof document === "undefined" || document.documentElement.getAttribute("data-shell") !== "b") return;   // studio app pages only
+      if (typeof supa.channel !== "function") return;
       let orgId = null; try { orgId = swrOrg(uid()) || (await orgIdStrict()); } catch (e) { orgId = null; }
       if (!orgId || !/^[0-9a-f-]{36}$/i.test(String(orgId))) return;
       started = true;
       await refreshList(true);
-      if (meShow) touch(true);
-      await startLive(orgId);
+      const name = "helm-presence:" + orgId + ":" + uid();
+      try { if (typeof BroadcastChannel === "function") { bc = new BroadcastChannel(name); bc.addEventListener("message", onMsg); } } catch (e) { bc = null; }   // same-origin by spec; onMsg checks every field
+      tracker = makeTracker(orgId);
+      const locks = bc && typeof navigator !== "undefined" && navigator.locks ? navigator.locks : null;   // no tab-to-tab channel: every tab leads
+      leader = presenceLeader({
+        name, locks, hidden: () => !!document.hidden, setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (t) => clearTimeout(t),
+        onLead: () => { if (stopped) return; tracker.start(); post({ k: "hello" }); if (meShow) touch(true); },
+        onFollow: () => { tracker.stop(); live = {}; emit(); post({ k: "hello" }); },
+      });
+      leader.start();
+      if (!leading()) post({ k: "hello" });
+      changed(true);
       ["mousemove", "keydown", "touchstart", "scroll", "click"].forEach((ev) => { try { global.addEventListener(ev, bump, { passive: true }); } catch (e) {} });
-      try { document.addEventListener("visibilitychange", () => { if (!document.hidden) lastAct = Date.now(); track(false); if (!document.hidden) { touch(false); if (hasDots()) refreshList(false); } }); } catch (e) {}
+      try { document.addEventListener("visibilitychange", onVis); } catch (e) {}
+      try { global.addEventListener("pagehide", (e) => { if (!(e && e.persisted)) stop(); }); } catch (e) {}   // a closed / left page frees its channel + lock at once
       timer = setInterval(tick, TICK_MS);
     }
     // { status: "online" | "away" | "offline" | "hidden", lastSeen, label }
@@ -11353,7 +11706,7 @@ window.HelmUrl = HelmUrl;
       });
     }
     return {
-      autoStart, status, paint, lastSeenLabel,
+      autoStart, stop, status, paint, lastSeenLabel,
       onChange(fn) { if (typeof fn === "function") subs.add(fn); return () => subs.delete(fn); },
       // load last active times now (pages that show dots call this once after rendering)
       refresh: () => refreshList(true),
@@ -11363,8 +11716,8 @@ window.HelmUrl = HelmUrl;
         if (mode !== "supabase" || !supa) return { ok: false };
         const { data, error } = await supa.rpc("presence_set_visible", { p_show: !!on });
         if (error) { if (rpcMissing(error)) return { ok: false, missing: true }; throw error; }
-        meShow = !!on;
-        if (ch && liveOk) { try { if (meShow) { myState = ""; await track(true); } else await ch.untrack(); } catch (e) {} }
+        meShow = !!on; post({ k: "show", on: meShow });
+        if (leading() && tracker) tracker.want();   // R209: track / untrack through the throttle like every change
         if (meShow) touch(true);
         emit(); return data || { ok: true };
       },

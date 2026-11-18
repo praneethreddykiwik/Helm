@@ -186,7 +186,8 @@ await t("4b store-api: a stalled call rejects as a network error -> the normal o
   const fakeFetch = (u, init) => { calls.push([u, init]); return new Promise((_, reject) => {
     if (init && init.signal) init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true }); }); };
   const ctx = vm.createContext({ global: { fetch: fakeFetch }, AbortSignal, TypeError, navigator: { onLine: true }, Object,
-    errMsg: (e) => String((e && e.message) || ""), FETCH_TIMEOUT_MS: 40, NO_FETCH_TIMEOUT: /\/(storage|functions)\/v1\//, });
+    errMsg: (e) => String((e && e.message) || ""), FETCH_TIMEOUT_MS: 40, NO_FETCH_TIMEOUT: /\/(storage|functions)\/v1\//,
+    fetchTimeoutFor: () => 40, AUTH_MAIL_TIMEOUT_MS: 75000, });   // R203: auth e-mail calls get their own (longer) deadline
   vm.runInContext(src + isNet + "this.timedFetch = timedFetch; this.isNetworkError = isNetworkError;", ctx);
   let err = null;
   const keepAlive = setTimeout(() => {}, 5000);   // AbortSignal.timeout's timer does not keep node running by itself
@@ -210,7 +211,7 @@ await t("4c store-api cache-buster bumped on every page (one consistent version)
   const pages = readdirSync("public").filter((f) => f.endsWith(".html"));
   const vs = new Set();
   for (const p of pages) for (const m of r("public/" + p).matchAll(/store-api\.js\?v=(\d+)/g)) vs.add(m[1]);
-  assert.deepEqual([...vs], ["371"]);
+  assert.deepEqual([...vs], ["375"]);
 });
 
 console.log(`r142-edge-hardening: ${n} checks passed`);

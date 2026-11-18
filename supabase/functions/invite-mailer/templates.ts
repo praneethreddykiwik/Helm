@@ -1,8 +1,8 @@
 // invite-mailer template (migration 0131; 2026-10 redesign). Uses the shared Helm layout
-// (_shared/email-layout.mjs: emerald brand, hosted logo PNG, dark-mode aware). No tracking. Every user-entered value (inviter, studio) is cleaned + HTML-escaped. The Join link
+// (_shared/email-layout.mjs: light-only green layout (R207), hosted logo PNG). No tracking. Every user-entered value (inviter, studio) is cleaned + HTML-escaped. The Join link
 // is built here from APP_URL + a hex-only token - nothing else in the e-mail comes from the DB.
 
-import { layout, h1, para, strong, button, fallback, note } from "../_shared/email-layout.mjs";
+import { layout, h1, para, strong, button, fallback, note, C } from "../_shared/email-layout.mjs";
 
 export const SUPPORT = "support@helm.events";
 
@@ -92,7 +92,7 @@ export function inviteEmail(opts: { token: unknown; inviter?: unknown; studio?: 
     button(esc(link), "Accept invitation") +
     (expires ? para(`This invitation expires on ${strong(esc(expires))}. After that, ask ${esc(inviter)} for a new one.`, "0 0 16px") : "") +
     fallback(esc(link)) +
-    note(`Didn't expect this? You can ignore this e-mail - nothing happens unless you click the link. Helm will never ask for your password by e-mail. Questions: <a href="mailto:${SUPPORT}" class="lnk" style="color:#0d8a5c;">${SUPPORT}</a>.`),
+    note(`Didn't expect this? You can ignore this e-mail - nothing happens unless you click the link. Helm will never ask for your password by e-mail. Questions: <a href="mailto:${SUPPORT}" class="lnk" style="color:${C.brand};">${SUPPORT}</a>.`),
     { site: esc(site) });
 
   const text = [
@@ -130,7 +130,7 @@ export function newLinkEmail(opts: { link: unknown; studio?: unknown; inviter?: 
     button(esc(link), "Set my password") +
     para("This link works once, within 24 hours.", "0 0 16px") +
     fallback(esc(link)) +
-    note(`Didn't ask for this? Ignore this e-mail - nothing happens unless you open the link. Helm will never ask for your password by e-mail. Questions: <a href="mailto:${SUPPORT}" class="lnk" style="color:#0d8a5c;">${SUPPORT}</a>.`),
+    note(`Didn't ask for this? Ignore this e-mail - nothing happens unless you open the link. Helm will never ask for your password by e-mail. Questions: <a href="mailto:${SUPPORT}" class="lnk" style="color:${C.brand};">${SUPPORT}</a>.`),
     { site: esc(appUrl()) });
   const text = [headline, "", `${inviter} invited you as ${role}. Open this new link in the same browser to choose your password and join ${studio}:`, "", link, "",
     "This link works once, within 24 hours.", "Didn't ask for this? Ignore this e-mail.", `Questions? ${SUPPORT}`, "", "--", "Helm Events · helm.events"].join("\n");

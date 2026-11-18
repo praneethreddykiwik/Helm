@@ -3,7 +3,8 @@
    (supabase.auth.verifyOtp), then:
      invite / magiclink → the Join page (/login?invite=<token>) signed in → accept → "Set your password"
                           when the login has none (the same marks the old #fragment path set)
-     recovery           → /reset-password (choose a new password)
+     recovery           → /reset-password (choose a new password); R204: an account already signed in here is
+                          signed out first (no "sign out first" stop) and the reset page says so
      signup / email     → signed in → /login routes to the studio (only when THIS browser started that
                           sign-up; otherwise "E-mail confirmed - sign in", so a link made for someone
                           else's account can never sign this browser into it)
@@ -117,6 +118,17 @@
     try { await BPStore.init(); } catch (e) {}
     if (!BPStore.auth.enabled || !BPStore.auth.enabled()) { say("Sign-in unavailable", "Accounts aren't enabled in this environment."); return; }
     var cur = BPStore.auth.user && BPStore.auth.user();
+    if (!cur && link.type === "recovery" && BPStore.auth.pendingUser) cur = BPStore.auth.pendingUser();
+    if (cur && link.type === "recovery") {
+      // R204: a password-reset link replaces whoever is signed in here (they asked for it and can't sign in).
+      // The old account is signed out of THIS browser first; the reset page says so when it was a different one.
+      say("Opening your link…", "Signing " + (cur.email || "the current account") + " out of this browser first…");
+      try { sessionStorage.setItem("bp_reset_prev", JSON.stringify({ id: String(cur.id || ""), email: String(cur.email || "") })); } catch (e) {}
+      try { await BPStore.auth.signOut(); } catch (e) {}
+      dropSessionNow();
+      verify();
+      return;
+    }
     if (cur) {
       // never swap the signed-in account for one carried in a link without asking
       say("You're already signed in", "You're signed in as " + (cur.email || "another account") + ". To open this link, sign out first.");

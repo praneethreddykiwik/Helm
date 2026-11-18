@@ -43,7 +43,8 @@ t('APPLY-0366 = the migration, ASCII, editor-safe; MANIFEST + checker override +
 
 t('client: ONE private channel per tab on studio app pages, tracks only user id + online/away', () => {
   assert.match(P, /supa\.channel\("presence:org:" \+ orgId, \{ config: \{ private: true, presence: \{ key: uid\(\) \} \} \}\)/);
-  assert.match(P, /ch\.track\(\{ u: uid\(\), s: st \}\)/);
+  assert.match(P, /function payload\(\) \{ return meShow && uid\(\) \? \{ u: uid\(\), s: mineNow\(\) \} : null; \}/);   // R209: tracked via presenceTracker
+  assert.match(API, /const r = p \? ch\.track\(p\) : ch\.untrack\(\);/);
   assert.match(P, /if \(started \|\| mode !== "supabase"/);
   assert.match(P, /getAttribute\("data-shell"\) !== "b"\) return;   \/\/ studio app pages only/);
   assert.match(API, /presence\.autoStart\(\); \} catch \(e\) \{\} \}, 1500\)/);
@@ -51,7 +52,7 @@ t('client: ONE private channel per tab on studio app pages, tracks only user id 
 });
 
 t('client: no extra load - 60 s tick, touch every 3 min, list every 2 min only when dots show, away after 5 min', () => {
-  assert.match(P, /const IDLE_MS = 5 \* 60000, TOUCH_MS = 3 \* 60000, LIST_MS = 2 \* 60000, TICK_MS = 60000;/);
+  assert.match(P, /const IDLE_MS = 5 \* 60000, TOUCH_MS = 3 \* 60000, LIST_MS = 2 \* 60000, TICK_MS = 60000, PEER_MS = 150000;/);
   assert.match(P, /if \(hasDots\(\)\) refreshList\(false\);/);
   assert.doesNotMatch(P, /setInterval\([^,]+, *(?:[1-5]?\d{1,4})\)/, 'no fast polling');
 });
@@ -63,7 +64,7 @@ t('client: labels + dots (green / amber / grey), hidden people never shown, my s
   assert.match(P, /const COLORS = \{ online: "#22a35a", away: "#f0a020", offline: "#aab3ae" \};/);
   assert.match(P, /if \(s\.status === "hidden" \|\| !started\) \{ el\.hidden = true; return; \}/);
   assert.match(P, /supa\.rpc\("presence_set_visible", \{ p_show: !!on \}\)/);
-  assert.match(P, /await ch\.untrack\(\)/);
+  assert.match(P, /if \(leading\(\) && tracker\) tracker\.want\(\);   \/\/ R209: track \/ untrack through the throttle/);
 });
 
 t('chat: dots on the chat list, header, pickers; DM header says Online now / Last seen; menu switch', () => {
