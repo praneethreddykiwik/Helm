@@ -1130,10 +1130,11 @@ document.addEventListener("DOMContentLoaded", function(){
       box.appendChild(document.createTextNode(" · "));
       box.appendChild(inviteBtn("inviteSignOut","Sign out", async ()=>{ try{ await BPStore.auth.signOut(); }catch(e){} location.replace("login.html"); }));
       box.hidden=false; return; }
-    // 0205: one login = one studio. A login that is already in another studio cannot join this one.
+    // 0205: one login = one studio. A login that is already in another studio cannot join this one. R211: deactivated there
+    // does not free it (the owner asked) - say so; nothing is moved or released automatically.
     if(/already belong to an organi[sz]ation/i.test(String((err&&err.message)||""))){
       box.textContent="";
-      box.appendChild(document.createTextNode("This e-mail"+(u.email?" ("+u.email+")":"")+" already belongs to another studio on Helm, and a login can be in one studio at a time. Ask that studio's admin to remove you first — or ask "+(INVITE_ORG||"this studio")+" to invite a different e-mail. "));
+      box.appendChild(document.createTextNode("This e-mail"+(u.email?" ("+u.email+")":"")+" already belongs to another studio on Helm, and a login can be in one studio at a time (being deactivated there doesn't free it). That studio needs to release this login first (Helm support can help) — or ask "+(INVITE_ORG||"this studio")+" to invite a different e-mail. "));
       box.appendChild(inviteBtn("inviteMyStudio","Go to my studio", ()=>{ routeSignedIn().catch(()=>{ location.replace("/dashboard.html"); }); }));
       box.appendChild(document.createTextNode(" · "));
       box.appendChild(inviteBtn("inviteSignOut","Sign out", async ()=>{ try{ await BPStore.auth.signOut(); }catch(e){} location.replace("login.html"); }));

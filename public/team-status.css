@@ -92,3 +92,23 @@ html[data-theme="dark"] .um-err{background:rgba(220,38,38,.12);border-color:rgba
 #pane-users .utable.ucm td.ucact .ucLink{white-space:nowrap}
 html[data-theme="dark"] .um-2step{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35);color:#fbd38d}
 html[data-theme="dark"] .tag.um-rec{background:rgba(46,184,114,.14);color:#6ee7a8}
+
+/* R211 (owner 18 Nov 2026): "Invite by email link" first and prominent; "Add user" behind "More options" with a warning */
+.um-invite{margin:12px 0 14px;padding:14px 14px 12px;border-radius:12px;border:1px solid var(--hb-acc-line,#b9e4cd);background:var(--hb-acc-soft,#f1faf5)}
+.um-invite-h{margin:0 0 4px;font-size:15px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--ink,#1b1930)}
+.um-invite-n{margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--ink-2,#3f3b4d)}
+.um-invite .addrow{margin:0}
+.um-invite #inv_submit{font-weight:700}
+.um-more{margin-top:12px;border-top:1px solid var(--line-2,#e6efe9);padding-top:8px}
+.um-more[hidden]{display:none!important}
+.um-more>summary{cursor:pointer;width:fit-content;font-size:12.5px;font-weight:600;color:var(--ink-3,#5b566b);list-style:none;padding:4px 0}
+.um-more>summary::-webkit-details-marker{display:none}
+.um-more>summary::after{content:" \25BE";font-size:11px}
+.um-more[open]>summary::after{content:" \25B4"}
+.um-more-b .um-add-h{margin-top:8px}
+.um-warn{margin:0 0 8px;padding:8px 10px;border-radius:8px;border:1px solid #f3d9a4;background:#fff8e8;color:#6b4700;font-size:12.5px;line-height:1.5}
+/* every not-yet-active row: its one main next step first (primary), the rest wrap under it on a phone */
+#pane-users .utable.ucm td.ucact .btn.primary{order:-1}
+#pane-users .utable.ucm td.ucact .ucInvResend,#pane-users .utable.ucm td.ucact .ucReact{white-space:nowrap}
+html[data-theme="dark"] .um-invite{background:rgba(46,184,114,.07);border-color:rgba(46,184,114,.3)}
+html[data-theme="dark"] .um-warn{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35);color:#fbd38d}
