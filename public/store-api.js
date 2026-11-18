@@ -215,6 +215,7 @@ window.HelmUrl = HelmUrl;
   let mode = "local";           // resolved backend: 'supabase' | 'server' | 'local'
   let supa = null;              // Supabase client (lazy)
   let urlAuthCode = false, urlAuthError = "";   // PKCE ?code= return (see init)
+  let urlPriorUser = null, urlHashToken = "";    // R204: who was signed in before a link landed / a #access_token= link (its type only)
   let ready = null;             // init() promise
   let currentUser = null;       // signed-in Supabase user (or null)
   let rtTokenExp = 0;           // R193: when this tab's access token expires (ms; 0 = no live session) - rtLive() joins only before it
@@ -383,14 +384,60 @@ window.HelmUrl = HelmUrl;
       return Array.isArray(claims.amr) ? claims.amr.map((a) => String((a && a.method) || a || "")) : [];
     } catch (e) { return []; }
   }
+  // R204: a reset link opened on /auth/confirm is verified with verifyOtp(), and Supabase signs THAT session
+  // amr "otp" (never "recovery" - only the old ?code= link gives "recovery"). Supabase itself counts otp /
+  // magiclink / recovery sessions as recovery sessions (no current password needed). Here an "otp" session
+  // counts ONLY when this tab verified a reset link for exactly this session (proof below: user id + the
+  // token's session_id, set by verifyEmailLink(type "recovery"), 1 hour). A sign-in by e-mail link or an
+  // invite never qualifies, and the proof cannot outlive or move to another session.
+  const RECOVERY_LINK_KEY = "bp_recovery_link";
+  const RECOVERY_LINK_MS = 60 * 60 * 1000;
+  function jwtClaim(token, name) {
+    try {
+      const part = String(token || "").split(".")[1]; if (!part) return "";
+      const b64 = part.replace(/-/g, "+").replace(/_/g, "/"); const pad = b64 + "===".slice((b64.length + 3) % 4);
+      const v = JSON.parse(atob(pad))[name]; return v == null ? "" : String(v);
+    } catch (e) { return ""; }
+  }
+  function recoveryLinkProof() {
+    try { const v = JSON.parse(sessionStorage.getItem(RECOVERY_LINK_KEY) || "null"); return v && typeof v === "object" ? v : null; } catch (e) { return null; }
+  }
+  function recoveryLinkMark(session) {
+    try {
+      if (!session || !session.user || !session.user.id) return;
+      sessionStorage.setItem(RECOVERY_LINK_KEY, JSON.stringify({ uid: session.user.id, sid: jwtClaim(session.access_token, "session_id"), at: Date.now() }));
+    } catch (e) {}
+  }
+  function recoveryLinkClear() { try { sessionStorage.removeItem(RECOVERY_LINK_KEY); } catch (e) {} }
+  function recoveryLinkMatches(s) {
+    const p = recoveryLinkProof();
+    if (!p || !s || !s.user || p.uid !== s.user.id) return false;
+    if (!(Number(p.at) > 0) || Date.now() - Number(p.at) > RECOVERY_LINK_MS || Number(p.at) > Date.now() + 60000) return false;
+    const sid = jwtClaim(s.access_token, "session_id");
+    if (p.sid || sid) { if (!p.sid || p.sid !== sid) return false; }
+    const amr = jwtAmrMethods(s.access_token);
+    return amr.indexOf("otp") !== -1 || amr.indexOf("magiclink") !== -1;
+  }
   async function isRecoverySession() {
     if (!supa || !currentUser) return false;
     try {
       const { data } = await supa.auth.getSession();
       const s = data && data.session;
       if (!s || !s.user || s.user.id !== currentUser.id) return false;
-      return jwtAmrMethods(s.access_token).indexOf("recovery") !== -1;
+      return jwtAmrMethods(s.access_token).indexOf("recovery") !== -1 || recoveryLinkMatches(s);
     } catch (e) { return false; }
+  }
+  // R204: the account stored in this browser before init() (a reset link may replace it) - id + e-mail only
+  function storedSessionUser() {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!/^sb-[a-z0-9]+-auth-token$/.test(k || "")) continue;
+        const v = JSON.parse(localStorage.getItem(k) || "null"); const u = v && (v.user || (v.currentSession && v.currentSession.user));
+        if (u && u.id) return { id: String(u.id), email: String(u.email || "") };
+      }
+    } catch (e) {}
+    return null;
   }
   // Does this account have a Helm (email) password at all? Google-only → false.
   function hasPasswordLogin(u) {
@@ -1876,6 +1923,9 @@ window.HelmUrl = HelmUrl;
         // #error=access_denied&error_code=otp_expired&error_description=… : note the code
         // (short, allow-listed shape only) so the page can say so, then drop the fragment
         const hErr = String(hp.get("error_code") || hp.get("error") || "");
+        // R204: a #access_token= link (implicit flow) is never used - the reset page asks for a new link
+        if (hp.get("access_token")) urlHashToken = /^[a-z_]{1,32}$/i.test(String(hp.get("type") || "")) ? String(hp.get("type")).toLowerCase() : "token";
+        urlPriorUser = storedSessionUser();
         if (!urlAuthError && /^[a-z0-9_]{1,64}$/i.test(hErr)) urlAuthError = hErr.toLowerCase();
         if (/(^#|&)(access_token|refresh_token|provider_token|error|error_code|error_description)=/.test(location.hash || "") && global.history && global.history.replaceState)
           global.history.replaceState(null, "", location.pathname + location.search);
@@ -2116,6 +2166,10 @@ window.HelmUrl = HelmUrl;
     // could not be exchanged (opened in a different browser, or used / expired).
     linkError: () => urlAuthError,
     linkReturned: () => urlAuthCode,
+    // R204: the account this browser was signed in as before the link landed ({ id, email } | null) and
+    // the type of a #access_token= link that was dropped ("" = none) - reset page only
+    linkPriorUser: () => (urlPriorUser ? { id: urlPriorUser.id, email: urlPriorUser.email } : null),
+    linkFragmentToken: () => urlHashToken,
     pendingStep: () => pendingStep,
     resolveGate: () => evaluateGate(),
     // same-site ?next= sanitiser (login.html) — always returns one of the app's own pages
@@ -2503,9 +2557,12 @@ window.HelmUrl = HelmUrl;
       if (!/^(invite|magiclink|recovery|signup|email|email_change)$/.test(String(type || ""))) { const e = new Error("bad link type"); e.code = "bad_type"; throw e; }
       localAuthOp++;
       try {
+        if (type === "recovery") recoveryLinkClear();
         const { data, error } = await supa.auth.verifyOtp({ token_hash: String(tokenHash || ""), type: type === "signup" ? "email" : type });
         if (error) throw error;
         if (data && data.user) { currentUser = data.user; hadSession = true; }
+        // R204: this exact session came from a reset link (Supabase signs it amr "otp", not "recovery")
+        if (type === "recovery" && data && data.session) recoveryLinkMark(data.session);
         return { user: (data && data.user) || null };
       } finally { localAuthOp--; }
     },
@@ -2596,6 +2653,7 @@ window.HelmUrl = HelmUrl;
       }
       reauthClear();
       lsDel(RECOVERY_KEY);
+      recoveryLinkClear();   // R204: the reset link is used up
       try { await supa.auth.signOut({ scope: "others" }); } catch (e) {}
       return true;
     },
@@ -2603,7 +2661,7 @@ window.HelmUrl = HelmUrl;
     // every staff page in this browser sends the person back to the reset page.
     recovery: {
       mark(uid) { if (uid) lsSet(RECOVERY_KEY, uid); if (currentUser && uid === currentUser.id) pendingStep = "recovery"; },
-      clear() { lsDel(RECOVERY_KEY); },
+      clear() { lsDel(RECOVERY_KEY); recoveryLinkClear(); },
     },
     // ---- two-step verification (TOTP, Supabase Auth MFA) ------------------------
     mfa: {
