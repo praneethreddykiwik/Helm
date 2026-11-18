@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (345 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (346 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4505 objects): body 176, bucket 9, col 242, con 415, cron 19, exec 19, fn 2011, idx 528, marker 105, pol 189, polexpr 4, pre 112, pub 5, seq 1, tbl 290, trg 378, view 2.
+-- What is checked (4507 objects): body 176, bucket 9, col 242, con 415, cron 19, exec 19, fn 2011, idx 530, marker 105, pol 189, polexpr 4, pre 112, pub 5, seq 1, tbl 290, trg 378, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4529,6 +4529,8 @@ with o(m, k, s, n, x) as (values
   ('0389_r217_page_bootstrap', 'marker', 'public', 'page_bootstrap', '|r217-0389'),
   ('0390_r218_vendor_pay_same_key', 'marker', 'public', 'vendor_bill_pay', 'uuid,numeric,numeric,text,date,text,text,text|r218-0390'),
   ('0390_r218_vendor_pay_same_key', 'marker', 'public', 'record_vendor_payout__pre0156', 'uuid,numeric,date,text,text,text|r218-0390'),
+  ('0393_audit_d_list_indexes', 'idx', 'public.ix_leads_org_updated_0393', null, null),
+  ('0393_audit_d_list_indexes', 'idx', 'public.ix_quotes_org_updated_0393', null, null),
   ('0394_e_menu_package_audit', 'trg', 'public.menu_templates', 'audit_trg', null)
 ),
 mig(ord, m, ov, note) as (values
@@ -4876,7 +4878,8 @@ mig(ord, m, ov, note) as (values
   (342, '0389_r217_page_bootstrap', null, 'Page speed: one read-only startup call page_bootstrap() for signed-in pages (studio, sign-in steps, role + access switches, trial / demo / test studio / plan, pricing settings + rate cards), each part the existing function''s own answer - checked by the r217-0389 marker'),
   (343, '0390_r218_vendor_pay_same_key', null, 'Vendor payment sent twice at the same moment: vendor_bill_pay and record_vendor_payout__pre0156 wait on a per-key lock (one line patched in place with dynamic SQL) - checked by the r218-0390 marker'),
   (344, '0391_b_auth_dead_grants', 'skip', 'grants only: revokes signed-in table privileges no RLS policy uses (audit_log / role_access / organizations / chat_* / quote_otps) - nothing to detect by object; verify with the APPLY-0391 check rows'),
-  (345, '0394_e_menu_package_audit', null, null)
+  (345, '0393_audit_d_list_indexes', null, 'Audit D list speed: two additive indexes (org_id, updated_at desc, id desc) on leads and quotes for the newest-first lists; nothing else changed'),
+  (346, '0394_e_menu_package_audit', null, null)
 ),
 env as (
   select
