@@ -1,5 +1,5 @@
 // welcome-mailer templates (migration 0057; 2026-10 redesign on _shared/email-layout.mjs:
-// emerald brand, hosted logo PNG, dark-mode aware). No tracking. Every dynamic value is HTML-escaped. All links are FIXED
+// light-only green layout (R207), hosted logo PNG). No tracking. Every dynamic value is HTML-escaped. All links are FIXED
 // https://www.helm.events pages — nothing in the e-mail comes from a URL in the database.
 // docs/email-templates/welcome-owner.html and welcome-member.html are rendered from here
 // (placeholders {{ name }} / {{ studio }}) — re-render them if you change this file.
@@ -59,7 +59,7 @@ function step(n: number, title: string, text: string, href: string, cta: string)
 </td></tr>`;
 }
 
-// 2026-10: shared Helm layout (hosted logo, emerald, dark-mode aware). preheader is plain text.
+// 2026-10: shared Helm layout (hosted logo, light-only green, R207). preheader is plain text.
 const shell = (title: string, preheader: string, inner: string) => L.layout(title, preheader, inner);
 const h1 = (t: string) => L.h1(t);
 const para = (t: string, pad = "0 0 20px") => L.para(t, pad);
