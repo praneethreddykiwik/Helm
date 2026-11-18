@@ -44,7 +44,7 @@ t('2 landing: faint fill words + chat photo names are CSS-drawn decoration; the 
   assert.match(css, /\.fw\{color:rgba\(16,21,17,\.16\);transition:color \.5s var\(--out\)\}\.fw\.on\{color:var\(--ink\)\}\.fw::before\{content:attr\(data-w\)\}/);
   assert.match(css, /\.cb\.pic::after\{content:attr\(data-f\)\}/);
   assert.match(html, /<div class="vig vig-chat" aria-hidden="true">[\s\S]*?<p class="cb in pic" data-f="advance_receipt\.jpg"><i><\/i><\/p>[\s\S]*?<p class="cb in pic" data-f="stage_ref_3\.jpg"><i><\/i><\/p>/);
-  assert.match(html, /\/home\.css\?v=41"/); assert.match(html, /\/home\.js\?v=41"/);
+  assert.match(html, /\/home\.css\?v=41"/); assert.match(html, /\/home\.js\?v=42"/);   // r214: phone hero film
 });
 
 t('3 0352: APPLY = header + begin + migration verbatim + commit + VERIFY; editor-safe; additive; wired', () => {
