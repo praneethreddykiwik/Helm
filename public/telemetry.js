@@ -52,6 +52,9 @@
         .replace(UUID, '[UUID_REDACTED]')
         .replace(/eyJ[A-Za-z0-9._-]{10,}/g, '[JWT_REDACTED]')
         .replace(/(access_token|refresh_token|apikey|api_key|authorization|bearer)["':=\s]+[^\s"'&]+/gi, '$1=[REDACTED]')
+        // G (audit 2026-11-18): a bare "token=abc" / "secret: abc" / {"password":"abc"} in free text (not after ? or &)
+        // kept its value. Needs an explicit = or : so "token expired" still reads normally.
+        .replace(/\b(token|id_token|secret|client_secret|password|passwd|pwd|signature|sig)\b(["']?\s*[:=]\s*["']?)(?!\[)[^\s"'&,;)}\]]+/gi, '$1$2[REDACTED]')
         .replace(/\b\d{6}\b(?=.*\botp\b)/gi, '[OTP_REDACTED]')
         .replace(/(\botp\b[\s"':=]{1,3})\d{4,8}\b/gi, '$1[OTP_REDACTED]')   // R140: "otp=123456" / "OTP: 123456" (code AFTER the word)
         .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[EMAIL_REDACTED]')
