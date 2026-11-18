@@ -44,7 +44,8 @@ t('store-api milestones.record forwards p_idempotency_key', () => {
 });
 t('flow.html recordPayment generates one stable key, passes it, and does not re-enable on success', () => {
   const s = read('public/flow.html');
-  assert.match(s, /const idem=\(typeof crypto/, 'a per-submission idempotency key must be generated');
+  assert.match(s, /key:\(typeof crypto!=="undefined"&&crypto\.randomUUID\)\?crypto\.randomUUID\(\)/, 'a per-submission idempotency key must be generated');   // r218: kept across a retry click (r218-reliability)
+  assert.match(s, /const idem=recordPayment\._idem\.key;/);
   assert.match(s, /BPStore\.milestones\.record\(id, amount, method,[\s\S]*?, null, null, idem\)/, 'the key must be passed to record()');
   // re-enable must live in the catch, not an unconditional finally
   assert.ok(!/finally\{ \$\("#pay_record"\)\.disabled=false; \}/.test(s), 'button must not be re-enabled unconditionally after success');

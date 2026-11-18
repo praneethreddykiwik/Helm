@@ -27,7 +27,9 @@
   }
   function clean(v) { return stripHtml(v).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim(); }
 
-  var NAME_RE = /^[\p{L}\p{M}](?:[\p{L}\p{M} '’-]*[\p{L}\p{M}])?$/u;
+  // audit C (r218): + the joiners some Indian keyboards type inside a word (U+200C / U+200D) and initials with a full stop
+  // ("K. Srinivas", "Ravi K.") - both were refused before
+  var NAME_RE = /^[\p{L}\p{M}](?:[\p{L}\p{M}\u200C\u200D '’.-]*[\p{L}\p{M}.\u200C\u200D])?$/u;
   var EMAIL_RE = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,}$/;
 
   function lc(label) { return String(label || "this field").replace(/^./, function (c) { return c.toLowerCase(); }); }
@@ -39,8 +41,8 @@
       if (!s) return o.required ? { ok: false, error: "Please enter " + (o.article === false ? "" : "your ") + lc(o.label || "name") + "." } : { ok: true, value: "" };
       var max = o.max || 50;
       if ([...s].length > max) return { ok: false, error: "Please keep " + lc(o.label || "the name") + " to " + max + " characters or fewer." };
-      if (!NAME_RE.test(s)) return { ok: false, error: "Names can use letters, spaces, hyphens (-) and apostrophes (') only." };
-      if (/[-']{2,}|\s[-']|[-']\s/.test(s)) return { ok: false, error: "That doesn't look like a name — check the hyphens and apostrophes." };
+      if (!NAME_RE.test(s)) return { ok: false, error: "Names can use letters, spaces, hyphens (-), apostrophes (') and full stops (.) only." };
+      if (/[-'.]{2,}|\s[-'.]|[-']\s/.test(s)) return { ok: false, error: "That doesn't look like a name — check the hyphens and apostrophes." };
       return { ok: true, value: s };
     },
     email: function (v, o) {

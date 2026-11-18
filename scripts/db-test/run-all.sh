@@ -461,6 +461,9 @@ run "r154f-email-probe-0352" "R154F-EMAIL-PROBE-0352: ALL PASS \(21/21\)" psql -
 run "r156-wa-template-jobs-0354" "R156-WA-TEMPLATE-JOBS-0354: ALL PASS \(48/48\)" psql -q -f tests/db/r156-wa-template-jobs-0354.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
+# r218 (audit C, 0390): two vendor payments with the SAME key at the same moment = one payout + "already recorded" (before: a duplicate-key error for a payment that was saved)
+run "r218-vendor-pay-race-0390" "R218-VENDOR-PAY-RACE \(vendor_bill_pay\): PASS" bash tests/db/r218-vendor-pay-same-key-race.sh vendor_bill_pay
+run "r218-vendor-payout-race-0390" "R218-VENDOR-PAY-RACE \(record_vendor_payout\): PASS" bash tests/db/r218-vendor-pay-same-key-race.sh record_vendor_payout
 
 echo "----------------------------------------"
 if [ "$fail" = 0 ]; then echo "DB SUITES: ALL GREEN"; else echo "DB SUITES: FAILURES ABOVE"; exit 1; fi
