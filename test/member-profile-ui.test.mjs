@@ -219,7 +219,7 @@ t('DB business messages from 0041 are shown as-is; technical ones are not', asyn
 /* ------------------------------------------------------------ User control: rendering */
 function ucCtx() {
   const ctx = { esc };
-  vm.runInNewContext(['ucId', 'ucDate', 'ucShownName', 'ucNameHtml', 'ucPhone', 'ucInitials', 'ucPrivateVisible', 'ucMatches', 'ucTable']
+  vm.runInNewContext(['ucId', 'ucDate', 'ucShownName', 'ucNameHtml', 'ucPhone', 'ucInitials', 'ucPrivateVisible', 'ucMatches', 'ucState', 'ucAcctCell', 'ucInviteRows', 'ucTable']
     .map((f) => (f === 'ucId' ? 'const ucId=(u)=>u.user_id||u.id;' : fnSrc(ctl, f))).join('\n') + '\nglobalThis.T=ucTable;', ctx);
   return ctx;
 }
@@ -229,11 +229,12 @@ t('User control: Name / Phone / Job title / Department / Profile (+ joined) / ph
   const rows = [mrow(1, 2, { full_name: 'Asha Admin', role: 'admin' }), mrow(2, 2, { avatar_path: AV(U(2)) }),
     mrow(3, 2, { complete: false, phone: null, profile_completed_at: null, full_name: '' })];
   const r = T(rows, { profiles: true, meId: U(1), roles: ROLES, roleLabel: (x) => x, canEdit: true, q: '', filter: '' });
-  for (const h of ['Name', 'Phone', 'Job title', 'Role', 'Profile']) assert.match(r.head, new RegExp(`<th scope="col">${h}</th>`));
+  for (const h of ['Name', 'Phone', 'Job title', 'Role', 'Account']) assert.match(r.head, new RegExp(`<th scope="col">${h}</th>`));
   assert.match(r.body, /<div class="ucsub ucdept">Production<\/div>/, 'r22: department shown under the job title (one column)');
   assert.match(r.body, /\+91 98765 43210/, 'phone shown (admins get it) in a readable format');
   assert.match(r.body, /Rigger/); assert.match(r.body, /Production/);
-  assert.match(r.body, /✓ Complete/); assert.match(r.body, /✗ Incomplete/); assert.match(r.body, /Joined /);
+  // R199: "Complete / Incomplete" (read as "signed up") is gone - the account status + a separate profile hint
+  assert.doesNotMatch(r.body, /✓ Complete|✗ Incomplete/); assert.match(r.body, /Joined /); assert.match(r.body, /class="ucsub ucst-hint"[^>]*>Profile incomplete</);
   assert.match(r.body, new RegExp(`data-avatar-path="${reEsc(AV(U(2)))}"`), 'photo thumbnail painted from avatar_path');
   assert.equal((r.body.match(/class="btn sm ucEdit"/g) || []).length, 3, 'admin Edit button per row');
   assert.equal((r.body.match(/class="rm"/g) || []).length, 2, 'no remove button on my own row');

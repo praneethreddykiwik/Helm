@@ -50,7 +50,7 @@ t('login status: Active user / Invited / No login', () => {
   assert.equal(ls({ email: 'a@x.in' }, [{ email: 'a@x.in', status: 'pending', expires_at: past }]), 'none');
   assert.equal(ls({ email: 'a@x.in' }, [{ email: 'a@x.in', status: 'revoked' }]), 'none');
   assert.equal(ls({}, []), 'none');
-  assert.match(html, />Active user\$\{/); assert.match(html, />Invited<\/span>/); assert.match(html, />No login<\/span>/);
+  assert.match(html, />Active user\$\{/); assert.match(html, />Invited – not signed up<\/span>/); assert.match(html, />No login<\/span>/);
 });
 t('changing a linked person\'s role = admin-only login-role change via 0106 RPC, with a confirm', () => {
   assert.match(html, /const loginRoleChange=linked&&isAdminUser&&rkey&&rkey!=="custom"&&rkey!==rsel\.dataset\.orig\?rkey:null;/);

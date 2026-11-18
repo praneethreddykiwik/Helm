@@ -167,8 +167,9 @@ await t('ui-pickers: hidden helper date inputs (aria-hidden / hidden) are not en
 /* ---- control center: "Create invite link" label comes back once the invite exists ---- */
 await t('control: the guard covers create only; the e-mail flush runs after the label is restored', () => {
   const c = R('public/control.html');
-  const h = c.slice(c.indexOf('$("#inv_add").addEventListener("submit"'), c.indexOf('$("#inv_link").addEventListener("click"'));
-  const g0 = h.indexOf('await BPUI.guard($("#inv_submit")'), g1 = h.indexOf('{busyLabel:"Creating…"})');
+  // R199: the invite form, "Send invite link instead" and an expired "Resend invite" share sendInvite()
+  const h = c.slice(c.indexOf('async function sendInvite(email, role, btn, T){'), c.indexOf('$("#inv_link").addEventListener("click"'));
+  const g0 = h.indexOf('await BPUI.guard(btn||$("#inv_submit")'), g1 = h.indexOf('{busyLabel:"Creating…"})');
   assert.ok(g0 > 0 && g1 > g0);
   const inGuard = h.slice(g0, g1), after = h.slice(g1);
   assert.match(inGuard, /BPStore\.invitations\.create\(email, role\)/);

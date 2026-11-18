@@ -79,7 +79,7 @@ assert.match(html, /<link rel="stylesheet" href="\/builder-immersive\.css\?v=1">
 assert.ok(html.indexOf('builder-immersive.css') > html.indexOf('builder-landscape.css'), 'loads after the landscape sheet');
 assert.match(html, /<script src="builder-immersive\.js\?v=1"><\/script>/);
 assert.ok(html.indexOf('builder-immersive.js') > html.indexOf('fullscreen.js') && html.indexOf('builder-immersive.js') > html.indexOf('builder.js?v='), 'after fullscreen.js and builder.js');
-assert.match(html, /builder\.js\?v=93/); assert.match(html, /fullscreen\.js\?v=6/); assert.match(html, /builder-orient\.js\?v=2/); assert.match(html, /page-tours\.js\?v=51/);
+assert.match(html, /builder\.js\?v=93/); assert.match(html, /fullscreen\.js\?v=6/); assert.match(html, /builder-orient\.js\?v=2/); assert.match(html, /page-tours\.js\?v=52/);
 assert.match(read('capture.html'), /builder-immersive\.css\?v=1/, 'capture.html regenerated');
 assert.match(read('try.html'), /builder-immersive\.js\?v=1/, 'try.html regenerated (the script no-ops there)');
 assert.match(tours, /\{ sel: \["header \.brand", "#bimBack"\]/); assert.match(tours, /\{ sel: \["#viewSeg", "#bimRail"\]/); assert.match(tours, /\{ sel: \["#saveBtn", "#bimSave"\]/);
@@ -88,5 +88,5 @@ assert.match(tours, /\{ sel: "#bimMore"/); assert.match(tours, /\{ sel: "#bimNav
 // ---- B) Home "Continue quotes": 3 ----
 const fr = read('flow-resume.js');
 assert.match(fr, /var HOME_MAX = 3;/, 'Home lists up to 3');
-for (const f of ['dashboard.html', 'event.html', 'discovery.html', 'flow.html', 'quotes.html', 'proposal.html']) assert.match(read(f), /flow-resume\.js\?v=9/, f + ' cache-bust');
+for (const f of ['dashboard.html', 'event.html', 'discovery.html', 'flow.html', 'quotes.html', 'proposal.html']) assert.match(read(f), /flow-resume\.js\?v=10/, f + ' cache-bust');
 console.log('r164-builder-immersive: ok');

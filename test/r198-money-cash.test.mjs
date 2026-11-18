@@ -224,11 +224,11 @@ t('SQL 0377: additive + guarded, finance-gated + own studio, read-only, per-pers
   assert.ok(A.includes(M.trim()), 'APPLY embeds the migration verbatim');
   assert.match(A, /^begin;$/m); assert.match(A, /^commit;$/m); assert.match(A, /^select item, ok from \(values$/m);
   assert.doesNotMatch(A, /create temp|temporary table|set_config|^\\/im);
-  assert.match(MAN, /forward  supabase\/migrations\/0377_r198_event_money_cash\.sql\n?$/);
+  assert.match(MAN, /forward  supabase\/migrations\/0377_r198_event_money_cash\.sql\n/);
   assert.ok(OVR['0377'] && OVR['0377'].add.includes('marker public.event_money_cash(uuid) r198-0377'));
   assert.match(CHK, /0377_r198_event_money_cash/);
   assert.match(RUN, /run "r198-money-cash-0377" "R198-MONEY-CASH-0377: ALL PASS \\\(19\/19\\\)"/);
-  assert.match(R1019, /'0376', '0377'\]/); assert.match(R1020, /'0376', '0377'\]/);
+  assert.match(R1019, /'0376', '0377'[,\]]/); assert.match(R1020, /'0376', '0377'[,\]]/);
 });
 
 console.log(`\n${n} passed, ${fail} failed`);

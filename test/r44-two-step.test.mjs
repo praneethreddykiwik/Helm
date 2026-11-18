@@ -251,12 +251,14 @@ t('B4 store-api: Team status RPC (null when 0291 is missing / not allowed), bell
   assert.match(API, /out\[r\.user_id\] = r\.two_step === true/);
   assert.match(API, /if \(ev === "two_step_intro"\) return "dashboard\.html#two-step-setup";/);
   assert.match(API, /const AUTH_UI_VERSION = "62";/);
-  assert.match(read('public/dashboard.html'), /store-api\.js\?v=369/); assert.match(CC, /store-api\.js\?v=369/);
+  assert.match(read('public/dashboard.html'), /store-api\.js\?v=370/); assert.match(CC, /store-api\.js\?v=370/);
 });
 
 /* ------------------------------------------------------------------ C. Settings -> Team badge */
 const ccFrom = CC.indexOf('  const ucId=(u)=>u.user_id||u.id;');
-const ccTo = CC.indexOf('    return { head, body, shown:rows.length, total:list.length };\n  }', CC.indexOf('function ucTable(list, o){')) + '    return { head, body, shown:rows.length, total:list.length };\n  }'.length;
+// R199: ucTable now also counts the invite rows (members / invited)
+const ccEnd = '    return { head, body, shown:rows.length, total:all.length, members:list.length, invited:all.length-list.length };\n  }';
+const ccTo = CC.indexOf(ccEnd, CC.indexOf('function ucTable(list, o){')) + ccEnd.length;
 const ucSrc = CC.slice(ccFrom, ccTo);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function ucTable(list, o) {
@@ -286,7 +288,7 @@ t('C3 Team wiring: fetched with the list for admins only (never blocks it); refr
   assert.match(CC, /\.ts-badge\.off\{/);
 });
 t('C4 with r33 (0283): the badge sits next to the Team view (owner / deactivated / Deactivate buttons) in the same table', () => {
-  assert.match(CC, /canEdit:isAdmin, twoStep:ucTwoStep,\s*\n\s*q:\$\("#uc_q"\)\.value, filter:ucProfiles\?\$\("#uc_f"\)\.value:"", team\}\);/);
+  assert.match(CC, /canEdit:isAdmin, twoStep:ucTwoStep,\s*\n\s*q:\$\("#uc_q"\)\.value, filter:ucProfiles\?\$\("#uc_f"\)\.value:"", team, acct:ucAcct, now:Date\.now\(\)\}\);/);
   assert.match(CC, /let ucRows=\[\], ucProfiles=false, ucTeam=null, ucTwoStep=null;/);
   assert.match(CC, /\$\{roleSel\(u,self\)\}\$\{ts\(u\)\}/);
   assert.match(CC, /\/\/ r33 \(0283\): "Remove" is now Deactivate/);

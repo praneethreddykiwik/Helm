@@ -237,6 +237,14 @@
     try { if (s.auth.enabled && s.auth.enabled()) { var u = s.auth.user(); return u && u.id ? u : null; } } catch (e) { return null; }
     return { id: "anon" };
   }
+  /* R199 (prod log 17 Nov 2026: Postgres 42501 "not authorized for this event", the same cause R193 fixed for the booklet
+     widgets): flow.html / event.html publish their own quote check as window.HelmPageQuote (a promise of the opened quote
+     id, or null when it was not found / is another studio's). Every call here that names ONE quote waits for it, so a stale
+     link or a quote of another studio never sends mark_flow_step / the quote's progress read. Pages without it: unchanged. */
+  function pageQuoteOk(id) {
+    var p = root.HelmPageQuote; if (!p || typeof p.then !== "function") return Promise.resolve(true);
+    return p.then(function (q) { return !!q && String(q).toLowerCase() === String(id).toLowerCase(); }, function () { return false; });
+  }
   function serverOn(s) { try { return !!(s && s.flowProgress && s.flowProgress.available && s.flowProgress.available()); } catch (e) { return false; } }
   /* the list: server first; browser copy only when the server has no 0206 / local mode */
   function load(s, uid, opts) {
@@ -261,7 +269,7 @@
   }
   function dismiss(s, uid, quoteId) {
     dismissLocal(uid, quoteId);
-    if (serverOn(s)) return Promise.resolve(s.flowProgress.dismiss(quoteId)).catch(function () { return null; });
+    if (serverOn(s)) return pageQuoteOk(quoteId).then(function (ok) { return ok ? s.flowProgress.dismiss(quoteId) : { ok: false, skipped: true }; }).catch(function () { return null; });
     return Promise.resolve({ ok: true, local: true });
   }
 
@@ -270,7 +278,7 @@
   function resumeStep(s, uid, quoteId, ms) {
     var local = function () { var st = lastStep(uid, quoteId); return st ? { step: st, mine: true, who: "", at: null } : null; };
     if (!serverOn(s) || !UUID.test(String(quoteId || ""))) return Promise.resolve(local());
-    return withTimeout(Promise.resolve(s.flowProgress.list({ scope: "studio", quote: quoteId, limit: 1 })).then(function (d) {
+    return withTimeout(pageQuoteOk(quoteId).then(function (ok) { return ok ? s.flowProgress.list({ scope: "studio", quote: quoteId, limit: 1 }) : { rows: [] }; }).then(function (d) {
       var r = d && Array.isArray(d.rows) ? d.rows[0] : null;
       if (!d) return local();
       if (!r) return null;
@@ -286,7 +294,8 @@
     function send(step) {
       pending = null; if (stopped || step === last) return Promise.resolve(null); last = step;
       var s = o.store || S(), uid = o.uid || "anon", nm = ""; try { nm = typeof o.name === "function" ? o.name() : (o.name || ""); } catch (e) {}
-      var p = serverOn(s) ? Promise.resolve(s.flowProgress.mark(o.quoteId, step)).catch(function () { return null; }) : Promise.resolve({ ok: false, local: true });
+      // R199: only once the page found this quote (a stale / other-studio link sends nothing)
+      var p = serverOn(s) ? pageQuoteOk(o.quoteId).then(function (ok) { return ok ? s.flowProgress.mark(o.quoteId, step) : { ok: false, skipped: true }; }).catch(function () { return null; }) : Promise.resolve({ ok: false, local: true });
       return p.then(function (r) {
         if (r && r.read_only) { stopped = true; return r; }                                      // read-only studio: stop trying
         if (!r || r.local || r.missing) record(uid, { quoteId: o.quoteId, name: nm, step: step });   // no 0206 / local mode / offline: browser copy
@@ -470,7 +479,7 @@
       var fp = s.flowProgress, get = typeof fp.open === "function" ? fp.open : fp.list;
       var can = o.canEdit === true ? Promise.resolve(true)
         : Promise.resolve(s.auth && typeof s.auth.canEditArea === "function" ? s.auth.canEditArea("quotes") : true).then(function (x) { return x !== false; }, function () { return false; });
-      return Promise.all([withTimeout(Promise.resolve(get.call(fp, { scope: "studio", quote: id, limit: 1 })), 8000, null), can]).then(function (a) {
+      return Promise.all([withTimeout(pageQuoteOk(id).then(function (ok) { return ok ? get.call(fp, { scope: "studio", quote: id, limit: 1 }) : null; }), 8000, null), can]).then(function (a) {
         if (seq !== bannerSeq) return null;                                                     // a newer banner was asked for
         var d = a[0], r = d && Array.isArray(d.rows) ? d.rows[0] : null;
         if (!a[1] || !r || d.can_edit === false || String(r.id) !== id) return drop();

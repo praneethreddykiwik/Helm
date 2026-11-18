@@ -24,7 +24,7 @@ function fnSrc(src, name) {
 }
 function ucTable() {
   const ctx = { esc };
-  vm.runInNewContext('const ucId=(u)=>u.user_id||u.id;' + ['ucDate', 'ucShownName', 'ucNameHtml', 'ucPhone', 'ucInitials', 'ucPrivateVisible', 'ucMatches', 'ucTable']
+  vm.runInNewContext('const ucId=(u)=>u.user_id||u.id;' + ['ucDate', 'ucShownName', 'ucNameHtml', 'ucPhone', 'ucInitials', 'ucPrivateVisible', 'ucMatches', 'ucState', 'ucAcctCell', 'ucInviteRows', 'ucTable']
     .map((f) => fnSrc(C, f)).join('\n') + '\nglobalThis.T=ucTable;', ctx);
   return ctx.T;
 }
@@ -132,7 +132,7 @@ await t('store-api: BPStore.team -> team_* RPCs; bell kind team_safety (label + 
   assert.match(API, /team_safety: \["🛡️", String\(d\.label \|\| "Team change"\)\],/);
   assert.match(API, /if \(k === "team_safety"\) return "control\.html#users";/);
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = rd('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '369', f);
+    const m = rd('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '370', f);
   }
 });
 await t('comms-dispatch: the team_safety e-mail for every event (names only, Team link on APP_URL); unknown event -> null', async () => {
