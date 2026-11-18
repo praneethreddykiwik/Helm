@@ -160,11 +160,11 @@ await t('MANIFEST, checker override, run-all (+ quiet switch), release lists, CH
   assert.match(DB, /v_midnight := \(\(now\(\) at time zone tz\)::date\)::timestamp at time zone tz;/, 'the studio today');
   assert.match(DB, /now\(\) - interval '20 minutes'/); assert.match(DB, /^rollback;$/m);
 });
-await t('asset pins: store-api v376 + page-tours v55 on every page that loads them', () => {
+await t('asset pins: store-api v376 + page-tours v56 on every page that loads them', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const h = read('public/' + f);
     const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '376', f);
-    const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '55', f);
+    const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '56', f);
   }
 });
 
