@@ -90,7 +90,7 @@ await t('AUTH-4 no session is ever made from a #access_token fragment (legacy in
   assert.ok(i > 0 && j > i && k > j, 'invite / magic link: asks first, marks the session only on Continue');
   assert.ok(!/markInviteLinkSession\(need\);\s*go\(link\.next\)/.test(AC), 'never continues silently');
   assert.match(AC, /if \(o\.onContinue\) o\.onContinue\(\); else handoff\(\);/);
-  assert.match(rd('public/auth-confirm.html'), /auth-confirm\.js\?v=7/);
+  assert.match(rd('public/auth-confirm.html'), /auth-confirm\.js\?v=8/);
 });
 await t('AUTH-1 the join page sends the e-mailed mail key (&k=) to invite-signup; fallback otherwise', () => {
   const m = /async signupDirect\([\s\S]*?\n    \},/.exec(API)[0];
@@ -105,9 +105,9 @@ await t('AUTH-1 the join page sends the e-mailed mail key (&k=) to invite-signup
   const TPL = rd('supabase/functions/invite-mailer/templates.ts');
   assert.match(TPL, /invite_mail_key_set/); assert.match(TPL, /p_hash: await sha256Hex\(key\)/);
 });
-await t('store-api cache-buster: every page loads store-api.js?v=371', () => {
+await t('store-api cache-buster: every page loads store-api.js?v=372', () => {
   for (const p of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = rd('public/' + p).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '371', p);
+    const m = rd('public/' + p).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '372', p);
   }
 });
 

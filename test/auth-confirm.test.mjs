@@ -78,7 +78,7 @@ t("handler: token out of the address bar, no silent account swap, sign-up sessio
   const api = r("public/store-api.js");
   assert.match(api, /supa\.auth\.verifyOtp\(\{ token_hash: String\(tokenHash \|\| ""\), type: type === "signup" \? "email" : type \}\)/);
   assert.match(api, /localStorage\.setItem\(SIGNUP_MARK_KEY/);
-  assert.match(r("public/reset-password.js"), /qp\.get\("via"\) === "confirm"/);
+  assert.match(r("public/reset-link-core.js"), /viaConfirm: q\.get\("via"\) === "confirm"/);   // R204: parsing moved to the core
 });
 t("e-mails never show the Supabase project URL", () => {
   for (const f of ["confirm-signup", "invite-user", "magic-link", "reset-password", "change-email"]) {
