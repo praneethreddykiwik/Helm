@@ -78,7 +78,8 @@ await t('2 the studio clock picks the phase (never the device zone); overnight w
   // a strike after midnight (event date was yesterday): still "on the day" while the work runs
   const strike = [{ status: 'assigned', planned_start: '2026-11-20T20:00:00Z', planned_end: '2026-11-20T22:00:00Z' }];
   assert.equal(TS.phase({ eventDate: '2026-11-20', tasks: strike, now: Date.parse('2026-11-20T21:00:00Z'), tz: 'Asia/Kolkata' }), 'live');
-  assert.match(BRD, /TS\.phase\(\{ eventDate: evDate\(\), tasks: G\(\)\.tasks, now: Date\.now\(\), tz: tz\(\) \}\)/);
+  // R222: the page now uses TS.opsMode (run-sheet / tasks / Guests arrive / stage); TS.phase stays for older callers
+  assert.match(BRD, /TS\.opsMode\(\{ eventDate: evDate\(\), eventTime: q\.eventTime, stage: q\.lifecycleStage \|\| q\.lifecycle_stage, status: q\.status,\s+tasks: G\(\)\.tasks, runsheet: S\.rs, now: Date\.now\(\), tz: tz\(\) \}\)/);
   assert.match(BRD, /function tz\(\) \{ try \{ return B\(\)\.studioTimezone\(\); \}/);
   assert.match(BRD, /"helm\.tc\.phase\." \+ \(G\(\)\.quoteId \|\| ""\)/, 'manual override per event (this browser session)');
 });
@@ -162,7 +163,7 @@ await t('5d Smart schedule is ON HOLD (phase 7): no switch, no backward scheduli
 await t('5e the sheet: four steps, the person list with free / busy / asked off / day off, the button says what happens', () => {
   assert.match(OPS, /<legend><span data-step>1\. <\/span>What<\/legend>/); assert.match(OPS, /<legend><span data-step>2\. <\/span>Who<\/legend>/);
   assert.match(OPS, /<legend><span data-step>3\. <\/span>When <small>/); assert.match(OPS, /<legend><span data-step>4\. <\/span>Tell them<\/legend>/);
-  assert.match(BRD, /text: x\.pending \? "asked off" : "day off"/); assert.match(BRD, /text: "booked elsewhere"/); assert.match(BRD, /text: "● free"/); assert.match(BRD, /"★ matches"/);
+  assert.match(BRD, /text: x\.pending \? "asked for the day off" : "day off"/); assert.match(BRD, /text: "busy elsewhere"/); assert.match(BRD, /text: "● free that day"/); assert.match(BRD, /"★ matches"/);
   assert.match(BRD, /"Assign " \+ n \+ " task" \+ \(n === 1 \? "" : "s"\) \+ " to " \+ who/);
   assert.match(OPS, /id="asSpecial"> ▲ Special \(P1\)/);
   // existing tasks (Give to someone / Reassign / bulk Assign) go through reassign_task, the can't-work confirm stays

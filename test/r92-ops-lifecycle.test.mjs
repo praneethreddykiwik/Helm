@@ -56,7 +56,7 @@ await t('4 CSS + no inline style on suggestions', async () => {
   assert.ok(!/style=/.test(sugg), 'no style= in renderSuggestions');
   // R192: suggestions rank the sheet's person list (free / booked elsewhere / asked off / day off, star = department match)
   assert.match(sugg, /sugg=\{\}; \(list\|\|\[\]\)\.forEach\(s=>\{ if\(s&&s\.id\) sugg\[s\.id\]=s; \}\);/);
-  assert.match(read('public/ops-board.js'), /text: x\.pending \? "asked off" : "day off"/);
+  assert.match(read('public/ops-board.js'), /text: x\.pending \? "asked for the day off" : "day off"/);
   assert.match(ops, /\.sugg\{margin:0 6px 6px 0\} \.sugg\.busy\{opacity:\.6\}/);
   const coarse = ops.slice(ops.indexOf('@media (pointer:coarse)'));
   assert.match(coarse, /\.btn,\.btn\.sm,\.account button,\.tabs button\{min-height:44px/);

@@ -167,9 +167,9 @@
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="task-reminders.css?v=4"><link rel="stylesheet" href="when-picker.css?v=3"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=6">
-<link rel="stylesheet" href="ops-board.css?v=1">
+<link rel="stylesheet" href="ops-board.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=96" id="shellProto"></script>
+<script src="/shell-proto.js?v=97" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -210,8 +210,15 @@
       <button type="button" class="tc-btn sm ghost" id="tcPhaseAuto" hidden>Use the studio’s clock</button>
     </div>
 
+    <!-- R222 (EVENT-OPS-PLAN.md): Before = "Get set up" shortcuts; On the day = run-sheet now / next, issues, wrap up (ops-board.js) -->
+    <section class="tc-card tc-prep" id="tcPrep" aria-label="Get set up" hidden></section>
+    <section class="tc-card tc-runcard" id="tcRun" aria-label="Run-sheet" hidden></section>
     <section class="tc-attn" id="attn" aria-label="Needs attention"></section>
     <span class="tc-sr" id="tcAnnounce" aria-live="polite"></span>
+    <div class="tc-ops2">
+      <section class="tc-card tc-iss" id="tcIssues" aria-label="Issues" hidden></section>
+      <section class="tc-card tc-wrap" id="tcWrap" aria-label="Wrap up" hidden></section>
+    </div>
 
     <div class="tc-layout">
       <section class="tc-work tc-card" id="work" aria-labelledby="workH">
@@ -390,9 +397,9 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=382"></script>
-<script src="task-status.js?v=1"></script>
-<script src="ops-board.js?v=2"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=383"></script>
+<script src="task-status.js?v=2"></script>
+<script src="ops-board.js?v=3"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -485,7 +492,7 @@
     if($("#assignKind").value==="outsourced"){ if(window.OpsBoard) OpsBoard.picks(); return; }
     let list=[]; try{ list=await BPStore.staff.suggest({category:activeCat, date:quote&&quote.eventDate, excludeQuote:quoteId, limit:500}); }catch{ list=[]; }
     sugg={}; (list||[]).forEach(s=>{ if(s&&s.id) sugg[s.id]=s; });
-    if(window.OpsBoard) OpsBoard.picks();
+    if(window.OpsBoard){ OpsBoard.picks(); OpsBoard.update(); }   // R222: crew cards say Busy elsewhere once this is known
   }
   async function refresh(pending){
     [crew,tasks,tokens,vendors,evidence]=await (pending||fetchOps());
@@ -511,10 +518,12 @@
   function crewOption(c){ return `<option value="${esc(c.id)}">${esc(c.name)}${c.department?" · "+esc(c.department):""} · ${esc(c.phone)}${c.profile_id?" · 🔗":""}${offIds.has(c.id)?(offIds.get(c.id).pending?" · ⏳ asked off this day (waiting for approval)":" · ⛔ approved day off"):""}${noMail(c)?" · no email":""}</option>`; }
   // R174 (0265 data): people who marked the work day (the start time's day, else the event day) as "can't work"
   let offIds=new Map(), offDay="";   // R187 (0370): crew id -> {note, pending}; pending = asked off, still waiting for an answer
+  let bookedIds=null;   // R222: crew id -> event codes they also work on that day (crew_day_status "booked"); null = not known
   function workDay(){ const v=$("#as_when")&&(asDay==="before"||asDay==="event")?$("#as_when").value:""; return v?String(v).slice(0,10):(quote&&quote.eventDate)||""; }
-  async function loadOff(){ const d=workDay(); if(!d||!BPStore.ops.shifts||!BPStore.ops.shifts.dayStatus){ offIds=new Map(); offDay=""; return; }
+  async function loadOff(){ const d=workDay(); if(!d||!BPStore.ops.shifts||!BPStore.ops.shifts.dayStatus){ offIds=new Map(); offDay=""; bookedIds=null; return; }
     if(d===offDay) return; let st=null; try{ st=await BPStore.ops.shifts.dayStatus(d, quoteId); }catch(e){ st=null; }
-    offIds=new Map(); (st||[]).forEach(x=>{ if(x&&x.unavailable) offIds.set(x.crew_id, {note:x.note||"", pending:x.approval==="pending"}); }); offDay=d;   // R187: pending = asked off, waiting for approval
+    offIds=new Map(); (st||[]).forEach(x=>{ if(x&&x.unavailable) offIds.set(x.crew_id, {note:x.note||"", pending:x.approval==="pending"}); }); offDay=d;
+    bookedIds=Array.isArray(st)?new Map():null; (st||[]).forEach(x=>{ const c=(x&&Array.isArray(x.booked)?x.booked:[]).map(b=>(b&&b.code)||"").filter(Boolean); if(x&&x.booked&&x.booked.length) bookedIds.set(x.crew_id,c); });   // R187: pending = asked off, waiting for approval
     const sel=$("#assignCrew"); if(sel&&crew.length){ const v=sel.value; sel.innerHTML=`<option value="">— pick staff —</option>`+crew.map(crewOption).join(""); sel.value=v; crewWho(sel,$("#assignWho")); }
     if(window.OpsBoard) OpsBoard.picks(); }
   // R171: no e-mail on the staff record and no linked Helm login = nothing to e-mail them
@@ -1021,7 +1030,7 @@
   // R192: no 7-second full redraw any more - ops-board.js runs ONE 30 s refresh (shared with /monitor, task-status.js) that
   // skips while a pop-up is open, and only redraws the rows that changed
   window.OpsPage={
-    get:()=>({quote, quoteId, crew, tasks, tokens, vendors, evidence, CATS, activeCat, canEdit:canEditOps, canVerify, offIds, suggest:sugg, waRows, trmSettings, memberDir}),
+    get:()=>({quote, quoteId, crew, tasks, tokens, vendors, evidence, CATS, activeCat, canEdit:canEditOps, canVerify, offIds, booked:bookedIds, suggest:sugg, waRows, trmSettings, memberDir}),
     reload:()=>refreshDashboard(), evDateStr, evTimeHM, remSummary,
     waChip:(t)=>window.HelmTaskReminders?HelmTaskReminders.chip(waRows[t.id]):null,
     schedule:(id)=>scheduleFlow(id), cancel:(id)=>openCancelTask(id), evidence:(id)=>openEvidence(id),
