@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (342 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (343 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4502 objects): body 176, bucket 9, col 242, con 415, cron 19, exec 19, fn 2011, idx 528, marker 103, pol 189, polexpr 4, pre 112, pub 5, seq 1, tbl 290, trg 377, view 2.
+-- What is checked (4504 objects): body 176, bucket 9, col 242, con 415, cron 19, exec 19, fn 2011, idx 530, marker 103, pol 189, polexpr 4, pre 112, pub 5, seq 1, tbl 290, trg 377, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4526,7 +4526,9 @@ with o(m, k, s, n, x) as (values
   ('0388_r213_bell_speed', 'marker', 'public', 'bell_feed__pre0299', 'integer|r213-0388'),
   ('0388_r213_bell_speed', 'marker', 'public', 'bell_feed__pre0042', 'integer|r213-0388'),
   ('0389_r217_page_bootstrap', 'fn', 'public', 'page_bootstrap', ''),
-  ('0389_r217_page_bootstrap', 'marker', 'public', 'page_bootstrap', '|r217-0389')
+  ('0389_r217_page_bootstrap', 'marker', 'public', 'page_bootstrap', '|r217-0389'),
+  ('0393_audit_d_list_indexes', 'idx', 'public.ix_leads_org_updated_0393', null, null),
+  ('0393_audit_d_list_indexes', 'idx', 'public.ix_quotes_org_updated_0393', null, null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4870,7 +4872,8 @@ mig(ord, m, ov, note) as (values
   (339, '0386_r210_role_sync', null, 'Role sync: a role change also closes the studio''s open invitations for that e-mail, renames the linked staff record''s role words (only while they show the old role) and the login''s role words; a login moved to another studio is unlinked from the old studio''s staff record - two new trigger functions + two triggers on profiles, checked by the r210-0386 markers'),
   (340, '0387_r212_money_speed', null, 'Event money reads fast: event_money_header + event_money_cash re-issued to build the cost ledger once (old bodies kept as __pre0387), the kept ledger body _r21_cost_lines__pre0372 re-issued with five offset 0 fences (old body kept as _r21_cost_lines__pre0372__pre0387), new server-only _r387_event_pnl; same answers, checked by the r212-0387 markers'),
   (341, '0388_r213_bell_speed', null, 'bell / badge / pending speed: new _r388_vis (the inbox rule in one pass, no details) + _r388_rows (inbox flags, no details); _r23_visible, _r23_counts, bell_feed__pre0299 and bell_feed__pre0042 re-issued (built with dynamic SQL, old bodies kept as __pre0388), checked by the r213-0388 marker (the new _r23_visible names the r24-ci-0270 / r163-0357 / r186-0369 / r190-0373 / r205-0383 rules it keeps, so those markers still hold)'),
-  (342, '0389_r217_page_bootstrap', null, 'Page speed: one read-only startup call page_bootstrap() for signed-in pages (studio, sign-in steps, role + access switches, trial / demo / test studio / plan, pricing settings + rate cards), each part the existing function''s own answer - checked by the r217-0389 marker')
+  (342, '0389_r217_page_bootstrap', null, 'Page speed: one read-only startup call page_bootstrap() for signed-in pages (studio, sign-in steps, role + access switches, trial / demo / test studio / plan, pricing settings + rate cards), each part the existing function''s own answer - checked by the r217-0389 marker'),
+  (343, '0393_audit_d_list_indexes', null, 'Audit D list speed: two additive indexes (org_id, updated_at desc, id desc) on leads and quotes for the newest-first lists; nothing else changed')
 ),
 env as (
   select
