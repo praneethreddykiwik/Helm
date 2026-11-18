@@ -221,14 +221,14 @@
           { sel: "#cf_add", title: "Add a field", desc: "Pick where it goes, name it, choose its type, then Add field." },
         ],
         users: [
-          { sel: "#seat_meter", title: "Seats on your plan", desc: "How many team logins you use and how many your plan allows." },
+          { sel: "#um_which", title: "Which should I use?", desc: "Invite by email link (recommended): they choose their own password. Add user: the login exists now and a temporary password is shown to you once. Learn more compares them with the Staff page options." },
           { sel: "#uc_q", title: "Find a teammate", desc: "Search the team, or show only people who were invited but haven't signed up, who never signed in, or who are deactivated." },
-          { sel: "#hauMfaNudge", title: "Set up two-step", desc: "Until you turn on two-step sign-in, a calm reminder sits here. Set up now (2 min) walks you through it; Later hides it for 7 days." },
           { sel: "#um_rows", title: "Team members", desc: "Everyone with a login, plus people invited but not signed up yet. Account shows the real status: Invited (and when the link expires), Never signed in, Last signed in, or Deactivated." },
           { sel: "#um_rows .ucView", title: "View a person", desc: "View opens their details: the full e-mail (with Copy), phone, role, when they joined and last signed in, and who invited them. On an invite: Resend invite, Copy invite link or Cancel invite." },
+          { sel: "#um_rows .ucLink", title: "Send sign-in link", desc: "For someone who hasn't signed in yet (or lost the temporary password): e-mails them a secure link to choose their own password. Once every 10 minutes. View also offers New temporary password for a never-used Add user login." },
           { sel: "#um_rows .ts-badge", title: "Two-step badge", desc: "Next to each admin: “Two-step: on”, or “not set up”. Admins need two-step to change payment details and other sensitive settings." },
-          { sel: "#inv_email", title: "Invite by e-mail link", desc: "Type their e-mail and pick a role. Helm sends a join link that works once." },
-          { sel: "#inv_rows", title: "Pending invites", desc: "Links not used yet. Copy one again, resend it (an expired link gets a new one), or Cancel invite - the link stops working and nothing else changes." },
+          { sel: "#um_email", title: "Add user (create login now)", desc: "Makes the login at once and shows a one-time temporary password here - nothing is e-mailed. Adding an Admin needs two-step on your account (a note says so as soon as you pick Admin)." },
+          { sel: "#inv_email", title: "Invite by e-mail link", desc: "Type their e-mail and pick a role. Helm sends a join link that works once (7 days). Pending invites below: copy, resend (an expired link gets a new one) or cancel." },
         ],
         access: [
           { sel: "#roleTabs", title: "Pick a role", desc: "Choose the role you want to set up: manager, planner, sales and so on." },

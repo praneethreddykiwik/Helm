@@ -229,8 +229,10 @@ t('User control: Name / Phone / Job title / Department / Profile (+ joined) / ph
   const rows = [mrow(1, 2, { full_name: 'Asha Admin', role: 'admin' }), mrow(2, 2, { avatar_path: AV(U(2)) }),
     mrow(3, 2, { complete: false, phone: null, profile_completed_at: null, full_name: '' })];
   const r = T(rows, { profiles: true, meId: U(1), roles: ROLES, roleLabel: (x) => x, canEdit: true, q: '', filter: '' });
-  for (const h of ['Name', 'Phone', 'Job title', 'Role', 'Account']) assert.match(r.head, new RegExp(`<th scope="col">${h}</th>`));
-  assert.match(r.body, /<div class="ucsub ucdept">Production<\/div>/, 'r22: department shown under the job title (one column)');
+  // R202: Name / Role / Account / actions - phone, job title and department sit under the e-mail (no sideways scroll)
+  for (const h of ['Name', 'Role', 'Account']) assert.match(r.head, new RegExp(`<th scope="col">${h}</th>`));
+  assert.doesNotMatch(r.head, /Phone|Job title/);
+  assert.match(r.body, /<div class="ucsub ucmeta"><span class="ucphn">\+91 98765 43210<\/span> · <span class="ucjobt">Rigger<\/span> · <span class="ucdept">Production<\/span><\/div>/, 'phone · job title · department in the who-cell');
   assert.match(r.body, /\+91 98765 43210/, 'phone shown (admins get it) in a readable format');
   assert.match(r.body, /Rigger/); assert.match(r.body, /Production/);
   // R199: "Complete / Incomplete" (read as "signed up") is gone - the account status + a separate profile hint
@@ -241,7 +243,7 @@ t('User control: Name / Phone / Job title / Department / Profile (+ joined) / ph
   assert.match(r.body, /<span class="me">you<\/span>/);
   // a users-view caller who is NOT given private fields: colleague rows have whatsapp_same=null
   const priv = T([mrow(1, 1), mrow(2, 0), mrow(3, 0)], { profiles: true, meId: U(1), roles: ROLES, q: '', filter: '' });
-  assert.doesNotMatch(priv.head, /Phone/, 'no Phone column when the DB didn\'t return phones');
+  assert.doesNotMatch(priv.body, /ucphn/, 'no phone line when the DB did not return phones');
   assert.doesNotMatch(priv.body, /98765/, 'and not even my own number leaks into a hidden column');
   assert.doesNotMatch(priv.body, /ucEdit/, 'no Edit without canEdit');
 });

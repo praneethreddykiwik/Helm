@@ -6,9 +6,12 @@ sign-up confirmation, e-mail changes and reauthentication codes. The templates i
 `docs/ops/email-templates/` (2026-10 redesign) use the current Helm logo (hosted PNG
 `https://www.helm.events/email/helm-logo-v3.png` = the compass-H app tile, 80px = 2x the 40px display,
 alt "Helm Events"; the file name is versioned because image proxies cache by URL - see r19 note below),
-emerald brand `#0d8a5c`, ink `#101511`, a clean 600px card with an emerald top edge, one big button,
+and (R207, owner decision) a LIGHT-ONLY design: white 600px card with a soft light-green header band
+(`#e8f5ee`), light-green button `#34d399` with dark text `#052e1c`, link green `#0b7a4b`, ink `#101511`,
 preheader text and the footer "Helm Events · helm.events". They are table-based with inline CSS, so
-they render in Gmail, Outlook and Apple Mail, and switch to a dark card in dark mode. No tracking pixels.
+they render in Gmail, Outlook and Apple Mail. They do NOT switch to a dark card in dark mode
+(`color-scheme: light only`, no dark-mode CSS). No tracking pixels. Quick paste list:
+`docs/ops/email-templates/README.md`.
 
 Do NOT hand-edit the HTML files: they are generated from `supabase/functions/_shared/email-layout.mjs`
 (the same layout the edge-function e-mails use) by `node scripts/gen-email-templates.mjs`.

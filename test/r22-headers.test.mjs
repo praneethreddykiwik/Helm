@@ -32,38 +32,32 @@ const ROW = (i, o) => Object.assign({ id: 'u' + i, email: 'person' + i + '@studi
   job_title: 'Rigger', department: 'Production', complete: true, created_at: '2026-09-01', whatsapp_same: true }, o || {});
 
 /* ---------------------------------------------------------------- 1. Settings members table */
-t('members table: name cell = photo + (name + "you") line + e-mail line with a full-address tooltip', () => {
+t('members table: name cell = photo + (name + "you") line + e-mail line (full address, wraps) + phone · job · department (R202)', () => {
   const T = ucTable();
   const r = T([ROW(1, { full_name: 'S Koushik', email: 'shagantikoushik@gmail.com', role: 'admin' }), ROW(2)],
     { profiles: true, meId: 'u1', roles: ['admin', 'crew'], roleLabel: (x) => x, canEdit: true, q: '', filter: '' });
-  assert.match(r.body, /<td class="dn" data-label="Name"><div class="ucwho"><span class="ucav"[^>]*>SK<\/span><div class="ucwt"><div class="ucnm"><span class="dnTxt">S Koushik<\/span> <span class="me">you<\/span><\/div><div class="ucsub em" title="shagantikoushik@gmail\.com">shagantikoushik@gmail\.com<\/div><\/div><\/div><\/td>/);
+  assert.match(r.body, /<td class="dn" data-label="Name"><div class="ucwho"><span class="ucav"[^>]*>SK<\/span><div class="ucwt"><div class="ucnm"><span class="dnTxt">S Koushik<\/span> <span class="me">you<\/span><\/div><div class="ucsub em" title="shagantikoushik@gmail\.com">shagantikoushik@gmail\.com<\/div><div class="ucsub ucmeta"><span class="ucphn">[^<]+<\/span> · <span class="ucjobt">Rigger<\/span> · <span class="ucdept">Production<\/span><\/div><\/div><\/div><\/td>/);
   assert.equal((r.body.match(/<span class="me">you<\/span>/g) || []).length, 1);
 });
-t('members table: Department under the job title (one column), labelled cells, Edit + remove in one actions cell', () => {
+t('members table (R202): Name / Role / Account / actions only, labelled cells, View + Edit + remove in one actions cell', () => {
   const T = ucTable();
-  const r = T([ROW(1), ROW(2, { job_title: '', department: '' })], { profiles: true, meId: 'u1', roles: ['crew'], canEdit: true, q: '', filter: '' });
-  assert.equal(r.head, '<tr><th scope="col">Name</th><th scope="col">Phone</th><th scope="col">Job title</th><th scope="col">Role</th><th scope="col">Account</th><th scope="col"><span class="sr-only">Actions</span></th></tr>');   // R199: Profile -> Account
-  assert.doesNotMatch(r.head, /Department/);
-  assert.match(r.body, /<td class="ucjob" data-label="Job title">Rigger<div class="ucsub ucdept">Production<\/div><\/td>/);
-  assert.match(r.body, /<td class="ucjob" data-label="Job title">—<\/td>/, 'no empty department line');
-  for (const c of ['ucph" data-label="Phone"', 'ucrole" data-label="Role"', 'ucprof" data-label="Account"']) assert.match(r.body, new RegExp('<td class="' + c));
-  assert.match(r.body, /<td class="ucact"><button type="button" class="btn sm ucView"[^>]*>View<\/button><button type="button" class="btn sm ucEdit"[^>]*>Edit<\/button><button type="button" class="rm"/);   // R199: View first
+  const r = T([ROW(1), ROW(2, { job_title: '', department: '', phone: '' })], { profiles: true, meId: 'u1', roles: ['crew'], canEdit: true, q: '', filter: '' });
+  assert.equal(r.head, '<tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Account</th><th scope="col"><span class="sr-only">Actions</span></th></tr>');
+  assert.doesNotMatch(r.body, /class="ucph"|class="ucjob"/);
+  assert.equal((r.body.match(/class="ucsub ucmeta"/g) || []).length, 1, 'no empty phone / job line');
+  for (const c of ['ucrole" data-label="Role"', 'ucprof" data-label="Account"']) assert.match(r.body, new RegExp('<td class="' + c));
+  assert.match(r.body, /<td class="ucact"><button type="button" class="btn sm ucView"[^>]*>View<\/button><button type="button" class="btn sm ucEdit"[^>]*>Edit<\/button><button type="button" class="rm"/);
   assert.match(r.body, /<tr class="ucr" data-id="u1">/);
-  const np = T([ROW(1), ROW(2, { whatsapp_same: null })], { profiles: true, meId: 'u1', roles: ['crew'], q: '', filter: '' });
-  assert.match(np.body, /<tr class="ucr ucr-np" data-id="u1">/, 'no-phone rows get their own compact grid');
-  assert.match(T([], { profiles: true, meId: 'u1', roles: [], q: '', filter: '' }).body, /colspan="5"/);
-  assert.match(T([ROW(1)], { profiles: true, meId: 'u9', roles: [], q: 'nobody', filter: '' }).body, /colspan="6"/);
+  assert.match(T([], { profiles: true, meId: 'u1', roles: [], q: '', filter: '' }).body, /colspan="4"/);
+  assert.match(T([ROW(1)], { profiles: true, meId: 'u9', roles: [], q: 'nobody', filter: '' }).body, /colspan="4"/);
 });
-t('members table CSS: no per-letter wrapping, sensible widths, compact rows on a narrow card, cards on phones', () => {
+t('members table CSS (R202): grid rows from 640px that always fit the card, e-mails wrap (never cut off), cards on phones', () => {
   assert.match(CTL, /<div class="table-scroll ucm-wrap"><table class="utable ucm"><thead id="um_head">/);
   assert.match(CTL, /\.ucm-wrap\{container:ucm\/inline-size\}/);
-  assert.match(CTL, /\.utable\.ucm td\.dn\{width:34%;min-width:210px;white-space:normal\}/);
-  assert.match(CTL, /\.ucnm\{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap\}/);
-  assert.match(CTL, /\.ucwt \.ucsub\{overflow:hidden;text-overflow:ellipsis;white-space:nowrap\}/);
-  assert.match(CTL, /\.utable\.ucm td\.ucrole select\{width:136px;max-width:100%\}/);
-  assert.match(CTL, /\.utable\.ucm td\.ucact\{white-space:nowrap;/);
-  assert.match(CTL, /@media \(min-width:640px\)\{\n    @container ucm \(max-width:859\.98px\)\{/);
-  assert.match(CTL, /grid-template-areas:"who who role prof act" "ph job job job job"/);
+  assert.match(CTL, /\.utable\.ucm td\.dn\{white-space:normal;min-width:0\}/);
+  assert.match(CTL, /\.ucwt \.ucsub\{overflow-wrap:anywhere;word-break:break-word;white-space:normal\}/);
+  assert.match(CTL, /\.utable\.ucm td\.ucrole select\{width:170px;max-width:100%\}/);
+  assert.match(CTL, /@media \(min-width:640px\)\{\n    #pane-users \.utable\.ucm,#pane-users \.utable\.ucm>tbody\{display:block;width:100%\}/);
   assert.match(CTL, /#pane-users \.utable\.ucm\.tm-stack td\{width:auto;min-width:0;max-width:none;border-bottom:0\}/);
   // the B29 rules that caused "S Kous hik" no longer reach the members table (older Name / Email table keeps them)
   assert.match(CSPL, /#app\.cs-on \.cs-main \.utable:not\(\.ucm\) td\.dn\{white-space:normal;overflow-wrap:anywhere;min-width:12ch\}/);
