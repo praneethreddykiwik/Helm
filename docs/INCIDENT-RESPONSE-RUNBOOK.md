@@ -54,9 +54,33 @@ Trigger: any suspected key exposure (SEV1/2).
 
 ## 6. Customer-comms decision tree (RECOMMENDATION)
 - Cross-tenant data exposure OR confirmed payment error (SEV1) → **notify affected
-  tenants**; assess regulatory/DPDP breach-notification duty (India DPDP: 72h-class
-  obligations) → escalate to legal/owner. Do NOT send on your own — comms are a
-  send-on-user-behalf action requiring explicit owner approval.
+  tenants**; assess regulatory/DPDP breach-notification duty → escalate to legal/owner.
+  Do NOT send on your own — comms are a send-on-user-behalf action requiring explicit
+  owner approval.
+
+### 6a. Personal-data breach clock (India) — audit E, 18 Nov 2026 (have a lawyer confirm)
+Start the clock at the moment Helm **becomes aware** of a likely personal-data breach
+(any studio's or client's names, phones, e-mails, guest lists, money rows, files).
+Write that time down in the incident log first.
+
+| When | Who is told | What |
+|---|---|---|
+| Within **6 hours** | CERT-In (incident@cert-in.org.in, form on cert-in.org.in) | Cyber-security incident report under the CERT-In Directions of 28 Apr 2022 (data breach, data leak, unauthorised access, compromise of the app or database are all reportable types). A first report with what is known is enough; send the rest later. |
+| **Without delay** | Data Protection Board of India + every affected person (studio owners; through them, or directly, their clients / staff where Helm holds the data) | DPDP Rules 2025 r.7(1): what happened, when, likely effect, what Helm did, what the person can do, a contact. Plain words, through the account e-mail. |
+| Within **72 hours** | Data Protection Board of India | DPDP Rules 2025 r.7(2): the detailed report (facts, cause, who did it if known, steps taken, people told). |
+
+Helm is the Data **Processor** for studio data (each studio is the Data Fiduciary for its
+clients) and the Data **Fiduciary** for studio accounts / HQ data — tell the affected studios
+at once so they can meet their own duty.
+
+Before any of this can work, the owner must fill in the named contacts on /privacy and
+/grievance (Grievance Officer, DPO / contact e-mail — today they say "To be updated"), and
+keep an evidence pack per incident: timeline, affected studio ids, row counts (counts only,
+never the personal data itself), the fix, and copies of every notice sent.
+
+The CERT-In 6-hour rule is in force today. The DPDP Rules 2025 breach duties (r.7) start on the
+date the Rules give for them (18 months after they were notified on 13/14 Nov 2025, i.e. by May 2027 —
+lawyer to confirm); follow them now anyway.
 - Outage > RTO (SEV1/2) → status-page / direct notice to active tenants.
 - Internal-only, no customer impact (SEV3/4) → internal log only.
 
@@ -64,19 +88,24 @@ Trigger: any suspected key exposure (SEV1/2).
 Blameless, within 5 business days of SEV1/2: timeline, root cause, detection gap,
 customer impact, action items with owners + dates. File under `docs/`.
 
-## 8. Observability activation checklist — BLOCKED (NOT yet active)
-`OBSERVABILITY-ACTIVATION.md` documents the code hooks; `telemetry.js` + `/api/health`
-exist (**SOURCE**) but **nothing is ON until an operator wires the dashboards/DSN.**
-All items below are **BLOCKED** pending that setup:
-- [ ] Frontend JS errors → Sentry (DSN in `config.js`; `telemetry.js` redacts
-      JWT/token/OTP/email/phone via `beforeSend` — **SOURCE**).
-- [ ] Edge Function errors (structured one-line JSON per invocation).
+## 8. Observability activation checklist
+State on 18 Nov 2026 (audit E): front-end Sentry is ON (R45, errors only, self-hosted SDK
+R138/R140); edge functions log one JSON line per event (R142 `_shared/log.ts`) and can send
+error tags to Sentry when the `SENTRY_DSN` edge secret is set (owner to confirm it is);
+`/api/health` answers on www.helm.events. The remaining items still need an operator:
+- [x] Frontend JS errors → Sentry (DSN in `config.js`; `telemetry.js` redacts
+      JWT/token/OTP/email/phone/amounts/link tokens via `beforeSend` — **SOURCE**).
+- [x] Edge Function errors as structured one-line JSON (`_shared/log.ts`; edge → Sentry
+      only when the `SENTRY_DSN` secret is set).
+- [ ] Sentry alert rule ("new issue" + spike) routed to the owner's e-mail.
 - [ ] Auth failures (failed sign-in / invalid-OTP / expired session).
 - [ ] DB CPU / connection count alerts.
 - [ ] Storage usage / quota alerts.
 - [ ] Slow-query monitoring.
 - [ ] HTTP 5xx rate alert.
-- [ ] Uptime monitor on `/api/health` + `/` (1-min interval).
+- [ ] Uptime monitor on `https://www.helm.events/api/health` + `/` (1-min interval). Use the www host or let the
+      monitor follow redirects: `helm.events/...` answers 307 -> www. `/api/health` does not touch the database, so
+      add a second check that does (see audit E report, E-04).
 - [ ] OTP-abuse / OTP-pumping spike detection.
 - [ ] Payment anomaly alerts (declines, amount-mismatch — webhook already logs
       amount-under-total, **SOURCE** `razorpay-webhook`).
