@@ -34,14 +34,16 @@
     return a.map(one).filter(Boolean).join(" + ");
   }
 
-  async function init(store) {
-    var A = store && store.automation;
+  // opts.canPick === false (R231): this person may see the run-sheet but not change it - no Owner picker is shown, so the
+  // team list (runsheet_team_options needs Run sheet - Can change; it answered 403 in the prod log 19 Nov) is not asked for
+  async function init(store, opts) {
+    var A = store && store.automation, canPick = !(opts && opts.canPick === false);
     S.people = []; S.team = [];
     try { S.people = await store.people.options(); } catch (e) { S.people = []; }
     if (!A) return S;
     try { S.cfg = await A.settings(); } catch (e) { S.cfg = null; }
     S.ready = !!S.cfg;
-    if (S.ready) { try { S.team = await A.teamOptions(); } catch (e) { S.team = []; } }
+    if (S.ready && canPick) { try { S.team = await A.teamOptions(); } catch (e) { S.team = []; } }
     return S;
   }
   async function loadTargets(store, quoteId) {

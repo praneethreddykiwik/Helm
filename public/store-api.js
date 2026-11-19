@@ -400,16 +400,32 @@ window.HelmUrl = HelmUrl;
   function signinPing(sess) {
     try {
       if (!supa || !sess || !sess.user || typeof window === "undefined") return;
+      // R231 (prod log 19 Nov: rpc/signin_notice_ping 401 "permission denied" right after a failed /auth/v1/verify):
+      // never from the e-mail-link page (it may sign the old login out and verify a new link; the page it hands over to
+      // pings with the real session), and never for a token that has already run out
+      if (pageKey() === "auth-confirm" || explicitSignOut) return;
+      if (Number(sess.expires_at) && Number(sess.expires_at) * 1000 <= Date.now()) return;
       const sid = jwtSessionId(sess.access_token); if (!sid) return;
       const KEY = "helm.r383.via", now = Date.now();
       try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v && v.until > now) return; } catch (e) {}
       try { if (sessionStorage.getItem("helm.r383.ping") === sid) return; sessionStorage.setItem("helm.r383.ping", sid); } catch (e) {}
       setTimeout(function () {
         try {
-          supa.rpc("signin_notice_ping", { p_ua: String((navigator && navigator.userAgent) || "").slice(0, 400) || null }).then(function (r) {
-            const via = r && r.data && r.data.via, missing = r && r.error && /PGRST202|42883|not find the function/i.test(String((r.error.code || "") + " " + (r.error.message || "")));
-            if (via === "trigger" || missing) { try { localStorage.setItem(KEY, JSON.stringify({ via: via || "none", until: now + (via === "trigger" ? 7 : 1) * 864e5 })); } catch (e) {} }
-          }, function () {});
+          // R231: 4 s later the session may be gone (signed out, a failed link, a refresh that failed) - supabase-js would
+          // then send the anon key and the server answers 401. Ask only while THIS session is still the signed-in one.
+          if (explicitSignOut) return;
+          Promise.resolve(supa.auth.getSession()).then(function (g) {
+            const cur = g && g.data && g.data.session;
+            if (!cur || !cur.user || cur.user.id !== sess.user.id || jwtSessionId(cur.access_token) !== sid
+                || (Number(cur.expires_at) && Number(cur.expires_at) * 1000 <= Date.now())) {
+              try { if (sessionStorage.getItem("helm.r383.ping") === sid) sessionStorage.removeItem("helm.r383.ping"); } catch (e) {}
+              return;
+            }
+            return supa.rpc("signin_notice_ping", { p_ua: String((navigator && navigator.userAgent) || "").slice(0, 400) || null }).then(function (r) {
+              const via = r && r.data && r.data.via, missing = r && r.error && /PGRST202|42883|not find the function/i.test(String((r.error.code || "") + " " + (r.error.message || "")));
+              if (via === "trigger" || missing) { try { localStorage.setItem(KEY, JSON.stringify({ via: via || "none", until: now + (via === "trigger" ? 7 : 1) * 864e5 })); } catch (e) {} }
+            });
+          }).catch(function () {});
         } catch (e) {}
       }, 4000);
     } catch (e) {}
@@ -6480,7 +6496,7 @@ window.HelmUrl = HelmUrl;
   // one = accept an admin's invite token. Tenant is resolved server-side by RLS.
   const invitations = {
     create: (email, role) => (reservedEmailDomain(email) ? Promise.reject(reservedEmailError())   // r21 0248 (server-checked too)
-      : rpc("create_invitation", { p_email: email, p_role: role })),   // admin only (server-checked)
+      : withStepUp(() => rpc("create_invitation", { p_email: email, p_role: role }))),   // admin only (server-checked); R231: an Admin invite asks for two-step like Add user
     async list() { if (!supa) return [];                                                     // RLS returns only this org's invites
       // r57 (A-5 / I-04, 0298): explicit columns - the browser never reads token / mail_key_hash ("Copy link" uses create())
       const { data, error } = await supa.from("invitations").select("id,org_id,email,role,status,invited_by,expires_at,accepted_at,accepted_by,created_at").order("created_at", { ascending: false });
