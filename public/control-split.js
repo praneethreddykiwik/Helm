@@ -124,6 +124,13 @@
   // page header, empty state and unsaved-changes bar live in the main column
   var head=el("div","cs-head"), hT=el("h2",null,""), hD=el("p",null,""); head.appendChild(hT); head.appendChild(hD);
   main.insertBefore(head, main.firstChild);
+  // R228: a section's page-level button (e.g. Users & invites -> "Invite people") sits on the right of this header. The
+  // pane marks it data-cs-head-for="<section>"; it is moved here once (id + listeners intact) and shown only on its
+  // own section. Its own `hidden` (permissions) is never touched - cs-off hides it on other sections.
+  var hTxt=el("div","cs-head-t"), hA=el("div","cs-head-acts"); head.insertBefore(hTxt, hT); hTxt.appendChild(hT); hTxt.appendChild(hD); head.appendChild(hA);
+  Array.prototype.forEach.call(main.querySelectorAll("[data-cs-head-for]"),function(b){ hA.appendChild(b); });
+  function paintHeadActs(key){ Array.prototype.forEach.call(hA.children,function(b){ b.classList.toggle("cs-off", b.getAttribute("data-cs-head-for")!==key); });
+    head.classList.toggle("cs-head-has-acts", Array.prototype.some.call(hA.children,function(b){ return b.getAttribute("data-cs-head-for")===key; })); }
   var empty=el("div","cs-empty","Nothing to set here for your role."); empty.hidden=true; main.appendChild(empty);
   var bar=el("div","cs-savebar"); bar.hidden=true; bar.setAttribute("role","status");
   var barTxt=el("span"), bDis=el("button","cs-ghost","Discard changes"), bGo=el("button","cs-primary","Go to Save");
@@ -177,7 +184,7 @@
         show(to,opts); return;
       }
       current=key; cards.forEach(function(c){ c.classList.add("cs-off"); });
-      hT.textContent=s.label; hD.textContent="Not available in the free trial.";
+      hT.textContent=s.label; hD.textContent="Not available in the free trial."; paintHeadActs("");
       main.setAttribute("data-cs-cur",key); clearTimeout(emptyTimer); emptyTimer=null;
       empty.textContent="Not available in the free trial. Your trial comes set up with sample data, so this setting is fixed. Upgrade to change it."; empty.hidden=false;
       drawNav(); afterShow(); return;
@@ -187,7 +194,7 @@
     current=key;
     var t=tabFor(s.pane); if(t && !t.classList.contains("active")) t.click();
     cards.forEach(function(c){ c.classList.toggle("cs-off", c.getAttribute("data-cs-sec")!==key); });
-    hT.textContent=s.label; hD.textContent=s.desc; main.setAttribute("data-cs-cur",key); refreshEmpty();
+    hT.textContent=s.label; hD.textContent=s.desc; main.setAttribute("data-cs-cur",key); paintHeadActs(key); refreshEmpty();
     drawNav(); clearHL(); afterShow();
     try{ localStorage.setItem("helm.cs.sec",key); }catch(e){}
     if(!(opts&&opts.noScroll)){ try{ main.scrollIntoView({block:"start"}); }catch(e){} }
@@ -335,6 +342,8 @@
     var node=e.el, target=node;
     if(node.tagName==="LABEL" && node.htmlFor){ var f=document.getElementById(node.htmlFor); if(f) target=f; }
     if(e.click){ try{ e.click.click(); }catch(x){} target=e.click; }
+    // R228: a setting inside a folded panel (data-cs-reveal, e.g. the invite panel) asks its page to open it first
+    { var rv=node.closest&&node.closest("[data-cs-reveal]"); if(rv&&rv.hidden){ try{ rv.dispatchEvent(new CustomEvent("cs:reveal",{bubbles:true})); }catch(x){} } }
     setTimeout(function(){
       try{ node.scrollIntoView({block:"center",behavior:"smooth"}); }catch(x){}
       highlightIn(e.card,words);

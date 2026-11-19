@@ -54,19 +54,22 @@ await t('signInHelp(): row button only for never / no password; View for anyone 
 
 /* ---------------------------------------------------------------- 2. control.html */
 await t('rows: Send sign-in link on never-signed-in rows; one who-cell with e-mail + phone + job; 4 columns; no Phone / Job title columns', () => {
-  assert.match(CTL, /const head=`<tr><th scope="col">Name<\/th><th scope="col">Role<\/th><th scope="col">Account<\/th><th scope="col"><span class="sr-only">Actions<\/span><\/th><\/tr>`;/);
+  // R228: Account -> Status, plus a Two-step column (the admins' badge moved out of the role cell)
+  assert.match(CTL, /const head=`<tr><th scope="col">Name<\/th><th scope="col">Role<\/th><th scope="col">Status<\/th><th scope="col">Two-step<\/th><th scope="col"><span class="sr-only">Actions<\/span><\/th><\/tr>`;/);
   assert.doesNotMatch(CTL, /class="ucph"|class="ucjob"|data-label="Phone"|data-label="Job title"/);
   assert.match(CTL, /<div class="ucsub ucmeta">\$\{meta\}<\/div>/);
   // R211: the row's buttons come from HelmTeamStatus.rowActions (which uses signInHelp) - "link" = Send sign-in link, primary
-  assert.match(CTL, /case "link": return `<button type="button" class="btn sm\$\{p\} ucLink"/);
+  assert.match(CTL, /case "link": return `<button type="button" \$\{C\(`btn sm\$\{p\} ucLink`\)\}/);
   assert.match(CTL, /const ra=RA\?RA\(st, o\.acct&&o\.acct\.byId\?o\.acct\.byId\[ucId\(u\)\]:null, \{ self:!!self, owner:isOwner\(u\), deactivated:isOff\(u\), canEdit:o\.canEdit, isAdmin:o\.canEdit \}\)/);
   assert.match(CTL, /tb\.querySelectorAll\("\.ucLink"\)\.forEach\(btn=>btn\.addEventListener\("click", \(\)=>\{ const u=rowOf\(btn\.closest\("tr"\)\); if\(u\) sendSignInLink\(u, btn\); \}\)\);/);
 });
 await t('layout: grid rows from 640px (no table mode), two-line / one-column on narrow cards, nothing fixed wider than the card', () => {
   assert.match(CTL, /@media \(min-width:640px\)\{\n    #pane-users \.utable\.ucm,#pane-users \.utable\.ucm>tbody\{display:block;width:100%\}/);
-  assert.match(CTL, /grid-template-columns:minmax\(0,1fr\) 170px minmax\(150px,210px\) minmax\(0,auto\);grid-template-areas:"who role prof act"/);
-  assert.match(CTL, /@container ucm \(max-width:879\.98px\)\{\n      #pane-users \.utable\.ucm tr\.ucr\{grid-template-columns:minmax\(0,1fr\) auto;grid-template-areas:"who role" "prof act"\}/);
-  assert.match(CTL, /@container ucm \(max-width:519\.98px\)\{\n      #pane-users \.utable\.ucm tr\.ucr\{grid-template-columns:minmax\(0,1fr\);grid-template-areas:"who" "role" "prof" "act"\}/);
+  // R228: five columns (Two-step), fixed widths so rows line up under the column headings shown from 800px
+  assert.match(CTL, /grid-template-columns:minmax\(0,1fr\) 150px 190px 118px 132px;grid-template-areas:"who role prof two act"/);
+  assert.match(CTL, /@container ucm \(min-width:800px\)\{\n      #pane-users \.utable\.ucm>thead\{position:static/);
+  assert.match(CTL, /@container ucm \(max-width:799\.98px\)\{\n      #pane-users \.utable\.ucm tr\.ucr\{grid-template-columns:minmax\(0,1fr\) auto auto;grid-template-areas:"who who role" "prof two act"\}/);
+  assert.match(CTL, /@container ucm \(max-width:519\.98px\)\{\n      #pane-users \.utable\.ucm tr\.ucr\{grid-template-columns:minmax\(0,1fr\);grid-template-areas:"who" "role" "prof" "two" "act"\}/);
   assert.match(CTL, /\.ucwt \.ucsub\{overflow-wrap:anywhere;word-break:break-word;white-space:normal\}/, 'e-mails wrap, never cut off');
   assert.doesNotMatch(CTL, /\.utable\.ucm td\.dn\{width:34%;min-width:210px/);
   assert.doesNotMatch(CSS, /td\.ucph|td\.ucjob/);
@@ -92,7 +95,9 @@ await t('View panel: Send sign-in link, New temporary password (admins, can_new_
   assert.match(v, /label:"Reactivate", primary:true, onClick:\(b\)=>reactivateMember\(u, b\)/);
 });
 await t('"Which should I use?" box + Learn more; "Add user (create login now)"; Invite marked Recommended', () => {
-  assert.match(CTL, /<div class="um-which" id="um_which">\s*<p class="um-which-t"><b>Which should I use\?<\/b> <b>Invite by email link<\/b> \(recommended\)/);
+  // R228: the long box is now a one-line hint inside the invite panel; the detail moved into Learn more
+  assert.match(CTL, /<div class="um-which" id="um_which">\s*<p class="um-which-t"><span class="um-which-ic" aria-hidden="true">\?<\/span> <b>Which should I use\?<\/b> <b>Invite by email link<\/b> for almost everyone/);
+  assert.match(CTL, /<li><b>Invite by email link<\/b> \(recommended\)/);
   assert.match(CTL, /<details class="um-which-more"><summary>Learn more<\/summary>/);
   for (const k of ['Save as a record only', 'Save and invite to sign in', 'New temporary password', 'needs two-step sign-in on your own account']) assert.ok(CTL.includes(k), k);
   // R211: Add user now sits behind "More options" with the no-e-mail warning between heading and form
@@ -163,11 +168,11 @@ await t('MANIFEST, checker override, run-all, release lists, CHECK-PROD carry 03
 });
 await t('asset pins: store-api v372 everywhere, team-status.js / .css v2 on Settings + Staff, page-tours has the new steps', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '385', f);
+    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '386', f);
   }
-  for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=\d+"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=3">/, f); }   // R211: css v3 (js: R210 v4, pinned in test/r210)
+  for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=\d+"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=4">/, f); }   // R211: css v3 (js: R210 v4, pinned in test/r210)
   const PT = read('public/page-tours.js');
-  for (const s of ['"#um_which"', '"#um_rows .ucView"', '"#um_more"']) assert.ok(PT.includes('sel: ' + s), s);   // R211: Add user step -> More options
+  for (const s of ['["#um_which", "#um_more"]', '"#um_rows .ucView"', '"#um_rows .ucMore"', '"#ts_danger"']) assert.ok(PT.includes('sel: ' + s), s);   // R228: hint + More options share a step; "..." menu; Danger zone
 });
 
 console.log(`r202-signin-link: ${n} passed`);

@@ -137,9 +137,14 @@
       });
       box.appendChild(row);
     });
+    // R228: deps.transferBox (the "Danger zone" card) gets Transfer ownership as a titled block of its own; without it the
+    // old folded box stays under the banners (same text, same buttons, same checks)
+    const xbox = deps.transferBox || null;
+    if (xbox) while (xbox.firstChild) xbox.removeChild(xbox.firstChild);
     if (ov.i_am_owner && !(ov.transfer && ov.transfer.id)) {
       const others = (Array.isArray(ov.admins) ? ov.admins : []).filter((a) => a && a.user_id && a.user_id !== ov.me);
-      const det = el("details", { cls: "tsTransfer" }, [el("summary", { text: "Transfer ownership" })]);
+      const det = xbox ? el("div", { cls: "tsTransfer tsTransferZ" }, [el("h4", { cls: "tsTransferH", text: "Transfer ownership" })])
+        : el("details", { cls: "tsTransfer" }, [el("summary", { text: "Transfer ownership" })]);
       det.appendChild(el("p", { cls: "mnote", text: "You are the studio owner. Other admins can't remove you or change your role. To hand the studio to someone else, pick another admin - they must accept. "
         + (ov.my_two_step ? "You'll be asked for a two-step code." : "Tip: set up two-step in your account first.") }));
       if (!others.length) det.appendChild(el("p", { cls: "mnote", text: "Make someone else an admin first - ownership can only go to an active admin." }));
@@ -155,7 +160,7 @@
         });
         det.appendChild(el("div", { cls: "addrow" }, [sel, go]));
       }
-      box.appendChild(det);
+      (xbox || box).appendChild(det);
     }
     box.hidden = !box.firstChild;
   }

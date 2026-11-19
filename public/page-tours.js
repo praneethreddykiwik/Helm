@@ -221,14 +221,15 @@
           { sel: "#cf_add", title: "Add a field", desc: "Pick where it goes, name it, choose its type, then Add field." },
         ],
         users: [
-          { sel: "#inv_email", title: "Invite by email link (recommended)", desc: "The main way to add a teammate: type their e-mail, pick a role, Send invite. They get a join link (7 days), choose their own password and join. A deactivated teammate's e-mail offers Reactivate instead." },
-          { sel: "#um_which", title: "Which should I use?", desc: "Invite by email link (recommended): they choose their own password. Add user (More options, admins only): the login exists now and a temporary password is shown to you once. Learn more compares them with the Staff page options." },
-          { sel: "#uc_q", title: "Find a teammate", desc: "Search the team, or show only people who were invited but haven't signed up, who never signed in, or who are deactivated." },
-          { sel: "#um_rows", title: "Team members", desc: "Everyone with a login, plus people invited but not signed up yet. Account shows the real status: Invited (and when the link expires), Never signed in, Last signed in, or Deactivated." },
-          { sel: "#um_rows .btn.primary", title: "One main button per person", desc: "Anyone not in yet has one clear next step first: Resend invite (an expired link gets a new 7-day one), Send sign-in link (never signed in), or Reactivate. Signed-in people have none." },
+          // R228: the page header button, the folding invite panel, filter tabs, one status per person, View / Edit / "..." menu, Danger zone
+          { sel: ["#inv_email", "#um_invite_btn"], title: "Invite people", desc: "The main way to add a teammate: Invite people, type their e-mail, pick a role, Send invite. They get a join link (7 days), choose their own password and join. A deactivated teammate's e-mail offers Reactivate instead." },
+          { sel: ["#um_which", "#um_more"], title: "Which should I use?", desc: "Invite by email link (recommended): they choose their own password. Add user under More options (admins only): the login exists now and a temporary password is shown to you once. Learn more compares them with the Staff page options." },
+          { sel: "#uc_tools", title: "Find a teammate", desc: "Search the team, or use the tabs to show only Active people, people Invited but not signed up, people who never signed in, incomplete profiles or Deactivated people. Each tab shows how many." },
+          { sel: "#um_rows", title: "Team members", desc: "Everyone with a login, plus people invited but not signed up yet. Status shows the real state: Last signed in, Invited (and when the link expires), Never signed in, or Deactivated. Admins also show whether two-step is on." },
+          { sel: "#um_rows .btn.primary", title: "One main button per person", desc: "Anyone not in yet has one clear next step under their status: Resend invite (an expired link gets a new 7-day one), Send sign-in link (never signed in), or Reactivate. Signed-in people have none." },
           { sel: "#um_rows .ucView", title: "View a person", desc: "View opens their details: the full e-mail (with Copy), phone, role, when they joined and last signed in, who invited them, and New temporary password for a never-used Add user login." },
-          { sel: "#um_rows .ts-badge", title: "Two-step badge", desc: "Next to each admin: “Two-step: on”, or “not set up”. Admins need two-step to change payment details and other sensitive settings." },
-          { sel: "#um_more", title: "More options: Add user", desc: "Admins only. Makes the login at once with a one-time temporary password - no e-mail is sent, you give it to them yourself. Use only if they can't receive e-mail." },
+          { sel: "#um_rows .ucMore", title: "More actions", desc: "The ⋯ button holds the rest: Deactivate (nothing is deleted), Remove access, Open work, Copy invite link or Cancel invite. Arrow keys move through it and Esc closes it." },
+          { sel: "#ts_danger", title: "Danger zone", desc: "Only the studio owner sees this: Transfer ownership hands the studio to another admin, who must accept." },
         ],
         access: [
           { sel: "#roleTabs", title: "Pick a role", desc: "Choose the role you want to set up: manager, planner, sales and so on. The box below says in plain words what that role can do, and Needs under a row lists what else must be on (Turn on fixes it)." },

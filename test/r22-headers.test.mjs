@@ -42,14 +42,15 @@ t('members table: name cell = photo + (name + "you") line + e-mail line (full ad
 t('members table (R202): Name / Role / Account / actions only, labelled cells, View + Edit + remove in one actions cell', () => {
   const T = ucTable();
   const r = T([ROW(1), ROW(2, { job_title: '', department: '', phone: '' })], { profiles: true, meId: 'u1', roles: ['crew'], canEdit: true, q: '', filter: '' });
-  assert.equal(r.head, '<tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Account</th><th scope="col"><span class="sr-only">Actions</span></th></tr>');
+  // R228: Account -> Status, + a Two-step column; Deactivate lives in the row's "..." menu
+  assert.equal(r.head, '<tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Two-step</th><th scope="col"><span class="sr-only">Actions</span></th></tr>');
   assert.doesNotMatch(r.body, /class="ucph"|class="ucjob"/);
   assert.equal((r.body.match(/class="ucsub ucmeta"/g) || []).length, 1, 'no empty phone / job line');
-  for (const c of ['ucrole" data-label="Role"', 'ucprof" data-label="Account"']) assert.match(r.body, new RegExp('<td class="' + c));
-  assert.match(r.body, /<td class="ucact"><button type="button" class="btn sm ucView"[^>]*>View<\/button><button type="button" class="btn sm ucEdit"[^>]*>Edit<\/button><button type="button" class="rm"/);
+  for (const c of ['ucrole" data-label="Role"', 'ucprof" data-label="Status"', 'uctwo" data-label="Two-step"']) assert.match(r.body, new RegExp('<td class="' + c));
+  assert.match(r.body, /<td class="ucact"><button type="button" class="btn sm ucView"[^>]*>View<\/button><button type="button" class="btn sm ucEdit"[^>]*>Edit<\/button><div class="ucmw"><button type="button" class="btn sm ucMore"[\s\S]*?<button type="button" role="menuitem" tabindex="-1" class="ucmi rm"/);
   assert.match(r.body, /<tr class="ucr" data-id="u1">/);
-  assert.match(T([], { profiles: true, meId: 'u1', roles: [], q: '', filter: '' }).body, /colspan="4"/);
-  assert.match(T([ROW(1)], { profiles: true, meId: 'u9', roles: [], q: 'nobody', filter: '' }).body, /colspan="4"/);
+  assert.match(T([], { profiles: true, meId: 'u1', roles: [], q: '', filter: '' }).body, /colspan="5"/);
+  assert.match(T([ROW(1)], { profiles: true, meId: 'u9', roles: [], q: 'nobody', filter: '' }).body, /colspan="5"/);
 });
 t('members table CSS (R202): grid rows from 640px that always fit the card, e-mails wrap (never cut off), cards on phones', () => {
   assert.match(CTL, /<div class="table-scroll ucm-wrap"><table class="utable ucm"><thead id="um_head">/);
