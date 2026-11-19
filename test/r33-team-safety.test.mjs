@@ -93,17 +93,18 @@ await t('Settings: members table - Owner badge, no Deactivate on the owner, Deac
   const r = T(rows, { profiles: true, meId: 'u2', roles: ['admin', 'crew'], roleLabel: (x) => x, canEdit: true, q: '', filter: '', team: H.view(OV) });
   assert.equal((r.body.match(/<span class="tag ts-own"/g) || []).length, 1, 'one Owner badge');
   assert.match(r.body, /<tr class="ucr" data-id="u1">[\s\S]*?Owner<\/span>/);
-  assert.equal((r.body.match(/class="rm"/g) || []).length, 1, 'Deactivate only on u3 (not me, not the owner, not the deactivated)');
+  assert.equal((r.body.match(/class="(?:ucmi )?rm"/g) || []).length, 1, 'Deactivate only on u3 (not me, not the owner, not the deactivated)');
   assert.match(r.body, /aria-label="Deactivate p3@studio\.test">Deactivate<\/button>/);
   assert.match(r.body, /<tr class="ucr ucoff" data-id="u4">/);
-  assert.match(r.body, /class="btn sm ucReact" aria-label="Reactivate p4@studio\.test">Reactivate<\/button><button type="button" class="btn sm ucWork"/);
+  // R228: without team-status.js nothing is "primary" -> Reactivate + Open work are items of the row's "..." menu
+  assert.match(r.body, /role="menuitem" tabindex="-1" class="ucmi ucReact" aria-label="Reactivate p4@studio\.test">Reactivate<\/button><button type="button" role="menuitem" tabindex="-1" class="ucmi ucWork"/);
   assert.match(r.body, /<span class="tag ts-off"[^>]*>Deactivated<\/span>/);
   assert.match(r.body, /<span class="tag ts-wait"[^>]*>Change waiting<\/span>/);
   assert.match(r.body, /<tr class="ucr" data-id="u1">[\s\S]*?<select class="roleSel"[^>]* disabled title="The studio owner always stays an admin"/);
   assert.match(r.body, /data-id="u4">[\s\S]*?<select class="roleSel"[^>]* disabled title="Reactivate them first"/);
   // without 0283 (no team state): every other row keeps its (Deactivate) button, as before
   const old = T(rows, { profiles: true, meId: 'u2', roles: ['admin', 'crew'], q: '', filter: '' });
-  assert.equal((old.body.match(/class="rm"/g) || []).length, 3); assert.doesNotMatch(old.body, /ts-own|ucoff/);
+  assert.equal((old.body.match(/class="(?:ucmi )?rm"/g) || []).length, 3); assert.doesNotMatch(old.body, /ts-own|ucoff/);
 });
 await t('Settings: Deactivate wording + flow (never "permanently deletes"), 24-hour wording for a non-owner, Reactivate / Open work', () => {
   assert.doesNotMatch(C, /permanently deletes their account/);
@@ -119,8 +120,8 @@ await t('Settings: Deactivate wording + flow (never "permanently deletes"), 24-h
   assert.match(C, /try\{ ucTeam=BPStore\.team\?await BPStore\.team\.overview\(\):null; \}catch\(e\)\{ ucTeam=null; \}/);
   assert.match(C, /HelmTeam\.paint\(\$\("#team_safety"\), ucTeam, \{ store:BPStore\.team, guard:BPUI\.guard, confirm:BPUI\.confirm, prompt:BPUI\.prompt,/);
   assert.match(C, /<div id="team_safety" aria-live="polite" hidden><\/div>\s*<div id="team_work" aria-live="polite" hidden><\/div>/);
-  assert.match(C, /<script src="team-safety\.js\?v=3"><\/script>/); assert.match(C, /<link rel="stylesheet" href="team-safety\.css\?v=2">/);
-  assert.ok(C.indexOf('team-safety.js?v=3') < C.indexOf('async function renderUsers()'), 'loaded before the page script');
+  assert.match(C, /<script src="team-safety\.js\?v=4"><\/script>/); assert.match(C, /<link rel="stylesheet" href="team-safety\.css\?v=2">/);
+  assert.ok(C.indexOf('team-safety.js?v=4') < C.indexOf('async function renderUsers()'), 'loaded before the page script');
 });
 
 await t('store-api: BPStore.team -> team_* RPCs; bell kind team_safety (label + Settings link); v286 on every page', () => {
@@ -132,7 +133,7 @@ await t('store-api: BPStore.team -> team_* RPCs; bell kind team_safety (label + 
   assert.match(API, /team_safety: \["🛡️", String\(d\.label \|\| "Team change"\)\],/);
   assert.match(API, /if \(k === "team_safety"\) return "control\.html#users";/);
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = rd('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '385', f);
+    const m = rd('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '386', f);
   }
 });
 await t('comms-dispatch: the team_safety e-mail for every event (names only, Team link on APP_URL); unknown event -> null', async () => {

@@ -79,7 +79,8 @@
   .ts-badge{display:inline-flex;align-items:center;gap:4px;margin:6px 0 0 6px;font-size:11.5px;font-weight:700;border-radius:10px;padding:2px 8px;white-space:nowrap;vertical-align:middle}
   .ts-badge.on{color:#0f7a43;background:#e7f6ee}.ts-badge.on::before{content:"\2713"}
   .ts-badge.off{color:#8a5a00;background:#fff4dc}
-  @media (max-width:760px){.utable.ucm td.ucrole{white-space:normal}.utable.ucm td.ucrole .ts-badge{display:flex;width:fit-content;margin:8px 0 0 auto}}
+  @media (max-width:760px){.utable.ucm td.ucrole{white-space:normal}}
+  .utable.ucm td.uctwo .ts-badge{margin:0}
   .utable td.ucact{text-align:right;white-space:nowrap}
   /* r22 -> R202 members table: ONE "who" cell (photo + name + "you", the full e-mail under it, then phone · job title ·
      department), a compact role picker, the Account status and the actions. From 640px every member is a grid row that
@@ -108,24 +109,32 @@
   @media (min-width:640px){
     #pane-users .utable.ucm,#pane-users .utable.ucm>tbody{display:block;width:100%}
     #pane-users .utable.ucm>thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-    #pane-users .utable.ucm tr.ucr{display:grid;grid-template-columns:minmax(0,1fr) 170px minmax(150px,210px) minmax(0,auto);grid-template-areas:"who role prof act";
+    #pane-users .utable.ucm tr.ucr{display:grid;grid-template-columns:minmax(0,1fr) 150px 190px 118px 132px;grid-template-areas:"who role prof two act";
       column-gap:14px;row-gap:8px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-2)}
     #pane-users .utable.ucm tr.ucr>td{padding:0;border:0;min-width:0;max-width:none;width:auto}
     #pane-users .utable.ucm tr.ucr>td.dn{grid-area:who}
     #pane-users .utable.ucm tr.ucr>td.ucrole{grid-area:role;white-space:normal}   /* a "No access" tag stacks above the picker */
     #pane-users .utable.ucm tr.ucr>td.ucprof{grid-area:prof}
-    #pane-users .utable.ucm tr.ucr>td.ucact{grid-area:act;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:260px}
+    #pane-users .utable.ucm tr.ucr>td.uctwo{grid-area:two}
+    #pane-users .utable.ucm tr.ucr>td.ucact{grid-area:act;display:flex;flex-wrap:nowrap;gap:4px;justify-content:flex-end;align-items:center}
     #pane-users .utable.ucm tr.ucr>td.ucact>.btn,#pane-users .utable.ucm tr.ucr>td.ucact>.rm{margin:0}
-    #pane-users .utable.ucm tr.ucr>td.ucrole select{width:170px}
-    @container ucm (max-width:879.98px){
-      #pane-users .utable.ucm tr.ucr{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"who role" "prof act"}
+    #pane-users .utable.ucm tr.ucr>td.ucrole select{width:150px}
+    /* R228: column headings over the rows when the card is wide enough for one line per person */
+    @container ucm (min-width:800px){
+      #pane-users .utable.ucm>thead{position:static;width:auto;height:auto;overflow:visible;clip:auto;display:block}
+      #pane-users .utable.ucm>thead>tr{display:grid;grid-template-columns:minmax(0,1fr) 150px 190px 118px 132px;column-gap:14px;padding:0 4px;border-bottom:1px solid var(--line)}
+      #pane-users .utable.ucm>thead th{padding:0 0 8px;border:0;white-space:nowrap;background:transparent}
+      #pane-users .utable.ucm>thead th:first-child{padding-left:44px}
+    }
+    @container ucm (max-width:799.98px){
+      #pane-users .utable.ucm tr.ucr{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"who who role" "prof two act"}
       #pane-users .utable.ucm tr.ucr>td.ucprof{padding-left:44px}
-      #pane-users .utable.ucm tr.ucr>td.ucact{max-width:none;flex-wrap:nowrap}
       #pane-users .utable.ucm tr.ucr>:is(td.ucrole,td.ucact){justify-self:end}
     }
     @container ucm (max-width:519.98px){
-      #pane-users .utable.ucm tr.ucr{grid-template-columns:minmax(0,1fr);grid-template-areas:"who" "role" "prof" "act"}
-      #pane-users .utable.ucm tr.ucr>:is(td.ucrole,td.ucprof,td.ucact){padding-left:44px;justify-content:flex-start}
+      #pane-users .utable.ucm tr.ucr{grid-template-columns:minmax(0,1fr);grid-template-areas:"who" "role" "prof" "two" "act"}
+      #pane-users .utable.ucm tr.ucr>:is(td.ucrole,td.ucprof,td.uctwo,td.ucact){padding-left:44px;justify-content:flex-start;justify-self:start}
+      #pane-users .utable.ucm tr.ucr>td.uctwo:empty{display:none}
     }
   }
   html[data-theme="dark"] .ucok{background:rgba(46,184,114,.14);color:#6ee7a8}
@@ -277,14 +286,14 @@
 <link rel="stylesheet" href="venues.css?v=8">
 <link rel="stylesheet" href="studio-templates.css?v=5"><link rel="stylesheet" href="asset-price-grid.css?v=3">
 <link rel="stylesheet" href="menu-pkg-editor.css?v=6"><link rel="stylesheet" href="layout-rules.css?v=1">
-<link rel="stylesheet" href="team-safety.css?v=2"><link rel="stylesheet" href="team-status.css?v=3">
+<link rel="stylesheet" href="team-safety.css?v=2"><link rel="stylesheet" href="team-status.css?v=4">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
-<link rel="stylesheet" href="control-split.css?v=16">
+<link rel="stylesheet" href="control-split.css?v=17">
 <link rel="stylesheet" href="roles-matrix.css?v=2"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=99" id="shellProto"></script>
+<script src="/shell-proto.js?v=100" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -641,13 +650,19 @@
     <div id="pane-users" hidden>
       <div id="umsg" role="status" aria-live="polite"></div>
 
-      <div class="card">
+      <!-- R228 (owner 18 Nov 2026: "organise this properly and cleanly"): page header button "Invite people" (the Settings split
+           moves it into the Settings header beside "Users & invites"; without the split it stays here), the invite panel
+           folds open under it, a one-line "which to use" hint, the members list with filter tabs + counts, one status chip
+           per person, View / Edit / "..." menu, and Transfer ownership in its own "Danger zone" card at the bottom. -->
+      <button type="button" class="btn primary um-invite-btn" id="um_invite_btn" data-cs-head-for="users" aria-expanded="false" aria-controls="um_invite"><span aria-hidden="true">+</span> Invite people</button>
+      <div class="card um-card" id="um_card">
         <h3>Team members</h3>
-        <p class="mnote">Add teammates, set the name chat shows for each person, change each person's role, or deactivate someone who has left. Nobody is ever deleted: a deactivated person can't sign in, keeps their records, frees their seat, and can be reactivated. The studio owner can't be removed by other admins.</p>
-        <!-- R211 (owner 18 Nov 2026): "Invite by email link" is THE way to add a teammate - first, with "Send invite".
+        <p class="mnote um-lede">Nobody is ever deleted: a deactivated person can't sign in, keeps their records, frees their seat and can be reactivated. The studio owner can't be removed by other admins.</p>
+        <!-- R211: "Invite by email link" is THE way to add a teammate - first, with "Send invite".
              "Add user" (a login now + a temporary password) sits behind "More options", admins only, with a plain warning. -->
-        <section class="um-invite" id="um_invite" aria-labelledby="inv_h">
-          <h4 class="um-invite-h" id="inv_h">Invite by email link <span class="tag um-rec">Recommended</span></h4>
+        <section class="um-invite" id="um_invite" aria-labelledby="inv_h" data-cs-reveal hidden>
+          <div class="um-invite-top"><h4 class="um-invite-h" id="inv_h">Invite by email link <span class="tag um-rec">Recommended</span></h4>
+            <button type="button" class="um-invite-x" id="um_invite_x" aria-label="Close the invite panel">&times;</button></div>
           <p class="um-invite-n">Type their e-mail and pick a role. Helm e-mails them a join link that works for 7 days: they choose their own password (or sign in with Google) and join <b>your studio</b> with that role. Nothing is charged.</p>
           <form id="inv_add" class="addrow s-0dff578" novalidate aria-labelledby="inv_h">
             <input id="inv_email" type="email" maxlength="254" spellcheck="false" placeholder="name@studio.com" required autocomplete="off" aria-label="Invite email">
@@ -659,6 +674,18 @@
           <div class="s-e93d1e1" id="inv_out" hidden>
             <input class="s-59eddc6" id="inv_link" readonly aria-label="Invitation link">
             <button class="btn" type="button" id="inv_copy">Copy</button>
+          </div>
+          <div class="um-which" id="um_which">
+            <p class="um-which-t"><span class="um-which-ic" aria-hidden="true">?</span> <b>Which should I use?</b> <b>Invite by email link</b> for almost everyone - they pick their own password.</p>
+            <details class="um-which-more"><summary>Learn more</summary>
+              <ul>
+                <li><b>Invite by email link</b> (recommended) - they get an e-mail, confirm their own address and pick their own password (or sign in with Google). The link works 7 days. Until they join they show as <i>Invited - not signed up yet</i>; <b>Resend invite</b> sends a fresh 7-day link.</li>
+                <li><b>Add user (create login now)</b>, under <b>More options</b> (admins only) - for someone sitting next to you, or with no time to open an e-mail. The login exists at once and a one-time temporary password is shown to you once - nothing is e-mailed, you pass it on yourself; they must change it at first sign-in. Until then they show as <i>Added by admin - hasn't signed in yet</i>. Lost the password? <b>Send sign-in link</b> e-mails them a link to set their own, or <b>View &rarr; New temporary password</b> makes a new one.</li>
+                <li>Someone stuck? Every person who isn't in yet has one main button in their Status: <b>Resend invite</b>, <b>Send sign-in link</b> or <b>Reactivate</b>.</li>
+                <li><b>Staff page</b> - <b>Save as a record only</b> keeps a staff record with no Helm login (they get task links on WhatsApp). <b>Save and invite to sign in</b> sends the same invitation e-mail as Invite by email link and links it to their staff record.</li>
+                <li>Making someone an <b>Admin</b> (either way) needs two-step sign-in on your own account.</li>
+              </ul>
+            </details>
           </div>
           <details class="um-more" id="um_more" hidden>
             <summary>More options</summary>
@@ -676,37 +703,33 @@
             </div>
           </details>
         </section>
-        <div class="um-which" id="um_which">
-          <p class="um-which-t"><b>Which should I use?</b> <b>Invite by email link</b> (recommended): they get an e-mail, choose their own password and join - the link works 7 days.
-            <b>Add user (create login now)</b>, under <b>More options</b> (admins only): the login exists at once and a temporary password is shown to you once - nothing is e-mailed, you pass it on yourself.
-            Someone stuck? Every person who isn't in yet has one main button on their row: <b>Resend invite</b>, <b>Send sign-in link</b> or <b>Reactivate</b>.</p>
-          <details class="um-which-more"><summary>Learn more</summary>
-            <ul>
-              <li><b>Invite by email link</b> - best for most people. They confirm their own e-mail and pick their own password (or sign in with Google). Until they join they show as <i>Invited - not signed up yet</i>; <b>Resend invite</b> sends a fresh 7-day link.</li>
-              <li><b>Add user (create login now)</b> - for someone sitting next to you, or with no time to open an e-mail. You get a one-time temporary password (shown once); they must change it at first sign-in. Until then they show as <i>Added by admin - hasn't signed in yet</i>. Lost the password? <b>Send sign-in link</b> e-mails them a link to set their own, or <b>View &rarr; New temporary password</b> makes a new one.</li>
-              <li><b>Staff page</b> - <b>Save as a record only</b> keeps a staff record with no Helm login (they get task links on WhatsApp). <b>Save and invite to sign in</b> sends the same invitation e-mail as Invite by email link and links it to their staff record.</li>
-              <li>Making someone an <b>Admin</b> (either way) needs two-step sign-in on your own account.</li>
-            </ul>
-          </details>
-        </div>
         <p class="mnote" id="seat_meter" role="status" aria-live="polite" hidden></p>
         <div id="team_safety" aria-live="polite" hidden></div>
         <div id="team_work" aria-live="polite" hidden></div>
         <div class="uctools" id="uc_tools" hidden>
           <input id="uc_q" type="search" maxlength="100" placeholder="Search name, email, phone, title…" autocomplete="off" aria-label="Search team members">
-          <select id="uc_f" aria-label="Show"><option value="">Everyone</option><option value="invited">Invited – not signed up</option><option value="never">Never signed in</option><option value="active">Signed in</option><option value="off">Deactivated</option><option value="incomplete">Incomplete profiles</option><option value="complete">Complete profiles</option></select>
-          <span class="uccount" id="uc_count" role="status" aria-live="polite"></span>
+          <div class="uc-tabs" id="uc_tabs" role="group" aria-label="Show" hidden></div>
+          <select id="uc_f" aria-label="Show" hidden><option value="">Everyone</option><option value="invited">Invited – not signed up</option><option value="never">Never signed in</option><option value="active">Signed in</option><option value="off">Deactivated</option><option value="incomplete">Incomplete profiles</option><option value="complete">Complete profiles</option></select>
+          <span class="uccount sr-only" id="uc_count" role="status" aria-live="polite"></span>
         </div>
         <div class="table-scroll ucm-wrap"><table class="utable ucm"><thead id="um_head"><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="um_rows"><tr><td class="s-1a1aca0" colspan="4"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></td></tr></tbody>
         </table></div>
       </div>
 
-      <div class="card" id="inv_card">
+      <!-- R228: open invitations are rows of Team members (the "Invited" tab) once the database has 0378; this card is the
+           fallback for an older database / a role that can't read the account status (drawUsers shows it then). -->
+      <div class="card" id="inv_card" hidden>
         <h3 id="inv_list_h">Pending invites</h3>
-        <p class="mnote">People you invited who haven't signed up yet. They also show in Team members above as <b>Invited – not signed up yet</b>. Cancel invite stops the link; nothing else changes.</p>
+        <p class="mnote">People you invited who haven't signed up yet. Cancel invite stops the link; nothing else changes.</p>
         <div class="table-scroll"><table class="utable invtable"><thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Sent</th><th scope="col">Expires</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="inv_rows"><tr><td colspan="5" class="s-1a1aca0">Loading…</td></tr></tbody></table></div>
+      </div>
+
+      <!-- R228: the owner's Transfer ownership, on its own (was a stray "Transfer ownership" line above the search box) -->
+      <div class="card um-danger" id="ts_danger" aria-labelledby="ts_danger_h" hidden>
+        <h3 id="ts_danger_h">Danger zone</h3>
+        <div id="ts_xfer"></div>
       </div>
 
       <div class="card">
@@ -971,14 +994,14 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=385"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=386"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=59"></script>
-<script src="tour.js?v=74"></script>
+<script src="page-tours.js?v=60"></script>
+<script src="tour.js?v=75"></script>
 <script src="pkg-review.js?v=10"></script>
 <script src="onboarding-core.js?v=11"></script>
 <script src="studio-billing-form.js?v=4"></script>
@@ -996,14 +1019,14 @@
 <script src="venues-admin.js?v=10"></script>
 <script src="studio-templates-core.js?v=6"></script>
 <script src="studio-templates.js?v=15"></script>
-<script src="team-safety.js?v=3"></script><script src="team-status.js?v=4"></script>
+<script src="team-safety.js?v=4"></script><script src="team-status.js?v=5"></script>
 <script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=3"></script><script src="money-lock-ui.js?v=2"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=6"></script><script src="payment-schedule-settings.js?v=4"></script>
 <script src="asset-price-grid.js?v=7"></script><script src="pricing-form-core.js?v=4"></script><script src="menu-pkg-editor.js?v=5"></script><script src="layout-rules.js?v=2"></script>
 <script src="trial-demo.js?v=21"></script>
 <script src="trial-upgrade.js?v=3"></script>
 <script src="settings-search-core.js?v=2"></script>
-<script src="search-catalog.js?v=11"></script>
-<script src="control-split.js?v=24"></script>
+<script src="search-catalog.js?v=12"></script>
+<script src="control-split.js?v=25"></script>
 <script src="role-defaults.js?v=2"></script><script src="access-deps.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -1848,6 +1871,9 @@
   let ucRows=[], ucProfiles=false, ucTeam=null, ucTwoStep=null, ucTeamView=null;   // R211: ucTeamView = HelmTeam.view(ucTeam) of the last draw   // r44 (0291): { user id: two-step on? } for the admins' badge (null = not known)
   // R199 (0378): sign-in facts + open invitations ({ byId: { user id: row }, invites: [...] }; null = older database / not allowed)
   let ucAcct=null;
+  // R228: the filter tabs (key = the #uc_f value) and "open the invite panel once for a studio of one"
+  const UC_TABS=[["","Everyone"],["active","Active"],["invited","Invited"],["never","Not signed in"],["incomplete","Incomplete profile"],["off","Deactivated"]];
+  let umInviteAuto=false;
   const ucId=(u)=>u.user_id||u.id;
   // R20 (live QA): "Joined 18 Oct 2026" in the studio's own date style + timezone (was the browser's "Oct 18, 2026")
   function ucDate(iso){ if(!iso) return ""; try{ if(typeof BPStore!=="undefined"&&BPStore.fmtStudioDate){ const o=BPStore.fmtStudioDate(iso,{style:"long"}); if(o) return o; } return new Date(iso).toLocaleDateString("en-IN", {day:"numeric",month:"short",year:"numeric"}); }catch(e){ return ""; } }
@@ -1890,11 +1916,20 @@
     return off?{ key:"off", tone:"off", label:"Deactivated", detail:"", title:"" }:{ key:"unknown", tone:"muted", label:"Member", detail:u.created_at?"Joined "+ucDate(u.created_at):"", title:"" };
   }
   // R199: the Account cell - the status pill, its detail line, and the profile hint kept SEPARATE ("Profile: mobile number missing")
-  function ucAcctCell(u, st, priv){
+  // R228: + `next` = the row's ONE main next step (Resend invite / Send sign-in link / Reactivate) right under its status;
+  // a signed-in person's "Joined ..." line is left to View (the chip already says when they last signed in)
+  function ucAcctCell(u, st, priv, next){
     const hint=u.__invite?"":(typeof HelmTeamStatus!=="undefined"?HelmTeamStatus.profileHint(u, priv):(u.complete===false?"Profile incomplete":""));
     return `<span class="ucst ucst-${esc(st.tone||"muted")}"${st.title?` title="${esc(st.title)}"`:""}>${esc(st.label)}</span>`
-      +(st.detail?`<div class="ucsub ucst-d">${esc(st.detail)}</div>`:"")
-      +(hint?`<div class="ucsub ucst-hint" title="Fill it in with Edit">${esc(hint)}</div>`:"");
+      +(st.detail&&st.key!=="active"?`<div class="ucsub ucst-d">${esc(st.detail)}</div>`:"")
+      +(hint?`<div class="ucsub ucst-hint" title="Fill it in with Edit">${esc(hint)}</div>`:"")
+      +(next?`<div class="ucnext">${next}</div>`:"");
+  }
+  // R228: how many rows each filter tab shows (same rules as the filter itself) -> { "": n, active: n, ... }
+  function ucCounts(list, o, keys){
+    const all=list.concat(o.acct?ucInviteRows(list, o.acct.invites):[]), out={};
+    (keys||[""]).forEach(f=>{ out[f]=all.filter(u=>ucMatches(u,"",f,ucState(u,o))).length; });
+    return out;
   }
   // R199: open invitations as rows of the members table (an e-mail that already has a member row is never shown twice)
   function ucInviteRows(list, invites){
@@ -1924,20 +1959,22 @@
       :`<button type="button" class="rm" title="Deactivate - they can&#39;t sign in any more; their records are kept" aria-label="Deactivate ${esc(u.email||u.full_name||"")}">Deactivate</button>`;
     // R211: one button per action key (HelmTeamStatus.rowActions); every label / e-mail goes through esc()
     const RA=typeof HelmTeamStatus!=="undefined"&&HelmTeamStatus.rowActions?HelmTeamStatus.rowActions:null;
-    const acts=(list, u, st, who)=>(list||[]).map(a=>{ const p=a.primary?" primary":"", m=esc(u.email||u.full_name||""), w=esc(who||u.email||"");
+    // R228: inMenu -> the same buttons as items of the row's "..." menu (role=menuitem); classes stay, so the wiring is unchanged
+    const acts=(list, u, st, who, inMenu)=>(list||[]).map(a=>{ const p=a.primary?" primary":"", m=esc(u.email||u.full_name||""), w=esc(who||u.email||"");
+      const C=(c)=>inMenu?`role="menuitem" tabindex="-1" class="ucmi ${c.replace(/^btn sm ?/,"")}"`:`class="${c}"`;
       switch(a.key){
         case "resend": return st&&st.key==="expired"
-          ?`<button type="button" class="btn sm${p} ucInvResend" title="The link expired - this sends a new link that works 7 days" aria-label="Resend invite to ${m}">Resend invite (new link)</button>`
-          :`<button type="button" class="btn sm${p} ucInvResend" aria-label="Resend invite to ${m}">Resend invite</button>`;
-        case "copy": return `<button type="button" class="btn sm${p} ucInvCopy" aria-label="Copy invite link for ${m}">Copy link</button>`;
-        case "cancel": return `<button type="button" class="btn sm${p} ucInvCancel" aria-label="Cancel invite for ${m}">Cancel invite</button>`;
-        case "link": return `<button type="button" class="btn sm${p} ucLink" title="E-mails them a secure link to choose their own password" aria-label="Send sign-in link to ${w}">Send sign-in link</button>`;
-        case "react": return `<button type="button" class="btn sm${p} ucReact" aria-label="Reactivate ${m}">Reactivate</button>`;
-        case "work": return `<button type="button" class="btn sm ucWork" aria-label="Open work of ${m}">Open work</button>`;
-        case "view": return u.__invite?`<button type="button" class="btn sm ucView" aria-label="View invite for ${m}">View</button>`:`<button type="button" class="btn sm ucView" aria-label="View details of ${w}">View</button>`;
-        case "edit": return `<button type="button" class="btn sm ucEdit" aria-label="Edit profile for ${w}">Edit</button>`;
-        case "remove": return `<button type="button" class="rm" data-never="1" title="They never signed in. Their login is switched off (deactivated) - nothing is deleted, and you can reactivate them later" aria-label="Remove access for ${m}">Remove access</button>`;
-        case "deactivate": return `<button type="button" class="rm" title="Deactivate - they can&#39;t sign in any more; their records are kept" aria-label="Deactivate ${m}">Deactivate</button>`;
+          ?`<button type="button" ${C(`btn sm${p} ucInvResend`)} title="The link expired - this sends a new link that works 7 days" aria-label="Resend invite to ${m}">Resend invite (new link)</button>`
+          :`<button type="button" ${C(`btn sm${p} ucInvResend`)} aria-label="Resend invite to ${m}">Resend invite</button>`;
+        case "copy": return `<button type="button" ${C(`btn sm${p} ucInvCopy`)} aria-label="Copy invite link for ${m}">Copy link</button>`;
+        case "cancel": return `<button type="button" ${C(`btn sm${p} ucInvCancel`)} aria-label="Cancel invite for ${m}">Cancel invite</button>`;
+        case "link": return `<button type="button" ${C(`btn sm${p} ucLink`)} title="E-mails them a secure link to choose their own password" aria-label="Send sign-in link to ${w}">Send sign-in link</button>`;
+        case "react": return `<button type="button" ${C(`btn sm${p} ucReact`)} aria-label="Reactivate ${m}">Reactivate</button>`;
+        case "work": return `<button type="button" ${C(`btn sm ucWork`)} aria-label="Open work of ${m}">Open work</button>`;
+        case "view": return u.__invite?`<button type="button" ${C(`btn sm ucView`)} aria-label="View invite for ${m}">View</button>`:`<button type="button" ${C(`btn sm ucView`)} aria-label="View details of ${w}">View</button>`;
+        case "edit": return `<button type="button" ${C(`btn sm ucEdit`)} aria-label="Edit profile for ${w}">Edit</button>`;
+        case "remove": return `<button type="button" ${C(`rm`)} data-never="1" title="They never signed in. Their login is switched off (deactivated) - nothing is deleted, and you can reactivate them later" aria-label="Remove access for ${m}">Remove access</button>`;
+        case "deactivate": return `<button type="button" ${C(`rm`)} title="Deactivate - they can&#39;t sign in any more; their records are kept" aria-label="Deactivate ${m}">Deactivate</button>`;
         default: return "";
       } }).join("");
     if(!o.profiles){
@@ -1958,8 +1995,14 @@
     // R199: "Profile" (Complete / Incomplete - read as "signed up") is now "Account": the real sign-up / sign-in status,
     // with the profile completeness as a small separate hint; open invitations are rows too; every row has View.
     // R202: name + e-mail + phone + job title in ONE cell (the table no longer scrolls sideways on a laptop)
-    const cols=4;
-    const head=`<tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Account</th><th scope="col"><span class="sr-only">Actions</span></th></tr>`;
+    // R228: Name | Role | Status (one chip + the one main next step) | Two-step | View, Edit and a "..." menu for the rest
+    const cols=5;
+    const head=`<tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Two-step</th><th scope="col"><span class="sr-only">Actions</span></th></tr>`;
+    let mn=0;
+    const cells=(list, u, st, who)=>{ const L=list||[], m=esc(u.email||u.full_name||""), more=L.filter(a=>!a.primary&&a.key!=="view"&&a.key!=="edit"), id="ucmn-"+(++mn);
+      return { next:acts(L.filter(a=>a.primary), u, st, who),
+        act:acts(L.filter(a=>!a.primary&&(a.key==="view"||a.key==="edit")), u, st, who)
+          +(more.length?`<div class="ucmw"><button type="button" class="btn sm ucMore" aria-haspopup="menu" aria-expanded="false" aria-controls="${id}" aria-label="More actions for ${m}" title="More actions"><span aria-hidden="true">⋯</span></button><div class="ucmenu" id="${id}" role="menu" aria-label="More actions for ${m}" hidden>${acts(more, u, st, who, true)}</div></div>`:"") }; };
     const all=list.concat(o.acct?ucInviteRows(list, o.acct.invites):[]);
     const rows=all.filter(u=>ucMatches(u,o.q,o.filter,ucState(u,o)));
     const body=rows.map(u=>{
@@ -1968,8 +2011,9 @@
         return `<tr class="ucr ucinv" data-inv="${esc(i.id)}" data-email="${esc(u.email)}" data-role="${esc(u.role||"")}">
         <td class="dn" data-label="Name"><div class="ucwho"><span class="ucav ucav-inv" aria-hidden="true">@</span><div class="ucwt"><div class="ucnm"><span class="dnTxt em ucinv-em">${esc(u.email)}</span></div><div class="ucsub">${esc(by)}</div></div></div></td>
         <td class="ucrole" data-label="Role"><span class="ucinv-role">${esc(rl(u.role||""))}</span></td>
-        <td class="ucprof" data-label="Account">${ucAcctCell(u,st,priv)}</td>
-        <td class="ucact">${acts(RA?RA(st, null, { invite:true, canEdit:o.canEdit }):(o.canEdit?[{key:"view"},{key:"resend"},{key:"cancel"}]:[]), u, st)}</td>
+        ${(c=>`<td class="ucprof" data-label="Status">${ucAcctCell(u,st,priv,c.next)}</td>
+        <td class="uctwo" data-label="Two-step"></td>
+        <td class="ucact">${c.act}</td>`)(cells(RA?RA(st, null, { invite:true, canEdit:o.canEdit }):(o.canEdit?[{key:"view"},{key:"resend",primary:true},{key:"cancel"}]:[]), u, st))}
       </tr>`; }
       const self=meId&&ucId(u)===meId; const dn=(u.full_name||"").trim(); const who=dn||u.email||u.email_name||"user";
       const av=`<span class="ucav"${u.avatar_path?` data-avatar-path="${esc(u.avatar_path)}"`:""} aria-hidden="true">${esc(ucInitials(dn||u.email||u.email_name))}</span>`;
@@ -1982,9 +2026,10 @@
         :[{key:"view"}].concat(o.canEdit?[{key:"edit"}]:[], self||isOwner(u)?[]:isOff(u)?[{key:"react"},{key:"work"}]:[{key:"deactivate"}]);
       return `<tr class="ucr${isOff(u)?" ucoff":""}" data-id="${esc(ucId(u))}">
         <td class="dn" data-label="Name"><div class="ucwho">${av}<div class="ucwt"><div class="ucnm">${ucNameHtml(ucShownName(u,self,o.meName))}${self?' <span class="me">you</span>':""}${badges(u)}</div><div class="ucsub em"${mail?` title="${esc(mail)}"`:""}>${esc(mail)}</div>${meta?`<div class="ucsub ucmeta">${meta}</div>`:""}</div></div></td>
-        <td class="ucrole" data-label="Role">${roleSel(u,self)}${ts(u)}</td>
-        <td class="ucprof" data-label="Account">${ucAcctCell(u,st,priv)}</td>
-        <td class="ucact">${acts(ra, u, st, who)}</td>
+        <td class="ucrole" data-label="Role">${roleSel(u,self)}</td>
+        ${(c=>`<td class="ucprof" data-label="Status">${ucAcctCell(u,st,priv,c.next)}</td>
+        <td class="uctwo" data-label="Two-step">${ts(u)}</td>
+        <td class="ucact">${c.act}</td>`)(cells(ra, u, st, who))}
       </tr>`; }).join("") || `<tr><td colspan="${cols}" style="color:var(--ink-3)">${all.length?"No one matches these filters.":"No users."}</td></tr>`;
     return { head, body, shown:rows.length, total:all.length, members:list.length, invited:all.length-list.length };
   }
@@ -2005,7 +2050,11 @@
     try{ ucTeam=BPStore.team?await BPStore.team.overview():null; }catch(e){ ucTeam=null; }
     renderSeats();
     if(!ucProfiles) ucRows.sort((a,b)=>(a.email||"").localeCompare(b.email||""));
-    $("#uc_tools").hidden=false; $("#uc_f").hidden=!ucProfiles;
+    $("#uc_tools").hidden=false; $("#uc_tabs").hidden=!ucProfiles;
+    // R228: open invitations are rows of this table (the Invited tab); the separate card is only for an older database
+    { const ic=$("#inv_card"); if(ic) ic.hidden=!!ucAcct; }
+    // R228: a studio with nobody else in it yet sees the invite panel open (once); everyone else opens it with "Invite people"
+    if(!umInviteAuto){ umInviteAuto=true; if(ucRows.length<=1&&!(ucAcct&&ucAcct.invites&&ucAcct.invites.length)) umInvitePanel(true); }
     drawUsers();
     return true;   // R210: the table now shows what the database holds
   }
@@ -2016,8 +2065,11 @@
     ucTeamView=team;
     const t=ucTable(ucRows,{profiles:ucProfiles, meId:me&&me.id, meName:meMeta.full_name||meMeta.name||"", roles:ROLES, roleLabel:BPStore.auth.admin.roleLabel, canEdit:isAdmin, twoStep:ucTwoStep,
       q:$("#uc_q").value, filter:ucProfiles?$("#uc_f").value:"", team, acct:ucAcct, now:Date.now()});
+    if(ucProfiles) ucTabsPaint(ucCounts(ucRows, { team, acct:ucAcct, now:Date.now() }, UC_TABS.map(x=>x[0])));
+    // R228: waiting changes stay above the list; the owner's Transfer ownership goes to the "Danger zone" card at the bottom
     if(typeof HelmTeam!=="undefined") HelmTeam.paint($("#team_safety"), ucTeam, { store:BPStore.team, guard:BPUI.guard, confirm:BPUI.confirm, prompt:BPUI.prompt,
-      mfa:BPStore.auth.mfa, msg:setUMsg, reload:renderUsers });
+      mfa:BPStore.auth.mfa, msg:setUMsg, reload:renderUsers, transferBox:$("#ts_xfer") });
+    { const dz=$("#ts_danger"), xb=$("#ts_xfer"); if(dz) dz.hidden=!(xb&&xb.firstChild); }
     $("#um_head").innerHTML=t.head; tb.innerHTML=t.body;
     const inc=ucProfiles?ucRows.filter(u=>u.complete===false).length:0, invd=t.invited||0, mem=t.members!=null?t.members:t.total;
     $("#uc_count").textContent=(t.shown===t.total?mem+" member"+(mem===1?"":"s"):t.shown+" of "+t.total)+(invd?" · "+invd+" invited":"")+(inc?" · "+inc+" incomplete":"");
@@ -2076,6 +2128,29 @@
   // r44: someone turned two-step on in this tab (guided set-up / Account) -> refresh the badges
   document.addEventListener("helm:two-step-on",()=>{ if(!isAdmin||!BPStore.auth.admin.twoStepStatus) return; BPStore.auth.admin.twoStepStatus().then(m=>{ if(m){ ucTwoStep=m; if(ucRows.length) drawUsers(); } }).catch(()=>{}); });
   $("#uc_f").addEventListener("change",drawUsers);
+  // R228: the filter as tabs with counts (Everyone / Active / Invited / Not signed in / Incomplete profile / Deactivated).
+  // The hidden #uc_f keeps the chosen filter (same values as before); a tab with nobody in it is left out.
+  function ucTabsPaint(cnt){
+    const box=$("#uc_tabs"); if(!box) return; const cur=$("#uc_f").value; box.textContent="";
+    UC_TABS.forEach(([f,l])=>{ if(f&&f!==cur&&!cnt[f]) return;
+      const b=document.createElement("button"); b.type="button"; b.className="uc-tab"; b.dataset.f=f; b.setAttribute("aria-pressed", String(f===cur));
+      const tx=document.createElement("span"); tx.textContent=l; const n=document.createElement("span"); n.className="uc-tab-n"; n.textContent=String(cnt[f]||0);
+      b.setAttribute("aria-label", l+", "+(cnt[f]||0)); b.append(tx,n); box.appendChild(b); });
+  }
+  $("#uc_tabs").addEventListener("click",(e)=>{ const b=e.target.closest(".uc-tab"); if(!b) return; const f=b.dataset.f||"";
+    if($("#uc_f").value!==f){ $("#uc_f").value=f; drawUsers(); }
+    const again=$("#uc_tabs").querySelector(`.uc-tab[data-f="${f}"]`); if(again) try{ again.focus(); }catch(_){ } });
+  // R228: the row "..." menus (keyboard: arrows, Home / End, Esc; an item closes it first so dialogs return focus to "...")
+  if(window.HelmTeamStatus&&HelmTeamStatus.rowMenus) HelmTeamStatus.rowMenus($("#um_rows"));
+  // R228: "Invite people" (page header) opens / closes the invite panel; a settings search hit inside it opens it too
+  function umInvitePanel(open, focus){
+    const p=$("#um_invite"), b=$("#um_invite_btn"); if(!p) return;
+    p.hidden=!open; if(b) b.setAttribute("aria-expanded", String(!!open));
+    if(open&&focus) setTimeout(()=>{ try{ p.scrollIntoView({block:"nearest"}); $("#inv_email").focus({preventScroll:true}); }catch(_){ } },0);
+  }
+  $("#um_invite_btn").addEventListener("click",()=>{ umInvitePanel($("#um_invite").hidden, true); });
+  $("#um_invite_x").addEventListener("click",()=>{ umInvitePanel(false); try{ $("#um_invite_btn").focus(); }catch(_){ } });
+  $("#um_invite").addEventListener("cs:reveal",()=>umInvitePanel(true));
 
   // ---- admin: edit a member's profile (admin_update_member_profile) ----
   const MP_FIELDS=["full_name","phone","whatsapp","job_title","department","city","skills","emergency_contact_name","emergency_contact_phone","day_rate","emp_type"];
@@ -2197,7 +2272,7 @@
     tx.textContent=String(text||""); acts.textContent="";
     (buttons||[]).forEach(o=>{ const b=document.createElement("button"); b.type="button"; b.className="btn sm"+(o.primary?" primary":""); b.textContent=o.label;
       b.addEventListener("click",()=>o.onClick(b)); acts.appendChild(b); });
-    box.hidden=false;
+    box.hidden=false; umInvitePanel(true);
     if(which==="um"){ const d=$("#um_more"); if(d) d.open=true; }
     try{ box.scrollIntoView({block:"nearest"}); }catch(_){ }
     const first=(buttons||[])[0];

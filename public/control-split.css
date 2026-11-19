@@ -122,3 +122,9 @@ html:not(.helm-trial) #app .p-cro .p-ctrial,html.helm-trial #app .p-cro .p-cgo{d
 #app.cs-on .cs-main .utable:not(.ucm) td.dn{white-space:normal;overflow-wrap:anywhere;min-width:12ch}
 #app.cs-on .cs-main .utable select{max-width:100%}
 #app.cs-on .cs-main .utable.ucm td,#app.cs-on .cs-main .utable.ucm th{padding-left:6px;padding-right:6px}
+
+/* R228: a section's page-level button on the right of the header (Users & invites -> "Invite people") */
+#app.cs-on .cs-head.cs-head-has-acts{display:flex;align-items:flex-end;justify-content:space-between;gap:12px 16px;flex-wrap:wrap}
+.cs-head-t{min-width:0;flex:1 1 260px}
+.cs-head-acts{display:flex;gap:8px;align-items:center;flex:0 0 auto}
+.cs-head-acts:empty,.cs-head-acts>.cs-off{display:none!important}

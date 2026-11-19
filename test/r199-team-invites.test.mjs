@@ -96,8 +96,8 @@ const ACCT = { byId: { u1: { user_id: 'u1', last_sign_in_at: iso(NOW - 3 * D) },
 await t('members table: "Account" column (not Profile / Complete), status + separate profile hint, View on every row', () => {
   const T = ucTable();
   const r = T([ROW(1, { role: 'admin' }), ROW(2, { complete: false, phone: '' })], { profiles: true, meId: 'u1', roles: ['admin', 'crew'], roleLabel: (x) => x, canEdit: true, q: '', filter: '', acct: ACCT, now: NOW });
-  assert.match(r.head, /<th scope="col">Account<\/th>/); assert.doesNotMatch(r.head + r.body, /Profile<\/th>|✓ Complete|✗ Incomplete/);
-  assert.match(r.body, /<td class="ucprof" data-label="Account"><span class="ucst ucst-ok" title="Last sign-in: [^"]+">Last signed in 3 days ago<\/span>/);
+  assert.match(r.head, /<th scope="col">Status<\/th><th scope="col">Two-step<\/th>/); assert.doesNotMatch(r.head + r.body, /Profile<\/th>|✓ Complete|✗ Incomplete/);
+  assert.match(r.body, /<td class="ucprof" data-label="Status"><span class="ucst ucst-ok" title="Last sign-in: [^"]+">Last signed in 3 days ago<\/span><\/td>/);   // R228: no "Joined" line on a signed-in row (it is in View)
   assert.match(r.body, /<span class="ucst ucst-warn"[^>]*>Signed up – never signed in<\/span>/);
   assert.match(r.body, /<div class="ucsub ucst-hint"[^>]*>Profile: mobile number missing<\/div>/);
   assert.equal((r.body.match(/class="btn sm ucView"/g) || []).length, 4, 'View on both members + both open invites (the invite of a member is not repeated)');
@@ -112,7 +112,9 @@ await t('members table: open + expired invites are rows (Resend invite / Cancel 
   assert.match(r.body, /<span class="dnTxt em ucinv-em">new\.person@very-long-studio-domain\.test<\/span><\/div><div class="ucsub">Invited by Asha<\/div>/);
   assert.match(r.body, /data-inv="i1"[\s\S]*?Invited – not signed up yet[\s\S]*?link expires/);
   assert.match(r.body, /data-inv="i2"[\s\S]*?<span class="ucst ucst-off"[^>]*>Invite expired – not signed up<\/span>/);
-  assert.match(r.body, /class="btn sm primary ucInvResend" title="The link expired - this sends a new link that works 7 days" aria-label="Resend invite to old@studio\.test">Resend invite \(new link\)<\/button><button type="button" class="btn sm ucInvCancel" aria-label="Cancel invite for old@studio\.test">Cancel invite<\/button>/);
+  // R228: the one main step sits under the status; Cancel invite (and Copy link) are items of the row's "..." menu
+  assert.match(r.body, /<div class="ucnext"><button type="button" class="btn sm primary ucInvResend" title="The link expired - this sends a new link that works 7 days" aria-label="Resend invite to old@studio\.test">Resend invite \(new link\)<\/button><\/div><\/td>/);
+  assert.match(r.body, /<button type="button" class="btn sm ucView" aria-label="View invite for old@studio\.test">View<\/button><div class="ucmw"><button type="button" class="btn sm ucMore" aria-haspopup="menu" aria-expanded="false" aria-controls="ucmn-\d+" aria-label="More actions for old@studio\.test"[^>]*>[\s\S]*?<div class="ucmenu" id="ucmn-\d+" role="menu" aria-label="More actions for old@studio\.test" hidden><button type="button" role="menuitem" tabindex="-1" class="ucmi ucInvCancel" aria-label="Cancel invite for old@studio\.test">Cancel invite<\/button><\/div>/);
   const e = T([], { profiles: true, meId: 'u1', roles: [], q: '', filter: '', acct: evil, now: NOW, canEdit: true });
   assert.doesNotMatch(e.body, /<img|<b>r/); assert.match(e.body, /&quot;&gt;&lt;img src=x onerror=alert\(1\)&gt;@x\.test/);
   const noEdit = T([ROW(1)], { profiles: true, meId: 'u9', roles: ['crew'], q: '', filter: '', acct: ACCT, now: NOW });

@@ -15,7 +15,8 @@
      HelmTeamStatus.roleSaved(asked, saved, loaded, label) -> R210: what the Users table says after a role change, from the
          role the DATABASE answers on a fresh read (never the one picked in the drop-down) -> { ok, tone, text }
      HelmTeamStatus.roleError(err) -> R210: the database's refusal of a role change in plain words, or "" (not one of them)
-     HelmTeamStatus.openDrawer({ title, sub, rows: [[label, value, { copy, mono }]], actions: [{ label, onClick, danger, primary }] }) */
+     HelmTeamStatus.openDrawer({ title, sub, rows: [[label, value, { copy, mono }]], actions: [{ label, onClick, danger, primary }] })
+     HelmTeamStatus.rowMenus(tbody) -> R228: keyboard-friendly "..." menus of the members table (wired once) */
 (function (root) {
   "use strict";
   function ts(v) { if (v == null || v === "") return null; var t = typeof v === "number" ? v : Date.parse(v); return isFinite(t) ? t : null; }
@@ -231,6 +232,63 @@
     return dr;
   }
 
+  /* R228: the "..." menu of each row in Settings -> Users & invites. The page draws, per row,
+       <button class="ucMore" aria-haspopup="menu" aria-expanded aria-controls="ID"> + <div class="ucmenu" id="ID" role="menu" hidden>
+       with role="menuitem" buttons. Wired ONCE on the table body (rows are redrawn): click / Enter / Space / Down opens on the
+       first item, Up on the last; Up / Down / Home / End move; Esc and Tab close and return focus to "..."; a click outside,
+       a scroll or a resize closes it. Choosing an item closes the menu FIRST (capture phase) and puts focus back on "...",
+       so a confirm dialog the item opens returns focus to a visible control. The menu floats (position: fixed), so a
+       scrolling table never clips it. */
+  function rowMenus(box) {
+    if (!box || box.__helmRowMenus) return; box.__helmRowMenus = true;
+    var d = root.document, open = null;
+    function items(m) { return Array.prototype.filter.call(m.querySelectorAll('[role="menuitem"]'), function (b) { return !b.disabled && !b.hidden; }); }
+    function focus(n) { if (n) { try { n.focus({ preventScroll: true }); } catch (e) { try { n.focus(); } catch (e2) {} } } }
+    function close(back) {
+      if (!open) return; var o = open; open = null;
+      o.menu.hidden = true; o.menu.style.left = o.menu.style.top = ""; o.btn.setAttribute("aria-expanded", "false");
+      if (back && o.btn.isConnected) focus(o.btn);
+    }
+    function place(btn, m) {
+      var r = btn.getBoundingClientRect(), de = d.documentElement, vw = de.clientWidth, vh = de.clientHeight;
+      m.style.visibility = "hidden"; m.style.left = "0px"; m.style.top = "0px"; m.hidden = false;
+      // a container query / transform ancestor becomes the fixed menu's containing block: measure where 0,0 really is
+      var o = m.getBoundingClientRect();
+      var w = m.offsetWidth, h = m.offsetHeight, left = r.right - w < 8 ? r.left : r.right - w, top = r.bottom + 4;   // under "...", right-aligned (left-aligned when that would leave the screen)
+      left = Math.max(8, Math.min(left, vw - w - 8));
+      if (top + h > vh - 8 && r.top - h - 4 > 8) top = r.top - h - 4;
+      m.style.left = Math.round(left - o.left) + "px"; m.style.top = Math.round(top - o.top) + "px"; m.style.visibility = "";
+    }
+    function show(btn, which) {
+      close(false);
+      var m = d.getElementById(btn.getAttribute("aria-controls") || ""); if (!m) return;
+      open = { btn: btn, menu: m }; btn.setAttribute("aria-expanded", "true"); place(btn, m);
+      var it = items(m); focus(which === "last" ? it[it.length - 1] : it[0]);
+    }
+    box.addEventListener("click", function (e) {
+      var it = e.target.closest && e.target.closest('.ucmenu [role="menuitem"]');
+      if (it && open && open.menu.contains(it)) close(true);
+    }, true);
+    box.addEventListener("click", function (e) {
+      var b = e.target.closest && e.target.closest(".ucMore"); if (!b || !box.contains(b)) return;
+      e.preventDefault(); if (open && open.btn === b) close(true); else show(b, "first");
+    });
+    box.addEventListener("keydown", function (e) {
+      var b = e.target.closest && e.target.closest(".ucMore");
+      if (b && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); show(b, e.key === "ArrowUp" ? "last" : "first"); return; }
+      if (!open || !open.menu.contains(e.target)) return;
+      var it = items(open.menu), i = it.indexOf(e.target), n = it.length; if (!n) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); focus(it[(i + 1) % n]); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); focus(it[(i - 1 + n) % n]); }
+      else if (e.key === "Home") { e.preventDefault(); focus(it[0]); }
+      else if (e.key === "End") { e.preventDefault(); focus(it[n - 1]); }
+      else if (e.key === "Escape" || e.key === "Tab") { e.preventDefault(); e.stopPropagation(); close(true); }
+    });
+    d.addEventListener("click", function (e) { if (open && !open.menu.contains(e.target) && !open.btn.contains(e.target)) close(false); });
+    d.addEventListener("scroll", function (e) { if (open && !open.menu.contains(e.target)) close(false); }, true);
+    root.addEventListener("resize", function () { close(false); });
+  }
+
   // R210 (owner 18 Nov 2026: "Even if I change this to Event manager, the person is getting Admin"): the Users table used
   // to write the picked role into its own copy and say "Role updated." without asking the database again. Now the page
   // re-reads the team after the change and this decides the words from the role the database actually holds.
@@ -255,7 +313,7 @@
   }
 
   var api = { roleSaved: roleSaved, roleError: roleError, member: member, invite: invite, signInHelp: signInHelp, rowActions: rowActions, profileHint: profileHint, matches: matches, ago: ago, until: until, when: when,
-    openDrawer: openDrawer, closeDrawer: closeDrawer, copyText: copyText };
+    openDrawer: openDrawer, closeDrawer: closeDrawer, copyText: copyText, rowMenus: rowMenus };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HelmTeamStatus = api;
 })(typeof window !== "undefined" ? window : globalThis);

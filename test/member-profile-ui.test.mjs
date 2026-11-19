@@ -230,7 +230,7 @@ t('User control: Name / Phone / Job title / Department / Profile (+ joined) / ph
     mrow(3, 2, { complete: false, phone: null, profile_completed_at: null, full_name: '' })];
   const r = T(rows, { profiles: true, meId: U(1), roles: ROLES, roleLabel: (x) => x, canEdit: true, q: '', filter: '' });
   // R202: Name / Role / Account / actions - phone, job title and department sit under the e-mail (no sideways scroll)
-  for (const h of ['Name', 'Role', 'Account']) assert.match(r.head, new RegExp(`<th scope="col">${h}</th>`));
+  for (const h of ['Name', 'Role', 'Status', 'Two-step']) assert.match(r.head, new RegExp(`<th scope="col">${h}</th>`));
   assert.doesNotMatch(r.head, /Phone|Job title/);
   assert.match(r.body, /<div class="ucsub ucmeta"><span class="ucphn">\+91 98765 43210<\/span> · <span class="ucjobt">Rigger<\/span> · <span class="ucdept">Production<\/span><\/div>/, 'phone · job title · department in the who-cell');
   assert.match(r.body, /\+91 98765 43210/, 'phone shown (admins get it) in a readable format');
@@ -239,7 +239,7 @@ t('User control: Name / Phone / Job title / Department / Profile (+ joined) / ph
   assert.doesNotMatch(r.body, /✓ Complete|✗ Incomplete/); assert.match(r.body, /Joined /); assert.match(r.body, /class="ucsub ucst-hint"[^>]*>Profile incomplete</);
   assert.match(r.body, new RegExp(`data-avatar-path="${reEsc(AV(U(2)))}"`), 'photo thumbnail painted from avatar_path');
   assert.equal((r.body.match(/class="btn sm ucEdit"/g) || []).length, 3, 'admin Edit button per row');
-  assert.equal((r.body.match(/class="rm"/g) || []).length, 2, 'no remove button on my own row');
+  assert.equal((r.body.match(/class="(?:ucmi )?rm"/g) || []).length, 2, 'no remove button on my own row (R228: inside the row menu)');
   assert.match(r.body, /<span class="me">you<\/span>/);
   // a users-view caller who is NOT given private fields: colleague rows have whatsapp_same=null
   const priv = T([mrow(1, 1), mrow(2, 0), mrow(3, 0)], { profiles: true, meId: U(1), roles: ROLES, q: '', filter: '' });

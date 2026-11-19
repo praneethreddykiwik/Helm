@@ -105,6 +105,6 @@ t("Settings search: soft iPad-style field, accent focus ring, highlighted matche
   assert.match(c, /border-radius:12px/);
   assert.match(j, /e\.key==="ArrowDown"/);
   assert.match(j, /role","combobox"/);
-  assert.match(r("public/control.html"), /control-split\.css\?v=16/);
+  assert.match(r("public/control.html"), /control-split\.css\?v=17/);
 });
 console.log(`theme-green-light: ${n} passed`);
