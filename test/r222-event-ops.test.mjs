@@ -136,19 +136,19 @@ await t('2f run-sheet now / next / done from the studio minutes; no clock = no s
 });
 
 await t('3a the page: switch kept, Get set up, run-sheet, issues and wrap-up boxes', () => {
-  assert.match(OPS, /data-phase="plan" aria-pressed="false">Before the event<\/button>/);
-  assert.match(OPS, /data-phase="live" aria-pressed="false">On the day<\/button>/);
+  assert.match(OPS, /data-phase="plan" (data-win="before" )?aria-pressed="false">Before the event<\/button>/);   // R226: + data-win
+  assert.match(OPS, /data-phase="live" (data-win="onday" )?aria-pressed="false">On the day<\/button>/);
   assert.match(OPS, /id="tcPhaseAuto" hidden>Use the studio’s clock<\/button>/);
   for (const id of ['tcPrep', 'tcRun', 'tcIssues', 'tcWrap']) assert.match(OPS, new RegExp('id="' + id + '"[^>]*hidden'), id + ' starts hidden');
-  assert.match(BRD, /card\("tcPrep", S\.phase === "plan"/); assert.match(BRD, /card\("tcRun", S\.phase === "live" && Array\.isArray\(S\.rs\)\)/);
+  assert.match(BRD, /card\("tcPrep", S\.phase === "plan"/); assert.match(BRD, /card\("tcRun", S\.phase === "live" (&& S\.win !== "wrapup" )?&& Array\.isArray\(S\.rs\)\)/);
   assert.match(BRD, /card\("tcIssues", S\.phase === "live" && Array\.isArray\(S\.iss\)\)/);
-  assert.match(BRD, /renderPrep\(\); renderRun\(\); renderAttn\(\); renderIssues\(\); renderWrap\(\);/);
+  assert.match(BRD, /renderPrep\(\); (renderPlan\(\); )?renderRun\(\); renderAttn\(\); renderIssues\(\); renderWrap\(\);/);
   for (const l of ['"staff.html"', '"resources.html?quote="', '"vendors.html"', '"runsheet.html?quote="', 'builderHref()', '"ready.html?quote="']) assert.ok(BRD.includes(l), 'Get set up links ' + l);
 });
 await t('3b the note says why; a hand pick that matches the clock is dropped; #live sticks', () => {
   assert.match(BRD, /"From the studio’s clock" \+ \(why \? " · " \+ why : ""\)/);
   assert.match(BRD, /"Picked by hand · the studio’s clock says "/);
-  assert.match(BRD, /if \(S\.manual === auto\) \{ ssSet\(key, null\); S\.manual = null; \}/);
+  assert.match(BRD, /if \(S\.manual === (auto|S\.autoWin)\) \{ ssSet\(key, null\); S\.manual = null; \}/);   // R226: the window
   assert.match(BRD, /location\.hash === "#live" && G\(\)\.quoteId && modeNow\(\)\.mode !== "live"\) ssSet\(phaseKey\(\), "live"\)/);
   assert.doesNotMatch(BRD, /=== "#live"\) \{ S\.phase = "live";/, 'the old one-shot flip (undone by the next refresh) is gone');
   assert.match(CSS, /\.tc-phase-row \.tc-seg\[aria-pressed="true"\]\{background:var\(--tc-black\);color:#fff/, 'black like + Add & assign and the All chip');
@@ -182,8 +182,9 @@ await t('4b mark complete: setStageGuided to Settlement (0198 gates + admin over
 });
 await t('4c safety: DOM only in ops-board.js, no migration 0396 in phase 1, tour updated', () => {
   assert.doesNotMatch(BRD, /innerHTML|insertAdjacentHTML|outerHTML/);
-  assert.equal(readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter((f) => /^0396/.test(f)).length, 0);
-  // the tour keeps its 8 steps (page-tours-coverage: 4-8 a page); the changed steps say what is new
+  // R226 used the reserved 0396 (phase 4: Ready by / Venue opens) - only its own file
+  assert.deepEqual(readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter((f) => /^0396/.test(f)), ['0396_r226_event_day_plan.sql']);
+  // the tour keeps its 8 steps (page-tours-coverage: 4-8 a page); the changed steps say what is new (R226 wording)
   assert.match(TOURS, /On the day starts 1 hour before the first run-sheet item, task or guest arrival/);
   assert.match(TOURS, /\+ Log an issue, and Mark event complete - it moves on to Settlement, Teardown and Closure/);
   assert.match(TOURS, /Free that day \/ Busy elsewhere - the other event is named \/ Day off/);

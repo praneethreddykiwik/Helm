@@ -1,0 +1,60 @@
+/* event-plan.css - R226: the Ready-by card, the Day-before checklist and the four-window switch, shared by Tasks & Crew and
+   the Event-day monitor. Colours come from the --tc-* tokens of ops-board.css (they follow the studio theme), never hard-coded. */
+.ep-card{padding:14px 16px;margin:0 0 12px}
+.ep-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+.ep-head .tc-h2{margin:0}
+.ep-big{font-variant-numeric:tabular-nums;color:var(--tc-ink)}
+.ep-facts{color:var(--tc-ink-3);font-size:13px;flex:1 1 200px}
+.ep-status{margin:10px 0 8px;padding:8px 12px;border-radius:var(--tc-r-ctl);background:var(--tc-panel-2);color:var(--tc-ink-2);font-size:14px}
+.ep-status.ok{background:var(--tc-safe-bg);color:var(--tc-safe)}
+.ep-status.warn{background:var(--tc-warn-bg);color:var(--tc-warn)}
+.ep-status.bad{background:var(--tc-bad-bg);color:var(--tc-bad);font-weight:600}
+.ep-jobs,.ep-checks{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.ep-job,.ep-check{display:flex;align-items:center;gap:12px;padding:9px 4px;border-top:1px solid var(--tc-line-2);min-width:0}
+.ep-job:first-child,.ep-check:first-child{border-top:0}
+.ep-job .grow,.ep-check .grow{flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.ep-job .tc-sub,.ep-check .tc-sub{flex-basis:100%;color:var(--tc-ink-3);font-size:12.5px}
+.ep-job-t{flex:0 0 76px;display:flex;flex-direction:column;font-variant-numeric:tabular-nums;font-weight:700;color:var(--tc-ink)}
+.ep-job-t small{font-weight:500;font-size:11px;color:var(--tc-ink-3)}
+.ep-job.late .ep-job-t{color:var(--tc-bad)}
+.ep-job.soon .ep-job-t{color:var(--tc-warn)}
+.ep-job.done{opacity:.72}
+.ep-job.done .ep-job-t{color:var(--tc-safe)}
+.ep-job-form{padding:0 0 8px}
+.ep-form{display:grid;gap:6px;max-width:520px;padding:12px;margin:6px 0 10px;border:1px solid var(--tc-line);border-radius:var(--tc-r-ctl);background:var(--tc-panel-2)}
+.ep-form-h{margin:0}
+.ep-lbl{font-size:13px;font-weight:600;color:var(--tc-ink-2);display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;margin-top:4px}
+.ep-lbl small{font-weight:400;color:var(--tc-ink-3)}
+.ep-inp{font:inherit;font-size:16px;min-height:40px;padding:6px 10px;border:1px solid var(--tc-line-strong);border-radius:var(--tc-r-ctl);background:var(--tc-panel);color:var(--tc-ink);max-width:100%}
+.ep-inp.sm{width:120px}
+.ep-inp:focus-visible{outline:2px solid var(--tc-acc);outline-offset:1px}
+.ep-chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--tc-ink);min-height:32px}
+.ep-chk input{width:18px;height:18px;accent-color:var(--tc-acc)}
+.ep-roles{display:flex;flex-wrap:wrap;gap:4px 16px}
+.ep-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+.ep-hint{margin:2px 0;color:var(--tc-ink-3);font-size:12.5px}
+.ep-err{margin:2px 0;color:var(--tc-bad);font-size:13px}
+.ep-untimed{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0 4px}
+.ep-untimed .tc-sub{flex-basis:100%}
+.ep-foot{margin:10px 0 0;color:var(--tc-ink-3);font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.ep-linkbtn{border:0;background:none;padding:0;cursor:pointer;font:inherit;font-size:12.5px;color:var(--tc-acc-text);text-decoration:underline}
+.ep-tick{flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:1.5px solid var(--tc-line-strong);background:var(--tc-panel);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.ep-tick:disabled{cursor:default;opacity:.7}
+.ep-tick.on{background:var(--tc-acc);border-color:var(--tc-acc)}
+.ep-tick:focus-visible{outline:2px solid var(--tc-acc);outline-offset:2px}
+.ep-box{color:var(--tc-panel);font-weight:800;font-size:15px;line-height:1}
+.ep-check.on b{color:var(--tc-ink-2)}
+.ep-by{flex-basis:100%;font-size:12px;color:var(--tc-safe)}
+/* the four windows (Before the event / Day before / On the day / Wrap-up) - same on both pages */
+.ep-wins{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 12px}
+.ep-wins .tc-seggrp{overflow-x:auto;scrollbar-width:none}
+.ep-wins .tc-seggrp::-webkit-scrollbar{display:none}
+.ep-wins .tc-seg{min-height:40px;font-size:14px}
+.ep-wnote{color:var(--tc-ink-3);font-size:13px;flex:1 1 220px}
+@media (max-width:640px){
+  .ep-job,.ep-check{gap:10px}
+  .ep-job-t{flex-basis:64px}
+  .ep-wins .tc-seg{padding:8px 11px;font-size:13px}
+  .ep-inp.sm{width:100%}
+}
+@media (max-width:640px){ .tc-phase-row .tc-seggrp{flex-wrap:wrap} .tc-phase-row .tc-seg{flex:1 1 40%} }

@@ -245,3 +245,29 @@ html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) .mon-body{--h
 html[data-shell="b"][data-hb-theme][data-hb-theme="graphite"] .mon-body{--hx-tint:#6b6b6b}
 /* "Done" is a status: the same green in every theme (like the done dot and the Tasks & Crew "Done" chip) */
 html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) .mon-body .mon-chip.is-done{background:#e7f6ee;color:#0f7a43}
+/* ---- R226 (EVENT-OPS-PLAN-V2.md): bigger view tabs, Remind menu, proof photo beside Done, the task drawer, wrap-up card ---- */
+.mon-tab{min-height:44px;padding:10px 18px;font-size:15px}
+.mon-remind{position:relative;display:inline-flex}
+.mon-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:40;display:flex;flex-direction:column;min-width:230px;padding:4px;background:var(--m-panel);border:1px solid var(--m-line);border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,.08),0 18px 40px rgba(0,0,0,.16)}
+.mon-menu-it{display:flex;flex-direction:column;align-items:flex-start;gap:1px;border:0;background:transparent;border-radius:8px;padding:9px 12px;min-height:44px;text-align:left;font:inherit;color:var(--m-ink);cursor:pointer}
+.mon-menu-it small{color:var(--m-ink-3);font-size:12px}
+.mon-menu-it:hover,.mon-menu-it:focus-visible{background:var(--m-acc-soft);outline:none}
+.mon-proof{display:inline-flex;align-items:center;gap:6px;margin-left:6px}
+.mon-proof img{display:block;width:40px;height:40px;object-fit:cover;border-radius:8px;border:1px solid var(--m-line)}
+.mon-proof.is-big{flex-wrap:wrap;margin:0}
+.mon-proof.is-big img{width:160px;height:120px}
+.mon-proof small{font-size:11px;color:var(--m-ink-3)}
+.mon-scrim{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.28)}
+.mon-drawer{position:fixed;top:0;right:0;bottom:0;z-index:2001;width:min(460px,100%);display:flex;flex-direction:column;background:var(--m-panel);border-left:1px solid var(--m-line);box-shadow:0 24px 64px rgba(0,0,0,.18)}
+.mon-drawer-h{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--m-line)}
+.mon-drawer-h h2{margin:0;flex:1;font-size:17px;overflow-wrap:anywhere}
+.mon-drawer-b{flex:1;overflow:auto;padding:14px 16px 24px;display:grid;gap:10px;align-content:start}
+.mon-drawer-st{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.mon-dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:14px}
+.mon-dl dt{color:var(--m-ink-3);font-weight:600}
+.mon-dl dd{margin:0;overflow-wrap:anywhere}
+.mon-drawer-f{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+body.mon-drawer-open{overflow:hidden}
+.mon-wrapcard .tc-prep-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+@media (max-width:640px){ .mon-tab{padding:9px 14px;font-size:14px} .mon-drawer{width:100%} .mon-menu{right:auto;left:0} }
+body.mon-wall .mon-tab{font-size:17px;min-height:48px}

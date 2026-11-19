@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=98"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=99"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -4502,6 +4502,22 @@ window.HelmUrl = HelmUrl;
     },
     // R174 (0365): event-day progress - events happening today / in the next hours with task counts, late tasks and the
     // latest activity (home card + Calendar "Live today"). null before 0365 (the card / tab then stay hidden).
+    // R226 (0396): the event day plan - Venue opens / Ready by, the Day-before checklist, task durations, the backward schedule,
+    // learned durations and the alert settings. get() answers null before 0396 (both pages then hide the cards).
+    // Refusals (message): invalid_time | invalid_key | invalid_minutes | invalid_settings | not allowed.
+    dayPlan: {
+      async get(quoteId) { if (!supa || !quoteId) return null; try { return await rpc("event_day_plan_get", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+      setTimes: (quoteId, venueAccess, readyBy) => rpc("event_day_plan_set", { p_quote: quoteId, p_venue_access: venueAccess || "", p_ready_by: readyBy || "" }),
+      check: (quoteId, key, done) => rpc("event_day_check_set", { p_quote: quoteId, p_key: String(key || ""), p_done: !!done }),
+      // duration(task, minutes, needs): needs undefined = leave "needs first" as it is; null = needs nothing; a task id = needs that
+      // task first (same event; never itself or a loop: needs_loop | invalid_needs). Start times / people are never touched.
+      duration: (taskId, minutes, needs) => rpc("event_task_duration_set", { p_task: taskId, p_minutes: minutes == null || minutes === "" ? null : Math.round(Number(minutes)),
+        p_needs: needs || null, p_set_needs: needs !== undefined }),
+      settings: () => rpc("event_ready_settings_get", {}),
+      saveSettings: (o) => rpc("event_ready_settings_set", { p: o || {} }),
+      // Remind -> Bell: { ok, name?, reason? } (reason: no_login | just_sent | closed)
+      bell: (taskId) => rpc("event_task_remind_bell", { p_task: taskId }),
+    },
     live: {
       async today(hours) { if (!supa) return null; try { return await rpc("live_events_today", { p_hours: hours || 24 }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
       // R184 (0368): every update on one event, newest first (given out / given to someone else / accepted / turned down /
