@@ -54,7 +54,7 @@ t('refFrom(): approval token / booklet token / invitation slug from the page URL
 t('client pages load the banner (approve / portal = quote, booklet, invitation = site) + the red CSS', () => {
   for (const [p, kind] of [['public/approve.html', 'quote'], ['public/portal.html', 'quote'], ['public/booklet.html', 'booklet'], ['public/invite.html', 'site']]) {
     const h = read(p);
-    assert.match(h, new RegExp('<script src="/trial-sim\\.js\\?v=\\d+" data-trial-sim="' + kind + '"></script>'), p);
+    assert.match(h, new RegExp('<script src="/trial-sim\\.js\\?v=\\d+" data-trial-sim="' + kind + '"( defer)?></script>'), p);   // R224: deferred on the invitation
     assert.match(h, /<link rel="stylesheet" href="\/trial-sim\.css\?v=\d+">/, p);
     assert.ok(h.indexOf('trial-sim.js') > h.indexOf('store-api.js'), p + ': after store-api');
   }

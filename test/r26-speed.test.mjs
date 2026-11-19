@@ -17,21 +17,21 @@ const t = (name, fn) => { fn(); passed++; console.log('  ✓ ' + name); };
 
 const LOGIN = read('public/login.html'), INDEX = read('public/index.html');
 
-t('login: app scripts deferred in the same order; config.js + telemetry.js stay normal scripts', () => {
+t('login: app scripts load after the first paint (R224, data-login-lazy), in the same order; config.js + telemetry.js stay normal scripts', () => {
   const order = ['event-name.js', 'country-profile.js', 'store-api.js', 'auth-ui.js', 'auth-visual.js', 'trial-facts.js', 'trial-signup.js', 'plan-cards.js', 'signup-flow.js'];
   let at = -1;
   for (const f of order) {
-    const m = new RegExp('<script src="/?' + f.replace('.', '\\.') + '\\?v=\\d+"( defer)?></script>').exec(LOGIN);
+    const m = new RegExp('<script (type="text/plain" data-login-lazy )?src="/?' + f.replace('.', '\\.') + '\\?v=\\d+"></script>').exec(LOGIN);
     assert.ok(m, f + ' is loaded');
-    assert.equal(m[1], ' defer', f + ' is deferred');
+    assert.equal(m[1], 'type="text/plain" data-login-lazy ', f + ' loads after the first paint');
     assert.ok(m.index > at, f + ' keeps its place in the order'); at = m.index;
   }
   assert.match(LOGIN, /<script src="telemetry\.js\?v=\d+"><\/script>\n<script src="config\.js\?v=\d+"><\/script>/, 'config.js is not deferred (staging document.write)');
   assert.ok(LOGIN.indexOf('<script src="config.js') < LOGIN.indexOf('event-name.js'), 'config.js runs before the app scripts');
 });
 
-t('login: the page script runs at DOMContentLoaded (after the deferred scripts), wrapped whole', () => {
-  const i = LOGIN.indexOf('<script>\ndocument.addEventListener("DOMContentLoaded", function(){\n  const $=(s)=>document.querySelector(s);');
+t('login: the page script runs on helm:login-ready (after the app scripts), wrapped whole', () => {
+  const i = LOGIN.indexOf('<script>\ndocument.addEventListener("helm:login-ready", function(){\n  const $=(s)=>document.querySelector(s);');
   assert.ok(i > LOGIN.indexOf('signup-flow.js'), 'wrapper follows the last deferred script');
   const body = LOGIN.slice(i + '<script>'.length, LOGIN.indexOf('</script>', i));
   assert.match(body, /\n\}\);\n$/, 'wrapper closes at the end of the script');
@@ -73,7 +73,7 @@ t('landing hero: film card shown from the first paint (hidden only when there is
   assert.match(INDEX, /poster="\/home-assets\/hero-poster\.webp"/);
   const js = read('public/home.js');
   assert.match(js, /\} else if \(heroVidWrap\) \{\s*heroVidWrap\.hidden = true;/);
-  assert.match(js, /'\/home-assets\/hero-hq-poster\.webp' : '\/home-assets\/hero-poster\.webp'/);
+  assert.match(js, /var heroPosterSrc = '\/home-assets\/hero-poster\.webp';/);   // R224: one poster for every screen (no second fetch)
   // the card's first-paint size = the size home.js gives it on its first frame (no jump)
   assert.match(read('public/home.css'), /@media \(max-width:640px\)\{[\s\S]{0,200}\.hv-card\{width:100%;--s:\.9;/);
   assert.match(read('public/home.css'), /\.hv-prog\{[^}]*min-height:18px/);

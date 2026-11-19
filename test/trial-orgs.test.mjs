@@ -116,7 +116,7 @@ t('trial intent: ?trial=1 on, ?trial=0 off, stored for 2 days', () => {
 });
 t('login wiring: trial-signup.js loaded, makeStudio is the one trial-or-direct switch', () => {
   // the cache-buster moves on with every trial-signup.js change and the tag is deferred now; pin the wiring, not ?v=
-  assert.match(LOGIN, /<script src="\/trial-signup\.js\?v=\d+"(?: defer)?><\/script>/);
+  assert.match(LOGIN, /<script (?:type="text\/plain" data-login-lazy )?src="\/trial-signup\.js\?v=\d+"(?: defer)?><\/script>/);   // R224: after the first paint
   assert.ok(!/BPStore\.org\.createStudio\((studio|name),\s*\{/.test(LOGIN), 'no direct createStudio left');
   // r22 create-studio (23587cd9, SQL 0255): ONE 4-step sign-up flow (signup-flow.js + plan cards) now creates the
   // studio, so the three old in-page "await makeStudio(" call sites are gone (covered by test/r22-create-studio.test.mjs).

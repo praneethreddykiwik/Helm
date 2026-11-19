@@ -30,12 +30,12 @@ await t('public-v2.css: the link in a .hint paragraph on a card is positioned (p
   assert.doesNotMatch(rule, /z-index|top|left|margin|padding|transform/);
 });
 
-await t('login.html: the link is a .linkbtn inside p.hint#forgotRow right after the password, in the card; public-v2.css?v=9', () => {
+await t('login.html: the link is a .linkbtn inside p.hint#forgotRow right after the password, in the card; public-v2.css?v=10', () => {
   assert.match(LOGIN, /<p class="hint" id="forgotRow"><button type="button" class="linkbtn" id="forgotBtn">Forgot password\?<\/button><\/p>/);
   assert.match(LOGIN, /\.pwwrap\{position:relative\}/);
   assert.match(LOGIN, /\.hint\{[^}]*margin:-10px 0 16px\}/);
   assert.match(LOGIN, /<form class="card[^"]*" id="loginForm"|<form [^>]*id="loginForm"[^>]*class="card/);
-  for (const p of ['public/login.html', 'public/reset-password.html']) assert.match(read(p), /\/public-v2\.css\?v=9"/, p);
+  for (const p of ['public/login.html', 'public/reset-password.html']) assert.match(read(p), /\/public-v2\.css\?v=10"/, p);
 });
 
 // ---- real browser check (optional) --------------------------------------------------------------------------------

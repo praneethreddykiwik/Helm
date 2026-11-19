@@ -295,9 +295,9 @@ await t("6c calendar day / quotes / event / chat sinks escaped or validated", ()
   assert.match(cal, /function openDay\(day\) \{ day = toD\(day\) \? toS\(toD\(day\)\) : null; if \(!day\) return;/);
   const Q = r("public/quotes.html"), E = r("public/event.html"), C = r("public/chat.html");
   assert.match(Q, /obj · \$\{esc\(fmtDate\(v\.createdAt\)\)\}<\/option>/);
-  assert.match(Q, /"Quote V"\+esc\(full\.currentVersion\)/);
+  assert.match(Q, /\(qLabel\?"Quotation "\+esc\(qLabel\):"Quote"\)/);   // r221: the saved quotation's Q-number, escaped
   assert.match(Q, /esc\(BPStore\.quoteDate\(full\.updatedAt,qTax\)\)/);
-  assert.match(E, /sum:`Version v\$\{esc\(ev\.currentVersion\)\}/);
+  assert.match(E, /sum:`\$\{qvLabel\?"Quotation "\+esc\(qvLabel\)/);   // r221: the saved quotation's Q-number, escaped
   assert.match(E, /href="\$\{esc\(a\.href\)\}">\$\{esc\(a\.t\)\}<\/a>/);
   assert.match(C, /if\(\/\^https:\\\/\\\/\/i\.test\(u\)\) el\.src=u;/);
   // r21 codeql #96: the storage path never round-trips through DOM text (data-media carries an index into a render list)

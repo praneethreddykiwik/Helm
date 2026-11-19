@@ -32,7 +32,7 @@ t('a stored track key maps only to its fixed file; anything else plays nothing',
   for (const bad of ['', '../x', 'https://evil/x.mp3', '__proto__', 'constructor', null, 42, ['gentle-piano']]) assert.equal(M.src(bad), '', String(bad));
 });
 t('public page: library track wins, else the https-only custom link; mute toggle has state', () => {
-  assert.match(invite, /<script src="\/invite-music\.js\?v=\d+"><\/script><script src="\/invite-placement\.js\?v=\d+"><\/script>/);
+  assert.match(invite, /<script src="\/invite-music\.js\?v=\d+"( defer)?><\/script><script src="\/invite-placement\.js\?v=\d+"( defer)?><\/script>/);   // R224: deferred
   assert.match(invite, /const siteMusic=d=>\(d&&window\.HelmInviteMusic&&HelmInviteMusic\.src\(d\.musicTrack\)\)\|\|safeMusic\(d&&d\.music\);/);
   assert.match(invite, /const music=siteMusic\(d\);/);
   assert.match(invite, /if\(SITE&&SITE\.data&&siteMusic\(SITE\.data\)\)\{/, 'plays on the Open tap (autoplay rules)');

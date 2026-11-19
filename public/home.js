@@ -192,7 +192,9 @@
   var heroConn = navigator.connection || {};
   var heroHQ = !!(window.matchMedia && window.matchMedia('(min-width: 1024px)').matches) && !heroConn.saveData;
   var heroPhone = !heroHQ && !!(window.matchMedia && window.matchMedia('(max-width: 767px), (max-height: 500px)').matches);
-  var heroPosterSrc = heroHQ ? '/home-assets/hero-hq-poster.webp' : '/home-assets/hero-poster.webp';
+  /* R224: ONE poster for every screen - the one the page markup (video poster="" + the >=768px preload) already fetched.
+     Swapping to hero-hq-poster.webp on wide screens downloaded a second 73 KB picture that shows only until the film plays. */
+  var heroPosterSrc = '/home-assets/hero-poster.webp';
   if (heroVideo && !heroPhone) {
     $$('source[data-src]', heroVideo).forEach(function (s) {
       s.setAttribute('data-src', s.getAttribute('data-src').replace('/hero-m.', heroHQ ? '/hero-hq.' : '/hero.'));
