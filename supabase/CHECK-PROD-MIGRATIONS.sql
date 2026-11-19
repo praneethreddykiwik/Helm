@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (351 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (352 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4596 objects): body 174, bucket 9, col 243, con 416, cron 20, exec 19, fn 2059, idx 536, marker 106, pol 190, polexpr 4, pre 113, pub 5, seq 1, tbl 298, trg 401, view 2.
+-- What is checked (4642 objects): body 174, bucket 9, col 250, con 416, cron 20, exec 19, fn 2080, idx 537, marker 113, pol 190, polexpr 4, pre 114, pub 5, seq 1, tbl 300, trg 408, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4620,7 +4620,53 @@ with o(m, k, s, n, x) as (values
   ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_blockers', ''),
   ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_keep', 'regprocedure'),
   ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_patch', 'regprocedure,text[],text[]'),
-  ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_seed_same', '')
+  ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_seed_same', ''),
+  ('0402_r236_ops_health', 'tbl', 'public.ops_heartbeat', null, null),
+  ('0402_r236_ops_health', 'fn', 'public', 'ops_heartbeat_beat', 'text,text,jsonb'),
+  ('0402_r236_ops_health', 'tbl', 'public.ops_send_ledger', null, null),
+  ('0402_r236_ops_health', 'idx', 'public.ops_send_ledger_open_idx402', null, null),
+  ('0402_r236_ops_health', 'fn', 'public', '_ops402_lane', 'text'),
+  ('0402_r236_ops_health', 'fn', 'public', 'ops_send_ledger_note', 'text,uuid,text'),
+  ('0402_r236_ops_health', 'fn', 'public', 'ops_send_ledger_open', ''),
+  ('0402_r236_ops_health', 'fn', 'public', '_r402_queues', ''),
+  ('0402_r236_ops_health', 'fn', 'public', '_r402_tg_backoff', ''),
+  ('0402_r236_ops_health', 'fn', 'public', '_r402_keep', 'text'),
+  ('0402_r236_ops_health', 'fn', 'public', '_ops402_mailers', ''),
+  ('0402_r236_ops_health', 'fn', 'public', '_ops402_cmd', 'text'),
+  ('0402_r236_ops_health', 'fn', 'public', '_ops402_norm', 'text'),
+  ('0402_r236_ops_health', 'fn', 'public', '_ops402_base_url', ''),
+  ('0402_r236_ops_health', 'fn', 'public', 'ops_kick_mailer', 'text'),
+  ('0402_r236_ops_health', 'fn', 'public', 'ops_mailer_cron_report', ''),
+  ('0402_r236_ops_health', 'fn', 'public', 'ops_mailer_cron_ensure', ''),
+  ('0402_r236_ops_health', 'fn', 'public', 'ops_mailer_cron_adopt', 'text'),
+  ('0402_r236_ops_health', 'fn', 'public', '_ops402_every', 'text'),
+  ('0402_r236_ops_health', 'fn', 'public', '_ops402_expected_jobs', ''),
+  ('0402_r236_ops_health', 'fn', 'public', '_ops402_worst', 'text[]'),
+  ('0402_r236_ops_health', 'fn', 'public', '_ops402_queues', ''),
+  ('0402_r236_ops_health', 'fn', 'public', '_ops402_health', ''),
+  ('0402_r236_ops_health', 'fn', 'public', 'ops_health', ''),
+  ('0402_r236_ops_health', 'pre', null, '__pre0402', null),
+  ('0402_r236_ops_health', 'trg', 'public.staff_email_outbox', 'zz_r402_backoff', null),
+  ('0402_r236_ops_health', 'trg', 'public.staff_update_outbox', 'zz_r402_backoff', null),
+  ('0402_r236_ops_health', 'trg', 'public.task_wa_outbox', 'zz_r402_backoff', null),
+  ('0402_r236_ops_health', 'trg', 'public.delivery_reminder_sends', 'zz_r402_backoff', null),
+  ('0402_r236_ops_health', 'trg', 'public.runsheet_reminder_sends', 'zz_r402_backoff', null),
+  ('0402_r236_ops_health', 'trg', 'public.vendor_bill_mail_outbox', 'zz_r402_backoff', null),
+  ('0402_r236_ops_health', 'trg', 'public.cantwork_email_outbox', 'zz_r402_backoff', null),
+  ('0402_r236_ops_health', 'col', 'public.staff_email_outbox', 'next_attempt_at', null),
+  ('0402_r236_ops_health', 'col', 'public.staff_update_outbox', 'next_attempt_at', null),
+  ('0402_r236_ops_health', 'col', 'public.task_wa_outbox', 'next_attempt_at', null),
+  ('0402_r236_ops_health', 'col', 'public.delivery_reminder_sends', 'next_attempt_at', null),
+  ('0402_r236_ops_health', 'col', 'public.runsheet_reminder_sends', 'next_attempt_at', null),
+  ('0402_r236_ops_health', 'col', 'public.vendor_bill_mail_outbox', 'next_attempt_at', null),
+  ('0402_r236_ops_health', 'col', 'public.cantwork_email_outbox', 'next_attempt_at', null),
+  ('0402_r236_ops_health', 'marker', 'public', 'staff_email_claim__pre0362', 'integer|_r342_max_attempts()'),
+  ('0402_r236_ops_health', 'marker', 'public', 'staff_update_claim', 'integer|_r342_max_attempts()'),
+  ('0402_r236_ops_health', 'marker', 'public', 'task_wa_claim', 'integer|_r342_max_attempts()'),
+  ('0402_r236_ops_health', 'marker', 'public', 'delivery_reminder_claim', 'integer|_r342_max_attempts()'),
+  ('0402_r236_ops_health', 'marker', 'public', 'runsheet_reminder_claim__pre0283', 'integer|_r342_max_attempts()'),
+  ('0402_r236_ops_health', 'marker', 'public', 'vendor_bill_reminder_claim', 'integer|_r342_max_attempts()'),
+  ('0402_r236_ops_health', 'marker', 'public', 'cantwork_email_claim', 'integer|_r342_max_attempts()')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4973,7 +5019,8 @@ mig(ord, m, ov, note) as (values
   (348, '0397_r227_event_plan_lock', null, 'R227 plan lock: tenant guard + read-only studio triggers on the two new tables are created with dynamic SQL; event_activity is renamed to event_activity__pre0397 once'),
   (349, '0398_r229_retire_roles', null, 'Retired roles: BEFORE triggers a398_retired_role_guard on profiles / invitations / role_access refuse NEW assignment of coordinator / designer / crew (existing holders unaffected), backup table _r398_backup, role lists re-issued, the sign-in notice default (_r383_cfg) patched in place with dynamic SQL - checked by the r229-0398 marker. The people themselves are deleted only by the owner-run DELETE-0398-RETIRED-ROLE-USERS.sql (not checked here)'),
   (350, '0399_r230_dept_supervisors', null, 'tenant guard and read-only studio triggers put on the new department-supervisor tables with dynamic SQL'),
-  (351, '0400_r232_remove_role_traces', null, 'R232 remove-role-traces: everything except the 5 _r400_* helpers runs only when the safety gate is clear (no coordinator / designer login left), inside one DO block - so only the helpers are checked here. Proof that it ran is APPLY-0400 check rows 01-15 (every ok true); re-run APPLY-0400 any time to see them')
+  (351, '0400_r232_remove_role_traces', null, 'R232 remove-role-traces: everything except the 5 _r400_* helpers runs only when the safety gate is clear (no coordinator / designer login left), inside one DO block - so only the helpers are checked here. Proof that it ran is APPLY-0400 check rows 01-15 (every ok true); re-run APPLY-0400 any time to see them'),
+  (352, '0402_r236_ops_health', null, 'R236: backoff trigger + next_attempt_at put on the 7 staff / reminder queues and the 8-try limit written into their claim bodies with dynamic SQL; the mailer cron jobs are created only when their Vault secrets exist (APPLY-0402 check rows 10 say which) - not checked here')
 ),
 env as (
   select
