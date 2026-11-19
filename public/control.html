@@ -994,7 +994,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=387"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=388"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
@@ -1849,7 +1849,26 @@
     });
     box.append(p,b); box.hidden=false;
   }
-  function um2StepPaintAll(){ um2StepPaint("#um_role","#um_2step"); um2StepPaint("#inv_role","#inv_2step"); }
+  // R231 (prod log 18 Nov: admin_create_user_temp + create_invitation 403 R35_SETUP_2STEP): while Admin is picked and my
+  // two-step is off, "Send invite" / "Add user" are greyed (aria-disabled - the seat counter owns .disabled) and a click
+  // opens the note instead of asking the server. Other roles never need two-step (0285 asks only for an Admin).
+  function um2StepGate(selId, btnId){
+    const sel=$(selId), b=$(btnId); if(!sel||!b) return;
+    const off=UM_2STEP_ROLES.includes(sel.value)&&umMy2Step===false;
+    if(off){ b.setAttribute("aria-disabled","true"); b.dataset.r231="1"; if(!b.disabled) b.title="Set up two-step on your account first to add an Admin"; }
+    else if(b.dataset.r231){ b.removeAttribute("aria-disabled"); delete b.dataset.r231; if(!b.disabled) b.removeAttribute("title"); }
+  }
+  // true = stop here: adding / inviting an Admin while my two-step is off (the note + "Set up two-step now" are shown)
+  async function um2StepBlocked(role, which){
+    if(!UM_2STEP_ROLES.includes(role)) return false;
+    if((await umMyTwoStep())!==false) return false;
+    um2StepPaintAll();
+    const box=$(which==="um"?"#um_2step":"#inv_2step");
+    if(box&&!box.hidden){ try{ box.scrollIntoView({block:"nearest"}); const b=box.querySelector("button"); if(b) b.focus(); }catch(_){ } }
+    else setUMsg("err","Adding an Admin needs two-step sign-in on your account. Set it up in Account → Settings, or pick another role now.");
+    return true;
+  }
+  function um2StepPaintAll(){ um2StepPaint("#um_role","#um_2step"); um2StepPaint("#inv_role","#inv_2step"); um2StepGate("#um_role","#um_submit"); um2StepGate("#inv_role","#inv_submit"); }
   let um2StepWired=false;
   function um2StepWire(){
     if(um2StepWired) return; um2StepWired=true;
@@ -1862,6 +1881,8 @@
     const isel=$("#inv_role");
     if(isel && !isel.options.length){ isel.innerHTML = ROLES.map(r=>`<option value="${esc(r)}"${r==="coordinator"?" selected":""}>${esc(BPStore.auth.admin.roleLabel(r))}</option>`).join(""); }
     um2StepWire();
+    // R231: a picker that already shows Admin (restored by the browser) gets its note + greyed button at once
+    if(["#um_role","#inv_role"].some(id=>{ const el=$(id); return el&&UM_2STEP_ROLES.includes(el.value); })){ try{ await umMyTwoStep(); }catch(_){ } um2StepPaintAll(); }
     // R211: "Add user" (temporary password) is an admin-only extra under More options
     { const mo=$("#um_more"); if(mo) mo.hidden=!isAdmin; }
     await renderUsers();
@@ -2314,6 +2335,7 @@
     if(!ccRoleOk("#um_role")) return;
     const email=((T&&T.member&&T.member.value())||$("#um_email").value.trim()).toLowerCase(), role=$("#um_role").value;
     { const r=BPStore.validate.email(email); if(!r.ok){ umBoxShow("um", r.error); $("#um_email").focus(); return; } }
+    if(await um2StepBlocked(role,"um")) return;   // R231: no request the server would refuse (R35_SETUP_2STEP)
     await BPUI.guard($("#um_submit"), async()=>{
     try{
       const r = await BPStore.auth.admin.createUserTemp(email, role);   // { user_id, temp_password }
@@ -2367,6 +2389,7 @@
   // invite). create_invitation keeps its rules: admin only, seat limits, an open invite is re-used (same link), an
   // expired one gets a NEW link valid 7 days. → true when an invite link exists afterwards.
   async function sendInvite(email, role, btn, T){
+    if(await um2StepBlocked(role,"inv")) return false;   // R231: an Admin invite needs my two-step first (0285)
     // R106: the button is busy ("Creating…") only while the invite is CREATED - the e-mail flush below can take a
     // while (or hang on a slow mail service) and used to keep the label stuck after the link was already shown.
     let made=null;

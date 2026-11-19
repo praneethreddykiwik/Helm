@@ -165,10 +165,10 @@
 <script src="telemetry.js?v=12"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=387"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=388"></script>
 <script src="page-tours.js?v=61"></script>
 <script src="tour.js?v=76"></script>
-<script src="runsheet-remind.js?v=2"></script>
+<script src="runsheet-remind.js?v=3"></script>
 <script src="event-floor.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -299,7 +299,7 @@
     if(!BRIEF && window.HelmEventFloor){ const st=await HelmEventFloor.lockBar($("#planLock"),{ quoteId:id, onChange:()=>location.reload() });
       if(st && st.locked){ canEdit=false; canDelete=false; } }
     $("#app").hidden=false; $("#addCard").hidden=!canEdit;
-    await RR.init(BPStore);
+    await RR.init(BPStore,{ canPick:canEdit });   // R231: view-only -> no team list asked (Run sheet - Can change only)
     RR.fillOwner("r",null); RR.wire("r"); RR.wire("e");
     GROUP=await BPStore.runsheet.groupStatus(id).catch(()=>({has_group:false,member:false}));
     $("#r_grpWrap").hidden=$("#e_grpWrap").hidden=!GROUP.has_group;

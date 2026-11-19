@@ -7,7 +7,7 @@
 //   3. gate rules kept: a temporary password / no studio / a pending two-step code / a reset link / a changed studio /
 //      the per-tab TTLs (all fresh -> nothing asked at all)
 //   4. request count + trips in a row, before / after, with a 250 ms-like latency (scaled)
-//   5. 0389 + APPLY-0389 + MANIFEST + checker + run-all + release lists + store-api.js?v=387 pins
+//   5. 0389 + APPLY-0389 + MANIFEST + checker + run-all + release lists + store-api.js?v=388 pins
 // Behaviour of 0389 against the real database: tests/db/r217-page-bootstrap-0389.sql.
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -103,7 +103,7 @@ function makeEnv(o = {}) {
     replace(u) { calls.push({ name: 'location.replace:' + u }); }, reload() { calls.push({ name: 'location.reload' }); } };
   const el = (tag) => ({ tag, style: {}, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, appendChild() {}, addEventListener() {}, querySelector: () => null, remove() {} });
   const doc = {
-    readyState: 'complete', addEventListener() {}, removeEventListener() {}, currentScript: { src: 'https://www.helm.events/store-api.js?v=387' },
+    readyState: 'complete', addEventListener() {}, removeEventListener() {}, currentScript: { src: 'https://www.helm.events/store-api.js?v=388' },
     createElement: el, head: { appendChild() {} }, body: { children: [], appendChild(c) { this.children.push(c); }, removeChild() {}, get firstChild() { return null; } },
     documentElement: { setAttribute() {}, getAttribute() { return 'light'; },
       classList: { contains: (c) => cls.has(c), add: (c) => { cls.add(c); }, remove: (c) => { cls.delete(c); } } },
@@ -356,10 +356,10 @@ t('store-api.js: page_bootstrap counted as a read (never drops the shared caches
     'supa.from("profiles").select("role")', 'supa.from("role_access").select("area,can_view,can_edit")', 'rpc("my_trial_org", {})', 'rpc("my_trial_status")',
     'rpc("my_demo_status")', 'rpc("my_subscription")', 'supa.rpc("my_test_studio")', 'rpc("get_pricing_config")', 'rpc("get_item_rate_cards")']) assert.ok(SRC.includes(c), 'old call kept: ' + c);
 });
-t('asset pin: every page that loads store-api.js asks for v=387', () => {
+t('asset pin: every page that loads store-api.js asks for v=388', () => {
   const pages = readdirSync(new URL('public/', ROOT)).filter((f) => f.endsWith('.html'));
   let n = 0;
-  for (const f of pages) { const h = read('public/' + f); const m = h.match(/store-api\.js\?v=(\d+)/g); if (!m) continue; n++; for (const x of m) assert.equal(x, 'store-api.js?v=387', f); }
+  for (const f of pages) { const h = read('public/' + f); const m = h.match(/store-api\.js\?v=(\d+)/g); if (!m) continue; n++; for (const x of m) assert.equal(x, 'store-api.js?v=388', f); }
   assert.ok(n >= 50, String(n));
 });
 

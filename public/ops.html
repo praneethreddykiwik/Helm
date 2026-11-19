@@ -419,7 +419,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=387"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=388"></script>
 <script src="task-status.js?v=3"></script>
 <script src="event-plan.js?v=2"></script>
 <script src="ops-board.js?v=5"></script>
@@ -584,7 +584,16 @@
     if(!canTpl){ const l=oneOff[cat]=oneOff[cat]||[]; if(!l.includes(title.slice(0,120))) l.push(title.slice(0,120));
       $("#tpl_title").value=""; await renderTasks(); setMsg("ok",`Added "${title.slice(0,120)}" for this event - ticked below.`); lastOkMsg=""; return; }
     try{ await BPStore.ops.addTemplate(cat,title); }
-    catch(e){ setMsg("err", /duplicate|unique|23505/i.test(String(e&&(e.message||e.code)))?"That task is already in this section.":"Could not add the task: "+((e&&e.message)||e)); return; }
+    catch(e){
+      // R231 (prod log 18 Nov: task_templates insert 403 "row-level security"): the studio checklist needs Templates -
+      // Can change (it may have been switched off since this page opened). Keep the task for THIS event instead.
+      if(/row-level security|42501|permission denied|not part of the free trial/i.test(String(e&&((e.message||"")+" "+(e.code||""))))){
+        canTpl=false; const b=$("#tpl_add"), i=$("#tpl_title"); if(b) b.textContent="+ Add for this event"; if(i) i.placeholder="Or type a task for this event only";
+        const l=oneOff[cat]=oneOff[cat]||[]; if(!l.includes(title.slice(0,120))) l.push(title.slice(0,120));
+        $("#tpl_title").value=""; await renderTasks();
+        setMsg("ok",`Added "${title.slice(0,120)}" for this event only - ticked below. Saving tasks to the studio checklist needs Templates - Can change (ask your studio admin).`); lastOkMsg="";
+        return; }
+      setMsg("err", /duplicate|unique|23505/i.test(String(e&&(e.message||e.code)))?"That task is already in this section.":"Could not add the task: "+((e&&e.message)||e)); return; }
     $("#tpl_title").value=""; await renderTasks();
     const box=[...$("#taskList").querySelectorAll(".tk")].find(x=>x.value===title); if(box){ box.checked=true; updateSel(); }
     setMsg("ok",`Added "${title}" to ${cat} - ticked below.`); lastOkMsg="";
