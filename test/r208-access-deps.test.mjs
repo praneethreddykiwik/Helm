@@ -25,7 +25,7 @@ const APPLY = r('supabase/APPLY-0385.sql');
 const areaKeys = [...API.slice(API.indexOf('const AREAS = ['), API.indexOf('const AREA_FALLBACK')).matchAll(/\{ key: "(\w+)"/g)].map((m) => m[1]);
 const cells = (m) => (k) => m[k] || { view: false, edit: false };
 
-await t('store-api: tasks = ONE switch that follows Staff until saved; canAssignTasks mirrors _r385_can_assign', () => {
+await t('store-api: tasks = ONE switch that follows Staff until saved; canAssignTasks mirrors _r386_can_assign', () => {
   assert.match(API, /\{ key: "tasks",\s+label: "Assign & send tasks", icon: "[^"]+", page: null,\s+group: "Resources", defaultFrom: "staff", permission: true \}/);
   assert.ok(areaKeys.indexOf('tasks') === areaKeys.indexOf('staff') + 1, 'right after Staff');
   const fn = API.slice(API.indexOf('async canAssignTasks() {'), API.indexOf('areas: () => AREAS.slice(),\n    // Force'));

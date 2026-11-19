@@ -173,7 +173,7 @@ await t('3f theme: event-floor.css / eventday-pack.css use tokens (no green hex)
 await t('3g tours: ops / monitor / run-sheet explain the floor plan + the lock, each tour 8 steps or fewer', () => {
   const steps = (k) => { const i = TOURS.indexOf('"' + k + '": ['), j = TOURS.indexOf('\n    ],', i); return (TOURS.slice(i, j).match(/\{ sel:/g) || []).length; };
   for (const k of ['ops.html', 'monitor.html', 'runsheet.html']) assert.ok(steps(k) <= 8 && steps(k) >= 4, k + ' ' + steps(k));
-  assert.match(TOURS, /\{ sel: "#tcPhase", [^\n]*the Floor plan \(sizes, seats vs guests; 2D, 3D and Measure open view only; Print event-day pack\) and the plan lock bar/);
+  assert.match(TOURS, /\{ sel: "#evhead", [^\n]*the plan lock bar \(locked on the day; unlock = admin or event manager \+ a reason\)[^\n]*the Floor plan with 2D, 3D, Measure \(view only\) and Print pack/);
   assert.match(TOURS, /\{ sel: \["#monLock", "#monFloor"\], title: "Floor plan and the plan lock"/);
   assert.match(TOURS, /\{ sel: "#planLock", title: "Locked for the event day"/);
 });
