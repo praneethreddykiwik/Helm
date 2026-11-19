@@ -314,8 +314,12 @@ do $$ declare h jsonb; v_id uuid; v_j bigint; begin
   perform pg_temp.hq('r236_viewer@hqstaff.test');
   h := public.hq_ops_health();
   perform pg_temp.su();
-  perform pg_temp.t('6i HQ viewer (Overview) reads it; everything fine = green overall',
-    h ->> 'overall' = 'green' and pg_temp.lvl(h, 'dispatcher') = 'green' and pg_temp.lvl(h, 'jobs') = 'green' and pg_temp.lvl(h, 'calls') = 'green',
+  -- (rows other suites committed may leave some queue amber; every other check and our own rows must be green)
+  perform pg_temp.t('6i HQ viewer (Overview) reads it; everything fine = green (overall green unless another suite left a queue row)',
+    pg_temp.lvl(h, 'dispatcher') = 'green' and pg_temp.lvl(h, 'jobs') = 'green' and pg_temp.lvl(h, 'calls') = 'green'
+    and pg_temp.lvl(h, 'switched_off') = 'green' and pg_temp.lvl(h, 'ledger') = 'green'
+    and pg_temp.q(h, 'helm_notice_outbox') ->> 'level' = 'green' and pg_temp.q(h, 'staff_email_outbox') ->> 'level' = 'green'
+    and (h ->> 'overall' = 'green' or (h ->> 'overall' = pg_temp.lvl(h, 'queues') and pg_temp.lvl(h, 'queues') <> 'red')),
     (h -> 'checks')::text);
   update public.ops_heartbeat set last_run_at = now() - interval '20 minutes';
   perform pg_temp.t('6j a heartbeat older than 15 minutes = red dispatcher', public._ops402_health() #>> '{dispatcher,level}' = 'red');
