@@ -142,7 +142,7 @@ await t('3a the page: switch kept, Get set up, run-sheet, issues and wrap-up box
   for (const id of ['tcPrep', 'tcRun', 'tcIssues', 'tcWrap']) assert.match(OPS, new RegExp('id="' + id + '"[^>]*hidden'), id + ' starts hidden');
   assert.match(BRD, /card\("tcPrep", S\.phase === "plan"/); assert.match(BRD, /card\("tcRun", S\.phase === "live" (&& S\.win !== "wrapup" )?&& Array\.isArray\(S\.rs\)\)/);
   assert.match(BRD, /card\("tcIssues", S\.phase === "live" && Array\.isArray\(S\.iss\)\)/);
-  assert.match(BRD, /renderPrep\(\); (renderPlan\(\); )?renderRun\(\); renderAttn\(\); renderIssues\(\); renderWrap\(\);/);
+  assert.match(BRD, /renderPrep\(\); (renderFloor\(\); )?(renderPlan\(\); )?renderRun\(\); renderAttn\(\); renderIssues\(\); renderWrap\(\);/);
   for (const l of ['"staff.html"', '"resources.html?quote="', '"vendors.html"', '"runsheet.html?quote="', 'builderHref()', '"ready.html?quote="']) assert.ok(BRD.includes(l), 'Get set up links ' + l);
 });
 await t('3b the note says why; a hand pick that matches the clock is dropped; #live sticks', () => {

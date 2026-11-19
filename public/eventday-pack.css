@@ -1,0 +1,52 @@
+/* eventday-pack.css - R227: the printed Event-day pack (eventday-pack.html). Screen: a sheet of paper on the app background with
+   a small toolbar. Print: A4, plain black on white, no toolbar / app chrome, sections kept whole where they fit. Theme tokens
+   (theme.css) on screen; the dark button stays black. */
+.pk-body{margin:0;background:var(--bg,#f4f4f2);color:var(--ink,#1f1d2b);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.pk-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;background:var(--panel,#fff);border-bottom:1px solid var(--line,#e3e3e3)}
+.pk-bar-t{flex:1 1 auto;font-weight:600;color:var(--ink-2,#4b475f);font-size:14px}
+.pk-page{max-width:210mm;margin:16px auto 40px;padding:0 16px}
+.pk-msg{background:var(--panel,#fff);border:1px solid var(--line,#e3e3e3);border-radius:12px;padding:16px;color:var(--ink-2,#4b475f)}
+.pk{background:var(--panel,#fff);border:1px solid var(--line,#e3e3e3);border-radius:12px;padding:14mm 12mm;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.pk[hidden],.pk-msg[hidden]{display:none!important}
+.pk-head{border-bottom:2px solid var(--ink,#1f1d2b);padding-bottom:10px;margin-bottom:8px}
+.pk-kicker{margin:0;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3,#6b6577)}
+.pk-head h1{margin:2px 0 8px;font-size:22px;line-height:1.2;overflow-wrap:anywhere}
+.pk-facts{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px 16px}
+.pk-facts div{min-width:0}
+.pk-facts dt{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3,#6b6577)}
+.pk-facts dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.pk-lock{margin:8px 0 0;font-size:13px;font-weight:600}
+.pk-lock.on{color:var(--ink,#1f1d2b)}
+.pk-lock.off{color:#8a5a00}
+.pk-sec{margin-top:14px;break-inside:auto}
+.pk-sec h2{margin:0 0 4px;font-size:16px;border-bottom:1px solid var(--line,#e3e3e3);padding-bottom:3px;break-after:avoid}
+.pk-sub{margin:0 0 6px;color:var(--ink-3,#6b6577);font-size:12.5px}
+.pk-fig{margin:6px 0 8px;break-inside:avoid}
+.pk-fig .ef-svg{max-height:150mm}
+.pk-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.pk-tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3,#6b6577);border-bottom:1px solid var(--ink-3,#6b6577);padding:4px 6px}
+.pk-tbl td{border-bottom:1px solid var(--line,#e3e3e3);padding:5px 6px;vertical-align:top;overflow-wrap:anywhere}
+.pk-tbl tr{break-inside:avoid}
+.pk-tbl td:first-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+.pk-checks{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:4px 16px;font-size:12.5px}
+.pk-checks li{display:flex;gap:8px;align-items:flex-start;break-inside:avoid}
+.pk-checks small{color:var(--ink-3,#6b6577);font-weight:400}
+.pk-box{flex:0 0 14px;height:14px;border:1.5px solid var(--ink,#1f1d2b);border-radius:3px;font-size:11px;line-height:12px;text-align:center;font-weight:700}
+.pk-warn{margin:6px 0;padding:6px 10px;border:1px solid #8a5a00;border-radius:8px;color:#8a5a00;font-size:12.5px}
+.pk-empty{margin:4px 0;color:var(--ink-3,#6b6577);font-style:italic;font-size:13px}
+.pk-foot{margin-top:16px;padding-top:6px;border-top:1px solid var(--line,#e3e3e3);color:var(--ink-3,#6b6577);font-size:11px}
+.pk .ef-facts div{grid-template-columns:minmax(0,14em) minmax(0,1fr);padding:4px 0}
+@media (max-width:600px){.pk{padding:16px 12px}.pk-head h1{font-size:19px}.pk-tbl{font-size:12px}.pk-tbl th,.pk-tbl td{padding:4px 3px}}
+@page{size:A4;margin:12mm}
+@media print{
+  .pk-bar,.pk-msg{display:none!important}
+  .pk-body{background:#fff;color:#000}
+  .pk-page{max-width:none;margin:0;padding:0}
+  .pk{border:0;border-radius:0;box-shadow:none;padding:0;background:#fff;color:#000}
+  .pk *{color:#000!important}
+  .pk .ef-svg{background:#fff;border-color:#999}
+  .pk .ef-room{fill:#fff;stroke:#555}
+  .pk-sec{break-inside:auto}
+  .pk-fig,.pk-checks,.pk-head{break-inside:avoid}
+  a{text-decoration:none}
+}

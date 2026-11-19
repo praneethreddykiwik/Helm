@@ -86,7 +86,7 @@ await t('SQL 0398: MANIFEST, run-all, APPLY verbatim + checks, ASCII, DELETE fil
   assert.match(DEL, /where p\.role in \('coordinator', 'designer'\)/);
   assert.doesNotMatch(DEL, /role in \([^)]*'crew'/, 'crew logins never selected for deletion');
   assert.match(DEL, /platform_admins/); assert.match(DEL, /_r283_owner/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0396', '0398'\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0397', '0398'\]/, f);
 });
 
 /* 6 */

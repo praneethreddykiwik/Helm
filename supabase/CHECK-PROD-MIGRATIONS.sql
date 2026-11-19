@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (348 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (349 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4549 objects): body 178, bucket 9, col 243, con 416, cron 20, exec 19, fn 2034, idx 531, marker 106, pol 189, polexpr 4, pre 112, pub 5, seq 1, tbl 294, trg 386, view 2.
+-- What is checked (4575 objects): body 177, bucket 9, col 243, con 416, cron 20, exec 19, fn 2048, idx 532, marker 106, pol 189, polexpr 4, pre 113, pub 5, seq 1, tbl 296, trg 395, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -662,7 +662,6 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'create_payment', 'uuid'),
   ('base-v1-2026-09-25', 'fn', 'public', 'public_get_proposal', 'uuid'),
   ('base-v1-2026-09-25', 'fn', 'public', 'public_event_site', 'text'),
-  ('base-v1-2026-09-25', 'fn', 'public', 'event_activity', 'uuid'),
   ('base-v1-2026-09-25', 'fn', 'public', 'record_payment', 'uuid,numeric,text,text,uuid,text,text'),
   ('base-v1-2026-09-25', 'con', 'public.event_sites', 'event_sites_template_chk', null),
   ('base-v1-2026-09-25', 'fn', 'public', 'admin_set_role_access', 'text,text,boolean,boolean'),
@@ -671,6 +670,7 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'accept_invitation', 'text'),
   ('base-v1-2026-09-25', 'fn', 'public', 'worker_checkin_equipment', 'uuid,uuid,numeric'),
   ('base-v1-2026-09-25', 'fn', 'public', 'bell_feed', 'integer'),
+  ('base-v1-2026-09-25', 'fn', 'public', 'event_activity', 'uuid'),
   ('0001_pricing_authority', 'body', 'public', 'enforce_pricing_total', '|906e8a4240c9079e5ecde18fd774d385'),
   ('0001_pricing_authority', 'fn', 'public', 'helm_quote_total_canonical', 'jsonb'),
   ('0003_money_integrity', 'fn', 'public', 'helm_total_paid', 'uuid,uuid,uuid'),
@@ -3677,7 +3677,6 @@ with o(m, k, s, n, x) as (values
   ('0327_r119_welcome_live_safe', 'fn', 'public', 'billing_reminder_recheck', 'uuid'),
   ('0327_r119_welcome_live_safe', 'pre', null, '__pre0327', null),
   ('0328_r120_hq_notify_trial_wording', 'body', 'public', 'hq_activate_plan', 'uuid,text,text,numeric,text,date,date,text,text,numeric|d54f248efe9bb8658f131f5a8b3f1e03'),
-  ('0328_r120_hq_notify_trial_wording', 'body', 'public', 'event_activity', 'uuid|3d8e76fdafaf01953a87d3ea7a72b598'),
   ('0328_r120_hq_notify_trial_wording', 'fn', 'public', '_r120_day', 'date'),
   ('0328_r120_hq_notify_trial_wording', 'fn', 'public', '_r120_plan_label', 'text,text,date,boolean'),
   ('0328_r120_hq_notify_trial_wording', 'fn', 'public', '_r120_plan_active_notice', 'uuid,boolean,jsonb'),
@@ -4560,6 +4559,33 @@ with o(m, k, s, n, x) as (values
   ('0396_r226_event_day_plan', 'trg', 'public.event_day_plans', 'zzz_studio_read_only', null),
   ('0396_r226_event_day_plan', 'trg', 'public.event_ready_alert_settings', 'zzz_studio_read_only', null),
   ('0396_r226_event_day_plan', 'trg', 'public.event_ready_alert_sends', 'zzz_studio_read_only', null),
+  ('0397_r227_event_plan_lock', 'tbl', 'public.event_plan_locks', null, null),
+  ('0397_r227_event_plan_lock', 'tbl', 'public.event_plan_lock_log', null, null),
+  ('0397_r227_event_plan_lock', 'idx', 'public.event_plan_lock_log_quote397', null, null),
+  ('0397_r227_event_plan_lock', 'fn', 'public', '_r397_enforce', ''),
+  ('0397_r227_event_plan_lock', 'fn', 'public', '_r397_auto', 'uuid'),
+  ('0397_r227_event_plan_lock', 'fn', 'public', '_r397_locked', 'uuid'),
+  ('0397_r227_event_plan_lock', 'fn', 'public', '_r397_guard', 'uuid,text'),
+  ('0397_r227_event_plan_lock', 'fn', 'public', '_r397_tg_versions', ''),
+  ('0397_r227_event_plan_lock', 'fn', 'public', '_r397_tg_quote', ''),
+  ('0397_r227_event_plan_lock', 'fn', 'public', '_r397_tg_tasks', ''),
+  ('0397_r227_event_plan_lock', 'fn', 'public', '_r397_tg_runsheet', ''),
+  ('0397_r227_event_plan_lock', 'fn', 'public', '_r397_tg_dayplan', ''),
+  ('0397_r227_event_plan_lock', 'trg', 'public.quote_versions', 'zz_r397_plan_lock', null),
+  ('0397_r227_event_plan_lock', 'trg', 'public.quotes', 'zz_r397_plan_lock', null),
+  ('0397_r227_event_plan_lock', 'trg', 'public.event_tasks', 'zz_r397_plan_lock', null),
+  ('0397_r227_event_plan_lock', 'trg', 'public.run_sheet_items', 'zz_r397_plan_lock', null),
+  ('0397_r227_event_plan_lock', 'trg', 'public.event_day_plans', 'zz_r397_plan_lock', null),
+  ('0397_r227_event_plan_lock', 'fn', 'public', '_r397_read', 'uuid'),
+  ('0397_r227_event_plan_lock', 'fn', 'public', 'event_plan_lock_get', 'uuid'),
+  ('0397_r227_event_plan_lock', 'fn', 'public', 'event_plan_lock_set', 'uuid,boolean,text'),
+  ('0397_r227_event_plan_lock', 'fn', 'public', 'event_floor_get', 'uuid'),
+  ('0397_r227_event_plan_lock', 'fn', 'public', 'event_activity__pre0397', 'uuid'),
+  ('0397_r227_event_plan_lock', 'pre', null, '__pre0397', null),
+  ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_locks', 'zz_quote_org_match', null),
+  ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_lock_log', 'zz_quote_org_match', null),
+  ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_locks', 'zzz_studio_read_only', null),
+  ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_lock_log', 'zzz_studio_read_only', null),
   ('0398_r229_retire_roles', 'body', 'public', '_notify_roles', '|82670774cb35cb95354e75ce12547558'),
   ('0398_r229_retire_roles', 'body', 'public', '_r383_roles_all', '|ea0730053898f89132ebe8617ce0979d'),
   ('0398_r229_retire_roles', 'fn', 'public', '_r398_retired_roles', ''),
@@ -4923,7 +4949,8 @@ mig(ord, m, ov, note) as (values
   (345, '0393_audit_d_list_indexes', null, 'Audit D list speed: two additive indexes (org_id, updated_at desc, id desc) on leads and quotes for the newest-first lists; nothing else changed'),
   (346, '0394_e_menu_package_audit', null, null),
   (347, '0396_r226_event_day_plan', null, 'tenant guard + read-only studio triggers put on the new day-plan tables with dynamic SQL'),
-  (348, '0398_r229_retire_roles', null, 'Retired roles: BEFORE triggers a398_retired_role_guard on profiles / invitations / role_access refuse NEW assignment of coordinator / designer / crew (existing holders unaffected), backup table _r398_backup, role lists re-issued, the sign-in notice default (_r383_cfg) patched in place with dynamic SQL - checked by the r229-0398 marker. The people themselves are deleted only by the owner-run DELETE-0398-RETIRED-ROLE-USERS.sql (not checked here)')
+  (348, '0397_r227_event_plan_lock', null, 'R227 plan lock: tenant guard + read-only studio triggers on the two new tables are created with dynamic SQL; event_activity is renamed to event_activity__pre0397 once'),
+  (349, '0398_r229_retire_roles', null, 'Retired roles: BEFORE triggers a398_retired_role_guard on profiles / invitations / role_access refuse NEW assignment of coordinator / designer / crew (existing holders unaffected), backup table _r398_backup, role lists re-issued, the sign-in notice default (_r383_cfg) patched in place with dynamic SQL - checked by the r229-0398 marker. The people themselves are deleted only by the owner-run DELETE-0398-RETIRED-ROLE-USERS.sql (not checked here)')
 ),
 env as (
   select
