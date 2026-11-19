@@ -264,7 +264,7 @@ await t('D4 APPLY-0285: migration verbatim between begin / commit + VERIFY rows;
   assert.ok(rd('supabase/migrations/MANIFEST').includes('forward  supabase/migrations/0285_r35_payment_details_safety.sql'));
   assert.match(rd('scripts/db-test/run-all.sh'), /R35-PAYSAFE-0285: ALL PASS \\\(100\/100\\\)/);
   // 0285 sits after 0283 (it requires it) and before any later release
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0282', '0283', '0285'(, '0[23]\d\d')*\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0282', '0283', '0285'(, '0[234]\d\d')*\]/, f);
   const owner = new URL('file:///Users/koushikgoudshaganti/Desktop/Agency/Helm/APPLY-0285.sql');
   checkOwnerFile(owner, APPLY, assert);   // R175: skips an iCloud-offloaded copy
 });

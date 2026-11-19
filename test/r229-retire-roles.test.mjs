@@ -1,6 +1,6 @@
 // r229-retire-roles.test.mjs - R229 (owner, 18-19 Nov 2026), the browser / repo side:
-//   1. store-api: Event coordinator / Designer / Crew are never OFFERED (auth.admin.roles, staff.staffRoles) but stay
-//      known (labels, old staff words still recognised), isRetiredRole / retiredRoles for the "Retired role" hint
+//   1. store-api: (R232 / 0400, owner 19 Nov 2026) Event coordinator / Designer removed for good, Crew OFFERED again;
+//      isRetiredRole / retiredRoles kept for the "Retired role" hint (no role retired now)
 //   2. Settings -> Users & invites: Add user / Invite default to Event manager; a person who still has a retired role
 //      keeps it in the dropdown with "Retired role - choose a new one"; onboarding / trial invite pickers default Event manager
 //   3. Staff page: "Save and invite to sign in" off, Role field gone from Add staff (read-only on an existing record,
@@ -19,18 +19,19 @@ const SQL = rd('supabase/migrations/0398_r229_retire_roles.sql'), APPLY = rd('su
 const DEL = rd('supabase/DELETE-0398-RETIRED-ROLE-USERS.sql'), MAN = rd('supabase/migrations/MANIFEST'), RUN = rd('scripts/db-test/run-all.sh');
 
 /* 1 */
-await t('store-api: retired roles never offered, still known', () => {
+await t('store-api: R232 (0400) - Event coordinator / Designer gone, Crew offered again, no retired role left', () => {
   const m = API.match(/const ALL_ROLES {2}= (\[[^\]]+\]);/); assert.ok(m);
   const ALL = JSON.parse(m[1]);
-  assert.match(API, /const RETIRED_ROLES = \["coordinator", "designer", "crew"\];/);
+  assert.match(API, /const RETIRED_ROLES = \[\];/);
   assert.match(API, /const PICK_ROLES = KNOWN_ROLES\.filter\(\(r\) => !RETIRED_ROLES\.includes\(r\)\);/);
-  const RET = ['coordinator', 'designer', 'crew'], KNOWN = ALL.filter((r) => r !== 'worker'), PICK = KNOWN.filter((r) => !RET.includes(r));
-  for (const r of RET) assert.ok(!PICK.includes(r), r);
-  for (const r of ['admin', 'manager', 'planner', 'sales', 'supervisor', 'quality', 'operations']) assert.ok(PICK.includes(r), r);
+  const KNOWN = ALL.filter((r) => r !== 'worker');
+  for (const r of ['coordinator', 'designer']) assert.ok(!ALL.includes(r), r + ' removed');
+  for (const r of ['admin', 'manager', 'planner', 'sales', 'supervisor', 'quality', 'operations', 'crew']) assert.ok(KNOWN.includes(r), r + ' offered');
   assert.match(API, /roles: \(\) => PICK_ROLES\.slice\(\),\n {6}\/\/ R229[^\n]*\n {6}retiredRoles: \(\) => RETIRED_ROLES\.slice\(\),\n {6}isRetiredRole,/);
   assert.match(API, /staffRoles: \(\) => PICK_ROLES\.filter\(\(r\) => r !== "client"\)/);
   assert.match(API, /for \(const r of KNOWN_ROLES\) if \(r !== "client" && \(t === r \|\| t === roleLabel\(r\)\.toLowerCase\(\)\)\) return r;/);
-  assert.match(API, /coordinator: "Event coordinator"/, 'labels kept for old rows');
+  assert.doesNotMatch(API, /coordinator: "Event coordinator"|designer: "Designer"/, 'no labels for the removed roles');
+  assert.match(API, /crew: "Crew"/);
 });
 
 /* 2 */
@@ -61,7 +62,7 @@ await t('Staff page: no Save-and-invite, no Role on Add staff, Invite to log in 
 });
 
 /* 4 */
-await t('sign-in notice roles: no coordinator / designer, crew kept', () => {
+await t('sign-in notice roles: no coordinator / designer, crew offered', () => {
   const w = {}; vm.runInNewContext(rd('public/signin-notice-ui.js'), { window: w, globalThis: w, document: undefined });
   const m = rd('public/signin-notice-ui.js').match(/var ALL = (\[[^\]]+\]);/); const ALL = JSON.parse(m[1]);
   assert.ok(!ALL.includes('coordinator') && !ALL.includes('designer') && ALL.includes('crew'));
@@ -70,7 +71,7 @@ await t('sign-in notice roles: no coordinator / designer, crew kept', () => {
 /* 5 */
 await t('SQL 0398: MANIFEST, run-all, APPLY verbatim + checks, ASCII, DELETE file separate and guarded', () => {
   assert.match(MAN, /\nforward {2}supabase\/migrations\/0398_r229_retire_roles\.sql\n/);
-  assert.match(RUN, /-c helm\.retired_role_gate=off"/);
+  assert.match(RUN, /-c helm\.retired_role_gate=off -c helm\.r400_remove=off"/);
   assert.match(RUN, /run "r229-retire-roles-0398" "R229-RETIRE-ROLES-0398: ALL PASS \\\(22\/22\\\)"/);
   assert.match(RUN, /run "r229-delete-retired-users-0398" "R229-DELETE-0398: PASS" bash tests\/db\/r229-delete-retired-users-0398\.sh/);
   assert.ok(APPLY.includes(SQL), 'APPLY carries the migration verbatim');

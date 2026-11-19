@@ -44,7 +44,7 @@ await t('role-defaults: the tasks row equals the 0385 new-studio seed (Staff-edi
   assert.deepEqual(RD.defaultFor('supervisor', 'tasks'), { view: true, edit: true });
   assert.deepEqual(RD.defaultFor('quality', 'tasks'), { view: false, edit: false });
   assert.deepEqual(RD.defaultFor('sales', 'tasks'), { view: false, edit: false });
-  for (const role of ['manager', 'planner', 'coordinator', 'operations']) assert.deepEqual(RD.defaultFor(role, 'tasks'), RD.defaultFor(role, 'staff').edit ? { view: true, edit: true } : null, role);
+  for (const role of ['manager', 'planner', 'operations']) assert.deepEqual(RD.defaultFor(role, 'tasks'), RD.defaultFor(role, 'staff').edit ? { view: true, edit: true } : null, role);
   const team = RD.SECTIONS.find((s) => s.key === 'team').rows.map((x) => x.area);
   assert.deepEqual(team.slice(0, 2), ['staff', 'tasks']);
   const row = RD.SECTIONS.find((s) => s.key === 'team').rows[1];
@@ -172,7 +172,7 @@ await t('Settings: "What can this role do?" in plain yes / no for the selected r
 });
 
 await t('Settings page wiring: scripts, boxes, the fix button handled before the save, same save path, no inline style', () => {
-  assert.match(C, /<script src="role-defaults\.js\?v=2"><\/script><script src="access-deps\.js\?v=1"><\/script>/);
+  assert.match(C, /<script src="role-defaults\.js\?v=3"><\/script><script src="access-deps\.js\?v=1"><\/script>/);
   assert.match(C, /<link rel="stylesheet" href="roles-matrix\.css\?v=2">/);
   // the hint sits in the sticky role header, so it is on screen next to whatever row was just switched
   assert.match(C, /<div class="rm-bar" id="rmBar"><\/div>\s*<div class="rm-dep" id="rmDep" role="status" hidden><\/div>\s*<\/div>/);
@@ -195,10 +195,10 @@ await t('Tasks & Crew + monitor ask canAssignTasks; Templates - Can change off -
   assert.match(OPS, /else if\(!canTpl\)\{ const b=\$\("#tpl_add"\), i=\$\("#tpl_title"\); if\(b\) b\.textContent="\+ Add for this event";/);
   assert.match(OPS, /if\(!canTpl\)\{ const l=oneOff\[cat\]=oneOff\[cat\]\|\|\[\];[^\n]*\n[^\n]*setMsg\("ok",`Added "\$\{title\.slice\(0,120\)\}" for this event - ticked below\.`\); lastOkMsg=""; return; \}\n\s*try\{ await BPStore\.ops\.addTemplate\(cat,title\); \}/);
   assert.match(OPS, /\(this event only\)/);
-  assert.match(OPS, /<script src="ops-board\.js\?v=6"><\/script>/);
+  assert.match(OPS, /<script src="ops-board\.js\?v=7"><\/script>/);
   const mon = r('public/monitor.js');
   assert.match(mon, /S\.canEdit = !!\(await \(A\.canAssignTasks \? A\.canAssignTasks\(\) : A\.canEditArea\("staff"\)\)\);/);
-  assert.match(r('public/monitor.html'), /monitor\.js\?v=10/);
+  assert.match(r('public/monitor.html'), /monitor\.js\?v=11/);
   assert.match(r('public/ops-board.js'), /Your role can view this page only\. To give out work, an admin switches on \\u201cAssign & send tasks\\u201d/);
   // open shifts + days off keep their own Staff - Can change checks
   assert.match(r('public/crew-shifts.js'), /canEdit = await B\.auth\.canEditArea\("staff"\)/);

@@ -1215,7 +1215,7 @@
     var spBox = h("div", {}, [lbl("Special (P1)")]);
     var expl = ""; try { expl = global.HelmTaskReminders && global.HelmTaskReminders.escExplain ? global.HelmTaskReminders.escExplain(S.escCfg) : ""; } catch (e) {}
     if (t.is_special) {
-      var n = h("div", { cls: "tc-note info" }, [expl || "If it is not started on time Helm tells the worker, then the coordinator, then the manager, then the admin / owner."]);
+      var n = h("div", { cls: "tc-note info" }, [expl || "If it is not started on time Helm tells the worker, then the event lead, then the manager, then the admin / owner."]);
       if (!t.planned_start) n.appendChild(h("p", { cls: "tc-hint", text: "This task has no start time, so it can’t escalate - use Change time." }));
       var st = TS.escStep(t, S.acts, S.escCfg, now); if (st >= 0) n.appendChild(ladderEl(st));
       spBox.appendChild(n);

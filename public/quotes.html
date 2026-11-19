@@ -130,7 +130,7 @@
 <link rel="stylesheet" href="link-views.css?v=2">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=103" id="shellProto"></script>
+<script src="/shell-proto.js?v=104" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -283,8 +283,8 @@
 <script src="event-name.js?v=9"></script>
 <script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=392"></script><script src="flow-resume.js?v=10" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=6"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=4"></script>
 <script src="event-sizing.js?v=5"></script><script src="quote-smart-filter.js?v=2"></script><script src="approval-watch.js?v=2"></script><script src="event-group-picker.js?v=5"></script><script src="link-views.js?v=5"></script>
-<script src="page-tours.js?v=63"></script>
-<script src="tour.js?v=78"></script>
+<script src="page-tours.js?v=64"></script>
+<script src="tour.js?v=79"></script>
 <script>
   const $ = (s)=>document.querySelector(s);
   const esc = (s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -506,8 +506,8 @@
     const taxP=Promise.resolve().then(()=>BPStore.config.getPricing()).then(c=>{ studioCfg=c||{}; studioTax=curTax=BPStore.tax.resolve(studioCfg); paintTaxCopy(studioTax); }).catch(()=>{});
     Promise.resolve().then(()=>BPStore.org.current()).then(o=>{ studioOrg=o||null; const bl=o&&o.brand&&o.brand.billing; studioState=(bl&&typeof bl.state==="string")?bl.state:""; }).catch(()=>{});
     // independent capability reads — in parallel (render() reads them)
-    // r23-0260: Restore a cancelled event - admin / manager / coordinator with quotes edit (the server decides)
-    BPStore.auth.role().then(r=>{ canUncancel=["admin","manager","coordinator"].includes(String(r||"")); if(quotes.length) render(); }).catch(()=>{});
+    // r23-0260: Restore a cancelled event - admin / manager with quotes edit (the server decides)
+    BPStore.auth.role().then(r=>{ canUncancel=["admin","manager"].includes(String(r||"")); if(quotes.length) render(); }).catch(()=>{});
     // opened from an event workspace? focus that quote by pre-filling the search
     // (R215: filled in before the first page is asked for below, so that page already carries it)
     const focus=focusPending ? new URLSearchParams(location.search).get("focus") : null;
@@ -521,7 +521,7 @@
       Promise.all([BPStore.auth.can("create"), BPStore.auth.canEditArea("quotes")]).then(([c,e])=>!!(c&&e)),
       // mark_paid is admin/manager only server-side (SEC-05 F11); offline mode has no roles — server: mark_paid needs has_area(finance,edit)
       BPStore.auth.enabled() ? BPStore.auth.canEditArea("finance") : true]).catch((e)=>{ prePage=null; preShelf=null; throw e; });   // R215: same error, early reads dropped
-    // r20-coord: layouts view-only (e.g. Event coordinator) -> the row says "View layout", not "Edit layout"
+    // r20-coord: layouts view-only (e.g. Supervisor) -> the row says "View layout", not "Edit layout"
     canEditLayouts = BPStore.auth.enabled() ? await BPStore.auth.canEditArea("layouts").catch(()=>false) : true;
     $("#newBtn").hidden = !canCreate;
     gateQuoteCap();   // r20 (0238): free trial "1 of 2 new quotes used" next to New quote; off at 2 of 2 (paid: nothing)

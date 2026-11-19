@@ -22,7 +22,7 @@ t('role select replaces free text; department select with inline "Add new depart
 t('obvious free-text roles map; ambiguous / unknown stay custom (never lost)', () => {
   const m = lib.staffMatchRole;
   assert.equal(m('Planner'), 'planner'); assert.equal(m('event manager'), 'manager'); assert.equal(m('Lead planner'), 'planner');
-  assert.equal(m('Event coordinator'), 'coordinator'); assert.equal(m('AV technician'), null); assert.equal(m('Sales manager'), null);
+  assert.equal(m('Site supervisor'), 'supervisor'); assert.equal(m('AV technician'), null); assert.equal(m('Sales manager'), null);
   assert.equal(m('client'), null); assert.equal(m(''), null);
   assert.match(html, /Custom: \$\{esc\(custom\)\}/); assert.match(html, /rkey==="custom"\?\(rsel\.dataset\.custom\|\|null\)/);
 });

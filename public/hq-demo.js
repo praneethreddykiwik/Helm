@@ -63,7 +63,7 @@
     for (var k = 0; k < Math.min(s.users_count, 4); k++) {
       var nm = k === 0 ? s.primary_contact_name : FIRST[(i * 3 + k) % FIRST.length];
       USERS.push({ user_id: uuid(1000 + USERS.length), email: k === 0 ? s.primary_contact_email : nm.toLowerCase() + "@" + dom, studio: s.name, org_id: s.org_id,
-        role: k === 0 ? "admin" : ["planner", "coordinator", "sales"][k % 3], created_at: ago(30 + i * 9 + k), last_sign_in_at: ago((i + k) % 9),
+        role: k === 0 ? "admin" : ["planner", "supervisor", "sales"][k % 3], created_at: ago(30 + i * 9 + k), last_sign_in_at: ago((i + k) % 9),
         email_confirmed: k !== 3, mfa_enabled: (i + k) % 3 !== 0, display_name: nm });
     }
   });

@@ -13,7 +13,7 @@
  *         builds the timeline from the task step times it already has); BPStore.ops.shifts.availability(day, day)
  *         crew_availability_range (0265): who marked the event day "can't work", with their reason.
  *   R184 tabs: "Check-in" (each person: in / out times, late, hours) and "Activity" (the full timeline, filter by person / type).
- *   R186 (0369): special tasks not started climb an escalation ladder (coordinator -> manager -> admin / owner); each step is
+ *   R186 (0369): special tasks not started climb an escalation ladder (event lead -> manager -> admin / owner); each step is
  *   in the timeline (kind "escalated") and the Late panel shows the latest one as a badge ("Escalated to manager 3:10 PM").
  * Gate: BPStore.auth.requireView("staff") - same as Tasks & staff. Crew never see this page.
  * R194 layout (owner: "organise this page properly, the header and all"): one header band shared with Tasks & Crew
@@ -141,7 +141,7 @@
   var ACT_ICON = { assigned: "📋", reassigned: "🔁", unassigned: "➖", time_changed: "🕒", special_on: "🔔", special_off: "🔕",
                    accepted: "✅", rejected: "✋", started: "▶️", completed: "🎉", cancelled: "✖️", reopened: "↩️",
                    check_in: "📍", check_out: "🏁", check_edit: "✏️", email_sent: "✉️", escalated: "🚨", dayoff_asked: "🗓️", dayoff_approved: "🗓️" };
-  // R186: "coordinator" / "manager" / "admin / owner" - R192: the shared ladder (task-status.js)
+  // R186: "event lead" / "manager" / "admin / owner" - R192: the shared ladder (task-status.js)
   var escLevel = TS.escLevel, lastEscalation = TS.lastEscalation;
   function escBadge(a) { return TS.escBadge(a, fmtClock); }
   function actText(a) { return TS.actText(a, fmtWhen); }
@@ -658,7 +658,7 @@
         h("small", { text: "was due " + fmtClock(t.planned_start) + " (" + ago(t.planned_start, now) + ")" + (stateOf(t, now).key === "waiting" ? " · not accepted yet" : "") })]));
       // R186 (0369): where the escalation ladder is now (special tasks)
       var esc = lastEscalation(t, S.acts);
-      if (esc) row.appendChild(h("span", { cls: "mon-chip mon-esc is-esc-" + ((esc.detail && esc.detail.level) || "coordinator"), title: "Special task: Helm tells the team step by step until it is started", text: "🚨 " + escBadge(esc) }));
+      if (esc) row.appendChild(h("span", { cls: "mon-chip mon-esc is-esc-" + ({ manager: "manager", admin: "admin" }[esc.detail && esc.detail.level] || "lead"), title: "Special task: Helm tells the team step by step until it is started", text: "🚨 " + escBadge(esc) }));
       else if (t.is_special) row.appendChild(h("span", { cls: "mon-chip is-special", text: "🔔 Special" }));
       row.appendChild(actions(t));
       list.appendChild(row);

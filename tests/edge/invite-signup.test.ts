@@ -19,7 +19,7 @@ const auth = () => supaLog().filter((l) => l.auth);
 const noFetch = () => installFetch(() => { throw new Error("no fetch expected"); });
 
 function db(o: { status?: string; expires_at?: string; state?: unknown; email?: string; stateErr?: boolean; relink?: unknown; keyHash?: string | null } = {}) {
-  const inv = { id: "i1", email: o.email ?? "Shagantikoushik+test@gmail.com", status: o.status ?? "pending", expires_at: o.expires_at ?? future(), org_id: ORG, role: "coordinator", invited_by: ADMIN,
+  const inv = { id: "i1", email: o.email ?? "Shagantikoushik+test@gmail.com", status: o.status ?? "pending", expires_at: o.expires_at ?? future(), org_id: ORG, role: "supervisor", invited_by: ADMIN,
     mail_key_hash: o.keyHash === undefined ? KEY_HASH : o.keyHash };
   g.__supaResolver = (table: string) => table === "invitations" ? { data: inv, error: null }
     : table === "organizations" ? { data: { name: "ABCD" }, error: null }
@@ -37,7 +37,7 @@ Deno.test("invite-signup peek: invite context (studio, inviter name, role label)
     const h = await loadHandler(FN);
     const res = await h(post({ token: TOK, peek: true }));
     assertEquals(res.status, 200);
-    assertEquals(await res.json(), { email: "shagantikoushik+test@gmail.com", studio: "ABCD", inviter: "Priya Shah", role: "coordinator", role_label: "Event coordinator", account: "needs_link" });
+    assertEquals(await res.json(), { email: "shagantikoushik+test@gmail.com", studio: "ABCD", inviter: "Priya Shah", role: "supervisor", role_label: "Supervisor", account: "needs_link" });
     assertEquals(auth().length, 0);
   } finally { f(); r(); }
 });
@@ -151,7 +151,7 @@ Deno.test("invite-signup resend (provider set): Supabase only makes the link, He
     assertEquals(auth()[0].args, { type: "magiclink", email: "shagantikoushik+test@gmail.com", options: { redirectTo: "https://www.helm.events/login?invite=" + TOK } });
     const m = JSON.parse(String(fetchLog()[0].init?.body));
     assertEquals(m.to, ["shagantikoushik+test@gmail.com"]); assertEquals(m.subject, "Join ABCD on Helm");
-    assert(m.html.includes("Set my password") && m.html.includes("Priya Shah") && m.html.includes("Event coordinator"));
+    assert(m.html.includes("Set my password") && m.html.includes("Priya Shah") && m.html.includes("Supervisor"));
     // 0205: the link is on Helm's own domain - the Supabase project URL never appears in the e-mail
     const own = "https://www.helm.events/auth/confirm?token_hash=" + "f".repeat(56) + "&amp;type=magiclink&amp;next=%2Flogin%3Finvite%3D" + TOK;
     assert(m.html.includes(own), "own-domain confirm link");
@@ -280,7 +280,7 @@ Deno.test("r57 A-4: email_lookup for an invited e-mail answers { invited: true }
   resetSupaMock(); db();
   const prevRpc = g.__supaRpc;
   g.__supaRpc = (name: string, args: unknown) => name === "invite_open_for_email"
-    ? { data: { found: true, token: TOK, studio: "Secret Studio", role: "coordinator", invited_by: ADMIN, expires_at: future() }, error: null }
+    ? { data: { found: true, token: TOK, studio: "Secret Studio", role: "supervisor", invited_by: ADMIN, expires_at: future() }, error: null }
     : prevRpc(name, args);
   const r = setEnv(ENV); const f = noFetch();
   try {
@@ -330,7 +330,7 @@ Deno.test("R32 AUTH-1: e-mailed key -> confirmed login + recorded in a155_admin_
 
 Deno.test("R32 AUTH-1: 0282 not applied (no mail_key_hash column) -> fallback, never a confirmed login", async () => {
   resetSupaMock(); db();
-  const inv = { id: "i1", email: "a@b.co", status: "pending", expires_at: future(), org_id: ORG, role: "coordinator", invited_by: ADMIN };
+  const inv = { id: "i1", email: "a@b.co", status: "pending", expires_at: future(), org_id: ORG, role: "supervisor", invited_by: ADMIN };
   let calls = 0;
   g.__supaResolver = (table: string) => table === "invitations"
     ? (++calls === 1 ? { data: null, error: { code: "42703", message: "column invitations.mail_key_hash does not exist" } } : { data: inv, error: null })

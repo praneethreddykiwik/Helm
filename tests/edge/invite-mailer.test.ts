@@ -15,8 +15,8 @@ const T_NEW = "a".repeat(48), T_OLD = "b".repeat(48);
 const ID1 = "c0000000-0000-4000-8000-0000000201a1", ID2 = "c0000000-0000-4000-8000-0000000201a2";
 const UID = "d0000000-0000-4000-8000-0000000201b1";
 const rows = () => [
-  { id: ID1, to: "brand.new@ia.test", token: T_NEW, inviter: "Priya Shah", studio: "ABCD", role: "coordinator", expires_at: "2026-10-25T00:00:00Z" },
-  { id: ID2, to: "already@ia.test", token: T_OLD, inviter: "Priya Shah", studio: "ABCD", role: "coordinator", expires_at: "2026-10-25T00:00:00Z" },
+  { id: ID1, to: "brand.new@ia.test", token: T_NEW, inviter: "Priya Shah", studio: "ABCD", role: "supervisor", expires_at: "2026-10-25T00:00:00Z" },
+  { id: ID2, to: "already@ia.test", token: T_OLD, inviter: "Priya Shah", studio: "ABCD", role: "supervisor", expires_at: "2026-10-25T00:00:00Z" },
 ];
 const req = () => new Request("https://fn.local/", { method: "POST", headers: { "x-helm-cron-secret": SECRET } });
 const auth = () => supaLog().filter((l) => l.auth);
@@ -41,9 +41,9 @@ Deno.test("invite-mailer: provider set -> one branded invitation for new AND exi
     for (const [i, m] of sent.entries()) {
       const tok = i === 0 ? T_NEW : T_OLD;
       assertEquals(m.subject, "Join ABCD on Helm");
-      assert(m.html.includes("Accept invitation") && m.html.includes("Event coordinator") && m.html.includes("Priya Shah"), "same branded body");
+      assert(m.html.includes("Accept invitation") && m.html.includes("Supervisor") && m.html.includes("Priya Shah"), "same branded body");
       assert(m.html.includes("https://www.helm.events/login?invite=" + tok), "join page link");
-      assert(m.text.includes("Priya Shah invited you as Event coordinator"), "plain text line");
+      assert(m.text.includes("Priya Shah invited you as Supervisor"), "plain text line");
     }
     assertEquals(sent[0].html.replaceAll(T_NEW, "T").replaceAll("brand.new@ia.test", "E"), sent[1].html.replaceAll(T_OLD, "T").replaceAll("already@ia.test", "E"), "identical e-mail for both invitees");
     assertEquals(auth().length, 0, "no inviteUserByEmail / magic link / user change");
@@ -76,7 +76,7 @@ Deno.test("invite-mailer: no provider -> Supabase Invite user / Magic link carry
     const h = await loadHandler(FN);
     const { result: res, logs } = await captureConsoleError(() => Promise.resolve(h(req())));
     assertEquals(res.status, 200);
-    const meta = { studio: "ABCD", role: "Event coordinator", invited_by: "Priya Shah" };
+    const meta = { studio: "ABCD", role: "Supervisor", invited_by: "Priya Shah" };
     const inv = auth().filter((a) => a.auth === "inviteUserByEmail");
     assertEquals(inv.length, 2);
     assertEquals(inv[0].args.opts, { redirectTo: "https://www.helm.events/login?invite=" + T_NEW, data: meta });

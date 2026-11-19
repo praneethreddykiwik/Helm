@@ -54,7 +54,7 @@
   .purpose .rel{margin-top:6px;font-size:12.5px;color:var(--ink-3)}
 </style>
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=103" id="shellProto"></script>
+<script src="/shell-proto.js?v=104" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -239,7 +239,7 @@
     // is the real gate — it re-checks has_area('design','edit') on every call.
     let role=null; try{ role=await BPStore.auth.role(); }catch(_){}
     // follow the configurable access matrix (Settings), same as the server's has_area('design','edit')
-    try{ canEdit=(typeof BPStore.auth.canEditArea==="function") ? !!(await BPStore.auth.canEditArea("design")) : ["admin","manager","planner","designer"].includes(role); }
+    try{ canEdit=(typeof BPStore.auth.canEditArea==="function") ? !!(await BPStore.auth.canEditArea("design")) : ["admin","manager","planner"].includes(role); }
     catch(_){ canEdit=false; }
     // Accurate access gate: only tell someone to "ask an admin" when their role
     // genuinely can't view Design. Admins (and granted roles) pass straight through,

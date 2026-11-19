@@ -38,7 +38,7 @@ await t('explain(): default = first sign-in each day, anyone except Crew; every;
 await t('pickRoles(): known roles only, lower case, trimmed, no duplicates, in the list order; labels match the app', () => {
   assert.deepEqual(SN.pickRoles([' Crew', 'planner', 'client', 'planner', 'ADMIN', 7, null]), ['admin', 'planner', 'crew']);
   assert.deepEqual(SN.pickRoles('x'), []);
-  assert.equal(SN.roleLabel('manager'), 'Event manager'); assert.equal(SN.roleLabel('coordinator'), 'Event coordinator');
+  assert.equal(SN.roleLabel('manager'), 'Event manager'); assert.equal(SN.roleLabel('supervisor'), 'Supervisor'); assert.equal(SN.roleLabel('crew'), 'Crew');
   assert.deepEqual(SN.MODES.map((m) => m[0]), ['first_daily', 'every', 'off']);
   assert.deepEqual(SN.MODES.map((m) => m[1]), ['First sign-in each day', 'Every sign-in', 'Off']);
 });
@@ -89,7 +89,7 @@ await t('fallback ping: once per session per tab, after the page settled, never 
 await t('control.html: the card on the Notifications tab, the script, the init, ?person=<id>#users opens that person', () => {
   assert.match(CTL, /<div class="card" id="sinCard" hidden><\/div>/);
   assert.ok(CTL.indexOf('id="trmCard"') < CTL.indexOf('id="sinCard"') && CTL.indexOf('id="sinCard"') < CTL.indexOf('id="commsCard"'), 'between task reminders and client messages');
-  assert.match(CTL, /<script src="task-reminders-ui\.js\?v=7"><\/script><script src="signin-notice-ui\.js\?v=2"><\/script>/);
+  assert.match(CTL, /<script src="task-reminders-ui\.js\?v=8"><\/script><script src="signin-notice-ui\.js\?v=3"><\/script>/);
   assert.match(CTL, /if\(typeof HelmSigninNotice!=="undefined"\) HelmSigninNotice\.settingsCard\(\$\("#sinCard"\)\);   \/\/ R205 \(0383\) teammate sign-ins/);
   assert.match(CTL, /if\(location\.hash==="#users"\)\{ switchTab\("users"\); openPersonFromLink\(\); \}/);
   const f = fnSrc(CTL, 'openPersonFromLink');
@@ -164,7 +164,7 @@ await t('asset pins: store-api v376 + page-tours v56 on every page that loads th
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const h = read('public/' + f);
     const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '392', f);
-    const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '63', f);
+    const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '64', f);
   }
 });
 

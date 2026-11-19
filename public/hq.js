@@ -2425,7 +2425,7 @@
   }
   function loadDemo() {
     return new Promise(function (resolve, reject) {
-      var sc = document.createElement("script"); sc.src = "hq-demo.js?v=4";
+      var sc = document.createElement("script"); sc.src = "hq-demo.js?v=5";
       sc.addEventListener("load", resolve); sc.addEventListener("error", reject); document.head.appendChild(sc);
     });
   }

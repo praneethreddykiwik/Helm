@@ -58,7 +58,7 @@ await t('APPLY-0288: migration verbatim between begin / commit, VERIFY rows, eme
   assert.doesNotMatch(APPLY, /temp(orary)? table|^\\/im);
   assert.ok(rd('supabase/migrations/MANIFEST').includes('forward  supabase/migrations/0288_staff_google_only.sql'));
   assert.match(rd('scripts/db-test/run-all.sh'), /R39-STAFF-GOOGLE-0288: ALL PASS \\\(49\/49\\\)/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0287'(, '0[23]\d\d')*, '0288'(, '0[23]\d\d')*\]/, f);   // loosened like r44 / r47: later releases may append after 0288
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0287'(, '0[234]\d\d')*, '0288'(, '0[234]\d\d')*\]/, f);   // loosened like r44 / r47: later releases may append after 0288
 });
 await t('store-api (v298): exactly helm.events; password, sign-up and reset refused early; the server refusal mapped', () => {
   const src = /function isStaffEmail\(email\) \{[\s\S]*?\n  \}/.exec(SA)[0];
@@ -122,7 +122,7 @@ await t('hq.html: Owner-only switch card with a strong warning, the "Test my Goo
   assert.match(H, /<div class="gwarn" role="note"><b>Careful\.<\/b> If Google sign-in does not work for you, you are locked out of HQ\./);
   assert.match(H, /<h3>Test my Google sign-in first<\/h3>/);
   assert.match(H, /id="sgTested"/); assert.match(H, /id="btnSgOn"/); assert.match(H, /id="btnSgOff"/);
-  assert.match(H, /hq\.js\?v=41/);
+  assert.match(H, /hq\.js\?v=42/);
   assert.doesNotMatch(H.slice(H.indexOf('id="sgCard"'), H.indexOf('id="tmRolesH"')), /\son[a-z]+=|style=/);
 });
 await t('hq.js: switch needs the tick box + confirm (fresh code via call()), Owner-only card, Google gate before two-step set-up, textContent only', () => {

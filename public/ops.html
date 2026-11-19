@@ -177,7 +177,7 @@
 <link rel="stylesheet" href="event-plan.css?v=1">
 <link rel="stylesheet" href="event-floor.css?v=1">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=103" id="shellProto"></script>
+<script src="/shell-proto.js?v=104" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -347,7 +347,7 @@
           <p class="when-warn" id="as_warn" role="status" hidden></p>
           <fieldset class="trm-set" id="as_rem" hidden></fieldset>
         </div>
-        <label class="tc-chk"><input type="checkbox" id="asSpecial"> ▲ Special (P1) - if not started: worker → coordinator → manager → admin / owner</label>
+        <label class="tc-chk"><input type="checkbox" id="asSpecial"> ▲ Special (P1) - if not started: worker → event lead → manager → admin / owner</label>
       </fieldset>
       <fieldset class="tc-fs">
         <legend><span data-step>4. </span>Tell them</legend>
@@ -426,9 +426,9 @@
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
 <script src="country-profile.js?v=7"></script><script src="store-api.js?v=392"></script>
-<script src="task-status.js?v=3"></script>
-<script src="event-plan.js?v=2"></script>
-<script src="ops-board.js?v=6"></script>
+<script src="task-status.js?v=4"></script>
+<script src="event-plan.js?v=3"></script>
+<script src="ops-board.js?v=7"></script>
 <script src="event-floor.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -868,13 +868,13 @@
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"reject the task"}),{type:"err"}); }
     });
   }
-  // R186 (0369): a special task gets extra reminders before its start and, if it is not started, the coordinator, the
+  // R186 (0369): a special task gets extra reminders before its start and, if it is not started, the event lead, the
   // manager and the admin / owner are told step by step (Settings -> Notifications sets when)
   function toggleSpecial(b, id){
     const t=tasks.find(x=>String(x.id)===String(id));
     return BPUI.guard(b,async()=>{
       try{ await BPStore.ops.setSpecial(id, !(t&&t.is_special), 5);
-        BPUI.toast((t&&t.is_special)?"No longer marked special.":"Marked special - extra reminders before the start; if it isn't started, the coordinator, then the manager, then the admin / owner are told."+(t&&!t.planned_start?" Give it a start time (Set a time) so it can escalate.":""),{type:"ok",timeout:7000}); await refreshDashboard(); }
+        BPUI.toast((t&&t.is_special)?"No longer marked special.":"Marked special - extra reminders before the start; if it isn't started, the event lead, then the manager, then the admin / owner are told."+(t&&!t.planned_start?" Give it a start time (Set a time) so it can escalate.":""),{type:"ok",timeout:7000}); await refreshDashboard(); }
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the special mark"}),{type:"err"}); }
     });
   }
@@ -1092,7 +1092,7 @@
   BPUI.boot(load);
 </script>
 
-<script src="wa-setup-note.js?v=1"></script><script src="studio-time.js?v=1"></script><script src="when-picker.js?v=3"></script><script src="task-reminders-ui.js?v=7"></script>
+<script src="wa-setup-note.js?v=1"></script><script src="studio-time.js?v=1"></script><script src="when-picker.js?v=3"></script><script src="task-reminders-ui.js?v=8"></script>
 <script src="crew-shifts.js?v=8"></script>
 </body>
 </html>

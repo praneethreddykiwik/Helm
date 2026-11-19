@@ -356,7 +356,7 @@ t('store-api.js: page_bootstrap counted as a read (never drops the shared caches
     'supa.from("profiles").select("role")', 'supa.from("role_access").select("area,can_view,can_edit")', 'rpc("my_trial_org", {})', 'rpc("my_trial_status")',
     'rpc("my_demo_status")', 'rpc("my_subscription")', 'supa.rpc("my_test_studio")', 'rpc("get_pricing_config")', 'rpc("get_item_rate_cards")']) assert.ok(SRC.includes(c), 'old call kept: ' + c);
 });
-t('asset pin: every page that loads store-api.js asks for v=390', () => {
+t('asset pin: every page that loads store-api.js asks for v=391', () => {
   const pages = readdirSync(new URL('public/', ROOT)).filter((f) => f.endsWith('.html'));
   let n = 0;
   for (const f of pages) { const h = read('public/' + f); const m = h.match(/store-api\.js\?v=(\d+)/g); if (!m) continue; n++; for (const x of m) assert.equal(x, 'store-api.js?v=392', f); }

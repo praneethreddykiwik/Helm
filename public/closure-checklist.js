@@ -281,7 +281,7 @@
           var a = el("button", "btn go", "Approve & close"); a.type = "button"; a.addEventListener("click", function () { h.approve(q, a); }); acts.appendChild(a);
         }
         box.appendChild(acts);
-      } else if (q.status === "pending" && q.mine) box.appendChild(el("div", "cl-note", "An admin or coordinator will approve or decline it. You'll get a notification."));
+      } else if (q.status === "pending" && q.mine) box.appendChild(el("div", "cl-note", "An admin or an event manager will approve or decline it. You'll get a notification."));
       mount.appendChild(box);
     });
     ovr.forEach(function (x) {
@@ -302,7 +302,7 @@
       var ov = el("div", "lmodal cl-modal"); ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-labelledby", "clmTitle");
       var sh = el("div", "sheet cl-sheet"); ov.appendChild(sh);
       var h = el("h3", null, s.pending ? "Close request waiting for approval" : "Before you close"); h.id = "clmTitle"; sh.appendChild(h);
-      sh.appendChild(el("p", "sub", s.fail ? "These checks are still open. Fix them (links below) - or ask an admin / coordinator to approve closing anyway."
+      sh.appendChild(el("p", "sub", s.fail ? "These checks are still open. Fix them (links below) - or ask an admin / event manager to approve closing anyway."
         : "Everything that blocks closing is done."));
       var body = el("div", "cl-mbody"); body.appendChild(checklistNode(review, { quoteId: o.quoteId, fmt: o.fmt, compact: true })); sh.appendChild(body);
       var ta = null, err = el("div", "err"); err.hidden = true; err.setAttribute("role", "alert");
@@ -315,7 +315,7 @@
         f.appendChild(err);   // the error sits right above the reason box (never under the sticky buttons)
         ta = el("textarea"); ta.id = "clmReason"; ta.maxLength = 1000; ta.required = true; ta.setAttribute("aria-describedby", "clmHelp"); err.id = "clmErr";
         ta.placeholder = "e.g. Client paying the last instalment by bank on Monday; 3 chairs lost, already written off"; f.appendChild(ta);
-        var help = el("div", "cl-note", s.adminOnly ? "Some checks can only be approved by an admin." : "An admin, coordinator or manager approves it. Everyone who can approve is notified.");
+        var help = el("div", "cl-note", s.adminOnly ? "Some checks can only be approved by an admin." : "An admin or an event manager approves it. Everyone who can approve is notified.");
         help.id = "clmHelp"; f.appendChild(help); sh.appendChild(f);
         var go = el("button", "btn go cl-anyway", "Request to close anyway"); go.type = "button"; foot.appendChild(go);
         go.addEventListener("click", function () {

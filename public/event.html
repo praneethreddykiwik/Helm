@@ -99,7 +99,7 @@
 <link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=5">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=103" id="shellProto"></script>
+<script src="/shell-proto.js?v=104" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -234,10 +234,10 @@
 <script src="country-profile.js?v=7"></script><script src="store-api.js?v=392"></script><script src="money-header-ui.js?v=2"></script><script src="/trial-sim.js?v=3"></script>
 <script src="flow-resume.js?v=10"></script>
 <script src="event-reminders.js?v=6"></script>
-<script src="page-tours.js?v=63"></script>
-<script src="tour.js?v=78"></script>
+<script src="page-tours.js?v=64"></script>
+<script src="tour.js?v=79"></script>
 <script src="payment-schedule.js?v=6"></script>
-<script src="booklet.js?v=34"></script>
+<script src="booklet.js?v=35"></script>
 <script src="email-send.js?v=9"></script><script src="share-checklist.js?v=16"></script>
 <script src="invite-site-share.js?v=13"></script><script src="booklet-share.js?v=19"></script>
 <script src="pkg-review.js?v=10"></script><script src="quote-validity.js?v=6"></script>
@@ -407,7 +407,7 @@
         paidSoFar=Math.round((pays||[]).filter(p=>p&&p.status==="paid").reduce((a,p)=>a+Number(p.amount||0),0)*100)/100; }),
       S(async()=>{ billsDelta=0; const sm=await BPStore.settlement.summary(id); billsDelta=BPStore.settlement.applyBills?await BPStore.settlement.applyBills(sm,id):0; settleSummary=sm; }),
       S(async()=>{ const st=await BPStore.quotes.staleApprovals([id]); staleInfo = st.has(id) ? ((st.detail||{})[id]||{}) : null; }),
-      // r20-coord: the P&L (server event_pnl) needs finance view - a coordinator got a 403 on every open.
+      // r20-coord: the P&L (server event_pnl) needs finance view - a role without it got a 403 on every open.
       // Roles without finance only read whether the event is closed; the Closure/P&L card is hidden for them.
       S(async()=>{ if(!canFin){ const c=await BPStore.closure.get(id); closureSummary={ profit:null, rev:null, pct:null, closed:!!(c&&c.closed_at), billsIncluded:false, noFin:true }; return; }
         const [pl,c]=await Promise.all([BPStore.closure.pl(id), BPStore.closure.get(id)]);
@@ -503,8 +503,8 @@
     else adv.hidden=true;
     // 0198: an event that will not happen is cancelled (admin / manager, with a reason) - never "closed early"
     $("#cancelEvBtn").hidden=!(canEdit && (myRole==="admin"||myRole==="manager") && !evLocked());
-    // r23-0260: Restore (cancelled events) + Re-share links (restored, links still off) - admin / manager / coordinator
-    { const may=canEdit && (linkState ? !!linkState.can_restore : ["admin","manager","coordinator"].includes(myRole));
+    // r23-0260: Restore (cancelled events) + Re-share links (restored, links still off) - admin / manager
+    { const may=canEdit && (linkState ? !!linkState.can_restore : ["admin","manager"].includes(myRole));
       $("#restoreEvBtn").hidden=!(may && ev.status==="cancelled" && !evClosedNow());
       $("#reshareBtn").hidden=!(may && ev.status!=="cancelled" && !!(linkState&&linkState.links_paused)); }
     // Digital invitation website — unlocks once the event is confirmed (or beyond).

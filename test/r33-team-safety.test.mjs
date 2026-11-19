@@ -169,7 +169,7 @@ await t('hq.js: "Studio owner" card + "Recover studio owner" (HQ Owner only, act
   assert.match(HQ, /if \(reason\.length < 20\) \{/);
   assert.match(HQ, /a && a\.active && \(!o \|\| a\.user_id !== o\.user_id\)/);
   assert.match(HQ, /"hq\.studio\.owner_recover": "Studio owner recovered"/);
-  assert.match(rd('public/hq.html'), /<script src="hq\.js\?v=41"><\/script>/);
+  assert.match(rd('public/hq.html'), /<script src="hq\.js\?v=42"><\/script>/);
 });
 
 await t('SQL 0283: registered (MANIFEST, run-all, release lists), APPLY verbatim + VERIFY, ASCII, additive only, STOP guard', () => {
@@ -178,7 +178,7 @@ await t('SQL 0283: registered (MANIFEST, run-all, release lists), APPLY verbatim
   assert.ok(man.indexOf('0282_r32_security_review.sql') < man.indexOf('0283_r33_team_safety.sql'), '0283 after 0282');
   assert.match(rd('scripts/db-test/run-all.sh'), /run "r33-team-safety-0283" "R33-TEAM-SAFETY-0283: ALL PASS \\\(\d+\/\d+\\\)" psql -q -f tests\/db\/r33-team-safety-0283\.sql/);
   // later releases (0284 / 0285 ...) may follow 0283 once merged
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0282', '0283'(, '0[23]\d\d')*\]/, f);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0282', '0283'(, '0[234]\d\d')*\]/, f);
   assert.ok(APPLY.includes(SQL.trimEnd()), 'APPLY carries the migration verbatim');
   assert.match(APPLY, /^begin;$/m); assert.match(APPLY, /^commit;$/m); assert.match(APPLY, /-- VERIFY \(every row must say ok = true\)/);
   assert.ok((APPLY.match(/^  \('\d\d /gm) || []).length >= 10, 'VERIFY rows');

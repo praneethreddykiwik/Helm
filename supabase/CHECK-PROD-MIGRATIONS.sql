@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (350 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (351 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4594 objects): body 177, bucket 9, col 243, con 416, cron 20, exec 19, fn 2054, idx 536, marker 106, pol 190, polexpr 4, pre 113, pub 5, seq 1, tbl 298, trg 401, view 2.
+-- What is checked (4596 objects): body 174, bucket 9, col 243, con 416, cron 20, exec 19, fn 2059, idx 536, marker 106, pol 190, polexpr 4, pre 113, pub 5, seq 1, tbl 298, trg 401, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -642,13 +642,11 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'trg', 'public.work_tokens', 'org_from_quote', null),
   ('base-v1-2026-09-25', 'view', 'public.inventory_availability', null, null),
   ('base-v1-2026-09-25', 'trg', 'auth.users', 'on_auth_user_created', null),
-  ('base-v1-2026-09-25', 'con', 'public.profiles', 'profiles_role_check', null),
   ('base-v1-2026-09-25', 'pol', 'public.organizations', 'org self write', null),
   ('base-v1-2026-09-25', 'con', 'public.notifications', 'notifications_channel_check', null),
   ('base-v1-2026-09-25', 'fn', 'public', 'admin_create_user', 'text,text,text'),
   ('base-v1-2026-09-25', 'fn', 'public', '_notify', 'uuid,text,text,text,jsonb'),
   ('base-v1-2026-09-25', 'con', 'public.notifications', 'notifications_status_check', null),
-  ('base-v1-2026-09-25', 'con', 'public.invitations', 'invitations_role_chk', null),
   ('base-v1-2026-09-25', 'con', 'public.inventory_checkouts', 'inventory_checkouts_status_check', null),
   ('base-v1-2026-09-25', 'fn', 'public', 'helm_quote_total', 'jsonb'),
   ('base-v1-2026-09-25', 'fn', 'public', 'create_invitation', 'text,text'),
@@ -671,6 +669,8 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'worker_checkin_equipment', 'uuid,uuid,numeric'),
   ('base-v1-2026-09-25', 'fn', 'public', 'bell_feed', 'integer'),
   ('base-v1-2026-09-25', 'fn', 'public', 'event_activity', 'uuid'),
+  ('base-v1-2026-09-25', 'con', 'public.profiles', 'profiles_role_check', null),
+  ('base-v1-2026-09-25', 'con', 'public.invitations', 'invitations_role_chk', null),
   ('0001_pricing_authority', 'body', 'public', 'enforce_pricing_total', '|906e8a4240c9079e5ecde18fd774d385'),
   ('0001_pricing_authority', 'fn', 'public', 'helm_quote_total_canonical', 'jsonb'),
   ('0003_money_integrity', 'fn', 'public', 'helm_total_paid', 'uuid,uuid,uuid'),
@@ -3218,7 +3218,6 @@ with o(m, k, s, n, x) as (values
   ('0282_r32_security_review', 'body', 'public', 'admin_create_user_temp', 'text,text|f08d8c457c8f5942b25ed9610e6f0cca'),
   ('0282_r32_security_review', 'body', 'public', 'admin_create_user', 'text,text,text|ca38b135466fbe11b2755e0912662064'),
   ('0282_r32_security_review', 'body', 'public', '_a49_close_gate', 'uuid,text|d72260749f66b8fc4e9ff64e74db7504'),
-  ('0282_r32_security_review', 'body', 'public', 'decide_event_close', 'uuid,boolean,text|e24010fb33a6e65f3fdaf73684cfb3c1'),
   ('0282_r32_security_review', 'body', 'public', 'record_payment', 'uuid,numeric,text,text,uuid,text,text|12e323656fb7654eb2792afd27683584'),
   ('0282_r32_security_review', 'body', 'public', 'record_settlement_payment', 'uuid,numeric,text,text,uuid,text,text|b48c6fb75f69b670e9fe6b466063c4ff'),
   ('0282_r32_security_review', 'fn', 'public', '_r282_api_caller', ''),
@@ -4586,8 +4585,6 @@ with o(m, k, s, n, x) as (values
   ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_lock_log', 'zz_quote_org_match', null),
   ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_locks', 'zzz_studio_read_only', null),
   ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_lock_log', 'zzz_studio_read_only', null),
-  ('0398_r229_retire_roles', 'body', 'public', '_notify_roles', '|82670774cb35cb95354e75ce12547558'),
-  ('0398_r229_retire_roles', 'body', 'public', '_r383_roles_all', '|ea0730053898f89132ebe8617ce0979d'),
   ('0398_r229_retire_roles', 'fn', 'public', '_r398_retired_roles', ''),
   ('0398_r229_retire_roles', 'fn', 'public', '_r398_role_label', 'text'),
   ('0398_r229_retire_roles', 'fn', 'public', '_r398_removed_roles', ''),
@@ -4618,7 +4615,12 @@ with o(m, k, s, n, x) as (values
   ('0399_r230_dept_supervisors', 'trg', 'public.event_department_supervisors', 'zz_quote_org_match', null),
   ('0399_r230_dept_supervisors', 'trg', 'public.event_department_supervisor_log', 'zz_quote_org_match', null),
   ('0399_r230_dept_supervisors', 'trg', 'public.event_department_supervisors', 'zzz_studio_read_only', null),
-  ('0399_r230_dept_supervisors', 'trg', 'public.event_department_supervisor_log', 'zzz_studio_read_only', null)
+  ('0399_r230_dept_supervisors', 'trg', 'public.event_department_supervisor_log', 'zzz_studio_read_only', null),
+  ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_roles', ''),
+  ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_blockers', ''),
+  ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_keep', 'regprocedure'),
+  ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_patch', 'regprocedure,text[],text[]'),
+  ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_seed_same', '')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4970,7 +4972,8 @@ mig(ord, m, ov, note) as (values
   (347, '0396_r226_event_day_plan', null, 'tenant guard + read-only studio triggers put on the new day-plan tables with dynamic SQL'),
   (348, '0397_r227_event_plan_lock', null, 'R227 plan lock: tenant guard + read-only studio triggers on the two new tables are created with dynamic SQL; event_activity is renamed to event_activity__pre0397 once'),
   (349, '0398_r229_retire_roles', null, 'Retired roles: BEFORE triggers a398_retired_role_guard on profiles / invitations / role_access refuse NEW assignment of coordinator / designer / crew (existing holders unaffected), backup table _r398_backup, role lists re-issued, the sign-in notice default (_r383_cfg) patched in place with dynamic SQL - checked by the r229-0398 marker. The people themselves are deleted only by the owner-run DELETE-0398-RETIRED-ROLE-USERS.sql (not checked here)'),
-  (350, '0399_r230_dept_supervisors', null, 'tenant guard and read-only studio triggers put on the new department-supervisor tables with dynamic SQL')
+  (350, '0399_r230_dept_supervisors', null, 'tenant guard and read-only studio triggers put on the new department-supervisor tables with dynamic SQL'),
+  (351, '0400_r232_remove_role_traces', null, 'R232 remove-role-traces: everything except the 5 _r400_* helpers runs only when the safety gate is clear (no coordinator / designer login left), inside one DO block - so only the helpers are checked here. Proof that it ran is APPLY-0400 check rows 01-15 (every ok true); re-run APPLY-0400 any time to see them')
 ),
 env as (
   select

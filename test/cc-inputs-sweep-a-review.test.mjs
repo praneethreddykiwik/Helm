@@ -58,7 +58,7 @@ await t('Roles & access: "Apply suggested access" only adds - an area the role c
   const calls = [], attrs = {};
   const ctx = {
     AREAS: ['design', 'layouts', 'proposal', 'quotes', 'calendar', 'templates', 'media', 'runsheet'].map((k) => ({ key: k, label: k.toUpperCase() })),
-    MTX: { designer: { quotes: { view: true, edit: true }, design: { view: true, edit: true }, calendar: { view: false, edit: false }, proposal: { view: true, edit: false } } },
+    MTX: { crew: { runsheet: { view: true, edit: true }, calendar: { view: false, edit: false } } },
     cellDefault: () => ({ view: false, edit: false }), loadMatrix: async () => true, renderMatrix() {}, errMsg: () => 'ERR', mtxErr: null,
     $: () => ({ setAttribute(k, v) { attrs[k] = v; }, removeAttribute(k) { delete attrs[k]; } }),
     BPUI: { confirm: async () => true, toast() {} },
@@ -66,13 +66,13 @@ await t('Roles & access: "Apply suggested access" only adds - an area the role c
   };
   vm.createContext(ctx); vm.runInContext(src.replace('let cellQueue', 'var cellQueue').replace(/\bconst MTX\b/, 'var MTX') + '\n;this.applySuggested=applySuggested;', ctx);
   const btn = { disabled: false };
-  await ctx.applySuggested('designer', btn);
+  // R232 (0400): Crew is the only role with a suggested set now (Designer removed)
+  await ctx.applySuggested('crew', btn);
   const by = Object.fromEntries(calls.map(([, a, v, e]) => [a, [v, e]]));
-  assert.equal(by.design, undefined, 'already view + edit: skipped');
-  assert.equal(by.quotes, undefined, 'view + edit kept: before, the (view) suggestion sent setAccess(quotes, true, false) and took edit away');
-  assert.ok(!calls.some(([, , , e], i) => calls[i][1] === 'quotes' && e === false));
-  assert.deepEqual(by.proposal, [true, true], 'view-only area gets the suggested edit');
-  assert.deepEqual(by.calendar, [true, false]); assert.deepEqual(by.layouts, [true, true]);
+  assert.equal(by.runsheet, undefined, 'view + edit kept: the (view) suggestion never takes edit away');
+  assert.ok(!calls.some(([, , , e], i) => calls[i][1] === 'runsheet' && e === false));
+  assert.deepEqual(by.calendar, [true, false], 'an area off gets the suggested view');
+  assert.ok(!/designer:/.test(src), 'no Designer suggestion');
   assert.equal(attrs['aria-busy'], undefined, 'busy flag cleared when the queue empties');
 });
 

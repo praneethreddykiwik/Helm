@@ -232,7 +232,7 @@ body.mon-wall .mon-wallbtn{background:var(--m-black);border-color:var(--m-black)
 @media print{ .mon-tools,.mon-tabs,.mon-side,.mon-head-acts,.mon-acts,.mon-header .nav{display:none!important} .mon-summary{position:static;box-shadow:none} }
 /* R186 (0369): escalation badge on the Late panel (special tasks not started) */
 .mon-chip.mon-esc{height:auto;min-height:22px;white-space:normal;line-height:1.3;padding:2px 9px;background:var(--m-late);color:#fff}
-.mon-chip.mon-esc.is-esc-coordinator{background:#fff1d6;color:#8a4b00}
+.mon-chip.mon-esc.is-esc-lead{background:#fff1d6;color:#8a4b00}
 .mon-chip.mon-esc.is-esc-manager{background:#ffd9cc;color:#9a2a00}
 .mon-feed-i.is-escalation{font-weight:600}
 
