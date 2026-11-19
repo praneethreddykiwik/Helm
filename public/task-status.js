@@ -16,7 +16,10 @@
  *   HelmTaskStatus.actText(row, fmtWhen) / actGroup(kind)  activity wording (0368), the monitor feed and the "Latest" column
  *   HelmTaskStatus.attendance(entry, firstStartMs) { state: in|out|none, late, lateMin }  (entry from event_timesheet, 0265)
  *   HelmTaskStatus.ymdIn(tz, date)        the studio's calendar day ("YYYY-MM-DD") in organizations.timezone, never the device's
- *   HelmTaskStatus.phase(o)               "plan" (before the event) | "live" (on the day), from the studio clock
+ *   HelmTaskStatus.phase(o)               "plan" (before the event) | "live" (on the day), from the studio clock (R192, kept)
+ *   HelmTaskStatus.opsMode(o)             R222: the mode + WHY (EVENT-OPS-PLAN.md section 2): { mode: plan|live, step, from, to }
+ *                                         step: cancelled | done | nodate | before | soon | on | over (studio clock, run-sheet,
+ *                                         tasks, Guests arrive and the lifecycle stage)
  *   HelmTaskStatus.refresher(fn, ms)      ONE refresh clock: every ms (30 s) while the tab is visible + at once on return
  * Pure (no DOM) except refresher (document.hidden / visibilitychange). Unit-tested in test/r192-tasks-crew.test.mjs. */
 (function (global) {
@@ -171,6 +174,58 @@
     return "plan";
   }
 
+  /* ---- R222: which mode, and why (EVENT-OPS-PLAN.md section 2) ----
+     o: { eventDate "YYYY-MM-DD", eventTime "19:00" | "7:00 PM", stage (lifecycle_stage), status, tasks, runsheet, now, tz }
+     On the day starts LEAD (1 h) before the earliest of: the first run-sheet item, the first task ON the event day,
+     Guests arrive - else at midnight of the event day. It ends at the later of: the end of the event day, or 6 h after the
+     last run-sheet item / task end on the event day or the night after (before 6 AM). The stage Event Day = on the day;
+     Settlement / Closed = done (wrap-up); cancelled = plan. Set-up work the day before stays "before". */
+  var LEAD_MS = 3600000, AFTER_MS = 6 * 3600000;
+  function hmMin(v) {
+    var m = /^\s*(\d{1,2})[:.](\d{2})(?::\d{2})?\s*([AaPp][Mm])?/.exec(String(v == null ? "" : v)); if (!m) return NaN;
+    var hh = +m[1], mi = +m[2]; if (m[3]) { var pm = /p/i.test(m[3]); if (hh === 12) hh = pm ? 12 : 0; else if (pm) hh += 12; }
+    return hh < 24 && mi < 60 ? hh * 60 + mi : NaN;
+  }
+  // the zone's offset (ms) at instant t: wall clock read as UTC minus the instant
+  function zoneOff(tz, t) {
+    try {
+      var f = new Intl.DateTimeFormat("en-GB", { timeZone: tz || "Asia/Kolkata", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }), o = {};
+      f.formatToParts(new Date(t)).forEach(function (p) { o[p.type] = p.value; });
+      return Date.UTC(+o.year, +o.month - 1, +o.day, +o.hour % 24, +o.minute, +o.second) - Math.floor(t / 1000) * 1000;
+    } catch (e) { return 0; }
+  }
+  // the instant of a wall clock (ymd + minutes) in tz (two passes = DST-safe enough for a start-of-day rule)
+  function wallMs(ymd, min, tz) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || "")); if (!m) return NaN;
+    var guess = Date.UTC(+m[1], +m[2] - 1, +m[3], 0, min || 0), t = guess - zoneOff(tz, guess);
+    return guess - zoneOff(tz, t);
+  }
+  function opsMode(o) {
+    o = o || {}; var now = o.now == null ? Date.now() : o.now, tz = o.tz, ev = String(o.eventDate || "").slice(0, 10), stage = String(o.stage || "");
+    if (String(o.status || "") === "cancelled") return { mode: "plan", step: "cancelled", from: null, to: null };
+    if (stage === "settlement" || stage === "closed") return { mode: "live", step: "done", from: null, to: null };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ev)) return { mode: "plan", step: "nodate", from: null, to: null };
+    var day0 = wallMs(ev, 0, tz), next = ymdIn(tz, day0 + 36 * 3600000), day1 = wallMs(next, 0, tz);
+    var starts = [], ends = [];
+    (o.runsheet || []).forEach(function (r) {
+      var mn = hmMin(r && r.start_time); if (!isFinite(mn)) return; var s = wallMs(ev, mn, tz); starts.push(s);
+      var d = Number(r.duration_min); ends.push(s + (isFinite(d) && d > 0 ? d * 60000 : 0));
+    });
+    (o.tasks || []).forEach(function (t) {
+      if (!t || t.status === "cancelled") return; var s = ms(t.planned_start); if (!isFinite(s)) return;
+      var e = ms(t.planned_end); if (!isFinite(e) || e < s) e = s + 3600000;
+      if (s >= day0 && s < day1) { starts.push(s); ends.push(e); }
+      else if (s >= day1 && s < day1 + 6 * 3600000) ends.push(e);          // strike after midnight: keeps the day open
+    });
+    var g = hmMin(o.eventTime); if (isFinite(g)) { var gs = wallMs(ev, g, tz); starts.push(gs); ends.push(gs); }
+    var from = starts.length ? Math.min.apply(null, starts) - LEAD_MS : day0;
+    var to = ends.length ? Math.max(day1, Math.max.apply(null, ends) + AFTER_MS) : day1;
+    if (stage === "event_day" && now >= day0 && now < from) from = day0;   // the stage was moved to Event Day by hand
+    var r = { mode: "plan", step: "before", from: from, to: to };
+    if (now < from) { r.step = ymdIn(tz, now) === ev ? "soon" : "before"; return r; }
+    r.mode = "live"; r.step = now <= to ? "on" : "over"; return r;
+  }
+
   /* ---- ONE refresh clock (30 s, both pages) ---- */
   function refresher(fn, every) {
     every = every || 30000; var last = Date.now(), busy = false, stopped = false, doc = global.document;
@@ -189,5 +244,5 @@
   global.HelmTaskStatus = { LABEL: LABEL, RANK: RANK, stateOf: stateOf, shown: shown, isLate: isLate, lateMin: lateMin, baseKey: baseKey,
     personKey: personKey, summarize: summarize, leftover: leftover, ladder: ladder, escSteps: steps, escLevel: escLevel,
     lastEscalation: lastEscalation, escBadge: escBadge, escStep: escStep, attendance: attendance, ymdIn: ymdIn, dayDiff: dayDiff,
-    phase: phase, refresher: refresher, actGroup: actGroup, actText: actText, emailWhat: emailWhat, REFRESH_MS: 30000 };
+    phase: phase, opsMode: opsMode, hmMin: hmMin, wallMs: wallMs, refresher: refresher, actGroup: actGroup, actText: actText, emailWhat: emailWhat, REFRESH_MS: 30000 };
 })(typeof window !== "undefined" ? window : globalThis);

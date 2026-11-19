@@ -195,7 +195,7 @@ await t('Tasks & Crew + monitor ask canAssignTasks; Templates - Can change off -
   assert.match(OPS, /else if\(!canTpl\)\{ const b=\$\("#tpl_add"\), i=\$\("#tpl_title"\); if\(b\) b\.textContent="\+ Add for this event";/);
   assert.match(OPS, /if\(!canTpl\)\{ const l=oneOff\[cat\]=oneOff\[cat\]\|\|\[\];[^\n]*\n[^\n]*setMsg\("ok",`Added "\$\{title\.slice\(0,120\)\}" for this event - ticked below\.`\); lastOkMsg=""; return; \}\n\s*try\{ await BPStore\.ops\.addTemplate\(cat,title\); \}/);
   assert.match(OPS, /\(this event only\)/);
-  assert.match(OPS, /<script src="ops-board\.js\?v=2"><\/script>/);
+  assert.match(OPS, /<script src="ops-board\.js\?v=3"><\/script>/);
   const mon = r('public/monitor.js');
   assert.match(mon, /S\.canEdit = !!\(await \(A\.canAssignTasks \? A\.canAssignTasks\(\) : A\.canEditArea\("staff"\)\)\);/);
   assert.match(r('public/monitor.html'), /monitor\.js\?v=7/);

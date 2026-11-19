@@ -375,3 +375,30 @@
 .tc-drawer .as-offwarn{display:block;margin-top:6px;background:#fff4de;color:#7a5000;border-radius:8px;padding:6px 10px;font-size:12px}
 /* the app shell's phone tab bar (58px + safe area): the bulk bar sits just above it, within thumb reach */
 @media (max-width:819px){ html[data-shell="b"]:not(.hb-kb) .tc-bulk{bottom:calc(66px + env(safe-area-inset-bottom,0px))} }
+
+/* R222 (EVENT-OPS-PLAN.md): the mode switch is the page's main choice - black when picked, like the chips and + Add & assign */
+.tc-phase-row .tc-seg[aria-pressed="true"]{background:var(--tc-black);color:#fff;box-shadow:none}
+.tc-prep,.tc-runcard,.tc-iss,.tc-wrap{padding:14px 16px;margin-bottom:14px}
+.tc-prep-h{margin:0 0 8px;font-size:13px;color:var(--tc-ink)}
+.tc-prep-links{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tc-chip.tc-link{text-decoration:none;color:var(--tc-ink)} .tc-chip.tc-link:hover{border-color:var(--tc-black)}
+.tc-run{list-style:none;margin:6px 0 0;padding:0;max-height:360px;overflow:auto}
+.tc-run-row{display:flex;gap:12px;align-items:flex-start;padding:8px 6px;border-bottom:1px solid var(--tc-line);border-radius:8px}
+.tc-run-row:last-child{border-bottom:0}
+.tc-run-row .grow{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;min-width:0}
+.tc-run-row .tc-sub{flex-basis:100%}
+.tc-run-t{flex:0 0 78px;font-weight:700;font-variant-numeric:tabular-nums}
+.tc-run-t small{display:block;font-weight:400;font-size:11px;color:var(--tc-ink-3)}
+.tc-run-row.done{opacity:.55}
+.tc-run-row.now{background:#ecf8f1;box-shadow:inset 3px 0 0 #18a558}
+.tc-run-row.next{background:#fffaf0;box-shadow:inset 3px 0 0 #e8912d}
+.tc-ops2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.tc-ops2 > .tc-card{margin-bottom:14px}
+.tc-iss-acts{display:inline-flex;gap:10px;align-items:center;margin-left:auto}
+.tc-sev{width:8px;align-self:stretch;border-radius:4px;flex:none;background:#e8912d}
+.tc-sev.high{background:#d92d20} .tc-sev.low{background:#98a2b3}
+.tc-wrap.warn{border-color:#f0d8a6;background:linear-gradient(180deg,#fffaf0,#fff)}
+.tc-wrap.ok{border-color:#bfe3cf}
+.tc-wrap .tc-h2{margin:0 0 4px}
+.tc-wrap .tc-sub{display:block;margin-bottom:10px}
+@media (max-width:640px){ .tc-run-t{flex-basis:64px} .tc-iss-acts{margin-left:0} }
