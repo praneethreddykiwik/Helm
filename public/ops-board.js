@@ -538,7 +538,7 @@
     if (S.q || S.chip) return h("div", { cls: "tc-empty" }, [h("b", { text: "Nothing matches" }), "Try another word, or clear the filter.", h("br"),
       h("button", { type: "button", cls: "tc-btn", text: "Clear filters", on: { click: function () { S.q = ""; S.chip = ""; var i = $("#tcQ"); if (i) i.value = ""; update(); } } })]);
     return h("div", { cls: "tc-empty" }, [h("b", { text: "No tasks yet for this event" }), "Start from your studio’s checklist (stage, flowers, lighting...) and give each task to a person.", h("br"),
-      canEdit() ? h("button", { type: "button", cls: "tc-btn tc-primary", text: "+ Add & assign", on: { click: function () { openSheet(null); } } }) : h("span", { cls: "tc-sub", text: "Your role can view this page only. To give out work, an admin switches on \u201cAssign & send tasks\u201d for your role (Settings \u2192 Users & invites \u2192 Access control)." })]);
+      canEdit() && planLocked() ? h("span", { cls: "tc-sub", text: "The plan is locked for the event day - unlock it (bar above) to add tasks." }) : canEdit() ? h("button", { type: "button", cls: "tc-btn tc-primary", text: "+ Add & assign", on: { click: function () { openSheet(null); } } }) : h("span", { cls: "tc-sub", text: "Your role can view this page only. To give out work, an admin switches on \u201cAssign & send tasks\u201d for your role (Settings \u2192 Users & invites \u2192 Access control)." })]);
   }
   function renderView() {
     var v = $("#view"); if (!v) return;
@@ -561,6 +561,7 @@
       t.depends_on, TS.isLate(t), remText(t), c && [c.pending, c.note], ev, wa && wa.text, presState(t.crew_id), !!S.sel[t.id], t.cancel_reason];
   }
   /* ---- R230 (0399): one supervisor per department (department = the task section, t.category) ---- */
+  var LOCK_ADD = "The plan is locked for the event day - unlock it (bar above) to add tasks.";
   var ROLE_WORD = { supervisor: "Supervisor", manager: "Event manager", admin: "Admin" };
   function roleWord(r) { return ROLE_WORD[String(r || "").toLowerCase()] || ""; }
   function supOf(cat) { return S.sup && (S.sup.rows || []).filter(function (r) { return r && r.department === cat && r.profile_id; })[0] || null; }
@@ -609,6 +610,8 @@
   // "+ Add task" inside a department: the Add & assign sheet opened on that section
   function addIn(cat) {
     if (!canEdit()) return;
+    // R227 (0397): adding tasks changes the task plan - refused while the plan is locked (the supervisor stays changeable)
+    if (planLocked()) { toast(LOCK_ADD, "err", 8000); return; }
     openSheet(null);
     var hit = Array.prototype.filter.call(doc.querySelectorAll("#catTabs [data-c]"), function (b) { return b.getAttribute("data-c") === cat; })[0];
     if (hit && hit.getAttribute("aria-pressed") !== "true") hit.click();
@@ -656,12 +659,13 @@
         g.el.classList.toggle("is-folded", folded);
       }
       // R230: the department's supervisor + "+ Add task" (rebuilt only when they change; never while its picker has focus)
-      var sr = supOf(cat), ts2 = rowSig([cat, !!S.sup, S.sup && S.sup.can_edit, sr && [sr.profile_id, sr.name, sr.role], S.sup && (S.sup.candidates || []).map(function (c) { return c.id + c.name + c.role; }), canEdit(), mine.indexOf(cat) >= 0]);
+      var sr = supOf(cat), ts2 = rowSig([cat, !!S.sup, S.sup && S.sup.can_edit, sr && [sr.profile_id, sr.name, sr.role], S.sup && (S.sup.candidates || []).map(function (c) { return c.id + c.name + c.role; }), canEdit(), mine.indexOf(cat) >= 0, planLocked()]);
       if (g.tsig !== ts2 && !(doc.activeElement && g.tools.contains(doc.activeElement) && doc.activeElement.tagName === "SELECT")) {
         g.tsig = ts2; clear(g.tools);
         if (mine.indexOf(cat) >= 0) g.tools.appendChild(h("span", { cls: "tc-tag box tc-you", text: "You supervise" }));
         g.tools.appendChild(supTools(cat));
-        if (canEdit()) g.tools.appendChild(h("button", { type: "button", cls: "tc-btn sm tc-add-in", "data-key": "add:" + cat, text: "+ Add task", "aria-label": "Add a task in " + cat, on: { click: function () { addIn(cat); } } }));
+        if (canEdit()) g.tools.appendChild(h("button", { type: "button", cls: "tc-btn sm tc-add-in" + (planLocked() ? " is-locked" : ""), "data-key": "add:" + cat, text: planLocked() ? "\ud83d\udd12 Add task" : "+ Add task",
+          "aria-label": planLocked() ? "Add a task in " + cat + " - locked: unlock the plan first" : "Add a task in " + cat, "aria-disabled": planLocked() ? "true" : null, title: planLocked() ? LOCK_ADD : null, on: { click: function () { addIn(cat); } } }));
         g.el.classList.toggle("is-mine", mine.indexOf(cat) >= 0);
       }
       // rows
@@ -686,7 +690,7 @@
     var keepIds = {}; ts.forEach(function (t) { keepIds[t.id] = 1; });
     Object.keys(S.rows).forEach(function (id) { if (!keepIds[id]) { var r = S.rows[id]; if (r.el.parentNode) r.el.remove(); delete S.rows[id]; } });
     // R230: the departments of the checklist with no task on this event yet - one quiet line, "+ name" adds a task there
-    var rest = (S.q || S.chip || !canEdit()) ? [] : (G().CATS || []).filter(function (c) { return !liveTasks().some(function (t) { return (t.category || "Other") === c; }); });
+    var rest = (S.q || S.chip || !canEdit() || planLocked()) ? [] : (G().CATS || []).filter(function (c) { return !liveTasks().some(function (t) { return (t.category || "Other") === c; }); });
     var es = rowSig(rest), strip = v.querySelector(".tc-dept-more");
     if (!rest.length) { if (strip) strip.remove(); S.sigs.more = ""; return; }
     if (!strip || S.sigs.more !== es) {
@@ -930,7 +934,7 @@
   function planCtx() {
     var q = G().quote || {};
     return { plan: S.plan, tasks: G().tasks, quoteId: qid(), eventDate: evDate(), eventTime: String(q.eventTime || "").trim(), tz: tz(), now: Date.now(),
-      nameOf: nameOf, toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); }, onChanged: planChanged };
+      nameOf: nameOf, toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); }, onChanged: planChanged, locked: planLocked() };
   }
   async function planChanged() { await loadPlan(true); try { if (P() && P().reload) await P().reload(); } catch (e) {} S.sigs.dayb = S.sigs.ready = ""; update(); }
   async function loadPlan(force) {
@@ -944,9 +948,20 @@
     var rHost = card("tcReady", !!(EP && S.plan) && !cancelled && S.win !== "wrapup");
     if (ui && (ui.edit || ui.times || ui.settings)) return;   // a form is open: keep what the person is typing
     var tsig = (G().tasks || []).map(function (t) { return [t.id, t.title, t.status, t.duration_min, t.depends_on, t.planned_start, t.started_at, t.completed_at, t.crew_id]; });
-    var sig = rowSig([S.plan, tsig, Math.floor(Date.now() / 60000), S.win]);
+    var sig = rowSig([S.plan, tsig, Math.floor(Date.now() / 60000), S.win, planLocked()]);
     if (dHost && S.sigs.dayb !== sig) { S.sigs.dayb = sig; EP.renderDayBefore(dHost, planCtx()); }
     if (rHost && S.sigs.ready !== sig) { S.sigs.ready = sig; EP.renderReady(rHost, planCtx()); }
+  }
+  // R227 (0397, event-floor.js): the plan lock bar (every window) + the saved floor plan (Day before / On the day). Hidden before
+  // 0397. While locked the task plan is frozen (the database refuses it): "+ Add & assign" and the Ready-by edits are hidden;
+  // status, reassigning, check-ins, proof, issues and reminders keep working.
+  function planLocked() { var EF = global.HelmEventFloor; return !!(EF && qid() && EF.isLocked(qid())); }
+  function renderFloor() {
+    var EF = global.HelmEventFloor; if (!EF || !qid()) return;
+    var cancelled = (G().quote || {}).status === "cancelled";
+    EF.panel({ quoteId: qid(), lockHost: cancelled ? null : $("#tcLock"), floorHost: $("#tcFloor"), showFloor: !cancelled && (S.win === "daybefore" || S.win === "onday"),
+      canEditPlan: canEdit(), onChange: function () { S.sigs.dayb = S.sigs.ready = ""; update(); } });
+    if (cancelled) { var lh = $("#tcLock"); if (lh) lh.hidden = true; }
   }
   // On the day: the run-sheet as a now / next timeline (read-only here; editing stays on the Run-sheet page)
   function nowMinOnDay() {
@@ -1432,10 +1447,11 @@
     if (!S.started) return;
     memoReset();
     if (S.phase == null || !S.manual) setPhaseAuto();
-    renderHeader(); renderPhase(); renderPrep(); renderPlan(); renderRun(); renderAttn(); renderIssues(); renderWrap(); renderChips(); renderViewBtns(); renderView(); renderSide(); renderBulk();
+    renderHeader(); renderPhase(); renderPrep(); renderFloor(); renderPlan(); renderRun(); renderAttn(); renderIssues(); renderWrap(); renderChips(); renderViewBtns(); renderView(); renderSide(); renderBulk();
     var cnt = $("#taskCount"); if (cnt) cnt.textContent = String(liveTasks().length);
     var vo = $("#tcViewOnly"); if (vo) vo.hidden = canEdit();
     var add = $("#addBtn"); if (add) add.hidden = !canEdit();
+    if (add && planLocked()) add.hidden = true;   // R227: the task plan is locked for the event day
     if (S.layer && S.layer.id === "drawer" && S.openId != null) renderPanel(false);
     if (S.layer && S.layer.id === "sheet") { picks(); sheetLabel(); }
     deepLink();
@@ -1483,7 +1499,7 @@
     // ONE refresh clock for the page, shared rules with /monitor (30 s + at once when you come back to the tab).
     // Skipped while a pop-up is open or an action is in flight, so nothing redraws under the user.
     S.timer = TS.refresher(function () { if (busyElsewhere()) return; return reload(true); }, TS.REFRESH_MS);
-    setInterval(function () { if (!doc.hidden) { memoReset(); renderHeader(); renderAttn(); renderRun(); renderPlan(); } }, 60000);   // countdown / "late" minutes / run-sheet now
+    setInterval(function () { if (!doc.hidden) { memoReset(); renderHeader(); renderAttn(); renderRun(); renderFloor(); renderPlan(); } }, 60000);   // countdown / "late" minutes / run-sheet now
     loadExtras().then(update);
     update();
   }

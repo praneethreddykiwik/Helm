@@ -745,7 +745,7 @@
   function planCtx() {
     var e = S.evInfo[S.quote] || {};
     return { plan: S.plan, tasks: S.tasks, quoteId: S.quote, eventDate: e.event_date ? String(e.event_date).slice(0, 10) : "", eventTime: String(e.event_time || "").trim(), tz: tz(), now: Date.now(),
-      nameOf: nameOf, compact: true, toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); },
+      nameOf: nameOf, compact: true, locked: !!(window.HelmEventFloor && S.quote && S.quote !== "all" && window.HelmEventFloor.isLocked(S.quote)), toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); },
       onChanged: async function () { await loadPlan(true); await loadTasks(true); } };
   }
   function renderCards() {
@@ -765,6 +765,11 @@
         row.appendChild(h("a", { cls: "tc-btn sm" + (closed && i === 0 ? " tc-primary" : ""), href: l[1] + "?quote=" + q, text: (i + 1) + " " + l[0] + " →" })); });
       wh.appendChild(row);
     }
+    // R227 (0397, event-floor.js): the plan lock bar + the saved floor plan (Day before / On the day); hidden before 0397
+    var EF = window.HelmEventFloor, lh = $("#monLock"), fh = $("#monFloor");
+    if (EF && single && e.status !== "cancelled") EF.panel({ quoteId: S.quote, lockHost: lh, floorHost: fh, showFloor: S.win === "daybefore" || S.win === "onday", compact: true,
+      onChange: function () { if (EP && S.plan && !(ui && (ui.edit || ui.times || ui.settings)) && !rh.hidden) EP.renderReady(rh, planCtx()); } });
+    else { if (lh) lh.hidden = true; if (fh) fh.hidden = true; }
     if (!EP || !S.plan || (ui && (ui.edit || ui.times || ui.settings))) return;   // a form is open: keep what is being typed
     if (!dh.hidden) EP.renderDayBefore(dh, planCtx());
     if (!rh.hidden) EP.renderReady(rh, planCtx());

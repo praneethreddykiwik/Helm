@@ -38,13 +38,19 @@ await t('2a supervisor UI only when 0399 answered (S.sup null -> nothing), picke
   assert.match(STORE, /rpc\("event_department_supervisor_set", \{ p_quote: quoteId, p_department: String\(department \|\| ""\), p_profile: profileId \|\| null \}\)/);
 });
 await t('2b each department card: + Add task (opens Add & assign on that section), "You supervise", rows with Email / WhatsApp / Assign', () => {
-  assert.match(BRD, /text: "\+ Add task"/); assert.match(BRD, /function addIn\(cat\)/);
+  assert.match(BRD, /: "\+ Add task"/); assert.match(BRD, /function addIn\(cat\)/);
   assert.match(BRD, /#catTabs \[data-c\]/);
   assert.match(BRD, /"You supervise: "/);
   assert.match(BRD, /text: "Email"[\s\S]{0,200}P\(\)\.mail\(e\.currentTarget, t\.id, false\)/);
   assert.match(BRD, /text: "WhatsApp"[\s\S]{0,200}P\(\)\.wa\(e\.currentTarget, t\.id\)/);
   assert.match(BRD, /text: "Assign"/);
   assert.match(BRD, /"No tasks yet:"/);
+});
+await t('2d plan lock (0397): + Add task is refused while locked with the lock message; the supervisor picker stays', () => {
+  assert.match(BRD, /function addIn\(cat\) \{[\s\S]{0,200}if \(planLocked\(\)\) \{ toast\(LOCK_ADD, "err", 8000\); return; \}/);
+  assert.match(BRD, /var LOCK_ADD = "The plan is locked for the event day - unlock it \(bar above\) to add tasks\."/);
+  assert.doesNotMatch(BRD.slice(BRD.indexOf('async function setSup'), BRD.indexOf('function supTools')), /planLocked/);
+  assert.ok(OPS.indexOf('id="tcLock"') < OPS.indexOf('id="work"') && OPS.indexOf('id="tcFloor"') > OPS.indexOf('id="tcSteps"'), 'lock bar by the header, floor card in the steps');
 });
 await t('2c the supervisor history shows in Latest ("X set Y as Catering supervisor")', () => {
   assert.match(BRD, /" as " \+ l\.department \+ " supervisor"/); assert.match(BRD, /concat\(supLogActs\(\)\)/);
@@ -69,10 +75,10 @@ await t('4b APPLY-0399 = the migration + 12 checks in one transaction; MANIFEST,
   assert.match(APPLY, /^begin;$/m); assert.match(APPLY, /^commit;$/m);
   assert.equal((APPLY.match(/^  \('\d\d /gm) || []).length, 12);
   assert.match(MAN, /^forward  supabase\/migrations\/0399_r230_dept_supervisors\.sql$/m);
-  assert.match(RUNALL, /R230-DEPT-SUPERVISORS-0399: ALL PASS \\\(24\/24\\\)/);
+  assert.match(RUNALL, /R230-DEPT-SUPERVISORS-0399: ALL PASS \\\(25\/25\\\)/);
   assert.match(DBT, /R230-DEPT-SUPERVISORS-0399: ALL PASS/);
   assert.match(OVR, /"0399":/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0396', '0399'\]/);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0397', '0399'\]/);
 });
 await t('4c the tour of Tasks & Crew has at most 8 steps and names departments + supervisor; new CSS uses theme tokens only', () => {
   const i = TOURS.indexOf('"ops.html": ['), j = TOURS.indexOf('\n    ],', i);

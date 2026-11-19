@@ -477,3 +477,4 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
   .tc-stepsec .tc-phase-row .tc-seg{padding:6px 4px}
 }
 @media (pointer:coarse){ .tc-lnk,.tc-sup-sel,.tc-add-in{min-height:44px} }
+.tc-add-in.is-locked{color:var(--tc-ink-3);border-style:dashed;cursor:not-allowed}

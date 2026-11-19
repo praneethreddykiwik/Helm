@@ -314,6 +314,7 @@
     ],
     "runsheet.html": [
       { sel: "#rsIntro", title: "The event day, minute by minute", desc: "What happens when, who owns it and where." },
+      { sel: "#planLock", title: "Locked for the event day", desc: "Once the plan is locked (by itself on the day, or Lock plan) the lines can't change here. An admin or the event manager can Unlock with a reason; it is kept in the history. Reminders still go." },
       { sel: "#r_add", title: "Add a run-sheet item", desc: "Build a timed schedule of the day — each moment, who owns it and when." },
       { sel: "#r_remWrap", title: "Reminders", desc: "Remind the owner before their item starts, and post it in the event group." },
       { sel: "#rows", title: "The schedule", desc: "Every item in time order. Click one to edit it." },
@@ -399,10 +400,10 @@
     "monitor.html": [
       { sel: ".mon-evpick", title: "Pick the event", desc: "Tap the event name to switch: today and the next 3 days first, then the rest of the month (or All events today). On the right: guests arrive, and the countdown or, on the day, a live clock." },
       { sel: "#monWins", title: "Before / Day before / On the day / Wrap-up", desc: "The same four steps on Tasks & Crew and the Event-day monitor, from your studio's clock (the note says why). On the day starts 1 hour before the first item; Wrap-up = the day is over. Flip it by hand any time." },
+      { sel: ["#monLock", "#monFloor"], title: "Floor plan and the plan lock", desc: "The floor plan for the day: sizes, seats vs guests, aisles. 2D, 3D and Measure open view only; Print gives the event-day pack. Locked = no plan changes until an admin or the event manager unlocks with a reason." },
       { sel: "#monSummary", title: "How far along", desc: "The bar is the share of tasks done. Tap a count (Late, Waiting for a yes...) to see just those tasks." },
-      { sel: "#monTabs", title: "Six ways to look", desc: "By staff, By work, By status, Leftover (not done yet), Check-in: who is on site, who checked out, who is late. Activity: every update. Filters (on a phone behind the Filters button) include My departments." },
       { sel: "#monAlerts", title: "Late tasks", desc: "Every task whose start time has passed and is not started. A special task shows how far it has been escalated, for example Escalated to manager 3:10 PM." },
-      { sel: "#monFeed", title: "What just happened", desc: "Every update as it comes in: work given out or moved, replies, starts, finishes, new times, check-ins and e-mails sent. See all opens the Activity tab. Updates on its own every 30 seconds." },
+      { sel: "#monTabs", title: "Six ways to look", desc: "By staff, By work, By status, Leftover (not done yet), Check-in: who is on site, who checked out, who is late. Activity: every update. Filters (on a phone behind the Filters button) include My departments." },
       { sel: "#monOpenOps", title: "Change something", desc: "Open shows a task right here: who, times, latest start, the proof photo and its updates. Remind sends a bell, an e-mail or a WhatsApp. To reassign, schedule or cancel, use Edit in Tasks & Crew." },
       { sel: ["#monWall", ".mon-head-acts"], title: "Wall screen", desc: "Big text for a TV or a wall screen, full screen when the browser allows it. Press it again (or Exit wall screen) to go back." },
     ],
@@ -470,7 +471,7 @@
       { sel: "#markBtn", title: "Mark ready", desc: "When every check passes, mark the event ready." },
     ],
     "ops.html": [
-      { sel: "#evhead", title: "The event at a glance", desc: "Date, venue, guests, when guests arrive and a countdown. One bar shows what is done, started and late. If you supervise a department here, it says You supervise: Catering." },
+      { sel: "#evhead", title: "The event at a glance", desc: "Date, venue, guests, countdown, You supervise: Catering. Below: the plan lock bar (locked on the day; unlock = admin or event manager + a reason) and, Day before / On the day, the Floor plan with 2D, 3D, Measure (view only) and Print pack." },
       { sel: ["#view", "#work"], title: "Tasks by department", desc: "One card per department: each task with its person, time, status and Email / WhatsApp. Pick a Supervisor per department (Supervisor, Event manager or Admin) - they get a bell and its late alerts. + Add task adds work there." },
       { sel: ["#chips", "#tcQ"], title: "Find a task", desc: "Tap a chip (Late, Special, No one yet, Waiting for a yes, No time, QC to check...) - each shows its count. Search finds tasks and people; press / to jump to it." },
       { sel: "#addBtn", title: "Add & assign", desc: "Four steps: what, who (Free that day / Busy elsewhere / Day off), when (Day before, Event day or No time yet, reminders, Special) and tell them by email or WhatsApp. Once accepted, Reassign locks - use Cancel (a reason is required)." },

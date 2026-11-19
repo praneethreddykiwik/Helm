@@ -16,7 +16,7 @@
    the free-trial flag gets the full store-api.js exactly as before ("full mode"): its calls then go through
    supabase-js with that member's session, so nothing changes for studio members either.
    ========================================================================= */
-var STORE_API_V = "387";   // the store-api.js ?v= of the staff pages (filled in by the generator)
+var STORE_API_V = "388";   // the store-api.js ?v= of the staff pages (filled in by the generator)
 var __HELM_CLIENT_FULL__ = (function () {
   try {
     // a sign-in / auth-link return (?code=, #access_token=...) is store-api.js's job
@@ -874,6 +874,8 @@ if (!__HELM_CLIENT_FULL__) {
     if (isNetworkError(e)) return pre + "Couldn’t reach the server — check your connection and try again.";
     // 0046 D6: a locked (approved / paid / closed-event) money record — the DB message says why
     if (e && e.hint === "money_frozen" && e.message && !TECHNICAL.test(e.message)) return pre + endDot(clip(String(e.message), 240));
+    // R227 (0397): the event plan is locked for the event day - the database guard refused a plan change
+    if (e && /plan_locked:/.test(String(e.message || ""))) return pre + "The event plan is locked for the event day. Unlock it first (admin or event manager, with a reason), then try again.";
     // 0159: a directly created studio is read-only until its plan is paid (or it switches to the trial)
     if (e && e.hint === "payment_pending") return pre + "Choose a plan and complete payment to start using Helm — or start a free trial instead.";
     // r35 (0285): payment details / sensitive settings need a fresh two-step code (or two-step set up / a flag cleared)

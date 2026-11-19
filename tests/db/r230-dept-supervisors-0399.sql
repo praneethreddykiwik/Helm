@@ -210,6 +210,19 @@ select pg_temp.res('24 free-trial retention purges the new rows with the studio'
   to_regprocedure('public._tr184_purge_tables()') is null
   or array['event_department_supervisors', 'event_department_supervisor_log']::text[] <@ public._tr184_purge_tables());
 
+-- ---- 8) R227 plan lock (0397): choosing a supervisor is execution, allowed while locked; adding a task stays refused ----------
+-- run-all starts the older suites with helm.r397_plan_lock=off; this check needs the lock enforced (like r227-plan-lock-0397.sql)
+select pg_temp.su();
+select set_config('helm.r397_plan_lock', 'on', false);
+select pg_temp.login('a_admin@a.test');
+select pg_temp.put('lk', coalesce((select pg_temp.j($q$select public.event_plan_lock_set('a0000000-0000-4000-8000-00000000da01', true, 'final plan')$q$)::text
+  where to_regprocedure('public.event_plan_lock_set(uuid,boolean,text)') is not null), 'none'));
+select pg_temp.put('lks', pg_temp.j(format($q$select public.event_department_supervisor_set('a0000000-0000-4000-8000-00000000da01', 'Decor', %L)$q$, pg_temp.get('mgr')))::text);
+select pg_temp.put('lkt', pg_temp.try($q$select public.assign_tasks('a0000000-0000-4000-8000-00000000da01', 'Decor', array['Lock test'], null, 'Nobody', '9000000399')$q$));
+select pg_temp.res('25 with the plan locked (0397) the supervisor can still be changed; adding a task to the department is refused (plan_locked)',
+  pg_temp.get('lk') = 'none' or ((pg_temp.get('lk')::jsonb ->> 'locked') = 'true' and (pg_temp.get('lks')::jsonb ->> 'changed') = 'true'
+    and pg_temp.get('lkt') like '%plan_locked%'), pg_temp.get('lk') || ' / ' || pg_temp.get('lks') || ' / ' || pg_temp.get('lkt'));
+
 select name, result from _rc order by name;
 select case when (select count(*) from _rc where result <> 'PASS') = 0
             then 'R230-DEPT-SUPERVISORS-0399: ALL PASS (' || (select count(*) from _rc) || '/' || (select count(*) from _rc) || ')'

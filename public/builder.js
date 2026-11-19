@@ -886,6 +886,8 @@ function roLockInspector(){ if(!RO) return; const box=$('#inspector'); if(!box) 
   box.querySelectorAll('input,select,button,textarea').forEach(el=>el.disabled=true);
   box.querySelectorAll('.swatches,.aligngrid').forEach(el=>el.style.pointerEvents='none'); }
 function applyReadonly(role, customMsg){
+  // R227: a second call (view-only link + a locked plan) updates the one bar instead of stacking another
+  { const had=document.querySelector('.robanner'); if(RO && had){ if(customMsg) had.textContent=customMsg; return had; } }
   RO = true;
   // r20-coord: also the name / venue capacity / guests inputs, "Save & back to quote" and "Save as template"
   // (shown later by studio-templates.js, which checks B.ro() too) - a view-only role changes nothing here
@@ -898,6 +900,19 @@ function applyReadonly(role, customMsg){
   if(customMsg) bar.textContent=customMsg;
   else { bar.setAttribute('role','status'); bar.textContent='👁 View only — your role can view layouts but not change them.'; }
   document.querySelector('header').insertAdjacentElement('afterend', bar);
+  return bar;
+}
+/* R227 (0397): the event plan is locked for the event day -> the planner opens view only, with the lock bar (Unlock needs an
+   admin / event manager + a reason; the database refuses a save while locked anyway). Before 0397: nothing happens. */
+async function r227PlanLock(q){
+  const A=window.BPStore&&BPStore.ops&&BPStore.ops.planLock, EF=window.HelmEventFloor; if(!A||!EF||!q||!q.id) return;
+  let st=null; try{ st=await A.get(q.id); }catch(e){ return; }
+  if(!st||!st.locked) return;
+  const bar=applyReadonly(null,'🔒 Locked for the event day — the floor plan and the hall size can’t be changed. 2D, 3D and Measure still work.');
+  if(!bar||document.getElementById('bLock')) return;
+  const host=document.createElement('div'); host.id='bLock'; host.className='ef-lock';
+  bar.insertAdjacentElement('afterend', host);
+  EF.lockBar(host,{ quoteId:q.id, state:st, compact:true, onChange:(s)=>{ if(s&&!s.locked){ const u=new URL(location.href); u.searchParams.delete('view'); location.replace(u.pathname+u.search); } } });
 }
 
 /* -------------------------------------------------------------- helpers */
@@ -5097,6 +5112,8 @@ async function init(){
     const editable = editableP ? await editableP : ((await BPStore.auth.canEditArea('layouts')) || (await BPStore.auth.canEditArea('quotes')));
     CAN_CREATE = canCreateP ? await canCreateP : await BPStore.auth.can('create');
     if(!editable) applyReadonly(await BPStore.auth.role());
+    // R227: opened from the event day (Tasks & Crew / monitor Floor plan card) = view only: 2D, 3D and Measure, nothing saved
+    if(params.get('view')==='1') applyReadonly(null,'👁 View only — opened from the event day. 2D, 3D and Measure work; nothing is changed.');
   }
   await renderAccountChip();
   if(quoteId){
@@ -5197,6 +5214,7 @@ async function init(){
       watchVersions();                       // live: versions saved on another device / tab
       if(q.status==='confirmed'){ const b=$('#quoteBadge'); if(b) b.classList.add('confirmed'); }
       toast('Opened '+q.code+' · V'+currentVersionNo);
+      r227PlanLock(q);   // R227 (0397): locked for the event day -> view only + the lock bar (non-blocking)
       // r22 (live QA): "Restore unsaved draft?" opened while "Loading event…" was still on screen (~1s, both at once) -
       // the layout is in by now, so the loading state ends first and the question comes after it
       if(!CAPTURE_HOST && layoutLoading) setLayoutLoading(false);
@@ -5218,6 +5236,9 @@ async function init(){
   if(layoutLoading) setLayoutLoading(false); if(CAPTURE_HOST){ runCaptureHost(); return; }   // blank-floor prompt only if the loaded layout truly has no items; R8b: headless picture capture
   populateRefEvents();   // fill the "Past events" reference picker
   scheduleBuilderTour(); // r19: first visit only - the mini tour of the toolbar (tour.js), once nothing else is open
+  // R227: the event-day Floor plan card's "3D view" / "Measure" buttons (view only)
+  if(params.get('mode')==='3d'){ const b3=document.querySelector('#viewSeg [data-v="3d"]'); if(b3) setTimeout(()=>{ try{ b3.click(); }catch(e){} },300); }
+  else if(params.get('measure')==='1'){ const mb=$('#measureBtn'); if(mb && !showMeasure) mb.click(); }
   // Guided default-layout generation from the flow: ?gen=1&type=&guests=&len=&wid=
   if(params.get('gen')==='1' && CAN_CREATE!==false){
     // R10: the default layout auto-built on arrival carries EXACTLY the flow's seats (all seating counted)

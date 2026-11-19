@@ -11,8 +11,9 @@
 <link rel="stylesheet" href="ops-board.css?v=5">
 <link rel="stylesheet" href="monitor.css?v=7">
 <link rel="stylesheet" href="event-plan.css?v=1">
+<link rel="stylesheet" href="event-floor.css?v=1">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=101" id="shellProto"></script>
+<script src="/shell-proto.js?v=102" id="shellProto"></script>
 </head>
 <body class="mon-body">
 <a class="skip-link" href="#main">Skip to content</a>
@@ -64,8 +65,11 @@
         <span class="ep-wnote" id="monWinNote" aria-live="polite"></span>
         <button type="button" class="tc-btn sm ghost" id="monWinAuto" hidden>Use the studio’s clock</button>
       </div>
+      <!-- R227 (0397, event-floor.js): the plan lock bar + the floor plan for the day; hidden before 0397 -->
+      <section class="ef-lock" id="monLock" hidden></section>
       <section class="tc-card ep-card" id="monDayBefore" aria-labelledby="monDayBeforeH" hidden></section>
       <section class="tc-card ep-card" id="monReady" aria-labelledby="monReadyH" hidden></section>
+      <section class="tc-card ef-card" id="monFloor" aria-labelledby="monFloorH" hidden></section>
       <section class="tc-card ep-card mon-wrapcard" id="monWrap" aria-label="Wrap-up" hidden></section>
 
       <section id="monSummary" class="mon-summary" aria-label="Progress"></section>
@@ -127,10 +131,11 @@
 <script src="telemetry.js?v=12"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=387"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=388"></script>
 <script src="live-board.js?v=2"></script>
 <script src="task-status.js?v=3"></script>
-<script src="event-plan.js?v=1"></script>
-<script src="monitor.js?v=9"></script>
+<script src="event-plan.js?v=2"></script>
+<script src="monitor.js?v=10"></script>
+<script src="event-floor.js?v=1"></script>
 </body>
 </html>

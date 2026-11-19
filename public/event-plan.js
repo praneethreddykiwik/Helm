@@ -15,7 +15,7 @@
  *                                           alert settings)
  *   HelmEventPlan.renderDayBefore(host, ctx) the Day-before checklist card (tick = who + when; untick kept)
  *   ctx: { plan (event_day_plan_get answer), tasks, quoteId, eventDate, eventTime, tz, now, nameOf(t), toast(msg, type),
- *          onChanged() (reload the plan + tasks), compact (monitor: fewer words) }
+ *          onChanged() (reload the plan + tasks), compact (monitor: fewer words), locked (R227 0397: plan locked - no time edits) }
  * Before 0396 is applied plan is null and both cards stay hidden (the callers check). DOM calls only (textContent), never
  * HTML strings. Money is never read or shown. */
 (function (global) {
@@ -208,7 +208,8 @@
     var p = ctx.plan || {}, tz = ctx.tz, now = ctx.now == null ? Date.now() : ctx.now, set = p.settings || {};
     var rAt = readyAt(p, ctx.eventDate, ctx.eventTime, tz), vAt = venueAt(p, ctx.eventDate, tz);
     var sc = schedule(ctx.tasks, { readyAt: rAt, venueAt: vAt, bufPct: set.buffer_pct, remindMin: set.remind_before_min, now: now });
-    var canEdit = !!p.can_edit, focusId = doc.activeElement && host.contains(doc.activeElement) ? doc.activeElement.id : "";
+    // R227 (0397): a plan locked for the event day keeps its times + durations (the database refuses them); ticks stay open
+    var canEdit = !!p.can_edit && !ctx.locked, focusId = doc.activeElement && host.contains(doc.activeElement) ? doc.activeElement.id : "";
     clear(host);
     var head = h("div", { cls: "ep-head" }, [h("h3", { cls: "tc-h2", id: host.id + "H" }, ["Ready by ", h("span", { cls: "ep-big", text: isFinite(rAt) ? clock(rAt, tz) : "not set" })])]);
     var facts = [];
@@ -217,6 +218,7 @@
     if (ctx.eventTime && p.ready_by) facts.push("Guests " + String(ctx.eventTime));
     head.appendChild(h("span", { cls: "ep-facts", text: facts.join(" · ") }));
     if (canEdit && !UI.times) head.appendChild(h("button", { type: "button", cls: "tc-btn sm", id: host.id + "Times", text: isFinite(vAt) || p.ready_by ? "Edit times" : "Set times", on: { click: function () { UI.times = true; UI.edit = null; ctx._redraw(); var f = doc.getElementById("epVenue"); if (f) f.focus(); } } }));
+    if (ctx.locked && p.can_edit) head.appendChild(h("span", { cls: "tc-tag warn", text: "🔒 Times locked" }));
     host.appendChild(head);
     if (UI.times && canEdit) host.appendChild(timesForm(ctx, host));
     // the one-line answer
