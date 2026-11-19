@@ -3,7 +3,7 @@
 <head>
 <style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}</style>
 <link rel="stylesheet" href="/control-polish.css?v=4">
-<link rel="stylesheet" href="/crew-shifts.css?v=7">
+<link rel="stylesheet" href="/crew-shifts.css?v=8">
 <meta charset="utf-8">
 <base href="/">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -234,16 +234,21 @@
   .compliance .cx-sub b{color:var(--cx-ink)}
   .compliance .cx-trust{display:flex;align-items:center;gap:8px;margin:14px 0 18px;padding:9px 12px;
     background:var(--cx-surface-2);border:1px solid var(--cx-border);border-radius:10px;font-size:12px;color:var(--cx-ink-3)}
-  .compliance .cx-trust svg{width:14px;height:14px;flex:0 0 auto;color:var(--cx-emerald)}
+  .compliance .cx-trust svg{width:14px;height:14px;flex:0 0 auto;color:var(--cx-trust,var(--cx-emerald))}
   .compliance .cx-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
   .compliance .cx-btn{appearance:none;display:inline-flex;align-items:center;gap:9px;height:42px;padding:0 20px;border:0;border-radius:11px;
-    background:linear-gradient(135deg,var(--cx-emerald),#059669);color:#fff;font-family:inherit;font-size:14px;font-weight:600;letter-spacing:-.005em;
+    background:linear-gradient(135deg,var(--cx-btn-1,var(--cx-emerald)),var(--cx-btn-2,#059669));color:#fff;font-family:inherit;font-size:14px;font-weight:600;letter-spacing:-.005em;
     cursor:pointer;box-shadow:0 4px 14px -4px rgba(4,120,87,.55);transition:transform .14s ease, box-shadow .14s ease, filter .14s ease}
   .compliance .cx-btn svg{width:16px;height:16px}
   .compliance .cx-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px -6px rgba(4,120,87,.6);filter:saturate(1.05)}
   .compliance .cx-btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(5,150,105,.35),0 4px 14px -4px rgba(4,120,87,.55)}
   .compliance .cx-btn:active{transform:translateY(0);box-shadow:0 2px 8px -3px rgba(4,120,87,.5)}
   .compliance .cx-btn[disabled]{cursor:default;filter:grayscale(.15) opacity(.9);transform:none;box-shadow:0 2px 8px -4px rgba(4,120,87,.4)}
+  /* R225: outside Emerald the card's icon, shield and button follow the studio's colour theme (the green "done" pill stays: status) */
+  html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) .compliance{--cx-accent:var(--hb-acc);--cx-accent-2:color-mix(in srgb,var(--hb-acc) 80%,#000);
+    --cx-btn-1:var(--hb-acc);--cx-btn-2:color-mix(in srgb,var(--hb-acc) 80%,#000);--cx-trust:var(--hb-acc)}
+  html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) .compliance :is(.cx-ic,.cx-btn,.cx-btn:hover,.cx-btn:active,.cx-btn[disabled]){box-shadow:0 4px 12px -6px rgba(0,0,0,.35)}
+  html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) .compliance .cx-btn:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--hb-acc) 35%,transparent)}
   /* status pill */
   .cx-status{display:none;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;font-size:12.5px;font-weight:600;line-height:1;border:1px solid transparent}
   .cx-status[data-state]{display:inline-flex}

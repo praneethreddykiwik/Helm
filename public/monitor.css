@@ -238,7 +238,10 @@ body.mon-wall .mon-wallbtn{background:var(--m-black);border-color:var(--m-black)
 
 /* R225 theme colours: outside Emerald the monitor follows the studio's colour theme (Emerald keeps the exact tokens above).
    Late / warning / done keep their status colours. */
-html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) .mon-body{--m-bg:var(--bg,var(--hb-bg2));--m-panel:var(--panel,var(--hb-bg));--m-panel-2:var(--panel-2,var(--hb-bg2));
+html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) .mon-body{--hx-tint:var(--hb-acc);--m-bg:var(--bg,var(--hb-bg2));--m-panel:var(--panel,var(--hb-bg));--m-panel-2:color-mix(in srgb,var(--hx-tint) 3.5%,var(--panel,#fff));
   --m-ink:var(--ink,var(--hb-ink));--m-ink-2:var(--ink-2,var(--hb-ink2));--m-ink-3:var(--ink-3,var(--hb-ink3));
-  --m-line:var(--line,var(--hb-line));--m-line-2:color-mix(in srgb,var(--line,var(--hb-line)) 55%,var(--panel,#fff));--m-line-strong:var(--line-strong,#8a8a8a);
-  --m-acc-2:var(--hb-acc-text,var(--accent));--m-acc-soft:var(--accent-soft,var(--hb-acc-soft));--m-acc-hi:var(--hb-acc2,var(--accent));--m-shadow:0 1px 2px rgba(0,0,0,.06)}
+  --m-line:color-mix(in srgb,var(--hx-tint) 14%,var(--panel,#fff));--m-line-2:color-mix(in srgb,var(--hx-tint) 8%,var(--panel,#fff));--m-line-strong:var(--line-strong,#8a8a8a);
+  --m-acc-2:var(--hb-acc-text,var(--accent));--m-acc-soft:color-mix(in srgb,var(--hx-tint) 10%,var(--panel,#fff));--m-acc-hi:var(--hb-acc2,var(--accent));--m-shadow:0 1px 2px rgba(0,0,0,.06)}
+html[data-shell="b"][data-hb-theme][data-hb-theme="graphite"] .mon-body{--hx-tint:#6b6b6b}
+/* "Done" is a status: the same green in every theme (like the done dot and the Tasks & Crew "Done" chip) */
+html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) .mon-body .mon-chip.is-done{background:#e7f6ee;color:#0f7a43}

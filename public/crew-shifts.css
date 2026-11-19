@@ -124,5 +124,6 @@
 
 /* R225 theme colours: outside Emerald the "working" days, open pills and hover lines follow the studio's colour theme
    (Emerald keeps the exact green fallbacks above). Approved / filled / OK stay green: they are status colours. */
-html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]){--cs-acc-soft:var(--accent-soft,var(--hb-acc-soft));--cs-acc-text:var(--hb-acc-text,var(--accent));
-  --cs-acc-line:color-mix(in srgb,var(--accent,var(--hb-acc)) 35%,var(--panel,#fff));--cs-wait-bg:var(--panel-2,var(--hb-bg2));--cs-wait:var(--ink-2,var(--hb-ink2))}
+html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]){--hx-tint:var(--hb-acc);--cs-acc-soft:color-mix(in srgb,var(--hx-tint) 10%,var(--panel,#fff));--cs-acc-text:var(--hb-acc-text,var(--accent));
+  --cs-acc-line:color-mix(in srgb,var(--hx-tint) 36%,var(--panel,#fff));--cs-wait-bg:color-mix(in srgb,var(--hx-tint) 8%,var(--panel,#fff));--cs-wait:var(--ink-2,var(--hb-ink2))}
+html[data-shell="b"][data-hb-theme][data-hb-theme="graphite"]{--hx-tint:#6b6b6b}
