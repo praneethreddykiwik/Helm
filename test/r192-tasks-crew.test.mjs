@@ -50,8 +50,8 @@ await t('1b late = waiting / accepted with a start time already passed; how late
   assert.equal(sm.total, 2); assert.equal(sm.done, 1); assert.equal(sm.late, 1); assert.equal(sm.pct, 50);
 });
 await t('1c escalation ladder (R186 / 0369): words from the studio steps, recorded step wins, ladder off = none', () => {
-  assert.deepEqual(J(TS.ladder({ steps: [0, 5, 10] })), ['Worker', 'Coordinator', 'Manager +5 min', 'Admin +10 min']);
-  assert.deepEqual(J(TS.ladder({ steps: [2, 7, 15] })), ['Worker', 'Coordinator +2 min', 'Manager +7 min', 'Admin +15 min']);
+  assert.deepEqual(J(TS.ladder({ steps: [0, 5, 10] })), ['Worker', 'Event lead', 'Manager +5 min', 'Admin +10 min']);
+  assert.deepEqual(J(TS.ladder({ steps: [2, 7, 15] })), ['Worker', 'Event lead +2 min', 'Manager +7 min', 'Admin +15 min']);
   const now = Date.parse('2026-11-21T10:00:00Z'), ps = '2026-11-21T09:52:00Z';
   const tk = { id: 'T', status: 'assigned', crew_id: 'c', is_special: true, planned_start: ps };
   assert.equal(TS.escStep(tk, null, { steps: [0, 5, 10] }, now), 2, 'no timeline: what the clock says (8 min -> manager)');
@@ -156,7 +156,7 @@ await t('5c the old setup-form page is gone: no Add staff form, no tick box hidi
   assert.match(OPS, /<div id="asTimeBox">/, 'the picker is shown, not hidden behind a tick box');
   assert.doesNotMatch(OPS, /id="opsLegend"/); assert.doesNotMatch(OPS + BRD, /every 5 min until it is started \(up to 6\)/);
   assert.doesNotMatch(OPS, /🔔 Mark special|⏱ Schedule|💬 WhatsApp tasks/);
-  assert.match(OPS, /Marked special - extra reminders before the start; if it isn't started, the coordinator, then the manager, then the admin \/ owner are told\./);
+  assert.match(OPS, /Marked special - extra reminders before the start; if it isn't started, the event lead, then the manager, then the admin \/ owner are told\./);
 });
 await t('5d Smart schedule switch still ON HOLD (phase 7); R226 owns the Ready-by latest start in event-plan.js, not here', () => {
   assert.doesNotMatch(OPS + BRD + CSS, /[Ss]mart schedule|critical path|crit-on|backward/);

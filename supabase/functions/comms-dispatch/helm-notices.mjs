@@ -4,7 +4,7 @@
 //                  -> sales@helm.events (plain text, every detail one line each)
 //   upgrade_ask    a teammate pressed "Ask my admin to upgrade" -> the studio's admins
 //   close_request  (0254) a teammate asked to close an event with checks still open -> the studio's admins,
-//                  coordinators and managers (not the requester)
+//                  event managers (not the requester)
 //   close_decision (0254) the request was approved (event closed) or declined -> the requester
 //   studio_identity (0257) Helm HQ changed the studio's name and/or link -> the studio's admins
 //   inbox_digest   (0266) a person's still-unread inbox items (daily digest or instant important) -> that person

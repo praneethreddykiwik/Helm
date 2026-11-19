@@ -8,7 +8,7 @@
 //   * task_update (R172, 0363)    "Update: your tasks for <event> changed" - the change lines collected for that person
 //                                and event (staff_update_claim), their open tasks now, and their permanent link
 //   * task_escalation (R186, 0369) to an office person on the escalation ladder of a SPECIAL task that is not started:
-//                                "Escalated: <task> not started (<worker>)", the step (1 coordinator / 2 manager / 3 admin),
+//                                "Escalated: <task> not started (<worker>)", the step (1 event lead / 2 manager / 3 admin),
 //                                minutes late, and the Event day monitor link (monitor.html?quote=<event id>)
 // Links: APP_URL + the row's own path only (work.html?staff=<64 hex> = the person's permanent link (R172); R179 adds
 // &event=<event id> for an e-mail about one event, so it opens that event inside the same link,
@@ -41,8 +41,8 @@ export function staffLink(row, origin) {
   return o + "/" + p;
 }
 
-// R186: the ladder step of an escalation row -> { n: 1..3, who: "the coordinator and the manager are told" }
-const ESC_WHO = ["the event coordinator is told", "the coordinator and the manager are told", "the coordinator, the manager and the admin / owner are told"];
+// R186: the ladder step of an escalation row -> { n: 1..3, who: "the event lead and the manager are told" }
+const ESC_WHO = ["the event lead is told", "the event lead and the manager are told", "the event lead, the manager and the admin / owner are told"];
 function escStep(row) {
   const n = Math.min(3, Math.max(1, Math.round(Number(row && row.step) || 1)));
   return { n, who: ESC_WHO[n - 1] };

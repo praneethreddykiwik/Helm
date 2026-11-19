@@ -175,7 +175,7 @@
       img.hidden = false; $("#s_mark").classList.add("has-logo");
       img.addEventListener("error", () => { img.hidden = true; $("#s_mark").classList.remove("has-logo"); }); }
     const ct = clear($("#s_contact"));
-    // #16 studio contact, first that exists: (1) the event coordinator's name + phone,
+    // #16 studio contact, first that exists: (1) the event contact's name + phone,
     // (2) the studio business phone (Settings > Studio details), (3) the business email -
     // the server sends it only when an admin saved it there (0075), never the signup login email.
     const co = (d.coordinator && typeof d.coordinator === "object") ? d.coordinator : { name: e.coordinator_name, phone: e.coordinator_phone };
@@ -229,7 +229,7 @@
     }
     const co = (d.coordinator && typeof d.coordinator === "object") ? d.coordinator : { name: e.coordinator_name, phone: e.coordinator_phone };
     if (co.name || co.phone) {
-      const cd = fact(dl, "Your coordinator", co.name || "");
+      const cd = fact(dl, "Your contact", co.name || "");
       if (cd && co.phone) { const a = el("a", "tel", String(co.phone).slice(0, 32)); a.setAttribute("href", "tel:" + String(co.phone).replace(/[^\d+]/g, "")); cd.appendChild(doc.createTextNode(co.name ? " · " : "")); cd.appendChild(a); }
     }
     global.HelmBookletGuests = num(e.guests) || 0;

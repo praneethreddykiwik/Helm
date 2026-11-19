@@ -1290,7 +1290,7 @@
     var wFilled = !!(P.job_title || P.department || P.city || (P.skills && P.skills.length));
     var sW = section("Work", "Helps your studio assign the right jobs to you.", true, wFilled);   // r20 planner: neutral (the viewer may be a planner)
     var gW = el("div", { class: "hpf-grid" }); sW.appendChild(gW);
-    field(gW, "job_title", "Job title", { ac: "organization-title", ph: "e.g. Event coordinator", value: P.job_title });
+    field(gW, "job_title", "Job title", { ac: "organization-title", ph: "e.g. Event manager", value: P.job_title });
     field(gW, "department", "Department", { ph: "e.g. Operations", value: P.department });
     // skills: chips (Enter or comma adds, × removes, Backspace on an empty box removes the last)
     var skills = Array.isArray(P.skills) ? P.skills.slice(0, lim.skills) : [];

@@ -154,7 +154,7 @@
     var la = h("input", { type: "checkbox", id: "epAlLate", checked: s.latest_alerts !== false });
     var rm = h("input", { type: "number", cls: "ep-inp sm", id: "epAlRem", min: "0", max: "180", step: "5", value: String(s.remind_before_min == null ? 30 : s.remind_before_min), inputmode: "numeric" });
     var bf = h("input", { type: "number", cls: "ep-inp sm", id: "epAlBuf", min: "0", max: "100", step: "5", value: String(s.buffer_pct == null ? 15 : s.buffer_pct), inputmode: "numeric" });
-    var boxes = [["manager", "Managers"], ["supervisor", "Supervisors"], ["coordinator", "Coordinators"], ["admin", "Admins"]].map(function (r) {
+    var boxes = [["manager", "Managers"], ["supervisor", "Supervisors"], ["admin", "Admins"]].map(function (r) {
       return [r[0], h("input", { type: "checkbox", id: "epAlR-" + r[0], checked: roles.indexOf(r[0]) >= 0 }), r[1]]; });
     var err = h("p", { cls: "ep-err", role: "alert", hidden: true });
     var save = h("button", { type: "button", cls: "tc-btn sm tc-primary", text: "Save alert settings" });

@@ -15,19 +15,20 @@ const r = (p) => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 let n = 0; const t = (name, fn) => { fn(); n++; console.log('  ok ' + name); };
 const RD = require('../public/role-defaults.js');
 
-// ---- parse the SQL template (0239 is the last create or replace of _a49_default_matrix)
-const SQL = r('supabase/migrations/0239_business_area_admin_only.sql');
+// ---- parse the SQL template (0400 / R232 is the last create or replace of _a49_default_matrix: 0239 minus the removed
+// Event coordinator role)
+const SQL = r('supabase/migrations/0400_r232_remove_role_traces.sql');
 const body = SQL.slice(SQL.indexOf('create or replace function public._a49_default_matrix()'));
 const rows = [...body.matchAll(/\('(\w+)',\s+'\{([^}]*)\}'(?:::text\[\])?,\s+'\{([^}]*)\}'(?:::text\[\])?\)/g)]
   .map((m) => [m[1], m[2] ? m[2].split(',') : [], m[3] ? m[3].split(',') : []]);
-const sqlRoles = [...body.slice(body.indexOf('roles(role) as')).matchAll(/\('(\w+)'\)/g)].map((m) => m[1]).slice(0, 11);
+const sqlRoles = [...body.slice(body.indexOf('roles(role) as')).matchAll(/\('(\w+)'\)/g)].map((m) => m[1]).slice(0, 10);
 
-t('role-defaults.js TEMPLATE equals the SQL _a49_default_matrix areas (0239; + tasks from the 0385 seed, test/r208)', () => {
+t('role-defaults.js TEMPLATE equals the SQL _a49_default_matrix areas (0400 = 0239 without Event coordinator; + tasks from the 0385 seed, test/r208)', () => {
   assert.ok(rows.length >= 28, 'parsed ' + rows.length);
   assert.deepEqual(Object.keys(RD.TEMPLATE).filter((k) => k !== 'tasks').sort(), rows.map((x) => x[0]).sort());   // r208: 'tasks' = 0385 seed
   for (const [area, v, e] of rows) assert.deepEqual(RD.TEMPLATE[area], [v, e], area);
   assert.ok(!fs.readdirSync(new URL('../supabase/migrations/', import.meta.url))
-    .some((f) => f.slice(0, 4) > '0239' && /\.sql$/.test(f) && fs.readFileSync(new URL('../supabase/migrations/' + f, import.meta.url), 'utf8')
+    .some((f) => f.slice(0, 4) > '0400' && /\.sql$/.test(f) && fs.readFileSync(new URL('../supabase/migrations/' + f, import.meta.url), 'utf8')
       .includes('create or replace function public._a49_default_matrix')), 'a newer migration replaces the template - update role-defaults.js');
 });
 
@@ -38,7 +39,7 @@ t('defaultFor mirrors the SQL rule (admin all; edit implies view) for every temp
     assert.deepEqual(RD.defaultFor(role, area), { view, edit }, role + ':' + area);
   }
   assert.deepEqual(RD.defaultFor('crew', 'runsheet'), { view: true, edit: false });
-  assert.deepEqual(RD.defaultFor('designer', 'design'), { view: true, edit: true });
+  assert.deepEqual(RD.defaultFor('crew', 'design'), { view: false, edit: false });   // R232 (0400): no Designer starter set any more
   assert.equal(RD.defaultFor('manager', 'close_owed'), null, 'no known default -> no badge, Reset skips it');
 });
 

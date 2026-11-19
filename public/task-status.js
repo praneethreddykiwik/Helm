@@ -9,7 +9,7 @@
  *   HelmTaskStatus.lateMin(t, now)        how many minutes late (0 when not late)
  *   HelmTaskStatus.summarize(tasks, now)  counts for headers / progress bars (cancelled left out)
  *   HelmTaskStatus.leftover(tasks, now)   not done yet: late first, then by start time
- *   HelmTaskStatus.ladder(cfg)            the escalation steps as words (R186 / 0369): Worker, Coordinator, Manager +5 min, Admin +10 min
+ *   HelmTaskStatus.ladder(cfg)            the escalation steps as words (R186 / 0369): Worker, Event lead, Manager +5 min, Admin +10 min
  *   HelmTaskStatus.lastEscalation(t, acts) the latest "escalated" activity row for the task's current start time
  *   HelmTaskStatus.escStep(t, acts, cfg, now) 0..3 = where the ladder is now (recorded step, else what the clock says), -1 = none
  *   HelmTaskStatus.escLevel(level) / escBadge(row, clockFn)
@@ -82,8 +82,9 @@
   /* ---- R186 (0369) escalation ladder for special tasks not started ---- */
   function steps(cfg) { var s = cfg && Array.isArray(cfg.steps) && cfg.steps.length === 3 ? cfg.steps.map(Number) : [0, 5, 10]; return s.every(isFinite) ? s : [0, 5, 10]; }
   function plus(m) { return m > 0 ? " +" + m + " min" : ""; }
-  function ladder(cfg) { var s = steps(cfg); return ["Worker", "Coordinator" + plus(s[0]), "Manager" + plus(s[1]), "Admin" + plus(s[2])]; }
-  function escLevel(l) { return l === "admin" ? "admin / owner" : l === "manager" ? "manager" : "coordinator"; }
+  function ladder(cfg) { var s = steps(cfg); return ["Worker", "Event lead" + plus(s[0]), "Manager" + plus(s[1]), "Admin" + plus(s[2])]; }
+  // R232 (0400): the first step is "lead" (older rows say the old name) - every other value reads as the event lead
+  function escLevel(l) { return l === "admin" ? "admin / owner" : l === "manager" ? "manager" : "event lead"; }
   function lastEscalation(t, acts) {
     if (!t || !t.id) return null;
     var ps = ms(t.planned_start), best = null;
@@ -96,10 +97,10 @@
     return best;
   }
   function escBadge(a, clock) { return a ? "Escalated to " + escLevel(a.detail && a.detail.level) + (clock ? " " + clock(a.at) : "") : ""; }
-  // 0 = the worker has been reminded, 1 = coordinator told, 2 = manager, 3 = admin / owner; -1 = not special / not late / ladder off
+  // 0 = the worker has been reminded, 1 = event lead told, 2 = manager, 3 = admin / owner; -1 = not special / not late / ladder off
   function escStep(t, acts, cfg, now) {
     if (!t || !t.is_special || !isLate(t, now) || (cfg && cfg.enabled === false)) return -1;
-    var a = lastEscalation(t, acts), rec = a ? ({ coordinator: 1, manager: 2, admin: 3 })[(a.detail && a.detail.level) || "coordinator"] || 1 : 0;
+    var a = lastEscalation(t, acts), rec = a ? ({ manager: 2, admin: 3 })[(a.detail && a.detail.level) || "lead"] || 1 : 0;
     if (acts && acts.length) return Math.max(rec, 0);   // the timeline is there: show what really happened
     var s = steps(cfg), m = ((now == null ? Date.now() : now) - ms(t.planned_start)) / 60000, by = 0;
     if (m >= s[0]) by = 1; if (m >= s[1]) by = 2; if (m >= s[2]) by = 3;

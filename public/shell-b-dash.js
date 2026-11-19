@@ -890,7 +890,7 @@
     if (signedOut) { signIn.hidden = false; if (createBtn) createBtn.hidden = true; }
 
     var role = signedOut ? null : await safe(function () { return A.role(); }, null);
-    var MONEY = ["admin", "manager", "planner", "sales"], TASK = ["crew", "worker", "coordinator", "supervisor", "operations", "quality"];
+    var MONEY = ["admin", "manager", "planner", "sales"], TASK = ["crew", "worker", "supervisor", "operations", "quality"];
     var isMoney = !authOn() || MONEY.indexOf(role) >= 0, isTask = TASK.indexOf(role) >= 0;
     var isCrew = role === "crew" || role === "worker";
     var perms = await Promise.all([canView("quotes"), canView("leads"), canEdit("leads"), canEdit("quotes"),
@@ -1246,7 +1246,7 @@
           tile(tiles[3], { label: "Tasks overdue", tip: "Your tasks past their due date.", ic: IC.task, value: tasks ? (tc.overdue || 0) : null, sub: tasks ? (tc.today || 0) + " due today" : "Tasks unavailable", subKind: tc.overdue ? "bad" : null, href: "#mytasksSection" });
         }
       } else {
-        // task-centric roles (coordinator, supervisor, operations, quality)
+        // task-centric roles (supervisor, operations, quality)
         tile(tiles[0], { label: "Tasks today", tip: "Your tasks due today.", ic: IC.task, value: tasks ? (tc.today || 0) : null, sub: "Due today", href: "#mytasksSection" });
         tile(tiles[1], { label: "Overdue", tip: "Your tasks past their due date.", ic: IC.alert, value: tasks ? (tc.overdue || 0) : null, sub: tc.overdue ? "Needs action" : "On track", subKind: tc.overdue ? "bad" : "ok", href: "#mytasksSection" });
         tile(tiles[2], { label: "Blocked", tip: "Your tasks waiting on someone or something.", ic: IC.clock, value: tasks ? (tc.blocked || 0) : null, sub: tc.blocked ? "Waiting on something" : "Nothing blocked", subKind: tc.blocked ? "wait" : null, href: "#mytasksSection" });

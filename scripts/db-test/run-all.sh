@@ -30,9 +30,10 @@ export PGTZ="${PGTZ:-UTC}"
 # 0383: fixtures / suites write auth.users.last_sign_in_at by hand - not sign-ins; r205-signin-notice-0383.sql turns the notices on
 # 0342: the older suites expect a failed send to be retried at once and to give up after 5 tries; r143-outbox-backoff-0342.sql turns the backoff on
 # 0397: the older suites edit layouts / tasks / run-sheets of events on their event day as signed-in users; r227-plan-lock-0397.sql turns the plan lock on
+# 0400: the older suites still create Event coordinator / Designer people (and expect Crew refused by 0398); helm.r400_remove=off makes 0400 a no-op on this cluster - r232-remove-role-traces-0400.sh runs APPLY-0400 for real (last)
 # 0296: fixtures / cleanups delete events and vendors as the superuser; the older suites run with the purge mark on
 # (it never helps a delete made AS anon / authenticated). r55-no-hard-delete-0296.sql + the 0184 re-run below turn it off.
-export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off -c helm.r397_plan_lock=off -c helm.signin_notice=off -c helm.retry_backoff=off -c helm.retired_role_gate=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
+export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off -c helm.r397_plan_lock=off -c helm.signin_notice=off -c helm.retry_backoff=off -c helm.retired_role_gate=off -c helm.r400_remove=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
 dropdb --if-exists helm_runall >/dev/null 2>&1; createdb helm_runall
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/00-supabase-shim.sql >/dev/null 2>&1
 
@@ -481,6 +482,8 @@ run "r229-delete-retired-users-0398" "R229-DELETE-0398: PASS" bash tests/db/r229
 run "r230-dept-supervisors-0399" "R230-DEPT-SUPERVISORS-0399: ALL PASS \(25/25\)" psql -q -f tests/db/r230-dept-supervisors-0399.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
+# r232 (0400): APPLY-0400 the way the owner runs it (after DELETE-0398, no harness switches): the safety gate stops it while a coordinator / designer login, an owner holding one or a waiting admin change to one is left (nothing changed); then every coordinator / designer trace is removed (role_access, invitations + e-mail rows, notification settings, settings lists, staff role words, trial sample data, escalation step name, functions, constraints refuse them), copies in _r398_backup, Crew available again; every other role behaves exactly as before (tests/db/r232-probe-0400.sql before vs after); a second run is a no-op. NOT rolled back - runs last
+run "r232-remove-role-traces-0400" "R232-REMOVE-ROLE-TRACES-0400: PASS" bash tests/db/r232-remove-role-traces-0400.sh
 
 echo "----------------------------------------"
 if [ "$fail" = 0 ]; then echo "DB SUITES: ALL GREEN"; else echo "DB SUITES: FAILURES ABOVE"; exit 1; fi

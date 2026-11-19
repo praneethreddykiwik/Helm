@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=103"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=104"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1862,7 +1862,7 @@ window.HelmUrl = HelmUrl;
     loadAuthUi();
   }
   // Account menu / two-step banner live in auth-ui.js (loaded on signed-in staff pages only).
-  const AUTH_UI_VERSION = "64";
+  const AUTH_UI_VERSION = "65";
   let authUiLoading = null;
   function loadAuthUi() {
     if (authUiLoading || typeof document === "undefined") return authUiLoading;
@@ -1947,7 +1947,7 @@ window.HelmUrl = HelmUrl;
   // the server functions can_create() = {admin, manager/planner/sales per quote_create} and can_delete() =
   // {admin,planner}. They are kept IN SYNC with those SQL functions so no button
   // is shown that the server will reject with "not authorized" (Wave 16 fix —
-  // manager/coordinator previously saw a create button that always errored).
+  // manager previously saw a create button that always errored).
   // `edit` is NOT used for edit buttons — pages gate editing via canEditArea()
   // (the has_area matrix) — so it stays broad here for any legacy checks.
   // 0147 (owner decision): manager may create by default; can_create() = admin, or
@@ -1957,31 +1957,28 @@ window.HelmUrl = HelmUrl;
     manager:     ["view", "create", "edit"],   // manager-1019: "manage" was never checked; Settings access comes from role_access "controls"
     planner:     ["view", "create", "edit", "delete"],
     sales:       ["view", "create", "edit"],
-    coordinator: ["view", "edit"],
     supervisor:  ["view", "edit"],
     quality:     ["view", "edit"],
     operations:  ["view", "edit"],
-    designer:    ["view", "edit"],              // QA1017: server can_create() = admin/planner/sales - no create
     crew:        ["view"],
     worker:      ["view"],
     client:      ["view"],
   };
-  const EDIT_ROLES = ["admin", "manager", "planner", "sales", "coordinator", "supervisor", "quality", "operations", "designer"];
-  const ALL_ROLES  = ["admin", "manager", "planner", "sales", "coordinator", "supervisor", "quality", "operations", "designer", "crew", "worker", "client"];
+  const EDIT_ROLES = ["admin", "manager", "planner", "sales", "supervisor", "quality", "operations"];
+  const ALL_ROLES  = ["admin", "manager", "planner", "sales", "supervisor", "quality", "operations", "crew", "worker", "client"];
   // 0143: "worker" is merged into "crew" - still a valid stored value (legacy rows) but never offered
-  // R229 (0398, owner 18 Nov 2026): "Event coordinator" + "Designer" are removed and "Crew" is disabled as a login role -
-  // never OFFERED in any role picker (Users & invites, Roles & access tabs, Staff, onboarding / trial invites). A person
-  // who still has one keeps it: their row shows it (with a "Retired role" hint) until an admin picks a new one. The server
-  // (0398) refuses any NEW assignment of these three. Labels stay so old rows still read well.
-  const RETIRED_ROLES = ["coordinator", "designer", "crew"];
+  // R232 (0400, owner 19 Nov 2026): Crew is offered again in every role picker (Users & invites, Roles & access tabs,
+  // Staff, onboarding / trial invites). No role is retired any more - the list stays so a future one can use the
+  // "Retired role" hint (a person whose saved role is not offered keeps it shown until an admin picks a new one).
+  const RETIRED_ROLES = [];
   const KNOWN_ROLES = ALL_ROLES.filter((r) => r !== "worker");
   const PICK_ROLES = KNOWN_ROLES.filter((r) => !RETIRED_ROLES.includes(r));
   const isRetiredRole = (r) => RETIRED_ROLES.includes(r) || r === "worker";
   // friendly labels for the UI (keys stay stable in the DB)
   const ROLE_LABELS = {
     admin: "Admin", manager: "Event manager", planner: "Planner", sales: "Sales",
-    coordinator: "Event coordinator", supervisor: "Supervisor", quality: "Quality engineer",
-    operations: "Operations", designer: "Designer", crew: "Crew", worker: "Crew", client: "Client",
+    supervisor: "Supervisor", quality: "Quality engineer",
+    operations: "Operations", crew: "Crew", worker: "Crew", client: "Client",
   };
   const roleLabel = (r) => ROLE_LABELS[r] || r;
 
@@ -2062,8 +2059,8 @@ window.HelmUrl = HelmUrl;
   const VIEW_SCOPE = {
     finance:   ["admin", "manager", "planner", "sales"],
     pipeline:  ["admin", "manager", "planner", "sales"],
-    ops:       ["admin", "manager", "planner", "sales", "coordinator", "supervisor", "operations"],
-    workspace: ["admin", "manager", "planner", "sales", "coordinator", "supervisor", "operations"],
+    ops:       ["admin", "manager", "planner", "sales", "supervisor", "operations"],
+    workspace: ["admin", "manager", "planner", "sales", "supervisor", "operations"],
     manage:    ["admin", "manager"],
   };
   const FINE_TO_COARSE = (() => { const m = {}; for (const c in COARSE_TO_FINE) COARSE_TO_FINE[c].forEach((f) => { m[f] = c; }); return m; })();
@@ -3152,7 +3149,7 @@ window.HelmUrl = HelmUrl;
     // r35 (0285): making / removing an admin, money switches -> withStepUp (a fresh two-step code when the server asks)
     admin: {
       roles: () => PICK_ROLES.slice(),
-      // R229 (0398): retired roles - kept on existing rows, never offered; the UI shows "Retired role - choose a new one"
+      // R229 (0398) / R232 (0400): retired roles (none now) - kept on existing rows, never offered; the UI shows "Retired role - choose a new one"
       retiredRoles: () => RETIRED_ROLES.slice(),
       isRetiredRole,
       roleLabel,
@@ -3952,7 +3949,7 @@ window.HelmUrl = HelmUrl;
       const { data, error } = await supa.rpc("cancel_event", { p_quote_id: id, p_reason: r });
       if (error) throw error; return data;
     },
-    // 0260: undo a cancellation (admin / manager / coordinator, reason, audited, team bell). Links stay OFF.
+    // 0260: undo a cancellation (admin / manager, reason, audited, team bell). Links stay OFF.
     async restoreEvent(id, reason) {
       const r = String(reason == null ? "" : reason).trim();
       if (r.length < 5 || r.length > 1000) throw new Error("Give a reason of 5 to 1000 characters for restoring.");
@@ -5562,8 +5559,8 @@ window.HelmUrl = HelmUrl;
   const STAFF_DEPT_LS = "bp_staff_departments";
   let staffDeptMissing = false;
   const STAFF_ROLE_WORDS = [["admin", /\b(admin|administrator|owner|director)\b/], ["manager", /\b(event manager|manager)\b/],
-    ["coordinator", /\bco-?ordinator\b/], ["planner", /\bplanner\b/], ["sales", /\bsales\b/], ["supervisor", /\bsupervisor\b/],
-    ["quality", /\bquality\b|\bqa\b/], ["operations", /\boperations?\b|\bops\b/], ["designer", /\bdesigner\b/],
+    ["planner", /\bplanner\b/], ["sales", /\bsales\b/], ["supervisor", /\bsupervisor\b/],
+    ["quality", /\bquality\b|\bqa\b/], ["operations", /\boperations?\b|\bops\b/],
     ["crew", /\bcrew\b|\bworkers?\b/]];
   function staffMatchRole(text) {
     const t = String(text == null ? "" : text).trim().toLowerCase().replace(/\s+/g, " ");
@@ -7068,7 +7065,7 @@ window.HelmUrl = HelmUrl;
     { id:"u-you",    full_name:"You",          email:"you@demo.in",    role:"admin" },
     { id:"u-ananya", full_name:"Ananya Rao",   email:"ananya@demo.in", role:"manager" },
     { id:"u-vikram", full_name:"Vikram Singh", email:"vikram@demo.in", role:"operations" },
-    { id:"u-meera",  full_name:"Meera Nair",   email:"meera@demo.in",  role:"coordinator" },
+    { id:"u-meera",  full_name:"Meera Nair",   email:"meera@demo.in",  role:"supervisor" },
     { id:"u-rohit",  full_name:"Rohit Verma",  email:"rohit@demo.in",  role:"crew" },
   ];
   // Local demo identity. A per-TAB override (sessionStorage) lets two tabs act as
@@ -9331,7 +9328,7 @@ window.HelmUrl = HelmUrl;
       const list = (Array.isArray(checks) ? checks : []).slice(0, 40).map((c) => ({ key: String(c.key || "").slice(0, 40), status: String(c.status || "").slice(0, 10), label: String(c.label || "").slice(0, 120) }));
       return rpc("request_event_close", { p_quote_id: quoteId, p_reason: r, p_checks: list });
     },
-    // an admin / coordinator / manager approves (closes the event) or declines (note required) - the server decides who may
+    // an admin / manager approves (closes the event) or declines (note required) - the server decides who may
     async decideClose(requestId, approve, note) {
       if (mode !== "supabase") throw new Error("Needs the online database.");
       const n = note == null ? null : String(note).trim() || null;
@@ -10198,7 +10195,7 @@ window.HelmUrl = HelmUrl;
       team_signin: ["👋", String(d.label || ((d.name || "A teammate") + " signed in" + (d.first_time ? " for the first time" : "")))],
       // 0269: a new lead from the studio's public enquiry form (name + event type only)
       lead_new: ["📥", String(d.label || "New enquiry")],
-      // r22 (0254): "request to close anyway" + the approval (admins / coordinators / managers only - the server decides)
+      // r22 (0254): "request to close anyway" + the approval (admins / managers only - the server decides)
       event_close_request: ["🗄️", "Close request" + (d.actor_name ? " from " + d.actor_name : "") + (d.event_code ? " · " + d.event_code : "") + " - waiting for approval"],
       event_close_decision: [d.decision === "declined" ? "↩️" : "✅", (d.decision === "declined" ? "Close request declined" : "Event closed with override")
         + (d.actor_name ? " by " + d.actor_name : "") + (d.event_code ? " · " + d.event_code : "")],
@@ -11736,7 +11733,7 @@ window.HelmUrl = HelmUrl;
   const taskReminders = {
     settings: () => (supa ? rpc("task_reminder_settings_get", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
     saveSettings: (patch) => (supa ? rpc("task_reminder_settings_set", { p: patch || {} }) : Promise.reject(new Error("Needs a signed-in studio."))),
-    // R186 (0369): the special-task escalation ladder (minutes after the start: coordinator, manager, admin). null = server without 0369.
+    // R186 (0369): the special-task escalation ladder (minutes after the start: event lead, manager, admin). null = server without 0369.
     escalation: () => (supa ? rpc("task_escalation_settings_get", { p_ladder: "not_started" }).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
     saveEscalation: (enabled, steps) => (supa ? rpc("task_escalation_settings_set", { p_ladder: "not_started", p_enabled: !!enabled,
       p_steps: (Array.isArray(steps) ? steps : []).map((x) => Math.round(Number(x))) }) : Promise.reject(new Error("Needs a signed-in studio."))),
@@ -12713,7 +12710,7 @@ window.HelmUrl = HelmUrl;
       },
     },
     myTasks: () => (supa ? rpc("my_tasks") : Promise.resolve({ today: [], overdue: [], blocked: [], upcoming: [], completed: [], counts: {} })),
-    // Build 1 — Designer 2D->3D design-approval state machine.
+    // Build 1 — Design studio 2D->3D design-approval state machine.
     design: {
       STATES: ["draft_2d","internal_review","approved_2d","build_3d","client_review","approved_3d","locked"],
       NEXT: {   // allowed transitions surfaced as buttons (matches design_advance server map)

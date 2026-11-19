@@ -266,9 +266,9 @@
     var st = Array.isArray(c.steps) && c.steps.length === 3 ? c.steps : [0, 5, 10];
     var at = function (m) { return Number(m) === 0 ? "at the start time" : m + " min after the start"; };
     if (c.enabled === false) return "Escalation is off: special tasks only get the reminders above.";
-    return "When a special task is not started: " + at(st[0]) + " the person and the event coordinator are told; " +
+    return "When a special task is not started: " + at(st[0]) + " the person and the event lead are told; " +
       at(st[1]) + " the manager too; " + at(st[2]) + " the admin / owner too. It stops as soon as the task is started. " +
-      "The office gets a bell notice and an email (free trial: bell only). The event coordinator is the event lead when one is set, otherwise everyone with the Coordinator or Supervisor role.";
+      "The office gets a bell notice and an email (free trial: bell only). The event lead is the person set as lead on the event, otherwise everyone with the Supervisor role.";
   }
   // three whole minutes after the start, each later than the one before (first 0..60, last at most 120)
   function checkEscSteps(list) {
@@ -291,7 +291,7 @@
       var on = checkbox("tre_on", "Escalate special tasks that are not started", c.enabled !== false); box.appendChild(on.wrap);
       var st = Array.isArray(c.steps) && c.steps.length === 3 ? c.steps : [0, 5, 10];
       var grid = el("div", "trm-esc-grid"), ins = [];
-      [["tre_s1", "Coordinator"], ["tre_s2", "Manager"], ["tre_s3", "Admin / owner"]].forEach(function (d, i) {
+      [["tre_s1", "Event lead"], ["tre_s2", "Manager"], ["tre_s3", "Admin / owner"]].forEach(function (d, i) {
         var w = el("div", "trm-esc-step"), lb = el("label", null, d[1]); lb.htmlFor = d[0];
         var inp = el("input"); inp.id = d[0]; inp.type = "number"; inp.min = "0"; inp.max = i === 0 ? "60" : "120"; inp.step = "1"; inp.inputMode = "numeric";
         inp.value = String(st[i]);

@@ -193,7 +193,7 @@
         { key: "role", label: "Role", required: false, type: "text", syn: ["role", "designation", "title", "position", "job"] },
         { key: "department", label: "Department", required: false, type: "text", syn: ["department", "dept", "team", "division"] },
       ],
-      template: [["name", "phone", "role", "department"], ["Ravi Kumar", "9876501234", "Lead technician", "Production"], ["Anita Rao", "9811122233", "Coordinator", "Operations"]],
+      template: [["name", "phone", "role", "department"], ["Ravi Kumar", "9876501234", "Lead technician", "Production"], ["Anita Rao", "9811122233", "Site supervisor", "Operations"]],
     },
   };
   KINDS.menu.fields.forEach(prep); KINDS.pricing.fields.forEach(prep); KINDS.inventory.fields.forEach(prep);

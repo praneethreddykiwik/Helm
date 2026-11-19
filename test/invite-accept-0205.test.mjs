@@ -136,7 +136,7 @@ t("login: invite context on EVERY path - Join <Studio> on Helm + <Inviter> invit
   assert.match(login, /\$\("#ilTitle"\)\.textContent=inviteTitle\(\);\s*\$\("#ilLine"\)\.textContent=inviteLine\(\)/);   // new-link card
   assert.match(login, /\$\("#ipTitle"\)\.textContent="Join "\+\(st\|\|"your studio"\)\+" on Helm"/);                // set password
   assert.match(login, /\$\("#ipEmail"\)\.textContent=u\.email\|\|""/);
-  assert.match(login, /coordinator:"Event coordinator"/, "human role labels when only the anon preview answers");
+  assert.match(login, /supervisor:"Supervisor"/, "human role labels when only the anon preview answers");
   // the context is loaded BEFORE a link session accepts the invitation (the token closes then)
   const i = login.indexOf("if(JOINING) await Promise.race([loadInviteCtx()"), j = login.indexOf("if(BPStore.auth.pendingUser()){", i);
   assert.ok(i > 0 && j > i);

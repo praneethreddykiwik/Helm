@@ -120,7 +120,7 @@ await t('comms-dispatch: the escalation e-mail (text + designed HTML), monitor l
   const m = M.staffEmailMessage(row, O);
   assert.equal(m.subject, 'Escalated: Receive the groom not started (Guest Desk) - Rao Wedding');
   assert.match(m.text, /^Hello Manu,\n\nGuest Desk has not started Receive the groom for Rao Wedding on 20 Dec 2026 at Grand Hall\. It was due at 3:00 PM on 20 Dec 2026 \(5 min ago\)\./);
-  assert.match(m.text, /Step 2 of 3: the coordinator and the manager are told\./);
+  assert.match(m.text, /Step 2 of 3: the event lead and the manager are told\./);
   assert.ok(m.text.includes(O + '/monitor.html?quote=' + QID));
   const h = M.staffEmailHtml(row, O, { address: 'Test Street 1' });
   assert.ok(h.startsWith('<!DOCTYPE html>')); assert.ok(h.includes('Special task not started')); assert.ok(h.includes('Open the live monitor'));
@@ -128,7 +128,7 @@ await t('comms-dispatch: the escalation e-mail (text + designed HTML), monitor l
   assert.equal(M.staffLink({ kind: 'task_escalation', link_path: 'monitor.html?quote=' + QID }, O), O + '/monitor.html?quote=' + QID);
   assert.equal(M.staffLink({ kind: 'task_escalation', link_path: 'monitor.html?quote=evil' }, O), '');
   assert.equal(M.staffEmailMessage({ ...row, task: '' }, O).text, '', 'no task -> not sent');
-  assert.match(M.staffEmailMessage({ ...row, step: 9 }, O).text, /Step 3 of 3: the coordinator, the manager and the admin \/ owner are told/);
+  assert.match(M.staffEmailMessage({ ...row, step: 9 }, O).text, /Step 3 of 3: the event lead, the manager and the admin \/ owner are told/);
   assert.match(IDX, /sk === "task_escalation" \? ESCALATION_TX_REASON/);
 });
 
@@ -147,7 +147,7 @@ await t('Settings: escalation steps checked like the server (rising, first 0-60,
   assert.equal(TR.checkEscSteps(['0', '5', '121']).ok, false);
   assert.equal(TR.checkEscSteps(['0', 'x', '10']).ok, false);
   assert.equal(TR.checkEscSteps(['0', '5']).ok, false);
-  assert.match(TR.escExplain({ enabled: true, steps: [0, 5, 10] }), /at the start time the person and the event coordinator are told; 5 min after the start the manager too; 10 min after the start the admin \/ owner too/);
+  assert.match(TR.escExplain({ enabled: true, steps: [0, 5, 10] }), /at the start time the person and the event lead are told; 5 min after the start the manager too; 10 min after the start the admin \/ owner too/);
   assert.match(TR.escExplain({ enabled: false }), /Escalation is off/);
   assert.match(TRM, /escalationPart\(host, R, can\);/);
   assert.match(TRM, /x\.disabled = !can;/);

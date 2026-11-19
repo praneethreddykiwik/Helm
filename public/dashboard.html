@@ -197,7 +197,7 @@
 <link rel="stylesheet" href="live-board.css?v=2">
 <link rel="stylesheet" href="trial-terms.css?v=4">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=103" id="shellProto"></script>
+<script src="/shell-proto.js?v=104" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -331,14 +331,14 @@
 <script src="telemetry.js?v=12"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=390"></script><script src="flow-resume.js?v=10" data-mount></script><script src="live-board.js?v=2"></script>
+<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=391"></script><script src="flow-resume.js?v=10" data-mount></script><script src="live-board.js?v=2"></script>
 <script src="event-reminders.js?v=6"></script>
-<script src="page-tours.js?v=63"></script>
-<script src="tour.js?v=78"></script>
+<script src="page-tours.js?v=64"></script>
+<script src="tour.js?v=79"></script>
 <script src="getting-started.js?v=15"></script>
 <script src="onboarding-wizard.js?v=12"></script>
 <script src="trial-facts.js?v=9"></script>
-<script src="trial-demo.js?v=22"></script>
+<script src="trial-demo.js?v=23"></script>
 <script src="trial-upgrade.js?v=3"></script>
 <script src="dash-prompts.js?v=1"></script>
 <script>
@@ -443,7 +443,7 @@
     // Perf (Oct 2026): "Your quotes" loads the latest page only (light columns, no
     // pricing JSON) with Load more / infinite scroll; the role-board KPIs come from
     // HEAD count queries and the next-code hint from just today's codes.
-    // R215: the personal feeds below the list (my_pending, my_tasks and, on a manager / designer board, the design
+    // R215: the personal feeds below the list (my_pending, my_tasks and, on a manager board, the design
     // queue) never needed the list's answer - ask for them now, together with it, instead of after it. They are the
     // same shared one-call-per-load reads (getPending / getMyTasks / getQueue); the cards still fill in at the same
     // place below with the same error handling.
@@ -451,7 +451,7 @@
     if (hasSec("#myworkSection", "#mywork")) feedP(getPending);
     if (hasSec("#mytasksSection", "#mytasks")) feedP(getMyTasks);
     if (hasSec("#roleboard", "#rbcards")) BPStore.auth.role().then((r) => { if (!r) return;
-      feedP(getPending); feedP(getMyTasks); if (["manager", "designer"].includes(r)) feedP(getQueue); }).catch(() => {});
+      feedP(getPending); feedP(getMyTasks); if (r === "manager") feedP(getQueue); }).catch(() => {});
     if (!pager) pager = BPUI.pager({ after: $("#elist"), what: "quotes",
       fetch: (offset) => BPStore.quotes.page({ offset, sort: "updated" }),
       render: (rows, info) => { summaries = info.all; renderList(); refreshInvoiceTotals(); } });
@@ -648,8 +648,8 @@
       + (doneT.length ? `<details class="tgrp"><summary>Done (${doneT.length})</summary>${doneT.map((t)=>`<div class="trow done">✓ ${esc(t.title||"")}</div>`).join("")}</details>` : "");
     }));
   }
-  // Build 2 — role-specific workspace board. Six bespoke layouts (Sales / Event manager /
-  // Coordinator / Designer / Crew / Client) driven by one config map, computed from data the
+  // Build 2 — role-specific workspace board. Bespoke layouts (Sales / Event manager /
+  // Supervisor / Crew / Client ...) driven by one config map, computed from data the
   // page already has (quotes) plus best-effort my_pending / my_tasks / design_queue. Never blocks.
   function card(n, label, cls, href){
     const inner = `<div class="n">${esc(String(n))}</div><div class="l">${esc(label)}</div>`;
@@ -671,10 +671,10 @@
     let pendOk = true, tasksOk = true, dqOk = true;
     // r47: my_pending is best-effort - a failure shows "—" on the Upcoming card, never an error over the whole board
     // R215: the three feeds are asked together (each is one shared call per load), then read in the same order as before
-    const pendP = feedP(getPending), tasksP = feedP(getMyTasks), dqP = ["manager","designer"].includes(role) ? feedP(getQueue) : null;
+    const pendP = feedP(getPending), tasksP = feedP(getMyTasks), dqP = role === "manager" ? feedP(getQueue) : null;
     try { pend = (await pendP) || pend; } catch(e){ pendOk = false; }
     try { tasks = (await tasksP) || tasks; } catch(e){ tasksOk = false; if (!softFail(e)) hardErr = hardErr || e; }
-    // only manager + designer boards actually use the design queue — don't fetch it otherwise
+    // only the manager board actually uses the design queue — don't fetch it otherwise
     if (dqP) { try { dq = (await dqP) || []; } catch(e){ dqOk = false; if (!softFail(e)) hardErr = hardErr || e; } }
     if (hardErr) {
       $("#rbTitle").textContent = "Your workspace"; $("#rbSub").textContent = "";
@@ -685,7 +685,6 @@
     const tc0 = tasks.counts || {};
     const tc = tasksOk ? tc0 : { today:"—", overdue:"—", blocked:"—", completed:"—" };
     const up = pendOk ? (pend.upcoming||[]).filter((e) => e && e.event_date).length : "—";
-    const dqAt = (...states) => dqOk ? (dq||[]).filter(x => states.includes(x.state)).length : "—";
     const CFG = {
       admin:       { sub:"Everything across the org", cards:[
         card(up,"Upcoming events","", ), card(st.quote,"Open quotes","link","quotes.html"),
@@ -699,9 +698,6 @@
       sales:       { sub:"Your pipeline", cards:[
         card(st.quote,"Open quotes","link","quotes.html"), card(st.confirmed,"Won / confirmed","good"),
         card(st.total,"Total quotes",""), card("→","New lead","link","leads.html#hb-new") ] },
-      coordinator: { sub:"Today's delivery", cards:[
-        card(tc.today||0,"Tasks today",""), card(tc.overdue||0,"Overdue",(tc.overdue>0?"alert":"")),
-        card(tc.blocked||0,"Blocked",(tc.blocked>0?"warn":"")), card(up,"Upcoming events","") ] },
       supervisor:  { sub:"Today's delivery", cards:[
         card(tc.today||0,"Tasks today",""), card(tc.overdue||0,"Overdue",(tc.overdue>0?"alert":"")),
         card(tc.blocked||0,"Blocked",(tc.blocked>0?"warn":"")), card(up,"Upcoming events","") ] },
@@ -711,9 +707,6 @@
       quality:     { sub:"Verification queue", cards:[
         card(tc.today||0,"Tasks today",""), card(tc.overdue||0,"Overdue",(tc.overdue>0?"alert":"")),
         card(up,"Upcoming events",""), card(tc.completed||0,"Completed","good") ] },
-      designer:    { sub:"Design studio", cards:[
-        card(dqOk ? (dq||[]).length : "—","Active designs",""), card(dqAt('client_review'),"At client review","warn"),
-        card(dqAt('locked'),"Locked","good"), card(dqAt('draft_2d','revise'),"On your board","") ] },
       crew:        { sub:"Your tasks", cards:[
         card(tc.today||0,"Tasks today",""), card(tc.overdue||0,"Overdue",(tc.overdue>0?"alert":"")),
         card(tc.blocked||0,"Blocked",(tc.blocked>0?"warn":"")), card(tc.completed||0,"Done","good") ] },
