@@ -4228,6 +4228,26 @@ window.HelmUrl = HelmUrl;
   // so callers can fall back to an older path; every other error must still surface.
   const rpcMissing = (e) => { const c = (e && e.code) || ""; const m = String((e && e.message) || "");
     return c === "PGRST202" || c === "42883" || /could not find the function|function[^]*does not exist/i.test(m); };
+  /* R235 (0401): a "create + send" press whose answer is lost (venue 4G) and is pressed again must not create / send twice.
+     Each press gets a request key (a uuid), kept for the SAME call with the SAME values until an answer arrives (10 min at
+     most); the <name>_once call answers the first result again for the same key instead of doing it again. A database
+     before APPLY-0401 (no <name>_once) gets the old call - exactly as before. */
+  const onceKeys = new Map();
+  const onceUuid = () => ((typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx".replace(/x/g, () => Math.floor(Math.random() * 16).toString(16)));
+  const rpcKeyed = async (fn, onceFn, args) => {
+    const fp = fn + ":" + JSON.stringify(args || {}), now = Date.now();
+    onceKeys.forEach((v, k) => { if (now - v.t > 600000) onceKeys.delete(k); });
+    let ent = onceKeys.get(fp); if (!ent) { ent = { id: onceUuid(), t: now }; onceKeys.set(fp, ent); }
+    try {
+      const r = await rpc(onceFn, Object.assign({}, args, { p_request_id: ent.id }));
+      onceKeys.delete(fp); return r;
+    } catch (e) {
+      if (rpcMissing(e)) { const r = await rpc(fn, args); onceKeys.delete(fp); return r; }
+      if ((e && e.code) === "22023" && /request_key_reused/.test(String((e && e.hint) || ""))) onceKeys.delete(fp);
+      throw e;   // no answer / refused: the next press with the same values reuses the key (done at most once)
+    }
+  };
   // r58 (0299): three columns are no longer readable straight from their tables; role-checked RPCs answer them:
   // crew_members.day_rate / attributes -> staff_pay_fields (a team login's pay = the studio admin's only, plain crew as before),
   // inventory_items.unit_cost -> inventory_costs (Budget & finance view or Inventory edit; others get no cost),
@@ -4556,10 +4576,10 @@ window.HelmUrl = HelmUrl;
       if (!rpcMissing(r.error)) throw r.error;
       const { data, error } = await supa.from("work_tokens").select("token,phone,name").eq("quote_id", quoteId);
       if (error) throw error; return data; },
-    assignTasks: (quoteId, category, titles, crewId, name, phone) => rpc("assign_tasks",
+    assignTasks: (quoteId, category, titles, crewId, name, phone) => rpcKeyed("assign_tasks", "assign_tasks_once",   // R235: sent twice = done once
       { p_quote_id: quoteId, p_category: category, p_titles: titles, p_crew_id: crewId || null, p_name: name, p_phone: phone }),
     // Phase 40 — outsource a set of tasks to a vendor (sends them the checklist via the worker link)
-    assignTasksVendor: (quoteId, category, titles, vendorId) => rpc("assign_tasks_vendor",
+    assignTasksVendor: (quoteId, category, titles, vendorId) => rpcKeyed("assign_tasks_vendor", "assign_tasks_vendor_once",
       { p_quote_id: quoteId, p_category: category, p_titles: titles, p_vendor_id: vendorId }),
     // R170 (0361): "Send by email" - the server reads the address from the staff record. all = every open task of that
     // person on this event. Answer { ok, masked? , name, reason? } (reason: no_email | just_sent | trial | not_live | vendor | closed)
@@ -4671,7 +4691,7 @@ window.HelmUrl = HelmUrl;
       settings: () => rpc("event_ready_settings_get", {}),
       saveSettings: (o) => rpc("event_ready_settings_set", { p: o || {} }),
       // Remind -> Bell: { ok, name?, reason? } (reason: no_login | just_sent | closed)
-      bell: (taskId) => rpc("event_task_remind_bell", { p_task: taskId }),
+      bell: (taskId) => rpcKeyed("event_task_remind_bell", "event_task_remind_bell_once", { p_task: taskId }),   // R235: sent twice = one ping
     },
     // R227 (0397): the event-day plan lock + the saved floor plan for the event-day screens and the printed pack (no money).
     // get / floor answer null before 0397 is applied (the pages then show no lock bar and no floor card - nothing breaks).
@@ -10582,7 +10602,10 @@ window.HelmUrl = HelmUrl;
       const BELL_PAGE = 10, BELL_MAX = 100;
       let bellLimit = BELL_PAGE, bellMoreBusy = false, bellLastCount = 0;
       const safeFeed = async () => {
-        try { const f = await this.feed(bellLimit); bellLastCount = f && Array.isArray(f.items) ? f.items.length : 0; goodFeed = f; feedFails = 0; feedBackoffUntil = 0; return f; }
+        // R235: a slow answer (> 4 s: the database is busy) skips the next 30 s poll (next one after 60 s) instead of piling on
+        const t0 = Date.now();
+        try { const f = await this.feed(bellLimit); bellLastCount = f && Array.isArray(f.items) ? f.items.length : 0; goodFeed = f; feedFails = 0;
+          feedBackoffUntil = Date.now() - t0 > 4000 ? Date.now() + 60000 : 0; return f; }
         catch (x) {
           feedFails++; feedBackoffUntil = Date.now() + Math.min(480000, 30000 * Math.pow(2, feedFails));
           if (feedFails === 1 && !feedRetryT) feedRetryT = setTimeout(() => { feedRetryT = null; if (!document.hidden) liveRefresh(); }, 4000 + Math.floor(Math.random() * 3000));
@@ -11691,7 +11714,7 @@ window.HelmUrl = HelmUrl;
     get: () => (supa ? rpc("comms_settings_get", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
     set: (patch) => (supa ? rpc("comms_settings_set", { p: patch || {} }) : Promise.reject(new Error("Automatic messages need a signed-in studio."))),
     // "Send reminder now" → { queued, already_queued }; null when the server is older than 0078
-    remindNow: (milestoneId) => (supa ? rpc("payment_reminder_send_now", { p_milestone: milestoneId }).catch((e) => { if (rpcMissing(e)) return null; throw e; })
+    remindNow: (milestoneId) => (supa ? rpcKeyed("payment_reminder_send_now", "payment_reminder_send_now_once", { p_milestone: milestoneId }).catch((e) => { if (rpcMissing(e)) return null; throw e; })
       : Promise.resolve(null)),
     myForward: () => (supa ? rpc("my_wa_forward_get", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
     setMyForward: (on) => (supa ? rpc("my_wa_forward_set", { p_on: !!on }) : Promise.reject(new Error("Needs a signed-in studio."))),
@@ -11827,7 +11850,7 @@ window.HelmUrl = HelmUrl;
       return lvAttn;
     },
     attentionIds: () => linkViews.attention().then((r) => (Array.isArray(r) ? r.map((x) => x && x.quote_id).filter((x) => LV_UUID.test(String(x || ""))).slice(0, 150) : [])).catch(() => []),
-    nudge: (quoteId, channel) => { lvAttn = null; return rpc("link_view_nudge", { p_quote: quoteId, p_channel: channel === "whatsapp" ? "whatsapp" : "email" }); },
+    nudge: (quoteId, channel) => { lvAttn = null; return rpcKeyed("link_view_nudge", "link_view_nudge_once", { p_quote: quoteId, p_channel: channel === "whatsapp" ? "whatsapp" : "email" }); },
     dismiss: (followupId) => { lvAttn = null; return rpc("link_view_followup_dismiss", { p_followup: followupId }); },
     settings: () => (supa ? rpc("link_view_settings_get", {}).catch(lvNull) : Promise.resolve(null)),
     saveSettings: (patch) => (supa ? rpc("link_view_settings_set", { p: patch || {} }) : Promise.reject(new Error("Needs a signed-in studio."))),
