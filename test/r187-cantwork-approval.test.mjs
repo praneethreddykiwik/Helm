@@ -154,7 +154,7 @@ await t('e-mails: request to the office, decision to the staff member, own links
   assert.ok(!cantworkHtml({ ...req, worker: '<img src=x>' }, o).includes('<img src=x>'));
   assert.deepEqual(CANTWORK_KINDS, ['request', 'decision']);
   assert.match(CD, /admin\.rpc\("cantwork_email_claim", \{ p_limit: batch \}\)/);
-  assert.match(CD, /admin\.rpc\("cantwork_email_mark", \{ p_id: id, p_status: res === "failed" \? "retry" : res \}\)/);
+  assert.match(CD, /mark\("cantwork", id, res === "sent", "cantwork_email_mark", \{ p_id: id, p_status: markStatus\(res\) \}\)/);
   assert.match(RT, /cantwork: "cantwork_email_outbox"/);
 });
 

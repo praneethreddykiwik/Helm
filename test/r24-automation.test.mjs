@@ -40,9 +40,9 @@ t("public RPCs are the only anon surface; tick / claim are service role", () => 
 t("comms-dispatch claims both 0269 lanes and marks every row", () => {
   const ix = r("supabase/functions/comms-dispatch/index.ts");
   assert.match(ix, /admin\.rpc\("runsheet_reminder_claim"/);
-  assert.match(ix, /admin\.rpc\("runsheet_reminder_mark"/);
+  assert.match(ix, /"runsheet_reminder_mark"/);
   assert.match(ix, /admin\.rpc\("enquiry_reply_claim"/);
-  assert.match(ix, /admin\.rpc\("enquiry_reply_mark"/);
+  assert.match(ix, /"enquiry_reply_mark"/);
   assert.match(ix, /from "\.\/r24-automation\.mjs"/);
 });
 

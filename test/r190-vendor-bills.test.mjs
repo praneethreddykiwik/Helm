@@ -183,7 +183,7 @@ await t('comms-dispatch: the vendor bill lane - claimed only with an e-mail prov
   assert.match(IDX, /mailOn && !overBudget\(\) \? await admin\.rpc\("vendor_bill_reminder_claim", \{ p_limit: batch \}\) : NOCLAIM;/);
   assert.match(IDX, /await withReply\("vendorBill", id,/);
   assert.match(IDX, /=== "vendor" \? VENDOR_BILL_VENDOR_TX_REASON : VENDOR_BILL_TX_REASON/);
-  assert.match(IDX, /admin\.rpc\("vendor_bill_reminder_mark", \{ p_id: id, p_status: res === "failed" \? "retry" : res \}\)/);
+  assert.match(IDX, /mark\("vendor_bill", id, res === "sent", "vendor_bill_reminder_mark", \{ p_id: id, p_status: markStatus\(res\) \}\)/);
   assert.equal(RT.LANE_TABLES.vendorBill, 'vendor_bill_mail_outbox');
 });
 

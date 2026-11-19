@@ -120,7 +120,7 @@ t('D every button is the plan page, never sign-up, and comes from APP_URL, not a
 t('E dispatcher: both claims, one mark, marketing footer for all four kinds, reply-to', () => {
   assert.match(FN, /admin\.rpc\("trial_followup_email_claim", \{ p_limit: batch \}\)/);
   assert.match(FN, /\[\.\.\.\(Array\.isArray\(rrows\) \? rrows : \[\]\), \.\.\.\(Array\.isArray\(frows\) \? frows : \[\]\)\]/);
-  assert.equal((FN.match(/admin\.rpc\("trial_retention_email_mark"/g) || []).length, 1);
+  assert.equal((FN.match(/"trial_retention_email_mark"/g) || []).length, 1);
   assert.match(FN, /if \(msg && RETENTION_NOTICE_KINDS\.includes\(kind\)\) extra = \{ footer: txFooter\(RETENTION_TX_REASON/);
   assert.match(FN, /extra = marketingExtra\(u, "Helm", FOLLOWUP_REASON, origin\)/);
   assert.match(FN, /follow \? \{ reply_to: FOLLOWUP_REPLY_TO \} : \{\}/);

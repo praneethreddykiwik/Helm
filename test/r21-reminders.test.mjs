@@ -91,7 +91,7 @@ await t('transactional footer reason for deliveries (never an unsubscribe link)'
 await t('comms-dispatch claims + marks delivery rows, e-mail only, transactional footer, link host from APP_URL', () => {
   const src = read('supabase/functions/comms-dispatch/index.ts');
   assert.match(src, /admin\.rpc\("delivery_reminder_claim", \{ p_limit: batch \}\)/);
-  assert.match(src, /admin\.rpc\("delivery_reminder_mark", \{ p_id: id, p_status: res === "failed" \? "retry" : res \}\)/);
+  assert.match(src, /mark\("delivery", id, res === "sent", "delivery_reminder_mark", \{ p_id: id, p_status: markStatus\(res\) \}\)/);
   assert.match(src, /deliveryMessage\(r, origin\)/); assert.match(src, /txFooter\("delivery"/);
   const block = src.slice(src.indexOf('admin.rpc("delivery_reminder_claim"'), src.indexOf('console.log("comms-dispatch: run"'));
   assert.ok(block.length > 100 && !/sendWhatsApp/.test(block), 'delivery block sends e-mail only');

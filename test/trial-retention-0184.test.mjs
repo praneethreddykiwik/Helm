@@ -64,10 +64,10 @@ t('mjs: pure, ASCII', () => {
 t('comms-dispatch: claims + marks retention rows after the kill switch; warnings transactional, +7 unsubscribable', () => {
   const at = FN.indexOf('admin.rpc("trial_retention_email_claim"');
   assert.ok(at > FN.indexOf('Deno.env.get("HELM_COMMS_ENABLED")'));
-  assert.match(FN, /admin\.rpc\("trial_retention_email_mark", \{ p_id: id, p_status: res === "failed" \? "retry" : res \}\)/);
+  assert.match(FN, /mark\("trial_retention", id, res === "sent", "trial_retention_email_mark", \{ p_id: id, p_status: markStatus\(res\) \}\)/);
   assert.match(FN, /RETENTION_NOTICE_KINDS\.includes\(kind\)\) extra = \{ footer: txFooter\(RETENTION_TX_REASON/);
   assert.match(FN.slice(at), /extra = marketingExtra\(u, "Helm", FOLLOWUP_REASON, origin\)/);
-  assert.match(FN.slice(at), /const res: Res = msg && extra \? await sendEmail\(id, to, msg\.subject, msg\.text, "Helm", follow \? \{ reply_to: FOLLOWUP_REPLY_TO \} : \{\}, extra, html\) : "skipped"/);
+  assert.match(FN.slice(at), /const res: Res = already\("trial_retention", id\) \? "sent" : msg && extra \? await sendEmail\(id, to, msg\.subject, msg\.text, "Helm", follow \? \{ reply_to: FOLLOWUP_REPLY_TO \} : \{\}, extra, html\) : "skipped"/);
   assert.match(FN, /admin\.rpc\("trial_retention_mail_settings"\)/);
   assert.match(FN, /String\(r\?\.timezone \?\? ""\), origin, retention\)/);
   assert.ok(!/console\.(log|error)\([^)]*\bto\b[,)]/.test(FN), 'no address in logs');

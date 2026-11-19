@@ -52,7 +52,7 @@ t('template preview mirrors _comms_render', () => {
   assert.match(mig, /return left\(v, 1000\)/);
 });
 t('edge function: dormant unless HELM_COMMS_ENABLED, shared-secret gated, fixed hosts, no PII logs', () => {
-  assert.match(fn, /if \(!commsOn\(Deno\.env\.get\("HELM_COMMS_ENABLED"\)\)\) return json\(\{ status: "dormant" \}\);/);
+  assert.match(fn, /if \(!commsOn\(Deno\.env\.get\("HELM_COMMS_ENABLED"\)\)\) \{[\s\S]{0,600}?return json\(\{ status: "dormant" \}\);\s+\}/);
   assert.match(fn, /WHATSAPP_TPL_TASK_ASSIGNED/); assert.match(fn, /WHATSAPP_TPL_EVENT_REMINDER/);
   assert.match(fn, /sendWhatsApp\(to, text, "task_assigned", sender\)/);   // R130: field templates first (assignMeta), the one-box notice as fallback
   assert.match(fn, /await waSenderOf\(meta\?\.org_id \?\? await orgOfRow\(admin, "assign_notify_outbox", id\)\)/);   // R129: the studio's own number
@@ -63,7 +63,7 @@ t('edge function: dormant unless HELM_COMMS_ENABLED, shared-secret gated, fixed 
   assert.match(fn, /idempotencyKey: "comms-" \+ id/);
   assert.match(fn, /from "npm:@supabase\/supabase-js@2\.119\.0"/);
   for (const m of fn.matchAll(/console\.(?:log|error)\(([^;]*)\);/g)) assert.doesNotMatch(m[1], /\bto\b|text|payload|recipient|subject/, 'PII in log: ' + m[1]);
-  assert.match(fn, /p_status: res === "failed" \? "retry" : res/);
+  assert.match(fn, /p_status: markStatus\(res\)/);   // R236: failed / no provider / held -> retry
 });
 t('migration: additive, idempotent, tenant-scoped, ASCII, no temp tables, registered', () => {
   for (const s of [mig, ap]) {

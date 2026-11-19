@@ -98,7 +98,7 @@ t('B1 vendor-request.mjs: link only from APP_URL + a 64-hex token; no money; fai
 t('B2 comms-dispatch claims the e-mail lane only and marks every row', () => {
   const I = read('supabase/functions/comms-dispatch/index.ts');
   assert.match(I, /admin\.rpc\("vendor_request_claim", \{ p_limit: batch, p_channel: "email" \}\)/);
-  assert.match(I, /admin\.rpc\("vendor_request_mark", \{ p_id: id/);
+  assert.match(I, /"vendor_request_mark", \{ p_id: id/);
 });
 t('C1 public page: noindex, no-referrer, text only (no innerHTML), only config + its own script; route registered', () => {
   const H = read('public/vendor-request.html'), J = read('public/vendor-request.js');

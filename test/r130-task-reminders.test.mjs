@@ -62,7 +62,7 @@ await t('fieldContent: "@link" becomes the full link; wrong field count refused;
 });
 await t('comms-dispatch: reminder lane (studio number only, not set up recorded) + field templates on assignments + wamid kept', () => {
   const s = r('supabase/functions/comms-dispatch/index.ts');
-  assert.match(s, /admin\.rpc\("task_wa_claim"/); assert.match(s, /admin\.rpc\("task_wa_mark"/);
+  assert.match(s, /admin\.rpc\("task_wa_claim"/); assert.match(s, /mark\("task_wa", id, st === "sent", "task_wa_mark"/);
   assert.match(s, /if \(!sender\) \{ st = "not_set_up"; reason = "whatsapp_not_connected"; \}/);
   assert.match(s, /fieldContent\(meta\.template, meta\.params, link\)/);
   assert.match(s, /admin\.rpc\("assign_notify_wamid"/);
