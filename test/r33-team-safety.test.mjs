@@ -50,7 +50,8 @@ await t('team-safety.js: banner lines - waiting change (+ Cancel when allowed), 
   const tr = { id: 't1', from_user: 'u1', from_name: 'Anil', to_user: 'u2', to_name: 'Ravi', expires_at: '2026-11-03T00:00:00Z' };
   const mine = H.bannerItems({ ...OV, pending: [], transfer: tr });
   assert.match(mine[0].text, /^Anil wants to make you the studio owner\./);
-  assert.deepEqual([...mine[0].actions].map((a) => a.act), ['transfer-accept', 'transfer-decline']);
+  // R229 (owner, 19 Nov 2026): Transfer ownership is off - a waiting hand-over can only be declined (no Accept)
+  assert.deepEqual([...mine[0].actions].map((a) => a.act), ['transfer-decline']);
   const owner = H.bannerItems({ ...OV, pending: [], me: 'u1', i_am_owner: true, transfer: tr });
   assert.match(owner[0].text, /^Waiting for Ravi to accept ownership/); assert.deepEqual([...owner[0].actions].map((a) => a.act), ['transfer-cancel']);
   const other = H.bannerItems({ ...OV, pending: [], me: 'u3', transfer: tr });
@@ -120,8 +121,8 @@ await t('Settings: Deactivate wording + flow (never "permanently deletes"), 24-h
   assert.match(C, /try\{ ucTeam=BPStore\.team\?await BPStore\.team\.overview\(\):null; \}catch\(e\)\{ ucTeam=null; \}/);
   assert.match(C, /HelmTeam\.paint\(\$\("#team_safety"\), ucTeam, \{ store:BPStore\.team, guard:BPUI\.guard, confirm:BPUI\.confirm, prompt:BPUI\.prompt,/);
   assert.match(C, /<div id="team_safety" aria-live="polite" hidden><\/div>\s*<div id="team_work" aria-live="polite" hidden><\/div>/);
-  assert.match(C, /<script src="team-safety\.js\?v=4"><\/script>/); assert.match(C, /<link rel="stylesheet" href="team-safety\.css\?v=2">/);
-  assert.ok(C.indexOf('team-safety.js?v=4') < C.indexOf('async function renderUsers()'), 'loaded before the page script');
+  assert.match(C, /<script src="team-safety\.js\?v=5"><\/script>/); assert.match(C, /<link rel="stylesheet" href="team-safety\.css\?v=2">/);
+  assert.ok(C.indexOf('team-safety.js?v=5') < C.indexOf('async function renderUsers()'), 'loaded before the page script');
 });
 
 await t('store-api: BPStore.team -> team_* RPCs; bell kind team_safety (label + Settings link); v286 on every page', () => {
@@ -133,7 +134,7 @@ await t('store-api: BPStore.team -> team_* RPCs; bell kind team_safety (label + 
   assert.match(API, /team_safety: \["🛡️", String\(d\.label \|\| "Team change"\)\],/);
   assert.match(API, /if \(k === "team_safety"\) return "control\.html#users";/);
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = rd('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '388', f);
+    const m = rd('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '389', f);
   }
 });
 await t('comms-dispatch: the team_safety e-mail for every event (names only, Team link on APP_URL); unknown event -> null', async () => {

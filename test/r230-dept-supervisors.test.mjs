@@ -78,7 +78,7 @@ await t('4b APPLY-0399 = the migration + 12 checks in one transaction; MANIFEST,
   assert.match(RUNALL, /R230-DEPT-SUPERVISORS-0399: ALL PASS \\\(25\/25\\\)/);
   assert.match(DBT, /R230-DEPT-SUPERVISORS-0399: ALL PASS/);
   assert.match(OVR, /"0399":/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0397', '0399'\]/);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0398', '0399'\]/);
 });
 await t('4c the tour of Tasks & Crew has at most 8 steps and names departments + supervisor; new CSS uses theme tokens only', () => {
   const i = TOURS.indexOf('"ops.html": ['), j = TOURS.indexOf('\n    ],', i);

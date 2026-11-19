@@ -258,7 +258,7 @@ t('L13 leads / inventory / vendors: wired (cap on a new-record dialog, reset on 
 /* ------------------------------------------------------------------ L14 staff invite */
 t('L14 staff: no "Invite to log in" on sample (is_demo) staff; inviteStaff refuses one too', () => {
   const S = read('public/staff.html');
-  assert.match(S, /\$\{isAdminUser&&!linked&&s\.email&&s\.active!==false&&!BPStore\.staff\.isDemo\(s\)\?`<button class="ic" data-act="invite"/);
+  assert.match(S, /\$\{isAdminUser&&!linked&&s\.email&&s\.active!==false&&!BPStore\.staff\.isDemo\(s\)&&\(STAFF_LOGIN_INVITES_ON\|\|BPStore\.staff\.loginStatus\(s,invites\)==="invited"\)\?`<button class="ic" data-act="invite"/);   // R229: + invites off
   assert.match(fnSrc(S, 'inviteStaff'), /if\(BPStore\.staff\.isDemo\(s\)\)\{ BPUI\.toast\("This is sample staff/);
   assert.match(API, /isDemo: \(s\) => !!\(s && \(s\.is_demo === true \|\| \/\^Demo \\u00b7 \/\.test\(String\(s\.name \|\| ""\)\)\)\),/);
 });

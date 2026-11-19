@@ -156,8 +156,7 @@
     ["users", "Invite by email link", "invite join teammate"],
     ["users", "Create invite link", "invite"],
     ["users", "Pending invites", "invite"],
-    ["users", "Danger zone", "transfer ownership hand over owner studio owner"],
-    ["users", "Transfer ownership", "owner hand over new owner danger zone"],
+    // R229 (owner, 19 Nov 2026): "Danger zone" / "Transfer ownership" removed while Transfer ownership is off
     ["users", "Invite people", "invite add teammate join link new user"],
     ["access", "Roles", "role admin manager planner sales staff"],
     ["access", "Access control — who can see & do what", "roles permissions matrix rbac"],

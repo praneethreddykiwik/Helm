@@ -145,9 +145,21 @@ function fakeDoc() {
   }
   return { createElement: (t) => new El(t), createTextNode: (s) => { const e = new El('#text'); e.textContent = s; return e; }, El };
 }
-await t('team-safety.js: transferBox -> Transfer ownership as its own block (no stray folded line); without it the old box', () => {
+await t('R229: Transfer ownership is OFF - the owner gets no block (Danger zone card stays empty + hidden), no folded box either', () => {
+  assert.match(TSF, /const TRANSFER_OWNERSHIP_ON = false;/);
   const d = fakeDoc(), w = {};
   vm.runInNewContext(TSF, { window: w, globalThis: w, document: d, encodeURIComponent });
+  const OV = { owner_id: 'u1', i_am_owner: true, is_admin: true, me: 'u1', my_two_step: true, deactivated: [], pending: [], transfer: null, admins: [{ user_id: 'u1', name: 'Me' }, { user_id: 'u2', name: 'Arjun' }] };
+  const box = d.createElement('div'), xb = d.createElement('div');
+  w.HelmTeam.paint(box, OV, { store: {}, transferBox: xb });
+  assert.equal(xb.children.length, 0); assert.equal(box.hidden, true);
+  const box2 = d.createElement('div');
+  w.HelmTeam.paint(box2, OV, { store: {} });
+  assert.equal(box2.children.length, 0); assert.equal(box2.hidden, true);
+});
+await t('team-safety.js (switch turned back on): transferBox -> Transfer ownership as its own block (no stray folded line); without it the old box', () => {
+  const d = fakeDoc(), w = {};
+  vm.runInNewContext(TSF.replace('const TRANSFER_OWNERSHIP_ON = false;', 'const TRANSFER_OWNERSHIP_ON = true;'), { window: w, globalThis: w, document: d, encodeURIComponent });
   const H = w.HelmTeam;
   const OV = { owner_id: 'u1', i_am_owner: true, is_admin: true, me: 'u1', my_two_step: true, deactivated: [], pending: [], transfer: null, admins: [{ user_id: 'u1', name: 'Me' }, { user_id: 'u2', name: 'Arjun' }] };
   const box = d.createElement('div'), xb = d.createElement('div');
@@ -235,15 +247,16 @@ await t('page tour (Settings -> Users & invites): <= 8 steps that point at the n
   const u = PT.slice(PT.indexOf('        users: ['), PT.indexOf('        access: ['));
   const steps = u.match(/\{ sel: /g) || [];
   assert.ok(steps.length >= 4 && steps.length <= 8, String(steps.length));
-  for (const s of ['["#inv_email", "#um_invite_btn"]', '["#um_which", "#um_more"]', '"#uc_tools"', '"#um_rows"', '"#um_rows .btn.primary"', '"#um_rows .ucView"', '"#um_rows .ucMore"', '"#ts_danger"'])
+  for (const s of ['["#inv_email", "#um_invite_btn"]', '["#um_which", "#um_more"]', '"#uc_tools"', '"#um_rows"', '"#um_rows .btn.primary"', '"#um_rows .ucView"', '"#um_rows .ucMore"'])
     assert.ok(u.includes('sel: ' + s), s);
+  assert.doesNotMatch(u, /#ts_danger/, 'R229: Transfer ownership is off - no Danger zone step');
   assert.doesNotMatch(u, /#um_rows \.ts-badge/, 'the badge step folded into Team members (Two-step column)');
 });
 await t('asset pins: control.html loads the new team-status / team-safety / control-split; staff.html the same team-status', () => {
   for (const f of ['public/control.html', 'public/staff.html']) {
     const h = rd(f); assert.match(h, /team-status\.js\?v=5"/, f); assert.match(h, /team-status\.css\?v=4"/, f);
   }
-  assert.match(C, /team-safety\.js\?v=4"/); assert.match(C, /control-split\.js\?v=25"/); assert.match(C, /control-split\.css\?v=17"/);
+  assert.match(C, /team-safety\.js\?v=5"/); assert.match(C, /control-split\.js\?v=25"/); assert.match(C, /control-split\.css\?v=17"/);
 });
 
 console.log(`r228-users-page: ${n} test(s) passed.`);

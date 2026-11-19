@@ -293,7 +293,7 @@
 <link rel="stylesheet" href="control-split.css?v=17">
 <link rel="stylesheet" href="roles-matrix.css?v=2"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=102" id="shellProto"></script>
+<script src="/shell-proto.js?v=103" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -994,18 +994,18 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=388"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=389"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=62"></script>
-<script src="tour.js?v=77"></script>
+<script src="page-tours.js?v=63"></script>
+<script src="tour.js?v=78"></script>
 <script src="pkg-review.js?v=10"></script>
 <script src="onboarding-core.js?v=11"></script>
 <script src="studio-billing-form.js?v=4"></script>
-<script src="comms-settings.js?v=7"></script><script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=7"></script><script src="signin-notice-ui.js?v=1"></script>
+<script src="comms-settings.js?v=7"></script><script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=7"></script><script src="signin-notice-ui.js?v=2"></script>
 <script src="delivery-tracker.js?v=3"></script>
 <script src="delivery-settings.js?v=3"></script>
 <script src="inbox-settings.js?v=4"></script><script src="crew-shifts.js?v=8"></script>
@@ -1019,13 +1019,13 @@
 <script src="venues-admin.js?v=10"></script>
 <script src="studio-templates-core.js?v=6"></script>
 <script src="studio-templates.js?v=15"></script>
-<script src="team-safety.js?v=4"></script><script src="team-status.js?v=5"></script>
+<script src="team-safety.js?v=5"></script><script src="team-status.js?v=5"></script>
 <script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=3"></script><script src="money-lock-ui.js?v=2"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=6"></script><script src="payment-schedule-settings.js?v=4"></script>
 <script src="asset-price-grid.js?v=7"></script><script src="pricing-form-core.js?v=4"></script><script src="menu-pkg-editor.js?v=5"></script><script src="layout-rules.js?v=2"></script>
-<script src="trial-demo.js?v=21"></script>
+<script src="trial-demo.js?v=22"></script>
 <script src="trial-upgrade.js?v=3"></script>
 <script src="settings-search-core.js?v=2"></script>
-<script src="search-catalog.js?v=12"></script>
+<script src="search-catalog.js?v=13"></script>
 <script src="control-split.js?v=25"></script>
 <script src="role-defaults.js?v=2"></script><script src="access-deps.js?v=1"></script>
 <script>
@@ -1858,9 +1858,9 @@
   }
   async function initUsers(){
     const sel=$("#um_role");
-    if(!sel.options.length){ sel.innerHTML = ROLES.map(r=>`<option value="${esc(r)}"${r==="crew"?" selected":""}>${esc(BPStore.auth.admin.roleLabel(r))}</option>`).join(""); }
+    if(!sel.options.length){ sel.innerHTML = ROLES.map(r=>`<option value="${esc(r)}"${r==="manager"?" selected":""}>${esc(BPStore.auth.admin.roleLabel(r))}</option>`).join(""); }   // R229: Crew retired - Event manager first
     const isel=$("#inv_role");
-    if(isel && !isel.options.length){ isel.innerHTML = ROLES.map(r=>`<option value="${esc(r)}"${r==="coordinator"?" selected":""}>${esc(BPStore.auth.admin.roleLabel(r))}</option>`).join(""); }
+    if(isel && !isel.options.length){ isel.innerHTML = ROLES.map(r=>`<option value="${esc(r)}"${r==="manager"?" selected":""}>${esc(BPStore.auth.admin.roleLabel(r))}</option>`).join(""); }   // R229: Event coordinator removed
     um2StepWire();
     // R211: "Add user" (temporary password) is an admin-only extra under More options
     { const mo=$("#um_more"); if(mo) mo.hidden=!isAdmin; }
@@ -1948,7 +1948,9 @@
     const lockTitle=(u,self)=>self?" disabled title=\"You can&#39;t change your own role\"":isOwner(u)?" disabled title=\"The studio owner always stays an admin\"":isOff(u)?" disabled title=\"Reactivate them first\"":"";
     // r21: a user whose role is 'client' (no access) shows "No access" + a blank "Choose a role…" picker, never "Client"
     const noAccess=(u)=>u.role==="client";
-    const roleSel=(u,self)=>`${noAccess(u)?'<span class="tag no-access">No access</span> ':""}<select class="roleSel" data-cs-autosave="1" aria-label="Role for ${esc(u.email||u.full_name||"user")}"${typeof lockTitle==="function"?lockTitle(u,self):self?" disabled title=\"You can&#39;t change your own role\"":""}>${noAccess(u)?'<option value="" selected disabled>Choose a role…</option>':""}${(u.role&&!noAccess(u)&&!roles.includes(u.role)?roles.concat([u.role]):roles).map(r=>`<option value="${esc(r)}"${r===u.role?" selected":""}>${esc(rl(r))}</option>`).join("")}</select>`;
+    // R229 (0398): a retired role (Event coordinator / Designer / Crew) stays shown as their current value until changed
+    const retiredHint=(u)=>{ const A=typeof BPStore!=="undefined"&&BPStore.auth&&BPStore.auth.admin; return u&&u.role&&A&&A.isRetiredRole&&A.isRetiredRole(u.role)&&u.role!=="worker"?' <span class="tag retired-role" title="This role is no longer offered. Pick another role for them, for example Event manager or Planner.">Retired role — choose a new one</span>':""; };
+    const roleSel=(u,self)=>`${noAccess(u)?'<span class="tag no-access">No access</span> ':""}<select class="roleSel" data-cs-autosave="1" aria-label="Role for ${esc(u.email||u.full_name||"user")}"${typeof lockTitle==="function"?lockTitle(u,self):self?" disabled title=\"You can&#39;t change your own role\"":""}>${noAccess(u)?'<option value="" selected disabled>Choose a role…</option>':""}${(u.role&&!noAccess(u)&&!roles.includes(u.role)?roles.concat([u.role]):roles).map(r=>`<option value="${esc(r)}"${r===u.role?" selected":""}>${esc(rl(r))}</option>`).join("")}</select>${retiredHint(u)}`;
     // r44 (0291): a small "Two-step" badge next to each ADMIN (on / not set up), so the Owner sees who still needs it
     const ts=(u)=>{ if(u.role!=="admin"||!o.twoStep||!(ucId(u) in o.twoStep)) return "";
       return o.twoStep[ucId(u)]?'<span class="ts-badge on" title="This admin signs in with two-step">Two-step: on</span>'
@@ -2010,7 +2012,7 @@
       if(u.__invite){ const i=u.inv||{}, by=i.invited_by_name?"Invited by "+i.invited_by_name:"Invitation";
         return `<tr class="ucr ucinv" data-inv="${esc(i.id)}" data-email="${esc(u.email)}" data-role="${esc(u.role||"")}">
         <td class="dn" data-label="Name"><div class="ucwho"><span class="ucav ucav-inv" aria-hidden="true">@</span><div class="ucwt"><div class="ucnm"><span class="dnTxt em ucinv-em">${esc(u.email)}</span></div><div class="ucsub">${esc(by)}</div></div></div></td>
-        <td class="ucrole" data-label="Role"><span class="ucinv-role">${esc(rl(u.role||""))}</span></td>
+        <td class="ucrole" data-label="Role"><span class="ucinv-role">${esc(rl(u.role||""))}</span>${retiredHint(u)}</td>
         ${(c=>`<td class="ucprof" data-label="Status">${ucAcctCell(u,st,priv,c.next)}</td>
         <td class="uctwo" data-label="Two-step"></td>
         <td class="ucact">${c.act}</td>`)(cells(RA?RA(st, null, { invite:true, canEdit:o.canEdit }):(o.canEdit?[{key:"view"},{key:"resend",primary:true},{key:"cancel"}]:[]), u, st))}

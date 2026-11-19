@@ -37,7 +37,7 @@ create or replace function pg_temp.nbell(p_uid text) returns integer language sq
 grant execute on function pg_temp.res(text, boolean, text), pg_temp.try(text), pg_temp.j(text), pg_temp.put(text, text), pg_temp.get(text)
   to anon, authenticated, service_role;
 
--- ---- fixture: studio A - a supervisor, a manager, a crew login, a second supervisor; Catering + Decor tasks --------------
+-- ---- fixture: studio A - a supervisor, a manager, a sales login, a second supervisor; Catering + Decor tasks --------------
 do $$
 declare orgA uuid := 'a0000000-0000-4000-8000-000000000001'; qA uuid := 'a0000000-0000-4000-8000-00000000da01';
         u_sup uuid; u_mgr uuid; u_crew uuid; u_sup2 uuid; u_bsup uuid;
@@ -47,7 +47,7 @@ begin
   insert into public.profiles(id, email, full_name, role, org_id, must_change_password, created_at) values
     (u_sup, 'a_sup399@a.test', 'Sunil Supervisor', 'supervisor', orgA, false, now()),
     (u_mgr, 'a_mgr399@a.test', 'Meera Manager', 'manager', orgA, false, now()),
-    (u_crew, 'a_crew399@a.test', 'Ravi Crew', 'crew', orgA, false, now()),
+    (u_crew, 'a_crew399@a.test', 'Ravi Sales', 'sales', orgA, false, now()),   -- a role that may not supervise (0398 retires the crew login role)
     (u_sup2, 'a_sup399b@a.test', 'Vivek Lead', 'supervisor', orgA, false, now()),
     (u_bsup, 'b_sup399@b.test', 'Other Studio Sup', 'supervisor', 'b0000000-0000-4000-8000-000000000001', false, now())
   on conflict (id) do update set role = excluded.role, org_id = excluded.org_id, full_name = excluded.full_name;
@@ -111,7 +111,7 @@ select pg_temp.res('08 Sunil (Staff - Can see, no Assign) reads: Catering = Suni
   and (pg_temp.get('g')::jsonb ->> 'can_edit') = 'false'
   and not exists (select 1 from jsonb_array_elements(pg_temp.get('g')::jsonb -> 'candidates') c where c ->> 'role' not in ('supervisor', 'manager', 'admin'))
   and exists (select 1 from jsonb_array_elements(pg_temp.get('g')::jsonb -> 'candidates') c where c ->> 'name' = 'Meera Manager' and c ->> 'role' = 'manager')
-  and not exists (select 1 from jsonb_array_elements(pg_temp.get('g')::jsonb -> 'candidates') c where c ->> 'name' in ('Ravi Crew', 'Other Studio Sup'))
+  and not exists (select 1 from jsonb_array_elements(pg_temp.get('g')::jsonb -> 'candidates') c where c ->> 'name' in ('Ravi Sales', 'Other Studio Sup'))
   and jsonb_array_length(pg_temp.get('g')::jsonb -> 'log') = 1, pg_temp.get('g'));
 select pg_temp.res('09 same-studio direct read works (RLS), the history table stays closed',
   (select count(*) from public.event_department_supervisors) = 1
@@ -131,7 +131,7 @@ select pg_temp.res('12 another studio: the event is not found (read + set) and i
   and pg_temp.try(format($q$select public.event_department_supervisor_set('a0000000-0000-4000-8000-00000000da01', 'Catering', %L)$q$, pg_temp.get('bsup'))) like '%event not found%'
   and (select count(*) from public.event_department_supervisors) = 0);
 select pg_temp.login('a_admin@a.test');
-select pg_temp.res('13 wrong person refused: a crew login, another studio''s supervisor; wrong department refused',
+select pg_temp.res('13 wrong person refused: a Sales login, another studio''s supervisor; wrong department refused',
   pg_temp.try(format($q$select public.event_department_supervisor_set('a0000000-0000-4000-8000-00000000da01', 'Decor', %L)$q$, pg_temp.get('crew'))) like '%invalid_person%'
   and pg_temp.try(format($q$select public.event_department_supervisor_set('a0000000-0000-4000-8000-00000000da01', 'Decor', %L)$q$, pg_temp.get('bsup'))) like '%invalid_person%'
   and pg_temp.try(format($q$select public.event_department_supervisor_set('a0000000-0000-4000-8000-00000000da01', 'Rocket science', %L)$q$, pg_temp.get('sup'))) like '%invalid_department%'
