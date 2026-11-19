@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-theme="light" class="auth-pending">
+<head>
+<base href="/">
+<style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Event-day pack — Helm Events</title>
+<link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
+<link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
+<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="event-floor.css?v=1">
+<link rel="stylesheet" href="eventday-pack.css?v=1">
+<script src="/trusted-types.js?v=9"></script>
+</head>
+<body class="pk-body">
+<!-- R227: the printed Event-day pack (A4). The toolbar is for the screen only; Print = the browser's print (no app chrome). -->
+<div class="pk-bar" id="pkBar">
+  <a class="ef-btn" id="pkBack" href="ops.html">← Back to Tasks &amp; Crew</a>
+  <span class="pk-bar-t">Event-day pack · A4</span>
+  <button type="button" class="ef-btn dark" id="pkPrint">🖨 Print</button>
+</div>
+<main id="main" class="pk-page">
+  <p class="pk-msg" id="pkMsg" role="status" aria-live="polite" hidden></p>
+  <article class="pk ef-card" id="pack" hidden></article>
+</main>
+<script src="/console-warning.js?v=1"></script>
+<script src="telemetry.js?v=12"></script>
+<script src="config.js?v=113"></script>
+<script src="event-name.js?v=9"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=386"></script>
+<script src="task-status.js?v=3"></script>
+<script src="event-plan.js?v=2"></script>
+<script src="event-floor.js?v=1"></script>
+<script src="eventday-pack.js?v=1"></script>
+</body>
+</html>

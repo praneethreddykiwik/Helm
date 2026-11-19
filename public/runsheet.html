@@ -61,14 +61,15 @@
   .lmodal[hidden]{display:none!important}
   .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);width:min(380px,96vw);padding:24px}
   .sheet h3{margin:0 0 12px}.foot{display:flex;gap:10px;justify-content:flex-end}
-  @media print{ header .nav,.account,#addCard,.rowacts,#printBtn,.crumb,footer{display:none!important} .wrap{max-width:100%} body{background:#fff} .card{box-shadow:none;border:none;padding:0} }
+  @media print{ header .nav,.account,#addCard,#planLock,.rowacts,#printBtn,.crumb,footer{display:none!important} .wrap{max-width:100%} body{background:#fff} .card{box-shadow:none;border:none;padding:0} }
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
 </style>
 <link rel="stylesheet" href="runsheet-polish.css?v=6">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
+<link rel="stylesheet" href="event-floor.css?v=1">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=99" id="shellProto"></script>
+<script src="/shell-proto.js?v=100" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -96,6 +97,8 @@
     </div>
     <p class="rs-intro" id="rsIntro">Run sheet = the minute-by-minute plan for the event day (e.g. 6:00 setup, 7:00 guests arrive). Each line can have an owner who gets a reminder.</p>
 
+    <!-- R227 (0397): "Locked for the event day - Unlock to edit"; while locked the lines are view only (the database refuses changes; reminders still go) -->
+    <div class="ef-lock" id="planLock" hidden></div>
     <div class="card" id="addCard" hidden>
       <div class="addrow">
         <div class="fld"><label for="r_time">Start time</label><input type="time" id="r_time"></div>
@@ -162,10 +165,11 @@
 <script src="telemetry.js?v=12"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=385"></script>
-<script src="page-tours.js?v=59"></script>
-<script src="tour.js?v=74"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=386"></script>
+<script src="page-tours.js?v=60"></script>
+<script src="tour.js?v=75"></script>
 <script src="runsheet-remind.js?v=2"></script>
+<script src="event-floor.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -291,6 +295,9 @@
       ev={ code:BRIEF.code, title:BRIEF.title, eventDate:BRIEF.event_date };
       canEdit=false; canDelete=false; $("#backLink").href="dashboard.html"; $("#backLink").textContent="← Back to dashboard"; renderMyTasks(); }
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"")+(ev.eventDate?(" · "+ev.eventDate):"");
+    // R227 (0397): a plan locked for the event day = the run-sheet is view only here (no bar / no change before 0397)
+    if(!BRIEF && window.HelmEventFloor){ const st=await HelmEventFloor.lockBar($("#planLock"),{ quoteId:id, onChange:()=>location.reload() });
+      if(st && st.locked){ canEdit=false; canDelete=false; } }
     $("#app").hidden=false; $("#addCard").hidden=!canEdit;
     await RR.init(BPStore);
     RR.fillOwner("r",null); RR.wire("r"); RR.wire("e");

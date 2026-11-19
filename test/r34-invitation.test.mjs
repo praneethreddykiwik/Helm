@@ -116,7 +116,7 @@ t('footer: "Designed by <studio> · Made with Helm Studios", studio name escaped
 });
 t('scripts: shared helper loaded on both pages; store-api v296', () => {
   for (const h of [invite, studio]) assert.match(h, /invite-extras\.js\?v=2"( defer)?><\/script>/);   // R224: deferred on the guest page
-  assert.match(studio, /store-api\.js\?v=385/); assert.match(invite, /client-api\.js\?v=\d+/);   // R216: the guest page loads the small client script
+  assert.match(studio, /store-api\.js\?v=386/); assert.match(invite, /client-api\.js\?v=\d+/);   // R216: the guest page loads the small client script
 });
 t('SQL 0284: additive, re-runnable, ASCII; anon RPCs rate-limited via cf-connecting-ip helpers', () => {
   assert.ok(!/[^\x09\x0a\x0d\x20-\x7e]/.test(sql), 'ASCII');

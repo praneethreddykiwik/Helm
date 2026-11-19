@@ -153,7 +153,7 @@ await t('MANIFEST, checker override, run-all (+ quiet switch), release lists, CH
   assert.match(read('supabase/check-prod-overrides.json'), /"0383": \{ "note": "teammate sign-in notices[^\n]*"marker public\._r23_visible\(uuid,uuid\) r205-0383"[^\n]*"execute authenticated public\.signin_notice_ping\(text\)"\] \}(,\n|\n\}\n$)/);
   const RA = read('scripts/db-test/run-all.sh');
   assert.match(RA, /run "r205-signin-notice-0383" "R205-SIGNIN-NOTICE-0383: ALL PASS \\\(39\/39\\\)" psql -q -f tests\/db\/r205-signin-notice-0383\.sql/);
-  assert.match(RA, /-c helm\.signin_notice=off -c helm\.retry_backoff=off"/);
+  assert.match(RA, /-c helm\.signin_notice=off -c helm\.retry_backoff=off( -c helm\.[a-z0-9_]+=off)*"/);   // R227: + helm.r397_plan_lock=off
   for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0384', '0383'[,\]]/, f);
   assert.match(read('supabase/CHECK-PROD-MIGRATIONS.sql'), /0383_r205_signin_notice/);
   const DB = read('tests/db/r205-signin-notice-0383.sql');
@@ -163,8 +163,8 @@ await t('MANIFEST, checker override, run-all (+ quiet switch), release lists, CH
 await t('asset pins: store-api v376 + page-tours v56 on every page that loads them', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const h = read('public/' + f);
-    const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '385', f);
-    const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '59', f);
+    const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '386', f);
+    const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '60', f);
   }
 });
 
