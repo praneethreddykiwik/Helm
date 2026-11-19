@@ -37,7 +37,7 @@ t('shell: sidebar keeps every tab button + id, Requests badge, search box, page 
 });
 t('overview: hq_metrics with a fallback when 0272 is missing; tiles, charts, attention, health', () => {
   assert.match(J, /call\("hq_metrics"\)\.catch\(function \(\) \{ return null; \}\)/);
-  assert.match(J, /renderOverview\(r\[0\] \|\| \{\}, r\[1\] && !Array\.isArray\(r\[1\]\) && r\[1\]\.studios \? r\[1\] : null\)/);
+  assert.match(J, /renderOverview\(r\[0\] \|\| \{\}, r\[1\] && !Array\.isArray\(r\[1\]\) && r\[1\]\.studios \? r\[1\] : null, r\[2\] && !Array\.isArray\(r\[2\]\) \? r\[2\] : null\)/);   // R236: + hq_ops_health
   for (const l of ['"Paying studios"', '"On free trial"', '"Trial → paid"', '"Open requests"', '"Failed e-mails (7 days)"', '"ARR "'])
     assert.ok(J.includes(l), l);
   assert.match(J, /Not available on this database yet\./);   // r126: plain words

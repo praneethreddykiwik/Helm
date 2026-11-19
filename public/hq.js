@@ -572,7 +572,7 @@
   function inrOf(list) { var t = 0; (Array.isArray(list) ? list : []).forEach(function (m) { if ((m.currency || "INR") === "INR") t += num(m.amount); }); return t; }
   function failedEmails(m) { return ((m && m.health && m.health.queues) || []).reduce(function (s, q) { return s + num(q.failed_7d); }, 0); }
   function openRequests(m) { var a = (m && m.attention) || {}; return num(a.new_plan_requests) + num(a.new_sales_enquiries) + num(a.new_suggestions); }
-  function renderOverview(o, m) {
+  function renderOverview(o, m, ops) {
     o = o || {};
     var s = o.studios || {}, u = o.users || {}, b = o.billing || {}, bs = s.by_status || {};
     var k = clear($("#kpis"));
@@ -598,7 +598,7 @@
     }
     renderCharts(o, m);
     renderAttention(o, m);
-    renderHealth(m);
+    renderHealth(m, ops);
     renderTop(m);
     var st = clear($("#byStatus"));
     ["trial", "active", "past_due", "suspended", "cancelled", "none"].forEach(function (key) {
@@ -678,8 +678,43 @@
     $("#attCount").textContent = n ? int(n) + " item" + (n === 1 ? "" : "s") : "";
   }
   var QUEUE_OK_MIN = 60;   // a waiting e-mail older than this many minutes = the sender is probably not running
-  function renderHealth(m) {
+  // R236 (0402): hq_ops_health() = ops_health() - every queue, every job vs its schedule, refused / switched-off sender calls, the sender
+  // heartbeat - red / amber / green. Pure helpers (exported for tests): the pill class and words of a level.
+  function opsPill(level) { return level === "red" ? "bad" : level === "amber" ? "warn" : "ok"; }
+  function opsWord(level) { return level === "red" ? "Action needed" : level === "amber" ? "Check" : "All good"; }
+  function opsQueueNote(q) {
+    q = q || {};
+    if (q.error) return "Couldn't be read on this database.";
+    if (num(q.waiting) > 0 && q.oldest_waiting && q.level !== "green") return "Oldest waiting since " + ago2(q.oldest_waiting) + (q.level === "red" ? " - the sender may be off." : ".");
+    if (num(q.failed_24h) > 0) return int(q.failed_24h) + " failed in the last 24 hours.";
+    return "";
+  }
+  function renderOpsHealth(box, st, ops) {
+    (ops.checks || []).forEach(function (c) {
+      box.appendChild(el("div", { cls: "hrow" }, [el("span", { text: c.label || c.key }), el("span", { cls: "pill " + opsPill(c.level), text: opsWord(c.level) })]));
+      if (c.text && c.level !== "green") box.appendChild(el("div", { cls: "muted hnote", text: c.text }));
+    });
+    var jobs = (ops.jobs || []).filter(function (j) { return j.level !== "green"; });
+    if (jobs.length) {
+      box.appendChild(el("h3", { cls: "muted", text: "Jobs to look at" }));
+      jobs.slice(0, 8).forEach(function (j) {
+        box.appendChild(el("div", { cls: "hrow" }, [el("span", { cls: "m", text: j.name }), el("span", { cls: "pill " + opsPill(j.level), text: j.why || opsWord(j.level) })]));
+      });
+    }
+    box.appendChild(el("h3", { cls: "muted", text: "Queues" }));
+    (ops.queues || []).forEach(function (q) {
+      box.appendChild(el("div", { cls: "hrow" }, [el("span", { text: q.label || q.name }), el("span", { cls: "nums" }, [
+        el("span", { cls: "pill " + (num(q.waiting) > 0 ? opsPill(q.level) : ""), text: int(q.waiting) + " waiting" }),
+        el("span", { cls: "pill " + (num(q.failed_24h) > 0 ? "warn" : ""), text: int(q.failed_24h) + " failed (24 h)" }),
+        el("span", { cls: "pill ok", text: int(q.sent_24h) + " sent (24 h)" })])]));
+      var note = opsQueueNote(q);
+      if (note) box.appendChild(el("div", { cls: "muted hnote", text: note }));
+    });
+    st.appendChild(el("span", { cls: "pill " + opsPill(ops.overall), text: opsWord(ops.overall) }));
+  }
+  function renderHealth(m, ops) {
     var box = clear($("#health")), st = clear($("#healthState"));
+    if (ops && typeof ops === "object" && Array.isArray(ops.checks)) { renderOpsHealth(box, st, ops); return; }
     if (!m || !m.health) { box.appendChild(el("div", { cls: "empty", text: SOON })); return; }
     var qs = m.health.queues || [], bad = 0;
     qs.forEach(function (q) {
@@ -2384,8 +2419,9 @@
 
   // r25: hq_overview (always) + hq_metrics (0272; a database without it shows the older tiles and "appears after SQL 0272")
   async function loadOverview() {
-    var r = await Promise.all([call("hq_overview"), call("hq_metrics").catch(function () { return null; })]);
-    renderOverview(r[0] || {}, r[1] && !Array.isArray(r[1]) && r[1].studios ? r[1] : null);
+    // R236: + hq_ops_health (= ops_health, 0402; a database without it keeps the older 7-queue card)
+    var r = await Promise.all([call("hq_overview"), call("hq_metrics").catch(function () { return null; }), call("hq_ops_health").catch(function () { return null; })]);
+    renderOverview(r[0] || {}, r[1] && !Array.isArray(r[1]) && r[1].studios ? r[1] : null, r[2] && !Array.isArray(r[2]) ? r[2] : null);
   }
   async function loadAll() {
     $("#err").hidden = true;

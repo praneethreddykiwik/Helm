@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4642 objects): body 174, bucket 9, col 250, con 416, cron 20, exec 19, fn 2080, idx 537, marker 113, pol 190, polexpr 4, pre 114, pub 5, seq 1, tbl 300, trg 408, view 2.
+-- What is checked (4643 objects): body 174, bucket 9, col 250, con 416, cron 20, exec 19, fn 2081, idx 537, marker 113, pol 190, polexpr 4, pre 114, pub 5, seq 1, tbl 300, trg 408, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4645,6 +4645,7 @@ with o(m, k, s, n, x) as (values
   ('0402_r236_ops_health', 'fn', 'public', '_ops402_queues', ''),
   ('0402_r236_ops_health', 'fn', 'public', '_ops402_health', ''),
   ('0402_r236_ops_health', 'fn', 'public', 'ops_health', ''),
+  ('0402_r236_ops_health', 'fn', 'public', 'hq_ops_health', ''),
   ('0402_r236_ops_health', 'pre', null, '__pre0402', null),
   ('0402_r236_ops_health', 'trg', 'public.staff_email_outbox', 'zz_r402_backoff', null),
   ('0402_r236_ops_health', 'trg', 'public.staff_update_outbox', 'zz_r402_backoff', null),

@@ -10,7 +10,7 @@
 -- code command, once; a hand-made job is never changed (owner_version), another job calling the function blocks a second
 -- one; the kick posts to <base>/<function> with the secret from Vault and FAILS when it is missing; the report never shows a
 -- command; adopt switches only by hand; the address can come from helm_wa_worker_url; re-applying 0402 changes no job;
--- (6) ops_health - anon / studio users refused, HQ owner + viewer read it; 18 queues; old waiting row = red, failed = amber;
+-- (6) ops_health / hq_ops_health (the HQ page call) - anon / studio users refused, HQ owner + viewer read it; 18 queues; old waiting row = red, failed = amber;
 -- stale / missing / paused jobs; refused calls (401) red, "dormant" answers amber; heartbeat switched off = red, fresh =
 -- green; reading changes nothing; cron interval parsing.
 -- Re-applies 0402 twice. Local disposable PG only. Fake data only. Rolled back.
@@ -63,8 +63,8 @@ select pg_temp.t('1b every 0402 function is security definer (or plain sql helpe
     where p.pronamespace = 'public'::regnamespace and (p.proname like '\_ops402\_%' or p.proname like 'ops\_%' or p.proname like '\_r402\_%')
       and p.proname not like '%\_\_pre0402'));
 select pg_temp.t('1c signed-in may run only ops_health; the sender calls are service role only; anon runs nothing',
-  has_function_privilege('authenticated', 'public.ops_health()', 'execute')
-  and not has_function_privilege('anon', 'public.ops_health()', 'execute')
+  has_function_privilege('authenticated', 'public.ops_health()', 'execute') and has_function_privilege('authenticated', 'public.hq_ops_health()', 'execute')
+  and not has_function_privilege('anon', 'public.ops_health()', 'execute') and not has_function_privilege('anon', 'public.hq_ops_health()', 'execute')
   and not has_function_privilege('authenticated', 'public._ops402_health()', 'execute')
   and not has_function_privilege('authenticated', 'public.ops_heartbeat_beat(text,text,jsonb)', 'execute')
   and has_function_privilege('service_role', 'public.ops_heartbeat_beat(text,text,jsonb)', 'execute')
@@ -265,10 +265,10 @@ do $$ declare h jsonb; v_id uuid; v_j bigint; begin
   update public.helm_hq_settings set hq_idle_minutes = 30, hq_max_hours = 12, hq_reauth_minutes = 15, hq_ip_allowlist_on = false where id;
   perform pg_temp.su();
   perform auth.login_anon();
-  perform pg_temp.t('6a anon refused', pg_temp.try('select public.ops_health()') like '42501%');
+  perform pg_temp.t('6a anon refused', pg_temp.try('select public.ops_health()') like '42501%' and pg_temp.try('select public.hq_ops_health()') like '42501%');
   perform pg_temp.su();
   perform auth.login_as((select id from public.profiles where org_id = 'a0000000-0000-4000-8000-000000000001' and role = 'admin' order by id limit 1));
-  perform pg_temp.t('6b a studio admin (not HQ) is refused', pg_temp.try('select public.ops_health()') not like 'ok%');
+  perform pg_temp.t('6b a studio admin (not HQ) is refused', pg_temp.try('select public.ops_health()') not like 'ok%' and pg_temp.try('select public.hq_ops_health()') not like 'ok%');
   perform pg_temp.su();
   -- data: an old waiting Helm notice, a failed staff e-mail, jobs, call answers, heartbeat
   delete from public.helm_notice_outbox where status = 'pending';
@@ -312,7 +312,7 @@ do $$ declare h jsonb; v_id uuid; v_j bigint; begin
   insert into cron.job_run_details(jobid, status, start_time) select j.jobid, 'succeeded', now() - interval '1 minute' from cron.job j;
   set local role service_role; perform public.ops_heartbeat_beat('comms-dispatch', 'ok', '{"sent": 2}'::jsonb); execute 'reset role';
   perform pg_temp.hq('r236_viewer@hqstaff.test');
-  h := public.ops_health();
+  h := public.hq_ops_health();
   perform pg_temp.su();
   perform pg_temp.t('6i HQ viewer (Overview) reads it; everything fine = green overall',
     h ->> 'overall' = 'green' and pg_temp.lvl(h, 'dispatcher') = 'green' and pg_temp.lvl(h, 'jobs') = 'green' and pg_temp.lvl(h, 'calls') = 'green',

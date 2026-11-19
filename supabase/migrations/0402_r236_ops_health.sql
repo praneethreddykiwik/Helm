@@ -632,9 +632,17 @@ begin
   perform public._hq27_require(public._hq27_read_perm('hq_metrics'), false);
   return public._ops402_health();
 end $$;
+-- the same for the HQ page (its data layer calls hq_* functions only)
+create or replace function public.hq_ops_health()
+returns jsonb language plpgsql volatile security definer set search_path = '' as $$
+-- r236-0402: = ops_health()
+begin
+  perform public._hq27_require(public._hq27_read_perm('hq_metrics'), false);
+  return public._ops402_health();
+end $$;
 
 -- ===========================================================================================================================
--- 6) privileges: nobody but the database owner, except: ops_health (signed-in; HQ gate inside), the three sender calls
+-- 6) privileges: nobody but the database owner, except: ops_health + hq_ops_health (signed-in; HQ gate inside), the three sender calls
 --    (service role)
 -- ===========================================================================================================================
 do $$ declare f text; r text; begin
@@ -643,7 +651,7 @@ do $$ declare f text; r text; begin
       'public._r402_keep(text)', 'public._ops402_mailers()', 'public._ops402_cmd(text)', 'public._ops402_norm(text)',
       'public._ops402_base_url()', 'public.ops_kick_mailer(text)', 'public.ops_mailer_cron_report()', 'public.ops_mailer_cron_ensure()',
       'public.ops_mailer_cron_adopt(text)', 'public._ops402_every(text)', 'public._ops402_expected_jobs()', 'public._ops402_worst(text[])',
-      'public._ops402_queues()', 'public._ops402_health()', 'public.ops_health()'] loop
+      'public._ops402_queues()', 'public._ops402_health()', 'public.ops_health()', 'public.hq_ops_health()'] loop
     continue when to_regprocedure(f) is null;
     execute format('revoke all on function %s from public', f);
     foreach r in array array['anon', 'authenticated', 'service_role'] loop
@@ -657,6 +665,7 @@ do $$ declare f text; r text; begin
   end if;
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
     execute 'grant execute on function public.ops_health() to authenticated';
+    execute 'grant execute on function public.hq_ops_health() to authenticated';
   end if;
   foreach f in array array['ops_heartbeat', 'ops_send_ledger'] loop
     execute format('revoke all on table public.%I from public', f);
