@@ -173,11 +173,11 @@
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="task-reminders.css?v=4"><link rel="stylesheet" href="when-picker.css?v=3"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=8">
-<link rel="stylesheet" href="ops-board.css?v=4">
+<link rel="stylesheet" href="ops-board.css?v=5">
 <link rel="stylesheet" href="event-plan.css?v=1">
 <link rel="stylesheet" href="event-floor.css?v=1">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=102" id="shellProto"></script>
+<script src="/shell-proto.js?v=103" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -211,40 +211,15 @@
     <!-- R227 (0397, event-floor.js): "Locked for the event day - Unlock to edit" / Lock plan; hidden before 0397 -->
     <section class="ef-lock" id="tcLock" hidden></section>
 
-    <div class="tc-phase-row" id="tcPhase">
-      <div class="tc-seggrp" role="group" aria-label="Which part of the job">
-        <!-- R226 (EVENT-OPS-PLAN-V2.md): the same four windows as the Event-day monitor; data-phase = the R222 two-mode rule -->
-        <button type="button" class="tc-seg" data-phase="plan" data-win="before" aria-pressed="false">Before the event</button>
-        <button type="button" class="tc-seg" data-phase="plan" data-win="daybefore" aria-pressed="false">Day before</button>
-        <button type="button" class="tc-seg" data-phase="live" data-win="onday" aria-pressed="false">On the day</button>
-        <button type="button" class="tc-seg" data-phase="live" data-win="wrapup" aria-pressed="false">Wrap-up</button>
-      </div>
-      <span class="tc-phase-note" id="tcPhaseNote"></span>
-      <button type="button" class="tc-btn sm ghost" id="tcPhaseAuto" hidden>Use the studio’s clock</button>
-    </div>
-
-    <!-- R222 (EVENT-OPS-PLAN.md): Before = "Get set up" shortcuts; On the day = run-sheet now / next, issues, wrap up (ops-board.js) -->
-    <section class="tc-card tc-prep" id="tcPrep" aria-label="Get set up" hidden></section>
-    <!-- R226 (0396, event-plan.js): the Day-before checklist and the Ready-by card (latest start per set-up job); hidden before 0396 -->
-    <section class="tc-card ep-card" id="tcDayBefore" aria-labelledby="tcDayBeforeH" hidden></section>
-    <section class="tc-card ep-card" id="tcReady" aria-labelledby="tcReadyH" hidden></section>
-    <!-- R227 (0397): the saved floor plan for the day (2D snapshot, sizes, seats vs guests) + 2D / 3D / Measure view only + Print pack -->
-    <section class="tc-card ef-card" id="tcFloor" aria-labelledby="tcFloorH" hidden></section>
-    <section class="tc-card tc-runcard" id="tcRun" aria-label="Run-sheet" hidden></section>
-    <section class="tc-attn" id="attn" aria-label="Needs attention"></section>
-    <span class="tc-sr" id="tcAnnounce" aria-live="polite"></span>
-    <div class="tc-ops2">
-      <section class="tc-card tc-iss" id="tcIssues" aria-label="Issues" hidden></section>
-      <section class="tc-card tc-wrap" id="tcWrap" aria-label="Wrap up" hidden></section>
-    </div>
-
+    <!-- R230: Tasks by department is the main section again (each section = a department card: its tasks with person, time,
+         status, Email / WhatsApp, + Add task, and its Supervisor, 0399); the event steps sit below it -->
     <div class="tc-layout">
       <section class="tc-work tc-card" id="work" aria-labelledby="workH">
         <div class="tc-work-head">
-          <h2 id="workH" class="tc-h2">Tasks <span class="tc-count" id="taskCount"></span></h2>
+          <h2 id="workH" class="tc-h2">Tasks by department <span class="tc-count" id="taskCount"></span></h2>
           <div class="tc-seggrp" id="tcViews" role="group" aria-label="View">
+            <button type="button" class="tc-seg sm" data-view="list" aria-pressed="true">By department</button>
             <button type="button" class="tc-seg sm" data-view="timeline" aria-pressed="false">Timeline</button>
-            <button type="button" class="tc-seg sm" data-view="list" aria-pressed="true">List</button>
             <button type="button" class="tc-seg sm" data-view="people" aria-pressed="false">By person</button>
           </div>
           <button type="button" class="tc-btn tc-primary" id="addBtn">+ Add &amp; assign</button>
@@ -271,6 +246,37 @@
         </section>
       </aside>
     </div>
+
+    <!-- R230: the four event steps (R222 / R226) - kept whole, moved below the departments and quieter -->
+    <section class="tc-stepsec" id="tcSteps" aria-labelledby="tcStepsH">
+      <h2 class="tc-h2 tc-stepsec-h" id="tcStepsH">Event steps</h2>
+      <div class="tc-phase-row" id="tcPhase">
+        <div class="tc-seggrp" role="group" aria-label="Which part of the job">
+          <!-- R226 (EVENT-OPS-PLAN-V2.md): the same four windows as the Event-day monitor; data-phase = the R222 two-mode rule -->
+          <button type="button" class="tc-seg" data-phase="plan" data-win="before" aria-pressed="false">Before the event</button>
+          <button type="button" class="tc-seg" data-phase="plan" data-win="daybefore" aria-pressed="false">Day before</button>
+          <button type="button" class="tc-seg" data-phase="live" data-win="onday" aria-pressed="false">On the day</button>
+          <button type="button" class="tc-seg" data-phase="live" data-win="wrapup" aria-pressed="false">Wrap-up</button>
+        </div>
+        <span class="tc-phase-note" id="tcPhaseNote"></span>
+        <button type="button" class="tc-btn sm ghost" id="tcPhaseAuto" hidden>Use the studio’s clock</button>
+      </div>
+
+      <!-- R222 (EVENT-OPS-PLAN.md): Before = "Get set up" shortcuts; On the day = run-sheet now / next, issues, wrap up (ops-board.js) -->
+      <section class="tc-card tc-prep" id="tcPrep" aria-label="Get set up" hidden></section>
+      <!-- R226 (0396, event-plan.js): the Day-before checklist and the Ready-by card (latest start per set-up job); hidden before 0396 -->
+      <section class="tc-card ep-card" id="tcDayBefore" aria-labelledby="tcDayBeforeH" hidden></section>
+      <section class="tc-card ep-card" id="tcReady" aria-labelledby="tcReadyH" hidden></section>
+      <!-- R227 (0397): the saved floor plan for the day (2D snapshot, sizes, seats vs guests) + 2D / 3D / Measure view only + Print pack -->
+      <section class="tc-card ef-card" id="tcFloor" aria-labelledby="tcFloorH" hidden></section>
+      <section class="tc-card tc-runcard" id="tcRun" aria-label="Run-sheet" hidden></section>
+      <section class="tc-attn" id="attn" aria-label="Needs attention"></section>
+      <span class="tc-sr" id="tcAnnounce" aria-live="polite"></span>
+      <div class="tc-ops2">
+        <section class="tc-card tc-iss" id="tcIssues" aria-label="Issues" hidden></section>
+        <section class="tc-card tc-wrap" id="tcWrap" aria-label="Wrap up" hidden></section>
+      </div>
+    </section>
 
     <!-- r23 (0265): open shifts for this event (built by crew-shifts.js; hidden when off / before 0265) -->
     <div class="card" id="shiftCard" hidden></div>
@@ -419,10 +425,10 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=389"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=390"></script>
 <script src="task-status.js?v=3"></script>
 <script src="event-plan.js?v=2"></script>
-<script src="ops-board.js?v=5"></script>
+<script src="ops-board.js?v=6"></script>
 <script src="event-floor.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);

@@ -136,10 +136,11 @@ await t('5a page layout: header, phase switch, attention, three views, chips, Ap
   for (const id of ['evhead', 'tcPhase', 'attn', 'tcViews', 'chips', 'tcQ', 'view', 'crewList', 'feed', 'addBtn', 'bulk', 'drawer', 'sheet', 'toMonitor', 'tcViewOnly'])
     assert.ok(OPS.includes(`id="${id}"`), id);
   assert.match(OPS, /data-phase="plan" (data-win="before" )?aria-pressed="false">Before the event<\/button>/); assert.match(OPS, /data-phase="live" (data-win="onday" )?aria-pressed="false">On the day<\/button>/);
-  assert.match(OPS, /data-view="timeline"[^>]*>Timeline<\/button>/); assert.match(OPS, /data-view="list" aria-pressed="true">List<\/button>/); assert.match(OPS, /data-view="people"[^>]*>By person<\/button>/);
+  assert.match(OPS, /data-view="timeline"[^>]*>Timeline<\/button>/); assert.match(OPS, /data-view="list" aria-pressed="true">By department<\/button>/); assert.match(OPS, /data-view="people"[^>]*>By person<\/button>/);
   assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>/); assert.match(read('public/monitor.html'), /<script src="task-status\.js\?v=\d+"><\/script>\n(<script src="event-plan\.js\?v=\d+"><\/script>\n)?(<script src="event-floor\.js\?v=\d+"><\/script>\n)?<script src="monitor\.js/);
   assert.match(OPS, /<link rel="stylesheet" href="ops-board\.css\?v=\d+">/);
-  assert.match(BRD, /S\.view = v === "timeline" \|\| v === "people" \|\| v === "list" \? v : "list";   \/\/ planning opens on List/);
+  // R230: the list view is "Tasks by department" and the page opens on it (saved under a new key)
+  assert.match(BRD, /S\.view = v === "timeline" \|\| v === "people" \|\| v === "list" \? v : "list";/);
   assert.match(CSS, /\.tc-search input:focus\{outline:none;background:#fff/);
   assert.match(BRD, /e\.key === "\/" && !typing/, '"/" jumps to search');
 });
@@ -199,7 +200,7 @@ await t('6c view-only roles: same page, no action buttons, "View only" label', (
 });
 await t('6d page tour covers the new page', () => {
   const pt = read('public/page-tours.js');
-  for (const s of ['"#evhead"', '"#tcPhase"', '"#attn"', '["#chips", "#tcQ"]', '["#tcViews", "#view"]', '"#addBtn"']) assert.ok(pt.includes('sel: ' + s), s);
+  for (const s of ['"#evhead"', '"#tcPhase"', '"#attn"', '["#chips", "#tcQ"]', '["#view", "#work"]', '"#addBtn"']) assert.ok(pt.includes('sel: ' + s), s);
 });
 
 console.log(`\nr192-tasks-crew: ${pass} passed, ${fail} failed`);

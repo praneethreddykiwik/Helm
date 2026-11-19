@@ -477,6 +477,8 @@ run "r227-plan-lock-0397" "R227-PLAN-LOCK-0397: ALL PASS \(36/36\)" psql -q -f t
 run "r229-retire-roles-0398" "R229-RETIRE-ROLES-0398: ALL PASS \(22/22\)" psql -q -f tests/db/r229-retire-roles-0398.sql
 # r229: the owner-run DELETE-0398-RETIRED-ROLE-USERS.sql, both steps, without the harness switches (like the SQL editor): lists exactly the coordinator + designer, stops without / with a wrong number, deletes only them with copies, history kept (pointers emptied), admin / planner / crew survive, role_access of the two roles removed. NOT rolled back - runs last
 run "r229-delete-retired-users-0398" "R229-DELETE-0398: PASS" bash tests/db/r229-delete-retired-users-0398.sh
+# r230 (0399): one supervisor per event + department - assign / same person again (nothing new) / replace / clear (row kept), history + Audit log, ONE bell notice per new supervisor (only they see it), refused without "Assign & send tasks", wrong person / department refused, another studio blocked, the 0396 latest-start + 0369 escalation bell rows of that department's tasks also reach the supervisor (never doubled, office reminders untouched), re-apply keeps everything; rolled back
+run "r230-dept-supervisors-0399" "R230-DEPT-SUPERVISORS-0399: ALL PASS \(25/25\)" psql -q -f tests/db/r230-dept-supervisors-0399.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 
