@@ -10,6 +10,9 @@ BILL='a0000000-0000-4000-8000-0000000e3921'; KEY="r218-race-$$"
 FN="${1:-vendor_bill_pay}"   # vendor_bill_pay (r190 page) or record_vendor_payout (older page)
 # later suites re-apply 0373 / 0156 over the patched bodies: put the 0390 line back first (safe to run twice)
 psql -q -v ON_ERROR_STOP=1 -f supabase/migrations/0390_r218_vendor_pay_same_key.sql >/dev/null 2>&1 || { echo "0390 did not apply"; exit 1; }
+# r234: remember quote A's state and put it back at the end - this script COMMITS (two real sessions), and a leaked
+# status = 'confirmed' made later suites' follow-up claims skip (audit-medium-0155 #23 got [] in run-all.sh)
+PREV=$(psql -q -t -A -c "select coalesce(status, '') || '|' || coalesce(deleted_at::text, '') || '|' || coalesce(is_demo::text, '') from public.quotes where id = '$Q'")
 psql -q -v ON_ERROR_STOP=1 >/dev/null <<SQL
 update public.quotes set deleted_at = null, status = 'confirmed', is_demo = false where id = '$Q';
 delete from public.event_closure where quote_id = '$Q';
@@ -40,4 +43,6 @@ echo "B: $B_OUT"
 N=$(psql -q -t -A -c "select count(*) from public.vendor_payouts where bill_id = '$BILL'")
 echo "payout rows for the bill: $N"
 psql -q -c "delete from public.vendor_payouts where bill_id = '$BILL'; delete from public.vendor_bills where id = '$BILL';" >/dev/null 2>&1 || true
+IFS='|' read -r P_ST P_DEL P_DEMO <<<"$PREV"
+[ -n "$PREV" ] && psql -q -v ON_ERROR_STOP=1 -c "update public.quotes set status = nullif('$P_ST', ''), deleted_at = nullif('$P_DEL', '')::timestamptz, is_demo = nullif('$P_DEMO', '')::boolean where id = '$Q';" >/dev/null 2>&1 || true
 if [ "$N" = "1" ] && echo "$B_OUT" | grep -q '"duplicate": *true'; then echo "R218-VENDOR-PAY-RACE ($FN): PASS"; else echo "R218-VENDOR-PAY-RACE ($FN): FAIL"; fi

@@ -141,8 +141,15 @@ exception when others then perform pg_temp.su(); insert into _mf values ('2x boo
 do $$ declare e text; r jsonb; qa uuid := 'a0000000-0000-4000-8000-00000000da01'; orgA uuid := 'a0000000-0000-4000-8000-000000000001';
   v_to text; v_id uuid; begin
   perform pg_temp.su();
+  -- r234: self-contained. Quote A must be an open quote here (a follow-up for a confirmed / approved / cancelled /
+  -- closed / deleted quote is correctly skipped by the claim). An earlier suite in run-all.sh
+  -- (r218-vendor-pay-same-key-race.sh) commits status = 'confirmed' on quote A and the reseed keeps it, which made #23
+  -- see []. Put the quote back to the fixture's open state inside this rolled-back transaction, and park every other
+  -- pending comms_outbox row so only the test row can be handed out.
   update public.quotes set client = '{"name":"Alice","phone":"98765 43210","email":"alice@example.com"}'::jsonb,
-         event_date = current_date + 30 where id = qa;
+         event_date = current_date + 30, status = 'quote', approval_status = 'sent', deleted_at = null, archived_at = null,
+         lifecycle_stage = 'quote' where id = qa;
+  update public.comms_outbox set claimed_at = now() where sent_at is null and status = 'pending';
   perform pg_temp.login('a_admin@a.test');
   r := public.whatsapp_authorize(qa, '9876543210');
   perform pg_temp.res('18 staff send to the client number ok', r ->> 'to' = '919876543210', r::text);
@@ -171,7 +178,14 @@ do $$ declare e text; r jsonb; qa uuid := 'a0000000-0000-4000-8000-00000000da01'
   perform pg_temp.svc();
   r := public.comms_outbox_claim(50);
   perform pg_temp.su();
-  perform pg_temp.res('23 control: without STOP the same row is handed out', r::text like '%' || v_id::text || '%', coalesce(r::text, 'null'));
+  perform pg_temp.res('23 control: without STOP the same row is handed out', r::text like '%' || v_id::text || '%',
+    coalesce(r::text, 'null') || ' | row: ' || coalesce((select jsonb_build_object('status', c.status, 'claimed_at', c.claimed_at,
+      'sent_at', c.sent_at, 'attempts', c.attempts, 'next_attempt_at', c.next_attempt_at, 'to', c.recipient)::text
+      from public.comms_outbox c where c.id = v_id), 'gone')
+    || ' | quote: ' || coalesce((select jsonb_build_object('status', q.status, 'approval', q.approval_status, 'deleted', q.deleted_at,
+      'archived', q.archived_at, 'stage', q.lifecycle_stage, 'live', public._comms_quote_live(q.id))::text
+      from public.quotes q where q.id = qa), 'gone')
+    || ' | cfg: ' || coalesce(public._comms_cfg(orgA)::text, 'null'));
   insert into public.whatsapp_opt_outs(phone, org_id, opted_out, source) values ('919876543210', orgA, true, 'reply');
   insert into public.pkg_outbox(org_id, quote_id, audience, channel, kind, recipient, payload, dedupe_key, status)
     values (orgA, qa, 'client', 'whatsapp', 'pkg_accepted', '919876543210', '{}', 'a155test:pkg:1', 'pending'),
