@@ -221,7 +221,7 @@
           { sel: "#cf_add", title: "Add a field", desc: "Pick where it goes, name it, choose its type, then Add field." },
         ],
         users: [
-          // R228: the page header button, the folding invite panel, filter tabs, one status per person, View / Edit / "..." menu, Danger zone
+          // R228: the page header button, the folding invite panel, filter tabs, one status per person, View / Edit / "..." menu (R229: Danger zone / Transfer ownership off)
           { sel: ["#inv_email", "#um_invite_btn"], title: "Invite people", desc: "The main way to add a teammate: Invite people, type their e-mail, pick a role, Send invite. They get a join link (7 days), choose their own password and join. A deactivated teammate's e-mail offers Reactivate instead." },
           { sel: ["#um_which", "#um_more"], title: "Which should I use?", desc: "Invite by email link (recommended): they choose their own password. Add user under More options (admins only): the login exists now and a temporary password is shown to you once. Learn more compares them with the Staff page options." },
           { sel: "#uc_tools", title: "Find a teammate", desc: "Search the team, or use the tabs to show only Active people, people Invited but not signed up, people who never signed in, incomplete profiles or Deactivated people. Each tab shows how many." },
@@ -229,7 +229,6 @@
           { sel: "#um_rows .btn.primary", title: "One main button per person", desc: "Anyone not in yet has one clear next step under their status: Resend invite (an expired link gets a new 7-day one), Send sign-in link (never signed in), or Reactivate. Signed-in people have none." },
           { sel: "#um_rows .ucView", title: "View a person", desc: "View opens their details: the full e-mail (with Copy), phone, role, when they joined and last signed in, who invited them, and New temporary password for a never-used Add user login." },
           { sel: "#um_rows .ucMore", title: "More actions", desc: "The ⋯ button holds the rest: Deactivate (nothing is deleted), Remove access, Open work, Copy invite link or Cancel invite. Arrow keys move through it and Esc closes it." },
-          { sel: "#ts_danger", title: "Danger zone", desc: "Only the studio owner sees this: Transfer ownership hands the studio to another admin, who must accept." },
         ],
         access: [
           { sel: "#roleTabs", title: "Pick a role", desc: "Choose the role you want to set up: manager, planner, sales and so on. The box below says in plain words what that role can do, and Needs under a row lists what else must be on (Turn on fixes it)." },

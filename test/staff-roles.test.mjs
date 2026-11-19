@@ -12,7 +12,7 @@ const labels = api.match(/const ROLE_LABELS = (\{[\s\S]*?\});/)[1];
 const words = api.match(/const STAFF_ROLE_WORDS = (\[[\s\S]*?\]\]);/)[1];
 const fnSrc = api.match(/function staffMatchRole\(text\) \{[\s\S]*?\n  \}/)[0];
 const mergeSrc = api.match(/function staffMergeDepts\(list, defaults\) \{[\s\S]*?\n  \}/)[0];
-const lib = new Function(`const ALL_ROLES=${roles}; const PICK_ROLES=ALL_ROLES.filter((r)=>r!=="worker"); const ROLE_LABELS=${labels}; const roleLabel=(r)=>ROLE_LABELS[r]||r; const STAFF_ROLE_WORDS=${words}; ${fnSrc}; ${mergeSrc}; return {staffMatchRole, staffMergeDepts};`)();
+const lib = new Function(`const ALL_ROLES=${roles}; const PICK_ROLES=ALL_ROLES.filter((r)=>r!=="worker"); const KNOWN_ROLES=PICK_ROLES; const ROLE_LABELS=${labels}; const roleLabel=(r)=>ROLE_LABELS[r]||r; const STAFF_ROLE_WORDS=${words}; ${fnSrc}; ${mergeSrc}; return {staffMatchRole, staffMergeDepts};`)();
 
 t('role select replaces free text; department select with inline "Add new department"', () => {
   assert.match(html, /<select id="s_role"[ >]/); assert.match(html, /<select id="s_dept">/);
@@ -34,7 +34,8 @@ t('roles come from the access-matrix roles (no Client for staff)', () => {
   assert.match(api, /staffRoles: \(\) => PICK_ROLES\.filter\(\(r\) => r !== "client"\)/);
 });
 t('invite to log in: admin only, needs e-mail + a defined role, uses invitations.create, never sends', () => {
-  assert.match(html, /isAdminUser&&!linked&&s\.email&&s\.active!==false&&!BPStore\.staff\.isDemo\(s\)\?`<button class="ic" data-act="invite"/);   // L14: never on sample staff
+  // R229: the button is hidden while STAFF_LOGIN_INVITES_ON is false (a waiting invite can still be copied / re-sent)
+  assert.match(html, /isAdminUser&&!linked&&s\.email&&s\.active!==false&&!BPStore\.staff\.isDemo\(s\)&&\(STAFF_LOGIN_INVITES_ON\|\|BPStore\.staff\.loginStatus\(s,invites\)==="invited"\)\?`<button class="ic" data-act="invite"/);   // L14: never on sample staff
   assert.match(html, /const key=BPStore\.staff\.matchRole\(s\.role\);\s*if\(!key\)/);
   assert.match(html, /BPStore\.invitations\.create\(s\.email, key\)/);
   // 0131: the invite is e-mailed only through the invite-mailer queue (copy link still offered)
@@ -53,10 +54,11 @@ t('login status: Active user / Invited / No login', () => {
   assert.match(html, />Active user\$\{/); assert.match(html, />Invited – not signed up<\/span>/); assert.match(html, />No login<\/span>/);
 });
 t('changing a linked person\'s role = admin-only login-role change via 0106 RPC, with a confirm', () => {
-  assert.match(html, /const loginRoleChange=linked&&isAdminUser&&rkey&&rkey!=="custom"&&rkey!==rsel\.dataset\.orig\?rkey:null;/);
+  // R229: the Role field is read-only on the Staff page now - login roles change in Settings -> Users & invites
+  assert.match(html, /const loginRoleChange=null;/);
   assert.match(html, /await BPStore\.staff\.setLoginRole\(editingId, loginRoleChange\)/);
   assert.match(api, /supa\.rpc\("staff_set_login_role", \{ p_staff: staffId, p_role: role \}\)/);
-  assert.match(html, /\$\("#s_role"\)\.disabled=linked&&!isAdminUser;/);
+  assert.match(html, /\$\("#s_role"\)\.disabled=linked&&!isAdminUser;/); assert.match(html, /sel\.disabled=true;/);
 });
 t('0106 migration: additive, admin-gated, definer + empty search_path, wraps admin_set_role', () => {
   assert.match(mig, /add column if not exists staff_departments text\[\] not null default/);

@@ -41,7 +41,7 @@ await t('every card title and labelled field in control.html is in the catalog',
   const app = CTRL.slice(CTRL.indexOf('id="pane-pricing"'), CTRL.indexOf('id="mp_title"'));
   const all = CAT.SETTINGS.map((x) => norm(x[1]));
   const has = (h) => all.some((x) => x === h || x.startsWith(h) || h.startsWith(x));
-  const h3 = [...CTRL.matchAll(/<h3[^>]*>([^<]+)/g)].map((m) => norm(m[1])).filter((h) => h && !/^(edit profile|signin)$/.test(h));
+  const h3 = [...CTRL.matchAll(/<h3[^>]*>([^<]+)/g)].map((m) => norm(m[1])).filter((h) => h && !/^(edit profile|signin|danger zone)$/.test(h));   // R229: Danger zone (Transfer ownership) is switched off - no catalog entry
   assert.ok(h3.length >= 28);
   for (const h of h3) assert.ok(has(h), 'catalog misses card: ' + h);
   const btns = [...app.matchAll(/<button[^>]*>([^<]{3,60})</g)].map((m) => norm(m[1])).filter((b) => /^(add|import|create|save|reset|forgot)/.test(b));

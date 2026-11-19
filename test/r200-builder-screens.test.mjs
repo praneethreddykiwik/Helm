@@ -191,7 +191,7 @@ t('Welcome Board: sizes 2x3 / 3x4 / 4x6 / custom, easel or standee, picture OR a
 });
 
 t('cache-busters + tour + styles', () => {
-  for (const v of ['stage-screen.js?v=5', 'builder.js?v=95', 'builder-3d.js?v=35', 'builder.css?v=41', 'photo-render-ui.js?v=13', 'page-tours.js?v=60']) assert.ok(html.includes(v), v);
+  for (const v of ['stage-screen.js?v=5', 'builder.js?v=95', 'builder-3d.js?v=35', 'builder.css?v=41', 'photo-render-ui.js?v=13', 'page-tours.js?v=61']) assert.ok(html.includes(v), v);
   for (const f of ['public/capture.html', 'public/try.html']) assert.match(read(f), /stage-screen\.js\?v=5/, f);
   const pt = read('public/page-tours.js'); assert.match(pt, /Toolbox: 3 screens \(centre \+ 2 sides\) and Welcome Board/); assert.match(pt, /Upload a picture/);
   for (const c of ['.scr-mode', '.scr-guide', '.scr-warn', '.scr-prev', '.isec.screen select{max-width:100%}']) assert.ok(css.includes(c), c);

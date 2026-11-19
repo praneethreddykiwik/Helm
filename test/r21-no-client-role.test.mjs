@@ -22,7 +22,7 @@ t('a client-role user shows "No access" + a blank "Choose a role…" picker, nev
   assert.match(CC, /u\.role&&!noAccess\(u\)&&!roles\.includes\(u\.role\)/);
 });
 t('the picker logic: client user gets no Client option', () => {
-  const src = CC.match(/const noAccess=.*\n\s*const roleSel=.*\n/)[0];
+  const src = CC.match(/const noAccess=.*\n(?:\s*\/\/.*\n\s*const retiredHint=.*\n)?\s*const roleSel=.*\n/)[0];   // R229: + the retired-role hint
   const roles = ['admin', 'manager', 'coordinator', 'crew'];
   const esc = (s) => String(s); const rl = (r) => r[0].toUpperCase() + r.slice(1);
   const roleSel = new Function('roles', 'rl', 'esc', src + 'return roleSel;')(roles, rl, esc);

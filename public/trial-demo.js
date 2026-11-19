@@ -382,7 +382,7 @@
     (rows || []).forEach(function (r) {
       const e = String((r && r.email) || "").trim().toLowerCase();
       if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) || seen[e] || out.length >= 2) return;
-      seen[e] = 1; out.push({ email: e, role: String((r && r.role) || "coordinator") });
+      seen[e] = 1; out.push({ email: e, role: String((r && r.role) || "manager") });   // R229: coordinator removed
     });
     return out;
   }
@@ -699,14 +699,14 @@
       s.empty(body); s.empty(row);
       showErr("");
       body.appendChild(el("p", null, "Your free trial includes you + 2 people. They get an email with a join link. You can also do this later in Settings → Users & invites."));
-      const roles = (st.auth && st.auth.admin && st.auth.admin.roles) ? st.auth.admin.roles().filter((r) => r !== "client") : ["manager", "coordinator", "sales"];
+      const roles = (st.auth && st.auth.admin && st.auth.admin.roles) ? st.auth.admin.roles().filter((r) => r !== "client") : ["manager", "planner", "sales"];
       const lines = [];
       for (let n = 1; n <= 2; n++) {
         const line = el("div", "td-inv");
         const e = field("tdw_e" + n, "Email " + n, "email", ""); e.input.autocomplete = "off";
         const rf = el("div", "td-fld"), rl = el("label", null, "Role"); rl.htmlFor = "tdw_r" + n; rf.appendChild(rl);
         const sel = el("select"); sel.id = "tdw_r" + n;
-        roles.forEach((r) => { const o = el("option", null, st.auth.admin.roleLabel ? st.auth.admin.roleLabel(r) : r); o.value = r; if (r === "coordinator") o.selected = true; sel.appendChild(o); });
+        roles.forEach((r) => { const o = el("option", null, st.auth.admin.roleLabel ? st.auth.admin.roleLabel(r) : r); o.value = r; if (r === "manager") o.selected = true; /* R229: Event coordinator removed */ sel.appendChild(o); });
         rf.appendChild(sel); line.appendChild(e.box); line.appendChild(rf); body.appendChild(line);
         const pre = Array.isArray(prefill) ? prefill[n - 1] : null;
         if (pre && pre.email) { e.input.value = pre.email; if (roles.indexOf(pre.role) >= 0) sel.value = pre.role; }

@@ -31,7 +31,7 @@ export PGTZ="${PGTZ:-UTC}"
 # 0342: the older suites expect a failed send to be retried at once and to give up after 5 tries; r143-outbox-backoff-0342.sql turns the backoff on
 # 0296: fixtures / cleanups delete events and vendors as the superuser; the older suites run with the purge mark on
 # (it never helps a delete made AS anon / authenticated). r55-no-hard-delete-0296.sql + the 0184 re-run below turn it off.
-export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off -c helm.signin_notice=off -c helm.retry_backoff=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
+export PGOPTIONS="${PGOPTIONS:-} -c helm.maintenance=off -c helm.allow_hq_mfa_lockout=on -c helm.send_window=off -c helm.allow_purge=on -c helm.r125_gate=off -c helm.signin_notice=off -c helm.retry_backoff=off -c helm.retired_role_gate=off"   # 0249: fixtures turn hq_require_mfa on with fake operators; r21-security-0249.sql turns the guard back on
 dropdb --if-exists helm_runall >/dev/null 2>&1; createdb helm_runall
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/00-supabase-shim.sql >/dev/null 2>&1
 
@@ -470,6 +470,10 @@ run "r156-wa-template-jobs-0354" "R156-WA-TEMPLATE-JOBS-0354: ALL PASS \(48/48\)
 run "e-menu-audit-0394" "E-MENU-AUDIT-0394: ALL PASS \(10/10\)" psql -q -f tests/db/e-menu-audit-0394.sql
 # r226 (0396): event day plan - Venue opens / Ready by, Day-before ticks (who + when, untick kept), task durations + the backward schedule (buffer through "needs first", a loop never hangs), learned durations, alert settings (Controls edit), the 5-minute bell job (starts in 1 hour + latest-start red alerts, once, only the people named, switch off = nothing), Remind -> Bell (login only, once per 5 min), other studio / no Staff access refused, re-apply keeps everything; rolled back
 run "r226-event-day-plan-0396" "R226-EVENT-DAY-PLAN-0396: ALL PASS \(32/32\)" psql -q -f tests/db/r226-event-day-plan-0396.sql
+# r229 (0398): retired roles - Event coordinator / Designer / Crew refused for NEW assignment (invite, Add user, role change, any signed-in write), other roles work, existing holders unaffected, an invite sent before 0398 honoured, database / service role / HQ unaffected, open coordinator / designer invites cancelled with a copy, no new role_access rows for them, role lists without them; guard ON here (off for the older suites via PGOPTIONS); rolled back
+run "r229-retire-roles-0398" "R229-RETIRE-ROLES-0398: ALL PASS \(22/22\)" psql -q -f tests/db/r229-retire-roles-0398.sql
+# r229: the owner-run DELETE-0398-RETIRED-ROLE-USERS.sql, both steps, without the harness switches (like the SQL editor): lists exactly the coordinator + designer, stops without / with a wrong number, deletes only them with copies, history kept (pointers emptied), admin / planner / crew survive, role_access of the two roles removed. NOT rolled back - runs last
+run "r229-delete-retired-users-0398" "R229-DELETE-0398: PASS" bash tests/db/r229-delete-retired-users-0398.sh
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

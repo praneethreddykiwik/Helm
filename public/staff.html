@@ -95,7 +95,7 @@
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=8"><link rel="stylesheet" href="team-status.css?v=4">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=100" id="shellProto"></script>
+<script src="/shell-proto.js?v=101" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -148,7 +148,7 @@
     </fieldset>
     <div class="fgrid smgrid">
       <div class="fld"><label for="s_name">Name <span class="req" aria-hidden="true">*</span></label><input id="s_name" maxlength="120" placeholder="e.g. Ravi Kumar" autocomplete="off" aria-required="true" aria-describedby="s_name_msg"><span class="fmsg" id="s_name_msg" aria-live="polite"></span></div>
-      <div class="fld"><label for="s_role">Role</label><select id="s_role" aria-describedby="s_role_hint"><option value="">— Choose a role —</option></select>
+      <div class="fld" id="s_role_fld" hidden><label for="s_role">Role</label><select id="s_role" aria-describedby="s_role_hint" disabled><option value="">— Choose a role —</option></select>
         <span class="fmsg fhint" id="s_role_hint">Roles come from Settings → Users &amp; access.</span></div>
       <div class="fld"><label for="s_dept">Department</label><select id="s_dept"><option value="">— Choose a department —</option></select>
         <div id="s_dept_new" class="deptnew" hidden><input id="s_dept_new_in" maxlength="60" placeholder="New department name" aria-label="New department name"><button type="button" class="btn sm primary" id="s_dept_new_ok">Add</button><button type="button" class="btn sm" id="s_dept_new_x" aria-label="Discard the new department">Discard</button></div><span class="fmsg"></span></div>
@@ -198,12 +198,12 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=386"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=387"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=60"></script>
-<script src="tour.js?v=75"></script>
+<script src="page-tours.js?v=61"></script>
+<script src="tour.js?v=76"></script>
 <script src="team-status.js?v=5"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -222,6 +222,11 @@
 
   // 0041: a staff row with profile_id is linked to a Helm account (photo from the member's profile)
   let memberDir={}, isAdminUser=false, invites=[], loginRoles={}, deptList=[];
+  // R229 (owner, 18 Nov 2026): "Save and invite to sign in" + the card's "Invite to log in" are DISABLED and the Role field
+  // is gone from Add staff (back to the earlier form: always "Save as a record only", no invitation sent). An existing
+  // record's role / login role is still shown, read-only (never rewritten). An invite that is already waiting can still be
+  // copied, re-sent or cancelled. To turn invites back on: STAFF_LOGIN_INVITES_ON = true (see DISABLED-FEATURES.md).
+  const STAFF_LOGIN_INVITES_ON = false;
   // B29: every saved number is shown the same way ("+91 98765 43210"), whether it was typed with spaces or not
   function phoneTxt(p){ const c=String(p==null?"":p).replace(/[\s\-().]/g,""); try{ if(window.HelmPhone&&HelmPhone.display&&/^\+\d{7,15}$/.test(c)) return HelmPhone.display(c); }catch(e){} return String(p==null?"":p); }
   // 0106: role shown on the card — a defined role's label, or the old free text as "Custom: …"
@@ -302,6 +307,8 @@
   async function inviteStaff(s,btn){
     // L14: a sample (is_demo, @example.com) staff row is never invited - it would use up one of the trial's 2 seats
     if(BPStore.staff.isDemo(s)){ BPUI.toast("This is sample staff from the free-trial data. Add your real teammate and invite them instead.",{type:"info"}); return; }
+    // R229: a NEW sign-in invite from the Staff page is off (an invite already waiting is reused by the server)
+    if(!STAFF_LOGIN_INVITES_ON && BPStore.staff.loginStatus(s,invites)!=="invited"){ BPUI.toast("Sign-in invites from the Staff page are switched off. Invite people in Settings → Users & invites.",{type:"info"}); return; }
     const key=BPStore.staff.matchRole(s.role);
     if(!key){ BPUI.toast(`Pick a role for ${s.name} first (Edit → Role), then invite them.`,{type:"info"}); return; }
     // r20 planner: the invite uses the role written on the record (anyone with staff edit can set it) - an Admin login is
@@ -344,7 +351,7 @@
         ${canEdit?`<button class="ic" data-act="edit">Edit</button>
         <button class="ic" data-act="toggle">${s.active===false?"Reactivate":"Deactivate"}</button>
         ${s.active!==false&&!(BPStore.staff.isDemo&&BPStore.staff.isDemo(s))?`<button class="ic" data-act="tlink" title="Copy ${esc(s.name||"this person")}'s permanent task link - it always shows their current tasks on every event">Task link</button><button class="ic" data-act="tlinknew" title="Make a new permanent task link - the old one stops working at once">New task link</button>`:""}
-        ${isAdminUser&&!linked&&s.email&&s.active!==false&&!BPStore.staff.isDemo(s)?`<button class="ic" data-act="invite" title="Create a sign-up link for ${esc(s.email)} with their role">${BPStore.staff.loginStatus(s,invites)==="invited"?"Copy invite link":"Invite to log in"}</button>${BPStore.staff.loginStatus(s,invites)==="invited"?`<button class="ic" data-act="resend" title="E-mail the invite link to ${esc(s.email)} again">Resend email</button><button class="ic" data-act="uninvite" title="Stop the invite link - ${esc(s.name||"they")} stays here as a record only (task link still works)">Cancel invite</button>`:""}`:""}`:""}
+        ${isAdminUser&&!linked&&s.email&&s.active!==false&&!BPStore.staff.isDemo(s)&&(STAFF_LOGIN_INVITES_ON||BPStore.staff.loginStatus(s,invites)==="invited")?`<button class="ic" data-act="invite" title="Create a sign-up link for ${esc(s.email)} with their role">${BPStore.staff.loginStatus(s,invites)==="invited"?"Copy invite link":"Invite to log in"}</button>${BPStore.staff.loginStatus(s,invites)==="invited"?`<button class="ic" data-act="resend" title="E-mail the invite link to ${esc(s.email)} again">Resend email</button><button class="ic" data-act="uninvite" title="Stop the invite link - ${esc(s.name||"they")} stays here as a record only (task link still works)">Cancel invite</button>`:""}`:""}`:""}
       </div>
     </div>`;
   }
@@ -417,10 +424,17 @@
     if(custom) $("#s_role_hint").textContent=guess?`Closest studio role: ${BPStore.staff.roleLabel(guess)} — pick it to switch.`:"Not one of the studio's roles — pick one to switch.";
     // r20 planner: only an admin can hand out "Admin" (a non-admin's pick pre-fills an admin's later invite);
     // a record that already says Admin keeps it, so opening + saving never rewrites it
+    // R229: a role that is no longer offered (Event coordinator / Designer / Crew) still shows as the saved value (last option)
     sel.innerHTML=`<option value="">— Choose a role —</option>`+
       (custom?`<option value="custom">Custom: ${esc(custom)}</option>`:"")+
-      BPStore.staff.staffRoles().filter(r=>isAdminUser||linked||r.key!=="admin"||cur==="admin").map(r=>`<option value="${esc(r.key)}">${esc(r.label)}</option>`).join("");
+      BPStore.staff.staffRoles().filter(r=>isAdminUser||linked||r.key!=="admin"||cur==="admin").map(r=>`<option value="${esc(r.key)}">${esc(r.label)}</option>`).join("")+
+      (cur&&!BPStore.staff.staffRoles().some(r=>r.key===cur)?`<option value="${esc(cur)}">${esc(BPStore.staff.roleLabel(cur))}</option>`:"");
     sel.value=custom?"custom":(cur||""); sel.dataset.orig=sel.value; sel.dataset.custom=custom||"";
+    // R229: no Role field when adding; an existing record's role is shown read-only (change login roles in Settings)
+    const shown=!!s&&(linked||!!String(s.role||"").trim()); $("#s_role_fld").hidden=!shown; sel.disabled=true;
+    { const lb=document.querySelector('label[for="s_role"]'); if(lb) lb.textContent=linked?"Helm login role":"Role"; }
+    if(shown){ const ret=cur&&BPStore.staff.isRetiredRole&&BPStore.staff.isRetiredRole(cur);
+      $("#s_role_hint").textContent=(linked?"Read-only here. An admin changes login roles in Settings → Users & invites.":"Saved on this record and kept as it is.")+(ret?" Retired role — choose a new one in Settings → Users & invites.":""); }
   }
   function fillDept(val){
     const sel=$("#s_dept"), list=deptList.slice();
@@ -541,7 +555,7 @@
     ["s_name","s_phone","s_email","s_rate"].forEach(id=>{ fieldMsg(id,""); delete $("#"+id).dataset.touched; }); setCurrencyPrefix();
     editingRow=s||null; setLinkedLock(s); fillRole(s); setPayField(s);
     // new person + admin: choose "record only" (no login) or "invite to sign in" (reuses inviteStaff)
-    $("#s_access").hidden=!!s||!isAdminUser; const rec0=document.querySelector('input[name="s_access"][value="record"]'); if(rec0) rec0.checked=true; syncEmailReq();
+    $("#s_access").hidden=!STAFF_LOGIN_INVITES_ON||!!s||!isAdminUser; const rec0=document.querySelector('input[name="s_access"][value="record"]'); if(rec0) rec0.checked=true; syncEmailReq();
     // pay-like custom fields of a team login stay out of the editor for non-admins (unsent = kept as saved)
     const payOk=BPStore.staff.payVisible(s,isAdminUser), hideAttr=(k,l)=>!payOk&&BPStore.staff.payAttr(k,l);
     const edAttrs=s&&s.attributes&&typeof s.attributes==="object"&&!payOk?Object.fromEntries(Object.entries(s.attributes).filter(([k])=>!hideAttr(k,(attrDefs.find(d=>d&&d.key===k)||{}).label))):(s&&s.attributes);
@@ -609,7 +623,7 @@
     if(!rv.ok){ bad("#s_rate",rv.error); return; }
     if(!linked){
       // QA M-08: a crew member needs an operational identity so they can be assigned to work
-      if(!$("#s_role").value && !$("#s_dept").value){ bad("#s_dept","Add a role or a department so this person can be assigned to the right work."); return; }
+      if(!(editingRow&&String(editingRow.role||"").trim()) && !$("#s_dept").value){ bad("#s_dept","Choose a department so this person can be assigned to the right work."); return; }
       phoneV=pv; email=ev.value||null;
     }
     // r20 coord (d): hidden, or left empty on a team login -> no day_rate key at all (the saved value stays)
@@ -617,10 +631,11 @@
     const skills=readSkills();
     const rsel=$("#s_role"), rkey=rsel.value;
     const roleVal=rkey==="custom"?(rsel.dataset.custom||null):(rkey?BPStore.staff.roleLabel(rkey):null);
-    const loginRoleChange=linked&&isAdminUser&&rkey&&rkey!=="custom"&&rkey!==rsel.dataset.orig?rkey:null;
+    const loginRoleChange=null;   // R229: the Role field is read-only here (Settings → Users & invites changes login roles)
     const rec={ name, phone:phoneV.value, role:roleVal, department:$("#s_dept").value||null,
       emp_type:$("#s_emp").value||null, email,
       ...payPart, skills, notes:$("#s_notes").value.trim()||null };
+    delete rec.role;   // R229: never sent - a new record has no role, an existing record keeps its saved role word-for-word
     const wantInvite=!editingId && isAdminUser && !$("#s_access").hidden && (document.querySelector('input[name="s_access"]:checked')||{}).value==="invite";
     if(wantInvite){
       if(!email){ fail("Add an e-mail address so we can send the sign-in invitation — or choose “Save as a record only”."); $("#s_email").focus(); return; }
