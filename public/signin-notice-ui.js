@@ -18,9 +18,9 @@
     ["every", "Every sign-in", "A notice each time someone signs in (at most one per person every 10 minutes)."],
     ["off", "Off", "No sign-in notices. Sign-ins are still listed in the Audit log."],
   ];
-  var LABELS = { admin: "Admin", manager: "Event manager", planner: "Planner", sales: "Sales", coordinator: "Event coordinator",
-    supervisor: "Supervisor", quality: "Quality engineer", operations: "Operations", designer: "Designer", crew: "Crew" };
-  // R229 (0398): Event coordinator + Designer removed (the server's _r383_roles_all() no longer lists them)
+  var LABELS = { admin: "Admin", manager: "Event manager", planner: "Planner", sales: "Sales",
+    supervisor: "Supervisor", quality: "Quality engineer", operations: "Operations", crew: "Crew" };
+  // the same list as the server's _r383_roles_all() (R232 / 0400: Crew offered again)
   var ALL = ["admin", "manager", "planner", "sales", "supervisor", "quality", "operations", "crew"];
   function roleLabel(r) { return LABELS[r] || String(r || ""); }
   function pickRoles(list, all) {

@@ -7,7 +7,7 @@ t('try CTA dark ink in dark mode', () => assert.match(r('public/try.css'), /\[da
 t('marketing accent >= 4.5:1 with white', () => { for (const f of ['home.css', 'legal.css']) assert.match(r('public/' + f), /--acc:#0b7d53;/); assert.match(r('public/home-guide.css'), /\.hg-cta\{background:#0b7d53;/); });
 t('builder hint buttons 24px', () => assert.match(r('public/builder.css'), /\.hint-btn\{[^}]*width:24px;height:24px/));
 t('builder editable uses the access matrix', () => { const j = r('public/builder.js'); assert.match(j, /editable = (editableP \? await editableP : \()?\(await BPStore\.auth\.canEditArea\('layouts'\)\) \|\| \(await BPStore\.auth\.canEditArea\('quotes'\)\)/); assert.doesNotMatch(j, /editable = await BPStore\.auth\.can\('edit'\)/); });
-t('designer has no client create cap', () => assert.match(r('public/store-api.js'), /designer:\s+\["view", "edit"\]/));
+t('R232: no Designer role caps any more; supervisor has no create cap', () => { assert.doesNotMatch(r('public/store-api.js'), /designer:\s+\[/); assert.match(r('public/store-api.js'), /supervisor:\s+\["view", "edit"\]/); });
 t('P&L card checks finance view first', () => assert.match(r('public/vendor-bills-ui.js'), /canView\("finance"\)[^\n]*\n\s*if \(!finOk\) \{ box\.hidden = true; return; \}/));
 t('business totals never mix currencies', () => { const j = r('public/vendor-bills-ui.js'); assert.match(j, /studioCurrency\(\)/); assert.match(j, /pay\.currencies\.length > 1/); });
 console.log('retest-1017: ' + n + ' checks passed');

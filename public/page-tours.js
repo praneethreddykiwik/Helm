@@ -249,7 +249,7 @@
           { sel: "#nf_table", title: "Who hears about what", desc: "For each kind of alert, pick which roles get it in the bell and by text or e-mail." },
           { sel: "#nf_reset", title: "Back to defaults", desc: "Puts every notification back to how Helm set it up." },
           { sel: "#np_user", title: "Per-person overrides", desc: "Pick one person to mute or add alerts just for them." },
-          { sel: "#trmCard", title: "Task reminders and escalation", desc: "Reminders for the person on each task. For special tasks not started, set when the coordinator, the manager and the admin / owner are told (0, 5 and 10 minutes after the start by default). It stops once the task is started." },
+          { sel: "#trmCard", title: "Task reminders and escalation", desc: "Reminders for the person on each task. For special tasks not started, set when the event lead, the manager and the admin / owner are told (0, 5 and 10 minutes after the start by default). It stops once the task is started." },
           { sel: "#sinCard", title: "Teammate sign-ins", desc: "When a teammate signs in, the owner and admins get a bell notice: name, role, time and browser. Choose Off, First sign-in each day (the default) or Every sign-in, and which roles count." },
         ],
         reminders: [

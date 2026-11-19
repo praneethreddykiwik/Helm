@@ -8,8 +8,8 @@ export const SUPPORT = "support@helm.events";
 
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Admin", manager: "Event manager", planner: "Planner", sales: "Sales",
-  coordinator: "Event coordinator", supervisor: "Supervisor", quality: "Quality engineer",
-  operations: "Operations", designer: "Designer", crew: "Crew", worker: "Worker",
+  supervisor: "Supervisor", quality: "Quality engineer",
+  operations: "Operations", crew: "Crew", worker: "Worker",
 };
 
 export const esc = (s: unknown) =>

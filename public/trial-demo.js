@@ -382,7 +382,7 @@
     (rows || []).forEach(function (r) {
       const e = String((r && r.email) || "").trim().toLowerCase();
       if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) || seen[e] || out.length >= 2) return;
-      seen[e] = 1; out.push({ email: e, role: String((r && r.role) || "manager") });   // R229: coordinator removed
+      seen[e] = 1; out.push({ email: e, role: String((r && r.role) || "manager") });
     });
     return out;
   }
@@ -391,7 +391,7 @@
   // invitations.sendNow() → were the e-mails really sent? ({ status: "ok", sent > 0, failed: 0, skipped: 0 } only;
   // r21 email audit: a run that sent nothing - queued behind the daily cap, or skipped - is not "sent")
   function inviteMailOk(r) { return !!(r && typeof r === "object" && r.status === "ok" && Number(r.sent) > 0 && !(Number(r.failed) > 0) && !(Number(r.skipped) > 0)); }
-  // "Invites sent to a@x.com (Planner), b@y.com (Event coordinator)." / "... saved for ..." / errors only
+  // "Invites sent to a@x.com (Planner), b@y.com (Supervisor)." / "... saved for ..." / errors only
   function inviteSummary(results, mailed) {
     const ok = (results || []).filter((r) => r && r.ok), bad = (results || []).filter((r) => r && !r.ok);
     const who = ok.map((r) => r.email + " (" + r.role + ")").join(", ");
@@ -706,7 +706,7 @@
         const e = field("tdw_e" + n, "Email " + n, "email", ""); e.input.autocomplete = "off";
         const rf = el("div", "td-fld"), rl = el("label", null, "Role"); rl.htmlFor = "tdw_r" + n; rf.appendChild(rl);
         const sel = el("select"); sel.id = "tdw_r" + n;
-        roles.forEach((r) => { const o = el("option", null, st.auth.admin.roleLabel ? st.auth.admin.roleLabel(r) : r); o.value = r; if (r === "manager") o.selected = true; /* R229: Event coordinator removed */ sel.appendChild(o); });
+        roles.forEach((r) => { const o = el("option", null, st.auth.admin.roleLabel ? st.auth.admin.roleLabel(r) : r); o.value = r; if (r === "manager") o.selected = true; sel.appendChild(o); });
         rf.appendChild(sel); line.appendChild(e.box); line.appendChild(rf); body.appendChild(line);
         const pre = Array.isArray(prefill) ? prefill[n - 1] : null;
         if (pre && pre.email) { e.input.value = pre.email; if (roles.indexOf(pre.role) >= 0) sel.value = pre.role; }

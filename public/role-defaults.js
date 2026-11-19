@@ -4,7 +4,7 @@
  * (role_access rows read by has_area). This file only helps the Settings screen:
  *   - SECTIONS: groups the existing areas into plain-English sections with a one-line help text each.
  *   - defaultFor(role, area): what a NEW studio starts with. It mirrors the database template
- *     _a49_default_matrix() (migrations 0049 + 0239; "tasks" = the 0385 seed: Staff-edit roles + supervisor) and the Designer / Crew starter set (0143).
+ *     _a49_default_matrix() (migrations 0049 + 0239; "tasks" = the 0385 seed: Staff-edit roles + supervisor) and the Crew starter set (0143; R232 / 0400: Event coordinator + Designer removed).
  *     test/r85-roles-settings.test.mjs fails if this copy and the SQL template ever drift apart.
  *     Returns null for an area the template does not cover (the screen then shows no Default / Changed badge
  *     and "Reset to defaults" leaves it alone).
@@ -13,40 +13,39 @@
   "use strict";
   // area -> [roles that VIEW], [roles that EDIT]   (same table as _a49_default_matrix; edit implies view)
   var TEMPLATE = {
-    leads:      [["manager", "planner", "sales", "coordinator"], ["manager", "planner", "sales"]],
-    crm:        [["manager", "planner", "sales", "coordinator"], ["manager", "planner", "sales"]],
+    leads:      [["manager", "planner", "sales"], ["manager", "planner", "sales"]],
+    crm:        [["manager", "planner", "sales"], ["manager", "planner", "sales"]],
     nurture:    [["manager", "planner"], ["manager", "planner"]],
     discovery:  [["manager", "planner"], ["manager", "planner"]],
     proposal:   [["manager", "planner"], ["manager", "planner"]],
-    quotes:     [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner"]],
-    layouts:    [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["planner"]],
+    quotes:     [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner"]],
+    layouts:    [["manager", "planner", "supervisor", "operations", "quality"], ["planner"]],
     design:     [["manager", "planner"], ["manager", "planner"]],
-    staff:      [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator", "operations"]],
+    staff:      [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner", "operations"]],
     // r208 (0385): Assign & send tasks = the Staff "Can change" roles + supervisor (one switch: view + edit together)
-    tasks:      [["manager", "planner", "coordinator", "supervisor", "operations"], ["manager", "planner", "coordinator", "supervisor", "operations"]],
-    inventory:  [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator", "operations"]],
-    vendors:    [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator", "operations"]],
-    calendar:   [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator"]],
-    templates:  [["manager", "planner", "coordinator", "operations", "quality"], ["manager", "planner", "coordinator"]],
-    resources:  [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator", "operations"]],
-    runsheet:   [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator"]],
-    plan:       [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator"]],
-    logistics:  [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator"]],
-    ready:      [["manager", "planner", "coordinator", "supervisor", "quality"], ["manager", "planner", "coordinator"]],
+    tasks:      [["manager", "planner", "supervisor", "operations"], ["manager", "planner", "supervisor", "operations"]],
+    inventory:  [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner", "operations"]],
+    vendors:    [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner", "operations"]],
+    calendar:   [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner"]],
+    templates:  [["manager", "planner", "operations", "quality"], ["manager", "planner"]],
+    resources:  [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner", "operations"]],
+    runsheet:   [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner"]],
+    plan:       [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner"]],
+    logistics:  [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner"]],
+    ready:      [["manager", "planner", "supervisor", "quality"], ["manager", "planner"]],
     finance:    [["manager", "planner"], ["manager", "planner"]],
     settlement: [["manager", "planner"], ["manager", "planner"]],
     closure:    [["manager", "planner"], ["manager", "planner"]],
-    command:    [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator", "supervisor", "quality"]],
-    issues:     [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator", "supervisor", "operations", "quality"]],
-    media:      [["manager", "planner", "coordinator", "supervisor", "operations", "quality"], ["manager", "planner", "coordinator", "supervisor"]],
+    command:    [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner", "supervisor", "quality"]],
+    issues:     [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner", "supervisor", "operations", "quality"]],
+    media:      [["manager", "planner", "supervisor", "operations", "quality"], ["manager", "planner", "supervisor"]],
     controls:   [["manager"], ["manager"]],
     codes:      [["manager", "planner"], ["manager", "planner"]],
     users:      [[], []],
     business:   [[], []]
   };
-  // 0143: Designer and Crew start with this set (the template itself gives them nothing)
+  // 0143: Crew starts with this set (the template itself gives it nothing)
   var STARTER = {
-    designer: { design: 2, layouts: 2, proposal: 2, media: 2, quotes: 1, calendar: 1, templates: 1 },
     crew:     { runsheet: 1, calendar: 1 }
   };
 

@@ -533,8 +533,8 @@
      order as before (app scripts first, then the page), and a Sign in tapped meanwhile is held and replayed by the guard.
      config.js stays a normal script (it may add config.staging.js before them). -->
 <script type="text/plain" data-login-lazy src="event-name.js?v=9"></script>
-<script type="text/plain" data-login-lazy src="country-profile.js?v=7"></script><script type="text/plain" data-login-lazy src="store-api.js?v=390"></script>
-<script type="text/plain" data-login-lazy src="auth-ui.js?v=64"></script>
+<script type="text/plain" data-login-lazy src="country-profile.js?v=7"></script><script type="text/plain" data-login-lazy src="store-api.js?v=391"></script>
+<script type="text/plain" data-login-lazy src="auth-ui.js?v=65"></script>
 <script type="text/plain" data-login-lazy src="/auth-visual.js?v=1"></script>
 <script type="text/plain" data-login-lazy src="/trial-facts.js?v=9"></script>
 <script type="text/plain" data-login-lazy src="/trial-signup.js?v=14"></script>
@@ -1206,7 +1206,7 @@ document.addEventListener("helm:login-ready", function(){
   // ----- 0205: the invitation context + the right way in, on EVERY path of the join page -----
   // One lookup per page (invite-signup peek: studio, inviter display name, human role label and the
   // invitation's OWN e-mail - only for the token holder; else the anon invitation_preview: studio + role).
-  const ROLE_NAMES={admin:"Admin",manager:"Event manager",planner:"Planner",sales:"Sales",coordinator:"Event coordinator",supervisor:"Supervisor",quality:"Quality engineer",operations:"Operations",designer:"Designer",crew:"Crew",worker:"Worker"};
+  const ROLE_NAMES={admin:"Admin",manager:"Event manager",planner:"Planner",sales:"Sales",supervisor:"Supervisor",quality:"Quality engineer",operations:"Operations",crew:"Crew",worker:"Worker"};
   let INV=null, invP=null;
   function loadInviteCtx(){
     if(invP) return invP;
