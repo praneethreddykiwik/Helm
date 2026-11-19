@@ -66,13 +66,13 @@
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
 </style>
 <link rel="stylesheet" href="budget-polish.css?v=5">
-<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="vendor-bills.css?v=3">
 <link rel="stylesheet" href="money-ledger.css?v=2"><link rel="stylesheet" href="money-header.css?v=2">
 <link rel="stylesheet" href="payment-schedule.css?v=5">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=96" id="shellProto"></script>
+<script src="/shell-proto.js?v=97" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -99,10 +99,10 @@
     <div data-mh-mount data-mh-parts="header attention pva cash owes" data-mh-replaces="budgetTiles" id="moneyHeader" hidden></div>
 
     <div class="tiles" id="budgetTiles">
-      <div class="tile"><div class="l">Revenue (ex-tax)</div><div class="n" id="t_rev">—</div><div class="pct" id="t_revsub"></div></div>
-      <div class="tile"><div class="l">Total cost</div><div class="n" id="t_est">—</div></div>
-      <div class="tile"><div class="l">Actual cost</div><div class="n" id="t_act">—</div></div>
-      <div class="tile margin"><div class="l" title="Price to the client minus all costs — actual costs where known, planned costs for the rest">Planned profit</div><div class="n" id="t_mar">—</div><div class="pct" id="t_marpct"></div></div>
+      <div class="tile"><div class="l">Revenue (ex-tax)</div><div class="n" id="t_rev" data-money>—</div><div class="pct" id="t_revsub"></div></div>
+      <div class="tile"><div class="l">Total cost</div><div class="n" id="t_est" data-money>—</div></div>
+      <div class="tile"><div class="l">Actual cost</div><div class="n" id="t_act" data-money>—</div></div>
+      <div class="tile margin"><div class="l" title="Price to the client minus all costs — actual costs where known, planned costs for the rest">Planned profit</div><div class="n" id="t_mar" data-money>—</div><div class="pct" id="t_marpct"></div></div>
     </div>
 
     <div data-ml-mount="margin" data-ml-replaces="netProfit" data-ml-tiles="off" id="moneyLedger" hidden></div>
@@ -166,13 +166,18 @@
 <script src="telemetry.js?v=12"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=382"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=12"></script><script src="money-ledger-ui.js?v=3"></script><script src="budget-plan.js?v=3"></script><script src="payment-schedule.js?v=6"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=383"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=12"></script><script src="money-ledger-ui.js?v=3"></script><script src="budget-plan.js?v=3"></script><script src="payment-schedule.js?v=6"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   // B11: this event's OWN currency (India/INR without a snapshot), never the studio's current country
   let evTax=null, evPricing=null;
   const inr=(n)=>evTax?BPStore.quoteMoney(n,evTax):BPStore.studioMoney(n);
+  // r221 "Hide amounts": every amount this page draws sits in a [data-money] element, so it is masked by CSS + shell-b-privacy.js
+  // even before the privacy scan reaches it. mh(n) = the amount as HTML; putMoney(el, "text", M$(n), ...) = a sentence with amounts.
+  const mh=(n)=>'<span data-money>'+esc(inr(n))+'</span>';
+  const M$=(n)=>({__m:n});
+  const putMoney=(el,...parts)=>{ el.replaceChildren(...parts.flat(4).map(x=>{ if(x&&typeof x==="object"&&"__m" in x){ const sp=document.createElement("span"); sp.setAttribute("data-money",""); sp.textContent=inr(x.__m); return sp; } return document.createTextNode(x==null?"":String(x)); })); };
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   const ST={requested:"Requested",approved:"Approved",rejected:"Rejected"};
   let canEdit=false, canDelete=false, sum=null;
@@ -188,7 +193,8 @@
     // E13: margin is on revenue WITHOUT the tax collected (tax is payable, shown underneath)
     $("#t_rev").textContent=inr(sum.revenueExTax!=null?sum.revenueExTax:sum.revenue);
     const chX=sum.changeRevenueExTax!=null?sum.changeRevenueExTax:sum.changeRevenue;
-    $("#t_revsub").textContent = [sum.changeRevenue ? `quote ${inr(sum.revenueExTax - chX)} + changes ${inr(chX)}` : "", sum.tax>0 ? `+ tax ${inr(sum.tax)} collected (payable)` : ""].filter(Boolean).join(" · ");
+    { const a=sum.changeRevenue ? ["quote ", M$(sum.revenueExTax - chX), " + changes ", M$(chX)] : null, b=sum.tax>0 ? ["+ tax ", M$(sum.tax), " collected (payable)"] : null;
+      putMoney($("#t_revsub"), a||[], a&&b?" · ":"", b||[]); }
     $("#t_est").textContent=inr(sum.estCost);
     $("#t_act").textContent=sum.actCost?inr(sum.actCost):"—";
     const m=sum.estMargin; const mn=$("#t_mar"); mn.textContent=inr(m); mn.className="n "+(m>=0?"pos":"neg");
@@ -196,8 +202,8 @@
 
     $("#chgRows").innerHTML = sum.changes.length ? sum.changes.map(c=>`<tr>
       <td><b>${esc(c.title)}</b>${c.detail?`<div style="font-size:12px;color:var(--ink-3)">${esc(c.detail)}</div>`:""}</td>
-      <td class="num">${inr(c.price_delta)}</td>
-      <td class="num">${inr(c.cost_delta)}</td>
+      <td class="num" data-money>${inr(c.price_delta)}</td>
+      <td class="num" data-money>${inr(c.cost_delta)}</td>
       <td><span class="st ${esc(c.status)}">${esc(ST[c.status]||c.status)}</span></td>
       <td>${canEdit && c.status==="requested"?`<button type="button" class="rm go" data-appr="${esc(c.id)}" data-name="${esc(c.title)}" aria-label="Approve ${esc(c.title)}">Approve</button> <button type="button" class="rm no" data-rej="${esc(c.id)}" aria-label="Reject ${esc(c.title)}">Reject</button>`:(c.status!=="requested"?`<span title="Decided change requests are locked — add a new change request instead." style="font-size:12px;color:var(--ink-3)">Locked</span>`:(canDelete?`<button type="button" class="rm" data-chdel="${esc(c.id)}" data-name="${esc(c.title)}" aria-label="Remove change request ${esc(c.title)}">✕</button>`:""))}</td>
     </tr>`).join("") : '<tr><td colspan="5" class="empty">No change requests.</td></tr>';
@@ -229,7 +235,7 @@
   const chGross=(v)=>Math.round(v*(1+chRate())*100)/100;
   function chHint(){ const h=$("#ch_taxhint"), r=chRate(), v=Number($("#ch_price").value||0);
     if(!r||!v||!isFinite(v)){ h.hidden=true; h.textContent=""; return; }
-    h.textContent=`Client is charged ${inr(chGross(v))} (${inr(v)} + ${Math.round(r*1000)/10}% tax).`; h.hidden=false; }
+    putMoney(h, "Client is charged ", M$(chGross(v)), " (", M$(v), ` + ${Math.round(r*1000)/10}% tax).`); h.hidden=false; }
   $("#ch_price").addEventListener("input",chHint);
   function openChg(){ $("#ch_title").value=""; $("#ch_detail").value=""; $("#ch_price").value=0; $("#ch_cost").value=0; $("#ch_err").hidden=true; chHint(); $("#chgModal").hidden=false; chgDirty.clean(); setTimeout(()=>$("#ch_title").focus(),50); }
   function closeChg(){ $("#chgModal").hidden=true; chgDirty.clean(); }

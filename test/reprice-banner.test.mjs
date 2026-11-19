@@ -18,14 +18,19 @@ const tctx = { BPStore: { countries: () => [] } }; vm.runInNewContext(src.slice(
 const flow = read('public/flow.html');
 const a = flow.indexOf('const nOrNull=v=>'), b = flow.indexOf('async function applyReprice');
 assert.ok(a > 0 && b > a, 'reprice block found');
-const fTaxSrc = flow.slice(flow.indexOf('let quoteKeep=false;'), flow.indexOf('\n', flow.indexOf('const inr=(n)=>')));
+// r221: + the M$ / putMoney helpers right after inr (amounts are drawn as [data-money] spans)
+const fTaxSrc = flow.slice(flow.indexOf('let quoteKeep=false;'), flow.indexOf('\n', flow.indexOf('const putMoney=(el,...parts)=>')));
+// a tiny DOM node: textContent reads through child nodes (putMoney builds text + span children)
+const node = (extra) => Object.assign({ hidden: true, kids: [], attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, appendChild(c) { this.kids.push(c); return c; },
+  replaceChildren(...c) { this.kids = c; this._t = null; }, get children() { return this.kids; },
+  get textContent() { return this.kids.length ? this.kids.map((k) => k.textContent).join('') : (this._t || ''); }, set textContent(v) { this._t = String(v); this.kids = []; } }, extra);
 
 function harness({ pricing, rates, status = 'draft', eventDate = '2099-01-01' }) {
   const els = {};
-  const el = (id) => (els[id] ||= { id, hidden: true, textContent: '', children: [], appendChild(c) { this.children.push(c); } });
+  const el = (id) => (els[id] ||= node({ id }));
   const ctx = {
     BPStore: { tax: tctx.BPStore.tax, pricing: { quoteTotal, fromItems: () => ({ objectsCost: 0, chairs: 0 }) } },
-    $: (s) => el(s.replace('#', '')), document: { createElement: () => ({ textContent: '' }) },
+    $: (s) => el(s.replace('#', '')), document: { createElement: (tag) => node({ tag }), createTextNode: (s) => ({ textContent: String(s) }) },
     sessionStorage: { getItem: () => null }, ev: { pricing, status, eventDate, lifecycleStage: 'planning' },
     rates, appliedPkg: null, layoutItems: [], failed: {}, canEdit: true, id: 'q1', quoteBlocked: () => false,
   };

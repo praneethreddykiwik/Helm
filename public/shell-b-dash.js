@@ -409,7 +409,7 @@
       var t = gs.querySelector(".gs-ring-txt"), m = t && /(\d+)\s*\/\s*(\d+)/.exec(t.textContent || "");
       // hidden once every REQUIRED step is done (an optional step left over no longer keeps "Setup 7 of 8" up)
       if (!chip.__allowed || gs.hidden || !m || +m[1] >= +m[2] || gs.getAttribute("data-gs-complete") === "1") { chip.hidden = true; return; }
-      clear(chip); chip.appendChild(el("span", null, (gs.getAttribute("data-gs-mode") === "trial" ? "Trial steps " : "Setup ") + m[1] + " of " + m[2]));
+      clear(chip); chip.appendChild(el("span", null, (gs.getAttribute("data-gs-mode") === "trial" ? "Trial steps " : "Getting started ") + m[1] + " of " + m[2]));   /* r221: the Getting started card's own count - not the studio setup */
       chip.appendChild(meter(+m[1] / +m[2])); chip.appendChild(icon(IC.arrow)); chip.hidden = false;
     }
     chip.__sync = sync;
@@ -1119,26 +1119,39 @@
     if (!signedOut && !isCrew && isMoney && (vQuotes || vLeads) && !events.length && !rows.length && !(leads.length > 2)) (function () {
       var steps = [];
       var isAdm = !authOn() || role === "admin";
-      if (chip && chip.__allowed) steps.push({ ic: IC.rocket, t: "Finish studio setup", s: "Brand, packages and preferences.", done: false, act: function () { if (!document.documentElement.classList.contains("hd-gs-open")) chip.click(); var g = document.getElementById("gsCard"); if (g && g.scrollIntoView) g.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "start" }); } });
+      /* r221: every tick comes from the studio's SAVED state, re-read when it arrives: the setup wizard's Finish
+         (organizations.brand.onboarding.completed_at, onboarding-wizard.js) and the server's getting-started flags
+         (my_getting_started "team", getting-started.js) - it said "0 of 4" right after the 14-step setup */
+      var onbDone = function () { var W = window.HelmOnbWizard, st = W && W.lastState; return !!(st && st.complete); };
+      var gsDone = function (k) { var G = window.HelmGettingStarted, m = G && G.last; return !!(m && Array.isArray(m.steps) && m.steps.some(function (x) { return x.key === k && x.done; })); };
+      if (chip && chip.__allowed) steps.push({ ic: IC.rocket, t: "Finish studio setup", s: "Brand, packages and preferences.", live: onbDone, act: function () { if (!document.documentElement.classList.contains("hd-gs-open")) chip.click(); var g = document.getElementById("gsCard"); if (g && g.scrollIntoView) g.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "start" }); } });
       if (eLeads) steps.push({ ic: IC.user, t: "Add your first lead", s: "Capture an enquiry in under a minute.", done: leads.length > 0, href: "leads.html" });
       if (eQuotes && createBtn) steps.push({ ic: IC.doc, t: "Create your first quote", s: "Turn an enquiry into a proposal.", done: rows.length > 0, act: function () { createBtn.click(); } });
-      if (isAdm) steps.push({ ic: IC.team, t: "Invite your team", s: "Give planners and crew their own access.", done: false, href: "control.html" });
+      if (isAdm) steps.push({ ic: IC.team, t: "Invite your team", s: "Give planners and crew their own access.", live: function () { return gsDone("team"); }, href: "control.html" });
       if (!steps.length) return;
-      var doneN = steps.filter(function (x) { return x.done; }).length;
       var head = el("div", "hd-gs-head");
       var ht = el("div"); ht.appendChild(el("p", "hd-eyebrow", "Get set up")); ht.appendChild(el("h3", "hd-gs-title", "Welcome aboard. A few steps and your dashboard comes alive."));
-      head.appendChild(ht); head.appendChild(el("span", "hd-pill hd-info hd-count-pill", doneN + " of " + steps.length + " done"));
+      var pill = el("span", "hd-pill hd-info hd-count-pill");
+      head.appendChild(ht); head.appendChild(pill);
       getSet.appendChild(head);
       var ol = el("ol", "hd-gs-steps");
       steps.forEach(function (x, i) {
         var li = el("li"), a = x.href ? link(x.href, "hd-gs-step") : el("button", "hd-gs-step");
         if (!x.href) { a.type = "button"; a.addEventListener("click", x.act); }
-        if (x.done) a.classList.add("hd-gs-done");
-        var n = el("span", "hd-gs-n"); n.appendChild(icon(x.done ? IC.check : x.ic)); a.appendChild(n);
-        var m = el("span", "hd-gs-m"); m.appendChild(el("b", null, (i + 1) + ". " + x.t)); m.appendChild(el("small", null, x.done ? "Done" : x.s)); a.appendChild(m);
+        x.n = el("span", "hd-gs-n"); a.appendChild(x.n);
+        var m = el("span", "hd-gs-m"); m.appendChild(el("b", null, (i + 1) + ". " + x.t)); x.sub = el("small"); m.appendChild(x.sub); a.appendChild(m);
         a.appendChild(icon(IC.arrow, "hd-ic hd-gs-go"));
-        li.appendChild(a); ol.appendChild(li);
+        x.a = a; li.appendChild(a); ol.appendChild(li);
       });
+      function paint() {
+        steps.forEach(function (x) {
+          if (x.live) x.done = x.live();
+          x.a.classList.toggle("hd-gs-done", !!x.done); clear(x.n); x.n.appendChild(icon(x.done ? IC.check : x.ic)); x.sub.textContent = x.done ? "Done" : x.s;
+        });
+        pill.textContent = steps.filter(function (x) { return x.done; }).length + " of " + steps.length + " done";
+      }
+      paint();
+      document.addEventListener("helm:onb-state", paint); document.addEventListener("helm:gs-model", paint);
       getSet.appendChild(ol); getSet.hidden = false; root.classList.add("hd-new");
     })();
 

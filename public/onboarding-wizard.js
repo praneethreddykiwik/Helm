@@ -157,6 +157,10 @@
     if (!box || !S || !S.org || (S.mode && S.mode() !== "supabase")) return;
     let o = null, role = null;
     try { o = await S.org.current(); role = await S.auth.role(); } catch (e) { return; }
+    // r221: the studio's SAVED setup state (organizations.brand.onboarding) for the dashboard "Get set up" strip:
+    // complete = the wizard's Finish was reached (completed_at), so "Finish studio setup" is ticked right after setup
+    try { const p = progressFromOrg(o); api.lastState = { complete: !!p.completed_at, pct: percent(p.done, p.skipped), started: !!(p.step || p.done.length) };
+      document.dispatchEvent(new CustomEvent("helm:onb-state", { detail: api.lastState })); } catch (e) {}
     const n = nudgeFor(o, role); if (!n) return;
     // 0177: a free-trial studio has no full studio setup, so no "Resume setup" nudge
     try { if (S.trialOrg && S.trialOrg.inTrial && (await S.trialOrg.inTrial())) return; } catch (e) {}

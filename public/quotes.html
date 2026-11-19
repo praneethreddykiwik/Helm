@@ -128,9 +128,9 @@
 </style>
 <link rel="stylesheet" href="quotes-polish.css?v=9"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="event-group-picker.css?v=2">
 <link rel="stylesheet" href="link-views.css?v=2">
-<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=3"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=96" id="shellProto"></script>
+<script src="/shell-proto.js?v=97" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -281,7 +281,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=382"></script><script src="flow-resume.js?v=10" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=6"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=4"></script>
+<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=383"></script><script src="flow-resume.js?v=10" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=6"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=4"></script>
 <script src="event-sizing.js?v=5"></script><script src="quote-smart-filter.js?v=2"></script><script src="approval-watch.js?v=2"></script><script src="event-group-picker.js?v=5"></script><script src="link-views.js?v=5"></script>
 <script src="page-tours.js?v=57"></script>
 <script src="tour.js?v=72"></script>
@@ -1101,6 +1101,8 @@
     let full; try{ full=detailCache[id]||(detailCache[id]=await BPStore.quotes.get(id)); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"load the quote"}),{type:"err"}); return; }
     if(!full){ BPUI.toast("This quote no longer exists.",{type:"err"}); return; }
     const p=full.pricing||{}, cl=(p.client)||full.client||{};
+    // r221: name the quote by its saved quotation (Q1, Q2 ... - the quote flow's numbering), not the floor-plan layout version
+    let qLabel=""; try{ const qv=BPStore.quotationVersions?await BPStore.quotationVersions.list(id):[]; qLabel=(Array.isArray(qv)&&qv[0]&&qv[0].label)?String(qv[0].label):""; }catch(_){ qLabel=""; }
     // The stored client-side `computed` breakdown is NOT trusted (same rule as approve.html):
     // the grand total is the server-stamped pricing.total; the line breakdown is re-derived
     // from the raw inputs and shown ONLY when it adds up to that total.
@@ -1128,7 +1130,7 @@
     .badge{background:#eef1f0;color:#2f4a42;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}</style>
     <div class=head><div><h1>${esc(sup.name||"Helm Events")}</h1>${sup.tradeName&&sup.tradeName!==sup.name?`<div class=muted>${esc(sup.tradeName)}</div>`:""}${sup.address?`<div class=muted>${esc(sup.address)}</div>`:""}${sup.taxId?`<div class=muted>${esc(sup.taxIdLabel)}: ${esc(sup.taxId)}</div>`:""}<div class=muted style="font-weight:700;margin-top:4px">${isInv?invTitle(qTax,sup):"Event Quotation"}</div></div>
       <div style="text-align:right"><div style="font-family:monospace;font-weight:700;font-size:16px">${esc(full.code)}</div>
-      <div class=muted>${[isInv?(BPStore.quoteDate(full.confirmedAt,qTax)?"Confirmed "+esc(BPStore.quoteDate(full.confirmedAt,qTax)):"Confirmed"):"Quote V"+esc(full.currentVersion), ver&&String(ver)!==String(full.currentVersion)?"layout v"+esc(String(ver)):"", esc(BPStore.quoteDate(full.updatedAt,qTax))].filter(Boolean).join(" · ")}</div>
+      <div class=muted>${[isInv?(BPStore.quoteDate(full.confirmedAt,qTax)?"Confirmed "+esc(BPStore.quoteDate(full.confirmedAt,qTax)):"Confirmed"):(qLabel?"Quotation "+esc(qLabel):"Quote"), ver&&String(ver)!==String(full.currentVersion)?"layout v"+esc(String(ver)):"", esc(BPStore.quoteDate(full.updatedAt,qTax))].filter(Boolean).join(" · ")}</div>
       <span class=badge>${isInv?"CONFIRMED":"QUOTE"}</span></div></div>
     <table><tr><td class=muted>Client</td><td>${esc(cl.name||"—")}${cl.company?" · "+esc(cl.company):""}</td></tr>
       ${cl.email?`<tr><td class=muted>Email</td><td>${esc(cl.email)}</td></tr>`:""}

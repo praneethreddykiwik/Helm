@@ -429,7 +429,8 @@
       await BPStore.config.setPricing(next);
     } catch (x) { /* pricing is admin-only; the studio can set the tax in Settings */ }
   }
-  function header(kind) { return `<h2>${esc(O.KINDS[kind].label)}</h2><p class="sub">${esc(INTRO[kind])}</p>`; }
+  // r221: the page title uses the same name as the step list ("Item prices", not "Rates"; "Menu dishes", not "Menu items")
+  function header(kind) { return `<h2>${esc(lbl(kind))}</h2><p class="sub">${esc(INTRO[kind])}</p>`; }
 
   function renderInput(kind) {
     const st = S.steps[kind], def = O.KINDS[kind];
@@ -529,7 +530,9 @@
     if (org && !studioOk()) return `<div class="ob-card"><h2>Almost there</h2><div class="ob-warn" role="alert">Your studio details (name, currency, timezone) are required to finish setup.</div><div class="ob-row"><span class="ob-grow"></span><button type="button" class="btn primary" data-act="goto" data-i="${idxOf("studio")}">${canBill ? "Complete studio details" : "View studio details"}</button></div></div>`;
     const lines = KEYS.map((k) => { const c = counts(k); const st = S.steps[k]; const st2 = st.skipped && !st.done ? "skipped" : (st.done ? (isSet(k) ? "saved" : !st.batchKey ? "imported" : `${Number(c.ok)} added${undoneCount(st, k) ? " (" + undoneCount(st, k) + " undone)" : ""}, ${Number(c.merged)} merged`) : "not done");
       return `<li><b>${esc(lbl(k))}</b> — ${esc(st2)}</li>`; }).join("");
-    return `<div class="ob-card"><h2>🎉 You're set up</h2><p class="sub">Here is what you set up. Skipped steps can be finished any time from Settings.</p><ul>${lines}</ul>`
+    // r221: the Finish summary starts with the required Business details step (it was left out of the list)
+    const billLine = billingOk() ? `<li><b>${esc(lbl("billing"))}</b> — saved</li>` : "";
+    return `<div class="ob-card"><h2>🎉 You're set up</h2><p class="sub">Here is what you set up. Skipped steps can be finished any time from Settings.</p><ul>${billLine}${lines}</ul>`
       + `<div class="ob-row"><a class="btn" href="inventory.html">Open Inventory</a><a class="btn" href="vendors.html">Open Vendors</a><a class="btn" href="staff.html">Open Staff</a><a class="btn" href="control.html#pricing">Open Settings</a>`
       + `<span class="ob-grow"></span><button type="button" class="btn" data-act="reset">Clear saved draft</button><a class="btn primary" href="dashboard.html">Go to dashboard</a></div></div>`;
   }
@@ -559,9 +562,17 @@
   }
 
   /* ---------- actions ---------- */
+  // r221: what is on screen in the "Type them in" table is what we keep. A value a picker set without an input event
+  // (veg / non-veg chosen in the ui-pickers list, autofill) was missing from the draft, so Review -> Back redrew the
+  // default. Read every cell back before leaving the table.
+  function syncManualFromDom(kind) {
+    const st = S.steps[kind]; if (!st || st.mode !== "manual" || !Array.isArray(st.manual)) return;
+    document.querySelectorAll("#obRoot [data-r][data-f]").forEach((c) => { const r = st.manual[Number(c.dataset.r)]; if (r && (c.tagName === "SELECT" || c.tagName === "INPUT")) r[c.dataset.f] = c.value; });
+  }
   async function act(kind, a, el) {
     const st = S.steps[kind] || {};
     const err = (m) => { const e = $("#obErr"); if (e) e.textContent = m || ""; };
+    if (a === "review" && st.stage !== "preview") { syncManualFromDom(kind); saveDraft(); }
     if (a === "review" || a === "preview") {
       if (a === "review") {
         if (st.mode === "csv") {
@@ -677,6 +688,7 @@
     const kind = KEYS[S.step]; if (!kind) return; const st = S.steps[kind], t = ev.target;
     if (t.id === "obFile") return readFile(kind, t.files && t.files[0]);
     if (t.dataset && t.dataset.map) { st.mapping = st.mapping || {}; st.mapping[t.dataset.map] = Number(t.value); saveDraft(); return; }
+    if (t.dataset && t.dataset.r !== undefined && t.dataset.f && Array.isArray(st.manual)) { const r = st.manual[Number(t.dataset.r)]; if (r) { r[t.dataset.f] = t.value; saveDraft(); } return; }   // r221: a picker's change event alone also keeps the choice
     if (t.dataset && t.dataset.line && previews[kind]) {
       const line = Number(t.dataset.line); st.actions[line] = t.value; saveDraft();
       previews[kind] = O.buildPreview(kind, tableOf(kind), currentMapping(kind, tableOf(kind)), existingCache[kind] || [], st.actions); render();
