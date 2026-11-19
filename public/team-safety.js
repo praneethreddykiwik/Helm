@@ -6,6 +6,8 @@
    No innerHTML: every node is built with createElement / textContent. window.HelmTeam. */
 (function (global) {
   "use strict";
+  // R229 (owner, 19 Nov 2026): Transfer ownership switched off (UI only). true = the old behaviour.
+  const TRANSFER_OWNERSHIP_ON = false;
 
   // ---- pure helpers (unit-tested in test/r33-team-safety.test.mjs) ----------------------------------------------
   // overview (team_safety_overview) -> what the members table needs
@@ -67,7 +69,7 @@
     if (t && t.id) {
       if (t.to_user && t.to_user === ov.me) {
         out.push({ kind: "transfer", text: (t.from_name || "The owner") + " wants to make you the studio owner. You will be responsible for the studio's billing and team.",
-          actions: [{ act: "transfer-accept", id: t.id, label: "Accept" }, { act: "transfer-decline", id: t.id, label: "Decline" }] });
+          actions: (TRANSFER_OWNERSHIP_ON ? [{ act: "transfer-accept", id: t.id, label: "Accept" }] : []).concat([{ act: "transfer-decline", id: t.id, label: "Decline" }]) });
       } else if (ov.i_am_owner) {
         out.push({ kind: "transfer", text: "Waiting for " + (t.to_name || "the new owner") + " to accept ownership (until " + when(t.expires_at) + ").",
           actions: [{ act: "transfer-cancel", id: t.id, label: "Cancel hand-over" }] });
@@ -141,7 +143,10 @@
     // old folded box stays under the banners (same text, same buttons, same checks)
     const xbox = deps.transferBox || null;
     if (xbox) while (xbox.firstChild) xbox.removeChild(xbox.firstChild);
-    if (ov.i_am_owner && !(ov.transfer && ov.transfer.id)) {
+    // R229 (owner, 19 Nov 2026): Transfer ownership is DISABLED - no "Transfer ownership" block anywhere (the Danger zone
+    // card stays empty, so the page keeps it hidden). The server functions (team_transfer_start / accept / cancel) stay in
+    // place, unused. To turn it back on: set TRANSFER_OWNERSHIP_ON = true (see DISABLED-FEATURES.md).
+    if (TRANSFER_OWNERSHIP_ON && ov.i_am_owner && !(ov.transfer && ov.transfer.id)) {
       const others = (Array.isArray(ov.admins) ? ov.admins : []).filter((a) => a && a.user_id && a.user_id !== ov.me);
       const det = xbox ? el("div", { cls: "tsTransfer tsTransferZ" }, [el("h4", { cls: "tsTransferH", text: "Transfer ownership" })])
         : el("details", { cls: "tsTransfer" }, [el("summary", { text: "Transfer ownership" })]);

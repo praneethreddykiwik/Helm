@@ -8,7 +8,7 @@ const sql = read("supabase/migrations/0143_roles_crew_defaults.sql");
 const apply = read("supabase/APPLY-0143.sql");
 
 test("store-api: worker kept valid but never offered in pickers", () => {
-  assert.match(api, /const PICK_ROLES = ALL_ROLES\.filter\(\(r\) => r !== "worker"\)/);
+  assert.match(api, /const KNOWN_ROLES = ALL_ROLES\.filter\(\(r\) => r !== "worker"\);/); assert.match(api, /const PICK_ROLES = KNOWN_ROLES\.filter\(\(r\) => !RETIRED_ROLES\.includes\(r\)\);/);   // R229: + retired roles never offered
   assert.match(api, /roles: \(\) => PICK_ROLES\.slice\(\)/);
   assert.match(api, /staffRoles: \(\) => PICK_ROLES\.filter\(/);
   assert.match(api, /worker: "Crew"/);

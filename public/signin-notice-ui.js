@@ -20,7 +20,8 @@
   ];
   var LABELS = { admin: "Admin", manager: "Event manager", planner: "Planner", sales: "Sales", coordinator: "Event coordinator",
     supervisor: "Supervisor", quality: "Quality engineer", operations: "Operations", designer: "Designer", crew: "Crew" };
-  var ALL = ["admin", "manager", "planner", "sales", "coordinator", "supervisor", "quality", "operations", "designer", "crew"];
+  // R229 (0398): Event coordinator + Designer removed (the server's _r383_roles_all() no longer lists them)
+  var ALL = ["admin", "manager", "planner", "sales", "supervisor", "quality", "operations", "crew"];
   function roleLabel(r) { return LABELS[r] || String(r || ""); }
   function pickRoles(list, all) {
     var known = Array.isArray(all) && all.length ? all : ALL, seen = {}, out = [];

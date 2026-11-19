@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (348 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (349 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4561 objects): body 175, bucket 9, col 243, con 416, cron 20, exec 19, fn 2041, idx 532, marker 105, pol 189, polexpr 4, pre 113, pub 5, seq 1, tbl 295, trg 392, view 2.
+-- What is checked (4575 objects): body 177, bucket 9, col 243, con 416, cron 20, exec 19, fn 2048, idx 532, marker 106, pol 189, polexpr 4, pre 113, pub 5, seq 1, tbl 296, trg 395, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4585,7 +4585,21 @@ with o(m, k, s, n, x) as (values
   ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_locks', 'zz_quote_org_match', null),
   ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_lock_log', 'zz_quote_org_match', null),
   ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_locks', 'zzz_studio_read_only', null),
-  ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_lock_log', 'zzz_studio_read_only', null)
+  ('0397_r227_event_plan_lock', 'trg', 'public.event_plan_lock_log', 'zzz_studio_read_only', null),
+  ('0398_r229_retire_roles', 'body', 'public', '_notify_roles', '|82670774cb35cb95354e75ce12547558'),
+  ('0398_r229_retire_roles', 'body', 'public', '_r383_roles_all', '|ea0730053898f89132ebe8617ce0979d'),
+  ('0398_r229_retire_roles', 'fn', 'public', '_r398_retired_roles', ''),
+  ('0398_r229_retire_roles', 'fn', 'public', '_r398_role_label', 'text'),
+  ('0398_r229_retire_roles', 'fn', 'public', '_r398_removed_roles', ''),
+  ('0398_r229_retire_roles', 'tbl', 'public._r398_backup', null, null),
+  ('0398_r229_retire_roles', 'fn', 'public', '_r398_gate_on', ''),
+  ('0398_r229_retire_roles', 'fn', 'public', '_r398_tg_profile_role', ''),
+  ('0398_r229_retire_roles', 'fn', 'public', '_r398_tg_invite_role', ''),
+  ('0398_r229_retire_roles', 'trg', 'public.profiles', 'a398_retired_role_guard', null),
+  ('0398_r229_retire_roles', 'trg', 'public.invitations', 'a398_retired_role_guard', null),
+  ('0398_r229_retire_roles', 'fn', 'public', '_r398_tg_role_access', ''),
+  ('0398_r229_retire_roles', 'trg', 'public.role_access', 'a398_retired_role_guard', null),
+  ('0398_r229_retire_roles', 'marker', 'public', '_r383_cfg', 'uuid|r229-0398')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4935,7 +4949,8 @@ mig(ord, m, ov, note) as (values
   (345, '0393_audit_d_list_indexes', null, 'Audit D list speed: two additive indexes (org_id, updated_at desc, id desc) on leads and quotes for the newest-first lists; nothing else changed'),
   (346, '0394_e_menu_package_audit', null, null),
   (347, '0396_r226_event_day_plan', null, 'tenant guard + read-only studio triggers put on the new day-plan tables with dynamic SQL'),
-  (348, '0397_r227_event_plan_lock', null, 'R227 plan lock: tenant guard + read-only studio triggers on the two new tables are created with dynamic SQL; event_activity is renamed to event_activity__pre0397 once')
+  (348, '0397_r227_event_plan_lock', null, 'R227 plan lock: tenant guard + read-only studio triggers on the two new tables are created with dynamic SQL; event_activity is renamed to event_activity__pre0397 once'),
+  (349, '0398_r229_retire_roles', null, 'Retired roles: BEFORE triggers a398_retired_role_guard on profiles / invitations / role_access refuse NEW assignment of coordinator / designer / crew (existing holders unaffected), backup table _r398_backup, role lists re-issued, the sign-in notice default (_r383_cfg) patched in place with dynamic SQL - checked by the r229-0398 marker. The people themselves are deleted only by the owner-run DELETE-0398-RETIRED-ROLE-USERS.sql (not checked here)')
 ),
 env as (
   select
