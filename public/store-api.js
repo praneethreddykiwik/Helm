@@ -1623,26 +1623,50 @@ window.HelmUrl = HelmUrl;
     } catch (e) { return false; }
   }
   /* R233 (log-noise guard), part 2 - the same question asked again and again after the server already said no:
-     - a function / table this database does not have yet (PostgREST PGRST202 / PGRST205, Postgres 42883 / 42P01 - the
-       app shipped before its migration was run) is asked ONCE per page load; later calls get the same 404 answer from here
+     - a function / table this database does not have yet (PostgREST PGRST202 / PGRST205 - the app shipped before its
+       migration was run) is asked ONCE per page load (a save: once per 30 s, R233b); later calls get the same 404 answer from here
        (the callers' "missing -> older path / hide the card" handling is unchanged). Keyed by function + argument names.
      - a READ (GET, or a read-only RPC from READ_RPCS) that failed with 403 / 404 / 429 / 5xx is not sent again with the exact
        same question and sign-in until a short wait has passed: 403 / 404 one minute (the same question gets the same "no"),
        429 the server's Retry-After (else 2 s doubling to 1 min), 5xx 2 s doubling to 30 s. A good answer clears it.
      Writes are never held back (a save always goes out), and 401 stays with the session check (onAuthFailure). */
-  const NOISE_GONE = new Map(), NOISE_HOLD = new Map(), NOISE_CAP = 200;
-  const GONE_CODES = /^(PGRST202|PGRST205|42883|42P01)$/;
-  function noiseReq(input, init) {
+  /* R233b (review): a SAVE that went through can change the answer to a read that was refused a moment ago (studio just
+     created, invitation accepted, setting / role changed), so every successful write clears the read holds - the same rule
+     the read cache follows (coalescedFetch). And the guard only reads a request body when it has to: the argument names of
+     a function are needed only when that function is already known "missing" (a 300 KB save was parsed twice per call). */
+  const NOISE_GONE = new Map(), NOISE_GONE_FN = new Set(), NOISE_HOLD = new Map(), NOISE_CAP = 200;
+  /* R233b (review): only PostgREST's own "no such function / table" (PGRST202 / PGRST205) is "missing". 42883 / 42P01 also come
+     from INSIDE a function that exists (a real bug there) - those are not replayed. A missing READ is kept for the page; any
+     other function (it may be a save) only for 30 s, so a save made after the owner runs the migration goes out again. */
+  const GONE_CODES = /^(PGRST202|PGRST205)$/, GONE_WRITE_MS = 30000;
+  /* R233b (review): what the guard answered locally, so it is never invisible - per-page counts in window.__helmLocalStats
+     ({ gate, missing, backoff, fn: { "gate:bell_feed": 3, ... } }) and ONE Sentry event per page per (kind, name) where it
+     points at a bug: a signed-in function sent with the bare anon key while this tab still thinks it is signed in. */
+  const LOCAL_STATS = { gate: 0, missing: 0, backoff: 0, fn: {} }, LOCAL_SENT = new Set();
+  try { global.__helmLocalStats = LOCAL_STATS; } catch (e) {}
+  function localHit(kind, name, sentry) {
+    try {
+      LOCAL_STATS[kind] = (LOCAL_STATS[kind] || 0) + 1;
+      const k = kind + ":" + (name || "?");
+      if (LOCAL_STATS.fn[k] || Object.keys(LOCAL_STATS.fn).length < 200) LOCAL_STATS.fn[k] = (LOCAL_STATS.fn[k] || 0) + 1;
+      if (sentry && !LOCAL_SENT.has(k) && LOCAL_SENT.size < 50) {
+        LOCAL_SENT.add(k);
+        if (global.HelmTelemetry && typeof global.HelmTelemetry.report === "function") global.HelmTelemetry.report("helm_local_" + kind, { code: sentry, message: k });
+      }
+    } catch (e) {}
+  }
+  function noiseMethod(input, init) { try { return String((init && init.method) || (input && input.method) || "GET").toUpperCase(); } catch (e) { return "GET"; } }
+  function noiseReq(input, init, wantArgs) {
     let u = "", method = "GET", body = "";
-    try { u = typeof input === "string" ? input : (input && input.url) || ""; method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
+    try { u = typeof input === "string" ? input : (input && input.url) || ""; method = noiseMethod(input, init);
       body = (init && typeof init.body === "string") ? init.body : ""; } catch (e) { return null; }
     if (!/\/rest\/v1\//.test(u)) return null;
     const fn = rpcNameOf(u); let gone = "";
-    if (fn) { let ks = "?"; try { const o = body ? JSON.parse(body) : {}; if (o && typeof o === "object" && !Array.isArray(o)) ks = Object.keys(o).sort().join(","); } catch (e) {} gone = "rpc:" + fn + "(" + ks + ")"; }
+    if (fn) { if (wantArgs === true || (wantArgs !== false && NOISE_GONE_FN.has(fn))) { let ks = "?"; try { const o = body ? JSON.parse(body) : {}; if (o && typeof o === "object" && !Array.isArray(o)) ks = Object.keys(o).sort().join(","); } catch (e) {} gone = "rpc:" + fn + "(" + ks + ")"; } }
     else if (method === "GET" || method === "HEAD") { const m = /\/rest\/v1\/([A-Za-z0-9_]+)(\?|$)/.exec(u); if (m) gone = "rel:" + m[1]; }
     const read = method === "GET" || method === "HEAD" || (method === "POST" && READ_RPCS.test(u));
     const key = read ? [method, u, body, hdrOf(init, input, "Authorization"), hdrOf(init, input, "Accept"), hdrOf(init, input, "Prefer"), hdrOf(init, input, "Range")].join("\u0001") : "";
-    return { gone: gone, key: key };
+    return { gone: gone, key: key, read: read };
   }
   function noiseCap(m) { while (m.size >= NOISE_CAP) m.delete(m.keys().next().value); }
   function noiseResp(h, why) { return new Response(h.body, { status: h.status, headers: { "Content-Type": "application/json", "X-Helm-Local": why } }); }
@@ -1650,9 +1674,10 @@ window.HelmUrl = HelmUrl;
     try {
       if (!NOISE_GONE.size && !NOISE_HOLD.size) return null;
       const q = noiseReq(input, init); if (!q) return null;
-      const g = q.gone && NOISE_GONE.get(q.gone); if (g) return noiseResp(g, "missing");
+      const g = q.gone && NOISE_GONE.get(q.gone);
+      if (g) { if (Date.now() < g.until) { localHit("missing", q.gone); return noiseResp(g, "missing"); } NOISE_GONE.delete(q.gone); }
       const h = q.key && NOISE_HOLD.get(q.key);
-      if (h) { if (Date.now() < h.until) return noiseResp(h, "backoff"); }
+      if (h) { if (Date.now() < h.until) { localHit("backoff", rpcNameOf(typeof input === "string" ? input : (input && input.url) || "") || "read"); return noiseResp(h, "backoff"); } }
     } catch (e) {}
     return null;
   }
@@ -1664,14 +1689,21 @@ window.HelmUrl = HelmUrl;
   function noiseSeen(input, init, res) {
     try {
       if (!res || res.status === 401) return;
-      const q = noiseReq(input, init); if (!q) return;
-      if (res.ok) { if (q.key && NOISE_HOLD.size) NOISE_HOLD.delete(q.key); return; }
+      if (res.ok) {   // R233b: nothing to do (and no work) while nothing is held
+        if (!NOISE_HOLD.size) return;
+        const qo = noiseReq(input, init, false);
+        if (qo && qo.key) { NOISE_HOLD.delete(qo.key); return; }
+        const m = noiseMethod(input, init);
+        if ((qo && !qo.read) || (!qo && m !== "GET" && m !== "HEAD" && m !== "OPTIONS")) NOISE_HOLD.clear();   // a save went through
+        return;
+      }
+      const q = noiseReq(input, init, res.status === 404); if (!q) return;
       const st = res.status, maybeGone = st === 404 && !!q.gone, hold = !!q.key && (st === 403 || st === 404 || st === 429 || st >= 500);
       if ((!maybeGone && !hold) || !res.clone) return;
       const ra = (res.headers && typeof res.headers.get === "function") ? res.headers.get("Retry-After") : null;
       res.clone().text().then((body) => {
         let code = ""; try { code = String((JSON.parse(body) || {}).code || ""); } catch (e) {}
-        if (maybeGone && GONE_CODES.test(code)) { noiseCap(NOISE_GONE); NOISE_GONE.set(q.gone, { status: st, body: body }); return; }
+        if (maybeGone && GONE_CODES.test(code)) { noiseCap(NOISE_GONE); NOISE_GONE.set(q.gone, { status: st, body: body, until: q.read ? Infinity : Date.now() + GONE_WRITE_MS }); const f = rpcNameOf(typeof input === "string" ? input : (input && input.url) || ""); if (f && NOISE_GONE_FN.size < 1000) NOISE_GONE_FN.add(f); return; }
         if (!hold) return;
         const prev = NOISE_HOLD.get(q.key), n = prev ? prev.n + 1 : 1;
         NOISE_HOLD.delete(q.key); noiseCap(NOISE_HOLD);
@@ -1700,10 +1732,15 @@ window.HelmUrl = HelmUrl;
       throw err;
     });
   }
+  function gateHit(input) {   // R233b: counted; ONE Sentry event when this tab still thinks it is signed in (a bug)
+    try { const gu = typeof input === "string" ? input : (input && input.url) || "";
+      localHit("gate", rpcNameOf(gu) || (/\/rest\/v1\/([A-Za-z0-9_]+)/.exec(gu) || [])[1], currentUser ? "HELM_GATE_SIGNED_IN_TAB" : ""); } catch (e) {}
+  }
   function authAwareFetchInner(input, init) {
     if (anonDenied(input, init)) {
+      gateHit(input);   // R233b
       return Promise.resolve(new Response(JSON.stringify({ code: "42501", details: null, hint: null, message: "not signed in" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }));
+        { status: 401, headers: { "Content-Type": "application/json", "X-Helm-Local": "signed-out" } }));
     }
     const held = noiseHeld(input, init); if (held) return Promise.resolve(held);   // R233
     return coalescedFetch(input, init).then((res) => {
@@ -3911,6 +3948,16 @@ window.HelmUrl = HelmUrl;
      growing wait with jitter (15-30 s, 30-60 s, ... up to 2.5-5 min), then runs the catch-up (onBack). SUBSCRIBED resets it. */
   const RT_ERR_MAX = 3, RT_BACKOFF_BASE = 30000, RT_BACKOFF_MAX = 300000;
   function rtBackoffMs(rounds) { const x = Math.min(RT_BACKOFF_MAX, RT_BACKOFF_BASE * Math.pow(2, rounds)); return Math.round(x / 2 + Math.random() * x / 2); }
+  /* R233b (review): the Realtime backoff and the 8-channel cap used to give up in silence - one console warning + one
+     Sentry event per page per kind (live updates on this page now come late / not at all; the catch-up still runs). */
+  const RT_NOTED = new Set();
+  function rtNote(what, code) {
+    try {
+      if (RT_NOTED.has(what)) return; RT_NOTED.add(what);
+      try { console.warn("[helm] live updates: " + (what === "cap" ? "too many live channels on this page - one was not opened" : "the server keeps refusing a live channel - retrying slowly")); } catch (e) {}
+      if (typeof localHit === "function") localHit("realtime", what, code);
+    } catch (e) {}
+  }
   function rtLive(make, onBack) {
     let ch = null, stopped = false, idleT = null, retryT = null, tries = 0, gen = 0, errs = 0, rounds = 0;
     const st = (g) => (status) => {
@@ -3919,11 +3966,12 @@ window.HelmUrl = HelmUrl;
       if (status !== "CHANNEL_ERROR" && status !== "TIMED_OUT") return;
       if (++errs < RT_ERR_MAX) return;
       errs = 0; close(); clearTimeout(retryT);
+      if (rounds === 2) rtNote("backoff", "HELM_RT_BACKOFF");   // R233b: the 3rd round in a row (~2 min refused): say so once
       retryT = setTimeout(() => { retryT = null; if (stopped || (typeof document !== "undefined" && document.hidden)) return; open(); try { if (ch) onBack && onBack(); } catch (e) {} }, rtBackoffMs(rounds++));
     };
     const open = () => { if (stopped || ch) return; clearTimeout(retryT); retryT = null;
       if (!rtSessionOk()) { if (++tries <= 40) retryT = setTimeout(() => { retryT = null; if (!(typeof document !== "undefined" && document.hidden)) { open(); try { if (ch) onBack && onBack(); } catch (e) {} } }, RT_RETRY_MS); return; }
-      if (rtOpen >= RT_MAX_CHANNELS) return;
+      if (rtOpen >= RT_MAX_CHANNELS) { rtNote("cap", "HELM_RT_CAP"); return; }
       tries = 0; gen++; try { ch = make(st(gen)); } catch (e) { ch = null; } if (ch) rtOpen++; };
     const close = () => { if (!ch) return; gen++; rtOpen = Math.max(0, rtOpen - 1); try { if (supa && typeof supa.removeChannel === "function") supa.removeChannel(ch); else if (ch.unsubscribe) ch.unsubscribe(); } catch (e) {} ch = null; };
     const onVis = () => {

@@ -35,7 +35,7 @@ await t("1 HQ billing CSV: BOM first, then the CSV", async () => {
 await t("2 public enquiry / delivery / vendor-request pages load telemetry.js like approve / work", async () => {
   for (const p of ["enquiry", "delivery", "vendor-request", "approve", "work"]) {
     const h = r("public/" + p + ".html");
-    assert.match(h, /<script src="\/telemetry\.js\?v=13"><\/script>\n<script src="\/config\.js\?v=\d+"><\/script>/, p + ": telemetry.js right before config.js");
+    assert.match(h, /<script src="\/telemetry\.js\?v=14"><\/script>\n<script src="\/config\.js\?v=\d+"><\/script>/, p + ": telemetry.js right before config.js");
     assert.equal((h.match(/telemetry\.js/g) || []).length, 1, p + ": loaded once");
     assert.ok(h.indexOf("trusted-types.js") < h.indexOf("telemetry.js"), p + ": after the Trusted Types policy");
   }

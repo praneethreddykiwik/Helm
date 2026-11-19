@@ -112,10 +112,24 @@
   }
   // Every URL-bearing field of a Sentry event: message, request url / query /
   // Referer header, transaction name, exception values, breadcrumbs.
+  /* R233b (review): once Sentry runs, ITS handler records an unhandled rejection of a plain Supabase error object as
+     "Object captured as promise rejection with keys: code, details, hint, message" (one issue for every database error).
+     Name it by its code instead and split the grouping by code, like report() does. */
+  function sdkPlainObject(ev) {
+    try {
+      var ex = ev.exception && ev.exception.values && ev.exception.values[0], ser = ev.extra && ev.extra.__serialized__;
+      if (!ex || !/^Object captured as/.test(String(ex.value || '')) || !ser || typeof ser !== 'object' || ser.code == null) return;
+      var code = String(ser.code).slice(0, 40);
+      ex.value = '[sdk] ' + code + ' ' + String(ser.message == null ? '' : ser.message).slice(0, 300);
+      ev.fingerprint = ['{{ default }}', 'sdk', code];
+      ev.tags = ev.tags || {}; ev.tags.pg_code = code;
+    } catch (e) {}
+  }
   function redactEvent(ev) {
     try {
       if (!ev) return ev;
       if (fromExtension(ev)) return null;   // r26: drop add-on noise (Sentry: returning null = not sent)
+      sdkPlainObject(ev);   // R233b: before the redaction below, so the new text is redacted too
       if (ev.message) ev.message = redact(ev.message);
       if (ev.transaction) ev.transaction = stripUrl(ev.transaction);
       // r26: no person on an event - at most an opaque id, never e-mail / name / IP
@@ -168,7 +182,9 @@
   }
   function sendToSentry(kind, payload, safe) {
     var w = asError(kind, payload), ctx = { extra: safe };
-    if (w.code) ctx.tags = { pg_code: w.code };
+    // R233b (review): Sentry groups an event that has a stack by its stack alone, and every wrapped error is made right here,
+    // so without a fingerprint every database failure from one caller still lands in ONE issue. Split them by kind + code.
+    if (w.code) { ctx.tags = { pg_code: w.code }; ctx.fingerprint = ['{{ default }}', String(kind || ''), w.code]; }
     window.Sentry.captureException(w.err, ctx);
   }
   function report(kind, payload) {

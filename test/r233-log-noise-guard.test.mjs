@@ -95,7 +95,7 @@ await t('3b. signed out: every called function outside ANON_RPCS is answered loc
 const a4 = S.indexOf('  const NOISE_GONE'), b4 = S.indexOf('  /* R102 (x-browser run)');
 assert.ok(a4 > 0 && b4 > a4);
 let now = 1e12; const FakeDate = { now: () => now };
-const G = new Function('READ_RPCS', 'rpcNameOf', 'Date', hdrSrc + S.slice(a4, b4) + '\nreturn { noiseHeld, noiseSeen, noiseWait };')(READ_RPCS, gate.rpcNameOf, FakeDate);
+const G = new Function('READ_RPCS', 'rpcNameOf', 'Date', hdrSrc + S.slice(a4, b4) + '\nreturn { noiseHeld, noiseSeen, noiseWait, LOCAL_STATS };')(READ_RPCS, gate.rpcNameOf, FakeDate);
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const res = (status, body, h) => new Response(JSON.stringify(body || {}), { status, headers: h || {} });
 const post = (args, auth) => ({ method: 'POST', body: JSON.stringify(args || {}), headers: { Authorization: auth || 'Bearer u1' } });
@@ -139,6 +139,60 @@ await t('4c. writes and 401s are never held back', async () => {
   assert.equal(G.noiseHeld('https://x.supabase.co/functions/v1/x', { method: 'POST' }), null);
 });
 
+await t('4d. R233b: a save that went through clears the read holds (the answer may have changed); a failed save does not', async () => {
+  const r = B + 'rpc/my_trial_status', ri = post({});
+  G.noiseSeen(r, ri, res(403, { code: '42501', message: 'not authorized' })); await tick();
+  assert.ok(G.noiseHeld(r, ri), 'held after the refusal');
+  G.noiseSeen(B + 'rpc/create_trial_studio', post({ p_name: 'x' }), res(500, {})); await tick();
+  assert.ok(G.noiseHeld(r, ri), 'a FAILED save changes nothing');
+  G.noiseSeen(B + 'rpc/create_trial_studio', post({ p_name: 'x' }), res(200, {}));
+  assert.equal(G.noiseHeld(r, ri), null, 'the studio now exists: the same read goes out again at once');
+  const g = B + 'event_costs?select=*', gi = { method: 'GET', headers: { Authorization: 'Bearer u1' } };
+  G.noiseSeen(g, gi, res(500, {})); await tick(); assert.ok(G.noiseHeld(g, gi));
+  G.noiseSeen(B + 'event_costs', { method: 'POST', body: '{}', headers: { Authorization: 'Bearer u1' } }, res(201, {}));
+  assert.equal(G.noiseHeld(g, gi), null, 'table insert went through: holds cleared');
+  G.noiseSeen(g, gi, res(500, {})); await tick(); assert.ok(G.noiseHeld(g, gi));
+  G.noiseSeen('https://x.supabase.co/functions/v1/invite-signup', { method: 'POST', body: '{}' }, res(200, {}));
+  assert.equal(G.noiseHeld(g, gi), null, 'an edge-function save that went through also clears them');
+});
+await t('4e. R233b: the guard does not parse request bodies on the normal path (a 300 KB save was parsed twice)', async () => {
+  let parses = 0; const J = { parse: (x) => { parses++; return JSON.parse(x); }, stringify: JSON.stringify };
+  const G2 = new Function('READ_RPCS', 'rpcNameOf', 'Date', 'JSON', hdrSrc + S.slice(a4, b4) + '\nreturn { noiseHeld, noiseSeen };')(READ_RPCS, gate.rpcNameOf, FakeDate, J);
+  const big = JSON.stringify({ p_data: 'x'.repeat(300000) }), w = B + 'rpc/save_layout';
+  G2.noiseSeen(w, post({}), res(200, {})); G2.noiseHeld(w, { method: 'POST', body: big });
+  G2.noiseSeen(w, { method: 'POST', body: big, headers: {} }, res(200, {}));
+  assert.equal(parses, 0, 'nothing held / missing: no body parsed');
+  G2.noiseSeen(B + 'rpc/event_money_header', post({ p_quote: 'q' }), res(404, { code: 'PGRST202' })); await tick();
+  const before = parses; G2.noiseHeld(w, { method: 'POST', body: big });
+  assert.equal(parses, before, 'another function is "missing": this save body is still not parsed');
+  assert.ok(G2.noiseHeld(B + 'rpc/event_money_header', post({ p_quote: 'q2' })), 'the missing one is still answered locally');
+});
+
+await t('4f. R233b: only PostgREST "no such function / table" is replayed; a save only for 30 s; local answers are counted', async () => {
+  const st = G.LOCAL_STATS; assert.ok(st && typeof st.missing === 'number'); assert.match(S, /global\.__helmLocalStats = LOCAL_STATS/, 'window.__helmLocalStats');
+  const inside = B + 'rpc/quote_summary', ii = post({ p_quote: 'q' });
+  G.noiseSeen(inside, ii, res(404, { code: '42883', message: 'function public._r23_tz(text) does not exist' })); await tick();
+  assert.equal(G.noiseHeld(inside, ii), null, '42883 raised INSIDE an existing function is a real bug: not replayed');
+  G.noiseSeen(B + 'some_view?select=*', { method: 'GET', headers: {} }, res(404, { code: '42P01' })); await tick();
+  const hv = G.noiseHeld(B + 'some_view?select=*', { method: 'GET', headers: {} });
+  assert.equal(hv && hv.headers.get('X-Helm-Local'), 'backoff', '42P01 on a read: only the ordinary 1-minute read backoff, never "missing" for the page');
+  now += 60001; assert.equal(G.noiseHeld(B + 'some_view?select=*', { method: 'GET', headers: {} }), null);
+  const w = B + 'rpc/save_new_thing', wi = post({ p_x: 1 });
+  G.noiseSeen(w, wi, res(404, { code: 'PGRST202' })); await tick();
+  const m0 = st.missing; assert.ok(G.noiseHeld(w, wi), 'missing save: replayed for a moment'); assert.equal(st.missing, m0 + 1, 'counted');
+  assert.ok(st.fn['missing:rpc:save_new_thing(p_x)'] >= 1);
+  now += 30001; assert.equal(G.noiseHeld(w, wi), null, 'after 30 s a save goes out again (the migration may have been run)');
+  G.noiseSeen(B + 'chat_mentions2?select=*', { method: 'GET', headers: {} }, res(404, { code: 'PGRST205' })); await tick();
+  now += 3600e3; assert.ok(G.noiseHeld(B + 'chat_mentions2?select=id', { method: 'GET', headers: {} }), 'a missing READ stays for the page');
+});
+await t('3c. R233b: the gate\'s own answer is marked and counted; a signed-in tab hitting it sends one Sentry event', () => {
+  const a = S.indexOf('function authAwareFetchInner'); const body = S.slice(a, a + 600);
+  assert.match(body, /if \(anonDenied\(input, init\)\) \{\s*gateHit\(input\);/);
+  assert.match(S, /localHit\("gate", [^;]*currentUser \? "HELM_GATE_SIGNED_IN_TAB" : ""\)/);
+  assert.match(body, /"X-Helm-Local": "signed-out"/);
+  assert.match(S, /if \(sentry && !LOCAL_SENT\.has\(k\) && LOCAL_SENT\.size < 50\)/, 'one event per page per (kind, name)');
+});
+
 // ---- 5. Realtime
 await t('5a. every Realtime channel goes through rtLive with the error backoff (presence: own backoff, R209)', () => {
   const all = [...S.matchAll(/supa\.channel\(/g)].length, viaLive = [...S.matchAll(/rtLive\(\(st\) => supa\.channel\(/g)].length;
@@ -150,10 +204,10 @@ await t('5a. every Realtime channel goes through rtLive with the error backoff (
 });
 await t('5b. rtLive: 3 errors in a row = channel removed, opened again after 15-30 s with a catch-up; SUBSCRIBED resets', () => {
   const a = S.indexOf('  const RT_IDLE_MS'), b = S.indexOf('  const MEMO_LIST_MS');
-  const timers = []; const removed = []; const made = []; let backs = 0;
+  const timers = []; const removed = []; const made = []; const warns = []; let backs = 0;
   const env = { setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; }, clearTimeout: () => {},
     document: { hidden: false, addEventListener() {}, removeEventListener() {} },
-    supa: { removeChannel: (c) => removed.push(c) }, currentUser: { id: 'u' }, rtTokenExp: Date.now() + 3600e3, Math };
+    supa: { removeChannel: (c) => removed.push(c) }, currentUser: { id: 'u' }, rtTokenExp: Date.now() + 3600e3, Math, console: { warn: (m) => warns.push(m) } };
   const live = new Function(...Object.keys(env), S.slice(a, b) + '\nreturn rtLive;')(...Object.values(env));
   const h = live((st) => { const ch = { id: made.length + 1, st }; made.push(ch); return ch; }, () => { backs++; });
   assert.equal(made.length, 1);
@@ -165,7 +219,12 @@ await t('5b. rtLive: 3 errors in a row = channel removed, opened again after 15-
   tm.f(); assert.equal(made.length, 2, 'opened again'); assert.equal(backs, 1, 'catch-up ran');
   made[1].st('CHANNEL_ERROR'); made[1].st('CHANNEL_ERROR'); made[1].st('CHANNEL_ERROR');
   const tm2 = timers[timers.length - 1]; assert.ok(tm2.ms >= 30000 && tm2.ms <= 60000, 'the wait grows: ' + tm2.ms);
-  h.unsubscribe(); tm2.f(); assert.equal(made.length, 2, 'stopped: never reopened');
+  assert.equal(warns.length, 0, 'two rounds: still quiet');
+  tm2.f(); made[2].st('CHANNEL_ERROR'); made[2].st('CHANNEL_ERROR'); made[2].st('CHANNEL_ERROR');
+  assert.equal(warns.length, 1, 'R233b: the third round in a row says so once');
+  const tm3 = timers[timers.length - 1]; tm3.f(); made[3].st('CHANNEL_ERROR'); made[3].st('CHANNEL_ERROR'); made[3].st('CHANNEL_ERROR');
+  assert.equal(warns.length, 1, 'only once per page');
+  h.unsubscribe(); timers[timers.length - 1].f(); assert.equal(made.length, 4, 'stopped: never reopened');
 });
 
 // ---- 6. pollers
@@ -199,9 +258,23 @@ await t('7. telemetry: a plain Supabase error object reaches Sentry as a real Er
   assert.equal(sent.length, 2, 'the early one waited for the SDK, the later one went at once');
   const [e1, x1] = sent[0], [e2, x2] = sent[1];
   assert.equal(e1.name, 'HelmError'); assert.match(e1.message, /^\[rpc\] 57014 canceling statement/); assert.ok(!/a@b\.com/.test(e1.message), 'redacted');
-  assert.equal(x1.tags.pg_code, '57014'); assert.equal(x2.tags.pg_code, '42501'); assert.match(e2.message, /^\[rpc\] 42501 permission denied/);
+  assert.equal(x1.tags.pg_code, '57014'); assert.equal(x2.tags.pg_code, '42501');
+  assert.equal(JSON.stringify(x1.fingerprint), JSON.stringify(['{{ default }}', 'rpc', '57014']), 'R233b: grouped by kind + code, not only by the (shared) stack');
+  assert.equal(JSON.stringify(x2.fingerprint), JSON.stringify(['{{ default }}', 'rpc', '42501'])); assert.match(e2.message, /^\[rpc\] 42501 permission denied/);
   const real = new (vm.runInContext('Error', ctx))('x'); sent.length = 0; w.HelmTelemetry.report('error', real);
-  assert.equal(sent[0][0], real, 'a real Error is passed as it is'); assert.equal(sent[0][1].tags, undefined);
+  assert.equal(sent[0][0], real, 'a real Error is passed as it is'); assert.equal(sent[0][1].tags, undefined); assert.equal(sent[0][1].fingerprint, undefined);
 });
 
+await t('7b. R233b: Sentry\'s own record of a plain-object rejection is named by its code and grouped by it', () => {
+  const w = { HELM_TELEMETRY: {}, addEventListener() {}, document: { head: { appendChild() {} }, createElement: () => ({}) } };
+  const ctx = vm.createContext({ window: w, document: w.document, location: { pathname: '/', reload() {} }, navigator: {}, console });
+  vm.runInContext(read('public/telemetry.js'), ctx);
+  const ev = { exception: { values: [{ type: 'UnhandledRejection', value: 'Object captured as promise rejection with keys: code, details, hint, message' }] },
+    extra: { __serialized__: { code: '57014', message: 'canceling statement due to statement timeout for a@b.com' } } };
+  const out = w.HelmTelemetry.redactEvent(ev);
+  assert.match(out.exception.values[0].value, /^\[sdk\] 57014 canceling statement/); assert.ok(!/a@b\.com/.test(out.exception.values[0].value), 'redacted');
+  assert.equal(JSON.stringify(out.fingerprint), JSON.stringify(['{{ default }}', 'sdk', '57014'])); assert.equal(out.tags.pg_code, '57014');
+  const plain = w.HelmTelemetry.redactEvent({ exception: { values: [{ type: 'TypeError', value: 'x is null' }] } });
+  assert.equal(plain.fingerprint, undefined, 'a real error is left alone');
+});
 console.log(`\nr233-log-noise-guard: ${n} passed`);

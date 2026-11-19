@@ -199,7 +199,7 @@ await t('store wiring: presence uses presenceTracker + presenceLeader; one chann
   assert.match(P, /autoStart, stop, status, paint, lastSeenLabel,/);
   assert.match(STORE, /function stopSignedInPollers\(\) \{[\s\S]{0,400}?try \{ presence\.stop\(\); \} catch \(e\) \{\}/);
   assert.match(STORE, /const RT_MAX_CHANNELS = 8;\n  let rtOpen = 0;/);
-  assert.match(STORE, /if \(rtOpen >= RT_MAX_CHANNELS\) return;/);
+  assert.match(STORE, /if \(rtOpen >= RT_MAX_CHANNELS\) \{ rtNote\("cap", "HELM_RT_CAP"\); return; \}/);   // R233b: the cap still refuses, and now says so once
   assert.doesNotMatch(P, /track\(true\)/, 'no forced re-track on every join');
   // a message from another tab is checked before use (ids are uuids; states are online / away only)
   assert.match(P, /if \(\/\^\[0-9a-f-\]\{36\}\$\/i\.test\(u\)\) out\[u\] = m\.live\[u\] === "online" \? "online" : "away";/);
