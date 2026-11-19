@@ -137,7 +137,7 @@ await t('5a page layout: header, phase switch, attention, three views, chips, Ap
     assert.ok(OPS.includes(`id="${id}"`), id);
   assert.match(OPS, /data-phase="plan" (data-win="before" )?aria-pressed="false">Before the event<\/button>/); assert.match(OPS, /data-phase="live" (data-win="onday" )?aria-pressed="false">On the day<\/button>/);
   assert.match(OPS, /data-view="timeline"[^>]*>Timeline<\/button>/); assert.match(OPS, /data-view="list" aria-pressed="true">List<\/button>/); assert.match(OPS, /data-view="people"[^>]*>By person<\/button>/);
-  assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>/); assert.match(read('public/monitor.html'), /<script src="task-status\.js\?v=\d+"><\/script>\n(<script src="event-plan\.js\?v=\d+"><\/script>\n)?<script src="monitor\.js/);
+  assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>/); assert.match(read('public/monitor.html'), /<script src="task-status\.js\?v=\d+"><\/script>\n(<script src="event-plan\.js\?v=\d+"><\/script>\n)?(<script src="event-floor\.js\?v=\d+"><\/script>\n)?<script src="monitor\.js/);
   assert.match(OPS, /<link rel="stylesheet" href="ops-board\.css\?v=\d+">/);
   assert.match(BRD, /S\.view = v === "timeline" \|\| v === "people" \|\| v === "list" \? v : "list";   \/\/ planning opens on List/);
   assert.match(CSS, /\.tc-search input:focus\{outline:none;background:#fff/);

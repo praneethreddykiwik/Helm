@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=100"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=101"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -921,7 +921,7 @@ window.HelmUrl = HelmUrl;
   // ?next= may only name one of the app's own pages (fixed list — the page string is
   // never taken from the URL); only its query string is carried over, re-encoded.
   // Anything else (//host, https://…, /\host, javascript:, encoded tricks) → dashboard.
-  const NEXT_PAGES = ["audit", "budget", "builder", "calendar", "chat", "closure", "command", "control", "crm", "dashboard", "design", "discovery", "event", "flow", "insights", "integrations", "inventory", "invite-studio", "issues", "leads", "logistics", "manual", "media", "nurture", "onboarding", "ops", "plan", "proposal", "quotes", "ready", "refer", "reports", "resources", "runsheet", "settlement", "staff", "teardown", "templates", "vendors"];
+  const NEXT_PAGES = ["audit", "budget", "builder", "calendar", "chat", "closure", "command", "control", "crm", "dashboard", "design", "discovery", "event", "eventday-pack", "flow", "insights", "integrations", "inventory", "invite-studio", "issues", "leads", "logistics", "manual", "media", "nurture", "onboarding", "ops", "plan", "proposal", "quotes", "ready", "refer", "reports", "resources", "runsheet", "settlement", "staff", "teardown", "templates", "vendors"];
   function safeNext(raw) {
     // 0067: a pretty studio path (/<slug>/<section>…) is re-built from its parsed parts
     if (typeof raw === "string" && raw.charAt(0) === "/" && raw.charAt(1) !== "/" && raw.charAt(1) !== "\\") {
@@ -4517,6 +4517,16 @@ window.HelmUrl = HelmUrl;
       saveSettings: (o) => rpc("event_ready_settings_set", { p: o || {} }),
       // Remind -> Bell: { ok, name?, reason? } (reason: no_login | just_sent | closed)
       bell: (taskId) => rpc("event_task_remind_bell", { p_task: taskId }),
+    },
+    // R227 (0397): the event-day plan lock + the saved floor plan for the event-day screens and the printed pack (no money).
+    // get / floor answer null before 0397 is applied (the pages then show no lock bar and no floor card - nothing breaks).
+    // set(quote, true, reason?) locks; set(quote, false, reason) unlocks (Quotes edit + 3-300 characters). Answer = get().
+    planLock: {
+      async get(quoteId) { if (!supa || !quoteId) return null; try { return await rpc("event_plan_lock_get", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+      set: (quoteId, locked, reason) => rpc("event_plan_lock_set", { p_quote: quoteId, p_lock: !!locked, p_reason: reason == null ? null : String(reason).slice(0, 300) }),
+      async floor(quoteId) { if (!supa || !quoteId) return null; try { return await rpc("event_floor_get", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+      // a refusal from the database guard (0397): "plan_locked: ..." -> true
+      isLockError: (e) => /plan_locked/.test(String((e && (e.message || e.details || e.hint)) || e || "")),
     },
     live: {
       async today(hours) { if (!supa) return null; try { return await rpc("live_events_today", { p_hours: hours || 24 }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
@@ -13122,6 +13132,8 @@ window.HelmUrl = HelmUrl;
     if (isNetworkError(e)) return pre + "Couldn’t reach the server — check your connection and try again.";
     // 0046 D6: a locked (approved / paid / closed-event) money record — the DB message says why
     if (e && e.hint === "money_frozen" && e.message && !TECHNICAL.test(e.message)) return pre + endDot(clip(String(e.message), 240));
+    // R227 (0397): the event plan is locked for the event day - the database guard refused a plan change
+    if (e && /plan_locked:/.test(String(e.message || ""))) return pre + "The event plan is locked for the event day. Unlock it first (admin or event manager, with a reason), then try again.";
     // 0159: a directly created studio is read-only until its plan is paid (or it switches to the trial)
     if (e && e.hint === "payment_pending") return pre + "Choose a plan and complete payment to start using Helm — or start a free trial instead.";
     // r35 (0285): payment details / sensitive settings need a fresh two-step code (or two-step set up / a flag cleared)

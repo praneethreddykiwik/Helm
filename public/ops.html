@@ -175,8 +175,9 @@
 <link rel="stylesheet" href="crew-shifts.css?v=8">
 <link rel="stylesheet" href="ops-board.css?v=4">
 <link rel="stylesheet" href="event-plan.css?v=1">
+<link rel="stylesheet" href="event-floor.css?v=1">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=100" id="shellProto"></script>
+<script src="/shell-proto.js?v=101" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -207,6 +208,8 @@
     </div>
 
     <section class="tc-ev tc-card" id="evhead" aria-label="Event"></section>
+    <!-- R227 (0397, event-floor.js): "Locked for the event day - Unlock to edit" / Lock plan; hidden before 0397 -->
+    <section class="ef-lock" id="tcLock" hidden></section>
 
     <div class="tc-phase-row" id="tcPhase">
       <div class="tc-seggrp" role="group" aria-label="Which part of the job">
@@ -225,6 +228,8 @@
     <!-- R226 (0396, event-plan.js): the Day-before checklist and the Ready-by card (latest start per set-up job); hidden before 0396 -->
     <section class="tc-card ep-card" id="tcDayBefore" aria-labelledby="tcDayBeforeH" hidden></section>
     <section class="tc-card ep-card" id="tcReady" aria-labelledby="tcReadyH" hidden></section>
+    <!-- R227 (0397): the saved floor plan for the day (2D snapshot, sizes, seats vs guests) + 2D / 3D / Measure view only + Print pack -->
+    <section class="tc-card ef-card" id="tcFloor" aria-labelledby="tcFloorH" hidden></section>
     <section class="tc-card tc-runcard" id="tcRun" aria-label="Run-sheet" hidden></section>
     <section class="tc-attn" id="attn" aria-label="Needs attention"></section>
     <span class="tc-sr" id="tcAnnounce" aria-live="polite"></span>
@@ -414,10 +419,11 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=386"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=387"></script>
 <script src="task-status.js?v=3"></script>
-<script src="event-plan.js?v=1"></script>
-<script src="ops-board.js?v=4"></script>
+<script src="event-plan.js?v=2"></script>
+<script src="ops-board.js?v=5"></script>
+<script src="event-floor.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));

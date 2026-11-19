@@ -534,7 +534,7 @@
     if (S.q || S.chip) return h("div", { cls: "tc-empty" }, [h("b", { text: "Nothing matches" }), "Try another word, or clear the filter.", h("br"),
       h("button", { type: "button", cls: "tc-btn", text: "Clear filters", on: { click: function () { S.q = ""; S.chip = ""; var i = $("#tcQ"); if (i) i.value = ""; update(); } } })]);
     return h("div", { cls: "tc-empty" }, [h("b", { text: "No tasks yet for this event" }), "Start from your studio’s checklist (stage, flowers, lighting...) and give each task to a person.", h("br"),
-      canEdit() ? h("button", { type: "button", cls: "tc-btn tc-primary", text: "+ Add & assign", on: { click: function () { openSheet(null); } } }) : h("span", { cls: "tc-sub", text: "Your role can view this page only. To give out work, an admin switches on \u201cAssign & send tasks\u201d for your role (Settings \u2192 Users & invites \u2192 Access control)." })]);
+      canEdit() && planLocked() ? h("span", { cls: "tc-sub", text: "The plan is locked for the event day - unlock it (bar above) to add tasks." }) : canEdit() ? h("button", { type: "button", cls: "tc-btn tc-primary", text: "+ Add & assign", on: { click: function () { openSheet(null); } } }) : h("span", { cls: "tc-sub", text: "Your role can view this page only. To give out work, an admin switches on \u201cAssign & send tasks\u201d for your role (Settings \u2192 Users & invites \u2192 Access control)." })]);
   }
   function renderView() {
     var v = $("#view"); if (!v) return;
@@ -832,7 +832,7 @@
   function planCtx() {
     var q = G().quote || {};
     return { plan: S.plan, tasks: G().tasks, quoteId: qid(), eventDate: evDate(), eventTime: String(q.eventTime || "").trim(), tz: tz(), now: Date.now(),
-      nameOf: nameOf, toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); }, onChanged: planChanged };
+      nameOf: nameOf, toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); }, onChanged: planChanged, locked: planLocked() };
   }
   async function planChanged() { await loadPlan(true); try { if (P() && P().reload) await P().reload(); } catch (e) {} S.sigs.dayb = S.sigs.ready = ""; update(); }
   async function loadPlan(force) {
@@ -846,9 +846,20 @@
     var rHost = card("tcReady", !!(EP && S.plan) && !cancelled && S.win !== "wrapup");
     if (ui && (ui.edit || ui.times || ui.settings)) return;   // a form is open: keep what the person is typing
     var tsig = (G().tasks || []).map(function (t) { return [t.id, t.title, t.status, t.duration_min, t.depends_on, t.planned_start, t.started_at, t.completed_at, t.crew_id]; });
-    var sig = rowSig([S.plan, tsig, Math.floor(Date.now() / 60000), S.win]);
+    var sig = rowSig([S.plan, tsig, Math.floor(Date.now() / 60000), S.win, planLocked()]);
     if (dHost && S.sigs.dayb !== sig) { S.sigs.dayb = sig; EP.renderDayBefore(dHost, planCtx()); }
     if (rHost && S.sigs.ready !== sig) { S.sigs.ready = sig; EP.renderReady(rHost, planCtx()); }
+  }
+  // R227 (0397, event-floor.js): the plan lock bar (every window) + the saved floor plan (Day before / On the day). Hidden before
+  // 0397. While locked the task plan is frozen (the database refuses it): "+ Add & assign" and the Ready-by edits are hidden;
+  // status, reassigning, check-ins, proof, issues and reminders keep working.
+  function planLocked() { var EF = global.HelmEventFloor; return !!(EF && qid() && EF.isLocked(qid())); }
+  function renderFloor() {
+    var EF = global.HelmEventFloor; if (!EF || !qid()) return;
+    var cancelled = (G().quote || {}).status === "cancelled";
+    EF.panel({ quoteId: qid(), lockHost: cancelled ? null : $("#tcLock"), floorHost: $("#tcFloor"), showFloor: !cancelled && (S.win === "daybefore" || S.win === "onday"),
+      canEditPlan: canEdit(), onChange: function () { S.sigs.dayb = S.sigs.ready = ""; update(); } });
+    if (cancelled) { var lh = $("#tcLock"); if (lh) lh.hidden = true; }
   }
   // On the day: the run-sheet as a now / next timeline (read-only here; editing stays on the Run-sheet page)
   function nowMinOnDay() {
@@ -1333,10 +1344,11 @@
     if (!S.started) return;
     memoReset();
     if (S.phase == null || !S.manual) setPhaseAuto();
-    renderHeader(); renderPhase(); renderPrep(); renderPlan(); renderRun(); renderAttn(); renderIssues(); renderWrap(); renderChips(); renderViewBtns(); renderView(); renderSide(); renderBulk();
+    renderHeader(); renderPhase(); renderPrep(); renderFloor(); renderPlan(); renderRun(); renderAttn(); renderIssues(); renderWrap(); renderChips(); renderViewBtns(); renderView(); renderSide(); renderBulk();
     var cnt = $("#taskCount"); if (cnt) cnt.textContent = String(liveTasks().length);
     var vo = $("#tcViewOnly"); if (vo) vo.hidden = canEdit();
     var add = $("#addBtn"); if (add) add.hidden = !canEdit();
+    if (add && planLocked()) add.hidden = true;   // R227: the task plan is locked for the event day
     if (S.layer && S.layer.id === "drawer" && S.openId != null) renderPanel(false);
     if (S.layer && S.layer.id === "sheet") { picks(); sheetLabel(); }
     deepLink();
@@ -1383,7 +1395,7 @@
     // ONE refresh clock for the page, shared rules with /monitor (30 s + at once when you come back to the tab).
     // Skipped while a pop-up is open or an action is in flight, so nothing redraws under the user.
     S.timer = TS.refresher(function () { if (busyElsewhere()) return; return reload(true); }, TS.REFRESH_MS);
-    setInterval(function () { if (!doc.hidden) { memoReset(); renderHeader(); renderAttn(); renderRun(); renderPlan(); } }, 60000);   // countdown / "late" minutes / run-sheet now
+    setInterval(function () { if (!doc.hidden) { memoReset(); renderHeader(); renderAttn(); renderRun(); renderFloor(); renderPlan(); } }, 60000);   // countdown / "late" minutes / run-sheet now
     loadExtras().then(update);
     update();
   }
