@@ -58,7 +58,7 @@ t('4 budget / settlement / closure: purpose line + one profit picture each', () 
   assert.match(CLO, /<p class="page-purpose" id="pagePurpose"><b>Final result<\/b> and close the event\.<\/p>/);
   POL.forEach((c) => assert.match(c, /\.page-purpose\{/));
   // Budget: "Planned profit" tile; the margin card drops its own 3 profit tiles
-  assert.match(BUD, />Planned profit<\/div><div class="n" id="t_mar">/);
+  assert.match(BUD, />Planned profit<\/div><div class="n" id="t_mar" data-money>/);
   assert.match(BUD, /data-ml-mount="margin" data-ml-replaces="netProfit" data-ml-tiles="off"/);
   assert.match(CLO, /data-ml-mount="margin" data-ml-replaces="plCard netProfit" data-ml-tiles="off"/);
   assert.match(ML, /if \(box\.getAttribute\("data-ml-tiles"\) !== "off"\) box\.appendChild\(tiles\);/);

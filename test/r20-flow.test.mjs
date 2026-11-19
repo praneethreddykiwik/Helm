@@ -44,7 +44,7 @@ t('3 décor: typed value remembered before the builder, wins on return, "Use it"
   assert.match(FLOW, /id="q_otherLayout"[^>]*hidden><span id="q_otherLayoutTxt"><\/span> <button type="button" class="btn ghost" id="q_otherUseLayout">Use it<\/button>/);
   assert.equal((FLOW.match(/rememberTypedOther\(\);/g) || []).length, 2, 'both builder trips');
   assert.match(FLOW, /const typed=fromBuilder\?takeTypedOther\(\):null;/);
-  assert.match(FLOW, /"Layout suggests "\+inr\(auto\)/);
+  assert.match(FLOW, /putMoney\(\$\("#q_otherLayoutTxt"\), "Layout suggests ", M\$\(auto\), " \(object prices\)\."\);/);   // r221: [data-money] span
 });
 
 t('4 list name: QUOTE_PAGE_COLS carries city / venue / address / guests; nameOnly passes guests on', () => {

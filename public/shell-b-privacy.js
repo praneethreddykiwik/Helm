@@ -295,6 +295,13 @@
     var a = awayAt; awayAt = 0; ss(SK_AWAY, null);
     if (!hidden() && a && Date.now() - a > AWAY_MS) setHidden(true);
   });
+  /* r221: a page restored from the back/forward cache keeps the hide/show state it had when it was left. Re-read the tab's
+     state (amounts hidden on another page meanwhile are hidden here too; never the other way round) and re-scan. */
+  window.addEventListener("pageshow", function (e) {
+    if (!e || !e.persisted) return;
+    if (ss(SK) !== "shown" && !hidden()) setHidden(true);
+    else if (hidden()) fullScan();
+  });
   document.addEventListener("copy", function (e) {   /* belt and braces: masked text never reaches the clipboard */
     if (!hidden()) return;
     try { var sel = document.getSelection(); if (!sel || sel.isCollapsed) return;

@@ -95,9 +95,10 @@ t('old database: Planning -> Settlement before the event date is blocked (date n
 t('advance: an advance already in reads "Advance recorded ₹X — record another payment", never "Record advance" again', () => {
   assert.match(EV, /BPStore\.milestones\.payments\(id\)/);
   assert.match(EV, /Number\(paidSoFar\)>0/);
-  assert.match(EV, /return "Advance recorded"\+\(canFin&&amt>0\?" "\+inr\(amt\):""\)\+" — record another payment";/);
+  // r221: the amount is a [data-money] span (masked by Hide amounts) - same words
+  assert.match(EV, /return canFin&&amt>0 \? \["Advance recorded ", M\$\(amt\), " — record another payment"\] : \["Advance recorded — record another payment"\];/);
   assert.match(EV, /id="nextPayBtn"/);
-  assert.match(EV, /\[advanceIn\(\)\?advanceDoneLabel\(\):"Record advance","flow\.html\?quote="\+q\+"#sec-pay"\]/);
+  assert.match(EV, /\[advanceIn\(\)\?advanceDoneParts\(\):"Record advance","flow\.html\?quote="\+q\+"#sec-pay"\]/);
   // no flash of "Record advance" while payments are still loading
   assert.match(EV, /if\(!sumsLoaded\)\{ bar\.hidden=true; return false; \}/);
   assert.match(EV, /sumsLoaded=true;\s*render\(\);/);
