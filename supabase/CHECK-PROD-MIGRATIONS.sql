@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (352 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (353 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4643 objects): body 174, bucket 9, col 250, con 416, cron 20, exec 19, fn 2081, idx 537, marker 113, pol 190, polexpr 4, pre 114, pub 5, seq 1, tbl 300, trg 408, view 2.
+-- What is checked (4667 objects): body 174, bucket 9, col 250, con 416, cron 20, exec 19, fn 2094, idx 538, marker 121, pol 190, polexpr 4, pre 115, pub 5, seq 1, tbl 301, trg 408, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4521,8 +4521,8 @@ with o(m, k, s, n, x) as (values
   ('0388_r213_bell_speed', 'marker', 'public', '_r388_rows', 'uuid,uuid|r213-0388'),
   ('0388_r213_bell_speed', 'marker', 'public', '_r23_visible', 'uuid,uuid|r213-0388'),
   ('0388_r213_bell_speed', 'marker', 'public', '_r23_counts', 'uuid,uuid|r213-0388'),
-  ('0388_r213_bell_speed', 'marker', 'public', 'bell_feed__pre0299', 'integer|r213-0388'),
-  ('0388_r213_bell_speed', 'marker', 'public', 'bell_feed__pre0042', 'integer|r213-0388'),
+  ('0388_r213_bell_speed', 'marker', 'public', 'bell_feed__pre0299', 'integer|Kept body: bell_feed__pre0299__pre0388'),
+  ('0388_r213_bell_speed', 'marker', 'public', 'bell_feed__pre0042', 'integer|kept body: bell_feed__pre0042__pre0388'),
   ('0389_r217_page_bootstrap', 'fn', 'public', 'page_bootstrap', ''),
   ('0389_r217_page_bootstrap', 'marker', 'public', 'page_bootstrap', '|r217-0389'),
   ('0390_r218_vendor_pay_same_key', 'marker', 'public', 'vendor_bill_pay', 'uuid,numeric,numeric,text,date,text,text,text|r218-0390'),
@@ -4621,6 +4621,30 @@ with o(m, k, s, n, x) as (values
   ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_keep', 'regprocedure'),
   ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_patch', 'regprocedure,text[],text[]'),
   ('0400_r232_remove_role_traces', 'fn', 'public', '_r400_seed_same', ''),
+  ('0401_r235_db_load', 'fn', 'public', '_r401_keep', 'regprocedure'),
+  ('0401_r235_db_load', 'fn', 'public', '_r401_patch', 'regprocedure,text,text[],text[]'),
+  ('0401_r235_db_load', 'fn', 'public', '_r401_since', ''),
+  ('0401_r235_db_load', 'fn', 'public', '_r401_vis_def', ''),
+  ('0401_r235_db_load', 'fn', 'public', '_r401_rows_def', ''),
+  ('0401_r235_db_load', 'fn', 'public', '_r401_sync', ''),
+  ('0401_r235_db_load', 'tbl', 'public.rpc_request_keys', null, null),
+  ('0401_r235_db_load', 'idx', 'public.rpc_request_keys_created_idx', null, null),
+  ('0401_r235_db_load', 'fn', 'public', '_r401_key_get', 'text,uuid,text'),
+  ('0401_r235_db_load', 'fn', 'public', '_r401_key_put', 'text,uuid,text,jsonb'),
+  ('0401_r235_db_load', 'fn', 'public', 'assign_tasks_once', 'uuid,text,text[],uuid,text,text,uuid'),
+  ('0401_r235_db_load', 'fn', 'public', 'assign_tasks_vendor_once', 'uuid,text,text[],uuid,uuid'),
+  ('0401_r235_db_load', 'fn', 'public', 'event_task_remind_bell_once', 'uuid,uuid'),
+  ('0401_r235_db_load', 'fn', 'public', 'link_view_nudge_once', 'uuid,text,uuid'),
+  ('0401_r235_db_load', 'fn', 'public', 'payment_reminder_send_now_once', 'uuid,uuid'),
+  ('0401_r235_db_load', 'pre', null, '__pre0401', null),
+  ('0401_r235_db_load', 'marker', 'public', 'bell_feed__pre0042', 'integer|r235-0401'),
+  ('0401_r235_db_load', 'marker', 'public', 'bell_feed__pre0299', 'integer|r235-0401'),
+  ('0401_r235_db_load', 'marker', 'public', 'my_pending', '|r235-0401'),
+  ('0401_r235_db_load', 'marker', 'public', 'inbox_feed__pre0299', 'text,text,uuid,integer,text|r235-0401'),
+  ('0401_r235_db_load', 'marker', 'public', 'inbox_act', 'uuid[],text,timestamp with time zone,text|r235-0401'),
+  ('0401_r235_db_load', 'marker', 'public', 'inbox_read_all', 'text,uuid|r235-0401'),
+  ('0401_r235_db_load', 'marker', 'public', '_r401_vis', 'uuid,uuid|r235-0401'),
+  ('0401_r235_db_load', 'marker', 'public', '_r401_rows', 'uuid,uuid|r235-0401'),
   ('0402_r236_ops_health', 'tbl', 'public.ops_heartbeat', null, null),
   ('0402_r236_ops_health', 'fn', 'public', 'ops_heartbeat_beat', 'text,text,jsonb'),
   ('0402_r236_ops_health', 'tbl', 'public.ops_send_ledger', null, null),
@@ -5010,7 +5034,7 @@ mig(ord, m, ov, note) as (values
   (338, '0385_r208_task_assign_access', null, 'Assign & send tasks: new server-only _r385_can_assign; the Staff-edit check inside 16 task calls and the _r300_area_ok area list are patched in place from the live body (dynamic SQL the parser cannot see), checked by the r208-0385 marker; _a49_seed_clean_matrix wrapped once (old body kept as __pre0385) to seed the tasks row for new studios'),
   (339, '0386_r210_role_sync', null, 'Role sync: a role change also closes the studio''s open invitations for that e-mail, renames the linked staff record''s role words (only while they show the old role) and the login''s role words; a login moved to another studio is unlinked from the old studio''s staff record - two new trigger functions + two triggers on profiles, checked by the r210-0386 markers'),
   (340, '0387_r212_money_speed', null, 'Event money reads fast: event_money_header + event_money_cash re-issued to build the cost ledger once (old bodies kept as __pre0387), the kept ledger body _r21_cost_lines__pre0372 re-issued with five offset 0 fences (old body kept as _r21_cost_lines__pre0372__pre0387), new server-only _r387_event_pnl; same answers, checked by the r212-0387 markers'),
-  (341, '0388_r213_bell_speed', null, 'bell / badge / pending speed: new _r388_vis (the inbox rule in one pass, no details) + _r388_rows (inbox flags, no details); _r23_visible, _r23_counts, bell_feed__pre0299 and bell_feed__pre0042 re-issued (built with dynamic SQL, old bodies kept as __pre0388), checked by the r213-0388 marker (the new _r23_visible names the r24-ci-0270 / r163-0357 / r186-0369 / r190-0373 / r205-0383 rules it keeps, so those markers still hold)'),
+  (341, '0388_r213_bell_speed', null, 'bell / badge / pending speed: new _r388_vis (the inbox rule in one pass, no details) + _r388_rows (inbox flags, no details); _r23_visible, _r23_counts, bell_feed__pre0299 and bell_feed__pre0042 re-issued (built with dynamic SQL, old bodies kept as __pre0388), checked by the r213-0388 marker (the two bell layers by their 0388 comment text, which 0401 keeps when it patches them) (the new _r23_visible names the r24-ci-0270 / r163-0357 / r186-0369 / r190-0373 / r205-0383 rules it keeps, so those markers still hold)'),
   (342, '0389_r217_page_bootstrap', null, 'Page speed: one read-only startup call page_bootstrap() for signed-in pages (studio, sign-in steps, role + access switches, trial / demo / test studio / plan, pricing settings + rate cards), each part the existing function''s own answer - checked by the r217-0389 marker'),
   (343, '0390_r218_vendor_pay_same_key', null, 'Vendor payment sent twice at the same moment: vendor_bill_pay and record_vendor_payout__pre0156 wait on a per-key lock (one line patched in place with dynamic SQL) - checked by the r218-0390 marker'),
   (344, '0391_b_auth_dead_grants', 'skip', 'grants only: revokes signed-in table privileges no RLS policy uses (audit_log / role_access / organizations / chat_* / quote_otps) - nothing to detect by object; verify with the APPLY-0391 check rows'),
@@ -5021,7 +5045,8 @@ mig(ord, m, ov, note) as (values
   (349, '0398_r229_retire_roles', null, 'Retired roles: BEFORE triggers a398_retired_role_guard on profiles / invitations / role_access refuse NEW assignment of coordinator / designer / crew (existing holders unaffected), backup table _r398_backup, role lists re-issued, the sign-in notice default (_r383_cfg) patched in place with dynamic SQL - checked by the r229-0398 marker. The people themselves are deleted only by the owner-run DELETE-0398-RETIRED-ROLE-USERS.sql (not checked here)'),
   (350, '0399_r230_dept_supervisors', null, 'tenant guard and read-only studio triggers put on the new department-supervisor tables with dynamic SQL'),
   (351, '0400_r232_remove_role_traces', null, 'R232 remove-role-traces: everything except the 5 _r400_* helpers runs only when the safety gate is clear (no coordinator / designer login left), inside one DO block - so only the helpers are checked here. Proof that it ran is APPLY-0400 check rows 01-15 (every ok true); re-run APPLY-0400 any time to see them'),
-  (352, '0402_r236_ops_health', null, 'R236: backoff trigger + next_attempt_at put on the 7 staff / reminder queues and the 8-try limit written into their claim bodies with dynamic SQL; the mailer cron jobs are created only when their Vault secrets exist (APPLY-0402 check rows 10 say which) - not checked here')
+  (352, '0401_r235_db_load', null, 'R235 bell window + inbox details for the shown page: the bell / pending / inbox bodies are patched in place with dynamic SQL (old bodies kept as __pre0401) and _r401_vis / _r401_rows are made by _r401_sync from the live _r388_vis / _r388_rows text - checked by the r235-0401 markers; seven jobs get lock_timeout per function (ALTER FUNCTION, not an object)'),
+  (353, '0402_r236_ops_health', null, 'R236: backoff trigger + next_attempt_at put on the 7 staff / reminder queues and the 8-try limit written into their claim bodies with dynamic SQL; the mailer cron jobs are created only when their Vault secrets exist (APPLY-0402 check rows 10 say which) - not checked here')
 ),
 env as (
   select
