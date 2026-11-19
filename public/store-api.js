@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=102"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=103"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -4537,6 +4537,15 @@ window.HelmUrl = HelmUrl;
       async floor(quoteId) { if (!supa || !quoteId) return null; try { return await rpc("event_floor_get", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
       // a refusal from the database guard (0397): "plan_locked: ..." -> true
       isLockError: (e) => /plan_locked/.test(String((e && (e.message || e.details || e.hint)) || e || "")),
+    },
+    // R230 (0399): one supervisor per event + department (department = the task section, event_tasks.category).
+    // get() -> { can_edit, me, rows: [{ department, profile_id, name, role, assigned_by, assigned_at }],
+    //            candidates: [{ id, name, role }] (Supervisor / Event manager / Admin logins), log: [...] } | null before 0399.
+    // set(quote, department, profileId | null = clear) -> { ok, changed, action, name, role }.
+    // Refusals (message): invalid_department | invalid_person | not allowed | event not found.
+    deptSupervisors: {
+      async get(quoteId) { if (!supa || !quoteId) return null; try { return await rpc("event_department_supervisors_get", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+      set: (quoteId, department, profileId) => rpc("event_department_supervisor_set", { p_quote: quoteId, p_department: String(department || ""), p_profile: profileId || null }),
     },
     live: {
       async today(hours) { if (!supa) return null; try { return await rpc("live_events_today", { p_hours: hours || 24 }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },

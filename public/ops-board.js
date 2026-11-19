@@ -173,7 +173,9 @@
     rs: null, rsAt: 0, iss: null, perm: null, mode: null, stageBusy: false, blk: null, blkKey: "",
     dayStat: {}, dayAt: 0, dayKey: "",  // crew_day_status per studio day: { crew_id: [codes] } | null (server without it)
     // R226 (0396): the four windows (Before the event / Day before / On the day / Wrap-up) and the event day plan (null = no 0396)
-    win: null, autoWin: null, plan: null, planAt: 0
+    win: null, autoWin: null, plan: null, planAt: 0,
+    // R230 (0399): the department supervisors of this event (null = server without 0399 -> no supervisor UI at all)
+    sup: null, supAt: 0
   };
   var $ = function (s, r) { return (r || doc).querySelector(s); };
   function P() { return global.OpsPage; }
@@ -360,6 +362,8 @@
       h("h2", { cls: "tc-ev-title", id: "evTitle", text: q.title || q.code || "Event" }),
       h("p", { cls: "tc-ev-sub", text: [ev ? dayWords(ev, true) : "No event date yet", venue, guests ? guests + " guests" : "", q.eventType || ""].filter(Boolean).join(" · ") })
     ]);
+    var mine = mineDepts();   // R230 (0399): what I supervise on this event
+    if (mine.length) main.appendChild(h("p", { cls: "tc-ev-mine" }, ["You supervise: ", h("b", { text: mine.join(", ") })]));
     var dl = h("dl", { cls: "tc-times" });
     function tile(lbl, val, cls, id) { dl.appendChild(h("div", { cls: "tc-t" + (cls ? " " + cls : "") }, [h("dt", { text: lbl }), h("dd", { text: val, id: id || null })])); }
     if (venueOpens) tile("Venue opens", venueOpens);
@@ -373,7 +377,7 @@
     if (sm.late) { txt.appendChild(doc.createTextNode(" · ")); txt.appendChild(h("b", { cls: "bad", text: sm.late + " late" })); }
     var foot = h("div", { cls: "tc-ev-foot" }, [h("div", { cls: "tc-progress" }, [bar, txt])]);
     var tzN = tzNote(); if (tzN) foot.appendChild(h("p", { cls: "tc-tznote", text: tzN }));
-    var sig = rowSig([q.code, q.title, q.status, ev, venue, guests, guestsAt, venueOpens, readyBy, live, sm, cd, tzN]);
+    var sig = rowSig([q.code, q.title, q.status, ev, venue, guests, guestsAt, venueOpens, readyBy, live, sm, cd, tzN, mine]);
     if (S.sigs.head === sig) return; S.sigs.head = sig;
     clear(host); host.appendChild(main); host.appendChild(dl); host.appendChild(foot);
     host.setAttribute("aria-labelledby", "evTitle");
@@ -527,7 +531,7 @@
   function setChip(k) { S.chip = k; if (S.view === "people" && k) S.view = "list"; update(); }
 
   /* ---- views ---- */
-  function setView(v) { S.view = v; lsSet("helm.tc.view", v); update(); }
+  function setView(v) { S.view = v; lsSet("helm.tc.view2", v); update(); }
   function renderViewBtns() { Array.prototype.forEach.call(doc.querySelectorAll("#tcViews [data-view]"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-view") === S.view)); }); }
   function phone() { try { return global.matchMedia("(max-width:640px)").matches; } catch (e) { return false; } }
   function emptyBox() {
@@ -556,14 +560,77 @@
     return [t.id, t.title, t.category, t.status, t.crew_id, nameOf(t), t.assignee_kind, t.planned_start, t.planned_end, t.is_special, t.verify_status,
       t.depends_on, TS.isLate(t), remText(t), c && [c.pending, c.note], ev, wa && wa.text, presState(t.crew_id), !!S.sel[t.id], t.cancel_reason];
   }
-  /* List: grouped by section, rows keyed by task id; only rows whose content changed are redrawn */
+  /* ---- R230 (0399): one supervisor per department (department = the task section, t.category) ---- */
+  var LOCK_ADD = "The plan is locked for the event day - unlock it (bar above) to add tasks.";
+  var ROLE_WORD = { supervisor: "Supervisor", manager: "Event manager", admin: "Admin" };
+  function roleWord(r) { return ROLE_WORD[String(r || "").toLowerCase()] || ""; }
+  function supOf(cat) { return S.sup && (S.sup.rows || []).filter(function (r) { return r && r.department === cat && r.profile_id; })[0] || null; }
+  function mineDepts() { var me = S.sup && S.sup.me; return me ? (S.sup.rows || []).filter(function (r) { return r && String(r.profile_id) === String(me); }).map(function (r) { return r.department; }) : []; }
+  async function loadSup(force) {
+    var D = B() && B().ops && B().ops.deptSupervisors, q = qid(); if (!D || !q) { S.sup = null; return; }
+    if (!force && S.supAt && Date.now() - S.supAt < 60000) return;
+    try { var r = await D.get(q); S.sup = r && typeof r === "object" ? r : null; } catch (e) { S.sup = null; }
+    S.supAt = Date.now();
+  }
+  async function setSup(sel, cat) {
+    var D = B() && B().ops && B().ops.deptSupervisors; if (!D || sel.getAttribute("aria-busy") === "true") return;
+    var pid = sel.value || null, cur = supOf(cat);
+    sel.setAttribute("aria-busy", "true"); sel.disabled = true;
+    try {
+      var r = await D.set(qid(), cat, pid);
+      toast(!r || !r.changed ? "No change." : pid ? (r.name || "They") + " now supervises " + cat + (r.name ? " - they get a bell notice." : ".") : cat + " has no supervisor now.", "ok", 6000);
+      await loadSup(true);
+    } catch (e) {
+      var m = String((e && e.message) || "");
+      toast(/invalid_person/.test(m) ? "Pick a Supervisor, Event manager or Admin login of your studio." : /invalid_department/.test(m) ? "That department has no tasks on this event yet." : errText(e, "set the supervisor"), "err", 8000);
+      sel.value = cur ? String(cur.profile_id) : "";
+    } finally { sel.removeAttribute("aria-busy"); sel.disabled = false; S.sigs.view = ""; Object.keys(S.groups).forEach(function (c) { S.groups[c].tsig = ""; }); update(); }
+  }
+  // the supervisor control of one department card: a picker for "Assign & send tasks", else the name (or nothing)
+  function supTools(cat) {
+    var row = supOf(cat), wrap = h("span", { cls: "tc-sup" + (row && S.sup && String(row.profile_id) === String(S.sup.me) ? " me" : "") });
+    if (!S.sup) return wrap;
+    var id = "sup" + Math.random().toString(36).slice(2, 8);
+    if (S.sup.can_edit) {
+      var sel = h("select", { cls: "tc-sup-sel", id: id, "data-key": "sup:" + cat, "aria-label": "Supervisor of " + cat });
+      sel.appendChild(h("option", { value: "", text: "No supervisor" }));
+      var cands = (S.sup.candidates || []).slice(), seen = {};
+      cands.forEach(function (c) { seen[c.id] = 1; });
+      if (row && !seen[row.profile_id]) cands.push({ id: row.profile_id, name: row.name, role: row.role });
+      cands.forEach(function (c) { var o = h("option", { value: String(c.id), text: (c.name || "Team member") + (roleWord(c.role) ? " · " + roleWord(c.role) : "") }); if (row && String(row.profile_id) === String(c.id)) o.selected = true; sel.appendChild(o); });
+      sel.addEventListener("change", function () { setSup(sel, cat); });
+      wrap.appendChild(h("label", { cls: "tc-sup-l", "for": id, text: "Supervisor" })); wrap.appendChild(sel);
+    } else if (row) {
+      wrap.appendChild(h("span", { cls: "tc-sup-l", text: "Supervisor" }));
+      wrap.appendChild(h("b", { cls: "tc-sup-nm", text: row.name || "Team member" }));
+      if (roleWord(row.role)) wrap.appendChild(h("span", { cls: "tc-sup-role", text: roleWord(row.role) }));
+    } else return wrap;
+    return wrap;
+  }
+  // "+ Add task" inside a department: the Add & assign sheet opened on that section
+  function addIn(cat) {
+    if (!canEdit()) return;
+    // R227 (0397): adding tasks changes the task plan - refused while the plan is locked (the supervisor stays changeable)
+    if (planLocked()) { toast(LOCK_ADD, "err", 8000); return; }
+    openSheet(null);
+    var hit = Array.prototype.filter.call(doc.querySelectorAll("#catTabs [data-c]"), function (b) { return b.getAttribute("data-c") === cat; })[0];
+    if (hit && hit.getAttribute("aria-pressed") !== "true") hit.click();
+  }
+  function supLogActs() {
+    return ((S.sup && S.sup.log) || []).slice(0, 8).map(function (l) {
+      var by = l.by || "Someone";
+      return { at: l.at, kind: "supervisor", _t: l.action === "cleared" ? by + " removed " + (l.prev_name || "the") + " as " + l.department + " supervisor"
+        : by + " set " + (l.name || "someone") + " as " + l.department + " supervisor" };
+    });
+  }
+  /* List = Tasks by department: one card per section, rows keyed by task id; only rows whose content changed are redrawn */
   function renderList(v, ts) {
     if (!ts.length) { S.rows = {}; S.groups = {}; if (!v.querySelector(".tc-empty") || S.sigs.empty !== S.q + S.chip) { clear(v); v.appendChild(emptyBox()); S.sigs.empty = S.q + S.chip; } return; }
     var em = v.querySelector(".tc-empty"); if (em) em.remove();
     var cats = (G().CATS || []).slice(); ts.forEach(function (t) { var c = t.category || "Other"; if (cats.indexOf(c) < 0) cats.push(c); });
     var by = {}; ts.forEach(function (t) { var c = t.category || "Other"; (by[c] = by[c] || []).push(t); });
     var order = cats.filter(function (c) { return by[c]; });
-    var many = liveTasks().length > 80;
+    var many = liveTasks().length > 80, mine = mineDepts();
     var want = {};
     order.forEach(function (cat, gi) {
       want[cat] = 1;
@@ -571,21 +638,35 @@
       if (!g) {
         var id = "tcg" + Math.random().toString(36).slice(2, 8);
         var head = h("button", { type: "button", cls: "tc-grp-h", "aria-expanded": "true", "aria-controls": id });
+        var tools = h("div", { cls: "tc-grp-tools" });
         var rows = h("div", { cls: "tc-grp-rows", id: id, role: "list", "aria-label": cat });
-        g = S.groups[cat] = { el: h("div", { cls: "tc-grp", "data-cat": cat }, [head, rows]), head: head, rows: rows, sig: "" };
+        g = S.groups[cat] = { el: h("section", { cls: "tc-grp tc-dept", "data-cat": cat, "aria-label": cat }, [h("div", { cls: "tc-grp-top" }, [head, tools]), rows]), head: head, tools: tools, rows: rows, sig: "", tsig: "" };
         if (many && S.folded[cat] == null) S.folded[cat] = !by[cat].some(function (t) { return TS.isLate(t) || noOne(t); });
         head.addEventListener("click", function () { S.folded[cat] = !S.folded[cat]; S.groups[cat].sig = ""; update(); });
       }
       var all = liveTasks().filter(function (t) { return (t.category || "Other") === cat; }), done = all.filter(function (t) { return t.status === "completed"; }).length;
+      var late = all.filter(function (t) { return TS.isLate(t); }).length;
       var folded = !!S.folded[cat] && !S.q && !S.chip;
-      var gs = rowSig([cat, done, all.length, folded]);
+      var gs = rowSig([cat, done, all.length, late, folded]);
       if (g.sig !== gs) {
         g.sig = gs; clear(g.head);
         var gb = h("span", { cls: "tc-gbar", "aria-hidden": "true" }, [h("span")]); gb.firstChild.style.width = (all.length ? Math.round(done / all.length * 100) : 0) + "%";
+        g.head.appendChild(h("span", { cls: "fold", "aria-hidden": "true", text: "\u25be" }));
         g.head.appendChild(h("b", { text: cat })); g.head.appendChild(gb); g.head.appendChild(h("span", { cls: "mini", text: done + "/" + all.length + " done" }));
-        g.head.appendChild(h("span", { cls: "fold", "aria-hidden": "true", text: "▾" }));
-        g.head.setAttribute("aria-expanded", String(!folded)); g.head.setAttribute("aria-label", cat + ", " + done + " of " + all.length + " done" + (folded ? ", folded" : ""));
+        if (late) g.head.appendChild(h("span", { cls: "tc-st late", text: late + " late" }));
+        g.head.setAttribute("aria-expanded", String(!folded)); g.head.setAttribute("aria-label", cat + ", " + done + " of " + all.length + " done" + (late ? ", " + late + " late" : "") + (folded ? ", folded" : ""));
         g.rows.hidden = folded;
+        g.el.classList.toggle("is-folded", folded);
+      }
+      // R230: the department's supervisor + "+ Add task" (rebuilt only when they change; never while its picker has focus)
+      var sr = supOf(cat), ts2 = rowSig([cat, !!S.sup, S.sup && S.sup.can_edit, sr && [sr.profile_id, sr.name, sr.role], S.sup && (S.sup.candidates || []).map(function (c) { return c.id + c.name + c.role; }), canEdit(), mine.indexOf(cat) >= 0, planLocked()]);
+      if (g.tsig !== ts2 && !(doc.activeElement && g.tools.contains(doc.activeElement) && doc.activeElement.tagName === "SELECT")) {
+        g.tsig = ts2; clear(g.tools);
+        if (mine.indexOf(cat) >= 0) g.tools.appendChild(h("span", { cls: "tc-tag box tc-you", text: "You supervise" }));
+        g.tools.appendChild(supTools(cat));
+        if (canEdit()) g.tools.appendChild(h("button", { type: "button", cls: "tc-btn sm tc-add-in" + (planLocked() ? " is-locked" : ""), "data-key": "add:" + cat, text: planLocked() ? "\ud83d\udd12 Add task" : "+ Add task",
+          "aria-label": planLocked() ? "Add a task in " + cat + " - locked: unlock the plan first" : "Add a task in " + cat, "aria-disabled": planLocked() ? "true" : null, title: planLocked() ? LOCK_ADD : null, on: { click: function () { addIn(cat); } } }));
+        g.el.classList.toggle("is-mine", mine.indexOf(cat) >= 0);
       }
       // rows
       var ids = [];
@@ -608,6 +689,17 @@
     Object.keys(S.groups).forEach(function (c) { if (!want[c]) { var g = S.groups[c]; if (g.el.parentNode) g.el.remove(); delete S.groups[c]; } });
     var keepIds = {}; ts.forEach(function (t) { keepIds[t.id] = 1; });
     Object.keys(S.rows).forEach(function (id) { if (!keepIds[id]) { var r = S.rows[id]; if (r.el.parentNode) r.el.remove(); delete S.rows[id]; } });
+    // R230: the departments of the checklist with no task on this event yet - one quiet line, "+ name" adds a task there
+    var rest = (S.q || S.chip || !canEdit() || planLocked()) ? [] : (G().CATS || []).filter(function (c) { return !liveTasks().some(function (t) { return (t.category || "Other") === c; }); });
+    var es = rowSig(rest), strip = v.querySelector(".tc-dept-more");
+    if (!rest.length) { if (strip) strip.remove(); S.sigs.more = ""; return; }
+    if (!strip || S.sigs.more !== es) {
+      if (strip) strip.remove();
+      strip = h("div", { cls: "tc-dept-more" }, [h("span", { cls: "tc-sub", text: "No tasks yet:" })]);
+      rest.forEach(function (c) { strip.appendChild(h("button", { type: "button", cls: "tc-chip", "data-key": "more:" + c, text: "+ " + c, "aria-label": "Add a task in " + c, on: { click: function () { addIn(c); } } })); });
+      S.sigs.more = es;
+    }
+    if (strip.parentNode !== v || v.lastChild !== strip) v.appendChild(strip);
   }
   function rowEl(t) {
     var cb = canEdit() && t.status !== "cancelled", nm = nameOf(t), k = TS.shown(t);
@@ -625,6 +717,15 @@
       h("span", { cls: "tc-r-title" }, [h("b", { text: t.title || "Task" }), h("span", { cls: "tc-r-meta" }, tags(t))]),
       who, h("span", { cls: "tc-r-st" }, [stPill(t)]), h("span", { cls: "tc-chev", "aria-hidden": "true", text: "›" })]);
     row.appendChild(main);
+    // R230: the quick links of the old direct layout - send this task again (e-mail / WhatsApp) or give it to someone
+    if (canEdit() && t.status !== "cancelled") {
+      var acts = [];
+      if (isOpen(t) && inHouse(t) && (t.crew_id || t.assignee_phone)) {
+        acts.push(h("button", { type: "button", cls: "tc-lnk", "data-key": "mail:" + t.id, text: "Email", title: "E-mail this task to " + (nm || "the person") + " now", "aria-label": "Email " + (t.title || "this task") + " to " + (nm || "the person"), on: { click: function (e) { P().mail(e.currentTarget, t.id, false); } } }));
+        acts.push(h("button", { type: "button", cls: "tc-lnk", "data-key": "wa:" + t.id, text: "WhatsApp", title: "Send this task on WhatsApp (the studio number)", "aria-label": "Send " + (t.title || "this task") + " on WhatsApp", on: { click: function (e) { P().wa(e.currentTarget, t.id); } } }));
+      } else if (noOne(t)) acts.push(h("button", { type: "button", cls: "tc-lnk strong", "data-key": "give:" + t.id, text: "Assign", "aria-label": "Give " + (t.title || "this task") + " to someone", on: { click: function () { openSheet([String(t.id)]); } } }));
+      if (acts.length) { row.classList.add("has-acts"); row.appendChild(h("span", { cls: "tc-r-acts" }, acts)); }
+    }
     return row;
   }
   /* Timeline: one lane per section, hours along the top, Now line; phone: hour-by-hour agenda (no sideways scroll) */
@@ -778,7 +879,7 @@
     var ppl = people(), live = S.phase === "live";
     var rank = function (c) { var p = presState(c.id); return p === "late" ? 0 : (!S.hasSheet || att(c.id).state === "none") ? 1 : att(c.id).state === "in" ? 2 : 3; };
     var sorted = ppl.slice().sort(function (a, b) { return (live ? rank(a) - rank(b) : 0) || String(a.name || "").localeCompare(String(b.name || "")); });
-    var sig = rowSig([live, sorted.map(function (c) { var o = offOn(c.id, evDate()); return [c.id, c.name, presState(c.id), S.sheet[c.id], o, dayInfo(c.id), liveTasks().filter(function (t) { return t.crew_id === c.id && isOpen(t); }).length]; }), (S.acts || []).slice(0, 8).map(function (a) { return [a.at, a.kind, a.task_id]; })]);
+    var sig = rowSig([live, sorted.map(function (c) { var o = offOn(c.id, evDate()); return [c.id, c.name, presState(c.id), S.sheet[c.id], o, dayInfo(c.id), liveTasks().filter(function (t) { return t.crew_id === c.id && isOpen(t); }).length]; }), (S.acts || []).slice(0, 8).map(function (a) { return [a.at, a.kind, a.task_id]; }), supLogActs()]);
     if (S.sigs.side === sig) return; S.sigs.side = sig;
     $("#crewH").firstChild.nodeValue = live ? "Crew today " : "Crew on this event ";
     var inN = ppl.filter(function (c) { return S.hasSheet && att(c.id).state === "in"; }).length;
@@ -793,12 +894,13 @@
     });
     paint(crewHost);
     clear(feed);
-    var acts = (S.acts || []).slice(0, 8);
+    var acts = (S.acts || []).slice(0, 8).concat(supLogActs()).sort(function (a, b) { return ms(b.at) - ms(a.at); }).slice(0, 8);
     if (!acts.length) feed.appendChild(h("li", { cls: "tc-sub", text: S.acts ? "Nothing yet - starts, replies, check-ins and e-mails show here." : "Updates show here once the latest database update is in." }));
     acts.forEach(function (a) {
       var tone = a.kind === "escalated" || a.kind === "rejected" || a.kind === "cancelled" ? "bad" : a.kind === "time_changed" || a.kind === "check_edit" || a.kind === "dayoff_asked" ? "warn" : "";
       var ic = { completed: "✓", started: "▶", accepted: "✓", rejected: "✕", escalated: "!", check_in: "→", check_out: "←", email_sent: "@", assigned: "+", reassigned: "↻", cancelled: "–", time_changed: "◷", special_on: "▲", dayoff_asked: "?", dayoff_approved: "✓" }[a.kind] || "•";
-      feed.appendChild(h("li", {}, [h("span", { cls: "tc-fi " + tone, "aria-hidden": "true", text: ic }), h("span", {}, [TS.actText(a, when), h("time", { text: when(a.at) })])]));
+      if (a.kind === "supervisor") ic = "★";
+      feed.appendChild(h("li", {}, [h("span", { cls: "tc-fi " + tone, "aria-hidden": "true", text: ic }), h("span", {}, [a._t || TS.actText(a, when), h("time", { text: when(a.at) })])]));
     });
   }
 
@@ -1310,7 +1412,8 @@
       sh && sh.dayStatus && (Date.now() - S.dayAt > 120000 || S.dayKey !== wdays.join(",")) ? loadDayStat(sh, q, wdays) : null,
       S.perm.rsView && B0.runsheet && Date.now() - S.rsAt > 300000 ? B0.runsheet.list(q).then(function (r) { S.rs = Array.isArray(r) ? r : []; S.rsAt = Date.now(); }).catch(function () { S.rs = null; S.rsAt = Date.now(); }) : null,
       S.phase === "live" || S.auto === "live" ? loadIssues() : null,
-      loadPlan(false)
+      loadPlan(false),
+      loadSup(false)
     ].filter(Boolean);
     await Promise.all(jobs);
     await loadBlockers();
@@ -1358,7 +1461,7 @@
     if (S.deepDone || !(G().tasks || []).length) return; S.deepDone = true;
     var id = null; try { id = new URLSearchParams(global.location.search).get("task"); } catch (e) {}
     var m = /^#task-([0-9a-f-]{8,40})$/i.exec(global.location.hash || ""); if (m) id = m[1];
-    if (global.location.hash === "#live") { try { $("#attn").scrollIntoView({ block: "start" }); } catch (e) {} }
+    if (global.location.hash === "#live") { try { ($("#tcSteps") || $("#attn")).scrollIntoView({ block: "start" }); } catch (e) {} }
     if (id && taskById(id)) setTimeout(function () { openTask(id); }, 0);
   }
 
@@ -1367,7 +1470,8 @@
     S.started = true;
     // R222: the monitor's "Open" (#live) opens On the day and it stays there (before, the next refresh flipped it back)
     if (global.location.hash === "#live" && G().quoteId && modeNow().mode !== "live") ssSet(phaseKey(), "live");
-    var v = lsGet("helm.tc.view"); S.view = v === "timeline" || v === "people" || v === "list" ? v : "list";   // planning opens on List
+    // R230: the page opens on Tasks by department (the old direct layout); a pick made after R230 is kept (new key)
+    var v = lsGet("helm.tc.view2"); S.view = v === "timeline" || v === "people" || v === "list" ? v : "list";
     var mon = $("#toMonitor"); if (mon) mon.setAttribute("href", "monitor.html?quote=" + encodeURIComponent(G().quoteId || ""));
     var all = $("#allActivity"); if (all) all.setAttribute("href", "monitor.html?quote=" + encodeURIComponent(G().quoteId || ""));
     Array.prototype.forEach.call(doc.querySelectorAll("#tcViews [data-view]"), function (b) { b.addEventListener("click", function () { setView(b.getAttribute("data-view")); }); });
