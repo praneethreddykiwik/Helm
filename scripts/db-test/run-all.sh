@@ -470,6 +470,8 @@ run "r156-wa-template-jobs-0354" "R156-WA-TEMPLATE-JOBS-0354: ALL PASS \(48/48\)
 run "e-menu-audit-0394" "E-MENU-AUDIT-0394: ALL PASS \(10/10\)" psql -q -f tests/db/e-menu-audit-0394.sql
 # r226 (0396): event day plan - Venue opens / Ready by, Day-before ticks (who + when, untick kept), task durations + the backward schedule (buffer through "needs first", a loop never hangs), learned durations, alert settings (Controls edit), the 5-minute bell job (starts in 1 hour + latest-start red alerts, once, only the people named, switch off = nothing), Remind -> Bell (login only, once per 5 min), other studio / no Staff access refused, re-apply keeps everything; rolled back
 run "r226-event-day-plan-0396" "R226-EVENT-DAY-PLAN-0396: ALL PASS \(32/32\)" psql -q -f tests/db/r226-event-day-plan-0396.sql
+# r230 (0399): one supervisor per event + department - assign / same person again (nothing new) / replace / clear (row kept), history + Audit log, ONE bell notice per new supervisor (only they see it), refused without "Assign & send tasks", wrong person / department refused, another studio blocked, the 0396 latest-start + 0369 escalation bell rows of that department's tasks also reach the supervisor (never doubled, office reminders untouched), re-apply keeps everything; rolled back
+run "r230-dept-supervisors-0399" "R230-DEPT-SUPERVISORS-0399: ALL PASS \(24/24\)" psql -q -f tests/db/r230-dept-supervisors-0399.sql
 run "concurrency-overpay" "REJECTED .*overlap proven"      bash tests/db/concurrency-overpay.sh
 run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurrency-otp.sh
 

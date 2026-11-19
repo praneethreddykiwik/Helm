@@ -424,3 +424,56 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-wrap .tc-h2{margin:0 0 4px}
 .tc-wrap .tc-sub{display:block;margin-bottom:10px}
 @media (max-width:640px){ .tc-run-t{flex-basis:64px} .tc-iss-acts{margin-left:0} }
+
+/* R230: Tasks by department is the page's main section again - one card per department (its tasks, its Supervisor,
+   + Add task); the four event steps sit below, quieter. Theme tokens only (--tc-*), black primary buttons. */
+.tc-layout{margin-bottom:18px}
+#view .tc-dept{border:1px solid var(--tc-line);border-radius:12px;background:var(--tc-panel);margin-top:10px;overflow:hidden}
+#view .tc-dept:first-child{margin-top:4px}
+#view .tc-dept.is-mine{border-color:var(--tc-ink-3)}
+.tc-grp-top{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:4px 10px 4px 4px;background:var(--tc-panel-2);border-bottom:1px solid var(--tc-line-2)}
+.tc-dept.is-folded .tc-grp-top{border-bottom:0}
+.tc-dept .tc-grp-h{flex:1 1 220px;width:auto;background:transparent;padding:8px 6px;gap:10px}
+.tc-dept .tc-grp-h b{font-size:14px}
+.tc-dept .tc-grp-h .fold{margin-left:0;order:-1}
+.tc-dept .tc-grp-h .tc-st{margin-left:2px}
+.tc-dept .tc-grp-rows{padding:0 6px 4px}
+.tc-dept .tc-grp-rows .tc-row:first-child{border-top:0}
+.tc-grp-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
+.tc-sup{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--tc-ink-2);min-width:0}
+.tc-sup:empty{display:none}
+.tc-sup-l{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--tc-ink-3)}
+.tc-sup-nm{font-size:13px;color:var(--tc-ink)}
+.tc-sup-role{font-size:11px;color:var(--tc-ink-3);border:1px solid var(--tc-line);border-radius:999px;padding:0 7px}
+.tc-sup-sel{-webkit-appearance:none;appearance:none;min-height:32px;max-width:220px;padding:0 28px 0 10px;border:1px solid var(--tc-line);border-radius:var(--tc-r-ctl);
+  background:var(--tc-panel) linear-gradient(45deg,transparent 50%,var(--tc-ink-3) 50%) no-repeat right 14px center/5px 5px;font:600 13px var(--tc-apple);color:var(--tc-ink);cursor:pointer;text-overflow:ellipsis}
+.tc-sup-sel:hover{border-color:var(--tc-ink)}
+.tc-sup-sel[aria-busy="true"]{opacity:.6;cursor:progress}
+.tc-you{color:var(--tc-ink);border-color:var(--tc-ink-3)}
+.tc-ev-mine{margin:6px 0 0;font-size:13px;color:var(--tc-ink-2)} .tc-ev-mine b{color:var(--tc-ink)}
+.tc-add-in{min-height:32px}
+.tc-row.has-acts{grid-template-columns:28px minmax(0,1fr) auto}
+.tc-row.nocheck.has-acts{grid-template-columns:minmax(0,1fr) auto}
+.tc-r-acts{display:inline-flex;gap:4px;align-items:center}
+.tc-lnk{border:0;background:none;padding:6px 8px;border-radius:8px;font:600 12px var(--tc-apple);color:var(--tc-ink-2);cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--tc-line-strong);min-height:32px;white-space:nowrap}
+.tc-lnk:hover{color:var(--tc-ink);background:var(--tc-line-2)}
+.tc-lnk.strong{color:var(--tc-ink);text-decoration:none;border:1px solid var(--tc-line)}
+.tc-lnk[aria-busy="true"]{opacity:.6}
+.tc-dept-more{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px dashed var(--tc-line)}
+.tc-dept-more .tc-sub{margin-right:4px}
+/* the event steps: below the departments, a quieter switch (picked = white on grey, not black) */
+.tc-stepsec{margin-top:6px;padding-top:16px;border-top:1px solid var(--tc-line)}
+.tc-stepsec-h{font-size:14px;color:var(--tc-ink-2);margin:0 0 10px}
+.tc-stepsec .tc-phase-row{margin-bottom:12px}
+.tc-stepsec .tc-phase-row .tc-seg{padding:6px 14px;min-height:32px;font-size:12.5px}
+.tc-stepsec .tc-phase-row .tc-seg[aria-pressed="true"]{background:var(--tc-panel);color:var(--tc-ink);box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
+@media (max-width:640px){
+  .tc-grp-top{padding:4px 8px 6px 2px}
+  .tc-grp-tools{margin-left:0;width:100%;padding-left:6px}
+  .tc-sup{flex:1 1 0;min-width:0} .tc-sup-sel{flex:1 1 0;width:100%;min-width:0;max-width:none;min-height:40px}
+  .tc-row.has-acts,.tc-row.nocheck.has-acts{grid-template-columns:26px minmax(0,1fr)}
+  .tc-row.nocheck.has-acts{grid-template-columns:minmax(0,1fr)}
+  .tc-r-acts{grid-column:1/-1;justify-content:flex-end;margin-top:-6px;padding-bottom:6px}
+  .tc-stepsec .tc-phase-row .tc-seg{padding:6px 4px}
+}
+@media (pointer:coarse){ .tc-lnk,.tc-sup-sel,.tc-add-in{min-height:44px} }

@@ -106,7 +106,9 @@
     // R226: the four windows (same rule as Tasks & Crew), the event day plan (0396; null = not there), the run-sheet (for the
     // window rule), proof photos (task_evidence, signed 5-minute links), whether Remind -> Bell exists, the open drawer
     win: "onday", autoWin: "onday", manualWin: null, plan: null, planAt: 0, has396: false, rs: null, rsAt: 0, rsView: false,
-    proof: {}, proofUrl: {}, proofAt: 0, drawer: null, lastFocus: null };
+    proof: {}, proofUrl: {}, proofAt: 0, drawer: null, lastFocus: null,
+    // R230 (0399): the departments I supervise, per event ({ quote_id: ["Catering"] }; empty before 0399)
+    mine: {}, mineAt: 0, mineKey: "" };
 
   /* ---- R184: attendance (check-in / check-out) + "can't work" reasons ---- */
   // first start time of a person's tasks on this event (the time they should be there by)
@@ -178,7 +180,8 @@
       if (t.status === "cancelled") return false;
       var s = stateOf(t, now);
       if (who && personKey(t) !== who) return false;
-      if (sec && String(t.category || "Other") !== sec) return false;
+      if (sec === "__mine") { if ((S.mine[t.quote_id] || []).indexOf(String(t.category || "Other")) < 0) return false; }
+      else if (sec && String(t.category || "Other") !== sec) return false;
       if (st && !(st === "late" ? s.late : s.key === st)) return false;
       if (q) { var hay = [t.title, t.category, nameOf(t), t._code].join(" ").toLowerCase(); if (hay.indexOf(q) < 0) return false; }
       return true;
@@ -700,6 +703,10 @@
     clear(who); who.appendChild(opt("", "Everyone"));
     Object.keys(people).sort(function (a, b) { return people[a].localeCompare(people[b]); }).forEach(function (k) { who.appendChild(opt(k, people[k], k === wv)); });
     clear(sec); sec.appendChild(opt("", "All sections"));
+    // R230: "My departments" for a department supervisor (only when I supervise one on the shown events)
+    var mineN = []; Object.keys(S.mine).forEach(function (q) { (S.mine[q] || []).forEach(function (d) { if (mineN.indexOf(d) < 0) mineN.push(d); }); });
+    if (mineN.length) sec.appendChild(opt("__mine", "My departments (" + mineN.sort().join(", ") + ")", sv === "__mine"));
+    else if (sv === "__mine") sv = "";
     Object.keys(secs).sort().forEach(function (k) { sec.appendChild(opt(k, k, k === sv)); });
   }
   /* ---- R226: the four windows + the shared cards (event-plan.js), the same as Tasks & Crew ---- */
@@ -854,6 +861,18 @@
     try { var r = await D.get(q); S.has396 = S.has396 || r != null; S.plan = S.quote === "all" ? null : r; } catch (e) { S.plan = null; }
     S.planAt = Date.now(); S.planQ = S.quote;
   }
+  // R230 (0399): which departments I supervise on the shown events (read once a minute; nothing before 0399)
+  async function loadMine(ids) {
+    var D = BPStore.ops && BPStore.ops.deptSupervisors, key = ids.join(","); if (!D) { S.mine = {}; return; }
+    if (S.mineKey === key && Date.now() - S.mineAt < 60000) return;
+    var m = {};
+    await Promise.all(ids.map(function (q) { return D.get(q).then(function (r) {
+      var me = r && r.me; if (!me) return;
+      var d = (r.rows || []).filter(function (x) { return x && String(x.profile_id) === String(me); }).map(function (x) { return x.department; });
+      if (d.length) m[q] = d;
+    }).catch(function () {}); }));
+    S.mine = m; S.mineAt = Date.now(); S.mineKey = key;
+  }
   // the run-sheet decides when On the day starts (same rule as Tasks & Crew); read once, then every 5 min, only with Run-sheet view
   async function loadRs() {
     if (!S.rsView || !BPStore.runsheet || !BPStore.runsheet.list || S.quote === "all" || !S.quote) { if (S.rsQ !== S.quote) S.rs = null; return; }
@@ -883,7 +902,7 @@
         var code = S.quote === "all" ? ((S.evInfo[q] && S.evInfo[q].code) || "") : "";
         return (ts || []).map(function (t) { t.quote_id = t.quote_id || q; if (code) t._code = code; return t; }); }); }));
       S.tasks = [].concat.apply([], lists);
-      await Promise.all([loadSheet(ids), loadOff(ids), loadActivity(ids), loadPlan(false), loadRs(), loadProof(ids)]);
+      await Promise.all([loadSheet(ids), loadOff(ids), loadActivity(ids), loadPlan(false), loadRs(), loadProof(ids), loadMine(ids)]);
       S.lastLoad = Date.now(); $("#monErr").hidden = true;
       fillFilters(); render(); tick();
     } catch (e) {

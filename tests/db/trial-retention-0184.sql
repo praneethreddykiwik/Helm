@@ -148,6 +148,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0383_r205_signin_notice.sql
 -- 0396 (R226) adds event_day_plans + event_ready_alert_sends to the purge list, event_ready_alert_settings to the keep list
 \ir ../../supabase/migrations/0396_r226_event_day_plan.sql
+-- 0399 (R230) adds event_department_supervisor_log + event_department_supervisors to the purge list
+\ir ../../supabase/migrations/0399_r230_dept_supervisors.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

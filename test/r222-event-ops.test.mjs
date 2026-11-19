@@ -185,9 +185,10 @@ await t('4c safety: DOM only in ops-board.js, no migration 0396 in phase 1, tour
   // R226 used the reserved 0396 (phase 4: Ready by / Venue opens) - only its own file
   assert.deepEqual(readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter((f) => /^0396/.test(f)), ['0396_r226_event_day_plan.sql']);
   // the tour keeps its 8 steps (page-tours-coverage: 4-8 a page); the changed steps say what is new (R226 wording)
-  assert.match(TOURS, /On the day starts 1 hour before the first run-sheet item, task or guest arrival/);
-  assert.match(TOURS, /\+ Log an issue, and Mark event complete - it moves on to Settlement, Teardown and Closure/);
-  assert.match(TOURS, /Free that day \/ Busy elsewhere - the other event is named \/ Day off/);
+  // R230: the Tasks & Crew tour now leads with Tasks by department + Supervisor; the event steps are one step below them
+  assert.match(TOURS, /Before the event \/ Day before \/ On the day \/ Wrap-up, picked from your studio's clock/);
+  assert.match(TOURS, /On the day: the run-sheet, issues and Mark event complete/);
+  assert.match(TOURS, /Free that day \/ Busy elsewhere \/ Day off/);
 });
 
 console.log(`r222-event-ops: ${pass} passed, ${fail} failed`);

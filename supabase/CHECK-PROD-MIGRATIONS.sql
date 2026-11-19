@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (347 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (348 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4535 objects): body 176, bucket 9, col 243, con 416, cron 20, exec 19, fn 2027, idx 531, marker 105, pol 189, polexpr 4, pre 112, pub 5, seq 1, tbl 293, trg 383, view 2.
+-- What is checked (4554 objects): body 176, bucket 9, col 243, con 416, cron 20, exec 19, fn 2033, idx 535, marker 105, pol 190, polexpr 4, pre 112, pub 5, seq 1, tbl 295, trg 389, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4559,7 +4559,26 @@ with o(m, k, s, n, x) as (values
   ('0396_r226_event_day_plan', 'trg', 'public.event_ready_alert_sends', 'zz_quote_org_match', null),
   ('0396_r226_event_day_plan', 'trg', 'public.event_day_plans', 'zzz_studio_read_only', null),
   ('0396_r226_event_day_plan', 'trg', 'public.event_ready_alert_settings', 'zzz_studio_read_only', null),
-  ('0396_r226_event_day_plan', 'trg', 'public.event_ready_alert_sends', 'zzz_studio_read_only', null)
+  ('0396_r226_event_day_plan', 'trg', 'public.event_ready_alert_sends', 'zzz_studio_read_only', null),
+  ('0399_r230_dept_supervisors', 'tbl', 'public.event_department_supervisors', null, null),
+  ('0399_r230_dept_supervisors', 'idx', 'public.event_department_supervisors_org399', null, null),
+  ('0399_r230_dept_supervisors', 'idx', 'public.event_department_supervisors_profile399', null, null),
+  ('0399_r230_dept_supervisors', 'tbl', 'public.event_department_supervisor_log', null, null),
+  ('0399_r230_dept_supervisors', 'idx', 'public.event_department_supervisor_log_quote399', null, null),
+  ('0399_r230_dept_supervisors', 'idx', 'public.event_department_supervisor_log_org399', null, null),
+  ('0399_r230_dept_supervisors', 'pol', 'public.event_department_supervisors', 'eds read same studio', null),
+  ('0399_r230_dept_supervisors', 'trg', 'public.event_department_supervisors', 'audit_trg', null),
+  ('0399_r230_dept_supervisors', 'fn', 'public', '_r399_name', 'uuid'),
+  ('0399_r230_dept_supervisors', 'fn', 'public', '_r399_role_ok', 'uuid,uuid'),
+  ('0399_r230_dept_supervisors', 'fn', 'public', '_r399_event', 'uuid'),
+  ('0399_r230_dept_supervisors', 'fn', 'public', 'event_department_supervisors_get', 'uuid'),
+  ('0399_r230_dept_supervisors', 'fn', 'public', 'event_department_supervisor_set', 'uuid,text,uuid'),
+  ('0399_r230_dept_supervisors', 'fn', 'public', '_r399_notify_supervisor', ''),
+  ('0399_r230_dept_supervisors', 'trg', 'public.notifications', 'zz_r399_dept_supervisor_notify', null),
+  ('0399_r230_dept_supervisors', 'trg', 'public.event_department_supervisors', 'zz_quote_org_match', null),
+  ('0399_r230_dept_supervisors', 'trg', 'public.event_department_supervisor_log', 'zz_quote_org_match', null),
+  ('0399_r230_dept_supervisors', 'trg', 'public.event_department_supervisors', 'zzz_studio_read_only', null),
+  ('0399_r230_dept_supervisors', 'trg', 'public.event_department_supervisor_log', 'zzz_studio_read_only', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -4908,7 +4927,8 @@ mig(ord, m, ov, note) as (values
   (344, '0391_b_auth_dead_grants', 'skip', 'grants only: revokes signed-in table privileges no RLS policy uses (audit_log / role_access / organizations / chat_* / quote_otps) - nothing to detect by object; verify with the APPLY-0391 check rows'),
   (345, '0393_audit_d_list_indexes', null, 'Audit D list speed: two additive indexes (org_id, updated_at desc, id desc) on leads and quotes for the newest-first lists; nothing else changed'),
   (346, '0394_e_menu_package_audit', null, null),
-  (347, '0396_r226_event_day_plan', null, 'tenant guard + read-only studio triggers put on the new day-plan tables with dynamic SQL')
+  (347, '0396_r226_event_day_plan', null, 'tenant guard + read-only studio triggers put on the new day-plan tables with dynamic SQL'),
+  (348, '0399_r230_dept_supervisors', null, 'tenant guard and read-only studio triggers put on the new department-supervisor tables with dynamic SQL')
 ),
 env as (
   select
