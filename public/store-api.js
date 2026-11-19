@@ -1605,12 +1605,79 @@ window.HelmUrl = HelmUrl;
   // R206 (prod API log 18 Nov 2026): + event_costs (Budget summary on the event page) and the quote page's stage history /
   // valid-until reads - the same lapsed-sign-in tab sent them with the anon key (403 in the log)
   const SIGNED_IN_ONLY = /\/rest\/v1\/(leads|quotes|audit_log|event_costs|chat_[a-z_]+|rpc\/(?:live_events_today|booklet_current|booklet_image_info|booklet_staff_image|booklet_layout_auto_on|quote_stage_history|quote_validity_get))(\?|$)/;
+  /* R233 (log-noise guard): the lists above only named the reads that had already shown up in the log, so every new
+     signed-in function was one more "permission denied" waiting to happen (R91, R193, R206, R231 each added names after the
+     fact - the last one was signin_notice_ping, 19 Nov 2026). ANON_RPCS is the other way round: the ONLY database functions
+     the signed-out (anon) role may run, read from a fully migrated database (has_function_privilege('anon', ...)). Any other
+     function sent with the bare anon key is refused by the database every time, so it is answered here with the same
+     401 / 42501 and never reaches the log. public_* and submit_* always go out. tests/db/r233-anon-rpcs.sh fails when a
+     migration lets anon run a function that is not in this list (so a new public link can never be blocked by it). */
+  const ANON_RPCS = /^(?:public_[a-z0-9_]+|submit_[a-z0-9_]+|_a153_money_key|_r23_enforcing|_r55_purge_allowed|approval_check_shown|booklet_snapshot_upload_ok|client_link_window_days|create_payment|crew_cantwork_ack|crew_check|crew_claim_shift|crew_link_home|crew_set_availability|crew_withdraw_claim|delivery_link_get|delivery_link_update|helm_norm_phone|invitation_preview|invite_media_guest_read_ok|invite_media_on_published_site|mfa_ok|referral_click|referral_lookup|request_otp|request_site_slug|signup_email_preauthorised|staff_google_only_for|staff_link_cantwork|staff_link_cantwork_ack|staff_link_view|storage_object_name_ok|storage_op_is_listing|storage_quota_ok|studio_slug_reserved|studio_slug_valid|studio_slugify|task_proof_upload_ok|trial_simulate_payment|trial_storage_write_ok|trial_test_approve|trial_test_approve_code|trial_test_mode_for_token|try_date|upload_scan_bucket|upload_scan_enforced|upload_scan_org|upload_scan_read_ok|vendor_invoice_submit|vendor_invoice_upload|vendor_invoice_upload_ok|vendor_link_get|vendor_link_respond|verify_and_consent|wa_request_otp|wa_verify_and_consent|worker_assignment_updates|worker_checkin_equipment|worker_evidence_upload|worker_get_equipment|worker_get_tasks|worker_respond|worker_respond_evidence)$/;
+  function rpcNameOf(u) { const m = /\/rest\/v1\/rpc\/([A-Za-z0-9_]+)(\?|$)/.exec(String(u || "")); return m ? m[1] : ""; }
   function anonDenied(input, init) {
     try {
       const u = typeof input === "string" ? input : (input && input.url) || "";
-      if (!CFG.anonKey || !(READ_RPCS.test(u) || SIGNED_IN_ONLY.test(u))) return false;
+      const fn = rpcNameOf(u);
+      if (!CFG.anonKey || !(READ_RPCS.test(u) || SIGNED_IN_ONLY.test(u) || (fn && !ANON_RPCS.test(fn)))) return false;
       return hdrOf(init, input, "Authorization") === "Bearer " + CFG.anonKey;
     } catch (e) { return false; }
+  }
+  /* R233 (log-noise guard), part 2 - the same question asked again and again after the server already said no:
+     - a function / table this database does not have yet (PostgREST PGRST202 / PGRST205, Postgres 42883 / 42P01 - the
+       app shipped before its migration was run) is asked ONCE per page load; later calls get the same 404 answer from here
+       (the callers' "missing -> older path / hide the card" handling is unchanged). Keyed by function + argument names.
+     - a READ (GET, or a read-only RPC from READ_RPCS) that failed with 403 / 404 / 429 / 5xx is not sent again with the exact
+       same question and sign-in until a short wait has passed: 403 / 404 one minute (the same question gets the same "no"),
+       429 the server's Retry-After (else 2 s doubling to 1 min), 5xx 2 s doubling to 30 s. A good answer clears it.
+     Writes are never held back (a save always goes out), and 401 stays with the session check (onAuthFailure). */
+  const NOISE_GONE = new Map(), NOISE_HOLD = new Map(), NOISE_CAP = 200;
+  const GONE_CODES = /^(PGRST202|PGRST205|42883|42P01)$/;
+  function noiseReq(input, init) {
+    let u = "", method = "GET", body = "";
+    try { u = typeof input === "string" ? input : (input && input.url) || ""; method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
+      body = (init && typeof init.body === "string") ? init.body : ""; } catch (e) { return null; }
+    if (!/\/rest\/v1\//.test(u)) return null;
+    const fn = rpcNameOf(u); let gone = "";
+    if (fn) { let ks = "?"; try { const o = body ? JSON.parse(body) : {}; if (o && typeof o === "object" && !Array.isArray(o)) ks = Object.keys(o).sort().join(","); } catch (e) {} gone = "rpc:" + fn + "(" + ks + ")"; }
+    else if (method === "GET" || method === "HEAD") { const m = /\/rest\/v1\/([A-Za-z0-9_]+)(\?|$)/.exec(u); if (m) gone = "rel:" + m[1]; }
+    const read = method === "GET" || method === "HEAD" || (method === "POST" && READ_RPCS.test(u));
+    const key = read ? [method, u, body, hdrOf(init, input, "Authorization"), hdrOf(init, input, "Accept"), hdrOf(init, input, "Prefer"), hdrOf(init, input, "Range")].join("\u0001") : "";
+    return { gone: gone, key: key };
+  }
+  function noiseCap(m) { while (m.size >= NOISE_CAP) m.delete(m.keys().next().value); }
+  function noiseResp(h, why) { return new Response(h.body, { status: h.status, headers: { "Content-Type": "application/json", "X-Helm-Local": why } }); }
+  function noiseHeld(input, init) {
+    try {
+      if (!NOISE_GONE.size && !NOISE_HOLD.size) return null;
+      const q = noiseReq(input, init); if (!q) return null;
+      const g = q.gone && NOISE_GONE.get(q.gone); if (g) return noiseResp(g, "missing");
+      const h = q.key && NOISE_HOLD.get(q.key);
+      if (h) { if (Date.now() < h.until) return noiseResp(h, "backoff"); }
+    } catch (e) {}
+    return null;
+  }
+  function noiseWait(st, n, retryAfter) {
+    if (st === 429) { const ra = Number(retryAfter); return ra > 0 ? Math.min(ra * 1000, 300000) : Math.min(60000, 2000 * Math.pow(2, n - 1)); }
+    if (st >= 500) return Math.min(30000, 2000 * Math.pow(2, n - 1));
+    return 60000;
+  }
+  function noiseSeen(input, init, res) {
+    try {
+      if (!res || res.status === 401) return;
+      const q = noiseReq(input, init); if (!q) return;
+      if (res.ok) { if (q.key && NOISE_HOLD.size) NOISE_HOLD.delete(q.key); return; }
+      const st = res.status, maybeGone = st === 404 && !!q.gone, hold = !!q.key && (st === 403 || st === 404 || st === 429 || st >= 500);
+      if ((!maybeGone && !hold) || !res.clone) return;
+      const ra = (res.headers && typeof res.headers.get === "function") ? res.headers.get("Retry-After") : null;
+      res.clone().text().then((body) => {
+        let code = ""; try { code = String((JSON.parse(body) || {}).code || ""); } catch (e) {}
+        if (maybeGone && GONE_CODES.test(code)) { noiseCap(NOISE_GONE); NOISE_GONE.set(q.gone, { status: st, body: body }); return; }
+        if (!hold) return;
+        const prev = NOISE_HOLD.get(q.key), n = prev ? prev.n + 1 : 1;
+        NOISE_HOLD.delete(q.key); noiseCap(NOISE_HOLD);
+        NOISE_HOLD.set(q.key, { until: Date.now() + noiseWait(st, n, ra), n: n, status: st, body: body });
+      }).catch(() => {});
+    } catch (e) {}
   }
   /* R102 (x-browser run): Safari/WebKit fails every fetch still in flight when the page is left ("Fetch API cannot
      load ... due to access control checks", a TypeError) and the callers' rejections surfaced as ~350 unhandled
@@ -1638,7 +1705,9 @@ window.HelmUrl = HelmUrl;
       return Promise.resolve(new Response(JSON.stringify({ code: "42501", details: null, hint: null, message: "not signed in" }),
         { status: 401, headers: { "Content-Type": "application/json" } }));
     }
+    const held = noiseHeld(input, init); if (held) return Promise.resolve(held);   // R233
     return coalescedFetch(input, init).then((res) => {
+      noiseSeen(input, init, res);   // R233
       try {
         const u = typeof input === "string" ? input : (input && input.url) || "";
         if (res.status === 401 && currentUser) {
@@ -3835,13 +3904,28 @@ window.HelmUrl = HelmUrl;
      page channel, presence). A page that somehow asks for more gets no new channel instead of a runaway. */
   const RT_MAX_CHANNELS = 8;
   let rtOpen = 0;
+  /* R233 (log-noise guard): a channel the Realtime server keeps refusing (CHANNEL_ERROR / TIMED_OUT - a bad filter, a
+     policy it may not read, the server busy) was rejoined by the library every few seconds for as long as the page stayed
+     open, one Realtime log error each time. make(st) now hands its status to st(): after RT_ERR_MAX failures in a row
+     without SUBSCRIBED, rtLive removes the channel (that stops the library's quick rejoin) and opens it again after a
+     growing wait with jitter (15-30 s, 30-60 s, ... up to 2.5-5 min), then runs the catch-up (onBack). SUBSCRIBED resets it. */
+  const RT_ERR_MAX = 3, RT_BACKOFF_BASE = 30000, RT_BACKOFF_MAX = 300000;
+  function rtBackoffMs(rounds) { const x = Math.min(RT_BACKOFF_MAX, RT_BACKOFF_BASE * Math.pow(2, rounds)); return Math.round(x / 2 + Math.random() * x / 2); }
   function rtLive(make, onBack) {
-    let ch = null, stopped = false, idleT = null, retryT = null, tries = 0;
+    let ch = null, stopped = false, idleT = null, retryT = null, tries = 0, gen = 0, errs = 0, rounds = 0;
+    const st = (g) => (status) => {
+      if (g !== gen || stopped) return;   // a status from a channel this handle already closed
+      if (status === "SUBSCRIBED") { errs = 0; rounds = 0; return; }
+      if (status !== "CHANNEL_ERROR" && status !== "TIMED_OUT") return;
+      if (++errs < RT_ERR_MAX) return;
+      errs = 0; close(); clearTimeout(retryT);
+      retryT = setTimeout(() => { retryT = null; if (stopped || (typeof document !== "undefined" && document.hidden)) return; open(); try { if (ch) onBack && onBack(); } catch (e) {} }, rtBackoffMs(rounds++));
+    };
     const open = () => { if (stopped || ch) return; clearTimeout(retryT); retryT = null;
       if (!rtSessionOk()) { if (++tries <= 40) retryT = setTimeout(() => { retryT = null; if (!(typeof document !== "undefined" && document.hidden)) { open(); try { if (ch) onBack && onBack(); } catch (e) {} } }, RT_RETRY_MS); return; }
       if (rtOpen >= RT_MAX_CHANNELS) return;
-      tries = 0; try { ch = make(); } catch (e) { ch = null; } if (ch) rtOpen++; };
-    const close = () => { if (!ch) return; rtOpen = Math.max(0, rtOpen - 1); try { if (supa && typeof supa.removeChannel === "function") supa.removeChannel(ch); else if (ch.unsubscribe) ch.unsubscribe(); } catch (e) {} ch = null; };
+      tries = 0; gen++; try { ch = make(st(gen)); } catch (e) { ch = null; } if (ch) rtOpen++; };
+    const close = () => { if (!ch) return; gen++; rtOpen = Math.max(0, rtOpen - 1); try { if (supa && typeof supa.removeChannel === "function") supa.removeChannel(ch); else if (ch.unsubscribe) ch.unsubscribe(); } catch (e) {} ch = null; };
     const onVis = () => {
       if (typeof document === "undefined") return;
       if (document.hidden) { clearTimeout(idleT); idleT = setTimeout(close, RT_IDLE_MS); return; }
@@ -3915,10 +3999,10 @@ window.HelmUrl = HelmUrl;
       if (mode !== "supabase" || !supa || typeof supa.channel !== "function" || !/^[0-9a-f-]{36}$/i.test(String(id || ""))) return { unsubscribe() {} };
       try {
         const f = "quote_id=eq." + id;
-        return rtLive(() => supa.channel("qv-rt-" + id + "-" + Math.random().toString(36).slice(2, 8))
+        return rtLive((st) => supa.channel("qv-rt-" + id + "-" + Math.random().toString(36).slice(2, 8))
           .on("postgres_changes", { event: "INSERT", schema: "public", table: "quote_versions", filter: f }, () => { try { cb && cb("layout"); } catch (e) {} })
           .on("postgres_changes", { event: "INSERT", schema: "public", table: "quotation_versions", filter: f }, () => { try { cb && cb("quotation"); } catch (e) {} })
-          .subscribe(), () => { try { cb && cb("layout"); cb && cb("quotation"); } catch (e) {} });   // R163: closed while hidden
+          .subscribe(st), () => { try { cb && cb("layout"); cb && cb("quotation"); } catch (e) {} });   // R163: closed while hidden; R233: st = error backoff
       } catch (e) { return { unsubscribe() {} }; }
     },
     create: (code, title, eventType, data, objectCount) => qt().create(code, title, eventType, data, objectCount),
@@ -5299,9 +5383,9 @@ window.HelmUrl = HelmUrl;
         const oid = currentUser ? swrOrg(currentUser.id) : null;
         const spec = { event: "*", schema: "public", table: "leads" };
         if (oid && /^[0-9a-f-]{36}$/i.test(String(oid))) spec.filter = "org_id=eq." + oid;
-        return rtLive(() => supa.channel("leads-rt")
+        return rtLive((st) => supa.channel("leads-rt")
           .on("postgres_changes", spec, (payload) => cb && cb(payload))
-          .subscribe((status) => { if (onStatus) onStatus(status); }),   // real status: SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED
+          .subscribe((status) => { st(status); if (onStatus) onStatus(status); }),   // real status: SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED
           () => { if (onStatus) onStatus("CONNECTING"); try { cb && cb(null); } catch (e) {} });
       } catch { if (onStatus) onStatus("ERROR"); return { unsubscribe() {} }; }
     },
@@ -8118,11 +8202,11 @@ window.HelmUrl = HelmUrl;
         const coid = currentUser ? swrOrg(currentUser.id) : null;
         const cflt = (coid && /^[0-9a-f-]{36}$/i.test(String(coid))) ? ("org_id=eq." + coid) : undefined;
         const cspec = (table) => cflt ? { event: "*", schema: "public", table: table, filter: cflt } : { event: "*", schema: "public", table: table };
-        return rtLive(() => supa.channel(chanName || "chat-rt")
+        return rtLive((st) => supa.channel(chanName || "chat-rt")
           .on("postgres_changes", cspec("chat_messages"), () => cb && cb())
           .on("postgres_changes", cspec("chat_reactions"), () => cb && cb())
           .on("postgres_changes", cspec("chat_conversations"), () => cb && cb())
-          .subscribe((status) => { if (onStatus) onStatus(status); }), () => { try { cb && cb(); } catch (e) {} });
+          .subscribe((status) => { st(status); if (onStatus) onStatus(status); }), () => { try { cb && cb(); } catch (e) {} });
       } catch (e) { if (onStatus) onStatus("ERROR"); return { unsubscribe() {} }; }
     },
   };

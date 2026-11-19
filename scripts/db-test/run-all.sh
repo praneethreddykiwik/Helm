@@ -45,6 +45,10 @@ echo "== idempotent 2nd run =="; R2="$(bash scripts/db-migrate.sh --apply 2>&1 |
 echo "== prod migration checker (fresh DB) =="; CHK="$(psql -X -q -A -t -F '|' -v ON_ERROR_STOP=1 -f supabase/CHECK-PROD-MIGRATIONS.sql 2>&1)" || { echo "$CHK" | tail -3; fail=1; }
 echo "$CHK" | awk -F'|' '{c[$2]++} END {for (s in c) printf "%s=%d ", s, c[s]; print ""}'
 if echo "$CHK" | grep -qE '^[^|]+\|(missing|partial)\|'; then echo "  ✗ prod checker:"; echo "$CHK" | grep -E '^[^|]+\|(missing|partial)\|' | head -5; fail=1; else echo "  ✓ prod checker: no missing / partial"; fi
+# R233 (log-noise guard): the browser's ANON_RPCS list (store-api.js answers every other function sent signed-out with 401
+# locally) must hold every function anon may run on this fresh database, and every function the browser calls must exist.
+# Before the fixtures + suites: some suites commit grant changes.
+echo "== r233 anon RPC list (fresh DB) =="; R233="$(bash tests/db/r233-anon-rpcs.sh 2>&1)"; if echo "$R233" | grep -q "R233-ANON-RPCS: ALL PASS"; then echo "  ✓ r233-anon-rpcs"; else echo "  ✗ r233-anon-rpcs"; echo "$R233" | tail -4; fail=1; fi
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1
 
 reseed() { psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1; }

@@ -151,6 +151,26 @@
     return ev;
   }
 
+  /* R233 (PROD-ERRORS-2026-10-29, Sentry HELM-5): a Supabase error is a plain object {code, details, hint, message}. Sent
+     as it is, Sentry shows "Object captured as exception with keys: code, details, hint, message" - no stack, and every
+     different database failure lands in ONE issue. A non-Error is now wrapped in a real Error named after the kind, with
+     the (redacted) code + message as its text and the code as a tag, so each failure groups on its own. */
+  function asError(kind, payload) {
+    try {
+      if (payload instanceof Error) return { err: payload, code: '' };
+      var code = (payload && typeof payload === 'object' && payload.code != null) ? String(payload.code).slice(0, 40) : '';
+      var msg = payload && typeof payload === 'object' ? (payload.message || payload.reason || '') : payload;
+      var e = new Error('[' + kind + '] ' + (code ? code + ' ' : '') + String(redact(String(msg == null ? '' : msg)) || 'non-error value').slice(0, 300));
+      e.name = kind === 'unhandledrejection' ? 'UnhandledRejection' : 'HelmError';
+      if (payload && typeof payload === 'object' && typeof payload.stack === 'string') e.stack = payload.stack;
+      return { err: e, code: code };
+    } catch (x) { return { err: payload, code: '' }; }
+  }
+  function sendToSentry(kind, payload, safe) {
+    var w = asError(kind, payload), ctx = { extra: safe };
+    if (w.code) ctx.tags = { pg_code: w.code };
+    window.Sentry.captureException(w.err, ctx);
+  }
   function report(kind, payload) {
     refresh();
     var safe = {
@@ -165,18 +185,18 @@
     if (!ENABLED) { if (CFG.debug) console.debug('[telemetry:noop]', safe); return; }
     try {
       if (window.Sentry && typeof window.Sentry.captureException === 'function') {
-        window.Sentry.captureException(payload, { extra: safe });
+        sendToSentry(kind, payload, safe);
       } else if (pending.length < 10) {
         // r26: the SDK is still loading - keep the first few and send them once it is ready (never a
         // hand-made beacon to the DSN: that is not Sentry's format and would carry no redaction hooks)
-        pending.push([payload, safe]);
+        pending.push([kind, payload, safe]);
       }
     } catch (e) { /* telemetry must never break the app */ }
   }
   var pending = [];
   function flushPending() {
     var list = pending; pending = [];
-    try { list.forEach(function (p) { window.Sentry.captureException(p[0], { extra: p[1] }); }); } catch (e) {}
+    try { list.forEach(function (p) { sendToSentry(p[0], p[1], p[2]); }); } catch (e) {}
   }
   // R45: the owner's one-click check that monitoring works - STAGING ONLY. Open the staging site with ?sentry_test=1
   // and, once Sentry is running, ONE test error is thrown (once per browser tab); it shows in Sentry -> Issues with

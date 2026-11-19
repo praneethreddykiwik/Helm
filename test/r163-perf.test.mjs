@@ -145,8 +145,8 @@ await t('Notifications 10 at a time: bell grows by 10 on scroll (max 100, back t
 
 await t('Realtime: the bell opens no channel off the Chat page; every channel closes while hidden; leads only this studio', () => {
   assert.match(STORE, /kicked = true; liveRefresh\(\);\n[^\n]*\n[^\n]*\n\s+if \(pageKey\(\) !== "chat"\) return;\n\s+try \{ if \(chat && chat\.subscribe\) \{ csub = chat\.subscribe\(/);
-  assert.match(STORE, /const RT_IDLE_MS = 60000;\n[\s\S]{0,1300}?\n  function rtLive\(make, onBack\) \{/);
-  assert.equal((STORE.match(/return rtLive\(\(\) => supa\.channel\(/g) || []).length, 3, 'versions, leads, chat');
+  assert.match(STORE, /const RT_IDLE_MS = 60000;\n[\s\S]{0,2900}?\n  function rtLive\(make, onBack\) \{/);   // R233: + the error backoff consts
+  assert.equal((STORE.match(/return rtLive\(\(st\) => supa\.channel\(/g) || []).length, 3, 'versions, leads, chat (R233: st = the error backoff)');
   assert.equal((STORE.match(/supa\.channel\(/g) || []).length, 4, 'no channel outside rtLive (R174b: + the presence channel)');
   assert.match(STORE, /make: \(onState\) => \{\n\s+const c = supa\.channel\("presence:org:"/, 'R209: the presence channel goes through presenceTracker (throttle + backoff + hidden close)');
   assert.match(STORE, /spec\.filter = "org_id=eq\." \+ oid;/);
@@ -204,8 +204,8 @@ await t('0358: catalog built once per request, _r23_tz without the time zone fil
 });
 
 await t('cache-bust: store-api v350 on every page', () => {
-  assert.match(EV, /store-api\.js\?v=390/);
-  assert.match(read('public/dashboard.html'), /store-api\.js\?v=390/);
+  assert.match(EV, /store-api\.js\?v=391/);
+  assert.match(read('public/dashboard.html'), /store-api\.js\?v=391/);
 });
 
 console.log(`\nr163-perf: ${pass} passed, ${fail} failed`);
