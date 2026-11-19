@@ -245,11 +245,11 @@
         + sfld(kind, "paymentTermsNote", "Payment terms note", d.paymentTermsNote, { area: 1, max: 500, full: 1, hint: "Optional, e.g. cancellation or refund terms." }) + `</div>`);
     }
     if (kind === "team") {
-      const roles = ((BPStore.auth.admin && BPStore.auth.admin.roles && BPStore.auth.admin.roles()) || ["coordinator"]).filter((r) => r !== "client" && r !== "worker");   // r21: no Client in team pickers
+      const roles = ((BPStore.auth.admin && BPStore.auth.admin.roles && BPStore.auth.admin.roles()) || ["manager"]).filter((r) => r !== "client" && r !== "worker");   // r21: no Client in team pickers
       const rl = (r) => (BPStore.auth.admin && BPStore.auth.admin.roleLabel ? BPStore.auth.admin.roleLabel(r) : r);
       const list = invites.length ? `<ul class="ob-inv">${invites.map((x, i) => `<li><b>${esc(x.email)}</b> · ${esc(rl(x.role))}<input readonly aria-label="Join link for ${esc(x.email)}" value="${esc(x.link)}"><button type="button" class="btn" data-act="invcopy" data-i="${Number(i)}">Copy link</button></li>`).join("")}</ul>` : "";
       return form(`<div class="ob-bf">${sfld(kind, "email", "Teammate email", v.email || "", { type: "email", max: 254, ac: "off" })}`
-        + `<div><label for="ob_s_role">Role</label><select id="ob_s_role" data-set="role">${roles.map((r) => `<option value="${esc(r)}"${r === (v.role || "coordinator") ? " selected" : ""}>${esc(rl(r))}</option>`).join("")}</select><div class="ob-err" id="ob_s_role_err"></div></div></div>`
+        + `<div><label for="ob_s_role">Role</label><select id="ob_s_role" data-set="role">${roles.map((r) => `<option value="${esc(r)}"${r === (v.role || "manager") ? " selected" : ""}>${esc(rl(r))}</option>`).join("")}</select><div class="ob-err" id="ob_s_role_err"></div></div></div>`
         + `<div class="ob-row"><button type="button" class="btn" data-act="invite">Create invite link</button><a class="btn" href="control.html#users">Manage roles &amp; access</a></div>${list}`,
         invites.length ? "Save & continue" : "Continue");
     }

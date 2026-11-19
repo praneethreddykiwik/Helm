@@ -168,11 +168,11 @@ await t('MANIFEST, checker override, run-all, release lists, CHECK-PROD carry 03
 });
 await t('asset pins: store-api v372 everywhere, team-status.js / .css v2 on Settings + Staff, page-tours has the new steps', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '387', f);
+    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '388', f);
   }
   for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=\d+"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=4">/, f); }   // R211: css v3 (js: R210 v4, pinned in test/r210)
   const PT = read('public/page-tours.js');
-  for (const s of ['["#um_which", "#um_more"]', '"#um_rows .ucView"', '"#um_rows .ucMore"', '"#ts_danger"']) assert.ok(PT.includes('sel: ' + s), s);   // R228: hint + More options share a step; "..." menu; Danger zone
+  for (const s of ['["#um_which", "#um_more"]', '"#um_rows .ucView"', '"#um_rows .ucMore"']) assert.ok(PT.includes('sel: ' + s), s);   // R228: hint + More options share a step; "..." menu (R229: Danger zone step gone - Transfer ownership off)
 });
 
 console.log(`r202-signin-link: ${n} passed`);

@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=101"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=102"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1862,7 +1862,7 @@ window.HelmUrl = HelmUrl;
   // 0061 universal search (top-bar trigger + Cmd/Ctrl+K palette). Studio pages only:
   // never on HQ / public client pages; studio-search.js re-checks the role (no clients).
   // verify-166: PR #166 merged four branches that each shipped a different store-api.js as v=232 (and shell-b as 114) - re-bumped so no browser keeps a stale copy
-  const STUDIO_SEARCH_VERSION = "19";
+  const STUDIO_SEARCH_VERSION = "20";
   // nav trail (breadcrumbs + Recent records). Pages may call HelmTrail.setCurrent before
   // nav-trail.js loads: this stub queues the calls; nav-trail.js replays them after boot.
   const NAV_TRAIL_VERSION = "7";
@@ -1953,7 +1953,14 @@ window.HelmUrl = HelmUrl;
   const EDIT_ROLES = ["admin", "manager", "planner", "sales", "coordinator", "supervisor", "quality", "operations", "designer"];
   const ALL_ROLES  = ["admin", "manager", "planner", "sales", "coordinator", "supervisor", "quality", "operations", "designer", "crew", "worker", "client"];
   // 0143: "worker" is merged into "crew" - still a valid stored value (legacy rows) but never offered
-  const PICK_ROLES = ALL_ROLES.filter((r) => r !== "worker");
+  // R229 (0398, owner 18 Nov 2026): "Event coordinator" + "Designer" are removed and "Crew" is disabled as a login role -
+  // never OFFERED in any role picker (Users & invites, Roles & access tabs, Staff, onboarding / trial invites). A person
+  // who still has one keeps it: their row shows it (with a "Retired role" hint) until an admin picks a new one. The server
+  // (0398) refuses any NEW assignment of these three. Labels stay so old rows still read well.
+  const RETIRED_ROLES = ["coordinator", "designer", "crew"];
+  const KNOWN_ROLES = ALL_ROLES.filter((r) => r !== "worker");
+  const PICK_ROLES = KNOWN_ROLES.filter((r) => !RETIRED_ROLES.includes(r));
+  const isRetiredRole = (r) => RETIRED_ROLES.includes(r) || r === "worker";
   // friendly labels for the UI (keys stay stable in the DB)
   const ROLE_LABELS = {
     admin: "Admin", manager: "Event manager", planner: "Planner", sales: "Sales",
@@ -3129,6 +3136,9 @@ window.HelmUrl = HelmUrl;
     // r35 (0285): making / removing an admin, money switches -> withStepUp (a fresh two-step code when the server asks)
     admin: {
       roles: () => PICK_ROLES.slice(),
+      // R229 (0398): retired roles - kept on existing rows, never offered; the UI shows "Retired role - choose a new one"
+      retiredRoles: () => RETIRED_ROLES.slice(),
+      isRetiredRole,
       roleLabel,
       areas: () => AREAS.slice(),
       // B29: areas a FREE-TRIAL studio never gets whatever the matrix says (0203) -> [] for a paid studio. The Roles
@@ -5533,7 +5543,7 @@ window.HelmUrl = HelmUrl;
   function staffMatchRole(text) {
     const t = String(text == null ? "" : text).trim().toLowerCase().replace(/\s+/g, " ");
     if (!t) return null;
-    for (const r of PICK_ROLES) if (r !== "client" && (t === r || t === roleLabel(r).toLowerCase())) return r;
+    for (const r of KNOWN_ROLES) if (r !== "client" && (t === r || t === roleLabel(r).toLowerCase())) return r;   // R229: old words still recognised
     const hits = STAFF_ROLE_WORDS.filter(([, re]) => re.test(t)).map(([r]) => r);
     return hits.length === 1 ? hits[0] : null;   // ambiguous ("sales manager") → keep as custom
   }
@@ -5653,6 +5663,7 @@ window.HelmUrl = HelmUrl;
     // row as the friendly label ("Event manager"); free text that isn't an obvious match stays
     // as-is and is shown as "Custom: …" until an admin picks a role (zero data loss).
     staffRoles: () => PICK_ROLES.filter((r) => r !== "client").map((r) => ({ key: r, label: roleLabel(r) })),
+    isRetiredRole,
     matchRole: staffMatchRole,
     roleLabel,
     DEFAULT_DEPARTMENTS: ["Management", "Planning", "Sales", "Operations", "Production", "Design", "Quality", "Crew"],
