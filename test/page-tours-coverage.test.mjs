@@ -38,7 +38,8 @@ const appBlk = /var APP = \{([\s\S]*?)\};/.exec(proto);
 assert.ok(appBlk, 'shell-proto.js APP allowlist found');
 const APP = [...appBlk[1].matchAll(/"?([a-z][\w-]*)"?\s*:\s*1/g)].map((m) => m[1] + '.html');
 assert.ok(APP.length >= 30, 'APP allowlist parsed (' + APP.length + ' pages)');
-const withTourJs = readdirSync(PUB).filter((f) => f.endsWith('.html') && /<script src="\/?tour\.js\?v=/.test(r(f)) && f !== 'try.html');
+// R224: the booklet loads its tour only for a signed-in member (<script type="text/plain" data-member-tour src=...>)
+const withTourJs = readdirSync(PUB).filter((f) => f.endsWith('.html') && /<script (?:type="text\/plain" data-member-tour )?src="\/?tour\.js\?v=/.test(r(f)) && f !== 'try.html');
 
 t('header: the file says to update tours with every feature change', () => {
   assert.match(r('page-tours.js'), /When you add or change a feature, update its tour here\./);
@@ -52,7 +53,7 @@ t('every app page with the shared header has a tour entry (' + APP.length + ' pa
 t('every page with its own tour button (tour.js) has a tour entry, and includes page-tours.js before tour.js', () => {
   for (const f of withTourJs) {
     assert.ok(PT.entry(f), 'no tour in page-tours.js for ' + f);
-    const H = r(f), a = H.search(/<script src="\/?page-tours\.js\?v=/), b = H.search(/<script src="\/?tour\.js\?v=/);
+    const H = r(f), a = H.search(/<script (?:type="text\/plain" data-member-tour )?src="\/?page-tours\.js\?v=/), b = H.search(/<script (?:type="text\/plain" data-member-tour )?src="\/?tour\.js\?v=/);
     assert.ok(a > 0 && a < b, f + ': page-tours.js must load just before tour.js');
   }
   for (const f of ['hq.html', 'builder.html', 'booklet.html']) assert.ok(withTourJs.includes(f), f + ' has a "? Tour" button');

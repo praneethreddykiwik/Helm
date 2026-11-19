@@ -280,11 +280,13 @@ t('config.js: googleGis ON for helm.events + www only; public client ID; One Tap
   assert.ok(!/client_?secret\s*[:=]\s*["'][^"']/i.test(CONFIG) && !/GOCSPX-/.test(CONFIG), 'never the client secret');
 });
 t('login.html: loads google-gis.js; GIS sign-in reloads into the SAME return address as the redirect flow; classic button kept', () => {
-  // r26 speed: deferred, AFTER store-api / auth-ui / signup-flow (the page script runs at DOMContentLoaded, after them)
-  assert.match(LOGIN, /<script src="\/google-gis\.js\?v=\d+" defer><\/script>/);
+  // r26 speed / R224: loaded after the first paint (data-login-lazy, in order), AFTER store-api / auth-ui / signup-flow
+  // (the page script runs on helm:login-ready, after them all)
+  assert.match(LOGIN, /<script type="text\/plain" data-login-lazy src="\/google-gis\.js\?v=\d+"><\/script>/);
   const at = (re) => LOGIN.search(re);
-  assert.ok(at(/store-api\.js\?v=\d+" defer/) < at(/<script src="\/google-gis\.js/) && at(/auth-ui\.js\?v=\d+" defer/) < at(/<script src="\/google-gis\.js/) && at(/signup-flow\.js\?v=\d+" defer/) < at(/<script src="\/google-gis\.js/));
-  assert.ok(at(/<script src="\/google-gis\.js/) < at(/document\.addEventListener\("DOMContentLoaded"/));
+  const G = /data-login-lazy src="\/google-gis\.js/;
+  assert.ok(at(/data-login-lazy src="store-api\.js\?v=\d+"/) < at(G) && at(/data-login-lazy src="auth-ui\.js\?v=\d+"/) < at(G) && at(/data-login-lazy src="\/signup-flow\.js\?v=\d+"/) < at(G));
+  assert.ok(at(G) < at(/document\.addEventListener\("helm:login-ready"/));
   assert.match(LOGIN, /GIS = window\.HelmGoogleGis \? HelmGoogleGis\.attach\(\{/);
   assert.match(LOGIN, /await BPStore\.auth\.signInWithGoogleIdToken\(token, rawNonce\)/);
   assert.match(LOGIN, /location\.replace\(location\.origin\+"\/login\.html\?"\+\(tok\?"invite="\+encodeURIComponent\(tok\)\+"&":""\)\+"next="\+encodeURIComponent\(nextUrl\(\)\)\)/);

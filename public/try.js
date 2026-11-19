@@ -144,7 +144,57 @@
     e.preventDefault(); e.stopImmediatePropagation();
     ensure3D().then(function () { threeDReady = true; setTimeout(function () { t.click(); }, 0); }, function () {});
   }, true);
-  W.addEventListener('load', function () {
+  /* R224 speed: the builder bundle (store-api + builder.js + its helpers, ~400 KB) is not fetched during the first paint.
+     gen-try.mjs writes those tags as inert <script type="text/plain" data-try-boot src=...>; right after the first frame
+     they are added, in document order, as ordered scripts (async=false = the same order as the old `defer` tags), and
+     the demo starts once every one has loaded (or failed) AND the page's load event has fired - as before. */
+  function bootBuilder(done) {
+    var tags = [];
+    try { tags = Array.prototype.slice.call(document.querySelectorAll('script[type="text/plain"][data-try-boot]')); } catch (e) { tags = []; }
+    var left = tags.length;
+    if (!left) { done(); return; }
+    var settle = function () { left--; if (left === 0) done(); };
+    for (var i = 0; i < tags.length; i++) {
+      var t = tags[i], el = document.createElement('script');
+      el.async = false;
+      el.addEventListener('load', settle);
+      el.addEventListener('error', settle);
+      el.src = t.getAttribute('src');
+      t.parentNode.insertBefore(el, t.nextSibling);
+    }
+  }
+  var booted = false;
+  function afterPaintBoot() {
+    if (booted) return; booted = true;
+    bootBuilder(function () {
+      if (document.readyState === 'complete') startDemo(); else W.addEventListener('load', startDemo, { once: true });
+    });
+  }
+  // after the first paint: the browser's "first-contentful-paint" entry (reported once the frame is on screen), or two
+  // animation frames where paint timing is missing; the timer covers a tab opened in the background
+  function afterFirstPaint(fn) {
+    var done = false;
+    var go = function () { if (done) return; done = true; setTimeout(fn, 0); };
+    var frames = function () {
+      if (typeof W.requestAnimationFrame === 'function') W.requestAnimationFrame(function () { W.requestAnimationFrame(go); });
+      else go();
+    };
+    try {
+      var P = W.performance;
+      if (P && P.getEntriesByName && P.getEntriesByName('first-contentful-paint').length) { go(); }
+      else if (typeof W.PerformanceObserver === 'function' && (W.PerformanceObserver.supportedEntryTypes || []).indexOf('paint') !== -1) {
+        var po = new W.PerformanceObserver(function (list) {
+          if (list.getEntriesByName('first-contentful-paint').length) { try { po.disconnect(); } catch (e) {} go(); }
+        });
+        po.observe({ type: 'paint', buffered: true });
+      } else frames();
+    } catch (e) { frames(); }
+    setTimeout(go, 1000);
+  }
+  document.addEventListener('DOMContentLoaded', function () { afterFirstPaint(afterPaintBoot); });
+  var started = false;
+  function startDemo() {
+    if (started) return; started = true;
     if (!loadDemo()) return;
     document.documentElement.setAttribute('data-try-mode', '2d');
     // CLS: the demo is loaded + sized; fit it, then reveal the floor on the next frame (try.css hides #svg until
@@ -174,5 +224,5 @@
     $('tryRotate').addEventListener('click', function () { api().rotate(); });
     $('tryReset').addEventListener('click', function () { setMode('2d'); loadDemo(); });
     var rt; W.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (state.mode !== '3d') api().fit(); }, 150); });
-  });
+  }
 })();

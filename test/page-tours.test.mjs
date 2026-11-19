@@ -188,7 +188,9 @@ t('keyboard: "?" then "T" starts the tour; the shortcuts sheet lists it and has 
 });
 
 t('pages without the app shell: builder, HQ and the booklet get the "? Tour" button', () => {
-  for (const f of ['builder.html', 'hq.html', 'booklet.html']) assert.match(r(f), /page-tours\.js\?v=\d+"><\/script>\n<script src="\/?tour\.js\?v=/, f);
+  for (const f of ['builder.html', 'hq.html']) assert.match(r(f), /page-tours\.js\?v=\d+"><\/script>\n<script src="\/?tour\.js\?v=/, f);
+  // R224: the booklet's tour is for signed-in members only - fetched only then (booklet-member-tour.js), never for a client
+  assert.match(r('booklet.html'), /<script type="text\/plain" data-member-tour src="\/page-tours\.js\?v=\d+"><\/script>\n<script type="text\/plain" data-member-tour src="\/tour\.js\?v=/);
   assert.match(TSRC, /if \(ent && ent\.signedIn\) \{/);
   assert.match(TSRC, /fab\.setAttribute\("aria-label", "Tour this page"\)/);
   assert.match(TSRC, /@media print\{\.htour,\.htour-fab\{display:none!important\}\}/);

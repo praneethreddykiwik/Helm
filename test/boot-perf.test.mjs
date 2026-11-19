@@ -23,7 +23,9 @@ const PROD = /url:\s*"(https:\/\/[a-z0-9]{20}\.supabase\.co)"/.exec(read('public
 const PAGES = readdirSync(new URL('public/', root)).filter((f) => f.endsWith('.html'));
 // try.html = the public sandbox: store-api.js runs in its offline localStorage tier there
 // (try.js blanks the Supabase config), so it must NOT hint the Supabase origin.
-const APP_PAGES = PAGES.filter((f) => f !== 'try.html' && /store-api\.js/.test(read('public/' + f)));
+// R224: login.html loads store-api.js only AFTER the first paint (data-login-lazy) - a preload there would start supabase-js
+// during the first paint again, so it carries none (test/r224-public-speed.test.mjs pins that)
+const APP_PAGES = PAGES.filter((f) => f !== 'try.html' && f !== 'login.html' && /store-api\.js/.test(read('public/' + f)));
 const SJS = /file:\s*"(vendor\/supabase-js-[0-9.]+\.min\.js)",\s*integrity:\s*"(sha384-[A-Za-z0-9+/=]+)"/.exec(SRC);
 
 t('the pinned supabase-js integrity in store-api.js matches the vendored file', () => {

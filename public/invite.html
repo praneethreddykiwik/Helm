@@ -338,13 +338,18 @@
 
 <script src="/trial-preview-frame.js?v=1"></script>
 <script src="/trusted-types.js?v=9"></script>
-<script src="/console-warning.js?v=1"></script>
+<script src="/console-warning.js?v=1" defer></script>
 <script src="/telemetry.js?v=12"></script>
 <script src="/config.js?v=113"></script>
-<script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=6"></script><script src="/trial-sim.js?v=3" data-trial-sim="site"></script>
-<script src="/invite-music.js?v=1"></script><script src="/invite-placement.js?v=1"></script><script src="/invite-extras.js?v=2"></script>
+<!-- R224 speed: the connection to the configured database starts now; the data + page scripts are `defer` (they
+     download in parallel and run, in this order, after the page is parsed); the page script below runs at
+     DOMContentLoaded, right after them - the same order as before, without holding the first paint -->
+<script src="/db-preconnect.js?v=1"></script>
+<script src="/event-name.js?v=9" defer></script>
+<script src="/country-profile.js?v=7" defer></script><script src="/client-api.js?v=6" defer></script><script src="/trial-sim.js?v=3" data-trial-sim="site" defer></script>
+<script src="/invite-music.js?v=1" defer></script><script src="/invite-placement.js?v=1" defer></script><script src="/invite-extras.js?v=2" defer></script>
 <script>
+document.addEventListener("DOMContentLoaded", function(){
   const $=(s,r=document)=>r.querySelector(s);
   const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   // CSS url('…') context: percent-encode quotes/parens/backslash/whitespace so a stored URL can't break out of url().
@@ -594,8 +599,8 @@
     const done=document.querySelector("#rsvpSlot .rsvp-done"); if(done){ done.setAttribute("tabindex","-1"); done.focus({preventScroll:true}); }
   }
   // a link that does not open: an old link after "Make new link" (moved), a link the host turned off, or unknown
-  async function showMissing(slug){
-    let st=""; try{ const i=slug?await BPStore.sites.publicInfo(slug):null; st=(i&&i.state)||""; }catch(_){ st=""; }
+  async function showMissing(slug, infoP){
+    let st=""; try{ const i=slug?await (infoP||BPStore.sites.publicInfo(slug)):null; st=(i&&i.state)||""; }catch(_){ st=""; }
     $(st==="moved"?"#moved":st==="off"?"#turnedOff":"#missing").hidden=false;
   }
 
@@ -666,13 +671,16 @@
     if(!slug){ $("#loading").hidden=true; $("#missing").hidden=false; return; }
     $("#loadErr").hidden=true;
     let site;
+    // R224: the studio's name / link state (footer, or which "not found" card to show) is asked together with the invitation
+    let infoP=null;
     try{ await BPStore.init();
+      infoP=BPStore.sites.publicInfo(slug).catch(()=>null);
       // R216: the studio check and the invitation are asked at the same time (checked in the same order as before)
       const [rq,gq]=await Promise.allSettled([BPStore.links.require(LINK), BPStore.sites.public(slug)]);
       if(rq.status==="rejected") throw rq.reason; if(gq.status==="rejected") throw gq.reason; site=gq.value; }
     catch(e){
       $("#loading").hidden=true;
-      if(BPUI.isNotFound(e)){ await showMissing(slug); return; }
+      if(BPUI.isNotFound(e)){ await showMissing(slug, infoP); return; }
       if(/has been cancelled/i.test((e&&e.message)||"")){   // r23-0260: the event was cancelled - no details
         $("#ended").querySelector("h1").textContent="This event has been cancelled";
         $("#ended").querySelector("p").textContent="This invitation link is no longer active.";
@@ -681,10 +689,10 @@
       // a network / server failure is not "invitation not found" — offer a retry
       $("#loadErr").hidden=false; BPUI.loadError($("#loadErr"), e, load, {what:"this invitation"}); return;
     }
-    if(!site){ $("#loading").hidden=true; await showMissing(slug); return; }
+    if(!site){ $("#loading").hidden=true; await showMissing(slug, infoP); return; }
     // R216: the studio's name, this guest's earlier reply and the signed photo links are three separate questions - asked together
     const tok=readTok();
-    const infoP=BPStore.sites.publicInfo(slug).catch(()=>null);   // r34: the studio's name for the footer
+    // r34: the studio's name for the footer (asked above, with the invitation)
     const revealP=tok?BPStore.sites.reveal(slug,tok).catch(()=>null):Promise.resolve(null);
     const photosP=signPhotos(site).catch(()=>site);
     const [info,rv,signed]=await Promise.all([infoP, revealP, photosP]);
@@ -693,6 +701,7 @@
     render(site);
   }
   BPUI.boot(load);
+});
 </script>
 </body>
 </html>
