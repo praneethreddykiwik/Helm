@@ -112,10 +112,24 @@
   }
   // Every URL-bearing field of a Sentry event: message, request url / query /
   // Referer header, transaction name, exception values, breadcrumbs.
+  /* R233b (review): once Sentry runs, ITS handler records an unhandled rejection of a plain Supabase error object as
+     "Object captured as promise rejection with keys: code, details, hint, message" (one issue for every database error).
+     Name it by its code instead and split the grouping by code, like report() does. */
+  function sdkPlainObject(ev) {
+    try {
+      var ex = ev.exception && ev.exception.values && ev.exception.values[0], ser = ev.extra && ev.extra.__serialized__;
+      if (!ex || !/^Object captured as/.test(String(ex.value || '')) || !ser || typeof ser !== 'object' || ser.code == null) return;
+      var code = String(ser.code).slice(0, 40);
+      ex.value = '[sdk] ' + code + ' ' + String(ser.message == null ? '' : ser.message).slice(0, 300);
+      ev.fingerprint = ['{{ default }}', 'sdk', code];
+      ev.tags = ev.tags || {}; ev.tags.pg_code = code;
+    } catch (e) {}
+  }
   function redactEvent(ev) {
     try {
       if (!ev) return ev;
       if (fromExtension(ev)) return null;   // r26: drop add-on noise (Sentry: returning null = not sent)
+      sdkPlainObject(ev);   // R233b: before the redaction below, so the new text is redacted too
       if (ev.message) ev.message = redact(ev.message);
       if (ev.transaction) ev.transaction = stripUrl(ev.transaction);
       // r26: no person on an event - at most an opaque id, never e-mail / name / IP
@@ -151,6 +165,28 @@
     return ev;
   }
 
+  /* R233 (PROD-ERRORS-2026-10-29, Sentry HELM-5): a Supabase error is a plain object {code, details, hint, message}. Sent
+     as it is, Sentry shows "Object captured as exception with keys: code, details, hint, message" - no stack, and every
+     different database failure lands in ONE issue. A non-Error is now wrapped in a real Error named after the kind, with
+     the (redacted) code + message as its text and the code as a tag, so each failure groups on its own. */
+  function asError(kind, payload) {
+    try {
+      if (payload instanceof Error) return { err: payload, code: '' };
+      var code = (payload && typeof payload === 'object' && payload.code != null) ? String(payload.code).slice(0, 40) : '';
+      var msg = payload && typeof payload === 'object' ? (payload.message || payload.reason || '') : payload;
+      var e = new Error('[' + kind + '] ' + (code ? code + ' ' : '') + String(redact(String(msg == null ? '' : msg)) || 'non-error value').slice(0, 300));
+      e.name = kind === 'unhandledrejection' ? 'UnhandledRejection' : 'HelmError';
+      if (payload && typeof payload === 'object' && typeof payload.stack === 'string') e.stack = payload.stack;
+      return { err: e, code: code };
+    } catch (x) { return { err: payload, code: '' }; }
+  }
+  function sendToSentry(kind, payload, safe) {
+    var w = asError(kind, payload), ctx = { extra: safe };
+    // R233b (review): Sentry groups an event that has a stack by its stack alone, and every wrapped error is made right here,
+    // so without a fingerprint every database failure from one caller still lands in ONE issue. Split them by kind + code.
+    if (w.code) { ctx.tags = { pg_code: w.code }; ctx.fingerprint = ['{{ default }}', String(kind || ''), w.code]; }
+    window.Sentry.captureException(w.err, ctx);
+  }
   function report(kind, payload) {
     refresh();
     var safe = {
@@ -165,18 +201,18 @@
     if (!ENABLED) { if (CFG.debug) console.debug('[telemetry:noop]', safe); return; }
     try {
       if (window.Sentry && typeof window.Sentry.captureException === 'function') {
-        window.Sentry.captureException(payload, { extra: safe });
+        sendToSentry(kind, payload, safe);
       } else if (pending.length < 10) {
         // r26: the SDK is still loading - keep the first few and send them once it is ready (never a
         // hand-made beacon to the DSN: that is not Sentry's format and would carry no redaction hooks)
-        pending.push([payload, safe]);
+        pending.push([kind, payload, safe]);
       }
     } catch (e) { /* telemetry must never break the app */ }
   }
   var pending = [];
   function flushPending() {
     var list = pending; pending = [];
-    try { list.forEach(function (p) { window.Sentry.captureException(p[0], { extra: p[1] }); }); } catch (e) {}
+    try { list.forEach(function (p) { sendToSentry(p[0], p[1], p[2]); }); } catch (e) {}
   }
   // R45: the owner's one-click check that monitoring works - STAGING ONLY. Open the staging site with ?sentry_test=1
   // and, once Sentry is running, ONE test error is thrown (once per browser tab); it shows in Sentry -> Issues with
