@@ -24,10 +24,14 @@ t('ops-board.css: the Emerald palette is defined once, in the .tc token block, w
 });
 t('ops-board.css: non-Emerald themes remap the accent + tint tokens to the theme, never the black', () => {
   const ov = block(OPS, THEMED + ' :is(.tc,.tc-layer){');
-  for (const k of ['--tc-bg:', '--tc-panel:', '--tc-ink-3:', '--tc-line:', '--tc-line-2:', '--tc-acc:var(--accent', '--tc-acc-hover:', '--tc-acc-soft:var(--accent-soft', '--tc-acc-text:', '--tc-now-bg:', '--tc-now-bar:var(--accent', '--tc-elev-lg:'])
+  for (const k of ['--tc-bg:', '--tc-panel:', '--tc-ink-3:', '--tc-line:', '--tc-line-2:', '--tc-acc:var(--accent', '--tc-acc-hover:', '--tc-acc-soft:color-mix(in srgb,var(--hx-tint) 10%,var(--panel,#fff))', '--tc-acc-text:', '--tc-now-bg:', '--tc-now-bar:var(--accent', '--tc-elev-lg:'])
     assert.ok(ov.includes(k), 'override sets ' + k);
   assert.ok(!/--tc-black|--tc-safe|--tc-warn|--tc-bad/.test(ov), 'black and status colours are not themed');
   assert.ok(!GREENS.test(ov), 'no green inside the override');
+  // owner (R225 round 2): every theme gets Emerald's light, airy tints in its own hue - same strengths as Emerald's greens
+  for (const [k, pct] of [['--tc-panel-2', 3.5], ['--tc-line-2', 8], ['--tc-now-bg', 7], ['--tc-acc-soft', 10], ['--tc-line', 14], ['--tc-wait-bg', 8]])
+    assert.ok(ov.includes(k + ':color-mix(in srgb,var(--hx-tint) ' + pct + '%,var(--panel,#fff))'), k + ' = theme tint ' + pct + '%');
+  assert.match(OPS, /html\[data-shell="b"\]\[data-hb-theme\]\[data-hb-theme="graphite"\] :is\(\.tc,\.tc-layer\)\{--hx-tint:#6b6b6b\}/, 'Graphite tints from a neutral grey, not black');
 });
 t('ops-board.css: the R222 rows use tokens (run-sheet "now" row, wrap-up OK, step on, picker selected)', () => {
   assert.match(OPS, /\.tc-run-row\.now\{background:var\(--tc-now-bg\);box-shadow:inset 3px 0 0 var\(--tc-now-bar\)\}/);
@@ -38,10 +42,11 @@ t('ops-board.css: the R222 rows use tokens (run-sheet "now" row, wrap-up OK, ste
 });
 t('monitor.css + crew-shifts.css: Emerald fallbacks kept, other themes remapped, status green kept', () => {
   const mov = block(MON, THEMED + ' .mon-body{');
-  for (const k of ['--m-bg:', '--m-ink-3:', '--m-line:', '--m-acc-soft:', '--m-acc-hi:']) assert.ok(mov.includes(k), 'monitor override sets ' + k);
+  for (const k of ['--m-bg:', '--m-ink-3:', '--m-line:color-mix(in srgb,var(--hx-tint) 14%', '--m-acc-soft:color-mix(in srgb,var(--hx-tint) 10%', '--m-acc-hi:']) assert.ok(mov.includes(k), 'monitor override sets ' + k);
+  assert.ok(MON.includes(THEMED + ' .mon-body .mon-chip.is-done{background:#e7f6ee;color:#0f7a43}'), 'monitor Done chip = status green in every theme');
   assert.match(MON, /linear-gradient\(90deg,var\(--m-acc-hi,#10a37a\),var\(--m-acc\)\)/);
   const cov = block(CS, THEMED + '{');
-  for (const k of ['--cs-acc-soft:', '--cs-acc-text:', '--cs-acc-line:']) assert.ok(cov.includes(k), 'crew-shifts override sets ' + k);
+  for (const k of ['--cs-acc-soft:color-mix(in srgb,var(--hx-tint) 10%', '--cs-acc-text:', '--cs-acc-line:color-mix(in srgb,var(--hx-tint) 36%']) assert.ok(cov.includes(k), 'crew-shifts override sets ' + k);
   assert.match(CS, /\.cs-cell\.work\{background:var\(--cs-acc-soft,#e3f4ed\);border-color:var\(--cs-acc-line,#9fd3bd\);color:var\(--cs-acc-text,#036b4d\)\}/);
   assert.match(CS, /\.cs-pill\.filled\{background:#e7f6ee;color:#0f7a43\}/, 'filled = status green, unchanged');
 });
