@@ -9,9 +9,10 @@
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="ops-board.css?v=3">
-<link rel="stylesheet" href="monitor.css?v=5">
+<link rel="stylesheet" href="monitor.css?v=6">
+<link rel="stylesheet" href="event-plan.css?v=1">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=98" id="shellProto"></script>
+<script src="/shell-proto.js?v=99" id="shellProto"></script>
 </head>
 <body class="mon-body">
 <a class="skip-link" href="#main">Skip to content</a>
@@ -51,6 +52,21 @@
           <button type="button" id="monWall" class="tc-btn ghost mon-wallbtn" aria-pressed="false" title="Big text for a wall screen or TV (full screen)">Wall screen</button>
         </div>
       </section>
+
+      <!-- R226 (EVENT-OPS-PLAN-V2.md): the SAME four windows as Tasks & Crew, picked from the studio's clock (task-status.js) -->
+      <div class="tc-phase-row ep-wins" id="monWins">
+        <div class="tc-seggrp" role="group" aria-label="Which part of the job">
+          <button type="button" class="tc-seg" data-win="before" aria-pressed="false">Before the event</button>
+          <button type="button" class="tc-seg" data-win="daybefore" aria-pressed="false">Day before</button>
+          <button type="button" class="tc-seg" data-win="onday" aria-pressed="false">On the day</button>
+          <button type="button" class="tc-seg" data-win="wrapup" aria-pressed="false">Wrap-up</button>
+        </div>
+        <span class="ep-wnote" id="monWinNote" aria-live="polite"></span>
+        <button type="button" class="tc-btn sm ghost" id="monWinAuto" hidden>Use the studio’s clock</button>
+      </div>
+      <section class="tc-card ep-card" id="monDayBefore" aria-labelledby="monDayBeforeH" hidden></section>
+      <section class="tc-card ep-card" id="monReady" aria-labelledby="monReadyH" hidden></section>
+      <section class="tc-card ep-card mon-wrapcard" id="monWrap" aria-label="Wrap-up" hidden></section>
 
       <section id="monSummary" class="mon-summary" aria-label="Progress"></section>
       <section id="monAlerts" class="mon-alerts" aria-label="Late tasks" role="region" hidden></section>
@@ -100,14 +116,21 @@
     </div>
   </main>
 </div>
+<!-- R226: "Open" shows the task here in a drawer (Tasks & Crew stays one link away) -->
+<div class="mon-scrim" id="monScrim" hidden></div>
+<aside class="mon-drawer tc" id="monDrawer" role="dialog" aria-modal="true" aria-labelledby="monDrawerH" hidden>
+  <div class="mon-drawer-h"><h2 id="monDrawerH" class="tc-h2">Task</h2><button type="button" class="tc-btn sm ghost" id="monDrawerX" aria-label="Close">✕</button></div>
+  <div class="mon-drawer-b" id="monDrawerB"></div>
+</aside>
 
 <script src="/console-warning.js?v=1"></script>
 <script src="telemetry.js?v=12"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=384"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=385"></script>
 <script src="live-board.js?v=2"></script>
-<script src="task-status.js?v=2"></script>
-<script src="monitor.js?v=7"></script>
+<script src="task-status.js?v=3"></script>
+<script src="event-plan.js?v=1"></script>
+<script src="monitor.js?v=8"></script>
 </body>
 </html>

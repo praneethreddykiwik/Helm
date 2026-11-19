@@ -28,7 +28,8 @@
 -- send tasks" (0385, _r385_can_assign); alert settings = Controls - Can change (like task reminder settings, 0338).
 -- Nothing here holds or returns money.
 --
--- ZERO DATA LOSS: additive + idempotent. Three new tables, one new nullable column, new functions, one pg_cron job.
+-- ZERO DATA LOSS: additive + idempotent. Three new tables, one new nullable column, new functions, one pg_cron job, and the
+-- free-trial retention lists (0184) learn the new tables (patched in place once, like 0338 / 0370).
 -- Nothing dropped, nothing deleted, no existing function, policy or row changed. Safe to run twice. ASCII only.
 
 -- ---- 0) preflight -----------------------------------------------------------------------------------------------------
@@ -118,7 +119,7 @@ do $$ declare t text; begin
     end if;
   end loop;
   if to_regprocedure('public.tg_studio_read_only()') is not null then
-    foreach t in array array['event_day_plans', 'event_ready_alert_settings'] loop
+    foreach t in array array['event_day_plans', 'event_ready_alert_settings', 'event_ready_alert_sends'] loop
       if not exists (select 1 from pg_catalog.pg_trigger where tgname = 'zzz_studio_read_only' and tgrelid = ('public.' || t)::regclass) then
         execute format('create trigger zzz_studio_read_only before insert or update or delete on public.%I for each row execute function public.tg_studio_read_only(''org_id'')', t);
       end if;
@@ -341,19 +342,33 @@ begin
   return jsonb_build_object('ok', true, 'key', p_key, 'item', v_item);
 end $fn$;
 
--- how long one task takes (null = not a timed set-up job)
-create or replace function public.event_task_duration_set(p_task uuid, p_minutes integer)
+-- how long one task takes (null = not a timed set-up job) and, when p_set_needs, what it needs first (event_tasks.depends_on:
+-- same event, never itself, never a loop). Only these two columns change (start times, people, status are left alone).
+create or replace function public.event_task_duration_set(p_task uuid, p_minutes integer, p_needs uuid default null, p_set_needs boolean default false)
 returns jsonb language plpgsql volatile security definer set search_path = '' as $fn$
 -- r226-0396
-declare v_q uuid;
+declare v_q uuid; v_cur uuid; i integer := 0;
 begin
   select t.quote_id into v_q from public.event_tasks t where t.id = p_task;
   if v_q is null then raise exception 'task not found' using errcode = 'P0002'; end if;
   perform public._r396_event(v_q);
   if not coalesce(public._r385_can_assign(), false) then raise exception 'not allowed' using errcode = '42501'; end if;
   if p_minutes is not null and (p_minutes < 1 or p_minutes > 1440) then raise exception 'invalid_minutes' using errcode = 'P0001'; end if;
-  update public.event_tasks set duration_min = p_minutes where id = p_task;
-  return jsonb_build_object('ok', true, 'task_id', p_task, 'duration_min', p_minutes);
+  if coalesce(p_set_needs, false) and p_needs is not null then
+    if p_needs = p_task or not exists (select 1 from public.event_tasks t where t.id = p_needs and t.quote_id = v_q) then
+      raise exception 'invalid_needs' using errcode = 'P0001'; end if;
+    v_cur := p_needs;                       -- walk the chain from the new "needs first": reaching this task = a loop
+    while v_cur is not null and i < 500 loop
+      select t.depends_on into v_cur from public.event_tasks t where t.id = v_cur and t.quote_id = v_q;
+      if v_cur = p_task then raise exception 'needs_loop' using errcode = 'P0001'; end if;
+      i := i + 1;
+    end loop;
+  end if;
+  update public.event_tasks set duration_min = p_minutes,
+         depends_on = case when coalesce(p_set_needs, false) then p_needs else depends_on end
+   where id = p_task;
+  return jsonb_build_object('ok', true, 'task_id', p_task, 'duration_min', p_minutes,
+    'depends_on', (select t.depends_on from public.event_tasks t where t.id = p_task));
 end $fn$;
 
 -- the alert settings (Staff or Controls - Can see reads; Controls - Can change saves)
@@ -502,7 +517,7 @@ end $fn$;
 
 -- ---- 8) grants ----------------------------------------------------------------------------------------------------------------
 do $$ declare f text; begin
-  foreach f in array array['public._r396_cfg(uuid)', 'public._r396_ready_at(uuid)', 'public._r396_schedule(uuid)', 'public._r396_people(uuid,uuid)',
+  foreach f in array array['public._r396_check_keys()', 'public._r396_hhmm(text)', 'public._r396_cfg(uuid)', 'public._r396_ready_at(uuid)', 'public._r396_schedule(uuid)', 'public._r396_people(uuid,uuid)',
                            'public._r396_bell(uuid,uuid,uuid,text,text,jsonb)', 'public._r396_event(uuid)', 'public.event_ready_alert_tick()'] loop
     execute format('revoke all on function %s from public', f);
     if exists (select 1 from pg_roles where rolname = 'anon') then execute format('revoke all on function %s from anon', f); end if;
@@ -511,13 +526,33 @@ do $$ declare f text; begin
   if exists (select 1 from pg_roles where rolname = 'service_role') then
     execute 'grant execute on function public.event_ready_alert_tick() to service_role'; end if;
   foreach f in array array['public.event_day_plan_get(uuid)', 'public.event_day_plan_set(uuid,text,text)', 'public.event_day_check_set(uuid,text,boolean)',
-                           'public.event_task_duration_set(uuid,integer)', 'public.event_ready_settings_get()', 'public.event_ready_settings_set(jsonb)',
+                           'public.event_task_duration_set(uuid,integer,uuid,boolean)', 'public.event_ready_settings_get()', 'public.event_ready_settings_set(jsonb)',
                            'public.event_task_remind_bell(uuid)'] loop
     execute format('revoke all on function %s from public', f);
     if exists (select 1 from pg_roles where rolname = 'anon') then execute format('revoke all on function %s from anon', f); end if;
     if exists (select 1 from pg_roles where rolname = 'authenticated') then execute format('grant execute on function %s to authenticated', f); end if;
     if exists (select 1 from pg_roles where rolname = 'service_role') then execute format('grant execute on function %s to service_role', f); end if;
   end loop;
+end $$;
+
+-- ---- 8b) free-trial retention (0184): the event rows go with the studio's events, the settings are kept (like 0338) --------
+do $$ declare v_def text; begin
+  if to_regprocedure('public._tr184_purge_tables()') is not null then
+    v_def := pg_get_functiondef('public._tr184_purge_tables()'::regprocedure);
+    if position('''event_day_plans''' in v_def) = 0 then
+      if (length(v_def) - length(replace(v_def, '''event_stock_requests'', ''task_evidence_grants''', ''))) / length('''event_stock_requests'', ''task_evidence_grants''') <> 1 then
+        raise notice '0396: _tr184_purge_tables has an unexpected body - left unchanged';
+      else execute replace(v_def, '''event_stock_requests'', ''task_evidence_grants''', '''event_stock_requests'', ''event_ready_alert_sends'', ''event_day_plans'', ''task_evidence_grants'''); end if;
+    end if;
+  end if;
+  if to_regprocedure('public._tr184_keep_tables()') is not null then
+    v_def := pg_get_functiondef('public._tr184_keep_tables()'::regprocedure);
+    if position('''event_ready_alert_settings''' in v_def) = 0 then
+      if (length(v_def) - length(replace(v_def, '''task_reminder_settings'', ', ''))) / length('''task_reminder_settings'', ') <> 1 then
+        raise notice '0396: _tr184_keep_tables has an unexpected body - left unchanged';
+      else execute replace(v_def, '''task_reminder_settings'', ', '''task_reminder_settings'', ''event_ready_alert_settings'', '); end if;
+    end if;
+  end if;
 end $$;
 
 -- ---- 9) the 5-minute job (only where pg_cron exists; a re-run keeps one job) -------------------------------------------------

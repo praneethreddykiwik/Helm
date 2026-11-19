@@ -20,6 +20,7 @@
  *   HelmTaskStatus.opsMode(o)             R222: the mode + WHY (EVENT-OPS-PLAN.md section 2): { mode: plan|live, step, from, to }
  *                                         step: cancelled | done | nodate | before | soon | on | over (studio clock, run-sheet,
  *                                         tasks, Guests arrive and the lifecycle stage)
+ *   HelmTaskStatus.opsWindow(m, o)        R226: before | daybefore | onday | wrapup (WINDOWS words, WIN_PHASE -> plan | live)
  *   HelmTaskStatus.refresher(fn, ms)      ONE refresh clock: every ms (30 s) while the tab is visible + at once on return
  * Pure (no DOM) except refresher (document.hidden / visibilitychange). Unit-tested in test/r192-tasks-crew.test.mjs. */
 (function (global) {
@@ -226,6 +227,24 @@
     r.mode = "live"; r.step = now <= to ? "on" : "over"; return r;
   }
 
+  /* ---- R226 (EVENT-OPS-PLAN-V2.md): the four windows BOTH pages show - Before the event / Day before / On the day / Wrap-up ----
+     From opsMode's answer m: done / over -> wrapup; on -> onday; before / soon -> daybefore from midnight (studio clock) of the
+     day before the event until On the day starts, else before; cancelled / no date -> before.
+     WIN_PHASE maps a window to the R222 two-mode switch (plan | live) that the rest of each page still uses. */
+  var WINDOWS = [["before", "Before the event"], ["daybefore", "Day before"], ["onday", "On the day"], ["wrapup", "Wrap-up"]];
+  var WIN_PHASE = { before: "plan", daybefore: "plan", onday: "live", wrapup: "live" };
+  function opsWindow(m, o) {
+    o = o || {}; if (!m) return "before";
+    if (m.step === "done" || m.step === "over") return "wrapup";
+    if (m.step === "on") return "onday";
+    if (m.step !== "before" && m.step !== "soon") return "before";
+    var ev = String(o.eventDate || "").slice(0, 10), now = o.now == null ? Date.now() : o.now;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ev)) return "before";
+    var d = dayDiff(ymdIn(o.tz, now), ev);
+    return d === 0 || d === 1 ? "daybefore" : "before";
+  }
+  function winOk(w) { return Object.prototype.hasOwnProperty.call(WIN_PHASE, w); }
+
   /* ---- ONE refresh clock (30 s, both pages) ---- */
   function refresher(fn, every) {
     every = every || 30000; var last = Date.now(), busy = false, stopped = false, doc = global.document;
@@ -244,5 +263,5 @@
   global.HelmTaskStatus = { LABEL: LABEL, RANK: RANK, stateOf: stateOf, shown: shown, isLate: isLate, lateMin: lateMin, baseKey: baseKey,
     personKey: personKey, summarize: summarize, leftover: leftover, ladder: ladder, escSteps: steps, escLevel: escLevel,
     lastEscalation: lastEscalation, escBadge: escBadge, escStep: escStep, attendance: attendance, ymdIn: ymdIn, dayDiff: dayDiff,
-    phase: phase, opsMode: opsMode, hmMin: hmMin, wallMs: wallMs, refresher: refresher, actGroup: actGroup, actText: actText, emailWhat: emailWhat, REFRESH_MS: 30000 };
+    phase: phase, opsMode: opsMode, opsWindow: opsWindow, WINDOWS: WINDOWS, WIN_PHASE: WIN_PHASE, winOk: winOk, hmMin: hmMin, wallMs: wallMs, refresher: refresher, actGroup: actGroup, actText: actText, emailWhat: emailWhat, REFRESH_MS: 30000 };
 })(typeof window !== "undefined" ? window : globalThis);

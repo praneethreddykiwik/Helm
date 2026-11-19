@@ -135,9 +135,9 @@ await t('4c "Ready for the day?" lines + Fix target; not checked in (first open 
 await t('5a page layout: header, phase switch, attention, three views, chips, Apple-style search, Monitor link', () => {
   for (const id of ['evhead', 'tcPhase', 'attn', 'tcViews', 'chips', 'tcQ', 'view', 'crewList', 'feed', 'addBtn', 'bulk', 'drawer', 'sheet', 'toMonitor', 'tcViewOnly'])
     assert.ok(OPS.includes(`id="${id}"`), id);
-  assert.match(OPS, /data-phase="plan" aria-pressed="false">Before the event<\/button>/); assert.match(OPS, /data-phase="live" aria-pressed="false">On the day<\/button>/);
+  assert.match(OPS, /data-phase="plan" (data-win="before" )?aria-pressed="false">Before the event<\/button>/); assert.match(OPS, /data-phase="live" (data-win="onday" )?aria-pressed="false">On the day<\/button>/);
   assert.match(OPS, /data-view="timeline"[^>]*>Timeline<\/button>/); assert.match(OPS, /data-view="list" aria-pressed="true">List<\/button>/); assert.match(OPS, /data-view="people"[^>]*>By person<\/button>/);
-  assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>/); assert.match(read('public/monitor.html'), /<script src="task-status\.js\?v=\d+"><\/script>\n<script src="monitor\.js/);
+  assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>/); assert.match(read('public/monitor.html'), /<script src="task-status\.js\?v=\d+"><\/script>\n(<script src="event-plan\.js\?v=\d+"><\/script>\n)?<script src="monitor\.js/);
   assert.match(OPS, /<link rel="stylesheet" href="ops-board\.css\?v=\d+">/);
   assert.match(BRD, /S\.view = v === "timeline" \|\| v === "people" \|\| v === "list" \? v : "list";   \/\/ planning opens on List/);
   assert.match(CSS, /\.tc-search input:focus\{outline:none;background:#fff/);
@@ -157,7 +157,7 @@ await t('5c the old setup-form page is gone: no Add staff form, no tick box hidi
   assert.doesNotMatch(OPS, /🔔 Mark special|⏱ Schedule|💬 WhatsApp tasks/);
   assert.match(OPS, /Marked special - extra reminders before the start; if it isn't started, the coordinator, then the manager, then the admin \/ owner are told\./);
 });
-await t('5d Smart schedule is ON HOLD (phase 7): no switch, no backward scheduling, no critical path', () => {
+await t('5d Smart schedule switch still ON HOLD (phase 7); R226 owns the Ready-by latest start in event-plan.js, not here', () => {
   assert.doesNotMatch(OPS + BRD + CSS, /[Ss]mart schedule|critical path|crit-on|backward/);
 });
 await t('5e the sheet: four steps, the person list with free / busy / asked off / day off, the button says what happens', () => {

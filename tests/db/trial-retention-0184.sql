@@ -146,6 +146,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0379_r202_signin_help.sql
 -- 0383 (R205) adds signin_notice_log (teammate sign-in record) to the purge list after notifications, signin_notice_settings to the keep list
 \ir ../../supabase/migrations/0383_r205_signin_notice.sql
+-- 0396 (R226) adds event_day_plans + event_ready_alert_sends to the purge list, event_ready_alert_settings to the keep list
+\ir ../../supabase/migrations/0396_r226_event_day_plan.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

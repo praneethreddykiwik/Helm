@@ -174,8 +174,9 @@
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=7">
 <link rel="stylesheet" href="ops-board.css?v=3">
+<link rel="stylesheet" href="event-plan.css?v=1">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=98" id="shellProto"></script>
+<script src="/shell-proto.js?v=99" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -209,8 +210,11 @@
 
     <div class="tc-phase-row" id="tcPhase">
       <div class="tc-seggrp" role="group" aria-label="Which part of the job">
-        <button type="button" class="tc-seg" data-phase="plan" aria-pressed="false">Before the event</button>
-        <button type="button" class="tc-seg" data-phase="live" aria-pressed="false">On the day</button>
+        <!-- R226 (EVENT-OPS-PLAN-V2.md): the same four windows as the Event-day monitor; data-phase = the R222 two-mode rule -->
+        <button type="button" class="tc-seg" data-phase="plan" data-win="before" aria-pressed="false">Before the event</button>
+        <button type="button" class="tc-seg" data-phase="plan" data-win="daybefore" aria-pressed="false">Day before</button>
+        <button type="button" class="tc-seg" data-phase="live" data-win="onday" aria-pressed="false">On the day</button>
+        <button type="button" class="tc-seg" data-phase="live" data-win="wrapup" aria-pressed="false">Wrap-up</button>
       </div>
       <span class="tc-phase-note" id="tcPhaseNote"></span>
       <button type="button" class="tc-btn sm ghost" id="tcPhaseAuto" hidden>Use the studio’s clock</button>
@@ -218,6 +222,9 @@
 
     <!-- R222 (EVENT-OPS-PLAN.md): Before = "Get set up" shortcuts; On the day = run-sheet now / next, issues, wrap up (ops-board.js) -->
     <section class="tc-card tc-prep" id="tcPrep" aria-label="Get set up" hidden></section>
+    <!-- R226 (0396, event-plan.js): the Day-before checklist and the Ready-by card (latest start per set-up job); hidden before 0396 -->
+    <section class="tc-card ep-card" id="tcDayBefore" aria-labelledby="tcDayBeforeH" hidden></section>
+    <section class="tc-card ep-card" id="tcReady" aria-labelledby="tcReadyH" hidden></section>
     <section class="tc-card tc-runcard" id="tcRun" aria-label="Run-sheet" hidden></section>
     <section class="tc-attn" id="attn" aria-label="Needs attention"></section>
     <span class="tc-sr" id="tcAnnounce" aria-live="polite"></span>
@@ -407,9 +414,10 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=384"></script>
-<script src="task-status.js?v=2"></script>
-<script src="ops-board.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=385"></script>
+<script src="task-status.js?v=3"></script>
+<script src="event-plan.js?v=1"></script>
+<script src="ops-board.js?v=4"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));

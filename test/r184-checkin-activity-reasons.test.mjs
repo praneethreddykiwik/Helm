@@ -78,7 +78,7 @@ await t('monitor: attendance line, x of y checked in, late check-in, the can\u20
   assert.match(MON, /ac\.checkedIn \+ " of " \+ ac\.people \+ " checked in"/);
   assert.match(MON, /Late check-in/);
   assert.ok(MON.includes('Marked this day as can\u2019t work \u00b7 " + (off || "no reason given")'));
-  assert.match(MON, /await Promise\.all\(\[loadSheet\(ids\), loadOff\(ids\), loadActivity\(ids\)\]\)/);
+  assert.match(MON, /await Promise\.all\(\[loadSheet\(ids\), loadOff\(ids\), loadActivity\(ids\)[,\]]/);
   assert.match(MON, /BPStore\.ops\.shifts && BPStore\.ops\.shifts\.availability/);
   assert.match(MON, /BPStore\.ops\.live && BPStore\.ops\.live\.activity/);
 });

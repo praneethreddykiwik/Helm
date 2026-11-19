@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4534 objects): body 176, bucket 9, col 243, con 416, cron 20, exec 19, fn 2027, idx 531, marker 105, pol 189, polexpr 4, pre 112, pub 5, seq 1, tbl 293, trg 382, view 2.
+-- What is checked (4535 objects): body 176, bucket 9, col 243, con 416, cron 20, exec 19, fn 2027, idx 531, marker 105, pol 189, polexpr 4, pre 112, pub 5, seq 1, tbl 293, trg 383, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4549,7 +4549,7 @@ with o(m, k, s, n, x) as (values
   ('0396_r226_event_day_plan', 'fn', 'public', 'event_day_plan_get', 'uuid'),
   ('0396_r226_event_day_plan', 'fn', 'public', 'event_day_plan_set', 'uuid,text,text'),
   ('0396_r226_event_day_plan', 'fn', 'public', 'event_day_check_set', 'uuid,text,boolean'),
-  ('0396_r226_event_day_plan', 'fn', 'public', 'event_task_duration_set', 'uuid,integer'),
+  ('0396_r226_event_day_plan', 'fn', 'public', 'event_task_duration_set', 'uuid,integer,uuid,boolean'),
   ('0396_r226_event_day_plan', 'fn', 'public', 'event_ready_settings_get', ''),
   ('0396_r226_event_day_plan', 'fn', 'public', 'event_ready_settings_set', 'jsonb'),
   ('0396_r226_event_day_plan', 'fn', 'public', 'event_task_remind_bell', 'uuid'),
@@ -4558,7 +4558,8 @@ with o(m, k, s, n, x) as (values
   ('0396_r226_event_day_plan', 'trg', 'public.event_day_plans', 'zz_quote_org_match', null),
   ('0396_r226_event_day_plan', 'trg', 'public.event_ready_alert_sends', 'zz_quote_org_match', null),
   ('0396_r226_event_day_plan', 'trg', 'public.event_day_plans', 'zzz_studio_read_only', null),
-  ('0396_r226_event_day_plan', 'trg', 'public.event_ready_alert_settings', 'zzz_studio_read_only', null)
+  ('0396_r226_event_day_plan', 'trg', 'public.event_ready_alert_settings', 'zzz_studio_read_only', null),
+  ('0396_r226_event_day_plan', 'trg', 'public.event_ready_alert_sends', 'zzz_studio_read_only', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),

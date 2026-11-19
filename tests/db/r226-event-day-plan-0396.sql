@@ -122,6 +122,12 @@ select pg_temp.res('11 an unknown checklist key is refused', pg_temp.try($q$sele
 -- ---- 4) durations + the backward schedule -------------------------------------------------------------------------------------
 select pg_temp.j($q$select public.event_task_duration_set('a0000000-0000-4000-8000-00000000a396', 120)$q$);
 select pg_temp.j($q$select public.event_task_duration_set('a0000000-0000-4000-8000-00000000b396', 60)$q$);
+select pg_temp.res('12a needs first: itself / another event / a loop refused; a good one saved',
+  pg_temp.try($q$select public.event_task_duration_set('a0000000-0000-4000-8000-00000000a396', 120, 'a0000000-0000-4000-8000-00000000a396', true)$q$) like '%invalid_needs%'
+  and pg_temp.try($q$select public.event_task_duration_set('a0000000-0000-4000-8000-00000000a396', 120, 'b0000000-0000-4000-8000-00000000da01', true)$q$) like '%invalid_needs%'
+  and pg_temp.try($q$select public.event_task_duration_set('a0000000-0000-4000-8000-00000000a396', 120, 'a0000000-0000-4000-8000-00000000b396', true)$q$) like '%needs_loop%'
+  and (pg_temp.j($q$select public.event_task_duration_set('a0000000-0000-4000-8000-00000000c396', null, 'a0000000-0000-4000-8000-00000000a396', true)$q$) ->> 'depends_on') = 'a0000000-0000-4000-8000-00000000a396'
+  and (pg_temp.j($q$select public.event_task_duration_set('a0000000-0000-4000-8000-00000000c396', null, null, true)$q$) ->> 'ok') = 'true');
 select pg_temp.res('12 out-of-range minutes refused', pg_temp.try($q$select public.event_task_duration_set('a0000000-0000-4000-8000-00000000b396', 0)$q$) like '%invalid_minutes%'
   and pg_temp.try($q$select public.event_task_duration_set('a0000000-0000-4000-8000-00000000b396', 2000)$q$) like '%invalid_minutes%');
 select pg_temp.put('plan', pg_temp.j($q$select public.event_day_plan_get('a0000000-0000-4000-8000-00000000da01')$q$)::text);
@@ -170,9 +176,14 @@ select pg_temp.res('20 job: one "starts in" alert + two "not started" red alerts
   (select count(*) from public.notifications n where n.id not in (select id from _n0) and n.kind = 'task_escalated' and n.detail ->> 'source' = '0396' and n.detail ->> 'via' = 'ready_check') = 1
   and (select count(*) from public.notifications n where n.id not in (select id from _n0) and n.detail ->> 'via' = 'latest_late') = 2,
   'tick=' || pg_temp.get('tick1'));
-select pg_temp.res('21 "Event starts in 30 min - ready? 0/3 done (A-0001)" names the manager + supervisor only',
+select pg_temp.res('21 "Event starts in 30 min - ready? 0/3 done (A-0001)" names managers + supervisors, not the admin / sales / crew',
   (select n.detail ->> 'label' from public.notifications n where n.id not in (select id from _n0) and n.detail ->> 'via' = 'ready_check') ~ '^Event starts in (29|30|31) min - ready\? 0/3 done'
-  and (select jsonb_array_length(n.detail -> 'notify') from public.notifications n where n.id not in (select id from _n0) and n.detail ->> 'via' = 'ready_check') = 2,
+  and (select (n.detail -> 'notify') ? (select id::text from auth.users where email = 'a_mgr396@a.test')
+            and (n.detail -> 'notify') ? (select id::text from auth.users where email = 'a_sup396@a.test')
+            and not (n.detail -> 'notify') ? (select id::text from auth.users where email = 'a_admin@a.test')
+            and not (n.detail -> 'notify') ? (select id::text from auth.users where email = 'a_staff@a.test')
+            and not (n.detail -> 'notify') ? (select id::text from auth.users where email = 'a_crew396@a.test')
+         from public.notifications n where n.id not in (select id from _n0) and n.detail ->> 'via' = 'ready_check'),
   (select n.detail::text from public.notifications n where n.id not in (select id from _n0) and n.detail ->> 'via' = 'ready_check'));
 select pg_temp.res('22 a second run sends nothing again', public.event_ready_alert_tick() = 0
   and (select count(*) from public.notifications n where n.id not in (select id from _n0) and n.detail ->> 'source' = '0396') = 3);
@@ -213,6 +224,10 @@ select pg_temp.res('30 re-apply keeps the saved plan, durations and settings',
   (select checks #>> '{headcount,done}' from public.event_day_plans where quote_id = 'a0000000-0000-4000-8000-00000000da01') = 'true'
   and (select duration_min from public.event_tasks where id = 'a0000000-0000-4000-8000-00000000a396') = 120
   and (select enabled from public.event_ready_alert_settings where org_id = 'a0000000-0000-4000-8000-000000000001') = false);
+
+select pg_temp.res('31 free-trial retention: event rows purged, settings kept; anon runs no 0396 function',
+  array['event_day_plans', 'event_ready_alert_sends']::text[] <@ public._tr184_purge_tables() and 'event_ready_alert_settings' = any (public._tr184_keep_tables())
+  and not has_function_privilege('anon', 'public._r396_check_keys()', 'execute') and not has_function_privilege('anon', 'public._r396_hhmm(text)', 'execute'));
 
 select name, result from _rc order by name;
 select case when (select count(*) from _rc where result <> 'PASS') = 0

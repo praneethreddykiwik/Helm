@@ -171,7 +171,9 @@
     sigs: {}, rows: {}, groups: {}, viewKey: "", timer: null, lastFocus: null, layer: null, deepDone: false,
     // R222: run-sheet (null = can't read it), issues (null = can't read), what this role may do, the mode and why
     rs: null, rsAt: 0, iss: null, perm: null, mode: null, stageBusy: false, blk: null, blkKey: "",
-    dayStat: {}, dayAt: 0, dayKey: ""   // crew_day_status per studio day: { crew_id: [codes] } | null (server without it)
+    dayStat: {}, dayAt: 0, dayKey: "",  // crew_day_status per studio day: { crew_id: [codes] } | null (server without it)
+    // R226 (0396): the four windows (Before the event / Day before / On the day / Wrap-up) and the event day plan (null = no 0396)
+    win: null, autoWin: null, plan: null, planAt: 0
   };
   var $ = function (s, r) { return (r || doc).querySelector(s); };
   function P() { return global.OpsPage; }
@@ -314,12 +316,16 @@
     return TS.opsMode({ eventDate: evDate(), eventTime: q.eventTime, stage: q.lifecycleStage || q.lifecycle_stage, status: q.status,
       tasks: G().tasks, runsheet: S.rs, now: Date.now(), tz: tz() });
   }
+  // R226: the window from the clock (TS.opsWindow) + a hand pick kept per event in this tab (an R222 "plan" / "live" pick = Before / On the day)
   function setPhaseAuto() {
-    S.mode = modeNow(); var auto = S.mode.mode, key = phaseKey();
-    S.manual = ssGet(key);
-    if (S.manual === auto) { ssSet(key, null); S.manual = null; }   // a hand pick that now matches the clock is no longer "by hand"
-    S.phase = S.manual === "plan" || S.manual === "live" ? S.manual : auto; S.auto = auto;
+    S.mode = modeNow(); var key = phaseKey();
+    S.autoWin = TS.opsWindow(S.mode, { eventDate: evDate(), now: Date.now(), tz: tz() });
+    var m = ssGet(key); m = m === "plan" ? "before" : m === "live" ? "onday" : m;
+    S.manual = TS.winOk(m) ? m : null;
+    if (S.manual === S.autoWin) { ssSet(key, null); S.manual = null; }   // a hand pick that now matches the clock is no longer "by hand"
+    S.win = S.manual || S.autoWin; S.phase = TS.WIN_PHASE[S.win]; S.auto = TS.WIN_PHASE[S.autoWin];
   }
+  function winWord(w) { var r = (TS.WINDOWS || []).filter(function (x) { return x[0] === w; })[0]; return r ? r[1] : ""; }
   // the note beside the switch: why this mode (studio clock)
   function modeWhy(m) {
     if (!m) return "";
@@ -342,6 +348,11 @@
     // owner hasn't approved "Venue opens" / "Ready by" fields yet: show them only when the event already has them
     var pick = function (keys) { for (var i = 0; i < keys.length; i++) { var v = q[keys[i]] != null ? q[keys[i]] : c[keys[i]]; if (v != null && String(v).trim()) return String(v).trim(); } return ""; };
     var venueOpens = pick(["venueOpens", "venue_opens", "venueAccess", "venue_access"]), readyBy = pick(["readyBy", "ready_by"]);
+    if (S.plan && global.HelmEventPlan) {   // R226 (0396): the saved day plan
+      var EPx = global.HelmEventPlan, va = EPx.venueAt(S.plan, ev, tz()), rb = S.plan.ready_by ? EPx.readyAt(S.plan, ev, "", tz()) : NaN;
+      if (!venueOpens && isFinite(va)) venueOpens = clock(new Date(va).toISOString());
+      if (!readyBy && isFinite(rb)) readyBy = clock(new Date(rb).toISOString());
+    }
     var guestsAt = String(q.eventTime || "").trim();
     var pill = h("span", { cls: "tc-pill" + (live ? "" : " plan"), text: live ? "Event day - live" : "Planning" });
     var main = h("div", { cls: "tc-ev-main" }, [
@@ -388,9 +399,9 @@
   }
   function renderPhase() {
     var row = $("#tcPhase"); if (!row) return;
-    Array.prototype.forEach.call(row.querySelectorAll("[data-phase]"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-phase") === S.phase)); });
+    Array.prototype.forEach.call(row.querySelectorAll("[data-phase]"), function (b) { var w = b.getAttribute("data-win"); b.setAttribute("aria-pressed", String(w ? w === S.win : b.getAttribute("data-phase") === S.phase)); });
     var why = modeWhy(S.mode), note = $("#tcPhaseNote");
-    if (note) note.textContent = S.manual ? "Picked by hand · the studio’s clock says " + (S.auto === "live" ? "On the day" : "Before the event") + (why ? " (" + why + ")" : "")
+    if (note) note.textContent = S.manual ? "Picked by hand · the studio’s clock says " + winWord(S.autoWin) + (why ? " (" + why + ")" : "")
       : "From the studio’s clock" + (why ? " · " + why : "");
     var reset = $("#tcPhaseAuto"); if (reset) reset.hidden = !S.manual;
   }
@@ -816,6 +827,29 @@
     links.forEach(function (l) { row.appendChild(h("a", { cls: "tc-chip tc-link", href: l[1], title: l[2], text: l[0] })); });
     host.appendChild(row);
   }
+  // R226 (0396, event-plan.js - the same cards as the monitor): Day before = the checklist; Before / Day before / On the day =
+  // Ready by + the latest start of each set-up job. Hidden before 0396 (no plan). Not redrawn while one of its forms is open.
+  function planCtx() {
+    var q = G().quote || {};
+    return { plan: S.plan, tasks: G().tasks, quoteId: qid(), eventDate: evDate(), eventTime: String(q.eventTime || "").trim(), tz: tz(), now: Date.now(),
+      nameOf: nameOf, toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); }, onChanged: planChanged };
+  }
+  async function planChanged() { await loadPlan(true); try { if (P() && P().reload) await P().reload(); } catch (e) {} S.sigs.dayb = S.sigs.ready = ""; update(); }
+  async function loadPlan(force) {
+    var D = B() && B().ops && B().ops.dayPlan; if (!D || !qid()) { S.plan = null; return; }
+    if (!force && Date.now() - S.planAt < 60000) return;
+    try { S.plan = await D.get(qid()); } catch (e) { S.plan = null; } S.planAt = Date.now();
+  }
+  function renderPlan() {
+    var EP = global.HelmEventPlan, cancelled = (G().quote || {}).status === "cancelled", ui = EP && EP._ui;
+    var dHost = card("tcDayBefore", !!(EP && S.plan) && !cancelled && S.win === "daybefore");
+    var rHost = card("tcReady", !!(EP && S.plan) && !cancelled && S.win !== "wrapup");
+    if (ui && (ui.edit || ui.times || ui.settings)) return;   // a form is open: keep what the person is typing
+    var tsig = (G().tasks || []).map(function (t) { return [t.id, t.title, t.status, t.duration_min, t.depends_on, t.planned_start, t.started_at, t.completed_at, t.crew_id]; });
+    var sig = rowSig([S.plan, tsig, Math.floor(Date.now() / 60000), S.win]);
+    if (dHost && S.sigs.dayb !== sig) { S.sigs.dayb = sig; EP.renderDayBefore(dHost, planCtx()); }
+    if (rHost && S.sigs.ready !== sig) { S.sigs.ready = sig; EP.renderReady(rHost, planCtx()); }
+  }
   // On the day: the run-sheet as a now / next timeline (read-only here; editing stays on the Run-sheet page)
   function nowMinOnDay() {
     var ev = evDate(); if (!ev) return null; var d = TS.dayDiff(ev, today());
@@ -823,7 +857,7 @@
     var w = wall(new Date(Math.floor(Date.now() / 60000) * 60000).toISOString()); return w ? w.min : null;
   }
   function renderRun() {
-    var host = card("tcRun", S.phase === "live" && Array.isArray(S.rs)); if (!host) return;
+    var host = card("tcRun", S.phase === "live" && S.win !== "wrapup" && Array.isArray(S.rs)); if (!host) return;
     var nm = nowMinOnDay(), rows = runRows(S.rs, nm);
     var sig = rowSig([nm, rows.map(function (x) { return [x.r.id, x.r.title, x.r.start_time, x.r.duration_min, x.r.owner, x.r.location, x.state]; })]);
     if (S.sigs.run === sig) return; S.sigs.run = sig;
@@ -1264,7 +1298,8 @@
       // R222: the run-sheet (once, then every 5 min) decides when the day starts and draws the timeline; issues on the day only
       sh && sh.dayStatus && (Date.now() - S.dayAt > 120000 || S.dayKey !== wdays.join(",")) ? loadDayStat(sh, q, wdays) : null,
       S.perm.rsView && B0.runsheet && Date.now() - S.rsAt > 300000 ? B0.runsheet.list(q).then(function (r) { S.rs = Array.isArray(r) ? r : []; S.rsAt = Date.now(); }).catch(function () { S.rs = null; S.rsAt = Date.now(); }) : null,
-      S.phase === "live" || S.auto === "live" ? loadIssues() : null
+      S.phase === "live" || S.auto === "live" ? loadIssues() : null,
+      loadPlan(false)
     ].filter(Boolean);
     await Promise.all(jobs);
     await loadBlockers();
@@ -1298,7 +1333,7 @@
     if (!S.started) return;
     memoReset();
     if (S.phase == null || !S.manual) setPhaseAuto();
-    renderHeader(); renderPhase(); renderPrep(); renderRun(); renderAttn(); renderIssues(); renderWrap(); renderChips(); renderViewBtns(); renderView(); renderSide(); renderBulk();
+    renderHeader(); renderPhase(); renderPrep(); renderPlan(); renderRun(); renderAttn(); renderIssues(); renderWrap(); renderChips(); renderViewBtns(); renderView(); renderSide(); renderBulk();
     var cnt = $("#taskCount"); if (cnt) cnt.textContent = String(liveTasks().length);
     var vo = $("#tcViewOnly"); if (vo) vo.hidden = canEdit();
     var add = $("#addBtn"); if (add) add.hidden = !canEdit();
@@ -1324,10 +1359,11 @@
     var mon = $("#toMonitor"); if (mon) mon.setAttribute("href", "monitor.html?quote=" + encodeURIComponent(G().quoteId || ""));
     var all = $("#allActivity"); if (all) all.setAttribute("href", "monitor.html?quote=" + encodeURIComponent(G().quoteId || ""));
     Array.prototype.forEach.call(doc.querySelectorAll("#tcViews [data-view]"), function (b) { b.addEventListener("click", function () { setView(b.getAttribute("data-view")); }); });
+    // R226: four windows; the hand pick is kept per event in this tab (cleared when it matches the clock again)
     Array.prototype.forEach.call(doc.querySelectorAll("#tcPhase [data-phase]"), function (b) { b.addEventListener("click", function () {
-      var p = b.getAttribute("data-phase"), key = phaseKey();
-      if (p === S.auto) ssSet(key, null); else ssSet(key, p); S.manual = p === S.auto ? null : p; S.phase = p; S.sigs = {}; update();
-      if (p === "live" && S.iss === null) loadExtras().then(update); }); });
+      var w = b.getAttribute("data-win") || (b.getAttribute("data-phase") === "live" ? "onday" : "before"), key = phaseKey();
+      if (w === S.autoWin) ssSet(key, null); else ssSet(key, w); S.manual = w === S.autoWin ? null : w; S.win = w; S.phase = TS.WIN_PHASE[w]; S.sigs = {}; update();
+      if (S.phase === "live" && S.iss === null) loadExtras().then(update); }); });
     var pa = $("#tcPhaseAuto"); if (pa) pa.addEventListener("click", function () { ssSet(phaseKey(), null); S.manual = null; S.phase = null; S.sigs = {}; update(); if (S.phase === "live" && S.iss === null) loadExtras().then(update); });
     var qi = $("#tcQ"); if (qi) qi.addEventListener("input", function () { S.q = String(qi.value || "").slice(0, 80); update(); });
     doc.addEventListener("keydown", function (e) {
@@ -1347,12 +1383,12 @@
     // ONE refresh clock for the page, shared rules with /monitor (30 s + at once when you come back to the tab).
     // Skipped while a pop-up is open or an action is in flight, so nothing redraws under the user.
     S.timer = TS.refresher(function () { if (busyElsewhere()) return; return reload(true); }, TS.REFRESH_MS);
-    setInterval(function () { if (!doc.hidden) { memoReset(); renderHeader(); renderAttn(); renderRun(); } }, 60000);   // countdown / "late" minutes / run-sheet now
+    setInterval(function () { if (!doc.hidden) { memoReset(); renderHeader(); renderAttn(); renderRun(); renderPlan(); } }, 60000);   // countdown / "late" minutes / run-sheet now
     loadExtras().then(update);
     update();
   }
 
   global.OpsBoard = { init: init, update: update, openTask: openTask, openSheet: openSheet, picks: picks, sheetLabel: sheetLabel, assigned: assigned,
     presetIds: presetIds, reload: reload, close: layerClose,
-    _pure: { moveBy: moveBy, suggestShift: suggestShift, slot: slot, chipTest: chipTest, readyChecks: readyChecks, notCheckedIn: notCheckedIn, stackRows: stackRows, CHIPS: CHIPS, availWord: availWord, crewDay: crewDay, runRows: runRows }, _S: S };
+    _pure: { winWord: winWord, moveBy: moveBy, suggestShift: suggestShift, slot: slot, chipTest: chipTest, readyChecks: readyChecks, notCheckedIn: notCheckedIn, stackRows: stackRows, CHIPS: CHIPS, availWord: availWord, crewDay: crewDay, runRows: runRows }, _S: S };
 })(typeof window !== "undefined" ? window : globalThis);

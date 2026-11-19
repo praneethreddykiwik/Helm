@@ -39,6 +39,11 @@
     if (o.label) n.setAttribute("aria-label", o.label);
     if (o.type) n.setAttribute("type", o.type);
     if (o.data) Object.keys(o.data).forEach(function (k) { n.setAttribute("data-" + k, String(o.data[k])); });
+    // R226: any other attribute (aria-*, target, rel, alt, loading ...); hidden = the property
+    Object.keys(o).forEach(function (k) {
+      if (/^(cls|text|href|title|role|label|type|data)$/.test(k) || o[k] == null || o[k] === false) return;
+      if (k === "hidden") n.hidden = !!o[k]; else n.setAttribute(k, String(o[k]));
+    });
     (kids || []).forEach(function (k) { if (k) n.appendChild(typeof k === "string" ? doc.createTextNode(k) : k); });
     return n;
   }
@@ -97,7 +102,11 @@
   var stateOf = TS.stateOf, personKey = TS.personKey, summarize = TS.summarize, leftover = TS.leftover;
 
   /* ---- page state ---- */
-  var S = { events: [], quote: null, tasks: [], crew: {}, sheet: {}, off: {}, offAsk: {}, acts: null, actType: "", canEdit: false, tab: "staff", lastLoad: 0, loading: false, evInfo: {}, timer: null };
+  var S = { events: [], quote: null, tasks: [], crew: {}, sheet: {}, off: {}, offAsk: {}, acts: null, actType: "", canEdit: false, tab: "staff", lastLoad: 0, loading: false, evInfo: {}, timer: null,
+    // R226: the four windows (same rule as Tasks & Crew), the event day plan (0396; null = not there), the run-sheet (for the
+    // window rule), proof photos (task_evidence, signed 5-minute links), whether Remind -> Bell exists, the open drawer
+    win: "onday", autoWin: "onday", manualWin: null, plan: null, planAt: 0, has396: false, rs: null, rsAt: 0, rsView: false,
+    proof: {}, proofUrl: {}, proofAt: 0, drawer: null, lastFocus: null };
 
   /* ---- R184: attendance (check-in / check-out) + "can't work" reasons ---- */
   // first start time of a person's tasks on this event (the time they should be there by)
@@ -222,17 +231,150 @@
     return w;
   }
   function lateWords(m) { return m < 60 ? m + " min late" : m < 1440 ? Math.floor(m / 60) + " h " + (m % 60 ? (m % 60) + " min " : "") + "late" : Math.floor(m / 1440) + " d late"; }
+  function opsHref(t) { return "ops.html?quote=" + encodeURIComponent(t.quote_id || S.quote) + "#task-" + encodeURIComponent(t.id); }
+  function canRemind(t) { var s = stateOf(t); return S.canEdit && t.crew_id && t.assignee_kind !== "outsourced" && (s.key === "waiting" || s.key === "accepted" || s.key === "started"); }
   function actions(t) {
     var box = h("span", { cls: "mon-acts" });
-    var qid = t.quote_id || S.quote;
-    box.appendChild(h("a", { cls: "mon-btn mon-sm", href: "ops.html?quote=" + encodeURIComponent(qid) + "#task-" + encodeURIComponent(t.id), text: "Open", title: "Open this task on Tasks & Crew (the task panel: reassign, schedule, cancel)" }));
-    var s = stateOf(t);
-    if (S.canEdit && t.crew_id && (s.key === "waiting" || s.key === "accepted" || s.key === "started") && BPStore.ops && BPStore.ops.emailTasks) {
-      var b = h("button", { cls: "mon-btn mon-sm", type: "button", text: "✉ Nudge", title: "E-mail this task to " + (nameOf(t) || "them") + " now" });
-      b.addEventListener("click", function () { nudge(t, b); });
-      box.appendChild(b);
-    }
+    // R226: Open shows the task in a drawer on this page (Tasks & Crew is one link away inside it)
+    var o = h("button", { cls: "mon-btn mon-sm", type: "button", text: "Open", title: "Show this task here (who, times, proof photo, updates)", "aria-haspopup": "dialog" });
+    o.addEventListener("click", function () { openDrawer(t, o); });
+    box.appendChild(o);
+    if (canRemind(t)) box.appendChild(remindBtn(t));
     return box;
+  }
+  /* R226: Remind -> a small menu: Bell (their own Helm login, 0396), E-mail (0361), WhatsApp (0362, the studio's number).
+     Each option says what will happen; nothing is sent without the click. */
+  function remindBtn(t) {
+    var wrap = h("span", { cls: "mon-remind" });
+    var b = h("button", { cls: "mon-btn mon-sm", type: "button", text: "Remind ▾", title: "Remind " + (nameOf(t) || "them") + ": bell, e-mail or WhatsApp", "aria-haspopup": "menu", "aria-expanded": "false" });
+    var menu = h("span", { cls: "mon-menu", role: "menu", hidden: true });
+    function close() { menu.hidden = true; b.setAttribute("aria-expanded", "false"); doc.removeEventListener("click", away, true); }
+    function away(e) { if (!wrap.contains(e.target)) close(); }
+    var crew = t.crew_id && S.crew[t.crew_id];
+    var opts = [];
+    if (S.has396) opts.push(["bell", "🔔 Bell in Helm", crew && crew.profile_id ? "On their Helm login" : "Only if they sign in to Helm"]);
+    if (BPStore.ops && BPStore.ops.emailTasks) opts.push(["email", "✉ E-mail", "The task to their staff e-mail"]);
+    if (BPStore.ops && BPStore.ops.whatsappTasks) opts.push(["wa", "WhatsApp", "From the studio's WhatsApp number"]);
+    opts.forEach(function (x) {
+      var it = h("button", { type: "button", cls: "mon-menu-it", role: "menuitem" }, [h("b", { text: x[1] }), h("small", { text: x[2] })]);
+      it.addEventListener("click", function () { close(); remind(t, x[0], b); });
+      menu.appendChild(it);
+    });
+    b.addEventListener("click", function (e) {
+      e.stopPropagation(); var open = menu.hidden; menu.hidden = !open; b.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) { doc.addEventListener("click", away, true); var f = menu.querySelector("button"); if (f) f.focus(); } else close();
+    });
+    menu.addEventListener("keydown", function (e) {
+      var items = Array.prototype.slice.call(menu.querySelectorAll("button")), i = items.indexOf(doc.activeElement);
+      if (e.key === "Escape") { e.preventDefault(); close(); b.focus(); }
+      else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); var n = items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]; if (n) n.focus(); }
+    });
+    wrap.appendChild(b); wrap.appendChild(menu);
+    return wrap;
+  }
+  async function remind(t, how, btn) {
+    if (how === "email") return nudge(t, btn);
+    var who = nameOf(t) || "this person";
+    if (how === "wa") {
+      var ok = true;
+      try { ok = window.BPUI && BPUI.confirm ? await BPUI.confirm("Send “" + (t.title || "this task") + "” to " + who + " on WhatsApp now?", { title: "Send on WhatsApp?", okLabel: "Send WhatsApp" }) : window.confirm("Send this task to " + who + " on WhatsApp now?"); } catch (e) { ok = false; }
+      if (!ok) return;
+      btn.disabled = true;
+      try {
+        var r = await BPStore.ops.whatsappTasks(t.id), why = r && r.reason;
+        toast(r && r.ok ? "WhatsApp on its way to " + (r.name || who) + "." :
+          why === "wa_not_set_up" ? "The studio's WhatsApp is not set up yet (Settings → Integrations), so nothing was sent." :
+          why === "no_phone" ? who + " has no phone number on their staff record." :
+          why === "just_sent" ? "A WhatsApp went to " + who + " a moment ago." :
+          why === "trial" ? "In the free trial nothing leaves Helm, so no WhatsApp was sent." : "Nothing was sent for this task.");
+      } catch (e) { toast((window.BPUI && BPUI.friendlyError) ? BPUI.friendlyError(e, { action: "send the WhatsApp" }) : "Could not send the WhatsApp."); }
+      finally { btn.disabled = false; }
+      return;
+    }
+    btn.disabled = true;
+    try {
+      var b = await BPStore.ops.dayPlan.bell(t.id), w2 = b && b.reason;
+      toast(b && b.ok ? "Bell reminder sent to " + (b.name || who) + "'s Helm login." :
+        w2 === "no_login" ? who + " does not sign in to Helm - use E-mail or WhatsApp." :
+        w2 === "just_sent" ? "A bell reminder went to " + who + " a moment ago." : "Nothing was sent for this task.");
+    } catch (e) { toast((window.BPUI && BPUI.friendlyError) ? BPUI.friendlyError(e, { action: "send the bell reminder" }) : "Could not send the bell reminder."); }
+    finally { btn.disabled = false; }
+  }
+  /* R226: proof photo beside Done (task_evidence proof_photo, signed 5-minute links; nothing when there is none) */
+  function proofThumb(t, big) {
+    var paths = S.proof[t.id] || [], urls = paths.map(function (p) { return S.proofUrl[p]; }).filter(Boolean);
+    if (!urls.length) return null;
+    var list = big ? urls : urls.slice(-1);
+    var box = h("span", { cls: "mon-proof" + (big ? " is-big" : "") });
+    list.forEach(function (u, i) {
+      var a = h("a", { href: u, target: "_blank", rel: "noopener", title: "Open the proof photo", "aria-label": "Proof photo " + (i + 1) + " for " + (t.title || "task") });
+      var img = h("img", { alt: "", loading: "lazy", decoding: "async" }); img.src = u; img.width = big ? 160 : 40; img.height = big ? 120 : 40;
+      a.appendChild(img); box.appendChild(a);
+    });
+    if (!big && urls.length > 1) box.appendChild(h("small", { text: "+" + (urls.length - 1) }));
+    return box;
+  }
+  /* R226: the task drawer - everything about one task without leaving the monitor */
+  function drawerRow(dl, k, v) { if (v == null || v === "") return; dl.appendChild(h("dt", { text: k })); var dd = h("dd"); if (typeof v === "string") dd.textContent = v; else dd.appendChild(v); dl.appendChild(dd); }
+  function latestStartOf(t) {
+    var EP = window.HelmEventPlan; if (!EP || !S.plan || S.quote === "all") return null;
+    var e = S.evInfo[S.quote] || {}, sc = EP.schedule(S.tasks, { readyAt: EP.readyAt(S.plan, e.event_date, e.event_time, tz()), venueAt: EP.venueAt(S.plan, e.event_date, tz()),
+      bufPct: S.plan.settings && S.plan.settings.buffer_pct, remindMin: S.plan.settings && S.plan.settings.remind_before_min });
+    return (sc.rows || []).filter(function (r) { return r.t.id === t.id; })[0] || null;
+  }
+  function openDrawer(t, from) {
+    var d = $("#monDrawer"), b = $("#monDrawerB"); if (!d || !b) return;
+    S.drawer = t.id; S.lastFocus = from || doc.activeElement;
+    fillDrawer(t);
+    $("#monScrim").hidden = false; d.hidden = false; doc.body.classList.add("mon-drawer-open");
+    try { $("#monDrawerX").focus(); } catch (e) {}
+  }
+  function fillDrawer(t) {
+    var b = $("#monDrawerB"); clear(b); var s = stateOf(t);
+    $("#monDrawerH").textContent = t.title || "Task";
+    var head = h("div", { cls: "mon-drawer-st" }); head.appendChild(steps(t)); head.appendChild(chip(s)); if (t.is_special) head.appendChild(h("span", { cls: "mon-chip is-special", text: "🔔 Special" }));
+    b.appendChild(head);
+    var dl = h("dl", { cls: "mon-dl" }), c = t.crew_id && S.crew[t.crew_id], who = nameOf(t);
+    var wv = who || "No one yet";
+    if (c && c.phone && S.canEdit) { var ph = String(c.phone).replace(/[^\d+]/g, ""); if (ph) wv = h("span", {}, [who + " · ", h("a", { href: "tel:" + ph, text: "Call" })]); }
+    drawerRow(dl, "Who", wv);
+    drawerRow(dl, "Section", t.category || "Other");
+    if (t._code) drawerRow(dl, "Event", t._code);
+    drawerRow(dl, "Starts", t.planned_start ? fmtWhen(t.planned_start) + (s.late ? " · " + lateWords(TS.lateMin(t)) : "") : "No start time");
+    if (t.planned_end) drawerRow(dl, "Ends", fmtWhen(t.planned_end));
+    var ls = latestStartOf(t);
+    if (ls) drawerRow(dl, "Latest start", fmtClock(new Date(ls.ls).toISOString()) + " to be ready by " + fmtClock(new Date(ls.lf).toISOString()) + " · takes " + window.HelmEventPlan.durWords(ls.dur));
+    var need = t.depends_on && S.tasks.filter(function (x) { return x.id === t.depends_on; })[0];
+    if (need) drawerRow(dl, "Needs first", (need.title || "a task") + " (" + stateOf(need).label + ")");
+    if (t.responded_at) drawerRow(dl, t.status === "rejected" ? "Turned down" : "Accepted", fmtWhen(t.responded_at));
+    if (t.started_at) drawerRow(dl, "Started", fmtWhen(t.started_at));
+    if (t.completed_at) drawerRow(dl, "Done", fmtWhen(t.completed_at));
+    if (t.note) drawerRow(dl, "Note", String(t.note));
+    b.appendChild(dl);
+    var ph2 = proofThumb(t, true);
+    b.appendChild(h("h3", { cls: "mon-h3", text: "Proof photo" }));
+    b.appendChild(ph2 || h("p", { cls: "mon-muted", text: s.key === "done" ? "No photo was added when this was marked done." : "Shows here when the work is marked done with a photo." }));
+    var acts = (allActs() || []).filter(function (a) { return a && a.task_id === t.id; }).slice(0, 8);
+    b.appendChild(h("h3", { cls: "mon-h3", text: "Updates" }));
+    if (!acts.length) b.appendChild(h("p", { cls: "mon-muted", text: "No updates yet." }));
+    else { var ol = h("ol", { cls: "mon-feed" }); acts.forEach(function (a) { ol.appendChild(h("li", {}, [h("span", { text: actText(a) }), h("small", { cls: "mon-muted", text: " · " + ago(a.at) })])); }); b.appendChild(ol); }
+    var foot = h("div", { cls: "mon-drawer-f" });
+    if (canRemind(t)) foot.appendChild(remindBtn(t));
+    foot.appendChild(h("a", { cls: "tc-btn tc-primary", href: opsHref(t), text: "Edit in Tasks & Crew →", title: "Reassign, change the time, cancel" }));
+    b.appendChild(foot);
+  }
+  function closeDrawer() {
+    var d = $("#monDrawer"); if (!d || d.hidden) return;
+    d.hidden = true; $("#monScrim").hidden = true; doc.body.classList.remove("mon-drawer-open"); S.drawer = null;
+    var f = S.lastFocus; S.lastFocus = null; if (f && doc.contains(f)) { try { f.focus(); } catch (e) {} }
+  }
+  function drawerKeys(e) {
+    var d = $("#monDrawer"); if (!d || d.hidden) return;
+    if (e.key === "Escape") { if (e.target && e.target.closest && e.target.closest(".mon-menu")) return; e.preventDefault(); closeDrawer(); return; }
+    if (e.key !== "Tab") return;
+    var f = Array.prototype.filter.call(d.querySelectorAll("a[href],button:not([disabled]),[tabindex]:not([tabindex='-1'])"), function (n) { return n.offsetParent !== null || n === doc.activeElement; });
+    if (!f.length) return; var first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && doc.activeElement === first) { e.preventDefault(); last.focus(); } else if (!e.shiftKey && doc.activeElement === last) { e.preventDefault(); first.focus(); }
   }
   async function nudge(t, btn) {
     var who = nameOf(t) || "this person";
@@ -267,7 +409,9 @@
     if (t._code) meta.appendChild(h("span", { cls: "mon-code", text: t._code }));
     main.appendChild(meta);
     row.appendChild(main);
-    var st = h("div", { cls: "mon-row-st" }); st.appendChild(steps(t)); st.appendChild(chip(s)); row.appendChild(st);
+    var st = h("div", { cls: "mon-row-st" }); st.appendChild(steps(t)); st.appendChild(chip(s));
+    if (s.key === "done") { var pt = proofThumb(t, false); if (pt) st.appendChild(pt); }   // R226: the proof photo beside Done
+    row.appendChild(st);
     row.appendChild(actions(t));
     return row;
   }
@@ -497,6 +641,7 @@
   }
   function renderAlerts(now) {
     var box = $("#monAlerts"); if (!box) return; clear(box);
+    if (S.win === "before" || S.win === "daybefore") { box.hidden = true; return; }   // R226: no red "late" board days early
     var late = lateTasks(now);
     if (!late.length) { box.hidden = true; return; }
     box.hidden = false;
@@ -557,7 +702,68 @@
     clear(sec); sec.appendChild(opt("", "All sections"));
     Object.keys(secs).sort().forEach(function (k) { sec.appendChild(opt(k, k, k === sv)); });
   }
+  /* ---- R226: the four windows + the shared cards (event-plan.js), the same as Tasks & Crew ---- */
+  function winKey() { return "helm.mon.win." + (S.quote || ""); }
+  function modeFor() {
+    var e = S.evInfo[S.quote] || {};
+    return TS.opsMode({ eventDate: e.event_date, eventTime: e.event_time, stage: e.stage, status: e.status, tasks: S.tasks, runsheet: S.rs || [], now: Date.now(), tz: tz() });
+  }
+  function winWhy(m) {
+    if (!m) return ""; var at = function (t) { var iso = new Date(t).toISOString(), p = parts(iso); return (p && p.day !== todayIso() ? fmtDayIso(p.day) + ", " : "") + fmtClock(iso); };
+    switch (m.step) {
+      case "cancelled": return "This event is cancelled"; case "done": return "The event is complete - next: Settlement"; case "nodate": return "No event date yet";
+      case "before": case "soon": return "On the day starts " + at(m.from); case "on": return "Event day - started " + at(m.from);
+      case "over": return "The event day is over - mark it complete on Tasks & Crew";
+    }
+    return "";
+  }
+  function setWin() {
+    if (S.quote === "all" || !S.quote) { S.win = S.autoWin = "onday"; S.manualWin = null; S.mode = null; return; }
+    S.mode = modeFor(); var e = S.evInfo[S.quote] || {};
+    S.autoWin = TS.opsWindow(S.mode, { eventDate: e.event_date, now: Date.now(), tz: tz() });
+    var m = null; try { m = sessionStorage.getItem(winKey()); } catch (x) {}
+    S.manualWin = TS.winOk(m) && m !== S.autoWin ? m : null;
+    if (m && !S.manualWin) { try { sessionStorage.removeItem(winKey()); } catch (x) {} }
+    S.win = S.manualWin || S.autoWin;
+  }
+  function wordOf(w) { var r = (TS.WINDOWS || []).filter(function (x) { return x[0] === w; })[0]; return r ? r[1] : ""; }
+  function renderWins() {
+    var row = $("#monWins"); if (!row) return;
+    row.hidden = S.quote === "all" || !S.quote;
+    Array.prototype.forEach.call(row.querySelectorAll("[data-win]"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-win") === S.win)); });
+    var why = winWhy(S.mode), n = $("#monWinNote");
+    if (n) n.textContent = S.manualWin ? "Picked by hand · the studio’s clock says " + wordOf(S.autoWin) + (why ? " (" + why + ")" : "") : "From the studio’s clock" + (why ? " · " + why : "");
+    var a = $("#monWinAuto"); if (a) a.hidden = !S.manualWin;
+  }
+  function planCtx() {
+    var e = S.evInfo[S.quote] || {};
+    return { plan: S.plan, tasks: S.tasks, quoteId: S.quote, eventDate: e.event_date ? String(e.event_date).slice(0, 10) : "", eventTime: String(e.event_time || "").trim(), tz: tz(), now: Date.now(),
+      nameOf: nameOf, compact: true, toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); },
+      onChanged: async function () { await loadPlan(true); await loadTasks(true); } };
+  }
+  function renderCards() {
+    var EP = window.HelmEventPlan, ui = EP && EP._ui, single = S.quote && S.quote !== "all", e = S.evInfo[S.quote] || {};
+    var dh = $("#monDayBefore"), rh = $("#monReady"), wh = $("#monWrap");
+    dh.hidden = !(EP && S.plan && single && S.win === "daybefore");
+    rh.hidden = !(EP && S.plan && single && S.win !== "wrapup");
+    wh.hidden = !(single && S.win === "wrapup");
+    if (!wh.hidden) {
+      clear(wh); var left = leftover(S.tasks).length, closed = e.stage === "settlement" || e.stage === "closed", q = encodeURIComponent(S.quote);
+      wh.appendChild(h("h3", { cls: "tc-h2", text: closed ? "Event complete" : "Wrap-up" }));
+      wh.appendChild(h("p", { cls: "tc-sub", text: (left ? left + " task" + (left === 1 ? "" : "s") + " still open (see Leftover). " : "Every task is closed. ") +
+        (closed ? "Next: settle the money, bring the stock back, then close the event." : "Mark the event complete on Tasks & Crew, then Settlement, Teardown and Closure.") }));
+      var row = h("div", { cls: "tc-prep-links" });
+      if (!closed) row.appendChild(h("a", { cls: "tc-btn tc-primary", href: "ops.html?quote=" + q + "#live", text: "Mark event complete on Tasks & Crew →" }));
+      [["Settlement", "settlement.html"], ["Teardown", "teardown.html"], ["Closure", "closure.html"]].forEach(function (l, i) {
+        row.appendChild(h("a", { cls: "tc-btn sm" + (closed && i === 0 ? " tc-primary" : ""), href: l[1] + "?quote=" + q, text: (i + 1) + " " + l[0] + " →" })); });
+      wh.appendChild(row);
+    }
+    if (!EP || !S.plan || (ui && (ui.edit || ui.times || ui.settings))) return;   // a form is open: keep what is being typed
+    if (!dh.hidden) EP.renderDayBefore(dh, planCtx());
+    if (!rh.hidden) EP.renderReady(rh, planCtx());
+  }
   function render() {
+    setWin(); renderWins(); renderCards();
     renderSummary(); paintFilters();
     var list = filtered(), v = $("#monView"); clear(v);
     if (S.tab === "activity") v.appendChild(viewActivity());   // R184: the timeline shows even before any task exists (check-ins, e-mails)
@@ -566,6 +772,10 @@
       : S.tab === "checkin" ? viewCheckin(list) : viewStaff(list));
     renderFeed();
     try { if (BPStore.presence && BPStore.presence.paint) BPStore.presence.paint(v); } catch (e) {}
+    if (S.drawer) {   // keep the open drawer fresh, unless its Remind menu is open
+      var dt = S.tasks.filter(function (x) { return x.id === S.drawer; })[0], dr = $("#monDrawer"), ae = doc.activeElement;
+      if (dt && !dr.querySelector(".mon-menu:not([hidden])")) { var had = ae && dr.contains(ae); fillDrawer(dt); if (had) try { $("#monDrawerX").focus(); } catch (e) {} }
+    }
   }
   function setTab(tab) {
     S.tab = /^(staff|work|status|left|checkin|activity)$/.test(tab) ? tab : "staff";
@@ -636,6 +846,34 @@
     }).catch(function () { missing = true; }); }));
     S.acts = missing && !all.length ? null : all.sort(function (a, b) { return new Date(b.at) - new Date(a.at); });
   }
+  // R226 (0396): the event day plan (null before 0396 -> the cards stay hidden, Remind has no Bell)
+  async function loadPlan(force) {
+    var D = BPStore.ops && BPStore.ops.dayPlan, q = S.quote === "all" ? ((S.events.filter(function (e) { return e.is_today; })[0] || {}).quote_id) : S.quote;
+    if (!D || !q) { S.plan = null; return; }
+    if (!force && Date.now() - S.planAt < 60000 && S.planQ === S.quote) return;
+    try { var r = await D.get(q); S.has396 = S.has396 || r != null; S.plan = S.quote === "all" ? null : r; } catch (e) { S.plan = null; }
+    S.planAt = Date.now(); S.planQ = S.quote;
+  }
+  // the run-sheet decides when On the day starts (same rule as Tasks & Crew); read once, then every 5 min, only with Run-sheet view
+  async function loadRs() {
+    if (!S.rsView || !BPStore.runsheet || !BPStore.runsheet.list || S.quote === "all" || !S.quote) { if (S.rsQ !== S.quote) S.rs = null; return; }
+    if (S.rsQ === S.quote && Date.now() - S.rsAt < 300000) return;
+    try { var r = await BPStore.runsheet.list(S.quote); S.rs = Array.isArray(r) ? r : []; } catch (e) { S.rs = null; }
+    S.rsAt = Date.now(); S.rsQ = S.quote;
+  }
+  // proof photos of done tasks (re-read every 2 min; the links last 5 min and are signed again every 4)
+  async function loadProof(ids) {
+    var O = BPStore.ops; if (!O || !O.listEvidence || !O.evidenceUrls) return;
+    var key = ids.join(","); if (S.proofKey === key && Date.now() - S.proofAt < 120000) return;
+    try {
+      var lists = await Promise.all(ids.map(function (q) { return O.listEvidence(q).catch(function () { return []; }); }));
+      var m = {}, paths = [];
+      [].concat.apply([], lists).forEach(function (r) { if (r && r.kind === "proof_photo" && r.storage_path && r.task_id) { (m[r.task_id] = m[r.task_id] || []).push(r.storage_path); paths.push(r.storage_path); } });
+      S.proof = m; paths = paths.slice(-40);
+      var urls = paths.length ? await O.evidenceUrls(paths, 300) : {};
+      S.proofUrl = urls || {}; S.proofAt = Date.now(); S.proofKey = key;
+    } catch (e) { S.proof = {}; S.proofUrl = {}; }
+  }
   async function loadTasks(silent) {
     if (S.loading || !S.quote) return; S.loading = true;
     if (!silent) $("#monView").setAttribute("aria-busy", "true");
@@ -645,7 +883,7 @@
         var code = S.quote === "all" ? ((S.evInfo[q] && S.evInfo[q].code) || "") : "";
         return (ts || []).map(function (t) { t.quote_id = t.quote_id || q; if (code) t._code = code; return t; }); }); }));
       S.tasks = [].concat.apply([], lists);
-      await Promise.all([loadSheet(ids), loadOff(ids), loadActivity(ids)]);
+      await Promise.all([loadSheet(ids), loadOff(ids), loadActivity(ids), loadPlan(false), loadRs(), loadProof(ids)]);
       S.lastLoad = Date.now(); $("#monErr").hidden = true;
       fillFilters(); render(); tick();
     } catch (e) {
@@ -700,7 +938,8 @@
       e.code = e.code || x.code; e.title = e.title || x.title; e.event_date = e.event_date || x.eventDate || x.event_date;
       e.event_time = e.event_time || x.eventTime || x.event_time; e.venue = e.venue || x.venue || c.venue || "";
       e.guests = x.guests || (x.pricing && x.pricing.guests) || c.guests || "";
-      if (S.quote === q) headFor();
+      e.stage = x.lifecycleStage || x.lifecycle_stage || ""; e.status = x.status || "";   // R226: the window rule
+      if (S.quote === q) { headFor(); if (S.tasks.length) render(); }
     } catch (err) {}
   }
   async function choose(q, push) {
@@ -739,6 +978,14 @@
       tools.classList.toggle("is-open", open); this.setAttribute("aria-expanded", open ? "true" : "false");
     });
     $("#monFeedAll").addEventListener("click", openActivity);
+    // R226: the four windows (a hand pick is kept per event in this tab) + the task drawer
+    Array.prototype.forEach.call(doc.querySelectorAll("#monWins [data-win]"), function (b) { b.addEventListener("click", function () {
+      var w = b.getAttribute("data-win"); try { if (w === S.autoWin) sessionStorage.removeItem(winKey()); else sessionStorage.setItem(winKey(), w); } catch (e) {}
+      render(); }); });
+    $("#monWinAuto").addEventListener("click", function () { try { sessionStorage.removeItem(winKey()); } catch (e) {} render(); });
+    $("#monDrawerX").addEventListener("click", closeDrawer);
+    $("#monScrim").addEventListener("click", closeDrawer);
+    doc.addEventListener("keydown", drawerKeys);
     $("#monWall").addEventListener("click", function () { setWall(!doc.body.classList.contains("mon-wall"), true); });
     window.addEventListener("resize", stickyOffset);
     var tabs = $("#monTabs");
@@ -774,6 +1021,7 @@
     if (!(await A.requireView("staff"))) { $("#monBoot").hidden = true; return; }
     // R208 (0385): Nudge = "Assign & send tasks" (no row for the role = Staff - Can change, as before)
     try { S.canEdit = !!(await (A.canAssignTasks ? A.canAssignTasks() : A.canEditArea("staff"))); } catch (e) { S.canEdit = false; }
+    try { S.rsView = !!(await A.canView("runsheet")); } catch (e) { S.rsView = false; }
     await Promise.all([loadEvents(), loadCrew()]);
     $("#monBoot").hidden = true; $("#monApp").hidden = false;
     var want = null; try { want = new URLSearchParams(location.search).get("quote"); } catch (e) {}
@@ -797,5 +1045,5 @@
   }
   window.HelmMonitor = { stateOf: stateOf, summarize: summarize, leftover: leftover, fmtWhen: fmtWhen, _personKey: personKey,
     actText: actText, actGroup: actGroup, _S: S, _attendance: attendance, lastEscalation: lastEscalation, escBadge: escBadge,
-    _countdown: countdown, _lateWords: lateWords, _todayIso: todayIso };
+    _countdown: countdown, _lateWords: lateWords, _todayIso: todayIso, _winWhy: winWhy, _openDrawer: openDrawer, _closeDrawer: closeDrawer };
 })();

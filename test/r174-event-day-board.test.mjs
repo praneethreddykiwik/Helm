@@ -107,7 +107,7 @@ t('Tasks & staff: progress card above Live status, Late chip, can\'t-work in the
   assert.match(BRD, /"aria-valuenow": String\(sm\.pct\), "aria-label": sm\.pct \+ "% of tasks done"/);
   assert.match(BRD, /h\("h3", \{\}, \["Late - not started ", h\("span", \{ cls: "tc-n", text: String\(late\.length\) \}\)\]\)/);
   assert.match(BRD, /var late = ts\.filter\(function \(t\) \{ return TS\.isLate\(t, now\); \}\)/);
-  assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>\n<script src="ops-board\.js\?v=\d+"><\/script>/);
+  assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>\n(<script src="event-plan\.js\?v=\d+"><\/script>\n)?<script src="ops-board\.js\?v=\d+"><\/script>/);
   assert.match(OPS, /⛔ approved day off/); assert.match(OPS, /⏳ asked off this day \(waiting for approval\)/);   // R187 (0370): pending vs approved
   assert.match(OPS, /async function loadOff\(\)/);
   assert.match(OPS, /BPStore\.calendar\.wouldClash\(\{date:\(when&&\$\("#as_when"\)\.value/);
