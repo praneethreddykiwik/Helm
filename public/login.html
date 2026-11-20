@@ -228,7 +228,7 @@
   .plan-chip-x:hover{text-decoration:underline}
   .sales-note{margin:-8px 0 18px;font-size:13px;color:var(--ink-2)} .sales-note a{color:var(--accent);font-weight:700}
 </style>
-<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4" media="print" data-lazy-css><script type="text/plain" data-login-lazy src="/ui-pickers.js?v=4"></script>
+<link rel="stylesheet" href="theme.css?v=85"><link rel="stylesheet" href="/ui-pickers.css?v=4" media="print" data-lazy-css><script type="text/plain" data-login-lazy src="/ui-pickers.js?v=4"></script>
 <link rel="stylesheet" href="/public-v2.css?v=10">
 <meta name="bp-theme-toggle" content="off">
 <script src="/marketing-theme.js?v=3" defer></script>
@@ -328,6 +328,9 @@
       <div id="agreeRow" hidden>
         <label class="agree" for="agree"><input type="checkbox" id="agree" aria-describedby="agree_err"><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms of Service</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a> <span class="req" aria-hidden="true">*</span></span></label>
         <p class="ferr" id="agree_err" hidden></p>
+        <!-- R238 (LEG-07, DPDP s.9 + Terms s.3): adults only - recorded on the server at the studio step (0403) -->
+        <label class="agree" for="adult"><input type="checkbox" id="adult" aria-describedby="adult_err"><span>I am 18 or older <span class="req" aria-hidden="true">*</span></span></label>
+        <p class="ferr" id="adult_err" hidden></p>
       </div>
       <div class="captcha" id="captcha" hidden></div>
       <button class="btn" id="submit" type="submit"><span class="su-t su-in">Sign in →</span><span class="su-t su-up su-tr">Create account →</span></button>
@@ -477,6 +480,7 @@
       <fieldset class="types"><legend>Events you run <span class="opt">(optional)</span></legend><div class="chips" id="ob_types"></div></fieldset>
       <div id="obTermsRow" hidden>
         <label class="agree" for="ob_terms"><input type="checkbox" id="ob_terms"><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms of Service</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a> <span class="req" aria-hidden="true">*</span></span></label>
+        <div id="obAdultRow" hidden><label class="agree" for="ob_adult"><input type="checkbox" id="ob_adult"><span>I am 18 or older <span class="req" aria-hidden="true">*</span></span></label></div>
       </div>
       <!-- the older studio form's fields (kept, never shown: the studio setup wizard asks for currency / time zone) -->
       <div class="s-8aed95a" id="obLegacy" hidden>
@@ -525,6 +529,7 @@
     </section>
   </main>
 
+<script src="/form-validate.js?v=5"></script>
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <!-- R224 speed: the app scripts (store-api + supabase-js, Google sign-in, the sign-up steps) are NOT fetched during the first
@@ -533,13 +538,13 @@
      order as before (app scripts first, then the page), and a Sign in tapped meanwhile is held and replayed by the guard.
      config.js stays a normal script (it may add config.staging.js before them). -->
 <script type="text/plain" data-login-lazy src="event-name.js?v=9"></script>
-<script type="text/plain" data-login-lazy src="country-profile.js?v=7"></script><script type="text/plain" data-login-lazy src="store-api.js?v=394"></script>
-<script type="text/plain" data-login-lazy src="auth-ui.js?v=65"></script>
+<script type="text/plain" data-login-lazy src="country-profile.js?v=7"></script><script type="text/plain" data-login-lazy src="store-api.js?v=395"></script>
+<script type="text/plain" data-login-lazy src="auth-ui.js?v=66"></script>
 <script type="text/plain" data-login-lazy src="/auth-visual.js?v=1"></script>
 <script type="text/plain" data-login-lazy src="/trial-facts.js?v=9"></script>
 <script type="text/plain" data-login-lazy src="/trial-signup.js?v=14"></script>
 <script type="text/plain" data-login-lazy src="/plan-cards.js?v=4"></script>
-<script type="text/plain" data-login-lazy src="/signup-flow.js?v=8"></script>
+<script type="text/plain" data-login-lazy src="/signup-flow.js?v=9"></script>
 <script type="text/plain" data-login-lazy src="/referral-rules.js?v=2"></script>
 <script type="text/plain" data-login-lazy src="/referral-demo-gate.js?v=1"></script>
 <script type="text/plain" data-login-lazy src="/referral-signup.js?v=5"></script>
@@ -717,7 +722,7 @@ document.addEventListener("helm:login-ready", function(){
     // r22: the studio is named AFTER the e-mail is verified (step 3, signup-flow.js) - never on this form
     const owner = !J() && m==="signup";
     $("#studioField").hidden = true; $("#studio").required = false;
-    $("#agreeRow").hidden = !owner; $("#agree_err").hidden = true; $("#agree").closest(".agree").classList.remove("is-err");
+    $("#agreeRow").hidden = !owner; $("#agree_err").hidden = true; $("#agree").closest(".agree").classList.remove("is-err"); $("#adult_err").hidden = true; $("#adult").closest(".agree").classList.remove("is-err");
     $("#fullnameOpt").hidden = owner; $("#fullnameReq").hidden = !owner;
     $("#newHere").hidden = m==="signup" || J(); $("#haveAcct").hidden = !owner;
     $("#agreeFoot").hidden = owner;
@@ -755,7 +760,8 @@ document.addEventListener("helm:login-ready", function(){
   const NAME_RE=/^[\p{L}\p{M}](?:[\p{L}\p{M}\u200C\u200D '\u2019.\-]*[\p{L}\p{M}.\u200C\u200D])?$/u;
   const normEmail=(v)=>String(v||"").trim().toLowerCase();
   const HQ_PRE={};   // r27 (0277): helm.events addresses the server says are pre-authorised Helm HQ staff (k9@, sales@ ...)
-  function emailProblem(v){ const e=normEmail(v); if(!e) return "Please enter your email address."; if(e.length>254||!EMAIL_RE.test(e)) return "That doesn't look like a valid email — check for typos (e.g. name@studio.com)."; if(mode==="signup" && window.BPStore && BPStore.reservedEmailDomain && BPStore.reservedEmailDomain(e) && !HQ_PRE[e]) return BPStore.RESERVED_EMAIL_MESSAGE; return null; }   // r21 0248: Helm's own domains are for the Helm team (the server refuses them too)
+  // R238 (ACC-02): the shared rule (form-validate.js) says what is missing in "x@gmail"
+  function emailProblem(v){ const e=normEmail(v); if(!e) return "Please enter your email address."; if(window.HelmValidate && HelmValidate.missingTld && HelmValidate.missingTld(e)) return HelmValidate.rules.email(e).error; if(e.length>254||!EMAIL_RE.test(e)) return "That doesn't look like a valid email — check for typos (e.g. name@studio.com)."; if(mode==="signup" && window.BPStore && BPStore.reservedEmailDomain && BPStore.reservedEmailDomain(e) && !HQ_PRE[e]) return BPStore.RESERVED_EMAIL_MESSAGE; return null; }   // r21 0248: Helm's own domains are for the Helm team (the server refuses them too)
   function nameProblem(v){ const n=String(v||"").trim(); if(!n) return (mode==="signup" && !J()) ? "Please enter your name." : null; if(n.length>50) return "Please keep your name to 50 characters or fewer."; if(!NAME_RE.test(n)||/[-'.]{2,}|\s[-'.]/.test(n)) return "Names can use letters, spaces, hyphens (-), apostrophes (') and full stops (.) only."; return null; }
   function studioProblem(v){ const n=String(v||"").trim(); if(!n && TRIAL()) return null; if(n.length<2) return "Please enter your studio or business name (at least 2 characters)."; if(n.length>80) return "Please keep the studio name to 80 characters or fewer."; return null; }
   function setFieldErr(input, msg){
@@ -773,6 +779,8 @@ document.addEventListener("helm:login-ready", function(){
     i.addEventListener("blur", ()=>{ if(id==="email") i.value=normEmail(i.value); if(i.value || i.classList.contains("is-err")) setFieldErr(i, fieldRule[id](i.value)); });
     i.addEventListener("input", ()=>{ if(i.classList.contains("is-err")) setFieldErr(i, fieldRule[id](i.value)); });
   });
+  // R238 (ACC-01 / SEC-05): "Did you mean ...@gmail.com?" under the e-mail box - one tap to use it or keep what was typed
+  const EMAIL_SG=(window.HelmValidate && HelmValidate.suggestEmail) ? HelmValidate.suggestEmail($("#email"), {after:$("#email_err")}) : null;
   // r27 (0277): a pre-authorised Helm HQ address may sign up - ask the server once per address (the server decides anyway)
   $("#email").addEventListener("blur", ()=>{ const e=normEmail($("#email").value);
     if(mode!=="signup"||!e||HQ_PRE[e]!==undefined||!window.BPStore||!BPStore.reservedEmailDomain||!BPStore.reservedEmailDomain(e)||!BPStore.preauthorisedHqEmail) return;
@@ -861,11 +869,16 @@ document.addEventListener("helm:login-ready", function(){
   // r22: "I agree to the Terms of Service and Privacy Policy" - required for a NEW account (e-mail or Google)
   function agreeOk(){
     const box=$("#agree"), lab=box.closest(".agree"), er=$("#agree_err");
-    if(box.checked){ er.hidden=true; lab.classList.remove("is-err"); return true; }
-    er.textContent="Please agree to the Terms of Service and Privacy Policy to create your account."; er.hidden=false; lab.classList.add("is-err"); box.focus();
-    return false;
+    if(!box.checked){ er.textContent="Please agree to the Terms of Service and Privacy Policy to create your account."; er.hidden=false; lab.classList.add("is-err"); box.focus(); return false; }
+    er.hidden=true; lab.classList.remove("is-err");
+    // R238 (LEG-07): "I am 18 or older" - required for a NEW account (e-mail or Google); invitees never see this row
+    const ad=$("#adult"), al=ad.closest(".agree"), ae=$("#adult_err");
+    if(!ad.checked){ ae.textContent="Please confirm you are 18 or older. Helm accounts are for adults only."; ae.hidden=false; al.classList.add("is-err"); ad.focus(); return false; }
+    ae.hidden=true; al.classList.remove("is-err");
+    return true;
   }
   $("#agree").addEventListener("change", ()=>{ if($("#agree").checked){ $("#agree_err").hidden=true; $("#agree").closest(".agree").classList.remove("is-err"); } });
+  $("#adult").addEventListener("change", ()=>{ if($("#adult").checked){ $("#adult_err").hidden=true; $("#adult").closest(".agree").classList.remove("is-err"); } });
   // sign-in only page: "New to Helm? Create your studio" opens the sign-up (step 1) in place; "Sign in" goes back
   $("#createLink").addEventListener("click", (e)=>{ e.preventDefault(); setMode("signup"); ensureCap();
     try{ history.replaceState(history.state,"","/signup"+location.search); }catch(_){} setTimeout(()=>$("#fullname").focus(),60); });
@@ -1438,7 +1451,7 @@ document.addEventListener("helm:login-ready", function(){
   $("#googleBtn").addEventListener("click", ()=>{
     $("#err").hidden=true; $("#okmsg").hidden=true; $("#gHint").hidden=true;
     // r22: a NEW account agrees to the Terms first (recorded on the server after Google returns, step 3)
-    if(mode==="signup" && !J()){ if(!agreeOk()) return; if(window.BPSignupFlow) BPSignupFlow.stashTerms("google"); }
+    if(mode==="signup" && !J()){ if(!agreeOk()) return; if(window.BPSignupFlow) BPSignupFlow.stashTerms("google", $("#adult").checked); }
     BPUI.guard($("#googleBtn"), async ()=>{
       // 0205: the invite token rides along (also kept in this tab), so the Google account joins on return
       const tok=pendingInvite();
@@ -1453,12 +1466,12 @@ document.addEventListener("helm:login-ready", function(){
   // finish exactly as before. Any failure brings the classic redirect button back.
   GIS = window.HelmGoogleGis ? HelmGoogleGis.attach({
     button: $("#googleBtn"), root: $("#loginForm"),
-    needsAgree: ()=>mode==="signup" && !J() && !$("#agree").checked,
+    needsAgree: ()=>mode==="signup" && !J() && !($("#agree").checked && $("#adult").checked),
     onBlocked: ()=>{ $("#err").hidden=true; agreeOk(); },
     oneTap: !!(window.HELM_GOOGLE && HELM_GOOGLE.oneTap===true) && !JOINING, isSignin: ()=>mode==="signin",
     onCredential: async (token, rawNonce)=>{
       ["#err","#okmsg","#gHint"].forEach((id)=>{ $(id).hidden=true; });
-      if(mode==="signup" && !J()){ if(!agreeOk()) return; if(window.BPSignupFlow) BPSignupFlow.stashTerms("google"); }
+      if(mode==="signup" && !J()){ if(!agreeOk()) return; if(window.BPSignupFlow) BPSignupFlow.stashTerms("google", $("#adult").checked); }
       $("#okmsg").textContent="Signing you in…"; $("#okmsg").hidden=false;
       try{ await BPStore.auth.signInWithGoogleIdToken(token, rawNonce); }
       catch(err){
@@ -1472,7 +1485,7 @@ document.addEventListener("helm:login-ready", function(){
       location.replace(location.origin+"/login.html?"+(tok?"invite="+encodeURIComponent(tok)+"&":"")+"next="+encodeURIComponent(nextUrl()));
     }
   }) : null;
-  if(GIS) $("#agree").addEventListener("change", ()=>GIS.refresh());
+  if(GIS){ $("#agree").addEventListener("change", ()=>GIS.refresh()); $("#adult").addEventListener("change", ()=>GIS.refresh()); }
 
   // ----- round 19: the sign-up e-mail has an OPEN invitation (pending, not expired) -----
   // Asked BEFORE anything is created (invite-signup { email_lookup }: r57 only yes / no comes
@@ -1572,9 +1585,9 @@ document.addEventListener("helm:login-ready", function(){
           }
           btn.textContent="Creating…";
           const want=window.BPSignupFlow? BPSignupFlow.intent() : {plan:"",mode:""};
-          if(window.BPSignupFlow) BPSignupFlow.stashTerms("signup");
+          if(window.BPSignupFlow) BPSignupFlow.stashTerms("signup", $("#adult").checked);
           const r=await BPStore.auth.signUp(email, pw, {captchaToken:capToken(cap), emailRedirectTo:confirmRedirect(), fullName,
-            intent: (want.mode==="paid"||want.mode==="sales")?"direct":"trial", studioName:"", termsAgreed:true, plan:want.plan, mode:want.mode});
+            intent: (want.mode==="paid"||want.mode==="sales")?"direct":"trial", studioName:"", termsAgreed:true, adultConfirmed:$("#adult").checked===true, plan:want.plan, mode:want.mode});
           if(r.session){ await routeSignedIn(); return; }   // no e-mail confirmation on this project: straight to step 3
           showInbox(email); return;
         }

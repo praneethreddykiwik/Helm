@@ -115,7 +115,7 @@ function withHashes(csp, hashes, styleHashes) {
       // r26 hotfix: + the hash of Google's own inline <style> (GIS button), only where its stylesheet is allowed.
       // Best effort - Google can change it; google-gis.js never shows Google's box before its iframe has loaded.
       // codeql[js/incomplete-url-substring-sanitization] -- false positive: `keep` is an array of CSP tokens, so this is Array.prototype.includes (exact membership), not a URL substring check on untrusted input.
-      out.push(['style-src-elem', ...keep, ...styleHashes, ...(keep.includes(GIS_STYLE) ? [GIS_INLINE_STYLE_HASH] : [])].join(' '));
+      out.push(['style-src-elem', ...keep, ...styleHashes, ...(keep.includes(GIS_STYLE) ? GIS_INLINE_STYLE_HASHES : [])].join(' '));
       out.push("style-src-attr 'unsafe-inline'");
     } else out.push(d.trim());
   }
@@ -168,6 +168,11 @@ const GIS_SCRIPT = 'https://accounts.google.com/gsi/client';
 const GIS_ORIGIN_PATH = 'https://accounts.google.com/gsi/';
 const GIS_STYLE = 'https://accounts.google.com/gsi/style';
 const GIS_INLINE_STYLE_HASH = "'sha256-RU4sU0AaS8IBGZx8XrGt/pa9A5SLA3dQszGeqT5L3Kw='";   // r26 hotfix (from the live CSP report)
+// Third-party allowlist: the inline <style> blocks Google's GSI client (accounts.google.com/gsi/client) injects next to
+// its button. NOT Helm code. Google changes them now and then - add the new hash from the browser's CSP report here
+// (never 'unsafe-inline'). Allowed only where Google's stylesheet is allowed (the sign-in / public-form rules).
+//   r26: RU4sU0... (original);  R238 (20 Nov 2026, prod smoke on /login): 88QphsXJ...
+const GIS_INLINE_STYLE_HASHES = [GIS_INLINE_STYLE_HASH, "'sha256-88QphsXJQwxKP9xXR175ZSMzpaq6Swzj9u3QQ+G2Wig='"];
 const AUTH_COOP = 'same-origin-allow-popups';
 // The onboarding checkout page (0056) only may load Razorpay Standard Checkout — the
 // EXACT script URL, nothing else on that origin. Card / UPI / netbanking fields live
@@ -249,5 +254,5 @@ module.exports = {
   TRUSTED_TYPES_ENFORCE, TT_DIRECTIVES, GIS_TT_POLICY,
   computeHashes, computeStyleHashes, inlineScripts, inlineStyles, htmlFiles, withHashes,
   SCRIPT_SRC_BASE, SCRIPT_SRC_BUILDER, BUILDER_SOURCES, RAZORPAY_SCRIPT, scriptHosts, scriptSrcProblem, FRAME_SELF_ROUTES, frameAncestorsProblem,
-  GIS_SCRIPT, GIS_ORIGIN_PATH, GIS_STYLE, GIS_INLINE_STYLE_HASH, AUTH_COOP,
+  GIS_SCRIPT, GIS_ORIGIN_PATH, GIS_STYLE, GIS_INLINE_STYLE_HASH, GIS_INLINE_STYLE_HASHES, AUTH_COOP,
 };

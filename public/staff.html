@@ -91,11 +91,11 @@
   .lsheet{width:min(400px,96vw);text-align:center} .lsheet input{width:100%}
 </style>
 <link rel="stylesheet" href="staff-polish.css?v=4">
-<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=85"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=8"><link rel="stylesheet" href="team-status.css?v=4">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=105" id="shellProto"></script>
+<script src="/shell-proto.js?v=106" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -197,13 +197,14 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
+<script src="form-validate.js?v=5"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=394"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=395"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=65"></script>
-<script src="tour.js?v=80"></script>
+<script src="page-tours.js?v=66"></script>
+<script src="tour.js?v=81"></script>
 <script src="team-status.js?v=5"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -503,6 +504,8 @@
     if(raw===""){ const bad=!!(el.validity&&el.validity.badInput); fieldMsg("s_rate",bad?"Enter a number, e.g. 2500.":""); return {ok:!bad,value:null}; }
     const v=BPStore.validate.money(raw,{field:"Day rate"}); fieldMsg("s_rate",v.ok?"":v.error+"."); return v;
   }
+  // R238 (ACC-01): the shared "Did you mean ...?" line under the staff e-mail (form-validate.js) - a suggestion only, Save never stops
+  const STAFF_EMAIL_SG=(window.HelmValidate&&HelmValidate.suggestEmail)?HelmValidate.suggestEmail($("#s_email"),{after:$("#s_email_msg")}):null;
   function syncEmailReq(){ $("#s_email_req").hidden=!wantsInvite(); if($("#s_email").getAttribute("aria-invalid")||wantsInvite()===false) checkEmail(); $("#s_email").setAttribute("aria-required",wantsInvite()?"true":"false"); }
   function setCurrencyPrefix(){
     let sym="\u20b9"; try{ const t=BPStore.studioTax&&BPStore.studioTax(); if(t&&t.symbol) sym=String(t.symbol).trim()||sym; }catch(e){}
@@ -552,7 +555,7 @@
     if(!deptList.length) loadDepts().then(()=>{ if(!$("#staffModal")||!$("#staffModal").hidden) fillDept($("#s_dept").value||(s&&s.department)||""); }).catch(()=>{});
     $("#s_emp").value=s?s.emp_type||"":""; $("#s_phone").value=s?s.phone||"":""; $("#s_email").value=s?s.email||"":"";
     $("#s_rate").value=s&&s.day_rate!=null&&BPStore.staff.payVisible(s,isAdminUser)?s.day_rate:""; $("#s_skills").value=""; skillChips=[]; addSkills(s&&Array.isArray(s.skills)?s.skills.join(","):""); paintChips(); $("#s_notes").value=s?s.notes||"":"";
-    ["s_name","s_phone","s_email","s_rate"].forEach(id=>{ fieldMsg(id,""); delete $("#"+id).dataset.touched; }); setCurrencyPrefix();
+    ["s_name","s_phone","s_email","s_rate"].forEach(id=>{ fieldMsg(id,""); delete $("#"+id).dataset.touched; }); setCurrencyPrefix(); if(STAFF_EMAIL_SG) STAFF_EMAIL_SG.hide();
     editingRow=s||null; setLinkedLock(s); fillRole(s); setPayField(s);
     // new person + admin: choose "record only" (no login) or "invite to sign in" (reuses inviteStaff)
     $("#s_access").hidden=!STAFF_LOGIN_INVITES_ON||!!s||!isAdminUser; const rec0=document.querySelector('input[name="s_access"][value="record"]'); if(rec0) rec0.checked=true; syncEmailReq();
