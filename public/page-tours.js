@@ -447,8 +447,8 @@
     ],
     "settlement.html": [
       { sel: ["#moneyHeader", "#t_rev"], title: "Money at a glance", desc: "Profit against your target and what needs attention. Cash in & out shows money by date and why cash left is not profit; Who owes what lists the client, vendor bills, crew and pay-backs." },
-      { sel: "#payments", need: "finance", title: "Client payments", desc: "Every payment received against this event." },
-      { sel: "#pay_amt", need: "finance", title: "Record a payment", desc: "Type the amount and record it. The balance updates straight away." },
+      { sel: "#payments", need: "finance", title: "Client payments", desc: "Every payment received against this event. Type an amount and record it: the balance updates straight away." },
+      { sel: "#moneySafety", need: "finance", title: "Money safety", desc: "Nothing here is deleted: Void a wrong entry (kept, crossed out, counts 0), Reverse a bounced payment, keep money paid over the balance as a credit. An admin can freeze the money before closing." },
       { sel: "#clientTds", need: "finance", title: "TDS deducted by the client", desc: "A company client kept 2% as TDS? Record it here: it counts as received, so the balance is clear and the event can close. Tick Form 16A when it comes in." },
       { sel: "#vendBody", title: "Vendors", desc: "What you owe each vendor for this event." },
       { sel: "#vendorBills", need: "finance", title: "Vendor bills", desc: "Each vendor bill and what is paid. Record payout takes the TDS you keep back too, so the bill counts as fully paid. Add the bill's photo later if it is missing. Once the event is closed, an admin adds a late bill with the reason." },
@@ -458,7 +458,7 @@
     "budget.html": [
       { sel: ["#moneyHeader", "#t_rev"], title: "Money at a glance", desc: "Quoted, received, costs against the plan and the profit. The light compares the margin with your target: green on target, amber just below, red well below." },
       { sel: ["#moneyHeader", "#planMount"], need: "finance", title: "Plan vs actual", desc: "Each cost category against its plan, flagged when it goes well over; tap a row for the bills behind it. Cash in & out and Who owes what are the next tabs." },
-      { sel: "#planMount", title: "Budget plan", desc: "The cost lines for this event, estimated and actual." },
+      { sel: "#planMount", title: "Budget plan", desc: "The cost lines for this event, estimated and actual. Void a wrong line: it stays in the history and counts 0." },
       { sel: "#c_desc", title: "Add a cost", desc: "Add a cost line with its type, estimate and actual." },
       { sel: "#paySchedCard", need: "finance", title: "Payment schedule", desc: "The client's payment plan for this event. In the free trial, a payment the client simulated shows as Paid (test) with its TEST receipt - no real money." },
       { sel: "#chgBtn", title: "Change requests", desc: "The client wants something extra? Add it as a change so the price and cost update." },

@@ -210,9 +210,13 @@
         if (a + tv > left + 0.005) { perr("That's more than the " + fmt(left) + " left on this bill."); amt.focus(); return; }
         if (tv > 0 && !/^19[0-9][A-Z]{0,3}$/.test(sec)) { perr("Give the TDS section (for example 194C)."); secIn.focus(); return; }
         perr(""); go.disabled = true; msg.textContent = "Saving…";
+        // R239 (0404, PAY-02): the payout key is kept in sessionStorage until the server answers (a reload + retry reuses it)
+        var MK = B.moneySafety && B.moneySafety.key, ks = "vb-pay:" + b.id;
+        if (MK) k = MK.get(ks, [a, tv, sec, dt.value, how.value].join("|"));
         try {
           var r = withTds ? await B.vendorBills.payTds(b.id, a, tv, tv > 0 ? sec : null, dt.value, how.value, ref.value, k)
                           : await B.vendorBills.pay(b.id, a, dt.value, how.value, ref.value, k);
+          if (MK) MK.done(ks);
           var w = r && Array.isArray(r.warnings) && r.warnings.length ? " " + r.warnings.map(function (x2) { return x2 && x2.text; }).filter(Boolean).join(" ") : "";
           msg.textContent = (r && r.duplicate ? "Already recorded." : (tv > 0 ? "Payout + TDS recorded." : "Payout recorded.")) + w; await reload(); }
         catch (e) { go.disabled = false; msg.textContent = ""; perr(errText(e)); }

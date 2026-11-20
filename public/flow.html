@@ -126,7 +126,7 @@
 <link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=5">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=106" id="shellProto"></script>
+<script src="/shell-proto.js?v=107" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -462,9 +462,9 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=395"></script><script src="/trial-sim.js?v=3"></script>
-<script src="page-tours.js?v=66"></script>
-<script src="tour.js?v=81"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=396"></script><script src="/trial-sim.js?v=3"></script>
+<script src="page-tours.js?v=67"></script>
+<script src="tour.js?v=82"></script>
 <script src="payment-schedule.js?v=6"></script>
 <script src="booklet.js?v=35"></script>
 <script src="share-checklist.js?v=16"></script>
@@ -1467,11 +1467,14 @@
     // not answer in time") the payment may already be saved, so pressing Record again for the same event, amount, method
     // and receipt no. sends the SAME key and gets the same receipt back instead of a second payment. Cleared on success.
     const paySig=[id,amount,method,$("#pay_receipt").value.trim()].join("|");
-    if(!recordPayment._idem||recordPayment._idem.sig!==paySig) recordPayment._idem={sig:paySig,key:(typeof crypto!=="undefined"&&crypto.randomUUID)?crypto.randomUUID():("k"+Date.now()+Math.random().toString(36).slice(2))};
+    // R239 (0404, PAY-02): the key lives in sessionStorage until the server answers, so a RELOAD after a lost answer sends it too
+    const payScope="flow-pay:"+id, MK=(typeof BPStore!=="undefined"&&BPStore.moneySafety)?BPStore.moneySafety.key:null;
+    if(!recordPayment._idem||recordPayment._idem.sig!==paySig){ recordPayment._idem={sig:paySig,key:(typeof crypto!=="undefined"&&crypto.randomUUID)?crypto.randomUUID():("k"+Date.now()+Math.random().toString(36).slice(2))};
+      if(MK) recordPayment._idem.key=MK.get(payScope,paySig); }
     const idem=recordPayment._idem.key;
     try{
       const r=await BPStore.milestones.record(id, amount, method, $("#pay_receipt").value.trim()||null, null, null, idem);
-      recordPayment._idem=null;   // r218: saved - the next payment is a new one
+      recordPayment._idem=null; if(MK) MK.done(payScope);   // r218 / r239: saved - the next payment is a new one
       await relock();   // money-1024: recording the advance confirms the booking server-side (bumps quotes.updated_at)
       paintBookingBadge(1); paintStatusBadge({advance:true});
       $("#pay_receipt").value=""; $("#pay_amount").value="";

@@ -72,7 +72,7 @@
 <link rel="stylesheet" href="money-ledger.css?v=2"><link rel="stylesheet" href="money-header.css?v=2">
 <link rel="stylesheet" href="payment-schedule.css?v=5">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=106" id="shellProto"></script>
+<script src="/shell-proto.js?v=107" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -166,7 +166,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=395"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=12"></script><script src="money-ledger-ui.js?v=3"></script><script src="budget-plan.js?v=3"></script><script src="payment-schedule.js?v=6"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=396"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-ledger-ui.js?v=3"></script><script src="budget-plan.js?v=4"></script><script src="payment-schedule.js?v=6"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -222,8 +222,10 @@
     const V=BPStore.validate; const fail=(m)=>{ BPUI.toast(m,{type:"err"}); };
     let estimated=0; if($("#c_est").value!==""){ const r=V.money($("#c_est").value,{field:"Estimated cost"}); if(!r.ok){ fail(r.error); return; } estimated=r.value; }
     let actual=null; if($("#c_act").value!==""){ const r=V.money($("#c_act").value,{field:"Actual cost"}); if(!r.ok){ fail(r.error); return; } actual=r.value; }
-    await act($("#c_add"),async()=>{ await BPStore.budget.addCost(id,{ description:desc, kind:$("#c_kind").value, estimated,
-      actual }); $("#c_desc").value=""; $("#c_est").value=0; $("#c_act").value=""; await load(); $("#c_desc").focus(); },"add the cost line");
+    // R239 (0404): one key per form (kept across a reload until saved) - the same cost line sent twice is saved once
+    const kind=$("#c_kind").value, MK=BPStore.moneySafety&&BPStore.moneySafety.key, ks="cost-add:"+id, key=MK?MK.get(ks,[desc,kind,estimated,actual].join("|")):null;
+    await act($("#c_add"),async()=>{ const r=await BPStore.budget.addCost(id,{ description:desc, kind, estimated,
+      actual }, key); if(MK) MK.done(ks); if(r&&r.duplicate) BPUI.toast("Already saved.",{type:"info"}); $("#c_desc").value=""; $("#c_est").value=0; $("#c_act").value=""; await load(); $("#c_desc").focus(); },"add the cost line");
   }
   function importVendors(){ return act($("#importBtn"),async()=>{
     const n=await BPStore.budget.importVendorCosts(id); await load(); BPUI.toast(n?`Imported ${n} vendor cost line${n===1?"":"s"}.`:"No new vendor bookings to import.",{type:n?"ok":"info"}); },"import vendor bookings");
