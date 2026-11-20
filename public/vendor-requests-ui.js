@@ -261,7 +261,9 @@
       var a = Number(amt.value);
       if (!(a > 0) || a > Number(i.balance) + 0.004) { errEl.textContent = "Enter an amount above 0 and up to " + inr(i.balance) + "."; errEl.hidden = false; return; }
       go.disabled = true;
-      S().vendorBills.pay(i.bill_id, a, day.value || null, method.value, ref.value.trim() || null, key).then(function () { close(); toast("Payment recorded.", "ok"); return load(); },
+      // R239 (0404, PAY-02): the key is kept in sessionStorage until the server answers (a reload + retry reuses it)
+      var MK = S().moneySafety && S().moneySafety.key, ks = "vrq-pay:" + i.id; if (MK) key = MK.get(ks, [a, day.value || "", method.value].join("|"));
+      S().vendorBills.pay(i.bill_id, a, day.value || null, method.value, ref.value.trim() || null, key).then(function () { if (MK) MK.done(ks); close(); toast("Payment recorded.", "ok"); return load(); },
         function (e) { go.disabled = false; errEl.textContent = friendly(e, "record the payment"); errEl.hidden = false; });
     });
   }

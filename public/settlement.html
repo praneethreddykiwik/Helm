@@ -70,9 +70,9 @@
 </style>
 <link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="money-lock.css?v=1"><link rel="stylesheet" href="money-header.css?v=2">
+<link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="money-lock.css?v=2"><link rel="stylesheet" href="money-header.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=105" id="shellProto"></script>
+<script src="/shell-proto.js?v=106" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -120,6 +120,9 @@
 
     <!-- R189 (0372): TDS deducted by the client - money-lock-ui.js fills it; hidden without Finance view or 0372 -->
     <div data-mlk-mount="tds" id="clientTds" hidden></div>
+
+    <!-- R239 (0404): Freeze now, receipts (Reverse), credit on account, voided entries - money-safety-ui.js fills it; hidden without 0404 -->
+    <div data-msf-mount="settlement" id="moneySafety" hidden></div>
 
     <div class="card">
       <h2>🤝 Vendor settlement</h2>
@@ -177,7 +180,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=393"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=12"></script><script src="money-lock-ui.js?v=2"></script><script src="trial-test-note.js?v=5"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=394"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -261,15 +264,14 @@
     $("#expBody").innerHTML = s.expenses.length ? s.expenses.map(e=>`<tr>
       <td><b>${esc(e.who)}</b></td><td class="muted">${esc(e.description||"")}</td><td class="num" data-money>${inr(e.amount)}</td>
       <td><span class="st ${esc(e.status)}">${esc(EXP[e.status]||e.status)}</span></td>
-      <td>${canClaims?`${e.status==='pending'?`<button type="button" class="rm" data-est="${esc(e.id)}" data-s="approved" aria-label="Approve claim from ${esc(e.who)}">Approve</button> `:""}${e.status==='approved'?`<button type="button" class="rm" data-est="${esc(e.id)}" data-s="paid" data-amt="${esc(inr(e.amount))}" data-who="${esc(e.who)}" aria-label="Mark claim from ${esc(e.who)} paid">Mark paid</button> `:""}${canDelete&&e.status==='pending'?`<button type="button" class="rm" data-edel="${esc(e.id)}" aria-label="Remove claim from ${esc(e.who)}">✕</button>`:""}${e.status!=='pending'?`<span class="muted" title="Approved, paid or rejected claims are locked — add a correcting claim instead." style="font-size:12px">Locked</span>`:""}`:""}</td>
+      <td>${canClaims?`${e.status==='pending'?`<button type="button" class="rm" data-est="${esc(e.id)}" data-s="approved" aria-label="Approve claim from ${esc(e.who)}">Approve</button> `:""}${e.status==='approved'?`<button type="button" class="rm" data-est="${esc(e.id)}" data-s="paid" data-amt="${esc(inr(e.amount))}" data-who="${esc(e.who)}" aria-label="Mark claim from ${esc(e.who)} paid">Mark paid</button> `:""}${e.status==='pending'?`<button type="button" class="rm" data-evoid="${esc(e.id)}" aria-label="Void claim from ${esc(e.who)}" title="Void: kept in the history, crossed out, left out of the totals">Void</button>`:""}${e.status!=='pending'?`<span class="muted" title="Approved, paid or rejected claims are locked — add a correcting claim instead." style="font-size:12px">Locked</span>`:""}`:""}</td>
     </tr>`).join("") : '<tr><td colspan="5" class="empty">No claims.</td></tr>';
     $("#e_tot").textContent=inr(s.expTotal); $("#e_paid").textContent=inr(s.expPaid);
     $("#expBody").querySelectorAll("[data-est]").forEach(b=>b.addEventListener("click",async()=>{
       if(b.dataset.s==="paid" && !(await BPUI.confirm(`Mark ${b.dataset.amt} to ${b.dataset.who} as paid?`,{title:"Mark claim paid?",okLabel:"Mark paid"}))) return;
       await act(b,async()=>{ await BPStore.expenses.setStatus(b.dataset.est,b.dataset.s); await load(); },"update the claim"); }));
-    $("#expBody").querySelectorAll("[data-edel]").forEach(b=>b.addEventListener("click",async()=>{
-      if(!(await BPUI.confirm("Remove this expense claim?",{title:"Remove claim?",danger:true}))) return;
-      await act(b,async()=>{ await BPStore.expenses.remove(b.dataset.edel); await load(); },"remove the claim"); }));
+    // R239 (0404): Void, never delete - the claim is kept (who / when / why), crossed out, left out of every total
+    $("#expBody").querySelectorAll("[data-evoid]").forEach(b=>b.addEventListener("click",()=>voidEntry(b,"claim",b.dataset.evoid,"this expense claim")));
   }
 
   // Item 1: the global number hardener silently strips a pasted/typed "-" (so "-500" became
@@ -300,8 +302,10 @@
     // overpayment cap without re-confirming the booking or notifying.
     // Audit C (r218): kept across a RETRY CLICK of the same amount (a lost answer may mean it was saved) - the server then
     // returns the same receipt instead of recording the money twice. Cleared once the payment is recorded.
-    const paySig=id+"|"+amt;
-    if(!recordPayment._idem||recordPayment._idem.sig!==paySig) recordPayment._idem={sig:paySig,key:(self.crypto&&crypto.randomUUID)?crypto.randomUUID():(String(Date.now())+"-"+Math.random().toString(16).slice(2))};
+    // R239 (0404, PAY-02): the key now lives in sessionStorage until the server answers - a RELOAD after a lost answer
+    // (then Record again, same amount) sends the same key too, so the money is never recorded twice.
+    const paySig=id+"|"+amt, payScope="settle-pay:"+id, MK=(typeof BPStore!=="undefined"&&BPStore.moneySafety)?BPStore.moneySafety.key:null;
+    if(!recordPayment._idem||recordPayment._idem.sig!==paySig) recordPayment._idem={sig:paySig,key:MK?MK.get(payScope,paySig):((self.crypto&&crypto.randomUUID)?crypto.randomUUID():(String(Date.now())+"-"+Math.random().toString(16).slice(2)))};
     const idemKey=recordPayment._idem.key;
     // E12: more than the balance due is allowed (tips, rounding) but never silently
     const bal=s&&isFinite(+s.balance)?+s.balance:null, over=bal!=null?Math.round((amt-Math.max(0,bal))*100)/100:0;
@@ -313,14 +317,32 @@
     const q2=notConfirmed ? `This quote isn't confirmed yet — record the advance anyway? Then mark it Confirmed from the event workspace. ${q}` : q;
     if(paying) return; paying=true;
     // The server refuses any payment above the balance (overpayment cap), so only explain it (OK) instead of offering to record it anyway.
-    if(over>0.5){ try{ await BPUI.alert((bal>0?`${inr(amt)} is ${inr(over)} more than the balance due (${inr(bal)}). `:`Nothing is due on this event. `)+"Payments can't exceed the balance. Approve a change order to increase the total first.",{title:"More than the balance due",reveal:true}); } finally{ paying=false; } return; }
+    // R239 (0404, PAY-05): more than the balance = the balance as the receipt + the extra as a CREDIT ON ACCOUNT (never revenue;
+    // apply it later or mark it given back). The ledger still never goes over the invoice (0110 cap).
+    if(over>0.5){
+      const canCredit=!!(BPStore.moneySafety&&bal!=null);
+      let ok=false;
+      try{ ok=canCredit ? await BPUI.confirm((bal>0?`${inr(amt)} is ${inr(over)} more than the balance due (${inr(bal)}). Record ${inr(Math.max(0,bal))} as the payment and keep ${inr(over)} as a credit on account?`:`Nothing is due on this event. Keep ${inr(amt)} as a credit on account?`)+" The credit is not revenue: apply it when something is due again, or mark it given back.",{title:"More than the balance due",okLabel:"Record with credit",reveal:true})
+                       : (await BPUI.alert((bal>0?`${inr(amt)} is ${inr(over)} more than the balance due (${inr(bal)}). `:`Nothing is due on this event. `)+"Payments can't exceed the balance. Approve a change order to increase the total first.",{title:"More than the balance due",reveal:true}), false); }
+      finally{ paying=false; }
+      if(!ok) return;
+      const cScope="settle-credit:"+id, cKey=BPStore.moneySafety.key.get(cScope,paySig);
+      await BPUI.guard($("#pay_btn"),async()=>{
+        msg.style.color="var(--safe-text,#0f7a43)"; msg.textContent="Recording…";
+        try{ const r=await BPStore.moneySafety.recordWithCredit(id, amt, "cash", "Settlement payment", cKey); BPStore.moneySafety.key.done(cScope);
+          $("#pay_amt").value=""; payNeg=false; await load();
+          putMoney(msg, "Saved ✓ Credit on account ", M$(r&&r.credit?r.credit.amount:over), ""); }
+        catch(e){ msg.textContent=""; showBlock(BPUI.friendlyError(e,{action:"record the payment"})); }
+      });
+      return;
+    }
     // Item 3: reveal:true keeps the real amount visible in the dialog even while amounts are hidden.
     try{ if(!(await BPUI.confirm(q2,{title:notConfirmed?"Quote not confirmed yet":"Record payment?",okLabel:"Record payment",reveal:true}))) return; }
     finally{ paying=false; }
     await BPUI.guard($("#pay_btn"),async()=>{
       msg.style.color="var(--safe-text,#0f7a43)"; msg.textContent="Recording…";
       try{ await BPStore.milestones.recordSettlement(id, amt, "cash", null, null, "Settlement payment", idemKey);
-        recordPayment._idem=null;   // r218: saved - the next payment is a new one
+        recordPayment._idem=null; if(MK) MK.done(payScope);   // r218 / r239: saved - the next payment is a new one
         $("#pay_amt").value=""; payNeg=false; msg.style.color="var(--safe-text,#0f7a43)"; msg.textContent="Recorded ✓";
         await load();
         if(s && !summaryFailed){ putMoney(msg, "Recorded ✓ Received ", M$(s.received), " — balance ", M$(Math.max(0,+s.balance||0))); }
@@ -341,9 +363,21 @@
   async function addExpense(){ const who=$("#e_who").value.trim(); if(!who){ BPUI.toast("Enter who the expense is paid to.",{type:"err"}); $("#e_who").focus(); return; }
     const av=BPStore.validate.money($("#e_amt").value,{field:"Expense amount"});
     if(!av.ok || av.value<=0){ BPUI.toast(av.ok?"Expense amount must be greater than "+BPStore.studioMoney(0)+".":av.error,{type:"err"}); $("#e_amt").focus(); return; }
-    await act($("#e_add"),async()=>{ await BPStore.expenses.add(id,{ who, description:$("#e_desc").value.trim()||null, amount:av.value }); $("#e_who").value=""; $("#e_desc").value=""; $("#e_amt").value=0; await load(); },"add the claim");
+    // R239 (0404): one key per form (kept across a reload until saved) - the same claim sent twice is saved once
+    const desc=$("#e_desc").value.trim()||null, MK=BPStore.moneySafety&&BPStore.moneySafety.key, ks="claim-add:"+id, key=MK?MK.get(ks,[who,desc,av.value].join("|")):null;
+    await act($("#e_add"),async()=>{ const r=await BPStore.expenses.add(id,{ who, description:desc, amount:av.value }, key); if(MK) MK.done(ks); if(r&&r.duplicate) BPUI.toast("Already saved.",{type:"info"});
+      $("#e_who").value=""; $("#e_desc").value=""; $("#e_amt").value=0; await load(); },"add the claim");
   }
 
+  // R239 (0404): Void = the entry is kept (who / when / why), crossed out under Money safety, and counts 0 everywhere
+  async function voidEntry(b,kind,rowId,what){
+    if(!BPStore.moneySafety){ BPUI.toast("This needs database update 0404.",{type:"err"}); return; }
+    let why=null; try{ why=await BPUI.prompt(`Void ${what}? It stays in the history (crossed out) and is left out of every total. Why?`,{title:"Void entry?",label:"Reason (5 to 500 characters)",required:true,okLabel:"Void"}); }catch(_){ why=null; }
+    why=String(why||"").trim(); if(!why) return;
+    if(why.length<5){ BPUI.toast("Give a reason of at least 5 characters.",{type:"err"}); return; }
+    const MK=BPStore.moneySafety.key, ks="void:"+rowId, key=MK.get(ks,why);
+    await act(b,async()=>{ await BPStore.moneySafety.voidEntry(kind,rowId,why,key); MK.done(ks); BPUI.toast("Voided - kept in the history.",{type:"ok"}); await load(); },"void the entry");
+  }
   const REF={pending:"Pending",approved:"Approved",processed:"Processed",rejected:"Rejected"};
   const RKIND={refund:"Refund",recovery:"Recovery",deduction:"Deduction"};
   const refCls=(st)=>st==="processed"?"paid":st==="approved"?"approved":st==="rejected"?"rejected":"pending";
@@ -355,7 +389,7 @@
     $("#refBody").innerHTML = list.length ? list.map(r=>`<tr>
       <td><b>${esc(RKIND[r.kind]||r.kind)}</b></td><td class="muted">${esc(r.reason||"")}</td><td class="num" data-money>${inr(r.amount)}</td>
       <td><span class="st ${refCls(r.status)}">${esc(REF[r.status]||r.status)}</span></td>
-      <td>${canEdit?`${r.status==='pending'?`<button type="button" class="rm" data-rst="${esc(r.id)}" data-s="approved" aria-label="Approve ${esc(RKIND[r.kind]||r.kind)} ${esc(inr(r.amount))}">Approve</button> `:""}${r.status==='approved'?`<button type="button" class="rm" data-rst="${esc(r.id)}" data-s="processed" data-amt="${esc(inr(r.amount))}" aria-label="Mark ${esc(RKIND[r.kind]||r.kind)} ${esc(inr(r.amount))} done">Mark done</button> `:""}${canDelete?`<button type="button" class="rm" data-rdel="${esc(r.id)}" aria-label="Remove ${esc(RKIND[r.kind]||r.kind)} ${esc(inr(r.amount))}">✕</button>`:""}`:""}</td>
+      <td>${canEdit?`${r.status==='pending'?`<button type="button" class="rm" data-rst="${esc(r.id)}" data-s="approved" aria-label="Approve ${esc(RKIND[r.kind]||r.kind)} ${esc(inr(r.amount))}">Approve</button> `:""}${r.status==='approved'?`<button type="button" class="rm" data-rst="${esc(r.id)}" data-s="processed" data-amt="${esc(inr(r.amount))}" aria-label="Mark ${esc(RKIND[r.kind]||r.kind)} ${esc(inr(r.amount))} done">Mark done</button> `:""}${(r.status==='pending'||r.status==='rejected')?`<button type="button" class="rm" data-rvoid="${esc(r.id)}" aria-label="Void ${esc(RKIND[r.kind]||r.kind)} ${esc(inr(r.amount))}" title="Void: kept in the history, crossed out, left out of the totals">Void</button>`:""}`:""}</td>
     </tr>`).join("") : '<tr><td colspan="5" class="empty">None.</td></tr>';
     // dev pass 3: only entries still to be paid out / recovered count as "due"; processed ones are done
     const active=list.filter(r=>r.status==='pending'||r.status==='approved');
@@ -364,14 +398,14 @@
     $("#refBody").querySelectorAll("[data-rst]").forEach(b=>b.addEventListener("click",async()=>{
       if(b.dataset.s==="processed" && !(await BPUI.confirm(`Mark this ${b.dataset.amt} entry as processed?`,{title:"Mark done?",okLabel:"Mark done"}))) return;
       await act(b,async()=>{ await BPStore.refunds.setStatus(b.dataset.rst,b.dataset.s); await load(); },"update the refund"); }));
-    $("#refBody").querySelectorAll("[data-rdel]").forEach(b=>b.addEventListener("click",async()=>{
-      if(!(await BPUI.confirm("Remove this refund / recovery entry?",{title:"Remove entry?",danger:true}))) return;
-      await act(b,async()=>{ await BPStore.refunds.remove(b.dataset.rdel); await load(); },"remove the entry"); }));
+    $("#refBody").querySelectorAll("[data-rvoid]").forEach(b=>b.addEventListener("click",()=>voidEntry(b,"refund",b.dataset.rvoid,"this refund / recovery entry")));
   }
   async function addRefund(){ const av=BPStore.validate.money($("#r_amt").value,{field:"Refund amount"});
     if(!av.ok || av.value<=0){ BPUI.toast(av.ok?"Refund amount must be greater than "+BPStore.studioMoney(0)+".":av.error,{type:"err"}); $("#r_amt").focus(); return; }
     const amt=av.value;
-    await act($("#r_add"),async()=>{ await BPStore.refunds.add(id,{ kind:$("#r_kind").value, reason:$("#r_reason").value.trim()||null, amount:amt }); $("#r_reason").value=""; $("#r_amt").value=0; await renderRefunds(); },"add the entry");
+    const kind=$("#r_kind").value, reason=$("#r_reason").value.trim()||null, MK=BPStore.moneySafety&&BPStore.moneySafety.key, ks="refund-add:"+id, key=MK?MK.get(ks,[kind,reason,amt].join("|")):null;
+    await act($("#r_add"),async()=>{ const r=await BPStore.refunds.add(id,{ kind, reason, amount:amt }, key); if(MK) MK.done(ks); if(r&&r.duplicate) BPUI.toast("Already saved.",{type:"info"});
+      $("#r_reason").value=""; $("#r_amt").value=0; await renderRefunds(); },"add the entry");
   }
 
   function openLogin(){ $("#loginModal").hidden=false; setTimeout(()=>$("#li_email").focus(),50); }
@@ -402,6 +436,8 @@
   let vbT=null; document.addEventListener("helm:vendor-bills-changed",()=>{ if(!s) return; clearTimeout(vbT); vbT=setTimeout(()=>{ load(); },250); });
   // R189 (0372): TDS recorded / reversed in the TDS card changes Balance due
   document.addEventListener("helm:tds-changed",()=>{ if(!s) return; clearTimeout(vbT); vbT=setTimeout(()=>{ load(); },250); });
+  // R239 (0404): a reversal / credit / freeze changes Received, Balance due and the buttons
+  document.addEventListener("helm:money-safety-changed",()=>{ if(!s) return; clearTimeout(vbT); vbT=setTimeout(()=>{ load(); },250); });
   BPUI.boot(async ()=>{
     await BPStore.init(); await renderAccount();
     $("#backLink").href = id?("event.html?id="+encodeURIComponent(id)):"quotes.html";

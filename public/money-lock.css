@@ -53,3 +53,13 @@
   .mlk-diff{flex-direction:column;align-items:flex-end}
   .mlk-form .mlk-fld{flex:1 1 100%}
 }
+/* R239 (0404) money safety: voided entries / reversed receipts struck through, closed credits muted */
+.msf-card h3{font-size:13px;margin:16px 0 8px;color:var(--ink-2)}
+.msf-void td{color:var(--ink-3)}
+.msf-strike,.msf-strike span{text-decoration:line-through;text-decoration-thickness:1px}
+.msf-done td{color:var(--ink-3)}
+.msf-freeze{margin:4px 0 6px}
+.msf-freeze b{display:block}
+.msf-log{margin-top:8px;font-size:12px}
+.msf-log summary{cursor:pointer;color:var(--ink-2)}
+.msf-card .mlk-link+.mlk-link{margin-left:10px}

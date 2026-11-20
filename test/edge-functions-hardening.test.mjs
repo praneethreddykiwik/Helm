@@ -179,7 +179,7 @@ t('milestones: "paid" goes through settle_milestone, never a direct table write'
   assert.match(api, /if \(status === "paid" && mode === "supabase"\) return this\.settle\(id\);/);
   assert.match(api, /rpc\("settle_milestone", \{ p_milestone: id/);
   assert.match(logi, /canEdit&&m\.status!=="paid"\?`<select/);
-  assert.match(logi, /canDelete&&m\.status!=="paid"\?`<button/);
+  assert.match(logi, /canFin&&m\.status!=="paid"\?`<button type="button" class="rm" data-mvoid=/);   // r239 (0404): an unpaid milestone is voided, never deleted
   assert.match(mig, /create trigger aa_milestone_paid_guard before insert or update or delete on public\.payment_milestones/);
 });
 
