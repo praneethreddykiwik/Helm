@@ -222,7 +222,7 @@
         ],
         users: [
           // R228: the page header button, the folding invite panel, filter tabs, one status per person, View / Edit / "..." menu (R229: Danger zone / Transfer ownership off)
-          { sel: ["#inv_email", "#um_invite_btn"], title: "Invite people", desc: "The main way to add a teammate: Invite people, type their e-mail, pick a role, Send invite. They get a join link (7 days), choose their own password and join. A deactivated teammate's e-mail offers Reactivate instead." },
+          { sel: ["#inv_email", "#um_invite_btn"], title: "Invite people", desc: "The main way to add a teammate: type their e-mail, pick a role, Send invite. They get a 7-day join link and choose their own password. A typo like gamil.com asks Did you mean...? first; a deactivated teammate's e-mail offers Reactivate." },
           { sel: ["#um_which", "#um_more"], title: "Which should I use?", desc: "Invite by email link (recommended): they choose their own password. Add user under More options (admins only): the login exists now and a temporary password is shown to you once. Learn more compares them with the Staff page options." },
           { sel: "#uc_tools", title: "Find a teammate", desc: "Search the team, or use the tabs to show only Active people, people Invited but not signed up, people who never signed in, incomplete profiles or Deactivated people. Each tab shows how many." },
           { sel: "#um_rows", title: "Team members", desc: "Everyone with a login, plus people invited but not signed up yet. Status shows the real state: Last signed in, Invited (and when the link expires), Never signed in, or Deactivated. Admins also show whether two-step is on." },

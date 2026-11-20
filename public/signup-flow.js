@@ -86,6 +86,13 @@
     if (isFinite(at) && now - at >= -60000 && now - at < 30 * 24 * 3600 * 1000) return "signup";
     return "";
   }
+  // R238 (LEG-07): ticked "I am 18 or older" in THIS browser (stash, 2 days) or on the account (sign-up note, 30 days)
+  function adultEarlier(stash, meta, now) {
+    var s = null; try { s = JSON.parse(String(stash || "null")); } catch (e) { s = null; }
+    if (s && s.adult === true && isFinite(Number(s.t)) && now - Number(s.t) >= 0 && now - Number(s.t) < TTL) return true;
+    var at = meta && typeof meta === "object" ? Date.parse(String(meta.helm_adult_confirmed_at || "")) : NaN;
+    return isFinite(at) && now - at >= -60000 && now - at < 30 * 24 * 3600 * 1000;
+  }
   // a PAID studio (made with "Pay now" / "Contact sales") opens the studio setup once, after its plan is active:
   // not on a trial, created on the paid path, and the setup wizard never started -> its first page is the wizard
   function firstRun(org, account, inTrial) {
@@ -147,7 +154,7 @@
       : "Prices are before GST. Our team confirms the exact amount, tax included, before anything is charged. Nothing is paid on this page.";
   }
   var api = { currencyNote: currencyNote, KEY: KEY, step1Copy: step1Copy, payGate: payGate, payOn: payOn, planName: planName, TERMS_KEY: TERMS_KEY, EVENT_TYPES: EVENT_TYPES, TEAM_SIZES: TEAM_SIZES, intentFrom: intentFrom, slugify: slugify,
-    detailsCheck: detailsCheck, agreedEarlier: agreedEarlier, onSignupPath: onSignupPath, firstRun: firstRun, checkoutHref: checkoutHref, startError: startError, mode: mode };
+    detailsCheck: detailsCheck, agreedEarlier: agreedEarlier, adultEarlier: adultEarlier, onSignupPath: onSignupPath, firstRun: firstRun, checkoutHref: checkoutHref, startError: startError, mode: mode };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (!global || !global.document) return;
 
@@ -166,12 +173,13 @@
   if (onSignupPath(global.location.pathname)) intent.signup = true;
   if (intent.fromUrl) lsSet(KEY, JSON.stringify({ plan: intent.plan, mode: intent.mode, t: Date.now() }));
   var ctx = null;          // hooks from login.html: { showView, routeSignedIn, showErr, hoEnd }
-  var st = { details: null, plans: null, opts: null, interval: "monthly", plan: "", busy: false, termsOk: false, termsVersion: "" };
+  var st = { details: null, plans: null, opts: null, interval: "monthly", plan: "", busy: false, termsOk: false, termsVersion: "", adultOk: false, adultSaved: false };
 
   function metaOf() { var u = (S() && S().auth.user && S().auth.user()) || {}; return u.user_metadata || {}; }
   function wantPlan() { return intent.plan || String(metaOf().helm_signup_plan || ""); }
   function wantMode() { return payGate(intent.mode || mode(metaOf().helm_signup_mode), payOn()); }
-  function stashTerms(src) { lsSet(TERMS_KEY, JSON.stringify({ t: Date.now(), src: src === "google" ? "google" : "signup" })); }
+  // R238: adult = the "I am 18 or older" tick (step 1) - recorded on the server at the studio step (confirmAge, 0403)
+  function stashTerms(src, adult) { lsSet(TERMS_KEY, JSON.stringify({ t: Date.now(), src: src === "google" ? "google" : "signup", adult: adult === true })); }
 
   // ---- step 3: your studio ----
   function fillStudioForm() {
@@ -225,9 +233,19 @@
       B.signup.slugPreview(nm.value).then(function (s) { if (my === slugSeq && s) paint("helm.events/" + s); }, function () {});
     }, 350);
   }
+  // R238: record "I am 18 or older" once on the server (best effort: never blocks the studio step; null before 0403)
+  async function ageRecord(how) {
+    var B = S(); if (st.adultSaved || !B || !B.signup || !B.signup.confirmAge) return;
+    try { var r = await B.signup.confirmAge(how); if (r && r.confirmed) st.adultSaved = true; } catch (e) {}
+  }
   async function termsCheck() {
     var B = S(), row = $("#obTermsRow"), cb = $("#ob_terms");
     st.termsOk = false;
+    var adult = adultEarlier(lsGet(TERMS_KEY), metaOf(), Date.now());
+    st.adultOk = adult;
+    var ab = $("#ob_adult"), ar = $("#obAdultRow");
+    if (ar) ar.hidden = true;
+    if (adult) await ageRecord(agreedEarlier(lsGet(TERMS_KEY), metaOf(), Date.now()) === "google" ? "google" : "signup");
     var t = null; try { t = B.signup ? await B.signup.termsStatus() : null; } catch (e) { t = null; }
     if (t && t.version) st.termsVersion = String(t.version);
     if (t && t.accepted === true) { st.termsOk = true; if (row) row.hidden = true; return; }
@@ -236,6 +254,8 @@
       try { var r = await B.signup.acceptTerms(t.version, how); if (r && r.accepted) { st.termsOk = true; lsDel(TERMS_KEY); if (row) row.hidden = true; return; } } catch (e) {}
     }
     if (row) row.hidden = false; if (cb) cb.checked = !!how;
+    // R238: the Terms are asked again here (e.g. e-mail verified on another device) - so is the 18+ tick, unless known
+    if (ar) ar.hidden = adult; if (ab) ab.checked = adult;
   }
   function readDetails() {
     var types = []; Array.prototype.forEach.call(doc.querySelectorAll('#ob_types input[type="checkbox"]'), function (c) { if (c.checked) types.push(c.value); });
@@ -292,6 +312,9 @@
     if (!st.termsOk) {
       var cb = $("#ob_terms");
       if (!cb || !cb.checked) { ctx.showErr(err, "Please agree to the Terms of Service and Privacy Policy to continue."); if (cb) cb.focus(); return; }
+      var ab = $("#ob_adult"), ar = $("#obAdultRow");
+      if (ar && !ar.hidden && ab && !ab.checked) { ctx.showErr(err, "Please confirm you are 18 or older. Helm accounts are for adults only."); ab.focus(); return; }
+      if (ar && !ar.hidden && ab && ab.checked) { st.adultOk = true; await ageRecord("studio"); }
       if (st.termsVersion && B.signup) {
         try { var r = await B.signup.acceptTerms(st.termsVersion, "signup"); if (r && r.accepted) st.termsOk = true; }
         catch (e) { ctx.showErr(err, startError(e).text || "We couldn't save your agreement - please try again."); return; }

@@ -449,6 +449,13 @@ html[data-theme="dark"] .hp.fv-ok::after{background-image:url("data:image/svg+xm
 .fv-msg{display:flex;align-items:flex-start;gap:6px;margin:6px 0 0;font-size:13px;line-height:1.4;font-weight:500;color:var(--bad,#b42318)}
 .fv-msg[hidden]{display:none}
 html[data-theme="dark"] .fv-msg{color:#fca5a5}
+/* R238: "Did you mean ...@gmail.com?" under an e-mail box (form-validate.js suggestEmail) */
+.fv-suggest{margin:6px 0 12px;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.45;color:var(--ink,#1d1d1f);background:var(--warn-bg,#fff7e6);border:1px solid var(--warn-line,#f3d19c)}
+.fv-suggest[hidden]{display:none}
+.fv-suggest b{font-weight:600;word-break:break-all}
+.fv-suggest button{font:inherit;font-size:13px;font-weight:600;margin:4px 6px 0 0;padding:4px 10px;min-height:32px;border-radius:6px;cursor:pointer;border:1px solid var(--line,#d2d2d7);background:var(--panel,#fff);color:var(--ink,#1d1d1f)}
+.fv-suggest .fv-sg-use{background:var(--accent,#0f7a43);border-color:var(--accent,#0f7a43);color:#fff}
+.fv-suggest button:focus-visible{outline:2px solid var(--accent,#0f7a43);outline-offset:2px}
 .fv-ic{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-top:1px;border-radius:50%;
   background:var(--bad,#c0392b);color:#fff;font-size:11px;font-weight:800;line-height:1}
 .fv-opt{font-weight:400;color:var(--ink-3,#6b6577)}
