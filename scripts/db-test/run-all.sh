@@ -54,7 +54,10 @@ echo "== r233 anon RPC list (fresh DB) =="; R233="$(bash tests/db/r233-anon-rpcs
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1
 
 reseed() { psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1; }
-run() { local name="$1" marker="$2"; shift 2; reseed; local out; out="$("$@" 2>&1)"; if echo "$out" | grep -qE "$marker"; then echo "  ✓ $name"; else echo "  ✗ $name"; echo "$out" | tail -3; fail=1; fi; }
+# R240: the marker is searched in a here-string, not "echo | grep -q": under pipefail, grep -q stopping at the first match
+# while echo is still writing a long output made echo die of SIGPIPE (141), and a suite that printed its ALL PASS line
+# was marked failed (seen on r22-closure-0254: 68/68 printed, marked failed)
+run() { local name="$1" marker="$2"; shift 2; reseed; local out; out="$("$@" 2>&1)"; if grep -qE "$marker" <<<"$out"; then echo "  ✓ $name"; else echo "  ✗ $name"; echo "$out" | tail -3; fail=1; fi; }
 echo "== behavioral suites =="
 # r235 (0401) FIRST (one transaction, rolled back; needs the freshly migrated bodies - later suites re-apply older ones): the bell / badge / Home unread look at the last 90 days - every answer identical before / after for the window (12 people of every role, both kept bodies swapped back in), older rows left out of the bell but kept on the Inbox page, the window copy = the live rule (tripwire), Inbox details only for the page shown; request keys (assign tasks crew / vendor, Remind -> Bell): the same key = the first answer, nothing created / sent twice, different values refused, no key = the old call; seven jobs lock_timeout=10s; time zone copy complete; rolled back
 run "r235-db-load-0401" "R235-DB-LOAD-0401: ALL PASS \(31/31\)" psql -q -f tests/db/r235-db-load-0401.sql

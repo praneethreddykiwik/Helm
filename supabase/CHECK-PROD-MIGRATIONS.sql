@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (355 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (356 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4758 objects): body 172, bucket 9, col 273, con 418, cron 20, exec 19, fn 2122, idx 551, marker 123, pol 190, polexpr 4, pre 116, pub 5, seq 1, tbl 306, trg 427, view 2.
+-- What is checked (4762 objects): body 172, bucket 9, col 273, con 418, cron 20, exec 19, fn 2126, idx 551, marker 123, pol 190, polexpr 4, pre 116, pub 5, seq 1, tbl 306, trg 427, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4782,7 +4782,11 @@ with o(m, k, s, n, x) as (values
   ('0404_r239_money_safety', 'pre', null, '__pre0404', null),
   ('0404_r239_money_safety', 'marker', 'public', '_pkg_tg_payment', '|r239-money-0404'),
   ('0404_r239_money_safety', 'fn', 'public', '_pkg_tg_payment__pre0404', ''),
-  ('0404_r239_money_safety', 'marker', 'public', '_tr184_purge_tables', '|''money_credits''')
+  ('0404_r239_money_safety', 'marker', 'public', '_tr184_purge_tables', '|''money_credits'''),
+  ('0405_r240_insights_overview', 'fn', 'public', '_r405_prev_range', 'date,date'),
+  ('0405_r240_insights_overview', 'fn', 'public', '_r405_funnel', 'uuid,text,date,date,boolean'),
+  ('0405_r240_insights_overview', 'fn', 'public', '_r405_timing', 'uuid,text,date,date'),
+  ('0405_r240_insights_overview', 'fn', 'public', 'insights_overview', 'date,date,text')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5139,7 +5143,8 @@ mig(ord, m, ov, note) as (values
   (352, '0401_r235_db_load', null, 'R235 bell window + inbox details for the shown page: the bell / pending / inbox bodies are patched in place with dynamic SQL (old bodies kept as __pre0401) and _r401_vis / _r401_rows are made by _r401_sync from the live _r388_vis / _r388_rows text - checked by the r235-0401 markers - seven jobs get lock_timeout per function (ALTER FUNCTION, not an object)'),
   (353, '0402_r236_ops_health', null, 'R236: backoff trigger and next_attempt_at on the 7 staff / reminder queues, 8-try limit in the claim bodies (dynamic SQL), mailer cron jobs made only when the Vault secrets exist (see APPLY-0402 check rows 10) - not checked here'),
   (354, '0403_r238_signup_safety', null, null),
-  (355, '0404_r239_money_safety', null, 'R239 money safety: _pkg_tg_payment patched in place with dynamic SQL (one condition, old body copied to _pkg_tg_payment__pre0404) and the free-trial purge list patched the same way - checked by markers')
+  (355, '0404_r239_money_safety', null, 'R239 money safety: _pkg_tg_payment patched in place with dynamic SQL (one condition, old body copied to _pkg_tg_payment__pre0404) and the free-trial purge list patched the same way - checked by markers'),
+  (356, '0405_r240_insights_overview', null, null)
 ),
 env as (
   select
