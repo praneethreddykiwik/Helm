@@ -102,6 +102,7 @@ function prepare(webp, pngBytes) {
     function ugSniff(bytes) { const b = bytes || []; if (b.length < 12) return null; for (const [mime, ext, ok] of UG_SNIFF) { if (ok(b)) return { mime, ext }; } return null; }
     async function ugHead(file, n) { return new Uint8Array(await file.slice(0, n || 16).arrayBuffer()); }
     function ugMismatch() { return null; }
+    async function ugHeicMaybe(file) { return file; }   // R238: HEIC -> JPEG step (tested in upload-guard.test.mjs)
     function ugFit(w, h, maxPx) { const k = Math.min(1, (maxPx || 2560) / Math.max(w, h)); return { w: Math.round(w * k), h: Math.round(h * k) }; }
     ${src}; return ugPrepareImage;`)(global, URL);
   return { run: (opts) => f(mkBlob('image/png', 5000), Object.assign({ maxBytes: 8 * 1024 * 1024 }, opts)), log };

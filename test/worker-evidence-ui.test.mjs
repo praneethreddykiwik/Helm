@@ -88,6 +88,7 @@ function harness(grant) {
     // 0048 upload guard (covered by upload-guard.test.mjs): record the call, pass the bytes through
     ugPrepareImage: async (f, o) => { calls.guard.push(['image', o && o.maxBytes]); return { blob: f, mime: 'image/jpeg', ext: 'jpg' }; },
     ugCheckFile: async (f, allow) => { calls.guard.push(['file', allow.length]); return null; },
+    ugHeicMaybe: async (f) => f,   // R238: the HEIC -> JPEG step (covered by upload-guard.test.mjs)
     rpc: async (fn, args) => { calls.rpc.push([fn, args]); return fn === 'worker_evidence_upload' ? grant : { ok: true, status: 'completed' }; },
     supa: { storage: { from: (b) => ({ upload: async (path, file, opts) => { calls.upload.push([b, path, opts]); return { error: null }; } }) } },
   };

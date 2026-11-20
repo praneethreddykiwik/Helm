@@ -101,7 +101,7 @@ function makeEnv(o = {}) {
     localStorage: memStore(), sessionStorage: memStore(),
     location: { pathname: o.path || '/event', search: '', hash: '', origin: 'https://www.helm.events', href: '', hostname: 'www.helm.events', replace() {}, reload() {} },
     document: doc, navigator: { onLine: true }, crypto: globalThis.crypto, Blob, File, Response, Uint8Array, URL,
-    createImageBitmap: async () => ({ width: o.w || 4000, height: o.h || 3000, close() {} }),
+    createImageBitmap: async () => { if (o.noDecode) throw new Error('decode failed'); return { width: o.w || 4000, height: o.h || 3000, close() {} }; },
     fetch: async () => ({ ok: false, status: 503, json: async () => ({}) }),
     addEventListener() {}, removeEventListener() {},
     setTimeout: (fn, ms) => { if (!ms || ms < 1000) { try { fn(); } catch (e) {} } return 0; }, clearTimeout() {},
@@ -220,6 +220,56 @@ t('0048 SQL: slug-bound guest read, restrictive guards, bucket caps', () => {
   assert.match(mig, /as restrictive for insert to anon, authenticated/); assert.match(mig, /as restrictive for update to anon, authenticated/);
   assert.doesNotMatch(mig, /public\s*=\s*true/);
   assert.doesNotMatch(mig, /\bdelete from\b|\bdrop table\b|\btruncate\b/i);
+});
+
+// R238 (FILE-03): iPhone HEIC / HEIF photos
+const HEIC = [0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63, 0, 0, 0, 0];   // ....ftypheic
+const HEIF = [0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x6D, 0x69, 0x66, 0x31, 0, 0, 0, 0];   // ....ftypmif1
+const M4A = [0, 0, 0, 0x20, 0x66, 0x74, 0x79, 0x70, 0x4D, 0x34, 0x41, 0x20, 0, 0, 0, 0];    // ....ftypM4A (a voice note)
+t('R238 HEIC: told apart from an m4a voice note by its brand', () => {
+  const { S } = makeEnv(); const u = S.uploads;
+  assert.equal(u.isHeic(pad(HEIC)), true); assert.equal(u.isHeic(pad(HEIF)), true);
+  assert.equal(u.isHeic(pad(M4A)), false); assert.equal(u.isHeic(pad(JPG)), false); assert.equal(u.isHeic(new Uint8Array(8)), false);
+  assert.match(u.HEIC_MESSAGE, /Please choose a JPG or PNG/); assert.match(u.HEIC_MESSAGE, /Settings → Camera → Formats → Most Compatible/);
+});
+t('R238 HEIC: where the browser can open it, it becomes a JPEG and then takes EVERY usual path (re-encoded, server-shaped key)', async () => {
+  const e = makeEnv(); await e.S.init();
+  const heic = file(pad(HEIC, 4096), 'IMG_0420.HEIC', 'image/heic');
+  const j = await e.S.uploads.heicToJpeg(heic);
+  assert.notEqual(j, heic); assert.equal(j.type, 'image/jpeg'); assert.equal(j.name, 'IMG_0420.jpg');
+  assert.equal(e.S.uploads.sniff(await bytesOf(j)).mime, 'image/jpeg');
+  const plain = file(pad(JPG), 'a.jpg', 'image/jpeg');
+  assert.equal(await e.S.uploads.heicToJpeg(plain), plain, 'a JPEG passes through untouched');
+  await e.S.sites.uploadPhoto(U(2), heic);
+  await e.S.chat.uploadMedia(U(3), heic, {});
+  await e.S.files.upload(U(2), heic);
+  await e.S.ops.worker.uploadEvidence(U(5), U(6), 'proof_photo', heic);
+  assert.equal(e.uploads.length, 4);
+  for (const up of e.uploads) {
+    assert.notEqual(up.body, heic, up.bucket + ' uploaded the original HEIC');
+    assert.equal(e.S.uploads.sniff(await bytesOf(up.body)).mime, 'image/webp', up.bucket);
+    assert.doesNotMatch(up.path, /IMG|heic/i, up.bucket);
+  }
+  const out = await e.S.uploads.prepareImage(heic, { maxBytes: 8 << 20, maxPx: 2560 });
+  assert.equal(out.mime, 'image/webp'); assert.equal(out.sniffed, 'image/jpeg');
+});
+t('R238 HEIC: where the browser cannot open it - the clear message, nothing uploaded; size limits still apply', async () => {
+  const e = makeEnv({ noDecode: true }); await e.S.init();
+  const heic = file(pad(HEIC, 4096), 'IMG_0421.heic', 'image/heic');
+  const msg = /iPhone HEIC photo[\s\S]*Please choose a JPG or PNG - on iPhone: Settings → Camera → Formats → Most Compatible/;
+  await assert.rejects(e.S.uploads.prepareImage(heic, {}), (x) => msg.test(x.message) && x.code === 'upload_heic');
+  await assert.rejects(e.S.sites.uploadPhoto(U(2), heic), msg);
+  await assert.rejects(e.S.chat.uploadMedia(U(3), heic, {}), msg);
+  await assert.rejects(e.S.files.upload(U(2), heic), msg);
+  await assert.rejects(e.S.ops.worker.uploadEvidence(U(5), U(6), 'proof_photo', heic), msg);
+  assert.equal(typeof e.S.profile.processAvatar, 'function');
+  await assert.rejects(e.S.profile.processAvatar(heic), (x) => msg.test(x.message) && x.code === 'avatar_heic');
+  assert.equal(e.uploads.length, 0);
+  const big = file(pad(HEIC, 64), 'big.heic', 'image/heic'); Object.defineProperty(big, 'size', { value: 30 << 20 });
+  await assert.rejects(e.S.uploads.heicToJpeg(big), (x) => x.code === 'upload_too_large');
+  // a voice note (m4a "ftyp") is still a voice note, never sent down the photo path
+  const v = file(pad(M4A, 512), 'note.m4a', 'audio/mp4');
+  assert.equal(await e.S.uploads.heicToJpeg(v), v);
 });
 
 let pass = 0, fail = 0;

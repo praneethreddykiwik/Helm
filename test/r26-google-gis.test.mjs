@@ -290,8 +290,8 @@ t('login.html: loads google-gis.js; GIS sign-in reloads into the SAME return add
   assert.match(LOGIN, /GIS = window\.HelmGoogleGis \? HelmGoogleGis\.attach\(\{/);
   assert.match(LOGIN, /await BPStore\.auth\.signInWithGoogleIdToken\(token, rawNonce\)/);
   assert.match(LOGIN, /location\.replace\(location\.origin\+"\/login\.html\?"\+\(tok\?"invite="\+encodeURIComponent\(tok\)\+"&":""\)\+"next="\+encodeURIComponent\(nextUrl\(\)\)\)/);
-  assert.match(LOGIN, /needsAgree: \(\)=>mode==="signup" && !J\(\) && !\$\("#agree"\)\.checked/);
-  assert.match(LOGIN, /BPSignupFlow\.stashTerms\("google"\)/);
+  assert.match(LOGIN, /needsAgree: \(\)=>mode==="signup" && !J\(\) && !\(\$\("#agree"\)\.checked && \$\("#adult"\)\.checked\)/);   // R238: + the 18+ tick
+  assert.match(LOGIN, /BPSignupFlow\.stashTerms\("google", \$\("#adult"\)\.checked\)/);
   assert.match(LOGIN, /GIS\.fallback\(\)/);
   assert.match(LOGIN, /if\(GIS\) GIS\.refresh\(\);/);
   assert.match(LOGIN, /signInWithGoogle\(location\.origin\+"\/login\.html\?"/, 'redirect flow still there as the fallback');

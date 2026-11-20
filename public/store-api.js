@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=105"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=106"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1968,7 +1968,7 @@ window.HelmUrl = HelmUrl;
     loadAuthUi();
   }
   // Account menu / two-step banner live in auth-ui.js (loaded on signed-in staff pages only).
-  const AUTH_UI_VERSION = "65";
+  const AUTH_UI_VERSION = "66";
   let authUiLoading = null;
   function loadAuthUi() {
     if (authUiLoading || typeof document === "undefined") return authUiLoading;
@@ -2761,6 +2761,9 @@ window.HelmUrl = HelmUrl;
         // r22: the ticked "I agree to the Terms + Privacy Policy" (recorded on the server - accept_account_terms - at the
         // first signed-in step, even when the confirm link is opened in another browser) + the plan picked on the pricing page
         if (opts && opts.termsAgreed === true) so.data = Object.assign({}, so.data || {}, { helm_terms_agreed_at: new Date().toISOString() });
+        // R238 (LEG-07, DPDP s.9): "I am 18 or older" ticked on step 1 - carried to the studio step (signup-flow.js), which
+        // records it on the server (confirm_account_age, 0403) even when the e-mail is verified on another device
+        if (opts && opts.adultConfirmed === true) so.data = Object.assign({}, so.data || {}, { helm_adult_confirmed_at: new Date().toISOString() });
         if (opts && /^[a-z0-9][a-z0-9_-]{1,39}$/.test(String(opts.plan || ""))) so.data = Object.assign({}, so.data || {}, { helm_signup_plan: String(opts.plan) });
         if (opts && /^(trial|paid|sales)$/.test(String(opts.mode || ""))) so.data = Object.assign({}, so.data || {}, { helm_signup_mode: String(opts.mode) });
         // r29 (0279): the referral / partner code on the sign-up form (referral-signup.js) travels with the account, so a
@@ -4734,6 +4737,7 @@ window.HelmUrl = HelmUrl;
         if (!supa) throw new Error("Supabase not configured");
         if (!file) throw new Error("no file");
         if (file.size > TASK_PROOF_MAX) throw new Error("File too large (max 8 MB).");
+        if (kind === "proof_photo") file = await ugHeicMaybe(file, TASK_PROOF_MAX);   // R238: iPhone HEIC (else read as "ftyp" audio)
         let sniff = await sniffChat(file);
         const allowed = kind === "proof_photo" ? /^image\/(jpeg|png|webp)$/ : /^audio\/(webm|ogg|mp4)$/;
         if (!sniff || !allowed.test(sniff.mime)) throw new Error(kind === "proof_photo" ? "Photos must be JPEG, PNG or WebP." : "That voice note format isn't supported.");
@@ -6837,6 +6841,56 @@ window.HelmUrl = HelmUrl;
     }
     return null;
   }
+  /* R238 (FILE-03): iPhone HEIC / HEIF photos ("....ftypheic"). Before, they read as an unknown (or audio "ftyp") file
+     and got a generic refusal. Now: where the browser itself can open them (Safari on iPhone / Mac), the picture is
+     drawn on a canvas and handed on as a plain JPEG - which then goes through EVERY usual check (bytes, type, size,
+     the canvas re-encode that drops EXIF / GPS, the server's quarantine scan). Elsewhere: a clear message. */
+  const UG_HEIC_BRANDS = /^(heic|heix|hevc|hevx|heim|heis|hevm|hevs|mif1|msf1)$/;
+  const UG_HEIC_MSG = "This is an iPhone HEIC photo, which this browser can't open. Please choose a JPG or PNG - on iPhone: Settings → Camera → Formats → Most Compatible.";
+  function ugIsHeic(bytes) {
+    const b = bytes || [];
+    if (b.length < 12 || !(b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70)) return false;   // ....ftyp
+    return UG_HEIC_BRANDS.test(String.fromCharCode(b[8], b[9], b[10], b[11]));
+  }
+  async function ugHeicMaybe(file, maxInput) {
+    if (!file || typeof file.size !== "number" || typeof file.slice !== "function" || file.size < 12) return file;
+    let head = null; try { head = await ugHead(file, 16); } catch (e) { return file; }
+    if (!ugIsHeic(head)) return file;
+    const cap = maxInput || 25 * 1024 * 1024;
+    if (file.size > cap) throw ugErr("That photo is too large — choose one under " + Math.round(cap / 1048576) + " MB.", "upload_too_large");
+    const doc = global.document;
+    if (!doc || typeof doc.createElement !== "function") throw ugErr(UG_HEIC_MSG, "upload_heic");
+    let img = null, url = null;
+    try {
+      if (typeof global.createImageBitmap === "function") {
+        try { img = await global.createImageBitmap(file, { imageOrientation: "from-image" }); } catch (e) { img = null; }
+      }
+      if (!img && typeof global.Image === "function" && typeof URL !== "undefined" && URL.createObjectURL) {
+        url = URL.createObjectURL(file);
+        img = await new Promise((resolve) => { const im = new global.Image(); im.onload = () => resolve(im); im.onerror = () => resolve(null); im.src = url; });
+      }
+      if (!img) throw ugErr(UG_HEIC_MSG, "upload_heic");
+      const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
+      if (w0 * h0 > 80e6) throw ugErr("That photo is too large — choose a smaller one.", "upload_too_large");
+      const box = ugFit(w0, h0, 4096);
+      if (!box) throw ugErr(UG_HEIC_MSG, "upload_heic");
+      const cv = doc.createElement("canvas"); cv.width = box.w; cv.height = box.h;
+      const ctx = cv.getContext && cv.getContext("2d");
+      if (!ctx) throw ugErr(UG_HEIC_MSG, "upload_heic");
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, box.w, box.h);
+      ctx.drawImage(img, 0, 0, box.w, box.h);
+      const out = await new Promise((resolve) => { try { cv.toBlob((b) => resolve(b), "image/jpeg", 0.92); } catch (e) { resolve(null); } });
+      const outSniff = out ? ugSniff(await ugHead(out, 16)) : null;
+      if (!outSniff || outSniff.mime !== "image/jpeg") throw ugErr(UG_HEIC_MSG, "upload_heic");
+      const base = String(file.name || "photo").split(/[\\/]/).pop().replace(/\.[^.]*$/, "") || "photo";
+      try { if (typeof global.File === "function") return new global.File([out], base + ".jpg", { type: "image/jpeg" }); } catch (e) {}
+      try { Object.defineProperty(out, "name", { value: base + ".jpg" }); } catch (e) {}
+      return out;
+    } finally {
+      if (url) { try { URL.revokeObjectURL(url); } catch (e) {} }
+      if (img && typeof img.close === "function") { try { img.close(); } catch (e) {} }
+    }
+  }
   // server-shaped object name: <uuid>.<ext> (ext from the allowlist only)
   function ugObjectName(ext) {
     if (!/^(png|jpg|webp|gif|pdf|webm|ogg|m4a|mp3)$/.test(String(ext || ""))) return null;
@@ -6869,6 +6923,7 @@ window.HelmUrl = HelmUrl;
     if (!file || typeof file.size !== "number" || typeof file.slice !== "function") throw ugErr("Choose a photo to upload.");
     if (file.size < 12) throw ugErr("That file is empty or not a photo.");
     if (file.size > maxInput) throw ugErr("That photo is too large — choose one under " + Math.round(maxInput / 1048576) + " MB.", "upload_too_large");
+    file = await ugHeicMaybe(file, maxInput);   // R238: an iPhone HEIC photo -> JPEG where the browser can, else a clear message
     const sniff = ugSniff(await ugHead(file, 16));
     if (!sniff || allow.indexOf(sniff.mime) < 0) throw ugErr("Unsupported image type.", "upload_type");
     if (ugMismatch(file, sniff)) throw ugErr("That file's name or type doesn't match its contents — it was not uploaded.", "upload_mismatch");
@@ -6956,7 +7011,7 @@ window.HelmUrl = HelmUrl;
     } catch (e) { return {}; }
   }
   const uploads = { sniff: ugSniff, mismatch: ugMismatch, objectName: ugObjectName, displayName: ugDisplayName, fit: ugFit,
-    prepareImage: ugPrepareImage, checkFile: ugCheckFile, scanStatus: ugScanStatus };
+    prepareImage: ugPrepareImage, checkFile: ugCheckFile, scanStatus: ugScanStatus, isHeic: ugIsHeic, heicToJpeg: ugHeicMaybe, HEIC_MESSAGE: UG_HEIC_MSG };
 
   /* ---------------- digital invitation sites (Phase 87) ---------------- */
   // A public "digital invitation" website for a CONFIRMED event. All manager-side
@@ -7023,6 +7078,7 @@ window.HelmUrl = HelmUrl;
       if (!supa) throw new Error("Supabase not configured");
       if (!file) throw new Error("no file");
       if (file.size > INVITE_IMG_MAX * 3) throw new Error("Image too large (max 8 MB).");
+      file = await ugHeicMaybe(file, INVITE_IMG_MAX * 3);   // R238: iPhone HEIC -> JPEG where the browser can, else a clear message
       // Validate by MAGIC BYTES — never trust the client-declared type or extension.
       let sniff = await sniffInviteImage(file);
       if (!sniff) throw new Error("Unsupported image type — allowed: " + this.INVITE_IMG_LABEL + ".");
@@ -7128,6 +7184,7 @@ window.HelmUrl = HelmUrl;
     async upload(quoteId, file) {
       if (!supa) throw new Error("Supabase not configured");
       if (!file) throw new Error("no file");
+      file = await ugHeicMaybe(file, FILE_MAX * 3);   // R238: iPhone HEIC -> JPEG where the browser can, else a clear message
       const sniff = await sniffFile(file);
       if (!sniff) throw new Error("Unsupported file type — allowed: " + this.ALLOWED_LABEL + ".");
       // 0048: images are re-encoded (EXIF/GPS stripped); PDFs must match their name/type
@@ -7468,6 +7525,7 @@ window.HelmUrl = HelmUrl;
     if (!file || typeof file.size !== "number" || typeof file.slice !== "function") throw photoErr("Choose a photo to upload.");
     if (file.size < 12) throw photoErr("That file is empty or not a photo.");
     if (file.size > AVATAR_MAX_INPUT) throw photoErr("That photo is too large — choose one under 20 MB.");
+    try { file = await ugHeicMaybe(file, AVATAR_MAX_INPUT); } catch (e) { throw photoErr(e.message, e.code === "upload_heic" ? "avatar_heic" : "avatar_invalid"); }   // R238
     const kind = sniffImage(await readHead(file, 16));
     if (!kind) throw photoErr("Use a PNG, JPEG or WebP photo.");
     if (ugMismatch(file, ugSniff(await readHead(file, 16)))) throw photoErr("That file's name or type doesn't match its contents — choose the original photo.");
@@ -7943,6 +8001,7 @@ window.HelmUrl = HelmUrl;
       opts = opts || {};
       if (!file) throw new Error("no file");
       if (file.size > CHAT_MEDIA_MAX && !/^image\//.test(String(file.type || ""))) throw new Error("File too large (max 16 MB).");
+      file = await ugHeicMaybe(file, 25 * 1024 * 1024);   // R238: iPhone HEIC -> JPEG (before: read as an "ftyp" voice note and refused)
       let sniff = await sniffChat(file);
       if (!sniff) throw new Error("Unsupported file — images or voice notes only.");
       // 0048: photos (incl. marked-up ones) are re-encoded → no EXIF/GPS; audio must match its type
@@ -12724,6 +12783,12 @@ window.HelmUrl = HelmUrl;
       acceptTerms: (version, source) => (supa ? rpc("accept_account_terms", { p_version: String(version || ""),
         p_user_agent: String((global.navigator && global.navigator.userAgent) || "").slice(0, 160) || null,
         p_source: /^(signup|google|checkout|studio)$/.test(String(source || "")) ? source : "signup" })
+        .catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+      // R238 (0403, LEG-07): "I am 18 or older" for the signed-in person (server time + the current Terms version); the
+      // first confirmation is kept, a second call changes nothing. null before 0403 (the sign-up carries on).
+      confirmAge: (source) => (supa ? rpc("confirm_account_age", {
+        p_source: /^(signup|google|studio)$/.test(String(source || "")) ? source : "signup",
+        p_user_agent: String((global.navigator && global.navigator.userAgent) || "").slice(0, 160) || null })
         .catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
       // {currency, plans, trial_days, online_payments_live, terms_version} - no studio needed
       // r25 (0273): in the currency this person will be billed in (India time -> INR, elsewhere -> USD; a studio's own

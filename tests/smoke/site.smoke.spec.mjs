@@ -4,7 +4,7 @@
 //   C1/C2  channel check: real test e-mail / WhatsApp to the OWNER   (only on a manual run with SMOKE_CHANNEL_CHECK=1)
 // Secrets come from env only and are never printed.
 import { test, expect } from '@playwright/test';
-import { CONSOLE_ALLOW } from './config.mjs';
+import { CONSOLE_ALLOW, INLINE_STYLE_CSP, classifyStyleCsp, cspHashOf } from './config.mjs';
 
 const TARGET = (process.env.SMOKE_TARGET || 'staging').toLowerCase();
 const KEY = TARGET === 'prod' ? 'PROD' : 'STAGING';
@@ -15,14 +15,37 @@ const CHANNEL = process.env.SMOKE_CHANNEL_CHECK === '1';
 const OWNER_EMAIL = (process.env.SMOKE_OWNER_EMAIL || '').trim().toLowerCase();
 const OWNER_PHONE = (process.env.SMOKE_OWNER_PHONE || '').replace(/\D/g, '');
 
+// R238: every CSP violation the page sees (directive + the file that caused it), read back by settle()
+const CSP_WATCH = () => { window.__helmCspV = []; document.addEventListener('securitypolicyviolation', (e) => {
+  try { window.__helmCspV.push({ directive: e.effectiveDirective || e.violatedDirective || '', sourceFile: e.sourceFile || '' }); } catch (_) {} }); };
 function watchConsole(page) {
-  const errors = [];
+  const errors = [], styleCsp = [];
+  page.addInitScript(CSP_WATCH).catch(() => {});
   page.on('console', (m) => {
     if (m.type() !== 'error') return;
     const t = m.text();
-    if (!CONSOLE_ALLOW.some((re) => re.test(t))) errors.push(t.slice(0, 200));
+    if (CONSOLE_ALLOW.some((re) => re.test(t))) return;
+    if (INLINE_STYLE_CSP.test(t)) { styleCsp.push(t); return; }   // decided in settle(): Google's (warn) or Helm's (error)
+    errors.push(t.slice(0, 200));
   });
   page.on('pageerror', (e) => errors.push(('pageerror: ' + (e && e.message)).slice(0, 200)));
+  // R238: Google sign-in's own inline-style hash changes = a WARNING listing the new hash, not a red run
+  errors.settle = async () => {
+    if (!styleCsp.length) return errors;
+    const seen = await page.evaluate(() => ({ v: window.__helmCspV || [],
+      gsi: performance.getEntriesByType('resource').some((r) => /^https:\/\/accounts\.google\.com\/gsi\/client/.test(r.name)) })).catch(() => ({ v: [], gsi: false }));
+    const warn = new Set();
+    for (const t of styleCsp) {
+      if (classifyStyleCsp(t, seen.v, seen.gsi) === 'gsi') warn.add(cspHashOf(t) || '(hash not in the message)');
+      else errors.push(t.slice(0, 200));
+    }
+    if (warn.size) {
+      const msg = "Google sign-in (accounts.google.com/gsi) injected an inline style with a new CSP hash - add to GIS_INLINE_STYLE_HASHES in scripts/csp-hashes.cjs: " + [...warn].map((h) => "'" + h + "'").join(' ');
+      console.warn('WARNING: ' + msg);
+      test.info().annotations.push({ type: 'warning', description: msg });
+    }
+    return errors;
+  };
   return errors;
 }
 
@@ -36,6 +59,7 @@ test.describe('anonymous', () => {
     // Google: the classic button or Google's own (GIS) button
     await expect(page.locator('#googleBtn, .gis-btn, iframe[src*="accounts.google.com"]').first()).toBeAttached();
     await page.waitForLoadState('networkidle').catch(() => {});
+    await errors.settle();
     expect(errors, 'console errors on /login').toEqual([]);
   });
 
@@ -43,6 +67,7 @@ test.describe('anonymous', () => {
     const errors = watchConsole(page);
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle').catch(() => {});
+    await errors.settle();
     expect(errors, 'console errors on /').toEqual([]);
   });
 });
