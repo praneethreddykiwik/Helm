@@ -287,13 +287,13 @@
 <link rel="stylesheet" href="studio-templates.css?v=5"><link rel="stylesheet" href="asset-price-grid.css?v=3">
 <link rel="stylesheet" href="menu-pkg-editor.css?v=6"><link rel="stylesheet" href="layout-rules.css?v=1">
 <link rel="stylesheet" href="team-safety.css?v=2"><link rel="stylesheet" href="team-status.css?v=4">
-<link rel="stylesheet" href="theme.css?v=84"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=85"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="control-split.css?v=17">
 <link rel="stylesheet" href="roles-matrix.css?v=2"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=105" id="shellProto"></script>
+<script src="/shell-proto.js?v=106" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -994,14 +994,14 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=393"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=394"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=65"></script>
-<script src="tour.js?v=80"></script>
+<script src="page-tours.js?v=66"></script>
+<script src="tour.js?v=81"></script>
 <script src="pkg-review.js?v=10"></script>
 <script src="onboarding-core.js?v=12"></script>
 <script src="studio-billing-form.js?v=4"></script>
@@ -1012,7 +1012,7 @@
 <script src="link-views.js?v=5"></script>
 <script src="automations.js?v=6"></script>
 <script src="photo-render-settings.js?v=3"></script>
-<script src="form-validate.js?v=4"></script>
+<script src="form-validate.js?v=5"></script>
 <script src="cc-inputs.js?v=5"></script>
 <script src="privacy-pin-settings.js?v=7"></script>
 <script src="venues-core.js?v=11"></script>
@@ -2327,6 +2327,10 @@
     if(a) btns.push({ label:"Reactivate and send sign-in link", onClick:(b)=>reactivateMember(u, b, { link:true }).then(done) });
     umBoxShow(which, text, btns, { type:"warn", title:"Already in your studio" });
   }
+  // R238 (ACC-01 / SEC-05): "Did you mean ...@gmail.com?" under Invite people + Add user - a typo invitation would go to a
+  // stranger. One tap uses the suggestion; the FIRST Send with one still showing stops once, the next Send keeps what was typed.
+  const EMAIL_SG={}; ["inv","um"].forEach(w=>{ const i=$("#"+w+"_email"), f=$("#"+w+"_add");
+    if(i&&f&&window.HelmValidate&&HelmValidate.suggestEmail) EMAIL_SG[w]=HelmValidate.suggestEmail(i,{after:f}); });
   $("#um_add").addEventListener("submit", async (e)=>{
     e.preventDefault();
     if($("#um_submit").disabled){ umSeatRefusal("um", $("#um_submit")); return; }   // already adding (Enter pressed twice) or all seats in use
@@ -2337,6 +2341,7 @@
     if(!ccRoleOk("#um_role")) return;
     const email=((T&&T.member&&T.member.value())||$("#um_email").value.trim()).toLowerCase(), role=$("#um_role").value;
     { const r=BPStore.validate.email(email); if(!r.ok){ umBoxShow("um", r.error); $("#um_email").focus(); return; } }
+    if(EMAIL_SG.um && EMAIL_SG.um.hold()) return;     // R238: same typo check as Invite people
     if(await um2StepBlocked(role,"um")) return;   // R231: no request the server would refuse (R35_SETUP_2STEP)
     await BPUI.guard($("#um_submit"), async()=>{
     try{
@@ -2437,6 +2442,7 @@
     if(!ccRoleOk("#inv_role")) return;
     const email=((T&&T.invite&&T.invite.value())||$("#inv_email").value.trim()).toLowerCase(), role=$("#inv_role").value;
     { const r=BPStore.validate.email(email); if(!r.ok){ umBoxShow("inv", r.error); $("#inv_email").focus(); return; } }
+    if(EMAIL_SG.inv && EMAIL_SG.inv.hold()) return;   // R238: "Send to this exact address?" - press Send again to keep it
     await sendInvite(email, role, $("#inv_submit"), T||{});
   });
   $("#inv_link").addEventListener("click",(e)=>e.target.select());

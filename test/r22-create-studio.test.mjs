@@ -108,8 +108,8 @@ t('login: sign in only - no tab switcher; "New to Helm? Create your studio" link
 t('login step 1: Terms checkbox required (e-mail and Google), the account carries the "agreed" note, no studio name', () => {
   assert.match(LOGIN, /<input type="checkbox" id="agree" aria-describedby="agree_err"><span>I agree to the <a href="\/terms"[^>]*>Terms of Service<\/a> and the <a href="\/privacy"[^>]*>Privacy Policy<\/a>/);
   assert.match(LOGIN, /if\(!agreeOk\(\)\) return;\n          const existing=BPStore\.auth\.user\(\);/);
-  assert.match(LOGIN, /if\(mode==="signup" && !J\(\)\)\{ if\(!agreeOk\(\)\) return; if\(window\.BPSignupFlow\) BPSignupFlow\.stashTerms\("google"\); \}/);
-  assert.match(LOGIN, /termsAgreed:true, plan:want\.plan, mode:want\.mode\}\);/);
+  assert.match(LOGIN, /if\(mode==="signup" && !J\(\)\)\{ if\(!agreeOk\(\)\) return; if\(window\.BPSignupFlow\) BPSignupFlow\.stashTerms\("google", \$\("#adult"\)\.checked\); \}/);   // R238: + the 18+ tick
+  assert.match(LOGIN, /termsAgreed:true, adultConfirmed:\$\("#adult"\)\.checked===true, plan:want\.plan, mode:want\.mode\}\);/);
   assert.match(API, /if \(opts && opts\.termsAgreed === true\) so\.data = Object\.assign\(\{\}, so\.data \|\| \{\}, \{ helm_terms_agreed_at: new Date\(\)\.toISOString\(\) \}\);/);
   assert.match(LOGIN, /const ids = mode==="signup" \? \["fullname","email","pw"\] : \["email","pw"\];/);
   assert.match(LOGIN, /\$\("#studioField"\)\.hidden = true;/);
