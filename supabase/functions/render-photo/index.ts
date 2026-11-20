@@ -19,6 +19,11 @@
 // browser polls photo_render_job(job_id) and loads each photo with photo_render_image. Every request is logged in photo_render_usage
 // (studio, user, event, model, size, quality, n, status, cost estimate) for billing.
 //
+// R242 (0411): Helm-wide cost safety in the database (photo_render_usage trigger, helm_render_cap): a global switch ("renders
+//   paused for all studios"), a per-studio DAILY image cap and Helm-wide daily / monthly image + estimated-cost caps -
+//   photo_render_begin refuses with hint render_helm_off / render_helm_cap / render_day_cap -> 503 / 429 + a plain message.
+// R242 (LEG-06, IT Rules 2026 amendment): every stored render carries an "AI-generated" marker in the file itself (a JPEG
+//   comment segment / PNG tEXt chunk, aiMark below); the builder and the client booklet show a visible "AI-generated" label.
 // Secrets / env: OPENAI_API_KEY (switches it on), OPENAI_IMAGE_MODEL (default gpt-image-2.5-sunburst),
 //   RENDER_TIMEOUT_MS (default 140000; max 380000 on paid plans), RENDER_COST_USD_LOW / _MEDIUM / _HIGH (per image estimate),
 //   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (injected).
@@ -46,6 +51,10 @@ function b64ToBytes(s: string): Uint8Array<ArrayBuffer> {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
+function bytesToB64(b: Uint8Array): string {
+  let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
 function sniff(b: Uint8Array): string {
   if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
   if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "image/png";
@@ -56,6 +65,29 @@ function costPer(quality: string): number {
   const d: Record<string, number> = { low: 0.02, medium: 0.07, high: 0.25 };
   const v = Number(Deno.env.get("RENDER_COST_USD_" + quality.toUpperCase()));
   return isFinite(v) && v >= 0 ? v : d[quality] ?? 0.25;
+}
+// R242 (LEG-06): the AI-generated marker written INTO the stored picture (a viewer / editor shows it as the file comment)
+export const AI_NOTE = "AI-generated image (Helm photo render). Not a photograph of a real event.";
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b: Uint8Array): number { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC_TABLE[(c ^ b[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+export function aiMark(bytes: Uint8Array, mime: string, note = AI_NOTE): Uint8Array<ArrayBuffer> {
+  const txt = new TextEncoder().encode(note.replace(/[^\x20-\x7e]/g, " ").slice(0, 200));
+  if (mime === "image/jpeg" && bytes.length > 2 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    const seg = new Uint8Array(4 + txt.length);   // FF FE <length incl. the 2 length bytes> <text>  (JPEG COM, right after SOI)
+    seg[0] = 0xff; seg[1] = 0xfe; seg[2] = ((txt.length + 2) >> 8) & 0xff; seg[3] = (txt.length + 2) & 0xff; seg.set(txt, 4);
+    const out = new Uint8Array(bytes.length + seg.length); out.set(bytes.subarray(0, 2), 0); out.set(seg, 2); out.set(bytes.subarray(2), 2 + seg.length);
+    return out;
+  }
+  if (mime === "image/png" && bytes.length > 33) {   // tEXt "Comment" chunk right after IHDR (8 signature + 25 IHDR bytes)
+    const key = new TextEncoder().encode("Comment"), data = new Uint8Array(key.length + 1 + txt.length);
+    data.set(key, 0); data[key.length] = 0; data.set(txt, key.length + 1);
+    const typeData = new Uint8Array(4 + data.length); typeData.set(new TextEncoder().encode("tEXt"), 0); typeData.set(data, 4);
+    const chunk = new Uint8Array(12 + data.length), dv = new DataView(chunk.buffer);
+    dv.setUint32(0, data.length); chunk.set(typeData, 4); dv.setUint32(8 + data.length, crc32(typeData));
+    const out = new Uint8Array(bytes.length + chunk.length); out.set(bytes.subarray(0, 33), 0); out.set(chunk, 33); out.set(bytes.subarray(33), 33 + chunk.length);
+    return out;
+  }
+  const same = new Uint8Array(bytes.length); same.set(bytes); return same;
 }
 const clip = (v: unknown, n: number) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, n);
 
@@ -161,6 +193,10 @@ Deno.serve(async (req) => {
       if (hint === "render_quota") return json({ error: "render_quota", message: String(bErr?.message || "monthly quota reached") }, 429);
       if (hint === "render_rate_limited") return json({ error: "render_rate_limited", message: String(bErr?.message || "too many renders") }, 429);
       if (hint === "render_disabled") return json({ error: "render_disabled", message: "Photo renders are switched off for your studio" }, 403);
+      // R242 (0411): Helm-wide cost safety - the database's own plain message
+      if (hint === "render_helm_off") return json({ error: "render_helm_off", message: String(bErr?.message || "Photo renders are paused for everyone right now") }, 503);
+      if (hint === "render_helm_cap") return json({ error: "render_helm_cap", message: String(bErr?.message || "Helm's photo render limit is reached for now") }, 429);
+      if (hint === "render_day_cap") return json({ error: "render_day_cap", message: String(bErr?.message || "Your studio's photo renders for today are used up") }, 429);
       if (code === "42501") return json({ error: "not_allowed", message: "You don't have permission to make photo renders for this event" }, 403);
       if (code === "P0002") return json({ error: "not_found", message: "Event not found" }, 404);
       if (code === "22023") return json({ error: "bad_request", message: String(bErr?.message || "invalid request") }, 400);
@@ -236,15 +272,17 @@ Deno.serve(async (req) => {
         for (const d of Array.isArray(out?.data) ? out.data.slice(0, n) : []) {
           const b64 = String(d?.b64_json || "");
           if (!b64) continue;
-          const bytes = b64ToBytes(b64);
-          const mime = sniff(bytes);
-          if (!mime || bytes.byteLength > OUT_LIMIT) continue;
+          const raw = b64ToBytes(b64);
+          const mime = sniff(raw);
+          if (!mime) continue;
+          const bytes = aiMark(raw, mime);   // R242 (LEG-06): "AI-generated" marker inside the file
+          if (bytes.byteLength > OUT_LIMIT) continue;
           const { data: row, error: iErr } = await admin.from("photo_renders").insert({
             org_id: orgId, quote_id: quoteId, usage_id: usageId, created_by: user.id, ...meta,
             quality, model, size, prompt: fullPrompt, mime, bytes: bytes.byteLength, data: "\\x" + Array.from(bytes, (x) => x.toString(16).padStart(2, "0")).join(""),
           }).select("id").single();
           if (iErr || !row) { log.error("render insert failed", errTag(iErr)); continue; }
-          renders.push({ id: String(row.id), mime, data: b64 });
+          renders.push({ id: String(row.id), mime, data: bytes.byteLength === raw.byteLength ? b64 : bytesToB64(bytes) });
         }
         if (!renders.length) { log.error("openai images answer had no usable photo", "no_images", { provider: "openai", status: r.status, reason: "failed" }); await finish("error", "failed: no images"); return "failed"; }
         await finish("ok", undefined, Math.round(costPer(quality) * renders.length * 10000) / 10000);

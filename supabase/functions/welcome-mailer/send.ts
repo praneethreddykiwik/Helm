@@ -7,9 +7,12 @@
 //     without 0327 has no such function -> error -> nothing is claimed, nothing is sent.
 //   * the 0327 claim hands out only rows queued in the last 48 hours, re-checked (studio / member / trial ended / dup)
 //     and marked safe = "r119-0327"; a row without that marker (an older claim body) is released, never sent.
+// R242 (0410): a "sent" mark that fails is retried; if it still fails the row is noted in ops_send_ledger and the next run
+// marks it sent WITHOUT sending it again (_shared/send-ledger.ts, the comms-dispatch rule of 0402).
 // Logs carry only counts and SQLSTATE codes - never an address or a name.
 import { mailConfig, sendMail, EMAIL_RE, type SmtpSend } from "../_shared/mailer.ts";
 import { render } from "./templates.ts";
+import { sendLedger } from "../_shared/send-ledger.ts";   // R242 (0410): no double send when the "sent" mark fails
 
 export const SAFE_MARK = "r119-0327";
 const UUIDISH = /^[0-9a-f-]{36}$/i;
@@ -34,11 +37,15 @@ export async function runWelcomeBatch(admin: any, batch: number, opts: { env?: E
   if (sw?.data !== true) return { counts, off: true };
   const { data: rows, error } = await admin.rpc("welcome_email_outbox_claim", { p_limit: batch });
   if (error) return { counts, error };
+  // R242: rows already accepted by the provider whose mark failed before -> marked sent now, never sent again
+  const env = opts.env || ((k: string) => Deno.env.get(k));
+  const led = await sendLedger(admin, "welcome", env("WELCOME_MARK_RETRY_MS"));
   for (const r of (Array.isArray(rows) ? rows : [])) {
     const id = String(r?.id ?? "");
     if (!UUIDISH.test(id)) { counts.invalid++; continue; }
     let status: "sent" | "skipped" | "retry";
-    if (r?.safe !== SAFE_MARK) status = "retry";   // not re-checked by 0327 -> release, never send
+    if (led.already(id)) status = "sent";          // R242: went out before, only the mark was missing
+    else if (r?.safe !== SAFE_MARK) status = "retry";   // not re-checked by 0327 -> release, never send
     else {
       const kind = String(r?.kind ?? ""), to = String(r?.to ?? "").trim();
       const mail = render(kind, { name: r?.name, studio: r?.studio, trial: r?.trial === true, trialEndsAt: r?.trial_ends_at });
@@ -50,7 +57,7 @@ export async function runWelcomeBatch(admin: any, batch: number, opts: { env?: E
         status = res.status === "sent" ? "sent" : "retry";
       }
     }
-    const { error: mErr } = await admin.rpc("welcome_email_outbox_mark", { p_id: id, p_status: status });
+    const { error: mErr } = await led.mark(id, status === "sent", () => admin.rpc("welcome_email_outbox_mark", { p_id: id, p_status: status }));
     if (mErr) { counts.failed++; continue; }
     if (status === "retry") counts.failed++; else counts[status]++;
   }

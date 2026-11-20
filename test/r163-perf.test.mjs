@@ -86,7 +86,7 @@ await t('Past renders: no hidden lazy <img>, eager load before onload, fetch + d
   assert.match(PR, /img\.removeAttribute\('loading'\);/);
   assert.match(PR, /inTime\(A\.image\(id\), IMG_FETCH_MS\)/);
   assert.match(PR, /\}\), IMG_DECODE_MS\)\.catch/);
-  for (const f of ['builder.html', 'capture.html']) assert.match(read('public/' + f), /photo-render-ui\.js\?v=13/);
+  for (const f of ['builder.html', 'capture.html']) assert.match(read('public/' + f), /photo-render-ui\.js\?v=14/);
 });
 
 await t('Past renders: inTime settles a promise that never settles (behaviour)', async () => {
@@ -204,8 +204,8 @@ await t('0358: catalog built once per request, _r23_tz without the time zone fil
 });
 
 await t('cache-bust: store-api v350 on every page', () => {
-  assert.match(EV, /store-api\.js\?v=396/);
-  assert.match(read('public/dashboard.html'), /store-api\.js\?v=396/);
+  assert.match(EV, /store-api\.js\?v=397/);
+  assert.match(read('public/dashboard.html'), /store-api\.js\?v=397/);
 });
 
 console.log(`\nr163-perf: ${pass} passed, ${fail} failed`);

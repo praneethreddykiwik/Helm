@@ -5,7 +5,11 @@
    builds the layout-exact prompt (HelmPhotoPrompt) and sends everything to the edge function
    render-photo (BPStore.photoRender.render). The image-service key lives ONLY on the server.
    Every user-facing string here is plain language (test/render-dialog-polish.test.mjs).
-   Results: gallery with download, "Use in client booklet", regenerate, and past renders per event. */
+   Results: gallery with download, "Use in client booklet", regenerate, and past renders per event.
+   R242 (LEG-06, IT Rules 2026 amendment): every AI photo is labelled - a visible "AI-generated" badge on the picture and in
+   its caption, "-AI-generated" in the download name, and the downloaded file has the label drawn into its corner plus a file
+   comment (JPEG COM). render-photo (R242) also writes the marker into every stored photo. R242 (0411): the Helm-wide limits
+   (renders paused / today's pictures used / Helm-wide limit reached) are checked before anything is captured. */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -178,7 +182,12 @@
     render_provider_auth: 'Photo renders are paused — the image service connection needs renewing. Please let Helm support know (ref: provider_auth).',
     render_provider_billing: 'Photo renders are paused — the image service account needs topping up. Please let Helm support know (ref: provider_billing).',
     render_provider_model: 'Photo renders are paused — the image model isn’t available right now. Please let Helm support know (ref: provider_model).',
+    /* R242 (0411): Helm-wide cost safety (the server's own plain message is shown when it sends one) */
+    render_helm_off: 'Photo renders are paused for all studios right now. Please try again later.',
+    render_helm_cap: 'Helm’s photo renders are paused for now — the limit for all studios is reached. Please try again tomorrow.',
+    render_day_cap: 'Your studio has made all of today’s photo renders. You can make more tomorrow.',
   };
+  var SERVER_PLAIN = { render_helm_off: 1, render_helm_cap: 1, render_day_cap: 1 };
   /* R154a: a short reference so support can tell failures apart (a code, never server wording or a key) */
   function refOf(e) {
     var c = String((e && e.code) || '').replace(/[^a-z0-9_]/gi, '').slice(0, 40);
@@ -187,6 +196,8 @@
   }
   function plainError(e) {
     var c = e && e.code;
+    // R242: the database writes these messages in plain words itself (no technical text) - show them as sent
+    if (c && SERVER_PLAIN[c] && e.message && /^[A-Z][^<>{}]{10,200}$/.test(String(e.message))) return String(e.message);
     if (c && PLAIN[c]) return PLAIN[c];
     return 'The photo couldn’t be made this time — please try again. (ref: ' + refOf(e) + ')';
   }
@@ -228,18 +239,75 @@
     }
     var err = new Error('That photo could not be loaded'); err.code = last && last.code === 'P0002' ? 'missing' : 'failed'; throw err;
   }
+  /* R242 (LEG-06): the AI-generated label. Pure helpers exported for tests (HelmPhotoAI). */
+  var AI_LABEL = 'AI-generated';
+  var AI_NOTE = 'AI-generated image (Helm photo render). Not a photograph of a real event.';
+  function aiFileName(id) { return 'event-photo-' + String(id || '').replace(/[^0-9a-f]/gi, '').slice(0, 8) + '-AI-generated.jpg'; }
+  // a JPEG with a COM segment (FF FE) right after SOI carrying the note (ASCII); anything that is not a JPEG comes back as is
+  function jpegWithComment(bytes, note) {
+    var b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+    if (b.length < 3 || b[0] !== 0xff || b[1] !== 0xd8) return b;
+    var t = String(note || AI_NOTE).replace(/[^\x20-\x7e]/g, ' ').slice(0, 200), n = t.length;
+    var out = new Uint8Array(b.length + 4 + n);
+    out[0] = 0xff; out[1] = 0xd8; out[2] = 0xff; out[3] = 0xfe; out[4] = ((n + 2) >> 8) & 0xff; out[5] = (n + 2) & 0xff;
+    for (var i = 0; i < n; i++) out[6 + i] = t.charCodeAt(i);
+    out.set(b.subarray(2), 6 + n);
+    return out;
+  }
+  // the downloaded file: the picture with "AI-generated" drawn in its lower-left corner + the file comment. null on any problem
+  // (the caller then downloads the stored file, which already carries the server's marker for photos made since R242)
+  function labelledBlob(href) {
+    return new Promise(function (ok) {
+      try {
+        var im = new Image();
+        im.onload = function () {
+          try {
+            var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+            if (!w || !h) { ok(null); return; }
+            var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+            var g = cv.getContext('2d'); if (!g) { ok(null); return; }
+            g.drawImage(im, 0, 0, w, h);
+            var fs = Math.max(14, Math.round(Math.min(w, h) * 0.035)), pad = Math.round(fs * 0.5);
+            g.font = '600 ' + fs + 'px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+            var tw = Math.ceil(g.measureText(AI_LABEL).width), bh = fs + pad * 2, bw = tw + pad * 2, x = pad, y = h - bh - pad;
+            g.fillStyle = 'rgba(0,0,0,0.62)'; g.fillRect(x, y, bw, bh);
+            g.fillStyle = '#ffffff'; g.textBaseline = 'middle'; g.fillText(AI_LABEL, x + pad, y + bh / 2);
+            cv.toBlob(function (bl) {
+              if (!bl || !bl.arrayBuffer) { ok(bl || null); return; }
+              bl.arrayBuffer().then(function (ab) { ok(new Blob([jpegWithComment(new Uint8Array(ab), AI_NOTE)], { type: 'image/jpeg' })); }, function () { ok(bl); });
+            }, 'image/jpeg', 0.92);
+          } catch (e) { ok(null); }
+        };
+        im.onerror = function () { ok(null); };
+        im.src = href;
+      } catch (e) { ok(null); }
+    });
+  }
   function card(r, src, opts) {
     var c = el('div', 'ph-card');
+    // R242 (LEG-06): a visible label on every AI photo (screen readers get it from the picture's alt text)
+    var badge = el('span', 'ph-ai', AI_LABEL); badge.setAttribute('aria-hidden', 'true');
     // R163: lazy loading only for a picture shown at once. A hidden lazy <img> is never fetched by Chrome, Safari or
     // Firefox, so its onload never fired and a past render sat on "Loading the photo…" for ever.
-    var img = el('img'); img.alt = 'Photo render of the event plan'; if (src) img.loading = 'lazy';
+    var img = el('img'); img.alt = 'AI-generated photo render of the event plan'; if (src) img.loading = 'lazy';
     var ph = null;
     if (src) { img.src = src; c.appendChild(img); }
     else { img.hidden = true; c.appendChild(img); ph = el('div', 'ph-ph', 'Photo not shown yet'); ph.setAttribute('role', 'img'); ph.setAttribute('aria-label', 'Photo not shown yet'); c.appendChild(ph); }
+    c.appendChild(badge);
     var when = r.created_at ? new Date(r.created_at) : new Date();
-    c.appendChild(el('div', 'ph-meta', [r.style, r.camera, r.quality].filter(Boolean).join(' · ') + ' · ' + when.toLocaleString()));
+    c.appendChild(el('div', 'ph-meta', [AI_LABEL, r.style, r.camera, r.quality].filter(Boolean).join(' · ') + ' · ' + when.toLocaleString()));
     var acts = el('div', 'ph-acts');
-    var dl = el('a', 'tbtn', 'Download'); dl.download = 'event-photo-' + String(r.id || '').slice(0, 8) + '.jpg';
+    var dl = el('a', 'tbtn', 'Download'); dl.download = aiFileName(r.id); dl.title = 'Downloads the photo with an “AI-generated” label';
+    // R242: the download carries the label drawn into the picture + the file comment (made once, on the first click)
+    var labelled = '';
+    dl.addEventListener('click', function (ev) {
+      if (labelled || !loaded) return;
+      ev.preventDefault();
+      labelledBlob(loaded).then(function (bl) {
+        labelled = bl && window.URL && URL.createObjectURL ? URL.createObjectURL(bl) : loaded;
+        dl.href = labelled; dl.click();
+      });
+    });
     var use = el('button', 'tbtn', 'Use in client booklet'); use.type = 'button';
     var loaded = src || '', pending = null, show = null;
     function failed(e) {
@@ -262,11 +330,11 @@
           img.onerror = function () { no(Object.assign(new Error('decode'), { code: 'failed' })); };
           img.src = href;
         }), IMG_DECODE_MS).catch(function (e) { throw Object.assign(new Error('decode'), { code: e && e.code === 'P0002' ? 'missing' : 'failed' }); });
-      }).then(function (href) { loaded = href; dl.href = href; return href; })
+      }).then(function (href) { loaded = href; if (!labelled) dl.href = href; return href; })
         .finally(function () { pending = null; });
       return pending;
     }
-    if (src) dl.href = src;
+    if (src) { dl.href = src; loaded = src; }
     else {
       show = el('button', 'tbtn', 'Show'); show.type = 'button';
       show.addEventListener('click', function () { show.disabled = true; ensureSrc().then(function () { show.remove(); show = null; }, failed); });
@@ -314,6 +382,19 @@
     q.textContent = 'This month: ' + (s.used_this_month || 0) + ' of ' + (s.monthly_quota != null ? s.monthly_quota : '—') + ' photos used.';
   }
 
+  // R242 (0411): the plain reason a render would be refused now (Helm-wide limits), or '' (also '' on a database without 0411)
+  async function capBlock(n) {
+    try {
+      var S = window.BPStore && BPStore.schema, A = api();
+      if (!A || !A.capStatus || (S && (await S.has(411)) === false)) return '';
+      var cs = await A.capStatus();
+      if (!cs) return '';
+      if (cs.renders_on === false) return PLAIN.render_helm_off;
+      if (cs.helm_day_full === true || cs.helm_month_full === true) return PLAIN.render_helm_cap;
+      if (cs.studio_daily_images != null && cs.studio_day_used != null && Number(cs.studio_day_used) + (Number(n) || 1) > Number(cs.studio_daily_images)) return PLAIN.render_day_cap;
+      return '';
+    } catch (e) { return ''; }
+  }
   async function run(params) {
     var c = ctx(), A = api();
     if (!c || !A) return;
@@ -322,6 +403,9 @@
     if (!c.quoteId || !c.supported) { toast('Open a saved event to make photo renders.', { type: 'err' }); return; }
     if (c.frozen) { toast('This event is closed, so new photos can’t be made.', { type: 'err' }); return; }
     if (!c.items.length) { toast('Add some items to the floor first.', { type: 'err' }); return; }
+    // R242 (0411): a Helm-wide limit already reached -> say so before anything is captured (the server refuses it anyway)
+    var capMsg = await capBlock(params.n);
+    if (capMsg) { toast(capMsg, { type: 'err', timeout: 7000 }); return; }
     state.cancelled = false; state.last = params;
     $('phResults').hidden = true; $('photoOff').hidden = true;
     showBusy(true);
@@ -472,6 +556,7 @@
     try { window.addEventListener('helm:trial', syncTitle); } catch (e) {}
     try { new MutationObserver(syncTitle).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
   }
-  window.HelmPhotoRenderUI = { card: card, loadHistory: loadHistory, fetchImage: fetchImage, screenSpecs: screenSpecs, screenPayload: screenPayload, screenImages: screenImages, oldServerRefusal: oldServerRefusal, renderContext: renderContext, effective: effective, withFresh: withFresh, fitThemes: fitThemes, drawSemantic: drawSemantic, open: open, close: close, outputSize: outputSize, cameraOpts: cameraOpts, plainError: plainError, readForm: readForm };
+  window.HelmPhotoRenderUI = { card: card, loadHistory: loadHistory, fetchImage: fetchImage, screenSpecs: screenSpecs, screenPayload: screenPayload, screenImages: screenImages, oldServerRefusal: oldServerRefusal, renderContext: renderContext, effective: effective, withFresh: withFresh, fitThemes: fitThemes, drawSemantic: drawSemantic, open: open, close: close, outputSize: outputSize, cameraOpts: cameraOpts, plainError: plainError, readForm: readForm, capBlock: capBlock };
+  window.HelmPhotoAI = { AI_LABEL: AI_LABEL, AI_NOTE: AI_NOTE, aiFileName: aiFileName, jpegWithComment: jpegWithComment, labelledBlob: labelledBlob };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 })();

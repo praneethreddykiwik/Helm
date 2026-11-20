@@ -30,6 +30,8 @@
 // converted / ended), is closed there as channel 'skipped' + skip_reason and is never sent late. A database without
 // 0327 (or any error) -> nothing is sent, the row stays unsent (fail closed).
 //
+// R242 (0410): the "sent" update is retried; if it still fails the row is noted in ops_send_ledger and the next run marks
+// it sent WITHOUT sending the reminder again (_shared/send-ledger.ts) - before, the next hourly run sent it once more.
 // Logs carry only counts, SQLSTATE codes and HTTP status — never addresses or names.
 // Outbound mail goes only through the shared mailer (fixed provider endpoints; no URL is ever taken from input).
 // R142: the provider call has a 10 s deadline (_shared/http.ts via the shared mailer) - a timeout is a failed send, left
@@ -41,6 +43,7 @@ import { isTrialKind, trialMessage } from "./trial-email.ts";
 import { studioBillingEmail } from "../_shared/billing-email.ts";
 import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks } from "../_shared/email-compliance.mjs";
 import { logger } from "../_shared/log.ts";
+import { sendLedger } from "../_shared/send-ledger.ts";   // R242 (0410): no double send when the "sent" mark fails
 import { htmlToText, mailConfig, sendMail } from "../_shared/mailer.ts";   // R154g: Resend or SMTP, no fallback sender
 const L = logger("billing-reminder");
 
@@ -133,9 +136,17 @@ Deno.serve(async (req) => {
     if (error) { log.error("load failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0, no_provider: 0 };
+    const led = await sendLedger(admin, "billing", Deno.env.get("BILLING_MARK_RETRY_MS"));
+    const markSent = (id: string, channel: string) => () => admin.from("billing_reminders")
+      .update({ sent_at: new Date().toISOString(), channel }).eq("id", id).is("sent_at", null);   // idempotent mark
     for (const r of (Array.isArray(rows) ? rows : [])) {
       const id = String(r?.id ?? ""), kind = String(r?.kind ?? "");
       if (!UUIDISH.test(id) || !(["due_soon", "past_due"].includes(kind) || isTrialKind(kind))) { counts.invalid++; continue; }
+      if (led.already(id)) {   // R242: went out before, only the mark was missing - mark it, never send again
+        const { error: aErr } = await led.mark(id, true, markSent(id, "email"));
+        if (aErr) { log.error("mark failed", errTag(aErr)); report.error(aErr); counts.failed++; continue; }
+        counts.sent++; continue;
+      }
       // R119 (0327): still due? (too old / paid since / plan moved on -> closed by the database, never sent)
       const { data: chk, error: cErr } = await admin.rpc("billing_reminder_recheck", { p_id: id });
       if (cErr) { log.error("recheck failed", errTag(cErr)); counts.failed++; continue; }
@@ -164,9 +175,7 @@ Deno.serve(async (req) => {
       } else res = await sendEmail(to, msg.subject, msg.html);
       if (res === "failed") { counts.failed++; continue; }               // left unsent → retried next run
       if (res === "no_provider") { counts.no_provider++; continue; }     // R154g: left unsent → sent once e-mail is set up
-      const { error: uErr } = await admin.from("billing_reminders")
-        .update({ sent_at: new Date().toISOString(), channel: res === "sent" ? "email" : "skipped" })
-        .eq("id", id).is("sent_at", null);                                  // idempotent mark
+      const { error: uErr } = await led.mark(id, res === "sent", markSent(id, res === "sent" ? "email" : "skipped"));
       if (uErr) { log.error("mark failed", errTag(uErr)); report.error(uErr); counts.failed++; continue; }
       counts[res]++;
     }
