@@ -84,8 +84,9 @@ t('MANIFEST + checker overrides + generated checker + run-all + release lists kn
   assert.match(read('supabase/migrations/MANIFEST'), /\nforward  supabase\/migrations\/0388_r213_bell_speed\.sql\n/);
   const ov = JSON.parse(read('supabase/check-prod-overrides.json'));
   assert.deepEqual(ov['0388'].add, ['marker public._r388_vis(uuid,uuid) r213-0388', 'marker public._r388_rows(uuid,uuid) r213-0388',
-    'marker public._r23_visible(uuid,uuid) r213-0388', 'marker public._r23_counts(uuid,uuid) r213-0388', 'marker public.bell_feed__pre0299(integer) r213-0388',
-    'marker public.bell_feed__pre0042(integer) r213-0388']);
+    'marker public._r23_visible(uuid,uuid) r213-0388', 'marker public._r23_counts(uuid,uuid) r213-0388', // R235 (0401) patches the two bell layers in place: 0388 is then proven by its kept-body comment text, which 0401 keeps
+    'marker public.bell_feed__pre0299(integer) Kept body: bell_feed__pre0299__pre0388',
+    'marker public.bell_feed__pre0042(integer) kept body: bell_feed__pre0042__pre0388']);
   const chk = read('supabase/CHECK-PROD-MIGRATIONS.sql');
   assert.match(chk, /\('0388_r213_bell_speed', 'marker', 'public', '_r23_visible', 'uuid,uuid\|r213-0388'\)/);
   assert.match(chk, /\('0388_r213_bell_speed', 'fn', 'public', '_r388_vis', 'uuid,uuid'\)/);

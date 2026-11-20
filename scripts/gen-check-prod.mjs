@@ -512,6 +512,11 @@ export function build({ migs = readManifest(), overrides = existsSync(ROOT + OVR
   const rows = [], problems = [], warnings = [];
   for (const mg of migs) {
     const o = { ...(ovr[mg.id] || {}) };
+    // R235 (owner, 20 Nov 2026): the Supabase SQL editor splits a paste into statements by its own rules and broke on
+    // the 0402 note ("...written into their claim bodies...; ..." -> ERROR 42P01 relation "their" does not exist), though
+    // psql ran it. A note is free text inside a string literal: no semicolon and no "into <word>" in it, ever.
+    if (o.note && (/;/.test(o.note) || /\binto\s+\w/i.test(o.note)))
+      throw new Error(`${OVR}: ${mg.id}: the note must not contain a semicolon or "into <word>" (the Supabase SQL editor splits on them) - reword it`);
     const ignore = new Set(o.ignore || []);
     for (const k of ignore) if (!evid.get(mg.id).some((x) => x.key === k)) warnings.push(`${OVR}: ${mg.id}: ignore "${k}" is no longer an object of this migration (stale entry, remove it)`);
     let list = evid.get(mg.id).filter((x) => !ignore.has(x.key));
@@ -694,7 +699,7 @@ select mig.m as migration,
        coalesce(a.found || '/' || a.total, '-') as found,
        coalesce(array_to_string(a.miss[1:${MAX_SHOWN}], ', ')
                 || case when cardinality(a.miss) > ${MAX_SHOWN} then ' (+' || (cardinality(a.miss) - ${MAX_SHOWN}) || ' more)' else '' end, '') as missing_objects,
-       concat_ws('; ', mig.note, 'not checked here (cron.job / publication / storage not visible): ' || a.unknown) as note
+       concat_ws(' - ', mig.note, 'not checked here (cron.job / publication / storage not visible): ' || a.unknown) as note
 from mig left join agg a on a.m = mig.m
 order by case when mig.ov is not null then 2
               when coalesce(a.total, 0) = 0 then 3

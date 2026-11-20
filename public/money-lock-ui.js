@@ -165,7 +165,9 @@
           if (!isFinite(n) || n === 0) { toast("Enter the amount to add, or a minus amount to take off.", "err"); am.focus(); return; }
           if (why.length < 5) { toast("Give a reason of at least 5 characters.", "err"); rs.focus(); return; }
           busy(ab, true);
-          try { await B.moneyLock.addCorrection(id, cs.value, n, why); toast(v.closed ? "Late adjustment added - new frozen version written." : "Correction added."); changed(); }
+          // R239 (0404): one key per correction form (kept across a reload until the server answers)
+          var cks = "corr-add:" + id, ck = B.moneySafety ? B.moneySafety.key.get(cks, [cs.value, n, why].join("|")) : null;
+          try { await B.moneyLock.addCorrection(id, cs.value, n, why, null, ck); if (B.moneySafety) B.moneySafety.key.done(cks); toast(v.closed ? "Late adjustment added - new frozen version written." : "Correction added."); changed(); }
           catch (e) { toast(errText(e), "err"); busy(ab, false); }
         });
       } else if (v.closed) box.appendChild(el("p", "mlk-muted", v.late_adjust === "admin" ? "Only an admin can add a late adjustment to a closed event." : "To correct a closed event, an admin re-opens it first (or allows late adjustments in Settings → Money rules)."));
@@ -311,7 +313,8 @@
         sb.addEventListener("click", async function () {
           var n = Number(am.value); if (!isFinite(n) || n <= 0) { toast("Enter the TDS amount the client deducted.", "err"); am.focus(); return; }
           busy(sb, true);
-          try { await B.moneyLock.recordTds(id, n, sec.value.trim(), d.default_rate, nt.value.trim()); toast("TDS recorded - it counts as received."); after(); }
+          var tks = "tds-add:" + id, tk = B.moneySafety ? B.moneySafety.key.get(tks, [n, sec.value.trim(), nt.value.trim()].join("|")) : null;   // R239 (0404)
+          try { await B.moneyLock.recordTds(id, n, sec.value.trim(), d.default_rate, nt.value.trim(), tk); if (B.moneySafety) B.moneySafety.key.done(tks); toast("TDS recorded - it counts as received."); after(); }
           catch (e) { toast(errText(e), "err"); busy(sb, false); }
         });
       }

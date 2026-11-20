@@ -1437,9 +1437,11 @@
   }
   function addDays(ymd, n) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd); return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + n, 12)).toISOString().slice(0, 10); }
   async function reload(quiet) {
-    try { if (P() && P().reload) await P().reload(); } catch (e) {}
+    var failed = false;
+    try { if (P() && P().reload && (await P().reload()) === false) failed = true; } catch (e) { failed = true; }
     await loadExtras(); update();
     if (!quiet) { var u = $("#tcUpdated"); if (u) u.textContent = "Updated " + clock(new Date().toISOString()); }
+    if (failed) return false;   // R235: the 30 s refresher then waits longer (2x, 4x ... 8 min) while the database is not answering
   }
   function busyElsewhere() { return Array.prototype.some.call(doc.querySelectorAll(".lmodal"), function (m) { return !m.hidden; }) || !!doc.querySelector("#app [aria-busy=true]:not(#view)"); }
 
