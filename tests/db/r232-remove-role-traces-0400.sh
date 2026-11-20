@@ -241,6 +241,9 @@ DIFF="$(diff <(echo "$B") <(echo "$AF"))"
 ok "every other role behaves exactly as before ($(echo "$B" | wc -l | tr -d ' ') facts: matrix, has_area, invites, role changes, new studio, new trial, escalation, sign-in notices, approvers, bell, labels)" "$( [ -z "$DIFF" ] && echo t || echo "$DIFF" | head -8)"
 ok "the probe covered the escalation ladder (3 steps, the event lead's step = supervisor), a new trial and a new studio" "$([ "$(grep -c '^esc step ' <<<"$AF")" = 3 ] && grep -qE '^esc step 0\|sent "L1" .*Sid Supervisor:"L1"' <<<"$AF" && grep -qF 'trial matrix manager quotes|' <<<"$AF" && grep -qF 'new studio matrix supervisor tasks|' <<<"$AF" && grep -qF 'invite planner|ok:' <<<"$AF" && echo t || echo "$AF" | grep -E '^esc step' | head -3)"
 
+# r235 (0401): the bell window copy is made from the live _r388_vis; the owner runs APPLY-0401 after APPLY-0400 (or again
+# after it), which re-makes the copy from the 0400 rule - the same here (a no-op before 0401)
+q "select public._r401_sync() where to_regprocedure('public._r401_sync()') is not null" >/dev/null
 # ---- 4) a second run is a no-op ------------------------------------------------------------------------------------
 S3="$(snap)"; BK1="$(q "select count(*) from public._r398_backup")"
 O="$(apply)"

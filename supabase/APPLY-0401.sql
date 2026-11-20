@@ -1,16 +1,19 @@
 -- APPLY-0401 (R235 database load: the bell looks at the last 90 days, the Inbox page builds details only for the page it
 -- shows, a press sent twice is done once, background jobs give up on a lock after 10 s).
--- Run on STAGING first, then production. Safe to run twice. Needs 0388 / 0266 / 0293 / 0299 / 0144 / 0385 - already on both.
+-- Run on STAGING first, then production. Safe to run twice. Needs 0388 / 0266 / 0283 / 0293 / 0299 / 0144 / 0385 - already on both. Run after APPLY-0400, before APPLY-0402.
 -- What it does:
 --   * The bell list + badge and the Home "unread" number look at notifications of the last 90 days (plus older ones the
 --     person marked unread / snoozed in that time). Same rule of who sees what. The Inbox page still shows everything.
---     Nothing is deleted. Measured on a copy with 50,000 notifications at Nano's 2 MB sort memory: a bell call went from
---     ~255 ms and ~55 MB of temporary files to ~120 ms and none.
---   * The Inbox page builds the cleaned-up details only for the rows it shows (same rows, order, counts and details).
+--     Nothing is deleted. Today (all data is newer than 90 days) the bell costs the same as before; it gets cheaper as
+--     history grows (a year of history: an admin's bell ~275 -> ~195 ms on a local copy at Nano's 2 MB sort memory).
+--   * The Inbox page builds the cleaned-up details only for the rows it shows (same rows, order, counts and details):
+--     ~510 -> ~240 ms for an admin with 50,000 notifications, temporary files ~47 -> ~19 MB.
 --   * assign tasks (crew / vendor), Remind -> Bell, the "client opened the link" nudge and "Send payment reminder now"
 --     get a <name>_once call with a request key: pressed again after a lost answer = the first answer, nothing sent
 --     twice. New table rpc_request_keys (row security on, no app access). The old calls are unchanged.
---   * Seven frequent background jobs get lock_timeout = 10s on the function itself. Role / database settings untouched.
+--   * Ten frequent background jobs get lock_timeout = 10s on the function itself. Role / database settings untouched.
+--   * The inbox digest job (every 5 minutes) reads the bell window instead of every person's whole inbox (same digests):
+--     ~340 -> ~170 ms per admin, ~205 -> ~85 ms per crew member, per run.
 --   * The time zone name copy (0358) gets any missing name (insert only).
 -- Old function bodies are kept as <name>__pre0401 (no app privilege). One new table, new functions, no data changed.
 -- It waits at most 5 seconds for a table lock (then stops with an error and changes nothing - just run it again later)
@@ -28,14 +31,15 @@ set local statement_timeout = '5min';
 -- In plain words:
 --   1  THE BELL LOOKS AT THE LAST 90 DAYS. The bell list + badge (bell_feed) and the Home "unread" number (my_pending) are
 --      asked on every page and again every 30 seconds. Each call worked out, for EVERY notification the studio ever had,
---      whether this person may see it and whether it is unread - on a local copy with 50,000 notifications that is
---      ~250 ms and ~18 MB written to temporary files per bell call (Nano has 2 MB of sort memory per query). Now they look
---      at the notifications of the last 90 days (plus any older one the person marked unread or snoozed in that time).
+--      whether this person may see it and whether it is unread. Now they look at the notifications of the last 90 days
+--      (plus any older one the person marked unread or snoozed in that time).
 --      The rule of who sees what is the SAME rule (_r401_vis is made from the live text of _r388_vis, so it can never
 --      drift; a check proves it). Older notifications stay in the database and stay on the Inbox page ("Open inbox"),
 --      which still pages through everything. Nothing is deleted.
---      The window rows carry only what the rule reads (of the details: the notify list), worked out once - no sort is
---      spilled to disk any more (measured: 0 temporary files per bell call at 2 MB sort memory, was ~55 MB).
+--      Measured (local copy, 50,000 notifications, 12 people, 2 MB sort memory like Nano): with all of them in the last
+--      85 days (production today: data since late August) the bell and the badge cost the same as before (admin ~270 ms,
+--      crew ~170 ms) - the window only starts to help once a studio has older history; with a year of history the
+--      admin's bell call goes ~275 -> ~195 ms and its temporary files ~15.8 -> ~4.7 MB.
 --   2  THE INBOX PAGE builds the cleaned-up details only for the up to 100 rows it shows (it built them for every row of
 --      the studio and then threw all but one page away). Same rows, same order, same counts, same details.
 --      "Mark read / done / snooze" and "Mark all read" check visibility without building details. Same answers.
@@ -50,12 +54,15 @@ set local statement_timeout = '5min';
 --      New table public.rpc_request_keys (row security on, no policy, no app privilege): who, which call, the key,
 --      a fingerprint of the request, the first answer, when. Keyed by person (no studio column: it is not studio data,
 --      so trial retention / read-only studio guards do not apply to it).
---   4  SERVER JOBS DO NOT WAIT FOREVER ON A LOCK: seven frequent background jobs (quote stage sweep, link views,
---      link expiry archive, empty draft clean-up, event-ready alerts, team safety, pay details) get lock_timeout = 10s
---      on the function itself (ALTER FUNCTION ... SET; tested: a per-function lock_timeout works, a per-function
---      statement_timeout does NOT - Postgres arms that timer only when the outer statement starts). A job blocked by a
---      long lock now gives up for that studio / that run and tries again next time instead of queueing app writes
---      behind it. Role and database settings are NOT changed (owner decisions, see the PR).
+--   4  SERVER JOBS DO NOT WAIT FOREVER ON A LOCK: ten frequent background jobs (quote stage sweep, link views,
+--      link expiry archive, empty draft clean-up, event-ready alerts, team safety, pay details, inbox digests, run-sheet
+--      reminders, comms) get lock_timeout = 10s on the function itself (ALTER FUNCTION ... SET; tested: a per-function
+--      lock_timeout works, a per-function statement_timeout does NOT - Postgres arms that timer only when the outer
+--      statement starts, so a statement timeout put on a function never stops a job). A job blocked by a long lock
+--      now gives up for that studio / that run and tries again next time instead of queueing app writes behind it.
+--      Role and database settings are NOT changed (owner decisions, see the PR).
+--   4b THE INBOX DIGEST JOB (every 5 minutes) read every person's WHOLE inbox with details to pick the unread rows of
+--      the last 1-2 days; it now reads the bell window (same rows picked, same digests).
 --
 --   5  TIME ZONE NAMES: the 0358 copy of the server's time zone names gets any name missing from it (insert only), so a
 --      studio time zone is answered from the copy instead of reading every time zone file (~0.5 s each on Nano).
@@ -64,8 +71,8 @@ set local statement_timeout = '5min';
 -- kept once as <name>__pre0401 with no app privilege). A body that is not the known one is left unchanged (WARNING) and
 -- the matching APPLY-0401 check row shows false.
 -- Rollback (all optional, nothing to undo in data): for each re-issued function drop it and rename <name>__pre0401 back
--- (bell_feed__pre0042, bell_feed__pre0299, my_pending, inbox_feed__pre0299, inbox_act, inbox_read_all);
--- "alter function ... reset lock_timeout" for the seven jobs; the new functions / table can stay (nothing calls them
+-- (bell_feed__pre0042, bell_feed__pre0299, my_pending, inbox_feed__pre0299, inbox_act, inbox_read_all, _r23_queue_digests);
+-- "alter function ... reset lock_timeout" for the ten jobs; the new functions / table can stay (nothing calls them
 -- once the page is rolled back) or be dropped.
 -- FROM NOW ON: a migration that changes the inbox rule in _r388_vis must end with "select public._r401_sync();" so the bell
 -- window copy follows (tests/db/r235-db-load-0401.sql fails otherwise).
@@ -141,8 +148,9 @@ begin
 end $$;
 
 -- ---- 2) the bell window -------------------------------------------------------------------------------------------------
--- Plain (invoker, no settings) on purpose: Postgres then folds it into the query as one value (an index range on
--- notifications (org_id, created_at desc)) instead of calling a function for every row. It reads nothing.
+-- Plain (invoker, no settings) on purpose: Postgres can fold it into the query as one value (the bell base list: an index
+-- range on notifications (org_id, created_at desc)); _r401_vis reads it once per call as (select public._r401_since()).
+-- It reads nothing.
 create or replace function public._r401_since()
 returns timestamptz language sql stable as $$
   -- r235-0401: the bell / badge / Home unread look at the last 90 days (the Inbox page keeps everything)
@@ -162,6 +170,9 @@ declare d text := pg_get_functiondef('public._r388_vis(uuid,uuid)'::regprocedure
         a3 text := 'select distinct n.kind, n.channel from public.notifications n where n.org_id = p_org';
         a4 text := '    join public.notifications n on n.org_id = p_org' || chr(10);
         a5 text := 'AS $function$' || chr(10);
+        v_win text := '(n.created_at >= (select public._r401_since()) /* r235-0401: the bell window */ or exists (select 1'
+                   || ' from public.notification_inbox_state st where st.user_id = p_uid and st.notification_id = n.id and st.org_id = p_org'
+                   || ' and greatest(st.unread_at, st.snoozed_until, st.snooze_returned_at) >= (select public._r401_since())))';
 begin
   if (length(d) - length(replace(d, a1, ''))) / length(a1) <> 1 or (length(d) - length(replace(d, a2, ''))) / length(a2) <> 1
      or (length(d) - length(replace(d, a3, ''))) / length(a3) <> 1 or (length(d) - length(replace(d, a4, ''))) / length(a4) <> 1
@@ -169,26 +180,10 @@ begin
     return null; end if;
   d := replace(d, a1, 'CREATE OR REPLACE FUNCTION public._r401_vis(p_org uuid, p_uid uuid)');
   d := replace(d, a5, a5 || '  -- r235-0401: = _r388_vis (made from its live text by _r401_vis_def) limited to the bell window (_r401_since)' || chr(10));
-  d := replace(d, a2,
-         '  ), wn as materialized (         -- r235-0401: the bell window (_r401_since: the last 90 days) - created since then (index' || chr(10)
-      || '                                 -- range), plus older rows this person marked unread / snoozed / got back since then.' || chr(10)
-      || '                                 -- Worked out once; of detail only its notify list is read below (a missing one stays' || chr(10)
-      || '                                 -- null), so only that is carried - small rows, no sort spilled to disk' || chr(10)
-      || '    select n.id, n.kind, n.channel, n.status, n.created_at, n.quote_id,' || chr(10)
-      || '           case when n.detail -> ''notify'' is null then null else jsonb_build_object(''notify'', n.detail -> ''notify'') end as detail' || chr(10)
-      || '      from public.notifications n where n.org_id = p_org and n.created_at >= public._r401_since()' || chr(10)
-      || '    union all' || chr(10)
-      || '    select o.id, o.kind, o.channel, o.status, o.created_at, o.quote_id, o.detail' || chr(10)
-      || '      from (select st.notification_id from public.notification_inbox_state st' || chr(10)
-      || '             where st.user_id = p_uid and st.org_id = p_org' || chr(10)
-      || '               and greatest(st.unread_at, st.snoozed_until, st.snooze_returned_at) >= public._r401_since() offset 0) s' || chr(10)
-      || '      cross join lateral (select n.id, n.kind, n.channel, n.status, n.created_at, n.quote_id,' || chr(10)
-      || '                                 case when n.detail -> ''notify'' is null then null else jsonb_build_object(''notify'', n.detail -> ''notify'') end as detail' || chr(10)
-      || '                            from public.notifications n' || chr(10)
-      || '                           where n.id = s.notification_id and n.org_id = p_org and n.created_at < public._r401_since() offset 0) o' || chr(10)
-      || a2);
-  d := replace(d, a3, 'select distinct n.kind, n.channel from wn n');
-  d := replace(d, a4, '    join wn n on true' || chr(10));
+  -- the same rows as before + one filter on the rows read (the list of (kind, channel) pairs stays whole: a pair more is
+  -- harmless and keeps 0388's plan): created in the window, or touched by this person in it. Rows inside the window pass on
+  -- the first test (no extra read); only older rows look up the person's inbox state (one primary key probe).
+  d := replace(d, a4, '    join public.notifications n on n.org_id = p_org and ' || v_win || chr(10));
   return d;
 end $$;
 
@@ -261,6 +256,15 @@ begin
       array['v_unread := coalesce((public._r23_counts(v_org, v_uid) ->> ''unread'')::integer, 0);'],
       array['v_unread := (select count(*) from public._r401_rows(v_org, v_uid) r where r.is_unread)::integer;   -- r235-0401: the bell window, same number as the bell badge']);
     raise notice 'r235-0401 my_pending: %', s;
+    -- 3f the inbox digest job (inbox_tick -> _r23_queue_digests, every 5 minutes, every person of every studio): it read
+    --    the person's WHOLE inbox with details (_r23_rows) to pick unread rows of the last 1-2 days. The same columns of the
+    --    same rows come from the bell window (every row it picks has sort_at in the last 2 days, so it is in the window)
+    if to_regprocedure('public._r23_queue_digests()') is not null then
+      s := public._r401_patch('public._r23_queue_digests()'::regprocedure, 'r235-0401',
+        array['from public._r23_rows(o.id, p.id) r'],
+        array['from public._r401_rows(o.id, p.id) r   /* r235-0401: the bell window (it picks sort_at of the last 1-2 days only) */']);
+      raise notice 'r235-0401 _r23_queue_digests: %', s;
+    end if;
   end if;
   -- 3d the Inbox page: flags without details for every row (counts / groups / paging), details only for the page shown
   s := public._r401_patch('public.inbox_feed__pre0299(text,text,uuid,integer,text)'::regprocedure, 'r235-0401',
@@ -427,7 +431,8 @@ declare f text;
 begin
   foreach f in array array['public.quote_stage_sweep(integer)', 'public.link_views_tick()', 'public.apply_link_expiry_archive_all()',
                            'public.discard_empty_drafts_all()', 'public.event_ready_alert_tick()', 'public.team_safety_tick()',
-                           'public.pay_details_tick()'] loop
+                           'public.pay_details_tick()', 'public.inbox_tick()', 'public.runsheet_reminders_tick()',
+                           'public.comms_tick()'] loop
     if to_regprocedure(f) is null then raise notice 'r235-0401: % not on this database - skipped', f; continue; end if;
     execute format('alter function %s set lock_timeout = %L', f, '10s');
   end loop;
@@ -496,17 +501,28 @@ select item, ok from (values
         'public._r401_vis(uuid,uuid)', 'public._r401_rows(uuid,uuid)']) f
        where to_regprocedure(f) is not null and not has_function_privilege('authenticated', f, 'execute') and not has_function_privilege('anon', f, 'execute')) = 10),
   ('07 every new function is security definer with an empty pinned search_path (except the plain one-line _r401_since)',
-     (select bool_and(p.prosecdef and coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=""%')
-        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-       where n.nspname = 'public' and (p.proname like '\_r401\_%' or p.proname like '%\_once') and p.proname <> '_r401_since'
-         and p.proname not like '%\_\_pre%')),
+     (select count(*) from pg_proc p
+       where p.oid in (to_regprocedure('public._r401_keep(regprocedure)'), to_regprocedure('public._r401_patch(regprocedure,text,text[],text[])'),
+          to_regprocedure('public._r401_vis_def()'), to_regprocedure('public._r401_rows_def()'), to_regprocedure('public._r401_sync()'),
+          to_regprocedure('public._r401_key_get(text,uuid,text)'), to_regprocedure('public._r401_key_put(text,uuid,text,jsonb)'),
+          to_regprocedure('public._r401_vis(uuid,uuid)'), to_regprocedure('public._r401_rows(uuid,uuid)'),
+          to_regprocedure('public.assign_tasks_once(uuid,text,text[],uuid,text,text,uuid)'), to_regprocedure('public.assign_tasks_vendor_once(uuid,text,text[],uuid,uuid)'),
+          to_regprocedure('public.event_task_remind_bell_once(uuid,uuid)'), to_regprocedure('public.link_view_nudge_once(uuid,text,uuid)'),
+          to_regprocedure('public.payment_reminder_send_now_once(uuid,uuid)'))
+         and p.prosecdef and coalesce(p.proconfig, '{}') @> array['search_path=""']) = 14),
   ('08 the background jobs on this database carry lock_timeout=10s (role / database settings unchanged)',
      not exists (select 1 from unnest(array['public.quote_stage_sweep(integer)', 'public.link_views_tick()', 'public.apply_link_expiry_archive_all()',
-        'public.discard_empty_drafts_all()', 'public.event_ready_alert_tick()', 'public.team_safety_tick()', 'public.pay_details_tick()']) f
+        'public.discard_empty_drafts_all()', 'public.event_ready_alert_tick()', 'public.team_safety_tick()', 'public.pay_details_tick()',
+        'public.inbox_tick()', 'public.runsheet_reminders_tick()', 'public.comms_tick()']) f
        where to_regprocedure(f) is not null
          and not coalesce((select p.proconfig from pg_proc p where p.oid = to_regprocedure(f)), '{}') @> array['lock_timeout=10s'])),
   ('09 the time zone name copy holds every name this server knows',
      to_regclass('public._r358_tz_names') is null
-     or not exists (select 1 from pg_catalog.pg_timezone_names z where not exists (select 1 from public._r358_tz_names t where t.name = z.name)))
+     or not exists (select 1 from pg_catalog.pg_timezone_names z where not exists (select 1 from public._r358_tz_names t where t.name = z.name))),
+  ('10 the inbox digest job reads the bell window (old body kept as _r23_queue_digests__pre0401, no app privilege)',
+     position('public._r401_rows(o.id, p.id)' in coalesce((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public._r23_queue_digests()')), '')) > 0
+     and position('_r23_rows(' in coalesce((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public._r23_queue_digests()')), '')) = 0
+     and to_regprocedure('public._r23_queue_digests__pre0401()') is not null
+     and not has_function_privilege('authenticated', 'public._r23_queue_digests__pre0401()', 'execute'))
 ) v(item, ok) order by item;
 commit;

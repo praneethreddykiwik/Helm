@@ -425,10 +425,10 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=393"></script>
-<script src="task-status.js?v=4"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=394"></script>
+<script src="task-status.js?v=5"></script>
 <script src="event-plan.js?v=3"></script>
-<script src="ops-board.js?v=7"></script>
+<script src="ops-board.js?v=8"></script>
 <script src="event-floor.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -1076,7 +1076,7 @@
   $("#loginModal").addEventListener("click",e=>{ if(e.target.id==="loginModal"&&BPStore.auth.user()) closeLogin(); });
   // live dashboard — poll tasks/statuses so accepts/starts/completes appear without reloading
   async function refreshDashboard(){ if(!quoteId) return;
-    try{ [tasks,tokens,evidence]=await Promise.all([BPStore.ops.listTasks(quoteId), BPStore.ops.listTokens(quoteId), BPStore.ops.listEvidence(quoteId).catch(()=>evidence)]); await loadWa(); renderDashboard(); }catch{} }
+    try{ [tasks,tokens,evidence]=await Promise.all([BPStore.ops.listTasks(quoteId), BPStore.ops.listTokens(quoteId), BPStore.ops.listEvidence(quoteId).catch(()=>evidence)]); await loadWa(); renderDashboard(); }catch{ return false; } }   /* R235: false = the refresher waits longer */
   // R192: no 7-second full redraw any more - ops-board.js runs ONE 30 s refresh (shared with /monitor, task-status.js) that
   // skips while a pop-up is open, and only redraws the rows that changed
   window.OpsPage={

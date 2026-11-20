@@ -1,7 +1,7 @@
 // r235-db-load.test.mjs - R235 (owner read-only prod measurement 19 Nov 2026: 595 GB of temporary files since 25 Aug,
 // auth 500s + 57014 timeouts while the database was busy). The shape of the 0401 fix, read from the files:
 //   1. the bell window: _r401_vis / _r401_rows are made from the live _r388_vis / _r388_rows text (never typed twice),
-//      limited to the last 90 days (+ rows the person touched in that time), carrying only the notify list of the details
+//      limited to the last 90 days (+ rows the person touched in that time), one filter on the rows (0388's plan kept)
 //   2. the bell / my_pending / inbox bodies are patched in place, old bodies kept as __pre0401, the Inbox keeps everything
 //   3. request keys: <name>_once wrappers + rpc_request_keys; the page keeps one key per press until an answer arrives
 //   4. jobs: lock_timeout per function; role / database settings untouched
@@ -25,15 +25,16 @@ t('migration + APPLY are ASCII; APPLY opens with the two set local lines and end
   assert.ok(APPLY.includes(MIG), 'APPLY carries the whole migration');
   assert.match(APPLY, /\) v\(item, ok\) order by item;\ncommit;\n$/);
   assert.ok(!/create temp|create temporary|^\s*set (?!local )/im.test(MIG + APPLY), 'no temp tables, no session settings (only set local)');
-  for (const k of ['01 ', '02 ', '03 ', '04 ', '05 ', '06 ', '07 ', '08 ', '09 ']) assert.ok(APPLY.includes("('" + k), 'check row ' + k);
+  for (const k of ['01 ', '02 ', '03 ', '04 ', '05 ', '06 ', '07 ', '08 ', '09 ', '10 ']) assert.ok(APPLY.includes("('" + k), 'check row ' + k);
 });
-t('the bell window is made from the live _r388_vis / _r388_rows text (tripwire), 90 days, notify list only', () => {
+t('the bell window is made from the live _r388_vis / _r388_rows text (tripwire), 90 days, one filter on the rows read', () => {
   assert.match(MIG, /d text := pg_get_functiondef\('public\._r388_vis\(uuid,uuid\)'::regprocedure\);/);
   assert.match(MIG, /d text := pg_get_functiondef\('public\._r388_rows\(uuid,uuid\)'::regprocedure\);/);
   assert.match(MIG, /select pg_catalog\.now\(\) - interval '90 days';/);
-  assert.match(MIG, /wn as materialized/);
-  assert.match(MIG, /case when n\.detail -> ''notify'' is null then null else jsonb_build_object\(''notify'', n\.detail -> ''notify''\) end as detail/);
-  assert.match(MIG, /greatest\(st\.unread_at, st\.snoozed_until, st\.snooze_returned_at\) >= public\._r401_since\(\)/);
+  assert.doesNotMatch(MIG, /wn as materialized/);   // measured: a materialized copy of the window spilled to disk (slower)
+  assert.ok(MIG.includes("d := replace(d, a4, '    join public.notifications n on n.org_id = p_org and ' || v_win || chr(10));"));
+  assert.ok(MIG.includes("v_win text := '(n.created_at >= (select public._r401_since()) /* r235-0401: the bell window */ or exists (select 1'"));
+  assert.ok(MIG.includes("' and greatest(st.unread_at, st.snoozed_until, st.snooze_returned_at) >= (select public._r401_since())))';"));
   assert.match(MIG, /\nselect public\._r401_sync\(\);\n/);
 });
 t('bell / my_pending / inbox patched in place; old bodies kept once as __pre0401 without app privilege; never raises on an unknown body', () => {
@@ -62,6 +63,32 @@ t('request keys: five _once wrappers, first answer replayed, different values re
   assert.match(MIG, /constraint rpc_request_keys_pk primary key \(user_id, fn, request_id\)/);
   assert.match(MIG, /alter table public\.rpc_request_keys enable row level security;/);
   assert.match(MIG, /pg_advisory_xact_lock\(hashtextextended\('helm:r401-once:'/);
+});
+t('the inbox digest job reads the bell window; ten jobs get lock_timeout', () => {
+  assert.ok(MIG.includes("public._r401_patch('public._r23_queue_digests()'::regprocedure, 'r235-0401',"));
+  assert.ok(MIG.includes("array['from public._r23_rows(o.id, p.id) r'],"));
+  for (const f of ['quote_stage_sweep(integer)', 'link_views_tick()', 'apply_link_expiry_archive_all()', 'discard_empty_drafts_all()',
+                   'event_ready_alert_tick()', 'team_safety_tick()', 'pay_details_tick()', 'inbox_tick()', 'runsheet_reminders_tick()', 'comms_tick()'])
+    assert.ok(MIG.includes("'public." + f + "'"), f);
+});
+t('Tasks & staff page: a failed refresh tells the refresher (backs off); chat no longer listens to chat_reactions (not published since 0156)', () => {
+  const OB = read('public/ops-board.js'), OPS = read('public/ops.html');
+  assert.match(OB, /if \(P\(\) && P\(\)\.reload && \(await P\(\)\.reload\(\)\) === false\) failed = true;/);
+  assert.match(OB, /if \(failed\) return false;/);
+  assert.match(OPS, /renderDashboard\(\); \}catch\{ return false; \} \}/);
+  assert.doesNotMatch(API, /cspec\("chat_reactions"\)/);
+  assert.match(API, /\.on\("postgres_changes", cspec\("chat_messages"\)/);
+  assert.match(API, /\.on\("postgres_changes", cspec\("chat_conversations"\)/);
+});
+t('prod checker: no override note has a semicolon or "into <word>" (the Supabase SQL editor split on the 0402 note); the generator refuses one', () => {
+  const OVR = JSON.parse(read('supabase/check-prod-overrides.json')), GEN = read('scripts/gen-check-prod.mjs'), CHK = read('supabase/CHECK-PROD-MIGRATIONS.sql');
+  for (const [k, v] of Object.entries(OVR)) {
+    const note = (v && v.note) || '';
+    assert.ok(!/;/.test(note) && !/\binto\s+\w/i.test(note), k + ' note: ' + note.slice(0, 80));
+  }
+  assert.match(GEN, /the note must not contain a semicolon or "into <word>"/);
+  assert.ok(!CHK.includes('into their') && !CHK.includes("concat_ws('; '"), 'generated checker clean');
+  assert.match(CHK, /R236: backoff trigger and next_attempt_at on the 7 staff \/ reminder queues, 8-try limit in the claim bodies \(dynamic SQL\)/);
 });
 t('jobs: lock_timeout per function only; no role / database setting changed', () => {
   assert.match(MIG, /execute format\('alter function %s set lock_timeout = %L', f, '10s'\);/);

@@ -1,7 +1,7 @@
 -- r235-db-load-0401.sql - R235 (0401): the bell / badge / Home unread look at the last 90 days, the Inbox page builds
 -- details for the shown page only, inbox actions check visibility without details, assign_tasks(_vendor)_once dedupe a
--- press sent twice, seven background jobs give up on a lock after 10 s.
---   A  SAME ANSWERS for the visible window: studio C (12 people, every role, ~1,500 notifications of every kind, all in
+-- press sent twice, ten background jobs give up on a lock after 10 s.
+--   A  SAME ANSWERS for the visible window: studio C (12 people, every role left after 0400, ~1,500 notifications of every kind, all in
 --      the last 7 days, read / Done / snoozed / back from snooze / marked unread, mutes, switched-off types) - every answer
 --      worked out twice in one transaction (0401 bodies, then the kept __pre0401 bodies put back): bell_feed 10 / 100 /
 --      default, my_pending, inbox_feed (4 tabs, a group filter, page 2 by cursor) per person must be identical.
@@ -11,14 +11,18 @@
 --   C  _r401_vis is exactly the live _r388_vis text plus the window (tripwire), and its rows = _r388_vis rows in the window.
 --   D  request keys: same key -> the first answer (no second task, no second notification), different tasks with the same
 --      key refused, no key = the old call, another person's key independent; vendor variant; grants / RLS.
---   E  lock_timeout = 10s on the seven jobs; definer / empty search_path / grants; kept __pre0401 without app privilege.
+--   F  the inbox digest job (every 5 min) picks the same rows from the bell window as from the whole inbox.
+--   E  lock_timeout = 10s on the ten jobs; definer / empty search_path / grants; kept __pre0401 without app privilege.
 -- Re-applies 0401 twice (second run changes nothing). Rolled back.
 \set ON_ERROR_STOP 0
 set client_min_messages = error;
+-- everything below is ONE transaction, rolled back at the end (nothing is left behind for the later suites)
+begin;
+-- run-all.sh runs this suite FIRST, on the freshly migrated database (like a real one): later suites re-apply older
+-- migrations (0036 / 0292 / 0293) outside their transactions and leave older bodies behind. 0401 again, twice:
 \ir ../../supabase/migrations/0401_r235_db_load.sql
 \ir ../../supabase/migrations/0401_r235_db_load.sql
 set client_min_messages = warning;
-begin;
 create temp table _r235(name text, result text); grant all on _r235 to anon, authenticated, service_role;
 create temp table _r235o(mode text, email text, call text, v jsonb); grant all on _r235o to anon, authenticated, service_role;
 create or replace function pg_temp.su() returns void language plpgsql as $$
@@ -49,7 +53,7 @@ select pg_temp.res('00 0401 applied twice: the bell window, inbox and request-ke
 -- ---- seed studio C (deterministic ids; all rows inside the last 7 days) -----------------------------------------------
 do $$
 declare v_c uuid := 'c3000000-0000-4000-8000-000000000401'; v_a uuid := 'a0000000-0000-4000-8000-000000000001';
-        roles text[] := array['admin','manager','coordinator','sales','sales','planner','designer','crew','worker','operations','supervisor','quality'];
+        roles text[] := array['admin','manager','planner','sales','sales','planner','supervisor','crew','worker','operations','supervisor','quality'];
         u uuid; i int; ids uuid[] := '{}'; a_admin uuid;
 begin
   perform pg_temp.su();
@@ -285,6 +289,43 @@ begin
     (select (v -> 'counts' ->> 'unread')::int from _r235o where mode = 'new' and email = 'r235_1@c.test' and call = 'inbox_unread') >= (b_new ->> 'unread')::int + 390);
 end $$;
 
+-- ---- F: the inbox digest job picks the same rows from the bell window (old rows present) ------------------------------------
+do $$
+declare v_c uuid := 'c3000000-0000-4000-8000-000000000401'; r record; d int := 0; n int := 0; picked int := 0; a uuid[]; b uuid[]; ex text;
+begin
+  perform pg_temp.su();
+  for r in select p.id from public.profiles p where p.org_id = v_c loop
+    -- daily digest selection (0266 / 0283 text), then the instant-important one: whole inbox vs the bell window
+    select array_agg(z.id order by z.sort_at desc) into a from (select x.id, x.sort_at from public._r23_rows(v_c, r.id) x
+      where x.is_unread and x.digested_at is null and x.sort_at <= now() - interval '60 minutes' and x.sort_at >= now() - interval '2 days'
+      order by x.sort_at desc limit 20) z;
+    select array_agg(z.id order by z.sort_at desc) into b from (select x.id, x.sort_at from public._r401_rows(v_c, r.id) x
+      where x.is_unread and x.digested_at is null and x.sort_at <= now() - interval '60 minutes' and x.sort_at >= now() - interval '2 days'
+      order by x.sort_at desc limit 20) z;
+    n := n + 1; picked := picked + coalesce(array_length(a, 1), 0);
+    if a is distinct from b then d := d + 1; ex := coalesce(ex, r.id::text || ' daily'); end if;
+    select array_agg(z.id order by z.sort_at desc) into a from (select x.id, x.sort_at from public._r23_rows(v_c, r.id) x
+      where x.is_unread and x.digested_at is null and public._r23_important(x.kind)
+        and x.sort_at <= now() - interval '5 minutes' and x.sort_at >= now() - interval '1 day' order by x.sort_at desc limit 20) z;
+    select array_agg(z.id order by z.sort_at desc) into b from (select x.id, x.sort_at from public._r401_rows(v_c, r.id) x
+      where x.is_unread and x.digested_at is null and public._r23_important(x.kind)
+        and x.sort_at <= now() - interval '5 minutes' and x.sort_at >= now() - interval '1 day' order by x.sort_at desc limit 20) z;
+    if a is distinct from b then d := d + 1; ex := coalesce(ex, r.id::text || ' instant'); end if;
+  end loop;
+  perform pg_temp.res('F1 inbox digests: the rows picked (daily + instant-important) are identical from the whole inbox and from the bell window, every person',
+    n >= 12 and d = 0 and picked > 0, format('%s people, %s differ (first %s), %s rows picked', n, d, ex, picked));
+  perform pg_temp.res('F2 the old row back from a snooze 2 hours ago (created > 90 days ago) is still picked for the admin''s daily digest',
+    exists (select 1 from public._r401_rows(v_c, (select id from auth.users where email = 'r235_1@c.test')) x
+             where x.id = md5('r235old9')::uuid and x.is_unread and x.sort_at >= now() - interval '2 days'));
+  perform pg_temp.res('F3 _r23_queue_digests reads the bell window (2 places, no whole-inbox read left); the old body kept as __pre0401 without app privilege',
+    (select (length(prosrc) - length(replace(prosrc, 'public._r401_rows(o.id, p.id)', ''))) / length('public._r401_rows(o.id, p.id)')
+       from pg_proc where oid = 'public._r23_queue_digests()'::regprocedure) = 2
+    and position('_r23_rows(' in (select prosrc from pg_proc where oid = 'public._r23_queue_digests()'::regprocedure)) = 0
+    and position('public._r23_rows(o.id, p.id)' in (select prosrc from pg_proc where oid = 'public._r23_queue_digests__pre0401()'::regprocedure)) > 0
+    and not has_function_privilege('authenticated', 'public._r23_queue_digests__pre0401()', 'execute')
+    and not has_function_privilege('service_role', 'public._r23_queue_digests__pre0401()', 'execute'));
+end $$;
+
 -- ---- C: the window copy cannot drift from the live rule --------------------------------------------------------------------
 select pg_temp.res('C1 tripwire: _r401_vis / _r401_rows are exactly the live _r388_vis / _r388_rows text + the window (a change to _r388_vis must call _r401_sync())',
   pg_get_functiondef('public._r401_vis(uuid,uuid)'::regprocedure) = public._r401_vis_def()
@@ -410,11 +451,12 @@ begin
 end $$;
 
 -- ---- E: jobs, rules of the house ---------------------------------------------------------------------------------------------
-select pg_temp.res('E1 seven background jobs carry lock_timeout=10s on the function (role / database settings untouched)',
+select pg_temp.res('E1 ten background jobs carry lock_timeout=10s on the function (role / database settings untouched)',
   (select count(*) from pg_proc p where p.oid in (to_regprocedure('public.quote_stage_sweep(integer)'), to_regprocedure('public.link_views_tick()'),
        to_regprocedure('public.apply_link_expiry_archive_all()'), to_regprocedure('public.discard_empty_drafts_all()'),
-       to_regprocedure('public.event_ready_alert_tick()'), to_regprocedure('public.team_safety_tick()'), to_regprocedure('public.pay_details_tick()'))
-     and p.proconfig @> array['lock_timeout=10s']) = 7
+       to_regprocedure('public.event_ready_alert_tick()'), to_regprocedure('public.team_safety_tick()'), to_regprocedure('public.pay_details_tick()'),
+       to_regprocedure('public.inbox_tick()'), to_regprocedure('public.runsheet_reminders_tick()'), to_regprocedure('public.comms_tick()'))
+     and p.proconfig @> array['lock_timeout=10s']) = 10
   and not exists (select 1 from pg_db_role_setting s where array_to_string(s.setconfig, ',') like '%lock_timeout=10s%'));
 select pg_temp.res('E2 new + patched functions: security definer, empty search_path (except the plain _r401_since); helpers server only',
   (select bool_and(p.prosecdef and coalesce(p.proconfig, '{}') @> array['search_path=""']

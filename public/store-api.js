@@ -8269,7 +8269,8 @@ window.HelmUrl = HelmUrl;
         const cspec = (table) => cflt ? { event: "*", schema: "public", table: table, filter: cflt } : { event: "*", schema: "public", table: table };
         return rtLive((st) => supa.channel(chanName || "chat-rt")
           .on("postgres_changes", cspec("chat_messages"), () => cb && cb())
-          .on("postgres_changes", cspec("chat_reactions"), () => cb && cb())
+          // R235: no chat_reactions binding - 0156 took that table out of the Realtime publication (it never fired); a reaction
+          // bumps its chat_messages row (trigger zz_a156_reaction_bump: reactions_changed_at), which the binding above already hears
           .on("postgres_changes", cspec("chat_conversations"), () => cb && cb())
           .subscribe((status) => { st(status); if (onStatus) onStatus(status); }), () => { try { cb && cb(); } catch (e) {} });
       } catch (e) { if (onStatus) onStatus("ERROR"); return { unsubscribe() {} }; }
