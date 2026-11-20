@@ -247,18 +247,25 @@
   function winOk(w) { return Object.prototype.hasOwnProperty.call(WIN_PHASE, w); }
 
   /* ---- ONE refresh clock (30 s, both pages) ---- */
+  /* R235 (prod: the wall screen asks ~8 reads per event every 30 s): it backs off when the database is struggling - after a
+     failed refresh (fn throws or answers false) it waits 2x, 4x, 8x, 16x the normal time (max 8 min), after a slow one
+     (> 5 s) 2x; the first good, quick refresh goes back to normal. Hidden tabs still never refresh; Refresh (now()) always runs. */
   function refresher(fn, every) {
-    every = every || 30000; var last = Date.now(), busy = false, stopped = false, doc = global.document;
+    every = every || 30000; var last = Date.now(), busy = false, stopped = false, doc = global.document, wait = every, fails = 0;
     function run(force) {
       if (stopped || busy) return; if (doc && doc.hidden && !force) return;
-      busy = true; last = Date.now();
-      Promise.resolve().then(fn).catch(function () {}).then(function () { busy = false; });
+      busy = true; last = Date.now(); var t0 = last;
+      Promise.resolve().then(fn).then(function (r) { return r !== false; }, function () { return false; }).then(function (ok) {
+        busy = false; var took = Date.now() - t0;
+        fails = ok ? 0 : Math.min(fails + 1, 4);
+        wait = fails ? Math.min(480000, every * Math.pow(2, fails)) : (took > 5000 ? every * 2 : every);
+      });
     }
-    var id = setInterval(function () { if (Date.now() - last >= every) run(false); }, Math.min(5000, every));
-    function onVis() { if (doc && !doc.hidden && Date.now() - last > 10000) run(true); }
+    var id = setInterval(function () { if (Date.now() - last >= wait) run(false); }, Math.min(5000, every));
+    function onVis() { if (doc && !doc.hidden && Date.now() - last > Math.max(10000, fails ? wait : 0)) run(true); }
     if (doc && doc.addEventListener) doc.addEventListener("visibilitychange", onVis);
     return { now: function () { run(true); }, stop: function () { stopped = true; clearInterval(id); if (doc && doc.removeEventListener) doc.removeEventListener("visibilitychange", onVis); },
-      last: function () { return last; } };
+      last: function () { return last; }, wait: function () { return wait; } };
   }
 
   global.HelmTaskStatus = { LABEL: LABEL, RANK: RANK, stateOf: stateOf, shown: shown, isLate: isLate, lateMin: lateMin, baseKey: baseKey,

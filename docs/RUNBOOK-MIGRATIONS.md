@@ -99,3 +99,22 @@ also be hidden from you by cron's own security.
 - Known limits: the checker sees what a migration makes, not data changes or grants. An object that a
   later migration re-makes also counts for the earlier one. Re-issued functions are checked by body only
   for their latest author.
+
+## APPLY file template (from 0401 on)
+
+Every new `supabase/APPLY-NNNN.sql` opens its transaction with these two lines, right after `begin;`:
+
+```sql
+begin;
+set local lock_timeout = '5s';         -- wait at most 5 s for a table / function lock, then stop (nothing changed)
+set local statement_timeout = '5min';  -- one statement never runs longer than 5 minutes
+-- ... the migration body ...
+-- ... the check rows (every ok must be true) ...
+commit;
+```
+
+Why: a paste that waits for a lock held by the app queues every app write behind it (PART-A DB-05). With
+`lock_timeout` the paste stops with an error after 5 seconds instead and changes nothing (the transaction
+rolls back) - just run it again a little later. `set local` lasts only until `commit`, so nothing else
+changes (no role or database setting). Keep APPLY files additive, idempotent, ASCII, without temp tables
+or other session state, and end them with check rows.

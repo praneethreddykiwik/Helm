@@ -913,6 +913,7 @@
     } catch (e) {
       var er = $("#monErr"); er.hidden = false;
       er.textContent = (window.BPUI && BPUI.friendlyError) ? BPUI.friendlyError(e, { action: "load the event's tasks" }) : "Could not load the tasks. Check your connection and press Refresh.";
+      return false;   // R235: tells the 30 s refresher to wait longer before the next try
     } finally { S.loading = false; $("#monView").removeAttribute("aria-busy"); }
   }
   /* R194: the header band - code + a Today / Upcoming pill, the event name as the switcher, date · venue · guests, and the

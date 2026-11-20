@@ -188,7 +188,8 @@ t('0403: additive + idempotent + ASCII; no data dropped, updated or deleted', ()
   assert.match(mig, /errcode = '22023', hint = 'email_no_tld'/);
   assert.match(mig, /revoke all on table public\.account_age_confirmations from authenticated/);
   assert.match(manifest, /\nforward  supabase\/migrations\/0402_r236_ops_health\.sql\n# 0403 [^\n]+\nforward  supabase\/migrations\/0403_r238_signup_safety\.sql\n?$/);
-  assert.doesNotMatch(manifest, /0401_/, '0401 left free for the parallel PR');
+  // R235: the parallel PR's 0401 sits before 0402 / 0403 (numeric order); on the real databases it is pasted after them
+  assert.match(manifest, /\nforward  supabase\/migrations\/0401_r235_db_load\.sql\n# 0402 /, '0401 in numeric order, before 0402');
 });
 t('APPLY-0403: one transaction, 5 s lock wait, the migration verbatim, check rows, pasteable', () => {
   assert.match(apply, /\nbegin;\nset local lock_timeout = '5s';\nset local statement_timeout = '5min';\n/);

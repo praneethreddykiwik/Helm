@@ -55,6 +55,12 @@ psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2
 reseed() { psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1; }
 run() { local name="$1" marker="$2"; shift 2; reseed; local out; out="$("$@" 2>&1)"; if echo "$out" | grep -qE "$marker"; then echo "  ✓ $name"; else echo "  ✗ $name"; echo "$out" | tail -3; fail=1; fi; }
 echo "== behavioral suites =="
+# r235 (0401) FIRST (one transaction, rolled back; needs the freshly migrated bodies - later suites re-apply older ones): the bell / badge / Home unread look at the last 90 days - every answer identical before / after for the window (12 people of every role, both kept bodies swapped back in), older rows left out of the bell but kept on the Inbox page, the window copy = the live rule (tripwire), Inbox details only for the page shown; request keys (assign tasks crew / vendor, Remind -> Bell): the same key = the first answer, nothing created / sent twice, different values refused, no key = the old call; seven jobs lock_timeout=10s; time zone copy complete; rolled back
+run "r235-db-load-0401" "R235-DB-LOAD-0401: ALL PASS \(31/31\)" psql -q -f tests/db/r235-db-load-0401.sql
+# r235: APPLY-0401 the way the owner pastes it (one transaction, lock_timeout 5s, statement_timeout 5min) on the migrated DB - every check row ok, a second paste changes nothing
+run "r235-apply-0401" "APPLY-0401: ALL OK" bash -c 'for k in 1 2; do out="$(psql -X -q -A -t -F "|" -v ON_ERROR_STOP=1 -f supabase/APPLY-0401.sql 2>&1)" || { echo "$out" | tail -3; exit 1; }; if echo "$out" | grep -qE "^[0-9]{2} [^|]*\|f$"; then echo "$out" | grep -E "\|f$"; exit 1; fi; n="$(echo "$out" | grep -cE "^[0-9]{2} [^|]*\|t$")"; [ "$n" -eq 10 ] || { echo "only $n check rows"; exit 1; }; done; echo "APPLY-0401: ALL OK ($n, twice)"'
+# r235: the REAL order on staging / production (0400 + 0402 already applied, then APPLY-0401 twice): own DB, every check row of both APPLYs true, 0402's objects unchanged, per-function statement_timeout never fires / lock_timeout does
+run "r235-order-after-0402" "R235-ORDER-AFTER-0402: PASS" bash tests/db/r235-order-after-0402.sh
 # 0156 first: later suites re-apply older migrations over the 0156 wrappers
 run "audit-p2-0156"      "AUDIT-P2-0156: ALL PASS \(77/77\)" psql -q -f tests/db/audit-p2-0156.sql
 # before anything that re-applies older migrations (0011/0012/0015/0025/0026) over the 0071/0072 bodies

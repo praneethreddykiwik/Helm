@@ -16,6 +16,19 @@ set client_min_messages = error;
 \ir ../../supabase/migrations/0388_r213_bell_speed.sql
 set client_min_messages = warning;
 begin;
+-- r235 (0401): this suite proves 0388 against the bodies before it, so the 0388 bodies that 0401 kept as __pre0401 are put
+-- back while it runs (0401 is proved by tests/db/r235-db-load-0401.sql; rolled back)
+do $$ declare f record; begin
+  for f in select * from (values ('bell_feed__pre0042', 'integer', false), ('bell_feed__pre0299', 'integer', false), ('my_pending', '', true),
+                              ('inbox_feed__pre0299', 'text,text,uuid,integer,text', false),
+                              ('inbox_act', 'uuid[],text,timestamp with time zone,text', true), ('inbox_read_all', 'text,uuid', true)) x(n, a, page) loop
+    if to_regprocedure(format('public.%s__pre0401(%s)', f.n, f.a)) is not null then
+      execute format('alter function public.%I(%s) rename to %I', f.n, f.a, f.n || '__r235off');
+      execute format('alter function public.%I(%s) rename to %I', f.n || '__pre0401', f.a, f.n);
+      if f.page then execute format('grant execute on function public.%I(%s) to authenticated', f.n, f.a); end if;
+    end if;
+  end loop;
+end $$;
 create temp table _r213(name text, result text); grant all on _r213 to anon, authenticated, service_role;
 create temp table _r213o(mode text, email text, call text, v jsonb); grant all on _r213o to anon, authenticated, service_role;
 create or replace function pg_temp.su() returns void language plpgsql as $$
