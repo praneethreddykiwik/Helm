@@ -90,6 +90,13 @@ t('prod checker: no override note has a semicolon or "into <word>" (the Supabase
   assert.ok(!CHK.includes('into their') && !CHK.includes("concat_ws('; '"), 'generated checker clean');
   assert.match(CHK, /R236: backoff trigger and next_attempt_at on the 7 staff \/ reminder queues, 8-try limit in the claim bodies \(dynamic SQL\)/);
 });
+t('real order (0402 already on staging / production): a run-all suite pastes APPLY-0401 after APPLY-0402 and re-checks 0402', () => {
+  const RA = read('scripts/db-test/run-all.sh'), SH = read('tests/db/r235-order-after-0402.sh');
+  assert.match(RA, /run "r235-order-after-0402" "R235-ORDER-AFTER-0402: PASS" bash tests\/db\/r235-order-after-0402\.sh/);
+  assert.match(SH, /case "\$path" in \*0401_r235_db_load\.sql\) continue;; esac/);
+  assert.match(SH, /SET statement_timeout = 200ms runs 600 ms to the end/);
+  assert.match(APPLY, /After APPLY-0402 is fine/);
+});
 t('jobs: lock_timeout per function only; no role / database setting changed', () => {
   assert.match(MIG, /execute format\('alter function %s set lock_timeout = %L', f, '10s'\);/);
   assert.doesNotMatch(MIG, /alter (role|database|system)\b/i);

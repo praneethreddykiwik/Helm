@@ -1,6 +1,8 @@
 -- APPLY-0401 (R235 database load: the bell looks at the last 90 days, the Inbox page builds details only for the page it
 -- shows, a press sent twice is done once, background jobs give up on a lock after 10 s).
--- Run on STAGING first, then production. Safe to run twice. Needs 0388 / 0266 / 0283 / 0293 / 0299 / 0144 / 0385 - already on both. Run after APPLY-0400, before APPLY-0402.
+-- Run on STAGING first, then production. Safe to run twice. Needs 0388 / 0266 / 0283 / 0293 / 0299 / 0144 / 0385 - already on both.
+-- Run AFTER APPLY-0400. After APPLY-0402 is fine (staging / production already have 0402): tested in that order - 0402's
+-- bodies, triggers and tables are left exactly as they are; only lock_timeout = 10s is added to four of its job functions.
 -- What it does:
 --   * The bell list + badge and the Home "unread" number look at notifications of the last 90 days (plus older ones the
 --     person marked unread / snoozed in that time). Same rule of who sees what. The Inbox page still shows everything.
