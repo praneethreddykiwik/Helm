@@ -152,7 +152,7 @@ await t('webhook: still dormant / fail-closed; passes the subscription id so the
 await t('comms-dispatch: Helm notices lane (claim -> send -> mark), recipients never from the row', async () => {
   const D = read('supabase/functions/comms-dispatch/index.ts');
   assert.match(D, /admin\.rpc\("helm_notice_outbox_claim", \{ p_limit: batch \}\)/);
-  assert.match(D, /admin\.rpc\("helm_notice_outbox_mark", \{ p_id: id, p_status: res === "failed" \? "retry" : res \}\)/);
+  assert.match(D, /mark\("helm_notice", id, res === "sent", "helm_notice_outbox_mark", \{ p_id: id, p_status: markStatus\(res\) \}\)/);
   assert.match(D, /filter\(\(x: string\) => EMAIL\.test\(x\)\)/);
   const m = await import('../supabase/functions/comms-dispatch/helm-notices.mjs');
   const s = m.helmNoticeEmail('sales_request', { studio: 'Spark\r\nBcc: x@y.z', account: 'Demo 7', plan: 'Studio', interval: 'yearly', name: 'Asha',

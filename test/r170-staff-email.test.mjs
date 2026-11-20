@@ -109,7 +109,7 @@ await t("comms-dispatch: the staff lane - claimed only with an e-mail provider, 
   assert.match(cd, /mailOn && !overBudget\(\) \? await admin\.rpc\("staff_email_claim", \{ p_limit: batch \}\) : NOCLAIM;/);
   assert.match(cd, /const ident: Identity = await withReply\("staff", id,/);
   assert.match(cd, /=== "office_alert" \? OFFICE_TX_REASON : (?:sk === "task_escalation" \? ESCALATION_TX_REASON : )?STAFF_TX_REASON/);
-  assert.match(cd, /admin\.rpc\("staff_email_mark", \{ p_id: id, p_status: res === "failed" \? "retry" : res \}\)/);
+  assert.match(cd, /mark\("staff_email", id, res === "sent", "staff_email_mark", \{ p_id: id, p_status: markStatus\(res\) \}\)/);
   assert.equal(RT.LANE_TABLES.staff, "staff_email_outbox");
 });
 

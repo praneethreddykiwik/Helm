@@ -99,6 +99,11 @@
 // R142: every provider call has a 10 s deadline (_shared/http.ts; SMTP connect too) - a timeout is a failed send, so the
 // row goes back to "retry" exactly like a provider refusal. A run with failed rows (or a crash) sends ONE Sentry event
 // (function name + tag only, only with SENTRY_DSN). Logs are JSON lines with the request id (_shared/log.ts).
+// R236 (0402): (1) a "sent" mark that fails is retried; if it still fails the row is noted in ops_send_ledger and the next run
+// marks it sent WITHOUT sending it again (no double send after the 10-minute lease). (2) Every run writes one heartbeat row
+// (ops_heartbeat_beat: ok / no_provider / error + counts; "dormant" when switched off, only for the real cron caller) for
+// HQ System health. (3) WhatsApp: a studio whose token Meta refused (account "error") -> its rows wait ("held" = retry with the
+// growing wait, not a failure) until the studio reconnects or the row's age rule ends it, instead of being skipped for good.
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag, escHtml, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/limits.ts";
@@ -120,7 +125,7 @@ import { listUnsubHeaders, mktFooter, postalAddress, txFooter, unsubLinks } from
 import { brandMode, mailConfig, sendMail, type SmtpSend } from "../_shared/mailer.ts";
 import { rowReplyTo } from "../_shared/reply-to.mjs";   // R107: Reply-To fallback (business e-mail -> owner)
 import { runWelcomeBatch } from "../welcome-mailer/send.ts";   // R119 (0327): welcome e-mails (database switch, 48 h)
-import { orgOfRow, senderCache, waPost, type WaSender } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
+import { orgOfRow, reconnectCache, senderCache, waPost, type WaSender } from "../_shared/wa-sender.ts";   // R129 (0337): the studio's own number
 import { fieldContent, noticeContent } from "../_shared/wa-studio.mjs";
 import { logger } from "../_shared/log.ts";
 const L = logger("comms-dispatch");
@@ -139,7 +144,11 @@ export async function secretMatches(given: string, expected: string): Promise<bo
   return diff === 0;
 }
 
-type Res = "sent" | "skipped" | "failed" | "no_provider";
+// "held" (R236, MSG-01): the studio's WhatsApp token stopped working - the row waits (retry with the growing wait) until
+// the studio reconnects or the row's own age rule ends it, instead of being skipped for good
+type Res = "sent" | "skipped" | "failed" | "no_provider" | "held";
+// what a lane's *_mark gets for a result: failed / no provider / held -> retry later
+export function markStatus(res: Res): string { return res === "failed" || res === "no_provider" || res === "held" ? "retry" : res; }
 
 function appOrigin(): string {
   const v = (Deno.env.get("APP_URL") || "https://www.helm.events").trim();
@@ -210,6 +219,50 @@ export function commsOn(v: string | undefined): boolean {
   return String(v ?? "").trim().toLowerCase() !== "false";
 }
 
+// R236 (0402, JOB-03): never send a message twice because its "mark as sent" failed. A "sent" mark is retried (every
+// *_mark only changes a row that is not marked yet, so a repeat is harmless); other marks are tried once as before. If the
+// mark still fails, the row is noted in ops_send_ledger (lane + row id + provider id, never an address or text) and the
+// next run - when the 10-minute lease hands the row out again - marks it sent WITHOUT sending it again.
+// COMMS_MARK_RETRY_MS (tests): the waits before each try, e.g. "0,0,0". A database without 0402: no ledger, as before.
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+export function markWaits(v: string | undefined): number[] {
+  const s = String(v ?? "").trim();
+  return /^[0-9]{1,4}(,[0-9]{1,4}){0,4}$/.test(s) ? s.split(",").map(Number) : [0, 400, 1500];
+}
+// deno-lint-ignore no-explicit-any
+export async function markWithRetry(call: () => PromiseLike<{ error: any }>, sent: boolean, waits: number[]): Promise<any> {
+  // deno-lint-ignore no-explicit-any
+  let err: any = null;
+  for (const w of sent ? waits : [0]) {
+    if (w) await sleep(w);
+    try { const { error } = await call(); if (!error) return null; err = error; } catch (e) { err = e; }
+  }
+  return err;
+}
+// the rows already sent at the provider whose mark failed earlier, as "lane:id" (empty on any problem)
+// deno-lint-ignore no-explicit-any
+export async function ledgerOpen(admin: any): Promise<Set<string>> {
+  try {
+    const { data, error } = await admin.rpc("ops_send_ledger_open");
+    if (error || !Array.isArray(data)) return new Set();
+    return new Set(data.filter((x: any) => x && /^[a-z_]{1,20}$/.test(String(x.lane ?? "")) && UUIDISH.test(String(x.id ?? "")))
+      .map((x: any) => String(x.lane) + ":" + String(x.id)));
+  } catch (_) { return new Set(); }
+}
+// deno-lint-ignore no-explicit-any
+export async function ledgerNote(admin: any, lane: string, id: string, ref: string | null, waits: number[]): Promise<boolean> {
+  for (const w of waits) {
+    if (w) await sleep(w);
+    try { const { error } = await admin.rpc("ops_send_ledger_note", { p_lane: lane, p_id: id, p_ref: ref }); if (!error) return true; } catch (_) { /* next try */ }
+  }
+  return false;
+}
+// R236 (0402, JOB-01): one heartbeat row per run (ok / dormant / no_provider / error + counts) for HQ System health
+// deno-lint-ignore no-explicit-any
+export async function beat(admin: any, status: "ok" | "dormant" | "no_provider" | "error", counts: Record<string, number> = {}): Promise<void> {
+  try { await admin.rpc("ops_heartbeat_beat", { p_name: "comms-dispatch", p_status: status, p_detail: counts }); } catch (_) { /* never blocks a run */ }
+}
+
 export type WaKind = "task_assigned" | "event_reminder" | "general";
 const TPL_ENV: Record<WaKind, string> = {
   task_assigned: "WHATSAPP_TPL_TASK_ASSIGNED", event_reminder: "WHATSAPP_TPL_EVENT_REMINDER", general: "COMMS_WHATSAPP_TEMPLATE",
@@ -247,7 +300,8 @@ async function sendWhatsApp(to: string, text: string, kind: WaKind = "general", 
   if (!content) return "skipped";
   const r = await waPost(waAdmin, sender, { to, ...content });
   if (r.ok) return "sent";
-  return r.kind === "recipient" || r.kind === "token" || r.kind === "permission" ? "skipped" : "failed";
+  // R236 (MSG-01): a refused token / permission marks the studio's account "error" (waPost) - the row waits for the reconnect
+  return r.kind === "recipient" ? "skipped" : r.kind === "token" || r.kind === "permission" ? "held" : "failed";
 }
 
 // 0155: last STOP check right before a WhatsApp send. "skipped" = the number replied STOP,
@@ -303,7 +357,15 @@ Deno.serve(async (req) => {
   const log = logger("comms-dispatch", req);   // R142: JSON log lines with the request id
   const report = sentryOnce(req);              // R142: one Sentry event per run at most
   try {
-    if (!commsOn(Deno.env.get("HELM_COMMS_ENABLED"))) return json({ status: "dormant" });
+    if (!commsOn(Deno.env.get("HELM_COMMS_ENABLED"))) {
+      // R236: tell HQ System health it is switched off - only for the real cron caller (secret matches), nobody else
+      try {
+        if (req.method === "POST" && await secretMatches(req.headers.get("x-helm-cron-secret") || "", Deno.env.get("HELM_COMMS_SECRET") || "")) {
+          await beat(createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } }), "dormant");
+        }
+      } catch (_) { /* the answer stays dormant */ }
+      return json({ status: "dormant" });
+    }
     if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
     const wait = await checkLimits([["comms:ip:" + clientIp(req), 30, 60_000]]);
     if (wait) return new Response(JSON.stringify({ error: "too many requests" }), { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(wait) } });
@@ -322,11 +384,21 @@ Deno.serve(async (req) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     waAdmin = admin;
     const waSenderOf = senderCache(admin);   // R129: one studio-number lookup per studio per run
+    const waHeld = reconnectCache(admin);    // R236 (MSG-01): the studio's WhatsApp needs reconnecting -> rows wait
+    // R236 (JOB-03): rows the provider already accepted whose mark failed before -> marked sent now, never sent again
+    const waits = markWaits(Deno.env.get("COMMS_MARK_RETRY_MS"));
+    const sentBefore = await ledgerOpen(admin);
+    const already = (lane: string, id: string) => sentBefore.has(lane + ":" + id);
+    const mark = async (lane: string, id: string, sent: boolean, rpc: string, args: Record<string, unknown>, ref: string | null = null) => {
+      const err = await markWithRetry(() => admin.rpc(rpc, args), sent, waits);
+      if (err && sent && !await ledgerNote(admin, lane, id, ref, waits)) log.error("ledger note failed", lane);
+      return err;
+    };
     const { data: rows, error } = await admin.rpc("comms_outbox_claim", { p_limit: batch });
-    if (error) { log.error("claim failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
+    if (error) { log.error("claim failed", errTag(error)); report.error(error); await beat(admin, "error"); return json({ error: "internal error" }, 500); }
 
     const origin = appOrigin();
-    const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0, no_provider: 0 };
+    const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0, no_provider: 0, held: 0 };
     // R154g: no e-mail provider (or no valid sender) -> nothing e-mail is lost: the e-mail-only lanes below are NOT
     // claimed at all (rows stay queued untouched, no attempt used up), and an e-mail row of the mixed comms_outbox
     // lane (it also carries WhatsApp rows, so it is still claimed) is released for retry - never marked "skipped".
@@ -345,7 +417,8 @@ Deno.serve(async (req) => {
       const payload = (r?.payload && typeof r.payload === "object") ? r.payload : {};
       const msg = messageFor(purpose, payload, origin);
       let res: Res = "skipped";
-      if (!trialRowAllowed(purpose, channel, payload)) res = "skipped";   // 0212: free trial = link e-mails only
+      if (already("comms", id)) res = "sent";   // R236: went out before, only the mark was missing
+      else if (!trialRowAllowed(purpose, channel, payload)) res = "skipped";   // 0212: free trial = link e-mails only
       else if (channel === "email" && purpose !== "wa_forward" && !mailOn) res = "no_provider";   // R154g: retry later
       else if (channel === "email" && purpose !== "wa_forward") {
         // 0150: sender name / reply-to of the row's studio (a database without 0150 -> defaults)
@@ -361,9 +434,12 @@ Deno.serve(async (req) => {
         }
         res = extra ? await sendEmail(id, to, msg.subject, msg.text, String(payload.studio ?? ""), ident, extra) : "skipped";
       }
-      else if (channel === "whatsapp") res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text, purpose === "wa_forward" && String(payload.type ?? "") === "event_reminder" ? "event_reminder" : "general",
-        await waSenderOf(await orgOfRow(admin, "comms_outbox", id)));
-      const { error: mErr } = await admin.rpc("comms_outbox_mark", { p_id: id, p_status: res === "failed" || res === "no_provider" ? "retry" : res });
+      else if (channel === "whatsapp") {
+        const org = await orgOfRow(admin, "comms_outbox", id), snd = await waSenderOf(org);
+        res = !snd && await waHeld(org) ? "held"   // R236 (MSG-01): token broken -> wait for the reconnect
+          : (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text, purpose === "wa_forward" && String(payload.type ?? "") === "event_reminder" ? "event_reminder" : "general", snd);
+      }
+      const mErr = await mark("comms", id, res === "sent", "comms_outbox_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -388,8 +464,8 @@ Deno.serve(async (req) => {
         } catch (_) { u = null; }
       }
       const extra = msg ? marketingExtra(u, "Helm", "you started a free trial of Helm", origin) : null;
-      const res: Res = msg && extra ? await sendEmail(id, to, msg.subject, msg.text, "Helm", {}, extra) : "skipped";
-      const { error: mErr } = await admin.rpc("trial_reminder_email_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const res: Res = already("trial_reminder", id) ? "sent" : msg && extra ? await sendEmail(id, to, msg.subject, msg.text, "Helm", {}, extra) : "skipped";
+      const mErr = await mark("trial_reminder", id, res === "sent", "trial_reminder_email_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("trial mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -419,8 +495,8 @@ Deno.serve(async (req) => {
       const follow = FOLLOWUP_KINDS.includes(kind);
       // R175: some retention kinds return text only; the `in` check narrows the union (same behaviour as before)
       const html = msg && extra && "html" in msg && msg.html ? placeFooter(msg.html, extra.footer) : undefined;
-      const res: Res = msg && extra ? await sendEmail(id, to, msg.subject, msg.text, "Helm", follow ? { reply_to: FOLLOWUP_REPLY_TO } : {}, extra, html) : "skipped";
-      const { error: mErr } = await admin.rpc("trial_retention_email_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const res: Res = already("trial_retention", id) ? "sent" : msg && extra ? await sendEmail(id, to, msg.subject, msg.text, "Helm", follow ? { reply_to: FOLLOWUP_REPLY_TO } : {}, extra, html) : "skipped";
+      const mErr = await mark("trial_retention", id, res === "sent", "trial_retention_email_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("retention mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -439,19 +515,22 @@ Deno.serve(async (req) => {
       const linkPath = String(r?.link_path ?? "");
       const link = ASSIGN_LINK.test(linkPath) ? origin + "/" + linkPath : "";
       let res: Res = "skipped";
-      if (!text) res = "skipped";
+      if (already("assign", id)) res = "sent";   // R236: went out before, only the mark was missing
+      else if (!text) res = "skipped";
+      else if (!sender && await waHeld(meta?.org_id ?? await orgOfRow(admin, "assign_notify_outbox", id))) res = "held";   // R236 (MSG-01)
       else if (!sender) { res = "skipped"; await assignWa(admin, id, null, "not_set_up"); }
       else if (meta && meta.template && fieldContent(meta.template, meta.params, link)) {
         const stop = await waStopped(admin, to);
         if (stop) res = stop;
         else {
           const w = await waPost(admin, sender, { to, ...fieldContent(meta.template, meta.params, link)! });
-          res = w.ok ? "sent" : (w.kind === "recipient" || w.kind === "token" || w.kind === "permission" || w.kind === "template") ? "skipped" : "failed";
+          // R236 (MSG-01): token / permission -> held (waits for the reconnect); recipient / template stay skipped
+          res = w.ok ? "sent" : (w.kind === "token" || w.kind === "permission") ? "held" : (w.kind === "recipient" || w.kind === "template") ? "skipped" : "failed";
           if (w.ok || res === "skipped") await assignWa(admin, id, w.wamid, w.ok ? "sent" : "failed");
         }
       }
       else res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, text, "task_assigned", sender);
-      const { error: mErr } = await admin.rpc("assign_notify_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const mErr = await mark("assign", id, res === "sent", "assign_notify_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("assign mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -468,17 +547,19 @@ Deno.serve(async (req) => {
       const lp = String(r?.link_path ?? "");
       const content = fieldContent(String(r?.template ?? ""), r?.params, /^(work\.html\?token=|ops\.html\?quote=)[0-9a-f-]{36}$/.test(lp) ? origin + "/" + lp : "");
       let st = "skipped", wamid: string | null = null, reason: string | null = null;
-      if (!sender) { st = "not_set_up"; reason = "whatsapp_not_connected"; }
+      if (already("task_wa", id)) st = "sent";   // R236: went out before, only the mark was missing
+      else if (!sender && await waHeld(String(r?.org_id ?? ""))) { st = "retry"; reason = "whatsapp_needs_reconnect"; }   // R236 (MSG-01)
+      else if (!sender) { st = "not_set_up"; reason = "whatsapp_not_connected"; }
       else if (!content || !PHONE.test(to)) { st = "skipped"; reason = "bad_fields"; }
       else {
         const w = await waPost(admin, sender, { to, ...content });
         if (w.ok) { st = "sent"; wamid = w.wamid; }
-        else if (w.kind === "recipient" || w.kind === "token" || w.kind === "permission" || w.kind === "template") { st = "failed"; reason = w.kind; }
+        else if (w.kind === "recipient" || w.kind === "template") { st = "failed"; reason = w.kind; }   // R236: token / permission wait (retry)
         else { st = "retry"; reason = w.kind; }
       }
-      const { error: tmErr } = await admin.rpc("task_wa_mark", { p_id: id, p_status: st, p_wamid: wamid, p_reason: reason });
+      const tmErr = await mark("task_wa", id, st === "sent", "task_wa_mark", { p_id: id, p_status: st, p_wamid: wamid, p_reason: reason }, wamid);
       if (tmErr) { log.error("reminder mark failed", errTag(tmErr)); report.error(tmErr); counts.failed++; continue; }
-      counts[st === "sent" ? "sent" : st === "retry" || st === "failed" ? "failed" : "skipped"]++;
+      counts[st === "sent" ? "sent" : st === "retry" && /^(whatsapp_needs_reconnect|token|permission)$/.test(String(reason)) ? "held" : st === "retry" || st === "failed" ? "failed" : "skipped"]++;
     }
     // 0241: delivery / arrival reminders (a database without 0241 just has nothing to claim). E-mail only.
     const { data: drows, error: dErr } = mailOn && !overBudget() ? await admin.rpc("delivery_reminder_claim", { p_limit: batch }) : NOCLAIM;
@@ -490,8 +571,8 @@ Deno.serve(async (req) => {
       const msg = deliveryMessage(r, origin);
       const ident: Identity = await withReply("delivery", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
       const extra: Extra = { footer: txFooter("delivery", { app: origin, address: postalAddress(env) }) };
-      const res: Res = msg.text ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
-      const { error: mErr } = await admin.rpc("delivery_reminder_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const res: Res = already("delivery", id) ? "sent" : msg.text ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
+      const mErr = await mark("delivery", id, res === "sent", "delivery_reminder_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("delivery mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -506,8 +587,8 @@ Deno.serve(async (req) => {
       const msg = vendorRequestMessage(r, origin);
       const ident: Identity = await withReply("vendor", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
       const extra: Extra = { footer: txFooter(VENDOR_TX_REASON, { app: origin, address: postalAddress(env) }) };
-      const res: Res = msg.text ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
-      const { error: mErr } = await admin.rpc("vendor_request_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const res: Res = already("vendor_request", id) ? "sent" : msg.text ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
+      const mErr = await mark("vendor_request", id, res === "sent", "vendor_request_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("vendor request mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -524,8 +605,8 @@ Deno.serve(async (req) => {
       const ident: Identity = await withReply("vendorBill", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
       const extra: Extra = { footer: txFooter(String(r?.audience ?? "") === "vendor" ? VENDOR_BILL_VENDOR_TX_REASON : VENDOR_BILL_TX_REASON, { app: origin, address: postalAddress(env) }) };
       const vhtml = msg.text ? vendorBillHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;
-      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, vhtml) : "skipped";
-      const { error: mErr } = await admin.rpc("vendor_bill_reminder_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const res: Res = already("vendor_bill", id) ? "sent" : msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, vhtml) : "skipped";
+      const mErr = await mark("vendor_bill", id, res === "sent", "vendor_bill_reminder_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("vendor bill mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -539,8 +620,8 @@ Deno.serve(async (req) => {
       const msg = runsheetReminderMessage(r, origin);
       const ident: Identity = await withReply("runsheet", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
       const extra: Extra = { footer: txFooter(RUNSHEET_TX_REASON, { app: origin, address: postalAddress(env) }) };
-      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
-      const { error: mErr } = await admin.rpc("runsheet_reminder_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const res: Res = already("runsheet", id) ? "sent" : msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
+      const mErr = await mark("runsheet", id, res === "sent", "runsheet_reminder_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("run-sheet mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -559,8 +640,8 @@ Deno.serve(async (req) => {
       const extra: Extra = { footer: txFooter(sk === "office_alert" ? OFFICE_TX_REASON : sk === "task_escalation" ? ESCALATION_TX_REASON : STAFF_TX_REASON, { app: origin, address: postalAddress(env) }) };
       // R185: the designed HTML part (its own compliance footer, so the mailer adds the text footer only)
       const shtml = msg.text ? staffEmailHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;
-      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, shtml) : "skipped";
-      const { error: mErr } = await admin.rpc("staff_email_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const res: Res = already("staff_email", id) ? "sent" : msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, shtml) : "skipped";
+      const mErr = await mark("staff_email", id, res === "sent", "staff_email_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("staff e-mail mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -577,8 +658,8 @@ Deno.serve(async (req) => {
       const ident: Identity = await withReply("staffUpdate", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
       const extra: Extra = { footer: txFooter(STAFF_TX_REASON, { app: origin, address: postalAddress(env) }) };
       const uhtml = msg.text ? staffUpdateHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;   // R185
-      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, uhtml) : "skipped";
-      const { error: mErr } = await admin.rpc("staff_update_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const res: Res = already("staff_update", id) ? "sent" : msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, uhtml) : "skipped";
+      const mErr = await mark("staff_update", id, res === "sent", "staff_update_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("staff update mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -594,8 +675,8 @@ Deno.serve(async (req) => {
       const ident: Identity = await withReply("cantwork", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
       const extra: Extra = { footer: txFooter(String(r?.kind ?? "") === "request" ? CANTWORK_OFFICE_REASON : CANTWORK_STAFF_REASON, { app: origin, address: postalAddress(env) }) };
       const chtml = msg.text ? cantworkHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;
-      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, chtml) : "skipped";
-      const { error: mErr } = await admin.rpc("cantwork_email_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const res: Res = already("cantwork", id) ? "sent" : msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, chtml) : "skipped";
+      const mErr = await mark("cantwork", id, res === "sent", "cantwork_email_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("day-off e-mail mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -609,8 +690,8 @@ Deno.serve(async (req) => {
       const msg = enquiryReplyMessage(r);
       const ident: Identity = await withReply("enquiry", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
       const extra: Extra = { footer: txFooter(ENQUIRY_TX_REASON, { app: origin, address: postalAddress(env) }) };
-      const res: Res = msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
-      const { error: mErr } = await admin.rpc("enquiry_reply_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const res: Res = already("enquiry", id) ? "sent" : msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
+      const mErr = await mark("enquiry", id, res === "sent", "enquiry_reply_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("enquiry reply mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -626,7 +707,8 @@ Deno.serve(async (req) => {
       const msg = helmNoticeEmail(kind, data, origin);
       const tos = (Array.isArray(r?.to) ? r.to : []).map((x: unknown) => String(x ?? "")).filter((x: string) => EMAIL.test(x)).slice(0, 20);
       let res: Res = "skipped";
-      if (msg && tos.length) {
+      if (already("helm_notice", id)) res = "sent";   // R236: went out before, only the mark was missing
+      else if (msg && tos.length) {
         const extra: Extra = { footer: txFooter((NOTICE_TX_REASON as Record<string, string>)[kind] || "you use Helm", { app: origin, address: postalAddress(env) }) };
         // a sales request / a Contact sales enquiry / a suggestion (0271): replying goes straight to the person who asked
         const ident: Identity = (kind === "sales_request" || kind === "sales_enquiry" || kind === "suggestion") ? { reply_to: String(data.email ?? "") || null } : {};
@@ -634,7 +716,7 @@ Deno.serve(async (req) => {
         for (let i = 0; i < tos.length; i++) outs.push(await sendEmail(id + "-" + i, tos[i], msg.subject, msg.text, "Helm", ident, extra));
         res = outs.includes("sent") ? "sent" : outs.includes("failed") ? "failed" : "skipped";
       }
-      const { error: mErr } = await admin.rpc("helm_notice_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const mErr = await mark("helm_notice", id, res === "sent", "helm_notice_outbox_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("notice mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
@@ -647,6 +729,7 @@ Deno.serve(async (req) => {
     } catch (e) { log.error("welcome lane failed", errTag(e)); report.error(e); }
     log.info("run", counts);
     if (counts.failed > 0) report.fail("send_failed");   // failed sends (retried) or rows that could not be marked
+    await beat(admin, mailOn ? "ok" : "no_provider", { ...counts, replayed: sentBefore.size });   // R236: HQ System health
     return json({ status: "ok", ...counts });
   } catch (e) {
     if (e instanceof BodyTooLarge) return json({ error: "payload too large" }, 413);

@@ -93,7 +93,7 @@ t("comms-dispatch: the change-notice lane (claimed only with an e-mail provider,
   assert.match(cd, /admin\.rpc\("staff_update_claim", \{ p_limit: batch \}\)/);
   assert.match(cd, /mailOn && !overBudget\(\) \? await admin\.rpc\("staff_update_claim"/);
   assert.match(cd, /withReply\("staffUpdate", id,/);
-  assert.match(cd, /admin\.rpc\("staff_update_mark", \{ p_id: id, p_status: res === "failed" \? "retry" : res \}\)/);
+  assert.match(cd, /mark\("staff_update", id, res === "sent", "staff_update_mark", \{ p_id: id, p_status: markStatus\(res\) \}\)/);
   assert.match(read("supabase/functions/_shared/reply-to.mjs"), /staffUpdate: "staff_update_outbox"/);
 });
 t("UI: Staff page Task link / New task link, Operations Permanent link, the work.html?staff= page", () => {

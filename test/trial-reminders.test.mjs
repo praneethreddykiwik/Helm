@@ -142,7 +142,7 @@ t('e-mail is dormant: claim re-checks, skips stale rows, dispatcher gated by HEL
   assert.match(cl, /created_at < now\(\) - interval '2 days'/);
   assert.match(cl, /r\.cur_end = r\.trial_ends_at and r\.cur_end > now\(\)/);
   assert.match(cl, /for update of tr skip locked/);
-  assert.match(FN, /if \(!commsOn\(Deno\.env\.get\("HELM_COMMS_ENABLED"\)\)\) return json\(\{ status: "dormant" \}\)/);
+  assert.match(FN, /if \(!commsOn\(Deno\.env\.get\("HELM_COMMS_ENABLED"\)\)\) \{[\s\S]{0,600}?return json\(\{ status: "dormant" \}\)/);
   assert.ok(FN.indexOf('admin.rpc("trial_reminder_email_claim"') > FN.indexOf('Deno.env.get("HELM_COMMS_ENABLED")'));
   assert.match(FN, /trial_reminder_email_mark/);
 });

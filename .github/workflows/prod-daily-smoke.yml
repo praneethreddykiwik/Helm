@@ -1,0 +1,123 @@
+# R236 (reliability review 19 Nov 2026, CI-03 / MON-01): the DAILY live-site check of production, with an alert.
+# Until now no scheduled prod smoke ran anywhere: the dev repo's Actions are blocked by billing and smoke.yml never runs
+# its schedule on the prod repo. This workflow runs ONLY in the prod repo (praneethreddykiwik/Helm, Actions are free there)
+# once a day + by hand, against https://www.helm.events, anonymously:
+#   - tests/smoke/anon.mjs (pages 200, /api/health ok, security headers, config.js routing, legal pages) and
+#   - the anonymous browser checks of tests/smoke/site.smoke.spec.mjs (login page loads, no console errors).
+# Read-only GETs (about 1 a second). NO secrets: signed-in steps and the channel check are switched off here, and the
+# repo is public, so nothing secret can ever be printed. GitHub's own token is used only to open / update / close ONE
+# issue named "Daily prod smoke is failing" (GitHub e-mails watchers of the repo about a new issue).
+# Optional: set the repository VARIABLE (not a secret) SENTRY_CRON_CHECKIN_URL to a Sentry cron monitor check-in URL
+# (see ALERTS-SETUP.md) - then Sentry also alerts when this daily run does not happen or fails.
+name: Prod daily smoke
+
+on:
+  schedule:
+    - cron: '23 1 * * *'     # 06:53 IST every day
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: prod-daily-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    # prod repo only (the dev repo's runs fail on billing and would only add red noise); by hand anywhere
+    if: github.repository == 'praneethreddykiwik/Helm' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Anonymous HTTP checks of www.helm.events (A1-A3, A6-A8)
+        id: anon
+        continue-on-error: true
+        run: node tests/smoke/anon.mjs --target=prod
+
+      - name: Install the browser (chromium only)
+        id: install
+        continue-on-error: true
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+
+      - name: Anonymous browser checks (A4-A5; signed-in and channel checks off)
+        id: browser
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        working-directory: tests/smoke
+        env:
+          SMOKE_TARGET: prod
+          SMOKE_SIGNED_IN: '0'
+          SMOKE_CHANNEL_CHECK: '0'
+        run: npx playwright test -c playwright.smoke.config.mjs
+
+      - name: Keep failure screenshots
+        if: steps.anon.outcome == 'failure' || steps.browser.outcome == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: prod-daily-smoke-${{ github.run_id }}
+          path: tests/smoke/out/
+          retention-days: 7
+
+      - name: Verdict
+        id: verdict
+        if: always()
+        env:
+          ANON: ${{ steps.anon.outcome }}
+          INSTALL: ${{ steps.install.outcome }}
+          BROWSER: ${{ steps.browser.outcome }}
+        run: |
+          if [[ "$ANON" == "success" && "$INSTALL" == "success" && "$BROWSER" == "success" ]]; then echo "ok=1" >> "$GITHUB_OUTPUT"; else echo "ok=0" >> "$GITHUB_OUTPUT"; fi
+          echo "anonymous=$ANON browser-install=$INSTALL browser=${BROWSER:-skipped}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Sentry cron check-in (only when the repo variable SENTRY_CRON_CHECKIN_URL is set)
+        if: always() && vars.SENTRY_CRON_CHECKIN_URL != ''
+        env:
+          URL: ${{ vars.SENTRY_CRON_CHECKIN_URL }}
+          OK: ${{ steps.verdict.outputs.ok }}
+        run: |
+          # only a Sentry ingest cron URL is ever called (a typo or anything else is refused, never fetched)
+          if [[ ! "$URL" =~ ^https://[a-z0-9.-]+\.ingest(\.[a-z]{2})?\.sentry\.io/api/[0-9]+/cron/[a-z0-9_-]+/[a-f0-9]{32}/?$ ]]; then
+            echo "::warning::SENTRY_CRON_CHECKIN_URL does not look like a Sentry cron check-in URL - skipped"; exit 0; fi
+          status=error; [[ "$OK" == "1" ]] && status=ok
+          curl -fsS --max-time 10 -o /dev/null "${URL%/}/?status=$status" || echo "::warning::Sentry check-in failed (the smoke result is unchanged)"
+
+      - name: Open / update / close the alert issue
+        if: always() && github.repository == 'praneethreddykiwik/Helm'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OK: ${{ steps.verdict.outputs.ok }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title="Daily prod smoke is failing"
+          num="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number,title \
+                 --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
+          day="$(date -u +%Y-%m-%d)"
+          if [[ "$OK" != "1" ]]; then
+            body="The daily anonymous check of https://www.helm.events failed on $day (UTC). Run: $RUN_URL
+          What to do: open the run, read the summary table, then follow RELEASE-PLAN Part 3 (Promote the previous Vercel deploy) if the site is broken."
+            if [[ -n "$num" ]]; then gh issue comment "$num" --repo "$GITHUB_REPOSITORY" --body "Still failing on $day (UTC): $RUN_URL"
+            else gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"; fi
+          elif [[ -n "$num" ]]; then
+            gh issue comment "$num" --repo "$GITHUB_REPOSITORY" --body "Recovered on $day (UTC): the daily check passed. $RUN_URL"
+            gh issue close "$num" --repo "$GITHUB_REPOSITORY"
+          fi
+
+      - name: Result (red run = GitHub e-mails the person who set up the schedule; nothing is blocked)
+        if: always()
+        env:
+          OK: ${{ steps.verdict.outputs.ok }}
+        run: |
+          if [[ "$OK" != "1" ]]; then echo "::error::Daily prod smoke failed - see the summary and the alert issue"; exit 1; fi

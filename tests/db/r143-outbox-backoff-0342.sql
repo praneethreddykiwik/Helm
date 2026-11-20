@@ -70,9 +70,11 @@ begin
    where not exists (select 1 from pg_trigger g where g.tgrelid = ('public.' || t)::regclass and g.tgname = 'zz_r342_backoff' and not g.tgisinternal
                        and pg_get_triggerdef(g.oid) like '%BEFORE UPDATE OF ' || (public._r342_queue_cols(t))[1] || ' ON public.' || t || ' FOR EACH ROW%');
   perform pg_temp.t('1b one backoff trigger per queue, only on a lease change (BEFORE UPDATE OF the claim lease)', bad is null, bad);
-  perform pg_temp.t('1c task reminders / run-sheet / delivery reminders: no backoff column, no trigger (they keep their clock time)',
-    not exists (select 1 from information_schema.columns c where c.table_schema = 'public' and c.table_name = any (slow) and c.column_name = 'next_attempt_at')
-    and not exists (select 1 from pg_trigger g where g.tgname = 'zz_r342_backoff' and g.tgrelid::regclass::text = any (slow)));
+  -- r236 (0402): these now get their OWN growing wait (zz_r402_backoff, each queue's lease) - 0342 itself still puts nothing on them
+  perform pg_temp.t('1c task reminders / run-sheet / delivery reminders: no 0342 trigger (0402 gives them their own wait)',
+    not exists (select 1 from pg_trigger g where g.tgname = 'zz_r342_backoff' and g.tgrelid::regclass::text = any (slow))
+    and (to_regprocedure('public._r402_tg_backoff()') is not null
+         or not exists (select 1 from information_schema.columns c where c.table_schema = 'public' and c.table_name = any (slow) and c.column_name = 'next_attempt_at')));
   bad := '';
   foreach f in array claims loop
     if position('attempts >= 5' in (select prosrc from pg_proc where oid = to_regprocedure(f))) > 0
@@ -111,10 +113,12 @@ begin
     and not has_function_privilege('service_role', 'public._r342_keep(text)', 'execute')
     and not has_function_privilege('authenticated', 'public._r342_keep(text)', 'execute')
     and not has_function_privilege('service_role', 'public._r342_tg_backoff()', 'execute'));
-  perform pg_temp.t('1i task / run-sheet / delivery claims untouched (still 5 tries, no 0342 helper)',
-    position('attempts >= 5' in (select prosrc from pg_proc where oid = to_regprocedure('public.task_wa_claim(integer)'))) > 0
-    and position('attempts >= 5' in (select prosrc from pg_proc where oid = to_regprocedure('public.runsheet_reminder_claim__pre0283(integer)'))) > 0
-    and position('attempts >= 5' in (select prosrc from pg_proc where oid = to_regprocedure('public.delivery_reminder_claim(integer)'))) > 0
+  -- r236 (0402): 0342 never touched them; 0402 later gave them the 8-try limit (old bodies kept as __pre0402)
+  perform pg_temp.t('1i task / run-sheet / delivery claims untouched by 0342 (5 tries, or the 0402 limit with its kept copy)',
+    (select bool_and(position('attempts >= 5' in p.prosrc) > 0
+                     or (position('_r342_max_attempts' in p.prosrc) > 0 and to_regprocedure(x.fn || '__pre0402(integer)') is not null))
+       from unnest(array['public.task_wa_claim', 'public.runsheet_reminder_claim__pre0283', 'public.delivery_reminder_claim']) x(fn)
+       join pg_proc p on p.oid = to_regprocedure(x.fn || '(integer)'))
     and to_regprocedure('public.task_wa_claim__pre0342(integer)') is null and to_regprocedure('public.delivery_reminder_claim__pre0342(integer)') is null);
   select count(*) into n from pg_proc where proname like '%\_\_pre0342' escape '\';
   perform pg_temp.t('1j 17 kept copies (16 claim steps + the 3-argument wa_set_opt_out), plus the outer comms claim only where it carries its own cap',

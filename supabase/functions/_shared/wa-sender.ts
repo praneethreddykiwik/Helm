@@ -40,6 +40,25 @@ export function senderCache(admin: any) {
   };
 }
 
+// R236 (MSG-01): true when the studio HAD a connected number whose token Meta refused (account status "error", set by waPost
+// below) - its rows then wait for the reconnect instead of being skipped for good. Looked up once per studio per run;
+// any problem (no row, no table, never connected, paused) = false = the old behaviour (skipped "not connected").
+// deno-lint-ignore no-explicit-any
+export function reconnectCache(admin: any) {
+  const m = new Map<string, Promise<boolean>>();
+  return (orgId: string | null | undefined) => {
+    const k = String(orgId || "");
+    if (!UUID.test(k)) return Promise.resolve(false);
+    if (!m.has(k)) m.set(k, (async () => {
+      try {
+        const { data, error } = await admin.from("org_whatsapp_accounts").select("status").eq("org_id", k).maybeSingle();
+        return !error && !!data && String(data.status || "") === "error";
+      } catch (_) { return false; }
+    })());
+    return m.get(k)!;
+  };
+}
+
 // Helm's own number (Helm's own messages only), or null when its secrets are not set
 export function helmSender(): WaSender | null {
   const token = env("WHATSAPP_TOKEN") || "", phoneId = env("WHATSAPP_PHONE_ID") || "";
