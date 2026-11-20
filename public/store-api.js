@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=106"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=107"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -222,6 +222,7 @@ window.HelmUrl = HelmUrl;
   let roleCache = null;         // this user's RBAC role
   let accessCache = null;       // { role, map:{area:{view,edit}} | null } — the live access matrix for this user
   let photoProbe = null;        // in-flight / cached render-photo deploy probe (0095)
+  let schemaInfo = null;        // R242 (0412): helm_schema_version() answer, asked once per page
   let rolePromise = null;       // in-flight getRole() (dedupes the parallel canView fan-out)
   let accessPromise = null;     // in-flight loadAccess()
   let trialOrgInflight = null;  // in-flight my_trial_org() (trial strip + read-only check share one call)
@@ -12455,6 +12456,27 @@ window.HelmUrl = HelmUrl;
         : Promise.resolve(null)),
       setSettings: (enabled, monthlyQuota, hourlyLimit) => rpc("photo_render_settings_set",
         { p_enabled: !!enabled, p_monthly_quota: Math.round(Number(monthlyQuota) || 0), p_hourly_limit: Math.round(Number(hourlyLimit) || 0) }),
+      // R242 (0411): Helm-wide render limits for this studio (renders paused / today's pictures used / Helm-wide day or month
+      // full) - numbers + flags only. null = a database without 0411 (no Helm-wide limits there).
+      capStatus: () => (supa && mode === "supabase"
+        ? rpc("render_cap_status", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; })
+        : Promise.resolve(null)),
+    },
+    // R242 (0412, HQ-04): which database updates this database has - helm_schema_version() (signed-in, numbers only), asked once
+    // per page. has(n): true = update n is in; false = it is not (the page hides that feature and says "database update
+    // pending" instead of failing); null = unknown (a database before 0412 cannot say for updates before 0412 - the page just
+    // tries, as before). Never throws.
+    schema: {
+      info: () => schemaInfo || (schemaInfo = (supa && mode === "supabase"
+        ? rpc("helm_schema_version", {})
+            .then((r) => (r && Array.isArray(r.applied) ? { version: Number(r.version) || 0, applied: r.applied.map(Number), known: true } : { version: 0, applied: [], known: false }))
+            .catch((e) => { const missing = rpcMissing(e); if (!missing) schemaInfo = null; return { version: 0, applied: [], known: false, before: missing ? 412 : 0 }; })
+        : Promise.resolve({ version: 0, applied: [], known: false, before: 0 }))),
+      has: async (n) => {
+        const i = await BPStore.schema.info(), k = Math.round(Number(n) || 0);
+        if (i.known) return i.applied.includes(k) || (k < 381 && i.version >= 381);
+        return i.before && k >= i.before ? false : null;
+      },
     },
     // 0065 — client event booklet (public/booklet.html?t=<token>). Staff whose role may EDIT
     // quotes share / revoke; current() needs quotes VIEW. get() is the signed-out client read

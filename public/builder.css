@@ -614,7 +614,9 @@ aside.left.collapsed,aside.right.collapsed{width:0;border-width:0;overflow:hidde
 .ph-bar span.w10{width:10%}.ph-bar span.w25{width:25%}.ph-bar span.w40{width:40%}.ph-bar span.w60{width:60%}.ph-bar span.w85{width:85%}.ph-bar span.w100{width:100%}
 .ph-results{margin-top:12px}
 .ph-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.ph-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel-2)}
+.ph-card{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel-2)}
+/* R242 (LEG-06): the visible AI-generated label on every photo render */
+.ph-card .ph-ai{position:absolute;top:8px;left:8px;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,.66);color:#fff;font-size:11px;font-weight:600;letter-spacing:.02em;pointer-events:none}
 .ph-card img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;background:var(--canvas)}
 .ph-card .ph-ph{display:flex;align-items:center;justify-content:center;aspect-ratio:3/2;background:var(--canvas);color:var(--ink-3);font-size:12px;text-align:center;padding:8px}
 .ph-card .ph-ph[hidden],.ph-card img[hidden]{display:none}

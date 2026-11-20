@@ -18,6 +18,8 @@
 // The database decides WHO gets mail (security_alert_outbox_claim; since 0250 every row is
 // an HQ row - security notices are for Helm HQ only, never studio members) and already throttles floods
 // (one row per alert type per studio per 10 minutes, with a count).
+// R242 (0410): a "sent" mark that fails is retried; if it still fails the row is noted in ops_send_ledger and the next
+// run marks it sent WITHOUT sending the alert again (_shared/send-ledger.ts).
 // The e-mail carries the alert name, count and studio name only — no links, tokens,
 // file names or reasons. Logs carry only counts, SQLSTATE codes and HTTP status.
 // Outbound mail goes only through the shared mailer (fixed provider endpoints; no URL is ever taken from input).
@@ -26,6 +28,7 @@ import { errTag, escHtml, sentryOnce } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readBodyCapped } from "../_shared/limits.ts";
 import { postalAddress, txFooter } from "../_shared/email-compliance.mjs";
 import { logger } from "../_shared/log.ts";
+import { sendLedger } from "../_shared/send-ledger.ts";   // R242 (0410): no double send when the "sent" mark fails
 import { htmlToText, mailConfig, sendMail } from "../_shared/mailer.ts";   // R154g: Resend or SMTP (10 s deadline, R142)
 const L = logger("security-alert-mailer");
 
@@ -109,14 +112,20 @@ Deno.serve(async (req) => {
     if (error) { log.error("claim failed", errTag(error)); report.error(error); return json({ error: "internal error" }, 500); }
 
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
+    const led = await sendLedger(admin, "security", Deno.env.get("SECURITY_ALERT_MARK_RETRY_MS"));
     for (const r of (Array.isArray(rows) ? rows : [])) {
       const id = String(r?.id ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
+      if (led.already(id)) {   // R242: went out before, only the mark was missing - mark it, never send again
+        const { error: aErr } = await led.mark(id, true, () => admin.rpc("security_alert_outbox_mark", { p_id: id, p_status: "sent" }));
+        if (aErr) { log.error("mark failed", errTag(aErr)); report.error(aErr); counts.failed++; continue; }
+        counts.sent++; continue;
+      }
       const hq = r?.hq === true;
       const to = hq ? hqTo : (Array.isArray(r?.to) ? r.to.map((x: unknown) => String(x)) : []);
       const msg = message(String(r?.label || "Security event"), Math.max(1, Number(r?.count) || 1), String(r?.studio || ""), hq);
       const res = await sendEmail(to, msg.subject, msg.html);
-      const { error: mErr } = await admin.rpc("security_alert_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const { error: mErr } = await led.mark(id, res === "sent", () => admin.rpc("security_alert_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res }));
       if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }

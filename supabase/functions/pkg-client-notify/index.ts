@@ -20,6 +20,8 @@
 //                                     without one -> skipped. Helm's own number is never used.
 //   PKG_NOTIFY_BATCH                  rows per run, 1..100 (default 25)
 //
+// R242 (0410): a "sent" mark that fails is retried; if it still fails the row is noted in ops_send_ledger and the next
+// run marks it sent WITHOUT sending the code / message again (_shared/send-ledger.ts).
 // Idempotent: the database hands each row out once (claim + mark, unique dedupe key) and
 // the row id is sent as the provider idempotency key. Logs carry only counts and status
 // codes - never an address, a phone number, a name or a code. Outbound HTTP goes only to a
@@ -35,6 +37,7 @@ import { orgOfRow, senderCache, waPost, type WaSender } from "../_shared/wa-send
 import { noticeContent } from "../_shared/wa-studio.mjs";
 import { rowReplyTo } from "../_shared/reply-to.mjs";   // R107: Reply-To = business e-mail, else the studio owner's
 import { logger } from "../_shared/log.ts";
+import { sendLedger } from "../_shared/send-ledger.ts";   // R242 (0410): no double send when the "sent" mark fails
 const L = logger("pkg-client-notify");
 
 const enc = new TextEncoder();
@@ -120,9 +123,15 @@ Deno.serve(async (req) => {
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0, no_provider: 0 };
     const rtCache = new Map<string, string>();
     const waSenderOf = senderCache(admin);   // R129: one studio-number lookup per studio per run
+    const led = await sendLedger(admin, "pkg", Deno.env.get("PKG_MARK_RETRY_MS"));
     for (const r of (Array.isArray(rows) ? rows : [])) {
       const id = String(r?.id ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
+      if (led.already(id)) {   // R242: went out before, only the mark was missing - mark it, never send again
+        const { error: aErr } = await led.mark(id, true, () => admin.rpc("pkg_outbox_mark", { p_id: id, p_status: "sent" }));
+        if (aErr) { log.error("mark failed", errTag(aErr)); report.error(aErr); counts.failed++; continue; }
+        counts.sent++; continue;
+      }
       const kind = String(r?.kind ?? ""), channel = String(r?.channel ?? ""), to = String(r?.to ?? "");
       const msg = render(kind, (r?.payload && typeof r.payload === "object") ? r.payload : {});
       let res: Res = "skipped";
@@ -133,7 +142,7 @@ Deno.serve(async (req) => {
       }
       else if (msg && channel === "whatsapp") res = (await waStopped(admin, to)) ?? await sendWhatsApp(to, msg.text, await waSenderOf(await orgOfRow(admin, "pkg_outbox", id)), admin);
       // failed / no provider -> released for a later try (never "skipped" just because e-mail is not set up)
-      const { error: mErr } = await admin.rpc("pkg_outbox_mark", { p_id: id, p_status: res === "failed" || res === "no_provider" ? "retry" : res });
+      const { error: mErr } = await led.mark(id, res === "sent", () => admin.rpc("pkg_outbox_mark", { p_id: id, p_status: res === "failed" || res === "no_provider" ? "retry" : res }));
       if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }

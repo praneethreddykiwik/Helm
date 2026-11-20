@@ -96,3 +96,16 @@ a message per kind and a `ref:` code; the browser console gets `[photo-render] f
 
 Read-only check: `select created_at, status, error from photo_render_usage order by created_at desc limit 10;`
 Failed rows never count against the monthly quota.
+
+## Helm-wide limits and the AI-generated label (R242, APPLY-0411)
+
+- **Cost safety (owner only, SQL editor).** One row in `public.helm_render_cap`: `renders_on` (false = paused for every
+  studio), `studio_daily_images` (40), `helm_daily_images` (300), `helm_monthly_images` (3000), `helm_monthly_usd`
+  (600, estimates; empty = no cost limit), `warn_pct` (80: one HQ bell notice a day after that share of the month).
+  Example: `update public.helm_render_cap set helm_monthly_usd = 300 where id;`
+  The check runs in the database before a picture is ordered, so nothing is charged once a limit is reached; the studio
+  sees a plain message (after render-photo R242 is redeployed; before that it says the render could not start).
+- **AI-generated label (LEG-06, IT Rules 2026 amendment).** Every photo render shows an "AI-generated" badge in the
+  builder and the client booklet ("AI photo"), the download is named `event-photo-<id>-AI-generated.jpg` with the label
+  drawn into its corner, and render-photo (R242) writes "AI-generated image (Helm photo render)..." into each stored
+  file (JPEG comment / PNG text). Claude never triggers a render: the owner checks this with one test render.

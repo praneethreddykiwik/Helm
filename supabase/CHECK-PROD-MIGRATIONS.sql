@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (354 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (358 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4675 objects): body 174, bucket 9, col 250, con 416, cron 20, exec 19, fn 2098, idx 538, marker 121, pol 190, polexpr 4, pre 115, pub 5, seq 1, tbl 302, trg 411, view 2.
+-- What is checked (4707 objects): body 175, bucket 9, col 251, con 417, cron 20, exec 19, fn 2120, idx 538, marker 122, pol 190, polexpr 4, pre 115, pub 5, seq 1, tbl 306, trg 413, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4699,7 +4699,39 @@ with o(m, k, s, n, x) as (values
   ('0403_r238_signup_safety', 'fn', 'public', 'tg_r403_email_tld_guard', ''),
   ('0403_r238_signup_safety', 'trg', 'auth.users', 'a403_email_tld_guard', null),
   ('0403_r238_signup_safety', 'trg', 'public.invitations', 'a403_email_tld_guard', null),
-  ('0403_r238_signup_safety', 'trg', 'public.crew_members', 'a403_email_tld_guard', null)
+  ('0403_r238_signup_safety', 'trg', 'public.crew_members', 'a403_email_tld_guard', null),
+  ('0409_r242_cron_stagger', 'fn', 'public', '_r409_plan', ''),
+  ('0409_r242_cron_stagger', 'fn', 'public', '_r409_known_jobs', ''),
+  ('0409_r242_cron_stagger', 'fn', 'public', '_r409_mailer_jobs', ''),
+  ('0409_r242_cron_stagger', 'fn', 'public', '_r409_norm', 'text'),
+  ('0409_r242_cron_stagger', 'fn', 'public', 'ops_cron_stagger_report', ''),
+  ('0409_r242_cron_stagger', 'fn', 'public', 'ops_cron_stagger_apply', ''),
+  ('0409_r242_cron_stagger', 'fn', 'public', 'ops_cron_stagger_undo', ''),
+  ('0410_r242_mailer_wake_ledger', 'body', 'public', '_ops402_lane', 'text|522807edca37623c4ef5ef6fcc04727e'),
+  ('0410_r242_mailer_wake_ledger', 'tbl', 'public.helm_ops_settings', null, null),
+  ('0410_r242_mailer_wake_ledger', 'tbl', 'public.ops_mailer_wake', null, null),
+  ('0410_r242_mailer_wake_ledger', 'fn', 'public', '_r410_wake', 'text'),
+  ('0410_r242_mailer_wake_ledger', 'fn', 'public', '_r410_wake_ready', 'text'),
+  ('0410_r242_mailer_wake_ledger', 'fn', 'public', '_r410_tg_pkg_wake', ''),
+  ('0410_r242_mailer_wake_ledger', 'trg', 'public.pkg_outbox', 'zz_r410_pkg_wake', null),
+  ('0410_r242_mailer_wake_ledger', 'con', 'public.ops_send_ledger', 'ops_send_ledger_lane_chk410', null),
+  ('0411_r242_render_cap', 'tbl', 'public.helm_render_cap', null, null),
+  ('0411_r242_render_cap', 'col', 'public.photo_renders', 'ai_generated', null),
+  ('0411_r242_render_cap', 'fn', 'public', '_r411_used', 'uuid,timestamp with time zone'),
+  ('0411_r242_render_cap', 'fn', 'public', '_r411_state', 'uuid'),
+  ('0411_r242_render_cap', 'fn', 'public', '_r411_tg_render_cap', ''),
+  ('0411_r242_render_cap', 'trg', 'public.photo_render_usage', 'zz_r411_render_cap', null),
+  ('0411_r242_render_cap', 'fn', 'public', 'render_cap_status', ''),
+  ('0411_r242_render_cap', 'marker', 'public', '_sa54_label', 'text|Photo render limit'),
+  ('0412_r242_switches_schema', 'tbl', 'public.helm_schema_markers', null, null),
+  ('0412_r242_switches_schema', 'fn', 'public', '_r412_probes', ''),
+  ('0412_r242_switches_schema', 'fn', 'public', '_r412_applied', ''),
+  ('0412_r242_switches_schema', 'fn', 'public', 'helm_schema_version', ''),
+  ('0412_r242_switches_schema', 'fn', 'public', '_r412_val', 'text,text'),
+  ('0412_r242_switches_schema', 'fn', 'public', '_r412_secret_set', 'text'),
+  ('0412_r242_switches_schema', 'fn', 'public', '_r412_item', 'text,text,jsonb,jsonb,text'),
+  ('0412_r242_switches_schema', 'fn', 'public', '_r412_switches', ''),
+  ('0412_r242_switches_schema', 'fn', 'public', 'hq_switches', '')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5055,7 +5087,11 @@ mig(ord, m, ov, note) as (values
   (351, '0400_r232_remove_role_traces', null, 'R232 remove-role-traces: everything except the 5 _r400_* helpers runs only when the safety gate is clear (no coordinator / designer login left), inside one DO block - so only the helpers are checked here. Proof that it ran is APPLY-0400 check rows 01-15 (every ok true) - re-run APPLY-0400 any time to see them'),
   (352, '0401_r235_db_load', null, 'R235 bell window + inbox details for the shown page: the bell / pending / inbox bodies are patched in place with dynamic SQL (old bodies kept as __pre0401) and _r401_vis / _r401_rows are made by _r401_sync from the live _r388_vis / _r388_rows text - checked by the r235-0401 markers - seven jobs get lock_timeout per function (ALTER FUNCTION, not an object)'),
   (353, '0402_r236_ops_health', null, 'R236: backoff trigger and next_attempt_at on the 7 staff / reminder queues, 8-try limit in the claim bodies (dynamic SQL), mailer cron jobs made only when the Vault secrets exist (see APPLY-0402 check rows 10) - not checked here'),
-  (354, '0403_r238_signup_safety', null, null)
+  (354, '0403_r238_signup_safety', null, null),
+  (355, '0409_r242_cron_stagger', null, 'R242 cron stagger: only the SCHEDULE of up to 12 jobs Helm''s migrations made changes (cron.alter_job, not an object) - see APPLY-0409 check rows 02 / 03 or select * from public.ops_cron_stagger_report()'),
+  (356, '0410_r242_mailer_wake_ledger', null, 'R242 package code wake + ledger lanes: _ops402_lane re-issued with 5 more lanes (if APPLY-0402 was run again after APPLY-0410 this body shows as older - run APPLY-0410 again), lane CHECK widened (the 0402 one replaced)'),
+  (357, '0411_r242_render_cap', null, 'R242 Helm-wide render cap: the HQ bell label is patched in place with dynamic SQL - checked by its marker'),
+  (358, '0412_r242_switches_schema', null, 'R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)')
 ),
 env as (
   select

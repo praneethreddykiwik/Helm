@@ -149,7 +149,7 @@ t('past render: Download of an old render loads it first, then downloads; a miss
   const dl = find(card, (x) => x.tagName === 'a');
   const ev = dl.click(); assert.equal(ev.prevented, true, 'first click waits for the photo');
   await tick(20);
-  assert.match(dl.href, /^blob:/); assert.equal(dl.clicks, 2, 're-clicked with the link set');
+  assert.match(dl.href, /^blob:/); assert.equal(dl.clicks, 3, 're-clicked with the link set (R242: once more after the AI-generated label is drawn in)');
   let calls = 0; imageImpl = async () => { calls++; throw Object.assign(new Error('render not found'), { code: 'P0002' }); };
   const gone = UI.card({ id: 'r4' }, null, {});
   btn(gone, 'Show').click(); await tick(900);
@@ -171,7 +171,7 @@ t('history: every open re-reads the list from the database; one card per render,
 
 t('wiring: versions bumped, builder passes the logo wait, render-photo takes the screen pictures', () => {
   const bh = rd('public/builder.html');
-  for (const v of ['stage-screen.js?v=5', 'photo-render-prompt.js?v=12', 'photo-render-ui.js?v=13', 'builder.js?v=96', 'builder.css?v=41', 'store-api.js?v=395']) assert.ok(bh.includes(v), v);
+  for (const v of ['stage-screen.js?v=5', 'photo-render-prompt.js?v=12', 'photo-render-ui.js?v=14', 'builder.js?v=96', 'builder.css?v=42', 'store-api.js?v=396']) assert.ok(bh.includes(v), v);
   assert.match(rd('public/builder.js'), /logosReady: \(\) => screenLogosReady\(\)/);
   const fn = rd('supabase/functions/render-photo/index.ts');
   assert.match(fn, /MAX_SCREEN_IMAGES = 2, MAX_LOGO_IMAGES = 1/);
