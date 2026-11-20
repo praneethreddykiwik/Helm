@@ -244,7 +244,7 @@
               <td class="num">${ok ? `<input class="cin" type="number" min="0" inputmode="decimal" value="${l.quoted != null ? Number(l.quoted) : ""}" placeholder="—" data-pl-quoted="${esc(l.id)}" aria-label="Quoted to client for ${esc(l.description)}">` : (l.quoted != null ? inr(l.quoted) : "—")}</td>
               <td class="num">${ed ? `<input class="cin" type="number" min="0" inputmode="decimal" value="${l.actual != null ? Number(l.actual) : ""}" placeholder="—" data-pl-act="${esc(l.id)}" aria-label="Actual cost for ${esc(l.description)}">` : (l.actual != null ? inr(l.actual) : "—")}</td>
               <td class="num">${l.margin == null ? "—" : `<span class="${l.margin < 0 ? "neg" : "pos"}">${inr(l.margin)}</span>${l.pct != null ? `<small>${Number(l.pct)}%</small>` : ""}`}</td>
-              <td>${ctx.canDelete ? `<button type="button" class="rm" data-pl-del="${esc(l.id)}" aria-label="Remove cost line ${esc(l.description)}">✕</button>` : ""}</td>
+              <td>${ctx.canEdit ? `<button type="button" class="rm" data-pl-del="${esc(l.id)}" aria-label="Void cost line ${esc(l.description)}" title="Void: kept in the history (Settlement), counts 0">Void</button>` : ""}</td>
             </tr>`; }).join("")}</tbody>
             <tfoot><tr><th scope="row">${esc(g.label)} total</th><td class="num">${inr(g.totals.estimated)}</td><td></td><td class="num">${g.totals.hasQuoted ? inr(g.totals.quoted) : "—"}</td><td class="num">${g.totals.actual ? inr(g.totals.actual) : "—"}</td>
               <td class="num">${g.totals.hasQuoted && !g.totals.incomplete ? `<span class="${g.totals.margin < 0 ? "neg" : "pos"}">${inr(g.totals.margin)}</span>${g.totals.pct != null ? `<small>${Number(g.totals.pct)}%</small>` : ""}` : "—"}</td><td></td></tr></tfoot>
@@ -306,10 +306,14 @@
           after(async function () { await S().budget.addPlanLines(q, [stdRow(s)]); }, "add the line", b);
         } else if ((k = b.getAttribute("data-pl-del"))) {
           var l = m.lines.filter(function (x) { return x.id === k; })[0]; if (!l) return;
-          var money2 = (l.estimated || 0) + (l.actual || 0) + (l.quoted || 0);
-          var msg = "Remove the cost line “" + l.description + "”?" + (money2 > 0 ? " It has amounts entered - they are removed with it." : "");
-          if (!(await BPUI.confirm(msg, { title: "Remove cost line?", danger: true }))) return;
-          after(function () { return S().budget.removeCost(k); }, "remove the cost line", b);
+          // R239 (0404): Void, never delete - the line is kept (its amounts too, in the history), counts 0 in every total
+          var MS = S().moneySafety;
+          if (!MS) { toast("This needs database update 0404.", "err"); return; }
+          var why = null; try { why = await BPUI.prompt("Void the cost line “" + l.description + "”? It stays in the history (Settlement - Voided entries) with its amounts and counts 0 in every total. Why?", { title: "Void cost line?", label: "Reason (5 to 500 characters)", required: true, okLabel: "Void" }); } catch (e0) { why = null; }
+          why = String(why || "").trim(); if (!why) return;
+          if (why.length < 5) { toast("Give a reason of at least 5 characters.", "err"); return; }
+          var vs = "void:" + k, vk = MS.key.get(vs, why);
+          after(function () { return MS.voidEntry("cost", k, why, vk).then(function (r) { MS.key.done(vs); return r; }); }, "void the cost line", b);
         }
       });
     }

@@ -187,7 +187,7 @@ t('0403: additive + idempotent + ASCII; no data dropped, updated or deleted', ()
   assert.match(mig, /exception when others then\s+v_bad := null;/, 'fails open: a bug never stops sign-in');
   assert.match(mig, /errcode = '22023', hint = 'email_no_tld'/);
   assert.match(mig, /revoke all on table public\.account_age_confirmations from authenticated/);
-  assert.match(manifest, /\nforward  supabase\/migrations\/0402_r236_ops_health\.sql\n# 0403 [^\n]+\nforward  supabase\/migrations\/0403_r238_signup_safety\.sql\n?$/);
+  assert.match(manifest, /\nforward  supabase\/migrations\/0402_r236_ops_health\.sql\n# 0403 [^\n]+\nforward  supabase\/migrations\/0403_r238_signup_safety\.sql\n/);
   // R235: the parallel PR's 0401 sits before 0402 / 0403 (numeric order); on the real databases it is pasted after them
   assert.match(manifest, /\nforward  supabase\/migrations\/0401_r235_db_load\.sql\n# 0402 /, '0401 in numeric order, before 0402');
 });

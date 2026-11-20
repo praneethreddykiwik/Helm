@@ -75,7 +75,8 @@ Deno.test("r119 runWelcomeBatch: SMTP preferred (shared mailer), trial content, 
     assertEquals(sent[0].to, "owner@trial.in");
     assert(sent[0].subject.includes("free trial") && sent[0].text.includes("000000") && sent[0].text.includes("You received this because"));
     assert(sent[1].text.includes(MEMBER_TRIAL_NOTE));
-    assertEquals(a.log.map((x) => x.name), ["welcome_email_switch", "welcome_email_outbox_claim", "welcome_email_outbox_mark", "welcome_email_outbox_mark"]);
+    // R242 (0410): one look at the send ledger after the claim (rows already sent whose mark failed)
+    assertEquals(a.log.map((x) => x.name), ["welcome_email_switch", "welcome_email_outbox_claim", "ops_send_ledger_open", "welcome_email_outbox_mark", "welcome_email_outbox_mark"]);
     assert(a.log.filter((x) => x.name === "welcome_email_outbox_mark").every((x) => x.args.p_status === "sent"));
     assertEquals(fetchLog().length, 0);
   } finally { f(); }
