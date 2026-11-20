@@ -1467,11 +1467,14 @@
     // not answer in time") the payment may already be saved, so pressing Record again for the same event, amount, method
     // and receipt no. sends the SAME key and gets the same receipt back instead of a second payment. Cleared on success.
     const paySig=[id,amount,method,$("#pay_receipt").value.trim()].join("|");
-    if(!recordPayment._idem||recordPayment._idem.sig!==paySig) recordPayment._idem={sig:paySig,key:(typeof crypto!=="undefined"&&crypto.randomUUID)?crypto.randomUUID():("k"+Date.now()+Math.random().toString(36).slice(2))};
+    // R239 (0404, PAY-02): the key lives in sessionStorage until the server answers, so a RELOAD after a lost answer sends it too
+    const payScope="flow-pay:"+id, MK=(typeof BPStore!=="undefined"&&BPStore.moneySafety)?BPStore.moneySafety.key:null;
+    if(!recordPayment._idem||recordPayment._idem.sig!==paySig){ recordPayment._idem={sig:paySig,key:(typeof crypto!=="undefined"&&crypto.randomUUID)?crypto.randomUUID():("k"+Date.now()+Math.random().toString(36).slice(2))};
+      if(MK) recordPayment._idem.key=MK.get(payScope,paySig); }
     const idem=recordPayment._idem.key;
     try{
       const r=await BPStore.milestones.record(id, amount, method, $("#pay_receipt").value.trim()||null, null, null, idem);
-      recordPayment._idem=null;   // r218: saved - the next payment is a new one
+      recordPayment._idem=null; if(MK) MK.done(payScope);   // r218 / r239: saved - the next payment is a new one
       await relock();   // money-1024: recording the advance confirms the booking server-side (bumps quotes.updated_at)
       paintBookingBadge(1); paintStatusBadge({advance:true});
       $("#pay_receipt").value=""; $("#pay_amount").value="";

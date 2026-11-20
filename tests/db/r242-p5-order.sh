@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # r242-p5-order.sh - R242 fix plan Phase 5: the REAL order on staging / production. Those databases have every migration up to
-# 0403 (0404-0408 are separate PRs) and get APPLY-0409 .. APPLY-0412 pasted by hand, in that order, maybe twice. This builds
+# 0403 - NOT 0404 (APPLY-0404 is not pasted there yet; 0405-0408 are separate PRs) - and get APPLY-0409 .. APPLY-0412 pasted by hand, in that order, maybe twice. This builds
 # that order on the disposable local cluster and proves it is safe:
-#   1 a database migrated with every MANIFEST entry EXCEPT 0409-0412, plus a pg_cron job list like production (the jobs the
+#   1 a database migrated with every MANIFEST entry EXCEPT 0404 and 0409-0412 (so 0409-0412 provably need nothing from 0404), plus a pg_cron job list like production (the jobs the
 #     migrations made + hand-made e-mail sender jobs + one job whose schedule the owner changed + one owner job)
 #   2 APPLY-0409, -0410, -0411, -0412 pasted like the SQL editor (one transaction each, lock_timeout 5s): every check row true;
 #      the jobs the migrations made are spread, the hand-made / changed ones are byte-for-byte the same
@@ -22,15 +22,15 @@ allok() { local out="$1" min="$2"; [ "$(grep -cE '^[0-9]{2} [^|]*\|t\|' <<<"$out
 dropdb --if-exists "$DB" >/dev/null 2>&1; createdb "$DB" || { echo "R242-P5-ORDER: FAIL (createdb)"; exit 1; }
 PGDATABASE=$DB psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/00-supabase-shim.sql >/dev/null 2>&1
 q "create table if not exists public.helm_schema_migrations(filename text primary key, sha256 text not null, applied_at timestamptz not null default now())" >/dev/null
-# 1) production today: every MANIFEST entry except 0409-0412, in order, one transaction each
+# 1) production today: every MANIFEST entry except 0404 and 0409-0412, in order, one transaction each
 n=0; bad=""
 while read -r scope path _; do
   [ -z "${scope:-}" ] && continue; case "$scope" in \#*) continue;; esac
-  case "$path" in *0409_r242_*|*0410_r242_*|*0411_r242_*|*0412_r242_*) continue;; esac
+  case "$path" in *0404_r239_*|*0409_r242_*|*0410_r242_*|*0411_r242_*|*0412_r242_*) continue;; esac
   PGDATABASE=$DB psql -X -q -v ON_ERROR_STOP=1 -1 -f "$path" >/dev/null 2>&1 || { bad="$path"; break; }
   n=$((n+1))
 done < supabase/migrations/MANIFEST
-ok "production order built: $n migrations, 0402 + 0403 in, no 0409-0412" "$( [ -z "$bad" ] && [ "$(q "select to_regprocedure('public.ops_health()') is not null and to_regclass('public.account_age_confirmations') is not null and to_regclass('public.helm_render_cap') is null and to_regprocedure('public.hq_switches()') is null")" = t ] && echo t || echo "stopped at ${bad:-?}")"
+ok "production order built: $n migrations, 0402 + 0403 in, no 0404, no 0409-0412" "$( [ -z "$bad" ] && [ "$(q "select to_regprocedure('public.ops_health()') is not null and to_regclass('public.account_age_confirmations') is not null and to_regclass('public.helm_render_cap') is null and to_regprocedure('public._pkg_tg_payment__pre0404()') is null and to_regprocedure('public.hq_switches()') is null")" = t ] && echo t || echo "stopped at ${bad:-?}")"
 # a job list like production (fake pg_cron: only what 0409 / 0402 read and call)
 q "create schema if not exists cron;
    create table cron.job (jobid bigserial primary key, jobname text, schedule text, command text, active boolean default true);
