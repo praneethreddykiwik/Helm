@@ -32,6 +32,8 @@
 //   APP_URL                              base of the Join link (default https://www.helm.events)
 //   INVITE_EMAIL_BATCH                   rows per run, 1..100 (default 25)
 //
+// R242 (0410): a "sent" mark that fails is retried; if it still fails the row is noted in ops_send_ledger and the next
+// run marks it sent WITHOUT sending the invitation again (_shared/send-ledger.ts).
 // Logs carry only counts, SQLSTATE codes and HTTP status — never an address, a name or a token.
 // Outbound HTTP goes only to a FIXED host allowlist (no URL is ever taken from input).
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
@@ -41,6 +43,7 @@ import { inviteEmail, joinLink, mintMailKey, roleLabel } from "./templates.ts";
 import { mailConfig, sendMail } from "../_shared/mailer.ts";
 import { isReservedEmail } from "../_shared/reserved-email.mjs";
 import { logger } from "../_shared/log.ts";
+import { sendLedger } from "../_shared/send-ledger.ts";   // R242 (0410): no double send when the "sent" mark fails
 const L = logger("invite-mailer");
 
 const enc = new TextEncoder();
@@ -150,9 +153,15 @@ Deno.serve(async (req) => {
 
     const counts = { sent: 0, skipped: 0, failed: 0, invalid: 0 };
     const branded = !!mailConfig().provider;   // one provider decision per run (same e-mail for every row)
+    const led = await sendLedger(admin, "invite", Deno.env.get("INVITE_MARK_RETRY_MS"));
     for (const r of (Array.isArray(rows) ? rows : [])) {
       const id = String(r?.id ?? "");
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
+      if (led.already(id)) {   // R242: went out before, only the mark was missing - mark it, never send again
+        const { error: aErr } = await led.mark(id, true, () => admin.rpc("invite_email_outbox_mark", { p_id: id, p_status: "sent" }));
+        if (aErr) { log.error("mark failed", errTag(aErr)); report.error(aErr); counts.failed++; continue; }
+        counts.sent++; continue;
+      }
       // R32 AUTH-1: the branded e-mail carries a fresh mail key (&k=) - only its SHA-256 is stored
       const key = branded ? await mintMailKey(admin, String(r?.token ?? "")) : "";
       const mail = inviteEmail({ token: r?.token, inviter: r?.inviter, studio: r?.studio, role: r?.role, expires_at: r?.expires_at, key });
@@ -162,7 +171,7 @@ Deno.serve(async (req) => {
       else if (mail) res = await sendViaSupabaseAuth(admin, to, String(r?.token ?? ""), {
         studio: String(r?.studio ?? "").slice(0, 120), role: roleLabel(r?.role).slice(0, 60), invited_by: String(r?.inviter ?? "").slice(0, 120),
       });
-      const { error: mErr } = await admin.rpc("invite_email_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res });
+      const { error: mErr } = await led.mark(id, res === "sent", () => admin.rpc("invite_email_outbox_mark", { p_id: id, p_status: res === "failed" ? "retry" : res }));
       if (mErr) { log.error("mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }

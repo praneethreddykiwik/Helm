@@ -740,6 +740,52 @@
     }
     st.appendChild(el("span", { cls: "pill " + (bad ? "warn" : "ok"), text: bad ? "Check" : "All good" }));
   }
+  // R242 (0412, HQ-03): one read-only list of every switch (hq_switches) + this site's own config.js flags. Pure helpers
+  // exported for tests. A database without the update shows a plain "update pending" line (HQ-04: never an error).
+  var SWITCH_PENDING = "This list appears after the latest database update is pasted.";
+  function switchWord(it) {
+    it = it || {};
+    if (it.state === "missing") return "not on this database";
+    if (it.state === "on") return "On";
+    if (it.state === "off") return "Off";
+    var v = it.value;
+    if (v === null || v === undefined) return "—";
+    return typeof v === "object" ? JSON.stringify(v) : String(v);
+  }
+  function switchPill(it) { it = it || {}; if (it.differs === true) return "warn"; return it.state === "on" ? "ok" : ""; }
+  // this site's own flags (config.js): booleans of HELM_FEATURES, and public keys only as "set" / "not set"
+  function siteSwitches(w) {
+    w = w || {};
+    var f = w.HELM_FEATURES || {}, items = [];
+    Object.keys(f).sort().forEach(function (k) {
+      var v = f[k]; if (typeof v !== "boolean" && typeof v !== "string") return;
+      items.push({ key: "site_" + k, label: "Site: " + k, value: v, state: v === true ? "on" : v === false ? "off" : "value" });
+    });
+    var cap = ((w.SUPABASE_CONFIG || {}).captcha) || {};
+    items.push({ key: "site_turnstile", label: "Site: Turnstile (sign-in check)", value: cap.siteKey ? "set" : "not set", state: "value", note: "SUPABASE_CONFIG.captcha.siteKey (empty = off)" });
+    var tel = w.HELM_TELEMETRY || {};
+    items.push({ key: "site_sentry", label: "Site: error reports (Sentry)", value: tel.dsn ? "set" : "not set", state: "value", note: "HELM_TELEMETRY.dsn" });
+    return { key: "site", label: "This website (config.js)", items: items };
+  }
+  function renderSwitches(box, data, w) {
+    clear(box);
+    var groups = (data && Array.isArray(data.groups)) ? data.groups.slice() : null;
+    if (!groups) box.appendChild(el("div", { cls: "muted hnote", text: SWITCH_PENDING }));
+    groups = (groups || []).concat([siteSwitches(w)]);
+    groups.forEach(function (g) {
+      box.appendChild(el("h3", { cls: "muted", text: g.label || g.key }));
+      (g.items || []).forEach(function (it) {
+        box.appendChild(el("div", { cls: "hrow" }, [el("span", { text: it.label || it.key }), el("span", { cls: "pill " + switchPill(it), text: switchWord(it) })]));
+        if (it.note && (it.differs === true || it.state === "missing" || /needs|NOT set|keep off/.test(String(it.note)))) box.appendChild(el("div", { cls: "muted hnote", text: it.note }));
+      });
+    });
+  }
+  async function loadSwitches() {
+    var box = $("#switches"); if (!box) return;
+    var S = window.BPStore && BPStore.schema, data = null;
+    if (!S || (await S.has(412)) !== false) data = await call("hq_switches").catch(function () { return null; });
+    renderSwitches(box, data && !Array.isArray(data) ? data : null, window);
+  }
   // pure (r126): why job history can't be shown here (hq_metrics health.cron.reason, 0335) - exported for tests
   function cronWhy(c) {
     c = c || {};
@@ -2426,7 +2472,7 @@
   async function loadAll() {
     $("#err").hidden = true;
     var jobs = [];
-    if (canTab("overview")) jobs.push(loadOverview());
+    if (canTab("overview")) { jobs.push(loadOverview()); loadSwitches().catch(function () {}); }
     if (can("plans.read")) jobs.push(loadPlans());
     if (canTab("studios")) jobs.push(loadStudios(0));
     if (canTab("people")) jobs.push(loadUsers(0));

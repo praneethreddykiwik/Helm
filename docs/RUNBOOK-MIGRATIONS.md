@@ -118,3 +118,17 @@ Why: a paste that waits for a lock held by the app queues every app write behind
 rolls back) - just run it again a little later. `set local` lasts only until `commit`, so nothing else
 changes (no role or database setting). Keep APPLY files additive, idempotent, ASCII, without temp tables
 or other session state, and end them with check rows.
+
+### Every new migration records its number (R242, 0412)
+
+From 0412 on the app asks the database which updates are in (`helm_schema_version()`, signed-in, numbers only) and
+hides a feature whose SQL is not pasted yet ("database update pending") instead of failing with "function not found".
+So every NEW migration ends with one line (idempotent, numbers only):
+
+```sql
+insert into public.helm_schema_markers(num, name) values (413, '0413_short_name') on conflict (num) do nothing;
+```
+
+Page code that needs migration NNNN asks `await BPStore.schema.has(NNNN)`: `true` = in, `false` = not in (hide the
+feature, say the update is pending), `null` = unknown (a database before 0412 - just try, as before). Updates
+0381-0412 are also found by one object each (`_r412_probes()`), so they need no marker row.

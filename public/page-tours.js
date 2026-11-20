@@ -59,7 +59,7 @@
       { sel: [".seg:has(#snapBtn)", "#snapBtn"], title: "Snap and Grid", desc: "Snap makes objects jump to the grid lines when you move them; Grid shows or hides the lines." },
       { sel: ["#viewSeg", "#bimRail"], title: "2D, 3D and Render", get desc() { return inTrial()
         ? "Edit in the 2D plan, walk around it in 3D, or press Render for a realistic 3D look of the same floor. AI photos of the plan come with a paid plan."
-        : "Edit in the 2D plan, walk around it in 3D, or press Render to make a photo-like picture of the plan. All three show the same floor."; } },
+        : "Edit in the 2D plan, walk around it in 3D, or press Render to make a photo-like picture of the plan (AI photos are labelled AI-generated). All three show the same floor."; } },
       { sel: [".wt-field", "#wtStart"], title: "Explore in 3D", desc: "Quick 3D views of the venue: Overview, Floor plan and Evening lighting, plus the guided Walkthrough." },
       { sel: ["#wtStart", ".wt-fab"], title: "3D walkaround", desc: "Walkthrough (in Explore) flies through your venue one area at a time: entrance, stage, seating, lounges, bar, food, photo spots. Aisles and ramps show with their area. Drag to look around (pauses). Esc exits." },
       { sel: "#measureBtn", title: "Measure", desc: "Turn on Measure, then select an object to see its distance from all four walls and its nearest neighbour on every side." },
@@ -539,7 +539,7 @@
       { sel: "#navgBiz", side: "right", title: "Helm HQ", desc: "The console for Helm staff: studios, requests, billing and plans. To renew a studio use Activate plan: Record a payment adds the payment and invoice only." },
       { sel: "#gSearch", title: "Search studios and people", desc: "Find a studio by name or link, or a person by e-mail. A studio's client logins are never listed. Invoices are under Billing." },
       { sel: "#kpis", title: "Key numbers", desc: "New studios, monthly income, plan mix and the trial funnel." },
-      { sel: "#attList", title: "Needs attention", desc: "Studios and requests waiting on HQ. System health beside it rates every queue, scheduled job and sender green / amber / red, and says why if job history can't be read." },
+      { sel: "#attList", title: "Needs attention", desc: "Studios and requests waiting on HQ. System health rates every queue, job and sender and says why if job history can't be read. Switches below lists every on / off switch, read-only (secrets: set / not set)." },
       // R154e (0351): Suggestions = the in-app Suggestion box (status, +1, a reply the sender reads in the app)
       { sel: "#tab-requests", side: "right", title: "Requests", desc: "Plan requests, sales enquiries and suggestions from studios. Under Suggestions, filter by status, kind or text, see the +1 count, mark New / Planned / Done / Not now and write a reply the sender reads under My suggestions." },
       { sel: "#tab-staff", side: "right", title: "Staff access", desc: "Who on the Helm team can use HQ, and with which rights." },

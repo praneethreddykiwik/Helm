@@ -532,13 +532,14 @@
   // 0083: pictures stored in the database. d.images = { "2d": { labels: bool, plain: bool }, "3d": {...} }
   // (flags only; the bytes come from public_get_booklet_image, one picture at a time, when shown)
   const IMG_VARIANTS = [["labels", "With labels"], ["plain", "Without labels"]];
+  const AI_TAG = "AI-generated";   // R242 (LEG-06): the label on the studio's AI photo render
   function dbImages(d, k) {
     const im = d && d.images && typeof d.images === "object" ? d.images[k === "layout3d" ? "3d" : "2d"] : null;
     if (!im || typeof im !== "object") return [];
     const out = IMG_VARIANTS.filter((v) => im[v[0]] === true).map((v) => ({ variant: v[0], label: v[1] }));
     // 0095: the studio's photo render - its own picture (kind "photo"), shown in the 3D section
     const ph = k === "layout3d" && d.images.photo && typeof d.images.photo === "object" ? d.images.photo : null;
-    if (ph && ph.plain === true) out.push({ variant: "photo", label: "Photo" });
+    if (ph && ph.plain === true) out.push({ variant: "photo", label: "AI photo" });   // R242 (LEG-06): named as AI-made
     return out;
   }
   const isDataImg = (u) => typeof u === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(u);
@@ -549,7 +550,12 @@
     let cur = null, seq = 0, bar = null;
     const img = el("img", "snap"); img.setAttribute("alt", alt);
     const zoom = el("button", "snap-zoom"); zoom.type = "button"; zoom.setAttribute("aria-label", alt + " — open full size"); zoom.hidden = true;
-    zoom.appendChild(img); zoom.addEventListener("click", () => { if (cur) openLightbox(cur, alt); });   // lightbox follows the chosen style
+    // R242 (LEG-06, IT Rules 2026 amendment): the studio's photo render is AI-made - a visible label on it, in its alt text and
+    // in the full-size view
+    const aiTag = el("span", "snap-ai", AI_TAG); aiTag.setAttribute("aria-hidden", "true"); aiTag.hidden = true;
+    let curAlt = alt;
+    zoom.appendChild(img); zoom.appendChild(aiTag);
+    zoom.addEventListener("click", () => { if (cur) openLightbox(cur, curAlt, curAlt !== alt); });   // lightbox follows the chosen style
     const gone = () => { if (bar && bar.parentNode) bar.parentNode.removeChild(bar); if (zoom.parentNode) zoom.parentNode.removeChild(zoom); fallback(); };
     const pick = (v, first) => {
       const my = ++seq;
@@ -557,7 +563,10 @@
       load(v).then((u) => {
         if (my !== seq) return;
         if (!u) { if (first) gone(); return; }
-        cur = u; img.setAttribute("src", u); img.setAttribute("data-variant", v); zoom.hidden = false;
+        const isAi = v === "photo";
+        curAlt = isAi ? AI_TAG + " photo render of the event" : alt;
+        cur = u; img.setAttribute("src", u); img.setAttribute("data-variant", v); img.setAttribute("alt", curAlt); aiTag.hidden = !isAi;
+        zoom.setAttribute("aria-label", curAlt + " — open full size"); zoom.hidden = false;
       });
     };
     if (variants.length > 1) {   // "With labels | Without labels" - only when both styles exist
@@ -568,19 +577,21 @@
     fig.appendChild(zoom);
     pick((variants.find((v) => v.variant === "labels") || variants[0]).variant, true);
   }
-  // R2: full-size view of a studio image (click / tap to zoom in further, Esc or ✕ closes)
-  function openLightbox(url, alt) {
+  // R2: full-size view of a studio image (click / tap to zoom in further, Esc or ✕ closes). R242: ai = show the AI-generated label
+  function openLightbox(url, alt, ai) {
     let dlg = doc.getElementById("bkLightbox");
     if (!dlg) {
       dlg = el("dialog", "lightbox"); dlg.id = "bkLightbox"; dlg.setAttribute("aria-label", "Image viewer");
       const x = el("button", "lb-close", "✕"); x.type = "button"; x.setAttribute("aria-label", "Close"); x.addEventListener("click", () => dlg.close());
       const wrap = el("div", "lb-wrap"); const im = el("img", "lb-img"); im.setAttribute("referrerpolicy", "no-referrer");
       im.addEventListener("click", (e) => { e.stopPropagation(); wrap.classList.toggle("zoomed"); });
-      wrap.appendChild(im); dlg.appendChild(x); dlg.appendChild(wrap);
+      const tag = el("span", "lb-ai", AI_TAG); tag.hidden = true;
+      wrap.appendChild(im); dlg.appendChild(x); dlg.appendChild(wrap); dlg.appendChild(tag);
       dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
       doc.body.appendChild(dlg);
     }
     const im = dlg.querySelector(".lb-img"); im.setAttribute("src", url); im.setAttribute("alt", alt);
+    const lt = dlg.querySelector(".lb-ai"); if (lt) lt.hidden = !ai;
     dlg.querySelector(".lb-wrap").classList.remove("zoomed");
     if (typeof dlg.showModal === "function") { if (!dlg.open) dlg.showModal(); } else global.open(url, "_blank", "noopener");
   }
