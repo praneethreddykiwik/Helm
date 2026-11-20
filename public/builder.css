@@ -578,6 +578,11 @@ header select.versel{max-width:220px;font-family:var(--mono)}
 .verthumb{aspect-ratio:10/7;border:1px solid var(--line);border-radius:8px;background:var(--canvas);overflow:hidden}
 .verthumb svg{display:block;width:100%;height:100%}
 .veracts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+/* R241: save conflict - two choices that both keep everything */
+.cfopts{display:grid;gap:10px;margin:0 0 12px}
+.cfopt{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
+.cfopt .tbtn{height:32px;padding:0 12px}
+.cfopt small{font-size:12px;color:var(--ink-3);line-height:1.4}
 .veracts .tbtn{height:32px;padding:0 12px}
 @media (max-width:520px){ .vercmp{flex-direction:column} .verarrow{transform:rotate(90deg)} .vercmp figure{width:100%} .veracts .tbtn{flex:1 1 100%} }
 

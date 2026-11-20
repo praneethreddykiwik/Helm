@@ -65,7 +65,7 @@
       { sel: "#measureBtn", title: "Measure", desc: "Turn on Measure, then select an object to see its distance from all four walls and its nearest neighbour on every side." },
       { sel: ".hg-edit", title: "Undo, Redo, Clear", desc: "Step back or forward through your changes (⌘Z / ⌘⇧Z). Clear removes every object - you can still Undo it." },
       { sel: "#projName", title: "Name this layout", desc: "The event or quote name. Saved with every version of the floor." },
-      { sel: "#verSel", title: "Versions", desc: "Every Save keeps a numbered version. Pick an older one to look at it; saved versions are never changed." },
+      { sel: "#verSel", title: "Versions", desc: "Every Save keeps a numbered version; saved versions are never changed. If a teammate saved a newer one while you worked, Save asks: Reload theirs (yours is kept) or Save mine as a new version." },
       { sel: "#designChip", title: "Design stage", desc: "Opens the Design Studio for this event." },
       { sel: "#backToFlowBtn", title: "Save & back to the quote", desc: "Saves this floor as a new version and takes you back to the quotation. If the quote was already sent to the client, you are asked first before its price changes (Update quote / Keep quote)." },
       { sel: ["#saveBtn", "#bimSave"], title: "Save", desc: "Saves a new version of this floor (⌘S / Ctrl+S). The chair count flows straight into the price breakdown on the right." },

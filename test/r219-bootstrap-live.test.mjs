@@ -103,7 +103,7 @@ function makeEnv(o = {}) {
     replace(u) { calls.push({ name: 'location.replace:' + u }); }, reload() { calls.push({ name: 'location.reload' }); } };
   const el = (tag) => ({ tag, style: {}, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, appendChild() {}, addEventListener() {}, querySelector: () => null, remove() {} });
   const doc = {
-    readyState: 'complete', addEventListener() {}, removeEventListener() {}, currentScript: { src: 'https://www.helm.events/store-api.js?v=395' },
+    readyState: 'complete', addEventListener() {}, removeEventListener() {}, currentScript: { src: 'https://www.helm.events/store-api.js?v=396' },
     createElement: el, head: { appendChild() {} }, body: { children: [], appendChild(c) { this.children.push(c); }, removeChild() {}, get firstChild() { return null; } },
     documentElement: { setAttribute() {}, getAttribute() { return 'light'; },
       classList: { contains: (c) => cls.has(c), add: (c) => { cls.add(c); }, remove: (c) => { cls.delete(c); } } },
@@ -244,10 +244,10 @@ t('narrow writes: always sent (never shared); drop only the reads they change; k
   assert.equal(e.ss.getItem('bp_swr:trialorg'), null, 'a real write still drops the per-tab caches');
   await f(U + 'quotes?select=id', H); assert.equal(n('quotes?'), 2, 'and every shared read');
 });
-t('asset pins: every page asks for store-api.js?v=395', () => {
+t('asset pins: every page asks for store-api.js?v=396', () => {
   const pages = readdirSync(new URL('public/', ROOT)).filter((f) => f.endsWith('.html'));
   let n = 0;
-  for (const f of pages) { const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/g); if (!m) continue; n++; for (const x of m) assert.equal(x, 'store-api.js?v=395', f); }
+  for (const f of pages) { const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/g); if (!m) continue; n++; for (const x of m) assert.equal(x, 'store-api.js?v=396', f); }
   assert.ok(n >= 50, String(n));
 });
 

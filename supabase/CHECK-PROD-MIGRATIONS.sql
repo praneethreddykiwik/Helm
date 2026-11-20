@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (354 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (356 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4675 objects): body 174, bucket 9, col 250, con 416, cron 20, exec 19, fn 2098, idx 538, marker 121, pol 190, polexpr 4, pre 115, pub 5, seq 1, tbl 302, trg 411, view 2.
+-- What is checked (4685 objects): body 175, bucket 9, col 251, con 416, cron 20, exec 19, fn 2103, idx 538, marker 121, pol 190, polexpr 4, pre 116, pub 5, seq 1, tbl 303, trg 412, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -472,7 +472,6 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', '_next_occasion', 'date'),
   ('base-v1-2026-09-25', 'fn', 'public', '_valid_role', 'text'),
   ('base-v1-2026-09-25', 'fn', 'public', 'add_event_dish', 'uuid,uuid'),
-  ('base-v1-2026-09-25', 'fn', 'public', 'add_quote_version', 'uuid,text,jsonb,integer'),
   ('base-v1-2026-09-25', 'fn', 'public', 'adjust_inventory_total', 'uuid,numeric'),
   ('base-v1-2026-09-25', 'fn', 'public', 'admin_create_user_temp', 'text,text'),
   ('base-v1-2026-09-25', 'fn', 'public', 'admin_delete_user', 'uuid'),
@@ -671,6 +670,7 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'event_activity', 'uuid'),
   ('base-v1-2026-09-25', 'con', 'public.profiles', 'profiles_role_check', null),
   ('base-v1-2026-09-25', 'con', 'public.invitations', 'invitations_role_chk', null),
+  ('base-v1-2026-09-25', 'fn', 'public', 'add_quote_version', 'uuid,text,jsonb,integer'),
   ('0001_pricing_authority', 'body', 'public', 'enforce_pricing_total', '|906e8a4240c9079e5ecde18fd774d385'),
   ('0001_pricing_authority', 'fn', 'public', 'helm_quote_total_canonical', 'jsonb'),
   ('0003_money_integrity', 'fn', 'public', 'helm_total_paid', 'uuid,uuid,uuid'),
@@ -4699,7 +4699,17 @@ with o(m, k, s, n, x) as (values
   ('0403_r238_signup_safety', 'fn', 'public', 'tg_r403_email_tld_guard', ''),
   ('0403_r238_signup_safety', 'trg', 'auth.users', 'a403_email_tld_guard', null),
   ('0403_r238_signup_safety', 'trg', 'public.invitations', 'a403_email_tld_guard', null),
-  ('0403_r238_signup_safety', 'trg', 'public.crew_members', 'a403_email_tld_guard', null)
+  ('0403_r238_signup_safety', 'trg', 'public.crew_members', 'a403_email_tld_guard', null),
+  ('0407_r241_layout_save_conflict', 'tbl', 'public.r407_legacy_calls', null, null),
+  ('0407_r241_layout_save_conflict', 'fn', 'public', '_r407_qv_lock', 'uuid'),
+  ('0407_r241_layout_save_conflict', 'fn', 'public', '_r407_note_legacy', 'text,uuid'),
+  ('0407_r241_layout_save_conflict', 'fn', 'public', 'add_quote_version__pre0407', 'uuid,text,jsonb,integer'),
+  ('0407_r241_layout_save_conflict', 'body', 'public', 'add_quote_version', 'uuid,text,jsonb,integer|c76b1666a2e0d836f3a8eb8f94112f4d'),
+  ('0407_r241_layout_save_conflict', 'fn', 'public', 'add_quote_version_checked', 'uuid,text,jsonb,integer,integer,boolean'),
+  ('0407_r241_layout_save_conflict', 'pre', null, '__pre0407', null),
+  ('0408_r241_quote_meta_rev', 'col', 'public.quotes', 'meta_rev', null),
+  ('0408_r241_quote_meta_rev', 'fn', 'public', '_r408_tg_meta_rev', ''),
+  ('0408_r241_quote_meta_rev', 'trg', 'public.quotes', 'zzzzz_r408_meta_rev', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5055,7 +5065,9 @@ mig(ord, m, ov, note) as (values
   (351, '0400_r232_remove_role_traces', null, 'R232 remove-role-traces: everything except the 5 _r400_* helpers runs only when the safety gate is clear (no coordinator / designer login left), inside one DO block - so only the helpers are checked here. Proof that it ran is APPLY-0400 check rows 01-15 (every ok true) - re-run APPLY-0400 any time to see them'),
   (352, '0401_r235_db_load', null, 'R235 bell window + inbox details for the shown page: the bell / pending / inbox bodies are patched in place with dynamic SQL (old bodies kept as __pre0401) and _r401_vis / _r401_rows are made by _r401_sync from the live _r388_vis / _r388_rows text - checked by the r235-0401 markers - seven jobs get lock_timeout per function (ALTER FUNCTION, not an object)'),
   (353, '0402_r236_ops_health', null, 'R236: backoff trigger and next_attempt_at on the 7 staff / reminder queues, 8-try limit in the claim bodies (dynamic SQL), mailer cron jobs made only when the Vault secrets exist (see APPLY-0402 check rows 10) - not checked here'),
-  (354, '0403_r238_signup_safety', null, null)
+  (354, '0403_r238_signup_safety', null, null),
+  (355, '0407_r241_layout_save_conflict', null, null),
+  (356, '0408_r241_quote_meta_rev', null, null)
 ),
 env as (
   select
