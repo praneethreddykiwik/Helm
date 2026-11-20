@@ -172,6 +172,10 @@ ok "probe before ran" "$(grep -q '^matrix ' <<<"$B" && ! grep -qE '^(psql|ERROR)
 # ---- 2) APPLY-0400 --------------------------------------------------------------------------------------------------
 BK0="$(q "select count(*) from public._r398_backup")"
 O="$(apply)"
+# r235 (0401): this cluster got 0401 BEFORE the real APPLY-0400 (production order: APPLY-0400, then APPLY-0401). 0401's bell
+# window copy (_r401_vis) is made from the live _r388_vis, so here it still holds the pre-0400 text until it is re-made -
+# exactly what APPLY-0401 does after APPLY-0400. Re-make it, then read the check rows again (a second paste is a no-op, see 4)
+if [ "$(q "select to_regprocedure('public._r401_sync()') is not null")" = t ]; then q "select public._r401_sync()" >/dev/null; O="$(apply)"; fi
 ok "APPLY-0400: every check row ok (15 numbered + the staff list)" "$( [ "$(echo "$O" | grep -E '^[0-9]{2} ' | grep -c '|t$')" = 15 ] && ! grep -qE 'ERROR|\|f$' <<<"$O" && echo t || echo "$O" | grep -E 'ERROR|\|f$' | head -5)"
 ok "APPLY-0400 lists the staff records whose role words were removed (Cora, Dina, Eve + any left by earlier suites)" "$(grep -q '^list staff record "Cora Coord" (Studio A): role words "Event coordinator" removed|t$' <<<"$O" && grep -q '^list staff record "Dina Draws" (Studio A): role words "Designer" removed|t$' <<<"$O" && grep -q '^list staff record "Eve Events" (Studio B): role words " event coordinator " removed|t$' <<<"$O" && [ "$(grep -E '^list' <<<"$O" | grep -cE 'Gita Guest|Lal Lights')" = 0 ] && echo t || echo "$O" | grep '^list')"
 ok "no role_access / invitation / notification setting of the two roles; the planner invite kept" "$(q "select not exists (select 1 from public.role_access where role in ('coordinator','designer')) and not exists (select 1 from public.invitations where role in ('coordinator','designer')) and not exists (select 1 from public.invite_email_outbox where email = 'old_coord@x.test') and not exists (select 1 from public.notification_prefs where role in ('coordinator','designer')) and exists (select 1 from public.invitations where email = 'r232_keep@x.test' and role = 'planner' and status = 'pending') and (select count(*) from public.notification_prefs where org_id = 'a0000000-0000-4000-8000-000000000001' and type = 'payment_received') = 2")"
@@ -241,6 +245,9 @@ DIFF="$(diff <(echo "$B") <(echo "$AF"))"
 ok "every other role behaves exactly as before ($(echo "$B" | wc -l | tr -d ' ') facts: matrix, has_area, invites, role changes, new studio, new trial, escalation, sign-in notices, approvers, bell, labels)" "$( [ -z "$DIFF" ] && echo t || echo "$DIFF" | head -8)"
 ok "the probe covered the escalation ladder (3 steps, the event lead's step = supervisor), a new trial and a new studio" "$([ "$(grep -c '^esc step ' <<<"$AF")" = 3 ] && grep -qE '^esc step 0\|sent "L1" .*Sid Supervisor:"L1"' <<<"$AF" && grep -qF 'trial matrix manager quotes|' <<<"$AF" && grep -qF 'new studio matrix supervisor tasks|' <<<"$AF" && grep -qF 'invite planner|ok:' <<<"$AF" && echo t || echo "$AF" | grep -E '^esc step' | head -3)"
 
+# r235 (0401): the bell window copy is made from the live _r388_vis; the owner runs APPLY-0401 after APPLY-0400 (or again
+# after it), which re-makes the copy from the 0400 rule - the same here (a no-op before 0401)
+q "select public._r401_sync() where to_regprocedure('public._r401_sync()') is not null" >/dev/null
 # ---- 4) a second run is a no-op ------------------------------------------------------------------------------------
 S3="$(snap)"; BK1="$(q "select count(*) from public._r398_backup")"
 O="$(apply)"

@@ -8,7 +8,7 @@ let n = 0; const t = async (name, fn) => { await fn(); n++; };
 
 await t('bell: failures return the last good feed, back off and retry once', () => {
   assert.match(S, /const safeFeed = async \(\) => \{/);
-  assert.match(S, /goodFeed = f; feedFails = 0; feedBackoffUntil = 0; return f;/);
+  assert.match(S, /goodFeed = f; feedFails = 0;\n\s+feedBackoffUntil = Date\.now\(\) - t0 > 4000 \? Date\.now\(\) \+ 60000 : 0; return f;/);   // R235: a slow answer skips one poll
   assert.match(S, /feedBackoffUntil = Date\.now\(\) \+ Math\.min\(480000, 30000 \* Math\.pow\(2, feedFails\)\)/);
   assert.match(S, /if \(feedFails === 1 && !feedRetryT\) feedRetryT = setTimeout/);
   assert.match(S, /return goodFeed;\n/);

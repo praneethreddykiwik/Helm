@@ -52,6 +52,7 @@ t('1c MANIFEST: 0404 right after 0403 (0401 belongs to #478, 0405 / 0406 unused)
   assert.match(RUNALL, /-c helm\.money_void_gate=off -c helm\.retired_role_gate=off -c helm\.r400_remove=off"/);
   assert.match(RUNALL, /run "r239-money-safety-0404" "R239-MONEY-SAFETY-0404: ALL PASS \\\(60\/60\\\)" psql -q -f tests\/db\/r239-money-safety-0404\.sql/);
   assert.match(RUNALL, /run "r239-apply-0404" "APPLY-0404: ALL OK"/);
+  assert.match(RUNALL, /run "r239-order-prod-0404" "R239-ORDER-PROD-0404: PASS" bash tests\/db\/r239-order-prod-0404\.sh/);   // the real prod order: 0402, 0403, 0401, then 0404 twice
   assert.match(DBT, /select set_config\('helm\.money_void_gate', 'on', false\);/);
   assert.ok(existsSync(new URL('../supabase/APPLY-0404.sql', import.meta.url)));
 });
