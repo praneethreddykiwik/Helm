@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}</style>
-<link rel="stylesheet" href="/insights-polish.css?v=7">
+<link rel="stylesheet" href="/insights-polish.css?v=8">
 <base href="/"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Insights — Helm Events</title>
 <link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
@@ -83,7 +83,7 @@
 <link rel="stylesheet" href="theme.css?v=85"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <script src="/trusted-types.js?v=9"></script>
-<script src="/shell-proto.js?v=106" id="shellProto"></script>
+<script src="/shell-proto.js?v=107" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -107,6 +107,28 @@
 
     <div id="rangeBar"></div>
     <div id="rangeErr"></div>
+    <div class="io-tools"><button type="button" class="btn sm" id="ioExport">Export CSV</button><span class="io-msg" id="ioExportMsg" role="status" aria-live="polite"></span></div>
+
+    <h3 class="sec">At a glance <span class="sec-note">vs the period before</span></h3>
+    <div id="ioGlance"><div class="empty">Loading…</div></div>
+
+    <section class="card" id="ioFunnelCard" aria-labelledby="ioFunnelH">
+      <h3 id="ioFunnelH">Sales funnel</h3>
+      <p class="note">Enquiries = new leads in this period. Quotes made = quotes started in this period. Bookings = quotes confirmed in this period.</p>
+      <div id="ioFunnel"><div class="empty">Loading…</div></div>
+    </section>
+
+    <section class="card" id="ioPayCard" aria-labelledby="ioPayH" hidden>
+      <h3 id="ioPayH">Payments</h3>
+      <p class="note">Overdue today (any event) and how quickly clients paid the milestones due in this period.</p>
+      <div id="ioPay"><div class="empty">Loading…</div></div>
+    </section>
+
+    <section class="card" id="ioUpCard" aria-labelledby="ioUpH">
+      <h3 id="ioUpH">Coming up &mdash; next 30 days</h3>
+      <p class="note">Confirmed events from today, with the tasks still open and not yet given to anyone.</p>
+      <div id="ioUp"><div class="empty">Loading…</div></div>
+    </section>
 
     <h3 class="sec">Events in this period</h3>
     <div class="kpis" id="evKpis"></div>
@@ -147,6 +169,17 @@
         </table></div>
         <div class="muted" id="perEventMsg" role="status"></div>
       </div>
+    </div>
+
+    <div class="grid2">
+      <section class="card" id="ioPkgCard" aria-labelledby="ioPkgH">
+        <h3 id="ioPkgH">Top packages</h3>
+        <div id="ioPkg"><div class="empty">Loading…</div></div>
+      </section>
+      <section class="card" id="ioCxCard" aria-labelledby="ioCxH">
+        <h3 id="ioCxH">Cancellations</h3>
+        <div id="ioCx"><div class="empty">Loading…</div></div>
+      </section>
     </div>
 
     <h3 class="sec">Team &amp; operations</h3>
@@ -196,9 +229,10 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=394"></script>
-<script src="range-bar.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=395"></script>
+<script src="range-bar.js?v=4"></script>
 <script src="insights-costs.js?v=5"></script>
+<script src="insights-overview.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -208,7 +242,7 @@
   const homeFirst=(list)=>BPStore.sumByCurrency(list,()=>0,x=>x.currency).map(g=>list.find(x=>String(x.currency||"INR").toUpperCase()===g.currency));
   const joinCur=(list,f)=>list.map(x=>curM(f(x),x.currency)).join(" · ");
   const pct=(n)=>n==null?"—":n+"%";
-  let canFin=false, range=null, seq=0, costsUI=null;
+  let canFin=false, range=null, seq=0, costsUI=null, ovUI=null;
   // r21 (0240): the cost charts + benchmarks read the period AND the 12 months before its end (benchmark "typical")
   const benchFrom=(r)=>{ if(!r.from||!r.to) return r.from||null; const d=new Date(r.to+"T00:00:00"); d.setDate(d.getDate()-365);
     const y=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); return y<r.from?y:r.from; };
@@ -243,19 +277,43 @@
       hidden:()=>!!(window.HelmPrivacy&&HelmPrivacy.isHidden&&HelmPrivacy.isHidden()), fmtDate:(d)=>BPStore.fmtDateIN(d), href:(id)=>"event.html?id="+encodeURIComponent(id||""),
       // r21 (0242): ONE studio-wide target margin (Settings); Insights reads it, an editor may adopt this device's old value once
       targetMargin:()=>BPStore.insights.targetMargin(), saveTargetMargin:(v)=>BPStore.insights.setTargetMargin(v) });
-    HelmRange.mount($("#rangeBar"),{ storeKey:"helm_range_insights", defaultKey:"this_month", onChange:(r)=>{ range=r; refresh(); } });
+    // R240 (0405): funnel / payments / coming up / packages / cancellations + "vs the period before"
+    if(window.HelmInsightsOverview) ovUI=HelmInsightsOverview.mount({ glance:$("#ioGlance"), funnel:$("#ioFunnel"), pay:$("#ioPay"), payCard:$("#ioPayCard"),
+      upcoming:$("#ioUp"), packages:$("#ioPkg"), cancels:$("#ioCx") }, { money:(n,c)=>curM(n,c), studioCurrency:()=>BPStore.studioCurrency(),
+      hidden:()=>!!(window.HelmPrivacy&&HelmPrivacy.isHidden&&HelmPrivacy.isHidden()), fmtDate:(d)=>BPStore.fmtDateIN(d), href:(id)=>"event.html?id="+encodeURIComponent(id||""),
+      sourceLabel:(v)=>BPStore.sourceLabel?BPStore.sourceLabel(v):v });
+    $("#ioExport").addEventListener("click",exportCsv);
+    // R240: Last 7 days · This month · Last month · Last 6 months · Last 12 months · This year · Custom (Reports keeps its own list)
+    HelmRange.mount($("#rangeBar"),{ storeKey:"helm_range_insights", defaultKey:"this_month", keys:BPStore.insights.INSIGHTS_RANGE_KEYS, onChange:(r)=>{ range=r; refresh(); } });
   }
+  // R240: everything on screen as one CSV (formula-safe cells; refused while amounts are hidden)
+  function exportCsv(){ const m=$("#ioExportMsg");
+    if(window.HelmPrivacy&&HelmPrivacy.isHidden&&HelmPrivacy.isHidden()){ m.textContent="Show amounts first (eye button), then export."; return; }
+    const text=ovUI&&ovUI.csv(); if(!text){ m.textContent="Nothing to export yet — wait for the page to load."; return; }
+    const blob=new Blob(["\uFEFF"+text],{type:"text/csv;charset=utf-8"}), url=URL.createObjectURL(blob), a=document.createElement("a");
+    a.href=url; a.download="helm-insights-"+(range?range.from+"_to_"+range.to:"period")+".csv"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500); m.textContent="Exported."; }
   async function refresh(){
     const my=++seq, r=range; if(!r) return;
     $("#rangeErr").innerHTML="";
     ["#evKpis","#types","#staff","#vendors","#tasks","#lossItem","#lossMonth","#margins"].forEach(h=>{ $(h).innerHTML='<div class="empty">Loading…</div>'; });
-    const [rangeRes, sumRes, evRes, costRes]=await Promise.allSettled([BPStore.insights.range(r.from,r.to), BPStore.insights.summary({from:r.from,to:r.to}),
+    // R240: the ledger rows also cover the period before (for "vs the period before"); the cost card keeps its 12 months
+    const pv=BPStore.insights.prevRange?BPStore.insights.prevRange(r.from,r.to):null, bf=benchFrom(r), lf=pv&&bf&&pv.from<bf?pv.from:bf;
+    const [rangeRes, sumRes, evRes, costRes0, ovRes]=await Promise.allSettled([BPStore.insights.range(r.from,r.to), BPStore.insights.summary({from:r.from,to:r.to},{margins:false}),
       canFin && BPStore.insights.events ? BPStore.insights.events(r.from,r.to) : Promise.resolve(null),
-      costsUI && BPStore.insights.costs ? BPStore.insights.costs(benchFrom(r),r.to) : Promise.resolve(null)]);
+      costsUI && BPStore.insights.costs ? BPStore.insights.costs(lf,r.to) : Promise.resolve(null),
+      ovUI && BPStore.insights.overview ? BPStore.insights.overview(r.from,r.to) : Promise.resolve(null)]);
     if(my!==seq) return;   // a newer range was picked meanwhile
+    // R240 (F2): the server sends at most 500 events, oldest first - a full answer may have lost the newest (this period),
+    // so ask again for exactly this period (comparison + 12-month benchmarks then use what is there)
+    let costRes=costRes0, cut=false;
+    if(costRes.status==="fulfilled" && costRes.value && Array.isArray(costRes.value.events) && costRes.value.events.length>=500){
+      cut=true; costRes=(await Promise.allSettled([BPStore.insights.costs(r.from,r.to)]))[0]; if(my!==seq) return; }
+    const allRows=(costsUI && costRes.status==="fulfilled" && costRes.value && Array.isArray(costRes.value.events)) ? costRes.value.events : null;
+    const benchRows=allRows&&bf?allRows.filter(x=>String(x.date||"")>=bf):allRows;
     // r22 money: ONE profit source - the ledger rows (insights_event_costs = event_pnl, crew wages counted) also
     // drive the Money tiles and the per-event table, so every margin on this page is the same number
-    const ledger=(costsUI && costRes.status==="fulfilled" && costRes.value && Array.isArray(costRes.value.events)) ? costRes.value.events : null;
+    const ledger=benchRows;
     if(evRes.status==="fulfilled"){ const raw=(evRes.value&&Array.isArray(evRes.value.events))?evRes.value.events:[];
       peRows=ledger?HelmInsightsCosts.alignEvents(raw,ledger):raw; renderPerEvent(""); }
     else { peRows=[]; renderPerEvent((evRes.reason&&evRes.reason.code==="insights_events_missing") ? evRes.reason.message : "Couldn’t load the per-event table — try again."); }
@@ -263,9 +321,13 @@
     else { ["#evKpis","#types","#staff"].forEach(h=>{ $(h).innerHTML='<div class="empty">—</div>'; }); $("#moneyWrap").hidden=true;
       BPUI.loadError($("#rangeErr"), rangeRes.reason||new Error("No data returned"), refresh, {what:"insights for this period"}); }
     // after renderRange: the money section is visible now, so the charts measure their real width
-    if(costsUI){ if(costRes.status==="fulfilled") costsUI.set({ rows:(costRes.value&&Array.isArray(costRes.value.events))?costRes.value.events:[], from:r.from, to:r.to });
+    if(ovUI){ if(ovRes.status==="fulfilled" && ovRes.value) ovUI.set(ovRes.value);
+      else ovUI.clear((ovRes.reason&&ovRes.reason.code==="insights_overview_missing") ? ovRes.reason.message : "Couldn’t load — try again.");
+      ovUI.ledger(allRows, cut ? "This studio has more than 500 events in that window, so revenue and profit are not compared." : "", cut); }
+    if(costsUI){ if(costRes.status==="fulfilled") costsUI.set({ rows:benchRows||[], from:r.from, to:r.to });
       else costsUI.clear((costRes.reason&&costRes.reason.code==="insights_costs_missing") ? costRes.reason.message : "Couldn’t load the event costs — try again."); }
-    if(sumRes.status==="fulfilled" && sumRes.value) renderSummary(sumRes.value);
+    // R240: the margin trend comes from the same ledger rows (no closure.pl call per closed event)
+    if(sumRes.status==="fulfilled" && sumRes.value) renderSummary(sumRes.value, ledger && window.HelmInsightsOverview ? HelmInsightsOverview.marginsFromLedger(ledger,r.from,r.to) : false);
     else ["#vendors","#tasks","#lossItem","#lossMonth","#margins"].forEach(h=>{ $(h).innerHTML='<div class="empty">Couldn’t load — try again.</div>'; });
   }
   // E13 (0101): revenue / profit / margin WITHOUT the tax collected; older servers send only the gross fields
@@ -371,13 +433,14 @@
     const k=b.dataset.k; peSort = peSort.k===k ? { k, dir:-peSort.dir } : { k, dir:(k==="code"||k==="date")?1:-1 };
     renderPerEvent($("#perEventMsg").textContent && !peRows.length ? $("#perEventMsg").textContent : "");
   }));
-  function renderSummary(d){
-    d=Object.assign({vendors:[],taskSlips:[]},d); d.losses=Object.assign({byItem:[],byMonth:[]},d.losses); d.margins=Object.assign({events:[]},d.margins);
+  function renderSummary(d, mg){
+    d=Object.assign({vendors:[],taskSlips:[]},d); d.losses=Object.assign({byItem:[],byMonth:[]},d.losses); d.margins=Object.assign({events:[]},mg||d.margins);
     bars("vendors", d.vendors.slice(0,8).map(v=>({label:v.name, value:v.rejectRate, text:`${v.rejected}/${v.total} · ${v.rejectRate}%`, color:v.rejectRate>0?"bad":"safe"})), "No outsourced tasks in this period.");
     bars("tasks", d.taskSlips.slice(0,8).map(c=>({label:c.category, value:c.rejected, text:`${c.rejected} (${c.rejectRate}%)`, color:"warn"})), "No rejections — clean record.");
     bars("lossItem", d.losses.byItem.slice(0,8).map(i=>({label:i.name, value:i.qty, text:i.qty, color:"bad"})), "No losses recorded 🎉");
     bars("lossMonth", d.losses.byMonth.slice(-8).map(m=>({label:m.month, value:m.qty, text:m.qty, color:"warn"})), "No losses recorded 🎉");
     if(!canFin) return;
+    if(mg===false){ $("#margins").innerHTML='<div class="empty">Couldn’t load the margins — try again.</div>'; return; }
     const mw=d.margins.withRevenue||d.margins.events.filter(e=>Number(e.revenue)>0), mz=d.margins.noRevenue||[];
     if(!mw.length&&!mz.length){ $("#margins").innerHTML='<div class="empty">No closed events in this period.</div>'; return; }
     const byC=Array.isArray(d.margins.byCurrency)?d.margins.byCurrency:[];

@@ -187,7 +187,7 @@ t('0403: additive + idempotent + ASCII; no data dropped, updated or deleted', ()
   assert.match(mig, /exception when others then\s+v_bad := null;/, 'fails open: a bug never stops sign-in');
   assert.match(mig, /errcode = '22023', hint = 'email_no_tld'/);
   assert.match(mig, /revoke all on table public\.account_age_confirmations from authenticated/);
-  assert.match(manifest, /\nforward  supabase\/migrations\/0402_r236_ops_health\.sql\n# 0403 [^\n]+\nforward  supabase\/migrations\/0403_r238_signup_safety\.sql\n?$/);
+  assert.match(manifest, /\nforward  supabase\/migrations\/0402_r236_ops_health\.sql\n# 0403 [^\n]+\nforward  supabase\/migrations\/0403_r238_signup_safety\.sql\n/);
   assert.doesNotMatch(manifest, /0401_/, '0401 left free for the parallel PR');
 });
 t('APPLY-0403: one transaction, 5 s lock wait, the migration verbatim, check rows, pasteable', () => {

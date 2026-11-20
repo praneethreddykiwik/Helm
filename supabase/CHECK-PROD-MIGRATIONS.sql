@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (353 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (354 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4651 objects): body 174, bucket 9, col 250, con 416, cron 20, exec 19, fn 2085, idx 537, marker 113, pol 190, polexpr 4, pre 114, pub 5, seq 1, tbl 301, trg 411, view 2.
+-- What is checked (4655 objects): body 174, bucket 9, col 250, con 416, cron 20, exec 19, fn 2089, idx 537, marker 113, pol 190, polexpr 4, pre 114, pub 5, seq 1, tbl 301, trg 411, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4675,7 +4675,11 @@ with o(m, k, s, n, x) as (values
   ('0403_r238_signup_safety', 'fn', 'public', 'tg_r403_email_tld_guard', ''),
   ('0403_r238_signup_safety', 'trg', 'auth.users', 'a403_email_tld_guard', null),
   ('0403_r238_signup_safety', 'trg', 'public.invitations', 'a403_email_tld_guard', null),
-  ('0403_r238_signup_safety', 'trg', 'public.crew_members', 'a403_email_tld_guard', null)
+  ('0403_r238_signup_safety', 'trg', 'public.crew_members', 'a403_email_tld_guard', null),
+  ('0405_r240_insights_overview', 'fn', 'public', '_r405_prev_range', 'date,date'),
+  ('0405_r240_insights_overview', 'fn', 'public', '_r405_funnel', 'uuid,text,date,date,boolean'),
+  ('0405_r240_insights_overview', 'fn', 'public', '_r405_timing', 'uuid,text,date,date'),
+  ('0405_r240_insights_overview', 'fn', 'public', 'insights_overview', 'date,date,text')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5030,7 +5034,8 @@ mig(ord, m, ov, note) as (values
   (350, '0399_r230_dept_supervisors', null, 'tenant guard and read-only studio triggers put on the new department-supervisor tables with dynamic SQL'),
   (351, '0400_r232_remove_role_traces', null, 'R232 remove-role-traces: everything except the 5 _r400_* helpers runs only when the safety gate is clear (no coordinator / designer login left), inside one DO block - so only the helpers are checked here. Proof that it ran is APPLY-0400 check rows 01-15 (every ok true); re-run APPLY-0400 any time to see them'),
   (352, '0402_r236_ops_health', null, 'R236: backoff trigger + next_attempt_at put on the 7 staff / reminder queues and the 8-try limit written into their claim bodies with dynamic SQL; the mailer cron jobs are created only when their Vault secrets exist (APPLY-0402 check rows 10 say which) - not checked here'),
-  (353, '0403_r238_signup_safety', null, null)
+  (353, '0403_r238_signup_safety', null, null),
+  (354, '0405_r240_insights_overview', null, null)
 ),
 env as (
   select
