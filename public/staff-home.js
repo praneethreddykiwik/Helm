@@ -45,7 +45,9 @@
     if (s) s.textContent = sub || "Please ask the person who sent it to you for a new one.";
     b.hidden = false;
   }
-  function fmtDay(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : ""; }
+  // R243 (P11 LOC-04): "12 Nov 2026" - the same on the task link (crew-self.js) and in the e-mails, in every country
+  var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function fmtDay(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m && +m[2] >= 1 && +m[2] <= 12 ? (+m[3]) + " " + MON[+m[2] - 1] + " " + m[1] : ""; }
   function weekday(s) {
     var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); if (!m) return "";
     try { return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString("en-IN", { weekday: "short", timeZone: "UTC" }); } catch (e) { return ""; }

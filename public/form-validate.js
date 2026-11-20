@@ -176,9 +176,20 @@
       var r = (o.phone && o.phone.validate) ? o.phone.validate({ mobile: !!o.mobile, required: !!o.required })
         : HP.validate(v, { mobile: !!o.mobile, required: !!o.required, country: o.country });
       if (!r.ok && r.empty && o.required) return { ok: false, error: o.requiredMsg || ("Please enter " + (o.label ? "your " + lc(o.label) : "a phone number") + ".") };
-      return r.ok ? { ok: true, value: r.e164 || "" } : { ok: false, error: r.error };
+      return r.ok ? { ok: true, value: r.e164 || "", shown: phoneShown(HP, r.e164) } : { ok: false, error: r.error };
     },
   };
+
+  // R243 (P11 OPS-05): read the saved number back with its country ("Saved as +91 98765 43210 · India") so a wrong
+  // country code is seen before WhatsApp / SMS go nowhere. Display only - the saved value stays E.164.
+  function phoneShown(HP, e164) {
+    if (!e164 || !HP || !HP.display) return "";
+    try {
+      var p = HP.parse ? HP.parse(e164) : null, c = p && HP.country ? HP.country(p.iso) : null;
+      return "Saved as " + HP.display(e164) + (c && c.name ? " · " + c.name : "");
+    } catch (e) { return ""; }
+  }
+  rules.phoneShown = function (e164) { return phoneShown(global.HelmPhone, e164); };
 
   var api = { rules: rules, clean: clean, stripHtml: stripHtml, emailSuggest: emailSuggest, missingTld: missingTld, _sift4: sift4 };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -226,7 +237,10 @@
       if (state === "error") input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
       while (msg.firstChild) msg.removeChild(msg.firstChild);
       if (state === "error" && text) { var ic = el("span", "fv-ic", "!"); ic.setAttribute("aria-hidden", "true"); msg.appendChild(ic); msg.appendChild(doc.createTextNode(text)); }
-      msg.hidden = state !== "error";
+      // R243 (OPS-05): a valid phone shows how it was read (country + format), in the calm "ok" colour
+      if (state === "ok" && text) msg.appendChild(doc.createTextNode(text));
+      msg.classList.toggle("fv-readback", state === "ok" && !!text);
+      msg.hidden = !(state === "error" || (state === "ok" && !!text));
     }
     // r20: a number box holding text the browser can't read as a number (badInput: "5e", "-7e") has value "" -
     // flag it instead of letting it pass as an empty (optional) field
@@ -240,7 +254,7 @@
       var r = run();
       if (!touched) { setState("none"); return r; }
       if (!r.ok) setState("error", r.error);
-      else setState(r.value ? "ok" : "none");
+      else setState(r.value ? "ok" : "none", r.shown || "");
       return r;
     }
     // normalise what's in the box (trim / lower-case / strip HTML) — never for phones (HelmPhone formats itself)

@@ -4,6 +4,7 @@
 // sha-256 is stored); the link is APP_URL + "/delivery?t=" + token - the host never comes from the
 // database. The scheduler's copy ('cc') links to the event-day command page by the event id.
 // Anything unexpected -> empty text, and comms-dispatch then marks the row skipped (fails closed).
+import { plainDate } from "../_shared/plain-date.mjs";   // R243 (LOC-04): "20 Oct 2026", never a bare dd/mm/yyyy
 export const DELIVERY_TOKEN = /^[0-9a-f]{64}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ORIGIN = /^https:\/\/[A-Za-z0-9.-]{1,190}(?::[0-9]{1,5})?$/;
@@ -36,21 +37,21 @@ export function deliveryMessage(row, origin) {
   if (!what || !DUE.test(due) || !link) return { subject: "", text: "" };
   const qty = Number(row.qty) > 0 ? " x" + Number(row.qty).toLocaleString("en-IN") : "";
   const item = what + qty;
-  const evLine = event + (DATE.test(date) ? " on " + date : "");
-  const when = whenText(row.offset_min);
+  const evLine = event + (DATE.test(date) ? " on " + plainDate(date) : "");
+  const when = whenText(row.offset_min), dueAt = plainDate(due);
   if (row.kind === "party") {
     return {
-      subject: (when === "now" ? "Due now: " : "Reminder: ") + item + " for " + event + " - due " + due,
+      subject: (when === "now" ? "Due now: " : "Reminder: ") + item + " for " + event + " - due " + dueAt,
       text: "Hello" + (who ? " " + who : "") + ",\n\n" +
-        "This is a reminder from " + studio + ": " + item + " for " + evLine + " is due " + (when === "now" ? "now" : when) + " (" + due + ").\n\n" +
+        "This is a reminder from " + studio + ": " + item + " for " + evLine + " is due " + (when === "now" ? "now" : when) + " (" + dueAt + ").\n\n" +
         "Please tell us where things stand - one tap, no sign-in:\n" + link + "\n\n" +
         "Choose On the way, Arrived, Delayed (with a new time) or Problem, and add a short note if needed.\n\n" +
         "Thank you,\n" + studio,
     };
   }
   return {
-    subject: "Delivery check: " + item + " (" + (who || "vendor") + ") due " + due,
-    text: "Reminder (" + when + "): " + item + " from " + (who || "the responsible person") + " for " + evLine + " is due " + due + ".\n" +
+    subject: "Delivery check: " + item + " (" + (who || "vendor") + ") due " + dueAt,
+    text: "Reminder (" + when + "): " + item + " from " + (who || "the responsible person") + " for " + evLine + " is due " + dueAt + ".\n" +
       "They have been asked to confirm. Live status on the event-day board:\n" + link,
   };
 }

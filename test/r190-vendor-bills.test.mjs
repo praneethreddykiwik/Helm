@@ -150,7 +150,7 @@ await t('e-mail (office): before / due / overdue, plain words, link to the event
   const m = M.vendorBillMessage(base, ORIGIN);
   assert.equal(m.subject, 'Due soon: vendor bill Rs 18,000 to Sri Sai Tents - Rao Wedding');
   assert.match(m.text, /^Hello Asha,/);
-  assert.match(m.text, /A vendor bill is due in 3 days: Rs 18,000 to Sri Sai Tents \(bill #T-142, due 20\/12\/2026\) for Rao Wedding \(14\/12\/2026\)\./);
+  assert.match(m.text, /A vendor bill is due in 3 days: Rs 18,000 to Sri Sai Tents \(bill #T-142, due 20 Dec 2026\) for Rao Wedding \(14 Dec 2026\)\./);
   assert.ok(m.text.includes(ORIGIN + '/settlement.html?quote=' + Q + '#vendorBills'));
   assert.match(M.vendorBillMessage({ ...base, kind: 'due', days: 0 }, ORIGIN).subject, /^Due today: /);
   const o = M.vendorBillMessage({ ...base, kind: 'overdue', days: -4, open: 12500.5 }, ORIGIN);
@@ -167,7 +167,7 @@ await t('e-mail (vendor): only vendor_before, no link, their own bill only; desi
   const v = { audience: 'vendor', kind: 'vendor_before', studio: 'Studio A', vendor: 'Sri Sai Tents', bill_no: 'T-142', amount: 18000, open: 18000, currency: 'INR',
     due_text: '20/12/2026', days: 3, event: 'Rao Wedding', event_date: '14/12/2026', quote_id: Q };
   const m = M.vendorBillMessage(v, ORIGIN);
-  assert.equal(m.subject, 'Your bill #T-142 from Studio A is due for payment on 20/12/2026');
+  assert.equal(m.subject, 'Your bill #T-142 from Studio A is due for payment on 20 Dec 2026');
   assert.doesNotMatch(m.text, /https?:\/\//, 'no link to the studio app');
   assert.equal(M.vendorBillMessage({ ...v, kind: 'overdue' }, ORIGIN).text, '', 'vendors only ever get the "due for payment" note');
   const h = M.vendorBillHtml({ ...v, vendor: 'A&B <Tents>' }, ORIGIN, {});

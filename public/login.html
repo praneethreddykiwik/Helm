@@ -2,7 +2,7 @@
 <html lang="en" data-theme="light" data-pt="emerald" data-hb-theme="emerald" data-mk-lock>
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="/trusted-types.js?v=9"></script>
+<script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
 <script src="/console-warning.js?v=1" defer></script>
 <script src="/auth-handoff.js?v=2"></script>
 <script src="/login-submit-guard.js?v=3"></script>
@@ -228,7 +228,7 @@
   .plan-chip-x:hover{text-decoration:underline}
   .sales-note{margin:-8px 0 18px;font-size:13px;color:var(--ink-2)} .sales-note a{color:var(--accent);font-weight:700}
 </style>
-<link rel="stylesheet" href="theme.css?v=85"><link rel="stylesheet" href="/ui-pickers.css?v=4" media="print" data-lazy-css><script type="text/plain" data-login-lazy src="/ui-pickers.js?v=4"></script>
+<link rel="stylesheet" href="theme.css?v=86"><link rel="stylesheet" href="/ui-pickers.css?v=4" media="print" data-lazy-css><script type="text/plain" data-login-lazy src="/ui-pickers.js?v=4"></script>
 <link rel="stylesheet" href="/public-v2.css?v=10">
 <meta name="bp-theme-toggle" content="off">
 <script src="/marketing-theme.js?v=3" defer></script>
@@ -529,7 +529,7 @@
     </section>
   </main>
 
-<script src="/form-validate.js?v=5"></script>
+<script src="/form-validate.js?v=6"></script>
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <!-- R224 speed: the app scripts (store-api + supabase-js, Google sign-in, the sign-up steps) are NOT fetched during the first
@@ -538,8 +538,8 @@
      order as before (app scripts first, then the page), and a Sign in tapped meanwhile is held and replayed by the guard.
      config.js stays a normal script (it may add config.staging.js before them). -->
 <script type="text/plain" data-login-lazy src="event-name.js?v=9"></script>
-<script type="text/plain" data-login-lazy src="country-profile.js?v=7"></script><script type="text/plain" data-login-lazy src="store-api.js?v=395"></script>
-<script type="text/plain" data-login-lazy src="auth-ui.js?v=66"></script>
+<script type="text/plain" data-login-lazy src="country-profile.js?v=7"></script><script type="text/plain" data-login-lazy src="store-api.js?v=396"></script>
+<script type="text/plain" data-login-lazy src="auth-ui.js?v=67"></script>
 <script type="text/plain" data-login-lazy src="/auth-visual.js?v=1"></script>
 <script type="text/plain" data-login-lazy src="/trial-facts.js?v=9"></script>
 <script type="text/plain" data-login-lazy src="/trial-signup.js?v=14"></script>
@@ -1635,5 +1635,6 @@ document.addEventListener("helm:login-ready", function(){
   });
 });
 </script>
+<script src="/site-analytics.js?v=1" defer></script><!-- R243: cookie-free page counts, public pages only -->
 </body>
 </html>
