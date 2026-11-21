@@ -131,7 +131,10 @@ begin
   perform pg_temp.su();
   perform pg_temp.t('4a the restrictive stock-photo policy exists (insert, authenticated)',
     exists (select 1 from pg_policy where polname = 'event_docs_stock_rate_0428' and polrelid = 'storage.objects'::regclass and not polpermissive and polcmd = 'a'));
-  insert into public.storage_upload_log(owner, bucket_id, created_at) select u, 'event-docs', now() - interval '1 minute' from generate_series(1, 99);
+  -- earlier suites of a full run may have left recent uploads of this person: top the log up to exactly 99 in the window
+  -- (the rate counts greatest(files, log), and those earlier files are far fewer than 99)
+  insert into public.storage_upload_log(owner, bucket_id, created_at) select u, 'event-docs', now() - interval '1 minute'
+    from generate_series(1, 99 - (select count(*) from public.storage_upload_log l where l.owner = u and l.created_at > now() - interval '10 minutes')::int);
   perform pg_temp.login('a_admin@a.test');
   ok1 := public._r428_upload_rate_ok();
   p := a::text || '/none/stock/' || gen_random_uuid()::text || '.jpg';
@@ -270,5 +273,5 @@ exception when others then perform pg_temp.su(); insert into _rs values ('6x tim
 
 select name, result from _rs order by name;
 select case when count(*) filter (where result <> 'PASS') = 0 then 'R247-P10-SCALE-0427-0429: ALL PASS (' || count(*) || '/' || count(*) || ')'
-            else 'R247-P10-SCALE-0427-0429: ' || count(*) filter (where result <> 'PASS') || ' FAILED of ' || count(*) end as summary from _rs;
+            else 'R247-P10-SCALE-0427-0429: ' || count(*) filter (where result <> 'PASS') || ' FAILED of ' || count(*) || ' - ' || string_agg(case when result <> 'PASS' then name || ': ' || result end, '; ' order by name) end as summary from _rs;
 rollback;

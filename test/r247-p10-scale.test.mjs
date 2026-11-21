@@ -71,6 +71,12 @@ t('MANIFEST ends 0427-0429 in order, run-all runs the suite + the APPLY files tw
   assert.ok(nums.indexOf('0427') > nums.indexOf('0412')); assert.ok(nums.indexOf('0427') > nums.indexOf('0425'), 'after R246 0423-0425');
   assert.match(RA, /run "r247-p10-scale-0427-0429" "R247-P10-SCALE-0427-0429: ALL PASS \\\(36\/36\\\)"/);
   assert.match(RA, /run "r247-apply-0427-0429" "APPLY-0427-0429: ALL OK"/);
+  // owner, 20 Nov: Phase 9 (0423-0425) is ON HOLD - 0427-0429 must paste on a database without it (and before it)
+  assert.match(RA, /run "r247-order-without-0423" "R247-ORDER-WITHOUT-0423: PASS" bash tests\/db\/r247-apply-order-without-0423\.sh/);
+  const OW = rd('tests/db/r247-apply-order-without-0423.sh');
+  assert.match(OW, /\*0423_r246_\*\|\*0424_r246_\*\|\*0425_r246_\*/);
+  assert.match(OW, /for k in 1 2; do/); assert.match(OW, /export PGOPTIONS=""/);
+  for (const n of NUMS) assert.ok(!/event_end_date|_r21_cost_lines|__pre0424|_len425|helm_country_default_gst/.test(MIG[n]), n + ' does not depend on 0423-0425');
   assert.ok(RA.indexOf('r247-apply-0427-0429') < RA.indexOf('run "r232-remove-role-traces-0400"'), 'before the last (0400) run');
   assert.match(PK.scripts.test, /node test\/r247-p10-scale\.test\.mjs/);
   const chk = rd('supabase/CHECK-PROD-MIGRATIONS.sql');
