@@ -25,7 +25,7 @@
 </script>
 <link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
-<link rel="stylesheet" href="builder.css?v=42">
+<link rel="stylesheet" href="builder.css?v=43">
 <link rel="stylesheet" href="venues.css?v=8">
 <link rel="stylesheet" href="studio-templates.css?v=5">
 <link rel="stylesheet" href="/builder-v2.css?v=13">
@@ -177,6 +177,12 @@
   <button type="button" class="tbtn" id="verRestoreBtn" title="Save what you see as a brand-new latest version (older versions stay as they are)">Restore as new version</button>
   <button type="button" class="tbtn" id="verLatestBtn">Back to latest</button>
 </div>
+<!-- R241: the unsaved canvas kept by "Reload" after a save conflict -->
+<div class="verbanner" id="conflictCopyBar" role="status" hidden>
+  <span id="conflictCopyTxt"></span>
+  <button type="button" class="tbtn" id="conflictPutBackBtn" title="Put your kept changes back on the canvas (press Save afterwards to keep them as a new version)">Put my changes back</button>
+  <button type="button" class="tbtn" id="conflictDiscardBtn">Discard copy</button>
+</div>
 
 <!-- SWITCH VERSION with unsaved changes -->
 <div class="modal" id="verModal" hidden role="dialog" aria-modal="true" aria-labelledby="verModalTitle" aria-describedby="verModalDesc">
@@ -194,6 +200,21 @@
         <button type="button" class="tbtn danger" data-choice="discard">Discard changes and switch</button>
         <button type="button" class="tbtn" data-choice="cancel">Cancel</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- R241: SAVE CONFLICT - someone saved a newer version (nothing was written) -->
+<div class="modal" id="conflictModal" hidden role="dialog" aria-modal="true" aria-labelledby="conflictModalTitle" aria-describedby="conflictModalDesc">
+  <div class="sheet sheet-ver">
+    <div class="sheet-head"><b id="conflictModalTitle">Someone saved a newer version</b><button type="button" class="tbtn icon" title="Keep editing" aria-label="Keep editing, nothing saved" data-close>✕</button></div>
+    <div class="sheet-body pad14">
+      <p class="vermsg" id="conflictModalDesc"></p>
+      <div class="cfopts">
+        <div class="cfopt"><button type="button" class="tbtn primary" data-choice="mine">Save mine as a new version</button><small id="conflictMineNote"></small></div>
+        <div class="cfopt"><button type="button" class="tbtn" data-choice="reload" id="conflictReloadBtn">Reload</button><small id="conflictReloadNote"></small></div>
+      </div>
+      <div class="veracts"><button type="button" class="tbtn" data-choice="cancel">Keep editing</button></div>
     </div>
   </div>
 </div>
@@ -518,15 +539,15 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=400"></script>
-<script src="page-tours.js?v=70"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=401"></script>
+<script src="page-tours.js?v=71"></script>
 <script src="flow-layout-sync.js?v=6"></script>
 <script src="event-sizing.js?v=5"></script>
 <script src="builder-tools.js?v=6"></script>
 <script src="quote-state.js?v=4"></script>
 <script src="reprice-guard.js?v=1"></script>
 <script src="stage-screen.js?v=5"></script>
-<script src="builder.js?v=96"></script>
+<script src="builder.js?v=97"></script>
 <script src="event-floor.js?v=1"></script>
 <script src="builder-back.js?v=1" defer></script>
 <script src="venues-core.js?v=11"></script>

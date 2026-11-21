@@ -55,8 +55,9 @@ t('4 event page: Record advance -> quote workspace payment step', () => {
 });
 t('5 store: 0 rows with a lock token is a CONFLICT only when the row really moved on', () => {
   const f = STORE.slice(STORE.indexOf('async updateMeta(quoteId, patch, expectedUpdatedAt)'), STORE.indexOf('// localStorage fallback tier'));
-  assert.match(f, /select\("updated_at"\)\.eq\("id", quoteId\)\.maybeSingle\(\)/);
-  assert.match(f, /if \(cur && !sameStamp\(cur, expectedUpdatedAt\)\) \{/);
+  // R241 (0408): the re-read also brings meta_rev when the lock was the details counter
+  assert.match(f, /select\(rev != null \? "updated_at,meta_rev" : "updated_at"\)\.eq\("id", quoteId\)\.maybeSingle\(\)/);
+  assert.match(f, /if \(cur && \(rev != null \? String\(cur\.meta_rev\) !== String\(rev\) : !sameStamp\(cur\.updated_at, expectedUpdatedAt\)\)\) \{/);
   assert.match(f, /e\.code = "NOT_SAVED"; throw e;\n        \}/);
   const sameStamp = new Function('return ' + STORE.match(/function sameStamp\(a, b\) \{[^\n]*\}/)[0])();
   assert.equal(sameStamp('2026-10-13T10:00:00.123+00:00', '2026-10-13T10:00:00.123Z'), true);

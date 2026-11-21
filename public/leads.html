@@ -107,7 +107,7 @@
 <link rel="stylesheet" href="leads-polish.css?v=5">
 <link rel="stylesheet" href="theme.css?v=86"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=111" id="shellProto"></script>
+<script src="/shell-proto.js?v=112" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -229,9 +229,9 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script><script src="form-validate.js?v=6"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=400"></script>
-<script src="page-tours.js?v=70"></script>
-<script src="tour.js?v=85"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=401"></script>
+<script src="page-tours.js?v=71"></script>
+<script src="tour.js?v=86"></script>
 <script>
   const $=(s,r=document)=>r.querySelector(s);
   // shared event-type list (event-name.js): same options as the quote flow; saved spelling is canonical
@@ -737,11 +737,19 @@
 
   /* ---------- realtime ---------- */
   let rtReloadTimer=null;
+  // R241 (Phase 4 RT-02): a change arriving while you drag or within 2 s of your own save (the echo window) used to be
+  // DROPPED - a teammate's move in that window never showed until the next change. Now it is only DELAYED: the reload
+  // runs once the drag has ended and the 2 s window has passed (checked again when the timer fires).
+  function rtKick(){
+    clearTimeout(rtReloadTimer);
+    const wait=Math.max(300, 2000-(Date.now()-lastLocalWrite)+50);
+    rtReloadTimer=setTimeout(()=>{ if(dragging || Date.now()-lastLocalWrite<2000){ rtKick(); return; } load(); }, wait);
+  }
   function startRealtime(){
     if(rtChannel) return;
     rtChannel = BPStore.leads.subscribe(
-      // debounce reloads, and skip while dragging or just after a local write, so our own echo doesn't clobber the board / undo stack
-      ()=>{ if(dragging) return; if(Date.now()-lastLocalWrite<2000) return; clearTimeout(rtReloadTimer); rtReloadTimer=setTimeout(load,300); },
+      // debounce reloads; while dragging or just after a local write the reload waits (our own echo doesn't clobber the board / undo stack)
+      ()=>{ rtKick(); },
       // real subscription status → honest pill
       (status)=>{ const on=status==="SUBSCRIBED"; $("#live").classList.toggle("on",on);
         $("#liveTxt").textContent = on?"live":(status==="DISABLED"?"offline":"connecting…"); }
