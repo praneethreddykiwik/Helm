@@ -308,19 +308,20 @@ do $$ declare h jsonb; begin
 exception when others then perform pg_temp.su(); insert into _rs values ('6x', 'FAIL: ' || sqlstate || ' ' || sqlerrm); end $$;
 
 -- ---- 7) schema version -------------------------------------------------------------------------------------------------
-do $$ declare v jsonb; begin
+do $$ declare v jsonb; mx int; begin
   perform pg_temp.su(); perform auth.login_anon();
   perform pg_temp.t('7a signed-out refused', pg_temp.try('select public.helm_schema_version()') like '42501%');
   perform pg_temp.su();
   perform auth.login_as((select id from public.profiles where org_id = 'a0000000-0000-4000-8000-000000000001' and role = 'admin' order by id limit 1));
   v := public.helm_schema_version();
-  perform pg_temp.t('7b signed-in: version 412 + recent numbers found (numbers only)', (v ->> 'version')::int = 412
+  perform pg_temp.t('7b signed-in: version 412 or later + recent numbers found (numbers only)', (v ->> 'version')::int >= 412
     and v -> 'applied' @> '[402, 403, 409, 410, 411, 412]'::jsonb and v ->> 'marker' = 'r242-0412'
     and not exists (select 1 from jsonb_array_elements(v -> 'applied') x where jsonb_typeof(x) <> 'number'), v::text);
   perform pg_temp.su();
-  insert into public.helm_schema_markers(num, name) values (413, '0413_future_update');
+  insert into public.helm_schema_markers(num, name) select max(num) + 1, 'r242_future_update' from public.helm_schema_markers;   -- R245: later migrations add their own marker rows
+  select max(num) into mx from public.helm_schema_markers;
   perform auth.login_as((select id from public.profiles where org_id = 'a0000000-0000-4000-8000-000000000001' and role = 'admin' order by id limit 1));
-  perform pg_temp.t('7c a later migration''s marker row raises the version', (public.helm_schema_version() ->> 'version')::int = 413);
+  perform pg_temp.t('7c a later migration''s marker row raises the version', (public.helm_schema_version() ->> 'version')::int = mx);
   perform pg_temp.su();
 exception when others then perform pg_temp.su(); insert into _rs values ('7x', 'FAIL: ' || sqlstate || ' ' || sqlerrm); end $$;
 

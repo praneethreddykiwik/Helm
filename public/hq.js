@@ -1264,9 +1264,9 @@
     var tb = clear($("#tUnconf"));
     (u.rows || []).forEach(function (x) {
       tb.appendChild(el("tr", null, [el("td", { text: x.email || "—" }), el("td", { text: x.studio || x.role || "—" }), el("td", { text: x.studio ? (x.role || "—") : "—" }),
-        el("td", { text: date(x.created_at) }), el("td", { cls: "n", text: int(x.days_old) }), el("td", { text: x.open_invitation ? "yes" : "no" })]));
+        el("td", { text: date(x.created_at) }), el("td", { cls: "n", text: int(x.days_old) })]));
     });
-    if (!tb.firstChild) tb.appendChild(el("tr", null, [el("td", { colspan: "6", cls: "empty", text: "No unconfirmed logins older than " + int(r.days || days) + " days." })]));
+    if (!tb.firstChild) tb.appendChild(el("tr", null, [el("td", { colspan: "5", cls: "empty", text: "No unconfirmed logins older than " + int(r.days || days) + " days." })]));
     $("#acDupN").textContent = int(du.count) + " pair" + (num(du.count) === 1 ? "" : "s");
     var td = clear($("#tDup"));
     (du.rows || []).forEach(function (x) {

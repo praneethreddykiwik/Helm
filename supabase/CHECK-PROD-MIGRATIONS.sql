@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4803 objects): body 173, bucket 9, col 274, con 419, cron 20, exec 19, fn 2156, idx 551, marker 124, pol 190, polexpr 4, pre 116, pub 5, seq 1, tbl 310, trg 430, view 2.
+-- What is checked (4804 objects): body 173, bucket 9, col 274, con 419, cron 20, exec 19, fn 2157, idx 551, marker 124, pol 190, polexpr 4, pre 116, pub 5, seq 1, tbl 310, trg 430, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4824,6 +4824,7 @@ with o(m, k, s, n, x) as (values
   ('0413_r245_login_delete_guard', 'trg', 'auth.users', 'a0_r413_login_delete_guard', null),
   ('0414_r245_hq_account_checks', 'fn', 'public', '_r414_email_key', 'text'),
   ('0414_r245_hq_account_checks', 'fn', 'public', '_r414_name_key', 'text'),
+  ('0414_r245_hq_account_checks', 'fn', 'public', '_r414_phone_twins', ''),
   ('0414_r245_hq_account_checks', 'fn', 'public', 'hq_account_checks', 'integer'),
   ('0415_r245_hq_member_actions', 'fn', 'public', '_r415_hq_member_check', 'text,uuid,uuid,text'),
   ('0415_r245_hq_member_actions', 'fn', 'public', 'hq_studio_member_promote', 'uuid,uuid,text'),

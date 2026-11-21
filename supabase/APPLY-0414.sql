@@ -4,7 +4,7 @@
 --   * hq_account_checks(days): HQ people with People access see (1) logins never confirmed and never signed in, older than
 --     30 days, and (2) pairs of logins that look like one person (same phone, or same name + a similar e-mail). E-mails are
 --     masked, phone numbers never shown. It NEVER deletes and NEVER merges anything.
--- 3 new read-only functions. Nothing changed or deleted.
+-- 4 new read-only functions. Nothing changed or deleted.
 -- Paste the whole file into the Supabase SQL editor and press Run. The last result lists checks - every ok must be true.
 begin;
 set local lock_timeout = '5s';
@@ -15,8 +15,7 @@ set local statement_timeout = '5min';
 --
 -- In plain words - ONE read-only HQ report, hq_account_checks(days), for HQ staff who may see People (people.read):
 --   1  ACC-03 "Unconfirmed logins": logins that were never confirmed AND never signed in, older than N days (default 30,
---      7 to 365). For each: the e-mail MASKED, when it was made / invited, how old, the studio and role (if any), whether
---      an open invitation still waits for it. It NEVER deletes anything. Removing one stays an owner decision with a
+--      7 to 365). For each: the e-mail MASKED, when it was made / invited, how old, the studio and role (if any). It NEVER deletes anything. Removing one stays an owner decision with a
 --      backed-up, owner-run script (the DELETE-0398 pattern) - the monthly owner checklist line.
 --   2  ACC-04 "Possible duplicates": two logins that look like the same person - the SAME PHONE (mobile / WhatsApp on the
 --      member profile, or the login's phone), or the SAME NAME plus a SIMILAR E-MAIL (the part before "@" is the same
@@ -24,7 +23,7 @@ set local statement_timeout = '5min';
 --      out. Read-only: studios are NEVER merged automatically - HQ looks at the pair in the weekly review.
 --   E-mails are always masked; no phone number is returned (only "same phone"). Each run writes one HQ "view" log row.
 --
--- ZERO DATA LOSS: additive + idempotent. 2 read-only helper functions + 1 HQ function. No table, column or row is changed
+-- ZERO DATA LOSS: additive + idempotent. 3 read-only helper functions + 1 HQ function. No table, column or row is changed
 -- (apart from the HQ view log row). Safe to run twice. ASCII only.
 
 do $$
@@ -51,6 +50,24 @@ returns text language sql immutable set search_path = '' as $$
     from (select lower(regexp_replace(btrim(coalesce(p_name, '')), '\s+', ' ', 'g')) as x) z
 $$;
 
+-- ACC-04 same-phone pairs: two team logins whose mobile / WhatsApp (member profile) or login phone is the same once
+-- normalised. Answers ONLY the two user ids - never a number. The HQ report itself only gets these id pairs and never reads the member profile table
+-- (the hq-subscriptions "no studio business data in HQ" rule). Server only.
+create or replace function public._r414_phone_twins()
+returns table(a_id uuid, b_id uuid) language sql stable security definer set search_path = '' as $$
+  -- r245-0414
+  with people as (
+    select p.id from public.profiles p where p.org_id is not null and coalesce(p.role, '') <> 'client'
+  ), phones as (
+    select distinct z.id, z.ph from (
+      select pe.id, public.helm_norm_phone(m.phone) as ph from people pe join public.member_profiles m on m.user_id = pe.id
+      union all select pe.id, public.helm_norm_phone(m.whatsapp) from people pe join public.member_profiles m on m.user_id = pe.id
+      union all select pe.id, public.helm_norm_phone(u.phone::text) from people pe join auth.users u on u.id = pe.id) z
+     where char_length(coalesce(z.ph, '')) >= 8
+  )
+  select distinct pa.id, pb.id from phones pa join phones pb on pb.ph = pa.ph and pb.id > pa.id
+$$;
+
 create or replace function public.hq_account_checks(p_days integer default 30)
 returns jsonb language plpgsql volatile security definer set search_path = '' as $$
 -- r245-0414 ACC-03 + ACC-04: read-only (one HQ view log row); never deletes, never merges
@@ -63,9 +80,7 @@ begin
   -- 1) unconfirmed logins older than v_days (never confirmed, never signed in)
   with x as (
     select u.id, u.email::text as email, u.created_at, u.invited_at, p.org_id, p.role, o.name as studio,
-           exists (select 1 from public.platform_admins pa where pa.user_id = u.id or pa.email = lower(u.email::text)) as hq,
-           exists (select 1 from public.invitations i where lower(i.email) = lower(u.email::text) and i.status = 'pending'
-                     and (i.expires_at is null or i.expires_at > now())) as open_invite
+           exists (select 1 from public.platform_admins pa where pa.user_id = u.id or pa.email = lower(u.email::text)) as hq
       from auth.users u
       left join public.profiles p on p.id = u.id
       left join public.organizations o on o.id = p.org_id
@@ -75,8 +90,7 @@ begin
   select count(*), coalesce(jsonb_agg(jsonb_build_object(
            'user_id', x.id, 'email', public._r57_mask_email(x.email), 'created_at', x.created_at, 'invited_at', x.invited_at,
            'days_old', (current_date - x.created_at::date), 'studio', x.studio, 'org_id', x.org_id,
-           'role', case when x.hq then 'Helm HQ' when x.org_id is null then 'No studio' else x.role end,
-           'open_invitation', x.open_invite) order by x.created_at) filter (where x.rn <= 500), '[]'::jsonb)
+           'role', case when x.hq then 'Helm HQ' when x.org_id is null then 'No studio' else x.role end) order by x.created_at) filter (where x.rn <= 500), '[]'::jsonb)
     into v_n_unconf, v_unconf
     from (select x.*, row_number() over (order by x.created_at, x.id) as rn from x) x;
 
@@ -88,16 +102,9 @@ begin
       join auth.users u on u.id = p.id
       left join public.organizations o on o.id = p.org_id
      where p.org_id is not null and coalesce(p.role, '') <> 'client'
-  ), phones as (
-    select distinct z.id, z.ph from (
-      select pe.id, public.helm_norm_phone(m.phone) as ph from people pe join public.member_profiles m on m.user_id = pe.id
-      union all select pe.id, public.helm_norm_phone(m.whatsapp) from people pe join public.member_profiles m on m.user_id = pe.id
-      union all select pe.id, public.helm_norm_phone(u.phone::text) from people pe join auth.users u on u.id = pe.id) z
-     where char_length(coalesce(z.ph, '')) >= 8
   ), pairs as (
-    select a.id as a_id, b.id as b_id, 'same_phone'::text as why
-      from phones pa join phones pb on pb.ph = pa.ph and pb.id > pa.id
-      join people a on a.id = pa.id join people b on b.id = pb.id
+    select t.a_id, t.b_id, 'same_phone'::text as why
+      from public._r414_phone_twins() t join people a on a.id = t.a_id join people b on b.id = t.b_id
     union
     select a.id, b.id, 'same_name_similar_email'
       from people a join people b on b.nk = a.nk and b.id > a.id
@@ -122,12 +129,14 @@ end $$;
 
 revoke all on function public._r414_email_key(text) from public;
 revoke all on function public._r414_name_key(text) from public;
+revoke all on function public._r414_phone_twins() from public;
 revoke all on function public.hq_account_checks(integer) from public;
 do $$ declare r text; begin
   foreach r in array array['anon', 'authenticated'] loop
     if exists (select 1 from pg_roles where rolname = r) then
       execute format('revoke all on function public._r414_email_key(text) from %I', r);
       execute format('revoke all on function public._r414_name_key(text) from %I', r);
+      execute format('revoke all on function public._r414_phone_twins() from %I', r);
       execute format('revoke all on function public.hq_account_checks(integer) from %I', r);
     end if;
   end loop;
@@ -161,6 +170,7 @@ select item, ok, note from (
   union all
   select '04 helpers: no app privilege',
      not has_function_privilege('authenticated', 'public._r414_email_key(text)', 'execute')
-     and not has_function_privilege('authenticated', 'public._r414_name_key(text)', 'execute'), ''
+     and not has_function_privilege('authenticated', 'public._r414_name_key(text)', 'execute')
+     and not has_function_privilege('authenticated', 'public._r414_phone_twins()', 'execute'), ''
 ) v order by item;
 commit;
