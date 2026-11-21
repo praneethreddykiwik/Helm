@@ -87,7 +87,7 @@ t('L2: Save & back writes a version when the canvas differs from the stored one 
   assert.match(fn, /const ok = !need \? true : await saveLayout\(false, \{ noReprice:true \}\);\s*\n\s*if\(!ok\) return;/);
   assert.match(fn, /HelmFlowLayout\.needsVersion\(storedKey, canvasKey\(\), false\)\)\{\s*\n[^\n]*return; \}/, 'still differs -> stay');
   assert.match(fn, /if\(!RO\) await syncQuotePricingNow\(\{ interactive:true \}\);[^\n]*\n\s*location\.href = HelmFlowLayout\.returnUrl\(currentQuoteId\);/);
-  assert.match(bjs, /const v = await BPStore\.quotes\.addVersion\(currentQuoteId, label, data, store\.items\.length\);\s*\n\s*currentVersionNo = v\.version_no \|\| v\.versionNo;\s*\n\s*noteStoredVersion\(sentKey\);/);
+  assert.match(bjs, /const v = await BPStore\.quotes\.addVersion\(currentQuoteId, label, data, store\.items\.length, \{ baseVersion: baseVersionNo, saveAsNew \}\);\s*\n\s*currentVersionNo = v\.version_no \|\| v\.versionNo;\s*\n\s*noteStoredVersion\(sentKey\);/);
   assert.match(bjs, /storedKey = ver\.missing \? null : canvasKey\(\);/, 'opened version = stored');
   assert.match(bjs, /function loadVersionIntoEditor\(no, data\)\{\s*\n\s*applyLayout\(data\);[^\n]*\n\s*noteStoredVersion\(\);/);
 });

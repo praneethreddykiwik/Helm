@@ -4269,6 +4269,11 @@ let currentLayoutId = null;       // id of the open layout (legacy layouts tier)
 let currentQuoteId = null;        // id of the open QUOTE (primary flow) — save appends a version
 let currentQuoteCode = null;      // the quote's MMDDYYYY-NN code (for the header readout)
 let currentVersionNo = null;      // which version is loaded (for the header readout)
+// R241 (0407, Phase 4 FE-01): the newest version this canvas is built on - the latest when the quote opened, the version
+// this editor saved, or the latest the planner saw when picking a version / reloading. A teammate's save that only reached
+// the version list (realtime) does NOT move it, so the next save is answered "someone saved a newer version".
+let baseVersionNo = null;
+let syncedTitle = null;           // R241 (Q-02): the event name as last read / written - the builder writes the name only when it changed
 let currentClient = {};           // the open quote's client object (so we can persist guests without clobbering it)
 let currentQuoteGuard = { approved:false, closed:false }, _staleAck=false;
 let currentPricing = {};          // the open quote's saved pricing inputs (discount/coupon/rates) — refreshed, not clobbered
@@ -4349,6 +4354,7 @@ let saving=false;
 // overwrite) — also when an older version is on screen; opts.label is the version's note.
 async function saveLayout(silent, opts){
   if(RO){ if(!silent) toast('View only — you can’t save'); return false; }
+  if(silent && currentQuoteId && (conflictOpen || conflictSnoozed)) return false;   // R241: no background save while a save conflict waits for the planner
   if(!currentQuoteId && !currentLayoutId && !CAN_CREATE){ if(!silent) toast('Your role can edit existing events, not create new ones'); return false; }
   if(saving) return false;                    // in-flight lock: a second Save/⌘S before the first resolves must not create a duplicate
   saving=true; renderSaveState('saving');
@@ -4366,10 +4372,13 @@ async function saveLayout(silent, opts){
       // R112: a sent / approved quote: a silent (auto) save never writes; an explicit save stores the layout version and
       // then asks before the quote's price changes (syncQuotePricingNow interactive) - never re-priced silently
       if((currentQuoteGuard.sent || currentQuoteGuard.approved) && silent) return false;
-      if(name) { try{ await BPStore.quotes.updateMeta(currentQuoteId, { title:name }); }catch{} }
-      const v = await BPStore.quotes.addVersion(currentQuoteId, label, data, store.items.length);
+      if(name) await saveTitleIfChanged(name);
+      const saveAsNew = !!(opts && opts.saveAsNew);
+      const v = await BPStore.quotes.addVersion(currentQuoteId, label, data, store.items.length, { baseVersion: baseVersionNo, saveAsNew });
       currentVersionNo = v.version_no || v.versionNo;
       noteStoredVersion(sentKey);              // r19 L2: the server now holds exactly this content
+      baseVersionNo = currentVersionNo;        // R241: this canvas is now built on the version it just saved
+      conflictSnoozed = false;
       noteSavedVersion(v, label);
       refreshVersionsSoon(true);                // re-read the server list (names, teammates' saves)
       clearDraft();
@@ -4394,7 +4403,10 @@ async function saveLayout(silent, opts){
     saveUi='saved';
     setSavedBaseline(sig);
     return true;
-  }catch(e){ if(btn) btn.innerHTML='💾 Save'; saveUi='error'; renderSaveState('error');
+  }catch(e){ if(btn) btn.innerHTML='💾 Save';
+    // R241: a newer version exists - nothing was written, the canvas is untouched; ask Reload / Save mine as a new version
+    if(e && e.code==='NEWER_VERSION'){ saveUi='dirty'; renderSaveState('dirty'); const c=e.conflict||{}; setTimeout(()=>{ onSaveConflict(c); },0); return false; }
+    saveUi='error'; renderSaveState('error');
     if(!silent) BPUI.toast(BPUI.friendlyError(e,{action:'save the layout'}),{type:'err'});
     else toast('Autosave failed — press Save to retry');
     return false; }
@@ -4461,7 +4473,7 @@ function refreshVersionsSoon(force){
     const before=latestVersionNo||0;
     await refreshVersions();
     if((latestVersionNo||0)>before && before && currentVersionNo<latestVersionNo && !verBusy)
-      BPUI.toast('V'+latestVersionNo+' was just saved by a teammate — pick it from the version list to view it.',{type:'info'});
+      BPUI.toast('V'+latestVersionNo+' was just saved by a teammate — pick it from the version list to view it. If you save, Helm asks first (nothing is overwritten).',{type:'info'});
   }, force?0:150);
 }
 function watchVersions(){
@@ -4581,6 +4593,7 @@ function loadVersionIntoEditor(no, data){
   applyLayout(data);                       // resets undo history + makes this version the clean baseline
   noteStoredVersion();                     // r19 L2: this version is what the server holds
   currentVersionNo=no;
+  baseVersionNo=Math.max(+latestVersionNo||0, +no||0);   // R241: picked knowingly from the list - saving builds on what was seen
   setVersionInUrl(no);
   updateQuoteBadge();
   toast(no===latestVersionNo ? 'Back to the latest version (V'+no+')' : 'Viewing V'+no+' — saved versions stay unchanged');
@@ -4610,6 +4623,103 @@ $('#verRestoreBtn').addEventListener('click',()=>{
   const from=currentVersionNo;
   BPUI.guard($('#verRestoreBtn'), ()=>saveLayout(false,{ label:'Restored from V'+from })).catch(()=>{});
 });
+/* ===================================================================
+   R241 (0407, Phase 4 FE-01 / Q-01) SAVE CONFLICT. The server refused a save because a teammate (or this planner in
+   another tab) saved a NEWER version after this canvas was opened. Nothing was written, nothing was overwritten. The
+   planner chooses:
+     Reload V<n>             - open the newer version; the unsaved canvas is first kept as a copy in this browser
+                               (bps.conflict.<user>.<quote>) with "Put my changes back" / "Discard copy" on a bar
+     Save mine as new version - append the canvas as one more version (the teammate's stays in the history)
+     Keep editing            - nothing happens; background saves pause until Save is pressed again
+   =================================================================== */
+let conflictOpen=false, conflictSnoozed=false;
+const conflictKey = id=>'bps.conflict.'+userKey()+'.'+id;
+function readConflictCopy(id){ try{ const d=JSON.parse(localStorage.getItem(conflictKey(id||currentQuoteId))||'null');
+  return d && d.data && Array.isArray(d.data.items) ? d : null; }catch{ return null; } }
+function fmtWhen(ts){ if(!ts) return ''; try{ if(BPStore.fmtDateTime) return BPStore.fmtDateTime(ts); }catch{} return ''; }   // studio format only (dd/mm/yyyy rule)
+// → Promise<'reload'|'mine'|'cancel'>. Esc / ✕ / backdrop = cancel (keep editing).
+function askSaveConflict(o){ return new Promise(resolve=>{
+  const m=$('#conflictModal'); if(!m){ resolve('cancel'); return; }
+  $('#conflictModalDesc').textContent=(o.who||'Someone')+' saved V'+o.latestNo+(o.when?' ('+o.when+')':'')+' after you opened V'+(o.baseNo||'?')
+    +'. Nothing was saved and nothing was overwritten. Both choices keep everything:';
+  $('#conflictReloadBtn').textContent='Reload V'+o.latestNo;
+  $('#conflictReloadNote').textContent='Opens V'+o.latestNo+'. Your unsaved changes are kept in this browser - one tap puts them back.';
+  $('#conflictMineNote').textContent='Saves your canvas as V'+(o.latestNo+1)+'. V'+o.latestNo+' stays in the version list, unchanged.';
+  let done=false;
+  const finish=v=>{ if(done) return; done=true; m.hidden=true;
+    m.removeEventListener('click',onClick); m.removeEventListener('keydown',onKey); resolve(v); };
+  const onClick=e=>{ if(e.target===m) return finish('cancel');
+    const b=e.target.closest && e.target.closest('[data-choice],[data-close]'); if(b) finish(b.getAttribute('data-choice')||'cancel'); };
+  const onKey=e=>{ if(e.key==='Escape'||e.key==='Esc'){ e.preventDefault(); finish('cancel'); } };
+  m.addEventListener('click',onClick); m.addEventListener('keydown',onKey);
+  m.hidden=false;
+  const first=m.querySelector('[data-choice="mine"]'); if(first){ try{ first.focus(); }catch{} }
+}); }
+async function onSaveConflict(c){
+  if(conflictOpen || !currentQuoteId) return; conflictOpen=true;
+  try{
+    c=c||{}; const latestNo=+c.latestVersion||((+latestVersionNo||0)+1);
+    try{ await loadVersionNames(); }catch{}
+    const who = c.latestByMe ? 'You (in another tab or device)' : ((c.latestBy && versionNames && versionNames[c.latestBy]) || 'A teammate');
+    const choice=await askSaveConflict({ latestNo, baseNo:+c.baseVersion||baseVersionNo, who, when:fmtWhen(c.latestAt) });
+    if(choice==='mine'){
+      conflictSnoozed=false; conflictOpen=false;
+      await BPUI.guard($('#saveBtn'), ()=>saveLayout(false,{ saveAsNew:true, label:'Saved after V'+latestNo+' (both kept)' })).catch(()=>{});
+    } else if(choice==='reload'){ await reloadLatestKeepingMine(latestNo); }
+    else { conflictSnoozed=true; toast('Not saved — your changes are still on screen. Press Save to choose again.'); }
+  } finally { conflictOpen=false; refreshVersionsSoon(true); }
+}
+async function reloadLatestKeepingMine(no){
+  const qid=currentQuoteId; if(!qid) return;
+  const copy={ savedAt:new Date().toISOString(), baseVersion:baseVersionNo, latestVersion:no, name:($('#projName').value||'').slice(0,120), data:serialize() };
+  try{ const sj=JSON.stringify(copy); if(sj.length>2000000) throw new Error('too big'); localStorage.setItem(conflictKey(qid), sj); }
+  catch(e){ await BPUI.alert('This browser could not keep a copy of your changes, so nothing was reloaded. Choose “Save mine as a new version” to keep them.',{ title:'Nothing reloaded' }); conflictSnoozed=true; return; }
+  let target=null; try{ target=await BPStore.quotes.getVersion(qid, no); }catch{ target=null; }
+  if(!(target && target.data && Array.isArray(target.data.items))){ BPUI.toast('Couldn’t open V'+no+' — your changes are still on screen (and kept in this browser).',{type:'err'}); conflictSnoozed=true; return; }
+  await refreshVersions();
+  latestVersionNo=Math.max(+latestVersionNo||0, no);
+  loadVersionIntoEditor(no, target.data);   // makes V<no> the clean baseline + the new base
+  clearDraft(); conflictSnoozed=false;
+  showConflictCopyBar();
+}
+function showConflictCopyBar(){
+  const bar=$('#conflictCopyBar'); if(!bar) return;
+  const d=currentQuoteId && !RO ? readConflictCopy() : null;
+  bar.hidden=!d; if(!d) return;
+  $('#conflictCopyTxt').textContent='Your unsaved changes from '+fmtWhen(d.savedAt)+' are kept in this browser.';
+}
+$('#conflictPutBackBtn') && $('#conflictPutBackBtn').addEventListener('click',()=>{
+  const d=readConflictCopy(); if(!d){ showConflictCopyBar(); return; }
+  applyLayout(d.data); if(d.name) $('#projName').value=d.name;
+  draftRestored=true; markDirty(); dirty.mark(); renderSaveState('dirty');   // like a restored draft: "Unsaved changes" until Save
+  try{ localStorage.removeItem(conflictKey(currentQuoteId)); }catch{}
+  showConflictCopyBar();
+  toast('Your changes are back on the canvas — press Save to keep them as a new version');
+});
+$('#conflictDiscardBtn') && $('#conflictDiscardBtn').addEventListener('click',async()=>{
+  let go=false; try{ go=await BPUI.confirm('Delete the copy of your unsaved changes kept in this browser? Saved versions are not affected.',{ title:'Discard your copy?', okLabel:'Discard copy', cancelLabel:'Keep it' }); }catch{}
+  if(!go) return;
+  try{ localStorage.removeItem(conflictKey(currentQuoteId)); }catch{}
+  showConflictCopyBar();
+});
+// R241 (0408, Q-02): the event name is written only when the planner changed it, with the details lock token; a teammate's
+// rename meanwhile is never overwritten (the field shows their name instead). Never blocks the layout save.
+async function saveTitleIfChanged(name){
+  if(!currentQuoteId || name===syncedTitle) return;
+  try{
+    let fresh=null; try{ fresh=await BPStore.quotes.get(currentQuoteId); }catch{ fresh=null; }
+    const srv = fresh ? quoteDisplayName(fresh) : null;
+    if(fresh && syncedTitle!=null && srv!==syncedTitle && srv!==name){
+      const pn=$('#projName'); if(pn) pn.value=srv; syncedTitle=srv; renderNameHint();
+      BPUI.toast('A teammate renamed this event to “'+srv+'” meanwhile — your name was not saved (nothing overwritten).',{type:'info'});
+      return;
+    }
+    await BPStore.quotes.updateMeta(currentQuoteId, { title:name }, fresh ? fresh.updatedAt : undefined);
+    syncedTitle=name;
+  }catch(e){
+    if(e && e.code==='CONFLICT') BPUI.toast('Someone changed this event’s details meanwhile — the name was not saved. Reload to see their change.',{type:'info'});
+  }
+}
 // Build 1 — show the current design stage (if any) with a link to the Design Studio. Best-effort.
 async function updateDesignChip(){
   const chip=$('#designChip'); if(!chip) return;
@@ -5124,6 +5234,7 @@ async function init(){
       { const bb=$('#backToFlowBtn'); if(bb && params.get('from')==='flow') bb.hidden=false; }
       currentQuoteGuard = { approved: q.status==='confirmed' || q.approvalStatus==='approved' || q.approvalStatus==='paid', sent: q.approvalStatus==='sent', closed: q.lifecycleStage==='closed', frozen: q.lifecycleStage==='closed' || q.status==='cancelled' || !!q.archivedAt || !!q.deletedAt };
       const pn=$('#projName'); if(pn) pn.value=quoteDisplayName(q);
+      syncedTitle = pn ? pn.value : null;   // R241: written back only when the planner changes it
       currentQuoteRow=q; renderNameHint();
       try{ if(window.HelmTrail) HelmTrail.setCurrent({title:[q.code,q.title].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' '),kind:'builder',href:'builder.html?quote='+encodeURIComponent(q.id),recordHref:'event.html?id='+encodeURIComponent(q.id)}); }catch(e){}
       const verNo = (openVer && /^\d{1,6}$/.test(String(openVer)) && +openVer>0) ? parseInt(openVer,10) : q.currentVersion;   // ignore junk like v=abc
@@ -5209,6 +5320,7 @@ async function init(){
       }
       versionsList = q.versions || [];
       latestVersionNo = Math.max(+q.currentVersion||0, ...versionsList.map(v=>+v.versionNo||0)) || currentVersionNo;
+      baseVersionNo = latestVersionNo;       // R241: the canvas is built on what the server held when it opened
       updateQuoteBadge();
       refreshVersions();                     // adds who-saved names; non-blocking
       watchVersions();                       // live: versions saved on another device / tab
@@ -5219,11 +5331,12 @@ async function init(){
       // the layout is in by now, so the loading state ends first and the question comes after it
       if(!CAPTURE_HOST && layoutLoading) setLayoutLoading(false);
       if(!CAPTURE_HOST){ await offerDraftRestore();
+        showConflictCopyBar();               // R241: a copy kept by "Reload" after a save conflict (survives a page reload)
         setTimeout(()=>{ autoCaptureIfStale(); }, 2500); }   // R2: refresh stale client booklet images
     }catch(e){
       // The quote didn't fully load: unbind it and lock the builder so a Save can never write an
       // empty layout over a real quote (which would also zero its pricing).
-      currentQuoteId=null; currentQuoteCode=null; currentVersionNo=null; currentClient={}; currentPricing={};
+      currentQuoteId=null; currentQuoteCode=null; currentVersionNo=null; baseVersionNo=null; currentClient={}; currentPricing={};
       try{ applyReadonly('viewer','🔒 Editing is locked — that quote or version could not be opened. Reload the page to try again; nothing was changed.'); }catch{}
       toast('Could not open that quote — editing is locked so nothing gets overwritten');
     }
