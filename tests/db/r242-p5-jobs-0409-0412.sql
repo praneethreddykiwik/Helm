@@ -308,7 +308,7 @@ do $$ declare h jsonb; begin
 exception when others then perform pg_temp.su(); insert into _rs values ('6x', 'FAIL: ' || sqlstate || ' ' || sqlerrm); end $$;
 
 -- ---- 7) schema version -------------------------------------------------------------------------------------------------
-do $$ declare v jsonb; mx int; begin
+do $$ declare v jsonb; begin
   perform pg_temp.su(); perform auth.login_anon();
   perform pg_temp.t('7a signed-out refused', pg_temp.try('select public.helm_schema_version()') like '42501%');
   perform pg_temp.su();
