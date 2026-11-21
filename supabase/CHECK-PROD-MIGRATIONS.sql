@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (360 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (363 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4794 objects): body 173, bucket 9, col 274, con 419, cron 20, exec 19, fn 2148, idx 551, marker 124, pol 190, polexpr 4, pre 116, pub 5, seq 1, tbl 310, trg 429, view 2.
+-- What is checked (4808 objects): body 174, bucket 9, col 275, con 420, cron 20, exec 19, fn 2156, idx 551, marker 124, pol 190, polexpr 4, pre 117, pub 5, seq 1, tbl 310, trg 431, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4818,7 +4818,21 @@ with o(m, k, s, n, x) as (values
   ('0412_r242_switches_schema', 'fn', 'public', '_r412_secret_set', 'text'),
   ('0412_r242_switches_schema', 'fn', 'public', '_r412_item', 'text,text,jsonb,jsonb,text'),
   ('0412_r242_switches_schema', 'fn', 'public', '_r412_switches', ''),
-  ('0412_r242_switches_schema', 'fn', 'public', 'hq_switches', '')
+  ('0412_r242_switches_schema', 'fn', 'public', 'hq_switches', ''),
+  ('0423_r246_tax_default_country', 'fn', 'public', 'helm_country_default_gst', 'text,numeric'),
+  ('0423_r246_tax_default_country', 'fn', 'public', '_r423_tg_gst_default', ''),
+  ('0423_r246_tax_default_country', 'trg', 'public.quotes', 'ab_r423_gst_default', null),
+  ('0424_r246_event_end_date', 'col', 'public.quotes', 'event_end_date', null),
+  ('0424_r246_event_end_date', 'con', 'public.quotes', 'quotes_event_end_date_chk424', null),
+  ('0424_r246_event_end_date', 'fn', 'public', 'helm_event_days', 'date,date'),
+  ('0424_r246_event_end_date', 'fn', 'public', '_r424_tg_end_date', ''),
+  ('0424_r246_event_end_date', 'trg', 'public.quotes', 'ab_r424_end_date', null),
+  ('0424_r246_event_end_date', 'fn', 'public', '_r21_cost_lines__pre0424', 'uuid,uuid'),
+  ('0424_r246_event_end_date', 'body', 'public', '_r21_cost_lines', 'uuid,uuid|fe7222ab22d1ed3b63899c3ef23b8484'),
+  ('0424_r246_event_end_date', 'pre', null, '__pre0424', null),
+  ('0425_r246_text_len_checks', 'fn', 'public', '_r425_text_limits', ''),
+  ('0425_r246_text_len_checks', 'fn', 'public', '_r425_con_name', 'text,text'),
+  ('0425_r246_text_len_checks', 'fn', 'public', 'r425_text_len_report', '')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5180,7 +5194,10 @@ mig(ord, m, ov, note) as (values
   (357, '0409_r242_cron_stagger', null, 'R242 cron stagger: only the SCHEDULE of up to 12 jobs Helm''s migrations made changes (cron.alter_job, not an object) - see APPLY-0409 check rows 02 / 03 or select * from public.ops_cron_stagger_report()'),
   (358, '0410_r242_mailer_wake_ledger', null, 'R242 package code wake + ledger lanes: _ops402_lane re-issued with 5 more lanes (if APPLY-0402 was run again after APPLY-0410 this body shows as older - run APPLY-0410 again), lane CHECK widened (the 0402 one replaced)'),
   (359, '0411_r242_render_cap', null, 'R242 Helm-wide render cap: the HQ bell label is patched in place with dynamic SQL - checked by its marker'),
-  (360, '0412_r242_switches_schema', null, 'R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)')
+  (360, '0412_r242_switches_schema', null, 'R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)'),
+  (361, '0423_r246_tax_default_country', null, 'R246 Q-08 tax default by country: one pure function + trigger ab_r423_gst_default on quotes, D8 pricing functions untouched, marker row 423 is data (APPLY-0423 check rows)'),
+  (362, '0424_r246_event_end_date', null, 'R246 Q-16 multi-day events: quotes.event_end_date + NOT VALID check + trigger, ledger wrapped with _r21_cost_lines__pre0424 kept, marker row 424 is data (APPLY-0424 check rows)'),
+  (363, '0425_r246_text_len_checks', null, 'R246 DATA-01 text limits: NOT VALID checks named per column by a loop (dynamic SQL), counted first - see r425_text_len_report() and APPLY-0425 check rows')
 ),
 env as (
   select

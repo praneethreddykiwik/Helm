@@ -96,14 +96,14 @@ t('0412 switches: HQ gate, read-only (stable), Vault by NAME from vault.secrets 
 });
 t('MANIFEST numeric order (0405-0408 left free), checker overrides (notes paste-safe), CHECK-PROD current, release lists, run-all + package', () => {
   const nums = [...MF.matchAll(/^forward  supabase\/migrations\/(\d{4})_/gm)].map((m) => m[1]);
-  assert.deepEqual(nums.slice(-7), ['0403', '0404', '0405', '0409', '0410', '0411', '0412']);   // R240: 0405 = insights overview; 0406-0408 left free
+  { const i = nums.indexOf('0403'); assert.deepEqual(nums.slice(i, i + 7), ['0403', '0404', '0405', '0409', '0410', '0411', '0412']); }   // R240: 0405 = insights overview; 0406-0408 left free (R246: 0423+ follow)
   for (const nn of NUMS) {
     assert.ok(OV[nn] && OV[nn].note, nn + ' override');
     assert.ok(!/;|\binto\s+[a-z_]/i.test(OV[nn].note), nn + ' note paste-safe');
     assert.match(CHK, new RegExp(`\\('${nn}_r242_[a-z_]+', `));
   }
   assert.ok(OV['0411'].add.includes('marker public._sa54_label(text) Photo render limit'));
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0403', '0404', '0405', '0409', '0410', '0411', '0412'\]/);   // R240: + 0405
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0403', '0404', '0405', '0409', '0410', '0411', '0412'[,\]]/);   // R240: + 0405
   assert.match(RA, /run "r242-p5-jobs-0409-0412" "R242-P5-JOBS-0409-0412: ALL PASS \\\(48\/48\\\)"/);
   assert.match(RA, /run "r242-apply-0409-0412" "APPLY-0409-0412: ALL OK"/);
   assert.match(RA, /run "r242-p5-order" "R242-P5-ORDER: PASS" bash tests\/db\/r242-p5-order\.sh/);

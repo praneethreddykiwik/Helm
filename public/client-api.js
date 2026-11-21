@@ -16,7 +16,7 @@
    the free-trial flag gets the full store-api.js exactly as before ("full mode"): its calls then go through
    supabase-js with that member's session, so nothing changes for studio members either.
    ========================================================================= */
-var STORE_API_V = "399";   // the store-api.js ?v= of the staff pages (filled in by the generator)
+var STORE_API_V = "400";   // the store-api.js ?v= of the staff pages (filled in by the generator)
 var __HELM_CLIENT_FULL__ = (function () {
   try {
     // a sign-in / auth-link return (?code=, #access_token=...) is store-api.js's job
@@ -2016,16 +2016,35 @@ if (!__HELM_CLIENT_FULL__) {
     // qa-quote-flow B28: GST is rounded ONCE to whole rupees and split from that, so CGST + SGST always
     // add up to the GST line and every screen shows the same two numbers (39,722 + 39,721, never 39,721.5)
     function halves(gst) { var g = Math.round(Number(gst) || 0), a = Math.round(g / 2); return [a, g - a]; }
-    // display rows for the tax part of a breakdown: [{label, pct, amount}]
+    // R246 (Q-07): Indian invoice style. Each tax part (CGST, SGST or IGST) is rounded to paise (2 decimals) on its own,
+    // and a "Round-off" line (under one rupee, + or -) makes the lines add up to the total exactly. DISPLAY ONLY: the total
+    // is always the stored, server-stamped one (D8) - it is never recomputed or changed here, for old or new quotes.
+    function r2(n) { var x = Number(n); if (!isFinite(x)) return 0; var v = Math.round((Math.abs(x) + 1e-9) * 100) / 100; return x < 0 ? -v : v; }
+    function paise(n) { var x = r2(n), neg = x < 0; return (neg ? "\u2212 " : "") + "\u20b9" + Math.abs(x).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    // the tax parts at 2 decimals: [CGST, SGST] (each half of the tax, rounded on its own) or [IGST]
+    function gstParts(gst, inter) { var g = Number(gst) || 0; if (inter) return [r2(g)]; var h = r2(g / 2); return [h, h]; }
+    // total - (taxable value shown + tax parts shown); 0 when it can't be worked out or would be a rupee or more (then no line)
+    function roundOff(total, taxable, taxParts) {
+      var tt = Number(total), tx = Number(taxable); if (total == null || total === "" || !isFinite(tt) || !isFinite(tx)) return 0;
+      var s = (taxParts || []).reduce(function (a, b) { return a + (Number(b) || 0); }, 0), ro = r2(tt - r2(tx) - s);
+      return Math.abs(ro) < 1 ? ro : 0;
+    }
+    // display rows for the tax part of a breakdown: [{label, pct, amount}] (+ text = the amount at 2 decimals for India)
     function rows(t, pricing, res) {
       res = res || resolve(pricing); t = t || {}; pricing = pricing || {};
       var gst = Number(t.totalGst != null ? t.totalGst : t.gst) || 0, pct = res.rate;
       var inc = res.inclusive ? " (included)" : "";
       if (res.exempt || String(pricing.taxExempt).toLowerCase() === "true") return [{ label: res.name + " (exempt)", pct: 0, amount: 0 }];
       if (res.split) {
-        if (pricing.placeOfSupply === "inter") return [{ label: "IGST" + inc, pct: pct, amount: gst }];
-        var hv = halves(gst);
-        return [{ label: "CGST" + inc, pct: pct / 2, amount: hv[0] }, { label: "SGST" + inc, pct: pct / 2, amount: hv[1] }];
+        var inter = pricing.placeOfSupply === "inter", gp = gstParts(gst, inter);
+        var out = inter ? [{ label: "IGST" + inc, pct: pct, amount: gp[0], text: paise(gp[0]) }]
+          : [{ label: "CGST" + inc, pct: pct / 2, amount: gp[0], text: paise(gp[0]) }, { label: "SGST" + inc, pct: pct / 2, amount: gp[1], text: paise(gp[1]) }];
+        // Round-off only when the breakdown carries the total and the subtotal it shows (taxable = subtotal - discount)
+        if (t.total != null && t.subtotal != null) {
+          var ro = roundOff(t.total, Math.max(0, (Number(t.subtotal) || 0) - (Number(t.discount) || 0)), res.inclusive ? [] : gp);
+          if (ro) out.push({ label: "Round-off", pct: 0, amount: ro, text: (ro > 0 ? "+ " : "") + paise(ro), roundOff: true });
+        }
+        return out;
       }
       var st = ""; if (res.country === "US" && res.region) { var HC = (typeof window !== "undefined" && window.HelmCountry) || null, f = HC && HC.findRegion("US", res.region); st = " (" + (f ? f.code : res.region) + ")"; }
       return [{ label: res.name + st + inc, pct: pct, amount: gst }];
@@ -2068,8 +2087,15 @@ if (!__HELM_CLIENT_FULL__) {
       var same = IDENT.every(function (k) { return pr[k] === out[k]; });
       return same ? null : out;
     }
+    // R246 (Q-08, mirrors helm_country_default_gst / 0423): the rate a pricing payload WITHOUT gstPct is priced at -
+    // UAE 5, US 0 (a valid studio override first); India, no country and every other country keep the old 18
+    function defaultGst(cc, override) {
+      cc = String(cc || "").trim().toUpperCase(); if (cc !== "AE" && cc !== "US") return 18;
+      var o = Number(override); if (override != null && override !== "" && isFinite(o) && o >= 0 && o <= 100) return o;
+      return cc === "AE" ? 5 : 0;
+    }
     function countries() { return Object.keys(C).map(function (k) { return { iso: k, name: C[k].name }; }); }
-    return { COUNTRIES: C, profile: profile, resolve: resolve, money: money, validateId: validateId, placeOfSupply: placeOfSupply, halves: halves, rows: rows, snapshot: snapshot, preserveSnapshot: preserveSnapshot, isPricedQuote: isPricedQuote, restampUnpriced: restampUnpriced, SNAPSHOT_KEYS: IDENT.concat(SOFT), countries: countries, code: code };
+    return { COUNTRIES: C, profile: profile, resolve: resolve, money: money, validateId: validateId, placeOfSupply: placeOfSupply, halves: halves, rows: rows, r2: r2, paise: paise, gstParts: gstParts, roundOff: roundOff, defaultGst: defaultGst, snapshot: snapshot, preserveSnapshot: preserveSnapshot, isPricedQuote: isPricedQuote, restampUnpriced: restampUnpriced, SNAPSHOT_KEYS: IDENT.concat(SOFT), countries: countries, code: code };
   })();
 
   // ---- studio money (0089) -------------------------------------------------------
