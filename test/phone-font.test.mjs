@@ -28,7 +28,7 @@ t('every page loads the new phone + theme versions', () => {
   for (const f of readdirSync(root).filter((x) => x.endsWith('.html'))) {
     const h = read(f);
     for (const m of h.matchAll(/phone-input\.js\?v=(\d+)/g)) assert.equal(m[1], '9', f);
-    for (const m of h.matchAll(/theme\.css\?v=(\d+)/g)) assert.equal(m[1], '85', f);
+    for (const m of h.matchAll(/theme\.css\?v=(\d+)/g)) assert.equal(m[1], '86', f);
   }
   assert.match(read('store-api.js'), /var PHONE_LIB_V = "9"/); assert.match(read('auth-ui.js'), /PHONE_LIB_V = "9"/);
 });

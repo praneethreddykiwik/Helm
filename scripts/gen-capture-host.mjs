@@ -21,7 +21,8 @@ export function captureHtml(builder) {
   const must = (re, to) => { if (!re.test(s)) throw new Error('builder.html changed shape: ' + re); s = s.replace(re, to); };
   must(/<title>[^<]*<\/title>/, '<title>Helm Events · preparing pictures</title>\n<meta name="helm-capture" content="1">\n<meta name="robots" content="noindex, nofollow">');
   must(/<!doctype html>\n/i, '<!doctype html>\n<!-- GENERATED from builder.html by scripts/gen-capture-host.mjs — do not edit by hand -->\n');
-  s = s.replace(/<script src="tour\.js\?v=\d+"><\/script>\n/, '');   // no product tour in the headless host
+  s = s.replace(/<script src="tour\.js\?v=\d+"><\/script>\n/, '');
+  s = s.replace(/<script src="\/browser-check\.js\?v=\d+" defer><\/script>/, '');   // R243: no old-browser note in the hidden host   // no product tour in the headless host
   s = s.replace(/<link rel="stylesheet" href="walkthrough\.css\?v=\d+">\n/, '');   // no walkthrough UI in the headless host
   s = s.replace(/<script src="walkthrough\.js\?v=\d+"><\/script>\n/, '');
   // R11: no layout wizard / fullscreen controls in the headless host either

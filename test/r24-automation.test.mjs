@@ -52,7 +52,7 @@ t("run-sheet reminder e-mail: plain words, link host from APP_URL only, fails cl
   const m = runsheetReminderMessage(row, "https://helm.events");
   assert.equal(m.subject, "Reminder: Cake cutting at 7:30 pm - Wedding A");
   assert.match(m.text, /^Hello Ravi,/);
-  assert.match(m.text, /Cake cutting starts in 15 min, at 7:30 pm \(Main hall\), for Wedding A on 20\/10\/2026\./);
+  assert.match(m.text, /Cake cutting starts in 15 min, at 7:30 pm \(Main hall\), for Wedding A on 20 Oct 2026\./);
   assert.match(m.text, /https:\/\/helm\.events\/runsheet\.html\?quote=a0000000-0000-4000-8000-00000000da01/);
   assert.equal(runsheetReminderMessage({ ...row, offset_min: 0 }, "https://helm.events").subject.indexOf("Starting now: "), 0);
   assert.equal(runsheetReminderMessage(row, "http://evil.test").text, "", "non-https origin");

@@ -99,7 +99,7 @@ Deno.test("delivery reminders over SMTP: vendor gets the one-tap link, the copy 
     assertEquals(smtp.sent[0].rcpt, "<orders@deccan.test>");
     const v = partsOf(smtp.sent[0].data), c = partsOf(smtp.sent[1].data);
     assert(v.text.includes("https://www.helm.events/delivery?t=" + TOK), "status link on APP_URL");
-    assert(v.text.includes("Chairs x120 for Wedding A on 20/10/2026 is due in 1 hour (20/10/2026, 04:30 PM)"));
+    assert(v.text.includes("Chairs x120 for Wedding A on 20 Oct 2026 is due in 1 hour (20 Oct 2026, 04:30 PM)"));
     assert(v.text.includes("You received this because a studio on Helm scheduled a delivery"), "transactional footer");
     assert(!/List-Unsubscribe/.test(v.headers), "transactional: no unsubscribe headers");
     assert(/Reply-To: <ops@sparkle\.in>/.test(v.headers));

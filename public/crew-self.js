@@ -8,7 +8,7 @@
                    the studio's notice (default 7 days, studio time zone) can't be asked for here (the server refuses too),
                    and each decision is shown until the person taps "OK, got it"
    Every call is the work-link token (the same one the page already uses); nothing is kept in the browser.
-   DOM API only (no HTML strings). India first: dd/mm/yyyy, the studio's currency in en-IN. */
+   DOM API only (no HTML strings). Dates "12 Nov 2026" (R243), the studio's currency in its own number style. */
 (function (global) {
   "use strict";
   if (typeof document === "undefined") return;
@@ -33,11 +33,15 @@
   }
   function ymd(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)) : null; }
   function addDays(s, n) { var d = ymd(s); if (!d) return ""; d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
-  function fmtDay(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : ""; }
+  // R243 (P11 LOC-04): "12 Nov 2026" - reads the same for India, UAE and US crews (dd/mm vs mm/dd never confuses)
+  var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function fmtDay(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m && +m[2] >= 1 && +m[2] <= 12 ? (+m[3]) + " " + MON[+m[2] - 1] + " " + m[1] : ""; }
   function weekday(s) { var d = ymd(s); try { return d ? d.toLocaleDateString("en-IN", { weekday: "short", timeZone: "UTC" }) : ""; } catch (e) { return ""; } }
   function money(n, cur) {
     var v = Number(n); if (!isFinite(v)) return "";
-    try { return new Intl.NumberFormat("en-IN", { style: "currency", currency: cur || "INR", maximumFractionDigits: 0 }).format(v); }
+    // R243 (LOC-04): the studio's own number style (India 1,00,000 / UAE + USA 100,000), like the server messages
+    var loc = cur === "USD" ? "en-US" : cur === "AED" ? "en-AE" : "en-IN";
+    try { return new Intl.NumberFormat(loc, { style: "currency", currency: cur || "INR", maximumFractionDigits: 0 }).format(v); }
     catch (e) { return (cur === "INR" || !cur ? "₹" : cur + " ") + Math.round(v).toLocaleString("en-IN"); }
   }
   function linkFor(tok) {
@@ -71,6 +75,18 @@
     box.appendChild(h("div", { cls: "cat", text: "📍 Event-day check-in" }));
     var card = h("div", { cls: "task cs-check" });
     box.appendChild(card);
+    // R243 (P11 OPS-03): a check-in / out pressed with no signal waits on this phone until it is sent
+    var Q = global.HelmCrewQueue, qIn = !!(Q && Q.has("check", "in")), qOut = !!(Q && Q.has("check", "out"));
+    if ((qIn && !ci.check_in) || (qOut && !ci.check_out)) {
+      card.appendChild(h("div", { cls: "tt", text: qOut ? "Check-out saved offline" : "Check-in saved offline" }));
+      card.appendChild(h("p", { cls: "rsl", text: "📶 Saved offline - will send when connected. The office sees the time it arrives." }));
+      if (!qOut) {   // checked in offline: checking out offline later the same day is saved too (sent after the check-in)
+        var out2 = h("button", { type: "button", cls: "btn primary cs-big", text: "Check out" });
+        out2.addEventListener("click", function () { doCheck("out", out2, card); });
+        card.appendChild(h("div", { cls: "acts" }, [out2]));
+      }
+      return;
+    }
     if (ci.check_in && ci.check_out) {
       card.appendChild(h("div", { cls: "tt", text: "Thank you - your day is recorded" }));
       card.appendChild(h("p", { cls: "rsl", text: "Checked in " + ci.check_in + " · checked out " + ci.check_out }));
@@ -106,13 +122,36 @@
     try {
       var loc = null;
       if (home.checkin && home.checkin.needs_location) { btn.textContent = "Finding your location…"; loc = await where(); }
+      var Q = global.HelmCrewQueue;
+      if (Q && !Q.online()) { saveCheck(action, loc, card); return; }   // R243: no signal - save it, send it later
       btn.textContent = action === "in" ? "Checking in…" : "Checking out…";
-      var r = await S().ops.shifts.check(token, action, loc);
+      var r;
+      try { r = await S().ops.shifts.check(token, action, loc); }
+      catch (e1) { if (Q && Q.shouldQueue(e1)) { saveCheck(action, loc, card); return; } throw e1; }
       try { global.BPUI.toast(action === "in" ? ("Checked in at " + (r && r.check_in || "now") + (r && r.late ? " - the office knows you are late" : "")) : ("Checked out at " + (r && r.check_out || "now")), { type: "ok" }); } catch (e) {}
       await load(true);
     } catch (e) {
       btn.disabled = false; btn.textContent = label; note(card, errText(e));
     } finally { busy = false; }
+  }
+
+  function saveCheck(action, loc, card) {
+    try { global.HelmCrewQueue.add({ kind: "check", action: action, loc: loc }); }
+    catch (e) { note(card, (e && e.message) || "Couldn't save that on this phone - try again when connected."); return; }
+    try { global.BPUI.toast("Saved offline — will send when connected.", { type: "ok" }); } catch (e) {}
+    renderCheck();
+  }
+  // R243: the saved check-in / out is sent with a fresh look first: already in (or out) = nothing to send again
+  function qSender() {
+    var Q = global.HelmCrewQueue; if (!Q || qSender.done) return; qSender.done = true;
+    Q.sender("check", async function (it) {
+      var B = S(); await B.init();
+      var hm = await B.ops.shifts.home(token), ci = hm && hm.checkin;
+      if (ci && it.action === "in" && ci.check_in) return;
+      if (ci && it.action === "out" && ci.check_out) return;
+      await B.ops.shifts.check(token, it.action, it.loc || null);
+    });
+    Q.onChange(function () { if (home) renderCheck(); });
   }
 
   // ---------------- open shifts ----------------
@@ -341,6 +380,7 @@
     // R179: an event opened inside the permanent staff link (work.html?staff=..&event=..) hands its task link over
     if (!token && typeof global.__helmWorkToken === "string") token = global.__helmWorkToken;
     if (!token) return;
+    try { if (global.HelmCrewQueue) { global.HelmCrewQueue.use(token); qSender(); } } catch (e) {}
     load(false);
     if (!timer) timer = setInterval(function () { if (doc.visibilityState === "visible" && navigator.onLine !== false) load(false); }, 90000);
   }

@@ -164,7 +164,7 @@ await t('asset pins: store-api v376 + page-tours v56 on every page that loads th
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const h = read('public/' + f);
     const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '398', f);
-    const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '69', f);
+    const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '68', f);
   }
 });
 

@@ -179,10 +179,10 @@ await t('asset pins: store-api v374 + auth-ui v63 everywhere, page-tours v56', (
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const s = read('public/' + f);
     const m = s.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '398', f);
-    const a = s.match(/auth-ui\.js\?v=(\d+)/); if (a) assert.equal(a[1], '66', f);
-    const p = s.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '69', f);
+    const a = s.match(/auth-ui\.js\?v=(\d+)/); if (a) assert.equal(a[1], '67', f);
+    const p = s.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '68', f);
   }
-  assert.match(API, /AUTH_UI_VERSION = "66"/);
+  assert.match(API, /AUTH_UI_VERSION = "67"/);
 });
 
 console.log(`r203-auth-mail-2step: ${n} passed`);

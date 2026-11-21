@@ -448,6 +448,7 @@ html[data-theme="dark"] .hp.fv-ok::after{background-image:url("data:image/svg+xm
 .hp.fv-ok > input.hp-num{padding-right:36px!important}
 .fv-msg{display:flex;align-items:flex-start;gap:6px;margin:6px 0 0;font-size:13px;line-height:1.4;font-weight:500;color:var(--bad,#b42318)}
 .fv-msg[hidden]{display:none}
+.fv-msg.fv-readback{color:#0f766e;font-weight:500} /* R243 (OPS-05): "Saved as +91 98765 43210 · India" */
 html[data-theme="dark"] .fv-msg{color:#fca5a5}
 /* R238: "Did you mean ...@gmail.com?" under an e-mail box (form-validate.js suggestEmail) */
 .fv-suggest{margin:6px 0 12px;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.45;color:var(--ink,#1d1d1f);background:var(--warn-bg,#fff7e6);border:1px solid var(--warn-line,#f3d19c)}

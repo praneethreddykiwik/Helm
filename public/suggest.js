@@ -92,7 +92,7 @@
   // the shared Wave 16 validators (form-validate.js) - loaded once, the form works without them too
   function ensureValidate() {
     if (window.HelmValidate || document.getElementById("helm-fv-js")) return;
-    var sc = el("script", { id: "helm-fv-js" }); sc.src = "/form-validate.js?v=5"; document.head.appendChild(sc);
+    var sc = el("script", { id: "helm-fv-js" }); sc.src = "/form-validate.js?v=6"; document.head.appendChild(sc);
   }
   function checkText(v) {
     var HV = window.HelmValidate, r;

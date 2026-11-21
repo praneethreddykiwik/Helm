@@ -99,7 +99,7 @@ Deno.test("run-sheet reminder + enquiry reply over SMTP: plain words, APP_URL li
     const rs = smtp.sent.find((s) => s.rcpt === "<ravi@studio.test>"), eq = smtp.sent.find((s) => s.rcpt === "<priya@example.test>");
     assert(rs && eq, "both e-mails sent");
     const a = partsOf(rs!.data), b = partsOf(eq!.data);
-    assert(a.text.includes("Cake cutting starts in 15 min, at 7:30 pm (Main hall), for Wedding A on 20/10/2026."));
+    assert(a.text.includes("Cake cutting starts in 15 min, at 7:30 pm (Main hall), for Wedding A on 20 Oct 2026."));
     assert(a.text.includes("https://www.helm.events/runsheet.html?quote=" + QID), "link on APP_URL");
     assert(a.text.includes("You received this because you are the owner of an item on an event run-sheet"), "transactional footer");
     assert(/Reply-To: <ops@sparkle\.in>/.test(a.headers));

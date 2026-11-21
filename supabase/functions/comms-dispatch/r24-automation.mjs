@@ -5,6 +5,7 @@
 //   * enquiryReplyMessage: the instant thank-you to someone who used a studio's public enquiry form
 //     (enquiry_reply_claim) - the studio's own words, already filled in by the database. No link, no data read back.
 // Anything unexpected -> empty text, and comms-dispatch then marks the row skipped (fails closed).
+import { plainDate } from "../_shared/plain-date.mjs";   // R243 (LOC-04): "20 Oct 2026", never a bare dd/mm/yyyy
 export const RUNSHEET_TX_REASON = "you are the owner of an item on an event run-sheet";
 export const ENQUIRY_TX_REASON = "you sent an enquiry to this studio through its enquiry form";
 const ORIGIN = /^https:\/\/[A-Za-z0-9.-]{1,190}(?::[0-9]{1,5})?$/;
@@ -33,7 +34,7 @@ export function runsheetReminderMessage(row, origin) {
     subject: (soon === "now" ? "Starting now: " : "Reminder: ") + title + " at " + time + " - " + event,
     text: "Hello" + (who ? " " + who : "") + ",\n\n" +
       "A reminder from " + studio + ": " + title + " starts " + (soon === "now" ? "now" : soon) + ", at " + time +
-      (place ? " (" + place + ")" : "") + ", for " + event + (DATE.test(date) ? " on " + date : "") + ".\n\n" +
+      (place ? " (" + place + ")" : "") + ", for " + event + (DATE.test(date) ? " on " + plainDate(date) : "") + ".\n\n" +
       "You are down as the owner of this item on the run-sheet. See the full run-sheet:\n" + link + "\n\n" +
       "Thank you,\n" + studio,
   };
