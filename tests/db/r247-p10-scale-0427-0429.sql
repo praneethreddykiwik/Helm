@@ -73,8 +73,10 @@ select pg_temp.t('1f the size cap is NOT VALID (rows saved before 0427 are never
 select pg_temp.t('1g schema markers 427 / 428 / 429 recorded',
   to_regclass('public.helm_schema_markers') is null
   or (select count(*) from public.helm_schema_markers where num in (427, 428, 429)) = 3);
-select pg_temp.t('1h trial purge list takes the signal rows',
-  to_regprocedure('public._tr184_purge_tables()') is null or 'quote_live_signals' = any(public._tr184_purge_tables()));
+select pg_temp.t('1h trial purge list takes the signal rows, keeps the storage check state; the signal table has no quote_id column (0141 / 0220 blank-draft check)',
+  (to_regprocedure('public._tr184_purge_tables()') is null or 'quote_live_signals' = any(public._tr184_purge_tables()))
+  and (to_regprocedure('public._tr184_keep_tables()') is null or 'storage_usage_alerts' = any(public._tr184_keep_tables()))
+  and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'quote_live_signals' and column_name = 'quote_id'));
 
 -- ---- 2) live signals --------------------------------------------------------------------------------------------------
 do $$ declare qa uuid := 'a0000000-0000-4000-8000-00000000da01'; qb uuid := 'b0000000-0000-4000-8000-00000000da01';
@@ -88,19 +90,19 @@ begin
   insert into public.quote_versions(quote_id, version_no, data, object_count, org_id) values (qa, n0 + 2, '{"items":[{"t":"table"},{"t":"bar"}]}', 2, a);
   insert into public.quote_versions(quote_id, version_no, data, object_count, org_id)
     values (qb, coalesce((select max(version_no) from public.quote_versions where quote_id = qb), 0) + 1, '{"items":[]}', 0, b);
-  select count(*), max(version_no) into nrow, vno from public.quote_live_signals where quote_id = qa and kind = 'layout';
+  select count(*), max(version_no) into nrow, vno from public.quote_live_signals where event_id = qa and kind = 'layout';
   perform pg_temp.t('2a two saves = ONE signal row for the event, holding the newest version number', nrow = 1 and vno = n0 + 2, nrow || ' / ' || coalesce(vno, -1));
   select string_agg(column_name, ',' order by ordinal_position) into cols from information_schema.columns where table_schema = 'public' and table_name = 'quote_live_signals';
-  perform pg_temp.t('2b the signal row carries no layout data (ids, kind, version, time only)', cols = 'quote_id,kind,org_id,version_no,changed_at', cols);
+  perform pg_temp.t('2b the signal row carries no layout data (ids, kind, version, time only)', cols = 'event_id,kind,org_id,version_no,changed_at', cols);
   insert into public.quotation_versions(quote_id, label, pricing, total, org_id) values (qa, 'Q-r247', '{}', 0, a);
   perform pg_temp.t('2c a quotation version = a quotation signal row',
-    exists (select 1 from public.quote_live_signals where quote_id = qa and kind = 'quotation' and org_id = a));
+    exists (select 1 from public.quote_live_signals where event_id = qa and kind = 'quotation' and org_id = a));
   perform pg_temp.login('a_admin@a.test');
   select count(*) filter (where org_id = a), count(*) filter (where org_id = b) into seenA, seenB from public.quote_live_signals;
   perform pg_temp.t('2d own studio staff read their signals, never another studio''s', seenA >= 2 and seenB = 0, seenA || ' / ' || seenB);
   perform pg_temp.t('2e signed-in staff cannot write a signal row',
     pg_temp.try($q$update public.quote_live_signals set version_no = 0$q$) like '42501%'
-    and pg_temp.try($q$insert into public.quote_live_signals(quote_id, kind, org_id) values (gen_random_uuid(), 'layout', public.current_org_id())$q$) like '42501%');
+    and pg_temp.try($q$insert into public.quote_live_signals(event_id, kind, org_id) values (gen_random_uuid(), 'layout', public.current_org_id())$q$) like '42501%');
   perform pg_temp.anon();
   perform pg_temp.t('2f signed-out: no access', pg_temp.try('select count(*) from public.quote_live_signals') like '42501%');
   perform pg_temp.su();
@@ -153,7 +155,9 @@ begin
     and not public.storage_object_name_ok('event-docs', a::text || '/none/stock/../x.jpg')
     and not public.storage_object_name_ok('event-docs', a::text || '/none/stock/' || gen_random_uuid()::text || '.pdf')
     and public.storage_object_name_ok('event-docs', a::text || '/' || gen_random_uuid()::text || '/' || gen_random_uuid()::text || '.pdf')
-    and to_regprocedure('public.storage_object_name_ok__pre0428(text,text)') is not null);
+    and to_regprocedure('public.storage_object_name_ok__pre0428(text,text)') is not null
+    and not has_function_privilege('anon', 'public.storage_object_name_ok__pre0428(text,text)', 'execute')
+    and not has_function_privilege('authenticated', 'public.storage_object_name_ok__pre0428(text,text)', 'execute'));
   perform pg_temp.su();
   perform pg_temp.t('4d older uploads (over 10 minutes ago) do not count',
     (select count(*) from public.storage_upload_log where owner = u) >= 100);

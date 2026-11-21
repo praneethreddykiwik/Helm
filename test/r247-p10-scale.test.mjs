@@ -79,7 +79,7 @@ t('MANIFEST ends 0427-0429 in order, run-all runs the suite + the APPLY files tw
 
 t('Q-11: subscribeVersions listens to quote_live_signals once 0427 is in, the old bindings stay as the fallback', () => {
   const i = SA.indexOf('subscribeVersions(id, cb) {'), s = SA.slice(i, i + 3000);
-  assert.match(s, /table: "quote_live_signals", filter: f/);
+  assert.match(s, /table: "quote_live_signals", filter: "event_id=eq\." \+ id/);
   assert.match(s, /BPStore\.schema\.has\(427\)/);
   assert.match(s, /table: "quote_versions", filter: f/);   // fallback for a database before 0427
   assert.match(s, /rtShared\("qv:" \+ id/);

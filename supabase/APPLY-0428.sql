@@ -73,7 +73,15 @@ do $$ begin
     execute replace(pg_get_functiondef('public.storage_object_name_ok(text,text)'::regprocedure),
                     'public.storage_object_name_ok(', 'public.storage_object_name_ok__pre0428(');
     execute 'revoke all on function public.storage_object_name_ok__pre0428(text, text) from public';
-    execute 'grant execute on function public.storage_object_name_ok__pre0428(text, text) to authenticated, anon, service_role';
+  end if;
+end $$;
+-- the kept body is only ever called from inside the definer wrapper below: no app (anon / signed-in) privilege on it
+do $$ begin
+  if to_regprocedure('public.storage_object_name_ok__pre0428(text,text)') is not null then
+    execute 'revoke all on function public.storage_object_name_ok__pre0428(text, text) from public';
+    if exists (select 1 from pg_roles where rolname = 'anon') then execute 'revoke all on function public.storage_object_name_ok__pre0428(text, text) from anon'; end if;
+    if exists (select 1 from pg_roles where rolname = 'authenticated') then execute 'revoke all on function public.storage_object_name_ok__pre0428(text, text) from authenticated'; end if;
+    if exists (select 1 from pg_roles where rolname = 'service_role') then execute 'grant execute on function public.storage_object_name_ok__pre0428(text, text) to service_role'; end if;
   end if;
 end $$;
 do $$ begin
@@ -114,7 +122,11 @@ select item, ok from (values
      to_regprocedure('public.storage_object_name_ok(text,text)') is null
      or (to_regprocedure('public.storage_object_name_ok__pre0428(text,text)') is not null
          and position('r247-0428' in pg_get_functiondef('public.storage_object_name_ok(text,text)'::regprocedure)) > 0)),
-  ('04 schema marker 428 recorded (or no 0412 marker table)',
+  ('04 the kept old name check is closed to the app (only the wrapper uses it)',
+     to_regprocedure('public.storage_object_name_ok__pre0428(text,text)') is null
+     or (not has_function_privilege('anon', 'public.storage_object_name_ok__pre0428(text,text)', 'execute')
+         and not has_function_privilege('authenticated', 'public.storage_object_name_ok__pre0428(text,text)', 'execute'))),
+  ('05 schema marker 428 recorded (or no 0412 marker table)',
      to_regclass('public.helm_schema_markers') is null or exists (select 1 from public.helm_schema_markers where num = 428))
 ) v(item, ok) order by item;
 commit;

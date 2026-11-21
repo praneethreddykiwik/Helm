@@ -146,6 +146,18 @@ begin
   if exists (select 1 from pg_roles where rolname = 'authenticated') then execute 'grant execute on function public.storage_usage() to authenticated'; end if;
 end $$;
 
+-- ---- 7) free-trial purge (0184): the check state is kept like the other per-studio settings (numbers only) ------------------
+do $$ declare v_def text; begin
+  if to_regprocedure('public._tr184_keep_tables()') is not null then
+    v_def := pg_get_functiondef('public._tr184_keep_tables()'::regprocedure);
+    if position('''storage_usage_alerts''' in v_def) = 0 then
+      if (length(v_def) - length(replace(v_def, '''trial_extensions''', ''))) / length('''trial_extensions''') <> 1 then
+        raise notice '0429: _tr184_keep_tables has an unexpected body - left unchanged';
+      else execute replace(v_def, '''trial_extensions''', '''trial_extensions'', ''storage_usage_alerts'''); end if;
+    end if;
+  end if;
+end $$;
+
 do $$ begin
   if to_regclass('public.helm_schema_markers') is not null then
     insert into public.helm_schema_markers(num, name) values (429, '0429_r247_storage_usage') on conflict (num) do nothing;

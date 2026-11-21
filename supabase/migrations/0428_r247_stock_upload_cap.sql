@@ -60,7 +60,15 @@ do $$ begin
     execute replace(pg_get_functiondef('public.storage_object_name_ok(text,text)'::regprocedure),
                     'public.storage_object_name_ok(', 'public.storage_object_name_ok__pre0428(');
     execute 'revoke all on function public.storage_object_name_ok__pre0428(text, text) from public';
-    execute 'grant execute on function public.storage_object_name_ok__pre0428(text, text) to authenticated, anon, service_role';
+  end if;
+end $$;
+-- the kept body is only ever called from inside the definer wrapper below: no app (anon / signed-in) privilege on it
+do $$ begin
+  if to_regprocedure('public.storage_object_name_ok__pre0428(text,text)') is not null then
+    execute 'revoke all on function public.storage_object_name_ok__pre0428(text, text) from public';
+    if exists (select 1 from pg_roles where rolname = 'anon') then execute 'revoke all on function public.storage_object_name_ok__pre0428(text, text) from anon'; end if;
+    if exists (select 1 from pg_roles where rolname = 'authenticated') then execute 'revoke all on function public.storage_object_name_ok__pre0428(text, text) from authenticated'; end if;
+    if exists (select 1 from pg_roles where rolname = 'service_role') then execute 'grant execute on function public.storage_object_name_ok__pre0428(text, text) to service_role'; end if;
   end if;
 end $$;
 do $$ begin

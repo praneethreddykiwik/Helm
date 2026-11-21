@@ -5,7 +5,7 @@
 -- sent the WHOLE layout JSON (can be megabytes) to every open page of the studio. The page only used it as a "something
 -- changed" ping and then read the version list again.
 -- Now:
---   1  quote_live_signals: ONE small row per event and kind ('layout' / 'quotation'): quote id, studio, version number, time.
+--   1  quote_live_signals: ONE small row per event and kind ('layout' / 'quotation'): event id, studio, version number, time.
 --      An AFTER INSERT trigger on quote_versions / quotation_versions updates that row (insert ... on conflict do update).
 --      New pages listen to this table (a few bytes per save) and fetch the version on demand, as before.
 --      The trigger never blocks or slows a save: any problem is skipped quietly (the page still refreshes on focus).
@@ -21,12 +21,13 @@
 
 -- ---- 1) the signal table ---------------------------------------------------------------------------------------------------
 create table if not exists public.quote_live_signals (
-  quote_id   uuid not null,
+  event_id   uuid not null,   -- = quotes.id; NOT named quote_id on purpose: the 0141 / 0220 "untouched blank draft" check
+                              -- treats any row in a quote_id table as a change, and a signal is not a change
   kind       text not null,
   org_id     uuid not null,
   version_no integer,
   changed_at timestamptz not null default now(),
-  constraint quote_live_signals_pkey primary key (quote_id, kind),
+  constraint quote_live_signals_pkey primary key (event_id, kind),
   constraint quote_live_signals_kind_chk427 check (kind in ('layout', 'quotation'))
 );
 comment on table public.quote_live_signals is
@@ -56,9 +57,9 @@ begin
   if new.quote_id is null or new.org_id is null then return null; end if;
   begin
     if v_kind = 'layout' then v_no := (to_jsonb(new) ->> 'version_no')::integer; end if;
-    insert into public.quote_live_signals as s (quote_id, kind, org_id, version_no, changed_at)
+    insert into public.quote_live_signals as s (event_id, kind, org_id, version_no, changed_at)
     values (new.quote_id, v_kind, new.org_id, v_no, now())
-    on conflict (quote_id, kind) do update
+    on conflict (event_id, kind) do update
       set org_id = excluded.org_id, version_no = excluded.version_no, changed_at = excluded.changed_at;
   exception when others then
     raise warning 'r247-0427: live signal skipped (%)', sqlstate;   -- the save itself goes on

@@ -4186,7 +4186,7 @@ window.HelmUrl = HelmUrl;
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "quotation_versions", filter: f }, () => fan("quotation"))
         .subscribe(st), both(fan));   // R163: closed while hidden; R233: st = error backoff
       const openSig = (fan) => rtLive((st) => supa.channel("qls-rt-" + id + "-" + Math.random().toString(36).slice(2, 8))
-        .on("postgres_changes", { event: "*", schema: "public", table: "quote_live_signals", filter: f }, (m) => {
+        .on("postgres_changes", { event: "*", schema: "public", table: "quote_live_signals", filter: "event_id=eq." + id }, (m) => {
           const k = m && (m.new || m.record) && (m.new || m.record).kind;
           if (k === "layout" || k === "quotation") fan(k); else { fan("layout"); fan("quotation"); }
         })

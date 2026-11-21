@@ -154,6 +154,9 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0399_r230_dept_supervisors.sql
 -- 0404 (R239) adds money_credits, money_request_keys, event_money_freeze_log + event_money_freezes to the purge list before client_tds_certificates
 \ir ../../supabase/migrations/0404_r239_money_safety.sql
+-- 0427 (R247) adds quote_live_signals to the purge list; 0429 adds storage_usage_alerts to the keep list
+\ir ../../supabase/migrations/0427_r247_layout_live_signals.sql
+\ir ../../supabase/migrations/0429_r247_storage_usage.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin
