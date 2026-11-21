@@ -68,7 +68,7 @@ t('APPLY-0427 .. 0429: begin, lock_timeout 5s, statement_timeout, the migration 
 t('MANIFEST ends 0427-0429 in order, run-all runs the suite + the APPLY files twice, package runs this test', () => {
   const nums = [...MF.matchAll(/^forward  supabase\/migrations\/(\d{4})_/gm)].map((m) => m[1]);
   assert.deepEqual(nums.slice(nums.indexOf('0427'), nums.indexOf('0427') + 3), NUMS);
-  assert.ok(nums.indexOf('0427') > nums.indexOf('0412'));
+  assert.ok(nums.indexOf('0427') > nums.indexOf('0412')); assert.ok(nums.indexOf('0427') > nums.indexOf('0425'), 'after R246 0423-0425');
   assert.match(RA, /run "r247-p10-scale-0427-0429" "R247-P10-SCALE-0427-0429: ALL PASS \\\(36\/36\\\)"/);
   assert.match(RA, /run "r247-apply-0427-0429" "APPLY-0427-0429: ALL OK"/);
   assert.ok(RA.indexOf('r247-apply-0427-0429') < RA.indexOf('run "r232-remove-role-traces-0400"'), 'before the last (0400) run');

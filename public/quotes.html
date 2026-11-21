@@ -130,7 +130,7 @@
 <link rel="stylesheet" href="link-views.css?v=2">
 <link rel="stylesheet" href="theme.css?v=86"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=112" id="shellProto"></script>
+<script src="/shell-proto.js?v=113" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -192,6 +192,7 @@
       <div class="fld"><label for="c_email">Email</label><input id="c_email" type="email" placeholder="name@email.com"></div>
       <div class="fld"><label for="c_phone">Phone</label><input id="c_phone" type="tel" inputmode="tel" placeholder="+91…"></div>
       <div class="fld"><label for="c_date">Event date</label><input id="c_date" type="date" data-min-today></div>
+      <div class="fld" id="endFld" hidden><label for="c_endDate">Last day (if it runs over several days)</label><input id="c_endDate" type="date" aria-describedby="c_endHint"><small id="c_endHint" class="muted">Leave empty for a one-day event.</small></div>
       <div class="fld"><label for="c_venue">Venue</label><input id="c_venue" placeholder="Venue name"></div>
       <div class="fld s-068a8dd"><label for="c_address">Venue address</label><input id="c_address" placeholder="Address"></div>
       <div class="fld"><label for="c_state">Client / event state</label><input id="c_state" maxlength="60" placeholder="e.g. Telangana" title="Same state as your studio → CGST + SGST; another state → IGST"><datalist id="c_stateList"></datalist></div>
@@ -281,10 +282,10 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=401"></script><script src="flow-resume.js?v=10" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=6"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=4"></script>
+<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=402"></script><script src="flow-resume.js?v=10" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=6"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=4"></script>
 <script src="event-sizing.js?v=5"></script><script src="quote-smart-filter.js?v=2"></script><script src="approval-watch.js?v=2"></script><script src="event-group-picker.js?v=5"></script><script src="link-views.js?v=5"></script>
-<script src="page-tours.js?v=71"></script>
-<script src="tour.js?v=86"></script>
+<script src="page-tours.js?v=72"></script>
+<script src="tour.js?v=87"></script>
 <script>
   const $ = (s)=>document.querySelector(s);
   const esc = (s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -823,6 +824,9 @@
     const row=(Array.isArray(quotes)?quotes:[]).find(x=>x&&x.id===id)||null, mc=HelmQuoteRates.clientFor(full,row,planRow);
     $("#c_name").value=mc.name; $("#c_company").value=mc.company; $("#c_email").value=mc.email;
     $("#c_phone").value=mc.phone; $("#c_date").value=mc.eventDate; $("#c_venue").value=mc.venue; cmVenueAtOpen=$("#c_venue").value.trim();
+    // R246 (0424, Q-16): optional last day of a multi-day event - shown only once the database has update 0424
+    $("#c_endDate").value=String(full.eventEndDate||"").slice(0,10); $("#endFld").hidden=true;
+    try{ if(BPStore.schema && (await BPStore.schema.has(424))===true) $("#endFld").hidden=false; }catch(_){ }
     $("#c_address").value=mc.address; $("#c_notes").value=mc.notes; $("#c_state").value=mc.state; $("#c_trn").value=mc.trn;
     const cl=full.client||{};
     // effective rates (qmodal-1018): the applied package's CURRENT price wins for the plate (the plan only keeps the price
@@ -971,7 +975,7 @@
     paintRateNote(p);
     // an invalid count / discount → no total is shown (never a number the quote can't be saved at)
     const saved=cmSavedTotal(), changes=valid && saved!=null && Math.abs(Math.round(saved)-Math.round(t.total))>=1;
-    const taxRows = BPStore.tax.rows(t, p, BPStore.tax.resolve(p)).map(r=>`<div class="r"><span>${esc(r.label)}</span><span class="amt">${inr(r.amount)}</span></div>`).join("");
+    const taxRows = BPStore.tax.rows(t, p, BPStore.tax.resolve(p)).map(r=>`<div class="r"><span>${esc(r.label)}</span><span class="amt">${r.text?esc(r.text):inr(r.amount)}</span></div>`).join("");   // R246 Q-07: India parts at 2 decimals + Round-off
     // confirm-1018 #1: every part on its own line, in the order it is worked out - subtotal, then the coupon and the
     // discount (each its own line), the taxable value, THEN the tax on it (the server stamps the same total)
     const nf=(v)=>Number(v||0).toLocaleString("en-IN");
@@ -1007,6 +1011,12 @@
       const today=new Intl.DateTimeFormat("en-CA",{timeZone:(((window.BPStore&&BPStore.studioTax&&BPStore.studioTax())||{}).country==="AE"?"Asia/Dubai":"Asia/Kolkata"),year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
       if((dv && dv<today && dv!==sv) || (!dv && de.getAttribute("data-date-rejected")==="past")){ errEl.textContent="Event date can't be in the past."; errEl.hidden=false; de.setAttribute("aria-invalid","true"); de.focus(); return; }
       de.removeAttribute("aria-invalid"); }
+    // R246 (Q-16): the last day needs the first day, can't be before it, and an event is at most 60 days long
+    if(!$("#endFld").hidden){ const ee=$("#c_endDate"), ev=ee.value, dv=$("#c_date").value;
+      const span=(ev&&dv)?Math.round((Date.parse(ev+"T00:00:00Z")-Date.parse(dv+"T00:00:00Z"))/86400000):0;
+      const bad=!ev?"":!dv?"Pick the event date first (the last day comes after it).":span<0?"The last day can't be before the event date.":span>60?"An event can run at most 60 days.":"";
+      if(bad){ errEl.textContent=bad; errEl.hidden=false; ee.setAttribute("aria-invalid","true"); ee.focus(); return; }
+      ee.removeAttribute("aria-invalid"); }
     // Don't save a blank quote (QA): a deliberate save needs at least the client name.
     if(!$("#c_name").value.trim()){ errEl.textContent="Enter the client name before saving the quote."; errEl.hidden=false; $("#c_name").focus(); return; }
     // Confirming LOCKS a priced snapshot for the client — require client name + a valid
@@ -1074,6 +1084,7 @@
       // keep the event_date column in sync, then re-brand the code to the event date (draft only)
       if(client.eventDate){
         try{ await BPStore.quotes.updateMeta(cmId, { eventDate: client.eventDate });
+             if(!$("#endFld").hidden) await BPStore.quotes.updateMeta(cmId, { eventEndDate: $("#c_endDate").value || null });   // R246 (0424): the last day, right after the first day
              if(!confirmIt) await BPStore.quotes.rebrandCode(cmId); }catch(e){ dateSyncFailed=true; BPUI.toast(BPUI.friendlyError(e,{action:"update the event date on the calendar"}),{type:"err"}); }
       }
       delete detailCache[cmId];
@@ -1118,7 +1129,7 @@
     const num=(v)=>{ const x=Number(v); return Number.isFinite(x)?x:0; };
     const line=(l,a)=>`<tr><td>${l}</td><td style="text-align:right">${inr(a)}</td></tr>`;
     const qTax=BPStore.quoteTax(full); curTax=qTax;   // B11: this quote's own snapshot (India/INR when absent), never the studio's current country
-    const tax = !t ? "" : BPStore.tax.rows(t, p, qTax).map(r=>line(esc(r.label)+(r.pct?" ("+Number(r.pct)+"%)":""), r.amount||0)).join("");
+    const tax = !t ? "" : BPStore.tax.rows(Object.assign({}, t, { total:grand }), p, qTax).map(r=>r.text?`<tr><td>${esc(r.label)+(r.pct?" ("+Number(r.pct)+"%)":"")}</td><td style="text-align:right">${esc(r.text)}</td></tr>`:line(esc(r.label)+(r.pct?" ("+Number(r.pct)+"%)":""), r.amount||0)).join("");   // R246 Q-07: India parts at 2 decimals + Round-off to the stored grand total
     let sup={}; try{ sup=BPStore.quoteSupplier(full, studioOrg); }catch(_){ sup={}; }   // B15
     const terms=BPStore.paymentTerms(studioCfg, cl.eventDate);
     const termsHtml=(terms.advancePct!=null||terms.balanceDue||terms.note)?`<h3 style="font-size:13px;margin:18px 0 4px">Payment terms</h3><p class=muted style="margin:0">${terms.advancePct!=null?"Advance "+esc(String(terms.advancePct))+"% ("+inr(Math.round(grand*terms.advancePct/100))+") to confirm the booking. ":""}${terms.balanceDue?"Balance due by "+esc(qTax.country==="US"?terms.balanceDue:BPStore.fmtDateIN(terms.balanceDue))+(terms.balanceDueDays?" ("+terms.balanceDueDays+" days before the event)":" (event day)")+". ":""}${terms.note?esc(terms.note):""}</p>`:"";

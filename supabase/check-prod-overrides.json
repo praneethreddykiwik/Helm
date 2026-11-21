@@ -78,5 +78,8 @@
   "0409": { "note": "R242 cron stagger: only the SCHEDULE of up to 12 jobs Helm's migrations made changes (cron.alter_job, not an object) - see APPLY-0409 check rows 02 / 03 or select * from public.ops_cron_stagger_report()" },
   "0410": { "note": "R242 package code wake + ledger lanes: _ops402_lane re-issued with 5 more lanes (if APPLY-0402 was run again after APPLY-0410 this body shows as older - run APPLY-0410 again), lane CHECK widened (the 0402 one replaced)" },
   "0411": { "note": "R242 Helm-wide render cap: the HQ bell label is patched in place with dynamic SQL - checked by its marker", "add": ["marker public._sa54_label(text) Photo render limit"] },
-  "0412": { "note": "R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)" }
+  "0412": { "note": "R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)" },
+  "0423": { "note": "R246 Q-08 tax default by country: one pure function + trigger ab_r423_gst_default on quotes, D8 pricing functions untouched, marker row 423 is data (APPLY-0423 check rows)" },
+  "0424": { "note": "R246 Q-16 multi-day events: quotes.event_end_date + NOT VALID check + trigger, ledger wrapped with _r21_cost_lines__pre0424 kept, marker row 424 is data (APPLY-0424 check rows)" },
+  "0425": { "note": "R246 DATA-01 text limits: NOT VALID checks named per column by a loop (dynamic SQL), counted first - see r425_text_len_report() and APPLY-0425 check rows" }
 }

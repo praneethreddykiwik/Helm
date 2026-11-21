@@ -37,10 +37,13 @@
     try { if (doc && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(FMT.locale)) doc.documentElement.setAttribute("lang", FMT.locale); } catch (e) {}
     return { locale: FMT.locale, currency: FMT.currency };
   }
-  function money(n) {
+  function money(n, paise) {
     const v = num(n); if (v == null) return "—";
-    try { return new Intl.NumberFormat(FMT.locale, { style: "currency", currency: FMT.currency, maximumFractionDigits: 0 }).format(v); } catch (e) { return String(Math.round(v)); }
+    // R246 (Q-07): tax parts + Round-off show paise (2 decimals); every other amount stays whole
+    const o = paise ? { style: "currency", currency: FMT.currency, minimumFractionDigits: 2, maximumFractionDigits: 2 } : { style: "currency", currency: FMT.currency, maximumFractionDigits: 0 };
+    try { return new Intl.NumberFormat(FMT.locale, o).format(v); } catch (e) { return paise ? v.toFixed(2) : String(Math.round(v)); }
   }
+  function r2(n) { const x = Number(n); if (!isFinite(x)) return 0; const v = Math.round((Math.abs(x) + 1e-9) * 100) / 100; return x < 0 ? -v : v; }
   // R36: parse with HelmCountry.parseTime so "6:30 PM" stays PM (the old H:MM-only match made it 6:30 AM).
   // Without country-profile.js a 12h string is shown as typed rather than guessed.
   function parseTime(t) {
@@ -113,14 +116,22 @@
     const inc = incl ? " (included)" : "";
     if (tn && (gst || igst || cgst || sgst)) out.push({ label: tn + inc, detail: pct ? pct + "%" : "", amount: gst || ((igst || 0) + (cgst || 0) + (sgst || 0)) });
     else if (tn) { /* no tax on this quote */ }
-    else if (igst) out.push({ label: "IGST" + inc, detail: pct ? pct + "%" : "", amount: igst });
+    else if (igst) out.push({ label: "IGST" + inc, detail: pct ? pct + "%" : "", amount: r2(igst), paise: true });
     else if (cgst || sgst) {
-      // one rounding to whole rupees, split from it: CGST + SGST = GST on every screen
-      const g2 = Math.round((cgst || 0) + (sgst || 0)), c2 = Math.round(g2 / 2);
-      out.push({ label: "CGST" + inc, detail: pct ? pct / 2 + "%" : "", amount: c2 });
-      out.push({ label: "SGST" + inc, detail: pct ? pct / 2 + "%" : "", amount: g2 - c2 });
+      // R246 (Q-07): each half of the tax rounded to paise on its own (Indian invoice style); the Round-off line below
+      // makes the lines add up to the total exactly
+      const h = r2(((cgst || 0) + (sgst || 0)) / 2);
+      out.push({ label: "CGST" + inc, detail: pct ? pct / 2 + "%" : "", amount: h, paise: true });
+      out.push({ label: "SGST" + inc, detail: pct ? pct / 2 + "%" : "", amount: h, paise: true });
     } else if (gst) out.push({ label: "GST" + inc, detail: pct ? pct + "%" : "", amount: gst });
     const total = num(q.total) != null ? num(q.total) : num(c.total);
+    // R246 (Q-07): India - total minus (taxable value + tax parts) shown as "Round-off" (under one rupee; display only,
+    // the total is the stored one)
+    if (!tn && (igst || cgst || sgst) && total != null && sub != null) {
+      const parts = out.filter((l) => l.paise).reduce((a, l) => a + l.amount, 0);
+      const ro = r2(total - r2(Math.max(0, sub - (disc || 0))) - (incl ? 0 : parts));
+      if (ro && Math.abs(ro) < 1) out.push({ label: "Round-off", detail: "", amount: ro, paise: true, kind: "roundoff" });
+    }
     return { lines: out, total: total };
   }
   function normalizeItems(layout) {
@@ -338,7 +349,7 @@
     r.lines.forEach((l) => {
       const tr = el("tr", l.kind || ""); const th = el("th"); th.setAttribute("scope", "row"); th.textContent = l.label;
       if (l.detail) th.appendChild(el("span", "detail", l.detail));
-      tr.appendChild(th); tr.appendChild(el("td", "amt", l.amount < 0 ? "− " + money(-l.amount) : money(l.amount))); tb.appendChild(tr);
+      tr.appendChild(th); tr.appendChild(el("td", "amt", l.amount < 0 ? "− " + money(-l.amount, l.paise) : (l.kind === "roundoff" ? "+ " : "") + money(l.amount, l.paise))); tb.appendChild(tr);
     });
     $("#quoteTotal").textContent = r.total != null ? money(r.total) : "—";
     // 0114: approved change orders (payments.changes) + the invoice total, same figure as Payments
