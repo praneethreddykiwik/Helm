@@ -1719,7 +1719,7 @@
     try{
       if(!canEdit || quoteBlocked() || !ev) return;
       const next=BPStore.tax.restampUnpriced(ev, BPStore.tax.resolve(rates||{})); if(!next) return;
-      const row=await BPStore.quotes.updateMeta(id,{ pricing: next }); if(row&&row.updated_at) ev.updatedAt=row.updated_at;   // keep the lock base (no false conflict on the first step-1 save)
+      const row=await BPStore.quotes.updateMeta(id,{ pricing: next }, ev.updatedAt); if(row&&row.updated_at) ev.updatedAt=row.updated_at;   // keep the lock base (no false conflict on the first step-1 save); R241: under the lock too (a teammate's price is never overwritten)
       ev.pricing=next; paintCurBanner();
     }catch(_){ /* best effort: saveQuotation re-stamps an unpriced quote anyway */ }
   }

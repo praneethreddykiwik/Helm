@@ -48,6 +48,7 @@ export function notifLink(n) {
     if (k.indexOf("nurture_") === 0) return "nurture.html";
     // r24 (0269): a new enquiry from the public form -> the Leads board
     if (k === "lead_new") return "leads.html";
+    if (k === "storage_usage_high") return "control.html#storage";   // R247 (0429): the storage meter in Settings
     if (!q) return "";
     // r24 (0269): a run-sheet reminder opens that event's run-sheet
     if (k === "event_reminder" && d.source === "0269") return "runsheet.html?quote=" + enc(q);

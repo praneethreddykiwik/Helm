@@ -737,11 +737,19 @@
 
   /* ---------- realtime ---------- */
   let rtReloadTimer=null;
+  // R241 (Phase 4 RT-02): a change arriving while you drag or within 2 s of your own save (the echo window) used to be
+  // DROPPED - a teammate's move in that window never showed until the next change. Now it is only DELAYED: the reload
+  // runs once the drag has ended and the 2 s window has passed (checked again when the timer fires).
+  function rtKick(){
+    clearTimeout(rtReloadTimer);
+    const wait=Math.max(300, 2000-(Date.now()-lastLocalWrite)+50);
+    rtReloadTimer=setTimeout(()=>{ if(dragging || Date.now()-lastLocalWrite<2000){ rtKick(); return; } load(); }, wait);
+  }
   function startRealtime(){
     if(rtChannel) return;
     rtChannel = BPStore.leads.subscribe(
-      // debounce reloads, and skip while dragging or just after a local write, so our own echo doesn't clobber the board / undo stack
-      ()=>{ if(dragging) return; if(Date.now()-lastLocalWrite<2000) return; clearTimeout(rtReloadTimer); rtReloadTimer=setTimeout(load,300); },
+      // debounce reloads; while dragging or just after a local write the reload waits (our own echo doesn't clobber the board / undo stack)
+      ()=>{ rtKick(); },
       // real subscription status → honest pill
       (status)=>{ const on=status==="SUBSCRIBED"; $("#live").classList.toggle("on",on);
         $("#liveTxt").textContent = on?"live":(status==="DISABLED"?"offline":"connecting…"); }

@@ -67,6 +67,7 @@
      Settings deep link (control.html?cs=<text>) lands on that very field. */
   var SETTINGS = [
     ["general", "Studio account", "account owner"],
+    ["general", "File storage", "storage space usage quota full photos files uploads"],   // R247 (0429): the storage meter
     ["general", "Organization / studio", "studio business"],
     ["general", "Country (sets tax & currency)", "country region tax currency"],
     ["general", "Studio / business name", "name studio"],

@@ -83,7 +83,7 @@ t('Q-11: subscribeVersions listens to quote_live_signals once 0427 is in, the ol
   assert.match(s, /BPStore\.schema\.has\(427\)/);
   assert.match(s, /table: "quote_versions", filter: f/);   // fallback for a database before 0427
   assert.match(s, /rtShared\("qv:" \+ id/);
-  assert.match(SA, /if \(error\) throw layoutTooBig\(error\);/);
+  assert.match(SA, /throw layoutTooBig\(e\);   \/\/ R247 \(0427\)/);
   const f = new vm.Script('(' + fnSrc('layoutTooBig').replace('function layoutTooBig', 'function') + ')');
   const ctx = vm.createContext({ LAYOUT_MAX_MB: 10, Error }); const ltb = f.runInContext(ctx);
   const e = ltb({ code: '23514', message: 'new row for relation "quote_versions" violates check constraint "quote_versions_data_size_chk427"' });

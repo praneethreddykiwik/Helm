@@ -27,6 +27,7 @@ for (const f of files) {
 assert.ok(checked >= 5, "expected at least 5 client/date updateMeta call sites, found " + checked);
 // store contract: with a lock, the update is filtered on updated_at and 0 rows -> CONFLICT
 const store = readFileSync(new URL("../public/store-api.js", import.meta.url), "utf8");
-assert.match(store, /if \(expectedUpdatedAt\) q = q\.eq\("updated_at", expectedUpdatedAt\)/);
+// R241 (0408): the token is the details counter (meta_rev) seen with that updated_at, else updated_at itself
+assert.match(store, /if \(expectedUpdatedAt\) q = useRev \? q\.eq\("meta_rev", rev\) : q\.eq\("updated_at", expectedUpdatedAt\)/);
 assert.match(store, /e\.code = "CONFLICT"/);
 console.log("r79 lost-update lock: OK (" + checked + " call sites)");

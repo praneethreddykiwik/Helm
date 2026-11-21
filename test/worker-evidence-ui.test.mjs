@@ -30,7 +30,9 @@ await t('work.html: reject / done open the evidence sheet (no bare confirm)', ()
 await t('work.html: limits — 10 photos, 8 MB, png/jpeg/webp, 1600 px JPEG, 2-minute voice, 1000-char reason', () => {
   assert.match(work, /const EV_MAX_PHOTOS=10, EV_MAX_BYTES=8\*1024\*1024, EV_MAX_REC=120, EV_REASON_MAX=1000, EV_PHOTO_PX=1600;/);
   assert.match(work, /const EV_PHOTO_TYPES=\/\^image\\\/\(jpeg\|png\|webp\)\$\/;/);
-  assert.match(work, /if\(!EV_PHOTO_TYPES\.test\(f\.type\|\|""\) \|\| f\.size>EV_MAX_BYTES\)\{ skipped\+\+; continue; \}/);
+  // R247 (FILE-02): a picked photo up to 25 MB is made smaller (the uploaded copy stays <= EV_MAX_BYTES, next line)
+  assert.match(work, /const EV_MAX_INPUT=25\*1024\*1024;/);
+  assert.match(work, /if\(!EV_PHOTO_TYPES\.test\(f\.type\|\|""\) \|\| f\.size>EV_MAX_INPUT\)\{ skipped\+\+; continue; \}/);
   assert.match(work, /c\.toBlob\(b=>\{ if\(b&&b\.size<=EV_MAX_BYTES\) res\(new File\(\[b\],"photo\.jpg",\{type:"image\/jpeg"\}\)\);[^\n]*,"image\/jpeg",0\.85\)/);
   assert.match(work, /getUserMedia\(\{audio:true\}\)/);
   assert.match(work, /if\(s>=EV_MAX_REC\) stopRec\(true\);/);
@@ -84,6 +86,7 @@ function harness(grant) {
   const calls = { rpc: [], upload: [], guard: [] };
   const ctx = {
     Error, Math, Uint8Array,
+    UG_PHOTO_INPUT_MAX: 25 * 1024 * 1024,   // R247 (FILE-02): the largest picked photo (made smaller before upload)
     taskAnswer: (r) => r,   // r92 (0311): refusal mapping, covered by r92-ops-lifecycle.test.mjs
     // 0048 upload guard (covered by upload-guard.test.mjs): record the call, pass the bytes through
     ugPrepareImage: async (f, o) => { calls.guard.push(['image', o && o.maxBytes]); return { blob: f, mime: 'image/jpeg', ext: 'jpg' }; },
@@ -114,8 +117,11 @@ await t('upload: wrong bytes / wrong kind / too big / odd server key are refused
   await assert.rejects(W.uploadEvidence('tok', 'task', 'proof_photo', html), /JPEG, PNG or WebP/);
   await assert.rejects(W.uploadEvidence('tok', 'task', 'proof_photo', webm), /JPEG, PNG or WebP/);
   await assert.rejects(W.uploadEvidence('tok', 'task', 'reject_voice', jpeg), /voice note format/);
-  const big = new File([new Uint8Array(8 * 1024 * 1024 + 1)], 'big.jpg', { type: 'image/jpeg' });
-  await assert.rejects(W.uploadEvidence('tok', 'task', 'proof_photo', big), /max 8 MB/);
+  // R247 (FILE-02): a PHOTO up to 25 MB is made smaller instead of refused; over 25 MB, or a voice note over 8 MB, is refused
+  const big = new File([new Uint8Array(25 * 1024 * 1024 + 1)], 'big.jpg', { type: 'image/jpeg' });
+  await assert.rejects(W.uploadEvidence('tok', 'task', 'proof_photo', big), /max 25 MB/);
+  const bigVoice = new File([new Uint8Array(8 * 1024 * 1024 + 1)], 'big.webm', { type: 'audio/webm' });
+  await assert.rejects(W.uploadEvidence('tok', 'task', 'reject_voice', bigVoice), /max 8 MB/);
   assert.equal(calls.rpc.length, 0); assert.equal(calls.upload.length, 0);
   const odd = harness({ bucket: 'task-proof', path: '../other-bucket/x.html', mime: 'text/html' });
   await assert.rejects(odd.W.uploadEvidence('tok', 'task', 'proof_photo', jpeg), /upload not available/);
