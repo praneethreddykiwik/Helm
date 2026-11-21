@@ -172,7 +172,7 @@ await t('Settings: "What can this role do?" in plain yes / no for the selected r
 });
 
 await t('Settings page wiring: scripts, boxes, the fix button handled before the save, same save path, no inline style', () => {
-  assert.match(C, /<script src="role-defaults\.js\?v=3"><\/script><script src="access-deps\.js\?v=1"><\/script>/);
+  assert.match(C, /<script src="role-defaults\.js\?v=4"><\/script><script src="access-deps\.js\?v=1"><\/script>/);
   assert.match(C, /<link rel="stylesheet" href="roles-matrix\.css\?v=2">/);
   // the hint sits in the sticky role header, so it is on screen next to whatever row was just switched
   assert.match(C, /<div class="rm-bar" id="rmBar"><\/div>\s*<div class="rm-dep" id="rmDep" role="status" hidden><\/div>\s*<\/div>/);

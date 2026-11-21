@@ -3,7 +3,8 @@
 # and will NOT be pasted on staging / production for now, although it is in main. APPLY-0427 .. APPLY-0429 must therefore
 # work on a database WITHOUT 0423-0425 (no quotes.event_end_date, no _r21_cost_lines__pre0424, no 0423 tax default,
 # no 0425 length checks). This builds that state on the disposable local cluster and proves it:
-#   1 a database migrated with every MANIFEST entry EXCEPT 0423 / 0424 / 0425 and 0427 / 0428 / 0429 (prod order)
+#   1 a database migrated with every MANIFEST entry EXCEPT 0423 / 0424 / 0425 and 0427 / 0428 / 0429 (prod order); Phase 6
+#     (0413-0415) is left out too, so P10 is proven not to need it either
 #   2 APPLY-0427, APPLY-0428, APPLY-0429 pasted (no harness switches, like the SQL editor): every check row true;
 #     pasted again: every check row still true, nothing doubled
 #   3 the 0424 / 0423 objects are still absent afterwards (P10 neither needs nor makes them) and stored events, layout
@@ -26,7 +27,7 @@ q "create table if not exists public.helm_schema_migrations(filename text primar
 n=0; bad=""
 while read -r scope path _; do
   [ -z "${scope:-}" ] && continue; case "$scope" in \#*) continue;; esac
-  case "$path" in *0423_r246_*|*0424_r246_*|*0425_r246_*|*0427_r247_*|*0428_r247_*|*0429_r247_*) continue;; esac
+  case "$path" in *0413_r245_*|*0414_r245_*|*0415_r245_*|*0423_r246_*|*0424_r246_*|*0425_r246_*|*0427_r247_*|*0428_r247_*|*0429_r247_*) continue;; esac
   PGDATABASE=$DB psql -X -q -v ON_ERROR_STOP=1 -1 -f "$path" >/dev/null 2>&1 || { bad="$path"; break; }
   n=$((n+1))
 done < supabase/migrations/MANIFEST
@@ -35,7 +36,7 @@ NO9="select not exists (select 1 from information_schema.columns where table_sch
   and not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and proname like '%\_\_pre0424')
   and not exists (select 1 from pg_constraint where conname like '%\_len425')
   and to_regclass('public.quote_live_signals') is null"
-ok "production order built: $n migrations without 0423-0425 / 0427-0429" "$( [ -z "$bad" ] && [ "$(q "$NO9")" = t ] && echo t || echo "stopped at ${bad:-?} / phase 9 objects: $(q "$NO9")")"
+ok "production order built: $n migrations without 0413-0415 (Phase 6, may land later) / 0423-0425 / 0427-0429" "$( [ -z "$bad" ] && [ "$(q "$NO9")" = t ] && echo t || echo "stopped at ${bad:-?} / phase 9 objects: $(q "$NO9")")"
 PGDATABASE=$DB psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1
 QA='a0000000-0000-4000-8000-00000000da01'; ORG='a0000000-0000-4000-8000-000000000001'
 q "insert into public.quote_versions(quote_id, version_no, label, data, object_count, org_id) values ('$QA', 1, 'v1', '{\"items\": [{\"id\": \"s1\"}]}'::jsonb, 1, '$ORG') on conflict do nothing" >/dev/null
@@ -58,7 +59,7 @@ ok "events, layout versions, bell notices untouched (same count + content digest
 # 4) prod checker
 CHK="$(PGDATABASE=$DB psql -X -q -A -t -F '|' -v ON_ERROR_STOP=1 -f supabase/CHECK-PROD-MIGRATIONS.sql 2>&1)"
 ok "prod checker: 0427 + 0428 + 0429 present" "$( grep -qE '^0427_r247_layout_live_signals\|present\|' <<<"$CHK" && grep -qE '^0428_r247_stock_upload_cap\|present\|' <<<"$CHK" && grep -qE '^0429_r247_storage_usage\|present\|' <<<"$CHK" && echo t || grep -E '^042[789]' <<<"$CHK" | head -3)"
-ok "prod checker: only 0423-0425 missing / partial" "$( ! grep -E '^[^|]+\|(missing|partial)\|' <<<"$CHK" | grep -qvE '^042[345]_r246_' && echo t || grep -E '^[^|]+\|(missing|partial)\|' <<<"$CHK" | grep -vE '^042[345]_r246_' | head -3)"
+ok "prod checker: only 0423-0425 (and 0413-0415, not pasted here) missing / partial" "$( ! grep -E '^[^|]+\|(missing|partial)\|' <<<"$CHK" | grep -qvE '^04(1[345]_r245|2[345]_r246)_' && echo t || grep -E '^[^|]+\|(missing|partial)\|' <<<"$CHK" | grep -vE '^04(1[345]_r245|2[345]_r246)_' | head -3)"
 # 5) Phase 9 taken later: APPLY-0423 .. 0425, then APPLY-0427 .. 0429 again
 for f in 0423 0424 0425; do
   out="$(checks supabase/APPLY-$f.sql)"

@@ -88,7 +88,7 @@ t('MSG-01: a refused token / permission waits (held = retry), only for a studio 
 t('HQ card: hq_ops_health with a fallback to the old card; pills ok / warn / bad', () => {
   assert.match(J, /call\("hq_ops_health"\)\.catch\(function \(\) \{ return null; \}\)/);
   assert.match(J, /if \(ops && typeof ops === "object" && Array\.isArray\(ops\.checks\)\) \{ renderOpsHealth\(box, st, ops\); return; \}/);
-  assert.match(H, /hq\.js\?v=44/);
+  assert.match(H, /hq\.js\?v=45/);
   const cx = { String, Number, isFinite, Math, Date };
   vm.createContext(cx);
   const src = (name) => { const i = J.indexOf('function ' + name + '('); let d = 0; const j = J.indexOf('{', i); for (let k = j; k < J.length; k++) { if (J[k] === '{') d++; else if (J[k] === '}') { d--; if (d === 0) return J.slice(i, k + 1); } } };

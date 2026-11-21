@@ -115,7 +115,26 @@
     ] }
   ];
 
-  var api = { TEMPLATE: TEMPLATE, STARTER: STARTER, SECTIONS: SECTIONS, defaultFor: defaultFor };
+  // R245 (ROLE-03): giving money access to a Crew / view-only role asks "are you sure?" first. MONEY_AREAS = Budget &
+  // finance, Settlement, Closure & P&L, Business overview (studio money and wages), Package payment alerts and the two
+  // quote money permissions (approve discounts, close with money owed). VIEW_ROLES = the roles that only see their own
+  // portal by default (Crew, legacy worker, Client). moneyGrantAsk(role, area, before, after) -> the question to ask, or
+  // null when no question is needed (not a money area, not a view role, or access is not going UP).
+  var MONEY_AREAS = ["finance", "settlement", "closure", "business", "pkg_payments", "discount_approve", "close_owed"];
+  var VIEW_ROLES = ["crew", "worker", "client"];
+  function moneyGrantAsk(role, area, before, after, roleLabel, areaLabel) {
+    if (VIEW_ROLES.indexOf(role) < 0 || MONEY_AREAS.indexOf(area) < 0) return null;
+    var b = before || {}, a = after || {};
+    var up = (!!a.view && !b.view) || (!!a.edit && !b.edit);
+    if (!up) return null;
+    var who = roleLabel || role, what = areaLabel || area;
+    return "Give " + who + " " + (a.edit ? "change access" : "access") + " to " + what + "? " + who +
+      " normally only sees their own work. Money screens show prices, payments" + (area === "business" ? ", profit and wages" : " and totals") +
+      " to everyone with this role. The change is recorded in the activity log.";
+  }
+
+  var api = { TEMPLATE: TEMPLATE, STARTER: STARTER, SECTIONS: SECTIONS, defaultFor: defaultFor,
+    MONEY_AREAS: MONEY_AREAS, VIEW_ROLES: VIEW_ROLES, moneyGrantAsk: moneyGrantAsk };
   root.HelmRoleDefaults = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
