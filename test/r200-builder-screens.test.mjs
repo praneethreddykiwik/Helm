@@ -120,7 +120,7 @@ t('upload reuses the secure invite-media pipeline (re-encode = EXIF/GPS stripped
   assert.match(fnSrc(b, 'screenPicGate'), /builderInTrial\(\)\) return SCREEN_PIC_TRIAL_MSG/);
   // the store's uploadPhoto re-encodes on a canvas and caps the size (unchanged here)
   const sa = read('public/store-api.js'); const up = sa.slice(sa.indexOf('async uploadPhoto('), sa.indexOf('async mediaUrls('));
-  assert.match(up, /ugPrepareImage\(file, \{ maxBytes: INVITE_IMG_MAX, maxInput: INVITE_IMG_MAX \* 3, maxPx: 2560/);
+  assert.match(up, /ugPrepareImage\(file, \{ maxBytes: INVITE_IMG_MAX, maxInput: UG_PHOTO_INPUT_MAX, maxPx: 2560/);   // R247 (FILE-02): a phone photo up to 25 MB is made smaller
   assert.match(up, /supa\.storage\.from\("invite-media"\)\.upload\(path, img\.blob/);
   assert.match(read('supabase/functions/verify-upload/sniff.ts'), /"invite-media": \{ mimes: \["image\/png", "image\/jpeg", "image\/webp", "image\/gif"\]/);
 });
@@ -191,7 +191,7 @@ t('Welcome Board: sizes 2x3 / 3x4 / 4x6 / custom, easel or standee, picture OR a
 });
 
 t('cache-busters + tour + styles', () => {
-  for (const v of ['stage-screen.js?v=5', 'builder.js?v=97', 'builder-3d.js?v=35', 'builder.css?v=43', 'photo-render-ui.js?v=14', 'page-tours.js?v=72']) assert.ok(html.includes(v), v);
+  for (const v of ['stage-screen.js?v=5', 'builder.js?v=97', 'builder-3d.js?v=35', 'builder.css?v=43', 'photo-render-ui.js?v=14', 'page-tours.js?v=73']) assert.ok(html.includes(v), v);
   for (const f of ['public/capture.html', 'public/try.html']) assert.match(read(f), /stage-screen\.js\?v=5/, f);
   const pt = read('public/page-tours.js'); assert.match(pt, /Toolbox: 3 screens \(centre \+ 2 sides\) and Welcome Board/); assert.match(pt, /Upload a picture/);
   for (const c of ['.scr-mode', '.scr-guide', '.scr-warn', '.scr-prev', '.isec.screen select{max-width:100%}']) assert.ok(css.includes(c), c);

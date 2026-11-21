@@ -51,14 +51,14 @@
   function el(tag,cls,txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
   var BYKEY={}, SECHASH={}, HASH={}; SECTIONS.forEach(function(x){ BYKEY[x.key]=x; SECHASH[x.key]=x.hash; HASH[x.hash]=x.key; });
   // legacy deep links (dashboard checklist, old bookmarks) -> section
-  Object.assign(HASH,{"#account":"general","#studio":"general","#team":"users","#notify":"notify","#security":"links","#link-expiry":"links","#pricing-packages":"pricing","#target-margin":"pricing","#catalog":"catalog","#event-reminders":"reminders","#client-reminders":"reminders","#payment-reminders":"reminders","#payment-schedule":"payments","#quote-validity":"links","#whatsapp":"reminders","#enquiry-form":"automations","#runsheet-reminders":"automations","#privacy":"privacy","#hide-amounts":"privacy","#pin":"privacy","#ltemplates":"ltemplates"});
+  Object.assign(HASH,{"#account":"general","#studio":"general","#team":"users","#notify":"notify","#security":"links","#link-expiry":"links","#pricing-packages":"pricing","#target-margin":"pricing","#catalog":"catalog","#event-reminders":"reminders","#client-reminders":"reminders","#payment-reminders":"reminders","#payment-schedule":"payments","#quote-validity":"links","#whatsapp":"reminders","#enquiry-form":"automations","#runsheet-reminders":"automations","#privacy":"privacy","#hide-amounts":"privacy","#pin":"privacy","#ltemplates":"ltemplates","#storage":"general"});
   var OLDKEY={studio:"general",team:"users",security:"links"};
   function h3(c){ var h=c.querySelector("h3"); return h?h.textContent.trim():""; }
   function paneKey(c){ var p=c.closest("[id^='pane-']"); return p?p.id.slice(5):""; }
   function classify(c){
     var id=c.id||"", t=h3(c).toLowerCase(), pane=paneKey(c);
     if(id==="tdControl") return document.documentElement.classList.contains("helm-trial")?"billing":"general";
-    if(id==="accCard"||c.querySelector("#o_name")) return "general";
+    if(id==="accCard"||id==="stoCard"||c.querySelector("#o_name")) return "general";   // R247: the storage meter sits under General
     if(id==="subCard") return "billing";
     if(id==="privPinCard") return "privacy";
     if(id==="lxCard"||id==="pkgFlowCard"||id==="qvCard") return "links";

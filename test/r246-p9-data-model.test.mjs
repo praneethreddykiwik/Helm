@@ -111,7 +111,7 @@ t('wiring: MANIFEST order, checker overrides paste-safe, CHECK-PROD, release lis
     assert.ok(OV[k] && OV[k].note && !/;|\binto\s+[a-z_]/i.test(OV[k].note), k + ' override');
     assert.match(CHK, new RegExp(`\\('${k}_r246_[a-z_]+', `));
   }
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0415', '0423', '0424', '0425'\]/);   // R245: 0413-0415 come before
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(rd(f), /'0415', '0423', '0424', '0425'[,\]]/);   // R245: 0413-0415 come before
   const RA = rd('scripts/db-test/run-all.sh');
   assert.match(RA, /run "r246-p9-data-model-0423-0425" "R246-P9-DATA-0423-0425: ALL PASS \\\(32\/32\\\)"/);
   assert.match(RA, /run "r246-apply-0423-0425" "APPLY-0423-0425: ALL OK"/);

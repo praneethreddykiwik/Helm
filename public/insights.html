@@ -83,7 +83,7 @@
 <link rel="stylesheet" href="theme.css?v=86"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=113" id="shellProto"></script>
+<script src="/shell-proto.js?v=114" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -229,7 +229,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=402"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=403"></script>
 <script src="range-bar.js?v=4"></script>
 <script src="insights-costs.js?v=5"></script>
 <script src="insights-overview.js?v=1"></script>
@@ -307,7 +307,8 @@
     // R240 (F2): the server sends at most 500 events, oldest first - a full answer may have lost the newest (this period),
     // so ask again for exactly this period (comparison + 12-month benchmarks then use what is there)
     let costRes=costRes0, cut=false;
-    if(costRes.status==="fulfilled" && costRes.value && Array.isArray(costRes.value.events) && costRes.value.events.length>=500){
+    // R247 (REP-03): a long range now comes back in 3-month pieces (paged) - only a piece that hit the cap (capped) needs this
+    if(costRes.status==="fulfilled" && costRes.value && Array.isArray(costRes.value.events) && !(costRes.value.paged && !costRes.value.capped) && costRes.value.events.length>=500){
       cut=true; costRes=(await Promise.allSettled([BPStore.insights.costs(r.from,r.to)]))[0]; if(my!==seq) return; }
     const allRows=(costsUI && costRes.status==="fulfilled" && costRes.value && Array.isArray(costRes.value.events)) ? costRes.value.events : null;
     const benchRows=allRows&&bf?allRows.filter(x=>String(x.date||"")>=bf):allRows;

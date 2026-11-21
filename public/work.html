@@ -168,7 +168,7 @@
 <script src="/telemetry.js?v=14"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=402"></script>
+<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=403"></script>
 <script src="/staff-home.js?v=4"></script>
 <script src="/crew-offline.js?v=1"></script>
 <script>
@@ -419,6 +419,7 @@
   /* ---- evidence sheet (0038): files go to the private task-proof bucket through
      one-time server grants; the status change + evidence are saved together ---- */
   const EV_MAX_PHOTOS=10, EV_MAX_BYTES=8*1024*1024, EV_MAX_REC=120, EV_REASON_MAX=1000, EV_PHOTO_PX=1600;
+  const EV_MAX_INPUT=25*1024*1024;   // R247 (FILE-02): the largest picked photo - it is made smaller (to EV_MAX_BYTES) before upload
   const EV_PHOTO_TYPES=/^image\/(jpeg|png|webp)$/;
   let ev=null;   // { id, action, btn, photos:[{file,url,path}], voice:{file,secs,url,path}|null, rec, busy }
   const fmtSecs=(s)=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
@@ -456,10 +457,10 @@
     for(const f of files){
       if(!ev) return;
       if(ev.photos.length>=EV_MAX_PHOTOS){ full=true; break; }
-      if(!EV_PHOTO_TYPES.test(f.type||"") || f.size>EV_MAX_BYTES){ skipped++; continue; }
+      if(!EV_PHOTO_TYPES.test(f.type||"") || f.size>EV_MAX_INPUT){ skipped++; continue; }   // R247 (FILE-02): a big phone photo is made smaller below, not skipped
       try{ const r=await resizePhoto(f); if(!ev) return; ev.photos.push({file:r,url:URL.createObjectURL(r),path:null}); }catch{ skipped++; }
     }
-    const notes=[]; if(skipped) notes.push(skipped+" file(s) skipped — photos must be JPEG, PNG or WebP and at most 8 MB.");
+    const notes=[]; if(skipped) notes.push(skipped+" file(s) skipped — photos must be JPEG, PNG or WebP and at most 25 MB.");
     if(full) notes.push("You can add up to "+EV_MAX_PHOTOS+" photos.");
     evErr(notes.join(" ")); renderThumbs();
   }

@@ -169,6 +169,8 @@
           { sel: "#o_line1", title: "Billing address", desc: "The address printed on your quotes and invoices." },
           { sel: "#slugBox", title: "Your client link name", desc: "The short name in every link you send clients (helm.events/your-studio)." },
           { sel: "#o_save", title: "Save", desc: "Nothing changes until you press Save studio settings." },
+          // R247 (0429): the storage meter
+          { sel: "#stoCard", title: "File storage", desc: "How full your studio's storage is: photos, files and voice notes. At 80% everyone gets a bell notice; when it is full, new uploads are refused." },
         ],
         billing: [
           { sel: "#subCard", title: "Your Helm plan", desc: "Which plan you are on, when it renews and how many seats it includes." },
@@ -573,7 +575,7 @@
   };
 
   // Settings hash -> section (same names control-split.js uses)
-  const HASH = { "#general": "general", "#account": "general", "#studio": "general", "#billing": "billing", "#privacy-pin": "privacy", "#privacy": "privacy",
+  const HASH = { "#general": "general", "#account": "general", "#storage": "general", "#studio": "general", "#billing": "billing", "#privacy-pin": "privacy", "#privacy": "privacy",
     "#client-links": "links", "#pricing": "pricing", "#payment-schedules": "payments", "#payment-schedule": "payments", "#menu": "catalog", "#catalog": "catalog",
     "#layout-rules": "rules", "#data": "data", "#users": "users", "#team": "users", "#access": "access", "#compliance": "compliance",
     "#notifications": "notify", "#notify": "notify", "#reminders": "reminders", "#automations": "automations", "#renders": "renders", "#crew": "crew",

@@ -55,8 +55,10 @@ await t('1b. rtLive: back online -> catch-up; after unsubscribe nothing; a re-op
 });
 await t('1c. chat, leads board and builder version lists all ride rtLive (catch-up = their full refetch); leads keeps the live pill on a rejoin', () => {
   assert.match(S, /return rtLive\(\(st\) => supa\.channel\("leads-rt"\)/);
-  assert.match(S, /return rtLive\(\(st\) => supa\.channel\(chanName \|\| "chat-rt"\)/);
-  assert.match(S, /return rtLive\(\(st\) => supa\.channel\("qv-rt-"/);
+  // R247 (BELL-02 / Q-11): chat and the version lists go through rtShared (one channel per topic per tab), still on rtLive
+  assert.match(S, /\(fan, fanSt\) => rtLive\(\(st\) => supa\.channel\("chat-rt"\)/);
+  assert.match(S, /const openOld = \(fan\) => rtLive\(\(st\) => supa\.channel\("qv-rt-"/);
+  assert.match(S, /const openSig = \(fan\) => rtLive\(\(st\) => supa\.channel\("qls-rt-"/);
   assert.match(S, /\(why\) => \{ if \(onStatus && !why\) onStatus\("CONNECTING"\);/);
   assert.match(read('public/chat.html'), /function onRealtime\(\)\{ clearTimeout\(rtT\); rtT=setTimeout\(async\(\)=>\{ await refresh\(\); if\(activeId\)\{ await loadThread\(\);/);
 });
@@ -68,7 +70,8 @@ function mkAdd(answers) {
   const calls = [];
   const supa = { rpc: async (fn, args) => { calls.push([fn, args]); const a = answers.shift(); return typeof a === 'function' ? a(fn, args) : a; } };
   const isMissingFn = (e) => !!e && (e.code === 'PGRST202' || e.code === '42883');
-  const o = new Function('supa', 'isMissingFn', 'setTimeout', 'let qvCheckedMissing = false;\n' + helpers + '\nreturn { ' + addV.trim() + ' };')(supa, isMissingFn, (f) => f());
+  const layoutTooBig = (e) => e;   // R247 (0427): the size-cap wording helper (tested in r247-p10-scale) - passes other errors through
+  const o = new Function('supa', 'isMissingFn', 'setTimeout', 'layoutTooBig', 'let qvCheckedMissing = false;\n' + helpers + '\nreturn { ' + addV.trim() + ' };')(supa, isMissingFn, (f) => f(), layoutTooBig);
   return { o, calls };
 }
 const VROW = { id: 'v', quote_id: 'q', version_no: 5, label: null, object_count: 1, created_at: 'x', created_by: 'me' };
