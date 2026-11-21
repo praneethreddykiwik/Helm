@@ -103,7 +103,7 @@ function makeEnv(o = {}) {
     replace(u) { calls.push({ name: 'location.replace:' + u }); }, reload() { calls.push({ name: 'location.reload' }); } };
   const el = (tag) => ({ tag, style: {}, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, appendChild() {}, addEventListener() {}, querySelector: () => null, remove() {} });
   const doc = {
-    readyState: 'complete', addEventListener() {}, removeEventListener() {}, currentScript: { src: 'https://www.helm.events/store-api.js?v=397' },
+    readyState: 'complete', addEventListener() {}, removeEventListener() {}, currentScript: { src: 'https://www.helm.events/store-api.js?v=398' },
     createElement: el, head: { appendChild() {} }, body: { children: [], appendChild(c) { this.children.push(c); }, removeChild() {}, get firstChild() { return null; } },
     documentElement: { setAttribute() {}, getAttribute() { return 'light'; },
       classList: { contains: (c) => cls.has(c), add: (c) => { cls.add(c); }, remove: (c) => { cls.delete(c); } } },
@@ -359,7 +359,7 @@ t('store-api.js: page_bootstrap counted as a read (never drops the shared caches
 t('asset pin: every page that loads store-api.js asks for v=396', () => {
   const pages = readdirSync(new URL('public/', ROOT)).filter((f) => f.endsWith('.html'));
   let n = 0;
-  for (const f of pages) { const h = read('public/' + f); const m = h.match(/store-api\.js\?v=(\d+)/g); if (!m) continue; n++; for (const x of m) assert.equal(x, 'store-api.js?v=397', f); }
+  for (const f of pages) { const h = read('public/' + f); const m = h.match(/store-api\.js\?v=(\d+)/g); if (!m) continue; n++; for (const x of m) assert.equal(x, 'store-api.js?v=398', f); }
   assert.ok(n >= 50, String(n));
 });
 
