@@ -256,6 +256,6 @@ await t('6c. MANIFEST: 0407 then 0408 after 0403 (0404-0406 reserved, numeric or
   const chk = read('supabase/CHECK-PROD-MIGRATIONS.sql');
   assert.match(chk, /\('0407_r241_layout_save_conflict', 'fn', 'public', 'add_quote_version_checked', 'uuid,text,jsonb,integer,integer,boolean'\)/);
   assert.match(chk, /\('0408_r241_quote_meta_rev', 'trg', 'public\.quotes', 'zzzzz_r408_meta_rev', null\)/);
-  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0403', '0407', '0408'\]/);
+  for (const f of ['test/release-1019.test.mjs', 'test/release-1020.test.mjs']) assert.match(read(f), /'0403', '0404', '0405', '0407', '0408', '0409', '0410', '0411', '0412'\]/);
 });
 console.log('r241-concurrent-edits: ' + n + ' passed');
