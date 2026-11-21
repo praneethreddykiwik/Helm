@@ -54,7 +54,9 @@ t('invite upload VALIDATES by magic bytes, not the client type/extension', () =>
 
 t('invite upload enforces a size cap (8 MB)', () => {
   assert.match(api, /const INVITE_IMG_MAX = 8 \* 1024 \* 1024;/, 'INVITE_IMG_MAX must be 8 MB');
-  assert.match(uploadBody, /file\.size > INVITE_IMG_MAX/, 'must reject files over the cap');
+  // R247 (FILE-02): a picked photo up to UG_PHOTO_INPUT_MAX (25 MB) is accepted and made smaller; the UPLOADED copy is capped at 8 MB
+  assert.match(uploadBody, /file\.size > UG_PHOTO_INPUT_MAX/, 'must reject picked files over the input cap');
+  assert.match(uploadBody, /ugPrepareImage\(file, \{ maxBytes: INVITE_IMG_MAX,/, 'the uploaded copy must fit the 8 MB cap');
 });
 
 t('invite upload uses a RANDOM object key (uuid), not a guessable/client key', () => {

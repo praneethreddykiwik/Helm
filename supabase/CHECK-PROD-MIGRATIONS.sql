@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (360 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (363 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4794 objects): body 173, bucket 9, col 274, con 419, cron 20, exec 19, fn 2148, idx 551, marker 124, pol 190, polexpr 4, pre 116, pub 5, seq 1, tbl 310, trg 429, view 2.
+-- What is checked (4811 objects): body 173, bucket 9, col 274, con 420, cron 20, exec 19, fn 2154, idx 552, marker 124, pol 192, polexpr 4, pre 117, pub 6, seq 1, tbl 312, trg 432, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -2592,7 +2592,6 @@ with o(m, k, s, n, x) as (values
   ('0255_create_studio_signup', 'body', 'public', 'my_pending_start_trial', '|0553274ddcc2f256e4660d9fd23a23f5'),
   ('0255_create_studio_signup', 'body', 'public', 'request_plan_activation', 'text,text,text,text,text,text,text,text|1e48bfff07791b8bfa5fb2a470589ad8'),
   ('0255_create_studio_signup', 'pre', null, '__pre0255', null),
-  ('0256_vendor_requests_invoices', 'body', 'public', 'storage_object_name_ok', 'text,text|e6740cc438a38c49bc5eba999e9ed678'),
   ('0256_vendor_requests_invoices', 'tbl', 'public.vendor_requests', null, null),
   ('0256_vendor_requests_invoices', 'idx', 'public.vendor_requests_quote_idx', null, null),
   ('0256_vendor_requests_invoices', 'idx', 'public.vendor_requests_vendor_idx', null, null),
@@ -4818,7 +4817,25 @@ with o(m, k, s, n, x) as (values
   ('0412_r242_switches_schema', 'fn', 'public', '_r412_secret_set', 'text'),
   ('0412_r242_switches_schema', 'fn', 'public', '_r412_item', 'text,text,jsonb,jsonb,text'),
   ('0412_r242_switches_schema', 'fn', 'public', '_r412_switches', ''),
-  ('0412_r242_switches_schema', 'fn', 'public', 'hq_switches', '')
+  ('0412_r242_switches_schema', 'fn', 'public', 'hq_switches', ''),
+  ('0427_r247_layout_live_signals', 'tbl', 'public.quote_live_signals', null, null),
+  ('0427_r247_layout_live_signals', 'idx', 'public.ix_quote_live_signals_org_0427', null, null),
+  ('0427_r247_layout_live_signals', 'pol', 'public.quote_live_signals', 'r427_signal_read', null),
+  ('0427_r247_layout_live_signals', 'fn', 'public', '_r427_tg_live_signal', ''),
+  ('0427_r247_layout_live_signals', 'trg', 'public.quote_versions', 'zz_r427_live_signal', null),
+  ('0427_r247_layout_live_signals', 'trg', 'public.quotation_versions', 'zz_r427_live_signal', null),
+  ('0427_r247_layout_live_signals', 'pub', 'public.quote_live_signals', 'supabase_realtime', null),
+  ('0427_r247_layout_live_signals', 'con', 'public.quote_versions', 'quote_versions_data_size_chk427', null),
+  ('0428_r247_stock_upload_cap', 'body', 'public', 'storage_object_name_ok', 'text,text|ab707d5e9fcf1f30e9f8e3c13ee8cf22'),
+  ('0428_r247_stock_upload_cap', 'fn', 'public', '_r428_upload_rate_ok', ''),
+  ('0428_r247_stock_upload_cap', 'pol', 'storage.objects', 'event_docs_stock_rate_0428', null),
+  ('0428_r247_stock_upload_cap', 'pre', null, '__pre0428', null),
+  ('0429_r247_storage_usage', 'tbl', 'public.storage_usage_alerts', null, null),
+  ('0429_r247_storage_usage', 'fn', 'public', '_r429_usage', 'uuid'),
+  ('0429_r247_storage_usage', 'fn', 'public', '_r429_maybe_bell', 'uuid,jsonb'),
+  ('0429_r247_storage_usage', 'fn', 'public', '_r429_tg_usage_check', ''),
+  ('0429_r247_storage_usage', 'trg', 'public.storage_upload_log', 'zz_r429_usage_check', null),
+  ('0429_r247_storage_usage', 'fn', 'public', 'storage_usage', '')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5180,7 +5197,10 @@ mig(ord, m, ov, note) as (values
   (357, '0409_r242_cron_stagger', null, 'R242 cron stagger: only the SCHEDULE of up to 12 jobs Helm''s migrations made changes (cron.alter_job, not an object) - see APPLY-0409 check rows 02 / 03 or select * from public.ops_cron_stagger_report()'),
   (358, '0410_r242_mailer_wake_ledger', null, 'R242 package code wake + ledger lanes: _ops402_lane re-issued with 5 more lanes (if APPLY-0402 was run again after APPLY-0410 this body shows as older - run APPLY-0410 again), lane CHECK widened (the 0402 one replaced)'),
   (359, '0411_r242_render_cap', null, 'R242 Helm-wide render cap: the HQ bell label is patched in place with dynamic SQL - checked by its marker'),
-  (360, '0412_r242_switches_schema', null, 'R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)')
+  (360, '0412_r242_switches_schema', null, 'R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)'),
+  (361, '0427_r247_layout_live_signals', null, null),
+  (362, '0428_r247_stock_upload_cap', null, null),
+  (363, '0429_r247_storage_usage', null, null)
 ),
 env as (
   select

@@ -194,6 +194,11 @@
   .chip .pen.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
   .chip.locked{opacity:.6;cursor:not-allowed}
   .mnote{font-size:12px;color:var(--ink-3);margin:0 0 6px}
+  /* R247 (FILE-04): storage meter */
+  .sto-meter{height:10px;border-radius:6px;background:var(--line,#e5e7eb);overflow:hidden;margin:6px 0 8px}
+  .sto-fill{display:block;height:100%;width:0;background:var(--accent,#2f7d4f);transition:width .3s}
+  .sto-meter.warn .sto-fill{background:#b7791f} .sto-meter.full .sto-fill{background:#c53030}
+  .sto-list{margin:0;padding-left:18px;font-size:13px;color:var(--ink-2)}
   .lxswitchrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .lxtoggle{display:inline-flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;min-height:32px}
   /* an on/off switch (still a real checkbox: keyboard + screen readers get role=switch) */
@@ -293,7 +298,7 @@
 <link rel="stylesheet" href="control-split.css?v=17">
 <link rel="stylesheet" href="roles-matrix.css?v=2"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=110" id="shellProto"></script>
+<script src="/shell-proto.js?v=112" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -327,6 +332,14 @@
       <h3>Studio account</h3>
       <p class="mnote">Used on your Helm invoices (GST place of supply) and for Helm to reach you. Contact phone numbers are visible only to studio admins and Helm.</p>
       <div id="accBody"></div>
+    </div>
+    <!-- R247 (0429, FILE-04): how full the studio's file storage is (storage-usage-settings.js; hidden without 0429 / access) -->
+    <div class="card" id="stoCard" hidden>
+      <h3>File storage</h3>
+      <p class="mnote">Photos, files and voice notes your studio has uploaded. When it is full, new uploads are refused. At 80% everyone in the studio gets a bell notice.</p>
+      <div class="sto-meter" id="sto_meter" role="meter" aria-label="File storage used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="sto-fill" id="sto_fill"></span></div>
+      <p class="mnote" id="sto_line" role="status"></p>
+      <ul class="sto-list" id="sto_list"></ul>
     </div>
     <div class="card" id="tdControl" data-td-control hidden aria-label="Demo data"></div>
     <div class="card" id="tuControl" data-tu-control hidden aria-label="Sample data"></div>
@@ -994,14 +1007,14 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=399"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=401"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=69"></script>
-<script src="tour.js?v=84"></script>
+<script src="page-tours.js?v=71"></script>
+<script src="tour.js?v=86"></script>
 <script src="pkg-review.js?v=10"></script>
 <script src="onboarding-core.js?v=12"></script>
 <script src="studio-billing-form.js?v=4"></script>
@@ -1011,7 +1024,7 @@
 <script src="inbox-settings.js?v=4"></script><script src="crew-shifts.js?v=8"></script>
 <script src="link-views.js?v=5"></script>
 <script src="automations.js?v=6"></script>
-<script src="photo-render-settings.js?v=3"></script>
+<script src="photo-render-settings.js?v=3"></script><script src="storage-usage-settings.js?v=1"></script>
 <script src="form-validate.js?v=6"></script>
 <script src="cc-inputs.js?v=5"></script>
 <script src="privacy-pin-settings.js?v=7"></script>
@@ -1026,7 +1039,7 @@
 <script src="trial-upgrade.js?v=3"></script>
 <script src="settings-search-core.js?v=2"></script>
 <script src="search-catalog.js?v=13"></script>
-<script src="control-split.js?v=25"></script>
+<script src="control-split.js?v=26"></script>
 <script src="role-defaults.js?v=3"></script><script src="access-deps.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -1117,7 +1130,7 @@
   // Deep links from the dashboard "Getting started" checklist: #account → Studio account
   // card (revealed by auth-ui for admins, so wait for it), #pricing → Default pricing.
   function focusHashCard(){
-    const id = ({"#account":"accCard","#pricing":"pricingCard","#menu":"menuCard","#crew":"crewCfgCard"})[location.hash];   // r24 ui: #crew from the event-day check-in card
+    const id = ({"#account":"accCard","#pricing":"pricingCard","#menu":"menuCard","#crew":"crewCfgCard","#storage":"stoCard"})[location.hash];   // R247: #storage from the storage bell   // r24 ui: #crew from the event-day check-in card
     if(!id) return;
     if(id==="crewCfgCard"){ if($("#tab-notify").hidden) return; switchTab("notify"); }   // r24 ui: the crew settings card lives on the Notifications tab (admins)
     else switchTab("pricing");   // these cards live on the Pricing tab (the Studio account card is at its top)

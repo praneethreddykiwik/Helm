@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=110"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=112"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -3446,7 +3446,36 @@ window.HelmUrl = HelmUrl;
       if (rows.length < want) return out;
     }
     try { console.warn("[helm] list reached the " + cap + "-row safety cap; older rows are not shown"); } catch (_) {}
-    out.truncated = true; return out;
+    out.truncated = true; listCapNote(cap); return out;
+  }
+  /* R247 (Q-12): the cap is no longer only a console line - the page shows a plain note once ("Showing the first 20,000
+     ..."), and a "helm:list-capped" event { cap } lets a page say more. Big lists that have a server-side search / pages
+     (Quotes, Leads search, Insights) are not affected; this is the safety net for the rest. */
+  let capNoted = false;
+  function listCapNote(cap) {
+    try { if (typeof global.dispatchEvent === "function" && typeof global.CustomEvent === "function") global.dispatchEvent(new global.CustomEvent("helm:list-capped", { detail: { cap: cap } })); } catch (e) {}
+    if (capNoted) return; capNoted = true;
+    try {
+      const doc = global.document; if (!doc || !doc.body || typeof doc.createElement !== "function") return;
+      const box = doc.createElement("div"); box.className = "helm-cap-note"; box.id = "helmCapNote";
+      box.setAttribute("role", "status");
+      const s = box.style; s.position = "fixed"; s.left = "50%"; s.bottom = "16px"; s.transform = "translateX(-50%)"; s.zIndex = "9000";
+      s.maxWidth = "min(560px, calc(100vw - 32px))"; s.padding = "10px 14px"; s.borderRadius = "10px"; s.background = "#1f2a24"; s.color = "#fff";
+      s.font = "14px/1.4 system-ui, sans-serif"; s.boxShadow = "0 6px 24px rgba(0,0,0,.25)"; s.display = "flex"; s.gap = "12px"; s.alignItems = "center";
+      const t = doc.createElement("span");
+      t.textContent = "Showing the first " + Number(cap).toLocaleString("en-IN") + " rows of this list. Use search or a filter to find older ones.";
+      const x = doc.createElement("button"); x.type = "button"; x.textContent = "OK"; x.setAttribute("aria-label", "Close this note");
+      const b = x.style; b.background = "transparent"; b.color = "#fff"; b.border = "1px solid rgba(255,255,255,.5)"; b.borderRadius = "6px"; b.padding = "4px 10px"; b.cursor = "pointer"; b.font = "inherit";
+      x.addEventListener("click", () => { try { box.remove(); } catch (e) {} });
+      box.appendChild(t); box.appendChild(x); doc.body.appendChild(box);
+    } catch (e) {}
+  }
+  // R247 (Q-11, 0427): a floor-plan version over the 10 MB cap (quote_versions_data_size_chk427) in plain words
+  const LAYOUT_MAX_MB = 10;
+  function layoutTooBig(e) {
+    if (!e || e.code !== "23514" || !/quote_versions_data_size_chk427/.test(String(e.message || "") + String(e.details || ""))) return e;
+    const x = new Error("This floor plan is too big to save (over " + LAYOUT_MAX_MB + " MB). Remove some items or pictures, or split it into two layouts.");
+    x.code = "layout_too_big"; x.cause = e; return x;
   }
   // D12: a unique-name clash (23505 from the 0073 partial unique indexes) as a message people can act on
   function dupError(e, what, name) {
@@ -3766,7 +3795,7 @@ window.HelmUrl = HelmUrl;
     async addVersion(quoteId, label, data, objectCount) {
       const { data: v, error } = await supa.rpc("add_quote_version",
         { p_quote_id: quoteId, p_label: label, p_data: data, p_object_count: objectCount });
-      if (error) throw error; return Array.isArray(v) ? v[0] : v;
+      if (error) throw layoutTooBig(error); return Array.isArray(v) ? v[0] : v;
     },
     async confirm(quoteId, client, pricing) {
       const { data: q, error } = await supa.rpc("confirm_quote",
@@ -3984,6 +4013,32 @@ window.HelmUrl = HelmUrl;
     try { document.addEventListener("visibilitychange", onVis); } catch (e) {}
     return { unsubscribe() { stopped = true; clearTimeout(idleT); clearTimeout(retryT); try { document.removeEventListener("visibilitychange", onVis); } catch (e) {} close(); } };
   }
+  /* R247 (BELL-02): ONE Realtime channel per topic per tab. Before, the chat page and the bell each opened their own chat
+     channel (same tables, same studio filter), and a page that asked twice for the same event's versions opened two. Now
+     rtShared(key, sub, open) keeps one channel per key: the first subscriber opens it (open(fan, fanStatus) -> an rtLive
+     handle), later ones join it, every subscriber's cb / onStatus hears every message, and the channel is closed when the
+     last one unsubscribes. Each returned handle unsubscribes only itself (twice = no-op). */
+  const RT_SHARED = new Map();
+  function rtShared(key, sub, open) {
+    let e = RT_SHARED.get(key);
+    if (!e) {
+      e = { subs: new Set(), h: null, last: null };
+      const ent = e;
+      const fan = function () { const a = arguments; ent.subs.forEach((s) => { try { if (s.cb) s.cb.apply(null, a); } catch (x) {} }); };
+      const fanSt = (status) => { ent.last = status; ent.subs.forEach((s) => { try { if (s.onStatus) s.onStatus(status); } catch (x) {} }); };
+      RT_SHARED.set(key, ent);
+      try { ent.h = open(fan, fanSt); } catch (x) { ent.h = null; }
+      if (!ent.h) { RT_SHARED.delete(key); return { unsubscribe() {} }; }
+    }
+    const ent = e;
+    ent.subs.add(sub);
+    if (ent.last && sub.onStatus) { try { sub.onStatus(ent.last); } catch (x) {} }
+    let done = false;
+    return { unsubscribe() {
+      if (done) return; done = true; ent.subs.delete(sub);
+      if (!ent.subs.size && RT_SHARED.get(key) === ent) { RT_SHARED.delete(key); try { if (ent.h && ent.h.unsubscribe) ent.h.unsubscribe(); } catch (x) {} }
+    } };
+  }
   const MEMO_LIST_MS = 8000;
   // Any non-read method on the object forgets the shared read first, so a list() asked for after a
   // save never gets an answer that started before it.
@@ -4044,15 +4099,33 @@ window.HelmUrl = HelmUrl;
     // 0077: live version lists. cb(kind) whenever a floor-plan version ("layout") or a quotation
     // version ("quotation") of this quote is saved on ANY device (Supabase realtime; row level
     // security keeps it to the caller's studio). Fail-soft: no realtime -> a no-op handle.
+    // R247 (Q-11, 0427): the channel listens to quote_live_signals - one tiny row per event and kind ("layout" /
+    // "quotation") that a trigger updates on every save - instead of the full quote_versions rows (a big layout used to be
+    // sent whole to every open page). cb(kind) is unchanged and the page still fetches the version on demand. Before 0427
+    // is in (schema.has(427) not true) the old bindings are used, so nothing changes on an older database. One channel per
+    // event per tab (rtShared), however many parts of the page ask.
     subscribeVersions(id, cb) {
       if (mode !== "supabase" || !supa || typeof supa.channel !== "function" || !/^[0-9a-f-]{36}$/i.test(String(id || ""))) return { unsubscribe() {} };
-      try {
-        const f = "quote_id=eq." + id;
-        return rtLive((st) => supa.channel("qv-rt-" + id + "-" + Math.random().toString(36).slice(2, 8))
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "quote_versions", filter: f }, () => { try { cb && cb("layout"); } catch (e) {} })
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "quotation_versions", filter: f }, () => { try { cb && cb("quotation"); } catch (e) {} })
-          .subscribe(st), () => { try { cb && cb("layout"); cb && cb("quotation"); } catch (e) {} });   // R163: closed while hidden; R233: st = error backoff
-      } catch (e) { return { unsubscribe() {} }; }
+      const f = "quote_id=eq." + id, sub = { cb: cb };
+      const both = (fan) => () => { try { fan("layout"); fan("quotation"); } catch (e) {} };
+      const openOld = (fan) => rtLive((st) => supa.channel("qv-rt-" + id + "-" + Math.random().toString(36).slice(2, 8))
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "quote_versions", filter: f }, () => fan("layout"))
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "quotation_versions", filter: f }, () => fan("quotation"))
+        .subscribe(st), both(fan));   // R163: closed while hidden; R233: st = error backoff
+      const openSig = (fan) => rtLive((st) => supa.channel("qls-rt-" + id + "-" + Math.random().toString(36).slice(2, 8))
+        .on("postgres_changes", { event: "*", schema: "public", table: "quote_live_signals", filter: f }, (m) => {
+          const k = m && (m.new || m.record) && (m.new || m.record).kind;
+          if (k === "layout" || k === "quotation") fan(k); else { fan("layout"); fan("quotation"); }
+        })
+        .subscribe(st), both(fan));
+      let h = null, stopped = false;
+      const start = (sig) => { if (stopped || h) return;
+        try { h = rtShared("qv:" + id + (sig ? ":sig" : ":old"), sub, sig ? openSig : openOld); } catch (e) { h = null; } };
+      let probe = null;
+      try { probe = BPStore.schema && BPStore.schema.has ? BPStore.schema.has(427) : null; } catch (e) { probe = null; }
+      if (probe && typeof probe.then === "function") probe.then((v) => start(v === true), () => start(false));
+      else start(false);
+      return { unsubscribe() { stopped = true; try { if (h) h.unsubscribe(); } catch (e) {} h = null; } };
     },
     create: (code, title, eventType, data, objectCount) => qt().create(code, title, eventType, data, objectCount),
     discardEmptyDrafts: () => { const t = qt(); return typeof t.discardEmptyDrafts === "function" ? t.discardEmptyDrafts() : Promise.resolve({ discarded: 0 }); },
@@ -4757,15 +4830,16 @@ window.HelmUrl = HelmUrl;
       async uploadEvidence(token, taskId, kind, file) {
         if (!supa) throw new Error("Supabase not configured");
         if (!file) throw new Error("no file");
-        if (file.size > TASK_PROOF_MAX) throw new Error("File too large (max 8 MB).");
-        if (kind === "proof_photo") file = await ugHeicMaybe(file, TASK_PROOF_MAX);   // R238: iPhone HEIC (else read as "ftyp" audio)
+        // R247 (FILE-02): a proof PHOTO up to 25 MB is accepted - it is made smaller below (to the 8 MB bucket cap) instead of refused
+        if (file.size > (kind === "proof_photo" ? UG_PHOTO_INPUT_MAX : TASK_PROOF_MAX)) throw new Error(kind === "proof_photo" ? "Photo too large (max 25 MB)." : "File too large (max 8 MB).");
+        if (kind === "proof_photo") file = await ugHeicMaybe(file, UG_PHOTO_INPUT_MAX);   // R238: iPhone HEIC (else read as "ftyp" audio)
         let sniff = await sniffChat(file);
         const allowed = kind === "proof_photo" ? /^image\/(jpeg|png|webp)$/ : /^audio\/(webm|ogg|mp4)$/;
         if (!sniff || !allowed.test(sniff.mime)) throw new Error(kind === "proof_photo" ? "Photos must be JPEG, PNG or WebP." : "That voice note format isn't supported.");
         // 0048: proof photos re-encoded (EXIF/GPS stripped — a crew phone's location never
         // leaves the device); voice notes must match their declared type
         if (kind === "proof_photo") {
-          const img = await ugPrepareImage(file, { maxBytes: TASK_PROOF_MAX, maxPx: 2048, allow: ["image/png", "image/jpeg", "image/webp"] });
+          const img = await ugPrepareImage(file, { maxBytes: TASK_PROOF_MAX, maxInput: UG_PHOTO_INPUT_MAX, maxPx: 2048, allow: ["image/png", "image/jpeg", "image/webp"] });
           file = img.blob; sniff = { mime: img.mime, ext: img.ext };
         } else {
           await ugCheckFile(file, ["audio/webm", "audio/ogg", "audio/mp4"], TASK_PROOF_MAX);
@@ -6331,7 +6405,7 @@ window.HelmUrl = HelmUrl;
       // <studio>/<event or none>/stock/<uuid>.<ext> -> the stored path (the server checks the path before it keeps it)
       async uploadStockPhoto(quoteId, file) {
         if (mode !== "supabase" || !supa) throw new Error("Photos need the online database.");
-        const img = await ugPrepareImage(file, { maxBytes: FILE_MAX, maxPx: 2000, allow: ["image/png", "image/jpeg", "image/webp"] });
+        const img = await ugPrepareImage(file, { maxBytes: FILE_MAX, maxInput: UG_PHOTO_INPUT_MAX, maxPx: 2000, allow: ["image/png", "image/jpeg", "image/webp"] });
         const orgId = await org.id(); if (!orgId) throw new Error("no organization in context");
         const name = ugObjectName(img.ext); if (!name) throw new Error("upload not available");
         const path = orgId + "/" + (quoteId && /^[0-9a-f-]{36}$/i.test(String(quoteId)) ? quoteId : "none") + "/stock/" + name;
@@ -6932,11 +7006,16 @@ window.HelmUrl = HelmUrl;
     const k = Math.min(1, (maxPx || 2560) / Math.max(w, h));
     return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
   }
+  /* R247 (FILE-02): the largest picked photo any upload accepts BEFORE it is made smaller. Every image upload re-draws the
+     picture in the browser (long edge + quality step down until it fits that bucket's cap), so a 12 MB phone photo is no
+     longer refused by an 8 / 10 MB bucket - only the made-smaller copy is uploaded. */
+  const UG_PHOTO_INPUT_MAX = 25 * 1024 * 1024;
   /* check + re-encode one picked image → { blob, mime, ext, sniffed }
      opts: maxBytes (output cap), maxInput (input cap), maxPx (long edge), allow (sniffed mimes) */
   async function ugPrepareImage(file, opts) {
     opts = opts || {};
-    const maxBytes = opts.maxBytes || 8 * 1024 * 1024, maxInput = opts.maxInput || 25 * 1024 * 1024, maxPx = opts.maxPx || 2560;
+    const maxBytes = opts.maxBytes || 8 * 1024 * 1024, maxInput = opts.maxInput || 25 * 1024 * 1024,   // = UG_PHOTO_INPUT_MAX (kept literal: tests lift this function out)
+      maxPx = opts.maxPx || 2560;
     const allow = opts.allow || ["image/png", "image/jpeg", "image/webp", "image/gif"];
     // R154 opts.keepAlpha (builder screen logos): keep transparency - WebP with alpha, or a lossless PNG when the
     // browser has no WebP encoder (Safari); JPEG (flattened on white) stays the last resort. Photos are unchanged.
@@ -7098,15 +7177,15 @@ window.HelmUrl = HelmUrl;
     async uploadPhoto(quoteId, file, opts) {
       if (!supa) throw new Error("Supabase not configured");
       if (!file) throw new Error("no file");
-      if (file.size > INVITE_IMG_MAX * 3) throw new Error("Image too large (max 8 MB).");
-      file = await ugHeicMaybe(file, INVITE_IMG_MAX * 3);   // R238: iPhone HEIC -> JPEG where the browser can, else a clear message
+      if (file.size > UG_PHOTO_INPUT_MAX) throw new Error("Image too large (max 25 MB).");   // R247 (FILE-02): made smaller below
+      file = await ugHeicMaybe(file, UG_PHOTO_INPUT_MAX);   // R238: iPhone HEIC -> JPEG where the browser can, else a clear message
       // Validate by MAGIC BYTES — never trust the client-declared type or extension.
       let sniff = await sniffInviteImage(file);
       if (!sniff) throw new Error("Unsupported image type — allowed: " + this.INVITE_IMG_LABEL + ".");
       // 0048: declared type / extension must agree with the bytes; then re-encode on a
       // canvas (strips EXIF/GPS, caps size at INVITE_IMG_MAX + pixels). The bytes uploaded
       // are the re-encoded ones; type + extension come from re-sniffing them.
-      const img = await ugPrepareImage(file, { maxBytes: INVITE_IMG_MAX, maxInput: INVITE_IMG_MAX * 3, maxPx: 2560, keepAlpha: !!(opts && opts.keepAlpha) });
+      const img = await ugPrepareImage(file, { maxBytes: INVITE_IMG_MAX, maxInput: UG_PHOTO_INPUT_MAX, maxPx: 2560, keepAlpha: !!(opts && opts.keepAlpha) });
       sniff = { mime: img.mime, ext: img.ext };
       const orgId = await org.id();
       if (!orgId) throw new Error("no organization in context");
@@ -7205,13 +7284,13 @@ window.HelmUrl = HelmUrl;
     async upload(quoteId, file) {
       if (!supa) throw new Error("Supabase not configured");
       if (!file) throw new Error("no file");
-      file = await ugHeicMaybe(file, FILE_MAX * 3);   // R238: iPhone HEIC -> JPEG where the browser can, else a clear message
+      file = await ugHeicMaybe(file, UG_PHOTO_INPUT_MAX);   // R238: iPhone HEIC -> JPEG where the browser can, else a clear message
       const sniff = await sniffFile(file);
       if (!sniff) throw new Error("Unsupported file type — allowed: " + this.ALLOWED_LABEL + ".");
       // 0048: images are re-encoded (EXIF/GPS stripped); PDFs must match their name/type
       let body = file, mime = sniff.mime, ext = sniff.ext;
       if (sniff.mime === "application/pdf") { await ugCheckFile(file, ["application/pdf"], FILE_MAX); }
-      else { const img = await ugPrepareImage(file, { maxBytes: FILE_MAX, maxPx: 3000, allow: ["image/png", "image/jpeg", "image/webp"] });
+      else { const img = await ugPrepareImage(file, { maxBytes: FILE_MAX, maxInput: UG_PHOTO_INPUT_MAX, maxPx: 3000, allow: ["image/png", "image/jpeg", "image/webp"] });
              body = img.blob; mime = img.mime; ext = img.ext; }
       const orgId = await org.id();
       if (!orgId) throw new Error("no organization in context");
@@ -8022,12 +8101,12 @@ window.HelmUrl = HelmUrl;
       opts = opts || {};
       if (!file) throw new Error("no file");
       if (file.size > CHAT_MEDIA_MAX && !/^image\//.test(String(file.type || ""))) throw new Error("File too large (max 16 MB).");
-      file = await ugHeicMaybe(file, 25 * 1024 * 1024);   // R238: iPhone HEIC -> JPEG (before: read as an "ftyp" voice note and refused)
+      file = await ugHeicMaybe(file, UG_PHOTO_INPUT_MAX);   // R238: iPhone HEIC -> JPEG (before: read as an "ftyp" voice note and refused)
       let sniff = await sniffChat(file);
       if (!sniff) throw new Error("Unsupported file — images or voice notes only.");
       // 0048: photos (incl. marked-up ones) are re-encoded → no EXIF/GPS; audio must match its type
       if (/^image\//.test(sniff.mime)) {
-        const img = await ugPrepareImage(file, { maxBytes: 8 * 1024 * 1024, maxPx: 2560 });
+        const img = await ugPrepareImage(file, { maxBytes: 8 * 1024 * 1024, maxInput: UG_PHOTO_INPUT_MAX, maxPx: 2560 });
         file = img.blob; sniff = { mime: img.mime, ext: img.ext };
       } else {
         await ugCheckFile(file, ["audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg"], CHAT_MEDIA_MAX);
@@ -8327,12 +8406,15 @@ window.HelmUrl = HelmUrl;
         const coid = currentUser ? swrOrg(currentUser.id) : null;
         const cflt = (coid && /^[0-9a-f-]{36}$/i.test(String(coid))) ? ("org_id=eq." + coid) : undefined;
         const cspec = (table) => cflt ? { event: "*", schema: "public", table: table, filter: cflt } : { event: "*", schema: "public", table: table };
-        return rtLive((st) => supa.channel(chanName || "chat-rt")
-          .on("postgres_changes", cspec("chat_messages"), () => cb && cb())
+        // R247 (BELL-02): ONE chat channel per studio per tab - the chat page and the bell share it (rtShared); chanName is
+        // kept for callers but no longer opens a second channel on the same tables
+        void chanName;
+        return rtShared("chat:" + (cflt || "all"), { cb: cb, onStatus: onStatus }, (fan, fanSt) => rtLive((st) => supa.channel("chat-rt")
+          .on("postgres_changes", cspec("chat_messages"), () => fan())
           // R235: no chat_reactions binding - 0156 took that table out of the Realtime publication (it never fired); a reaction
           // bumps its chat_messages row (trigger zz_a156_reaction_bump: reactions_changed_at), which the binding above already hears
-          .on("postgres_changes", cspec("chat_conversations"), () => cb && cb())
-          .subscribe((status) => { st(status); if (onStatus) onStatus(status); }), () => { try { cb && cb(); } catch (e) {} });
+          .on("postgres_changes", cspec("chat_conversations"), () => fan())
+          .subscribe((status) => { st(status); fanSt(status); }), () => { try { fan(); } catch (e) {} }));
       } catch (e) { if (onStatus) onStatus("ERROR"); return { unsubscribe() {} }; }
     },
   };
@@ -10083,6 +10165,7 @@ window.HelmUrl = HelmUrl;
     if (k.indexOf("nurture_") === 0) return "nurture.html";
     // r24 (0269): a new enquiry from the public form -> the Leads board
     if (k === "lead_new") return "leads.html";
+    if (k === "storage_usage_high") return "control.html#storage";   // R247 (0429): the storage meter in Settings
     if (!q) return "";
     // r24 (0269): a run-sheet reminder opens that event's run-sheet
     if (k === "event_reminder" && d.source === "0269") return "runsheet.html?quote=" + enc(q);
@@ -10449,6 +10532,8 @@ window.HelmUrl = HelmUrl;
       task_escalated: ["🚨", String(d.label || ((d.task ? d.task : "A special task") + " is not started" + (d.worker ? " (" + d.worker + ")" : "")
         + (d.level ? " - escalated to " + (d.level === "admin" ? "admin / owner" : d.level) : "")))],
       // R190 (0373): a vendor bill is due / overdue - only the studio's "who pays vendors" people see it
+      // R247 (0429): the studio's file storage is 80 % full or more (one bell a week at most)
+      storage_usage_high: ["🗄️", String(d.label || ("Studio file storage is " + (Number(d.pct) || 80) + "% full"))],
       vendor_bill_due: ["🧾", String(d.label || ("Vendor bill " + (Number(d.days) < 0 ? "overdue" : Number(d.days) === 0 ? "due today" : "due soon") + (d.vendor ? ": " + d.vendor : "")))],
       otp: ["🔐", "Approval OTP sent"],
       approval_link: ["✉️", trialPreview ? "Approval link ready (trial preview — not sent)" : "Approval link sent"],
@@ -11107,20 +11192,28 @@ window.HelmUrl = HelmUrl;
       catch (e) { if (rpcMissing(e)) { const er = new Error("The sales, payments and coming-up cards need database update 0405 (ask your admin to run APPLY-0405.sql)."); er.code = "insights_overview_missing"; throw er; } throw e; }
     },
     // 0077 insights_events: per-event profit rows (money null without finance)
+    // R247 (REP-03): a long range is asked in 3-month pieces (reportWindows / reportPaged) - each call stays well inside the
+    // 8 s database limit and under the per-call row cap (1000 rows here, 500 for costs); the rows are joined in date order.
     async events(from, to) {
       if (mode !== "supabase" || !supa) return null;
-      // QA-FR2 / 0113: prefer the ex-tax wrapper (adds revenue_ex_tax / profit_ex_tax per row); older DB → plain rows
-      try { return await rpc("insights_events_ex_tax", { p_from: from || null, p_to: to || null }); }
-      catch (e0) { if (!rpcMissing(e0)) throw e0; }
-      try { return await rpc("insights_events", { p_from: from || null, p_to: to || null }); }
-      catch (e) { if (rpcMissing(e)) { const er = new Error("Per-event profit needs database update 0077 (ask your admin to run APPLY-0077.sql)."); er.code = "insights_events_missing"; throw er; } throw e; }
+      const one = async (f, t) => {
+        // QA-FR2 / 0113: prefer the ex-tax wrapper (adds revenue_ex_tax / profit_ex_tax per row); older DB → plain rows
+        try { return await rpc("insights_events_ex_tax", { p_from: f || null, p_to: t || null }); }
+        catch (e0) { if (!rpcMissing(e0)) throw e0; }
+        try { return await rpc("insights_events", { p_from: f || null, p_to: t || null }); }
+        catch (e) { if (rpcMissing(e)) { const er = new Error("Per-event profit needs database update 0077 (ask your admin to run APPLY-0077.sql)."); er.code = "insights_events_missing"; throw er; } throw e; }
+      };
+      return reportPaged(one, from, to, 1000);
     },
     // r21 (0240) insights_event_costs: per-event cost split (vendors / crew / logistics / rentals / change orders /
     // other / expense claims / refunds), profit = event_pnl, type, guests, collected / outstanding. Finance only.
     async costs(from, to) {
       if (mode !== "supabase" || !supa) return null;
-      try { return await rpc("insights_event_costs", { p_from: from || null, p_to: to || null }); }
-      catch (e) { if (rpcMissing(e)) { const er = new Error("Event cost charts need database update 0240 (ask your admin to run APPLY-0240.sql)."); er.code = "insights_costs_missing"; throw er; } throw e; }
+      const one = async (f, t) => {
+        try { return await rpc("insights_event_costs", { p_from: f || null, p_to: t || null }); }
+        catch (e) { if (rpcMissing(e)) { const er = new Error("Event cost charts need database update 0240 (ask your admin to run APPLY-0240.sql)."); er.code = "insights_costs_missing"; throw er; } throw e; }
+      };
+      return reportPaged(one, from, to, 500);
     },
     // r21 (0242) ONE studio-wide target margin for the Benchmarks card (was per device).
     // -> { target_margin_pct (null = not set; screens use default_pct 30), default_pct, can_edit, updated_at };
@@ -11606,6 +11699,45 @@ window.HelmUrl = HelmUrl;
       if (!isNaN(t.getTime())) { let sd = ""; try { sd = BPStore.todayLocal(t); } catch (e) {}   // r37: the STUDIO's calendar day of that moment
         d = /^\d{4}-\d{2}-\d{2}$/.test(sd) ? sd : t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); } }
     if (!d) return false; return d >= r.from && d <= r.to; }
+
+  /* R247 (REP-03): one report call per long range used to run past the 8 s database limit on a busy studio. A range longer
+     than about 3 months (both ends given) is cut into back-to-back pieces that never overlap: [from .. end of the 3rd
+     month], [next day .. ], ... [.. to]. Each piece is one call; the rows are joined in date order (a row id seen twice is
+     kept once). The answer looks the same as one call ({from, to, finance, events}) plus paged: true and capped: true when
+     a piece hit the per-call row cap (that piece may miss rows - the page says so as before). */
+  const REPORT_WINDOW_MONTHS = 3, REPORT_MAX_WINDOWS = 48;
+  function reportWindows(from, to, months) {
+    const re = /^\d{4}-\d{2}-\d{2}$/;
+    if (!re.test(String(from || "")) || !re.test(String(to || "")) || from > to) return [[from || null, to || null]];
+    const k = Math.max(1, Math.round(months || REPORT_WINDOW_MONTHS)), iso = (d) => d.toISOString().slice(0, 10);
+    const out = []; let cur = new Date(from + "T00:00:00Z");
+    const end = new Date(to + "T00:00:00Z");
+    while (cur <= end && out.length < REPORT_MAX_WINDOWS) {
+      const stop = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + k, 0));   // last day of the k-th month
+      const last = stop < end ? stop : end;
+      out.push([iso(cur), iso(last)]);
+      cur = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth(), last.getUTCDate() + 1));
+    }
+    if (cur <= end) out[out.length - 1][1] = to;   // more than REPORT_MAX_WINDOWS pieces: the last one runs to the end
+    return out;
+  }
+  async function reportPaged(one, from, to, rowCap) {
+    const w = reportWindows(from, to);
+    if (w.length < 2) return one(from, to);
+    const parts = [];
+    for (const [f, t] of w) parts.push(await one(f, t));   // one at a time: never several heavy calls at once
+    const seen = new Set(), events = []; let finance = true, capped = false, base = null;
+    for (const p of parts) {
+      if (!p || typeof p !== "object") continue;
+      if (!base) base = p;
+      if (p.finance === false) finance = false;
+      const ev = Array.isArray(p.events) ? p.events : [];
+      if (rowCap && ev.length >= rowCap) capped = true;
+      for (const r of ev) { const id = r && r.id; if (id != null) { if (seen.has(id)) continue; seen.add(id); } events.push(r); }
+    }
+    if (!base) return parts[0] || null;
+    return Object.assign({}, base, { from: from, to: to, finance: finance, events: finance ? events : [], paged: true, capped: capped, pieces: w.length });
+  }
 
   /* ---------------- audit log (Phase 47) ---------------- */
   const audit = {
@@ -12594,6 +12726,17 @@ window.HelmUrl = HelmUrl;
         if (i.known) return i.applied.includes(k) || (k < 381 && i.version >= 381);
         return i.before && k >= i.before ? false : null;
       },
+    },
+    // R247 (0429, FILE-04): how full the studio's file storage is - storage_usage() (Settings view, numbers only):
+    // { used_bytes, quota_bytes, pct, warn_pct: 80, files, buckets: [{bucket, bytes, files}] }. null = a database without
+    // 0429 / signed out / no access (the Settings card then stays hidden). At 80 % the studio also gets one bell a week.
+    storageUsage: {
+      LABELS: { "invite-media": "Invitation photos", "event-docs": "Event files and stock photos", "chat-media": "Chat photos and voice notes",
+                "task-proof": "Crew proof photos", "member-avatars": "Profile photos" },
+      get: () => (supa && mode === "supabase"
+        ? rpc("storage_usage", {}).then((r) => (r && typeof r === "object" ? r : null))
+            .catch((e) => { const c = e && e.code; if (rpcMissing(e) || c === "42501") return null; throw e; })
+        : Promise.resolve(null)),
     },
     // 0065 — client event booklet (public/booklet.html?t=<token>). Staff whose role may EDIT
     // quotes share / revoke; current() needs quotes VIEW. get() is the signed-out client read
