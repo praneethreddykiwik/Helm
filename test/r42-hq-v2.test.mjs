@@ -22,12 +22,14 @@ t('demo: fails closed - no fake store in place = "not found", never the real dat
   assert.ok(rd('.vercelignore').split('\n').includes('public/hq-demo.js'));
   assert.doesNotMatch(H, /hq-demo\.js/);
 });
-t('studio logins from HQ: Coming soon (no write call), the reason and the PR #271 dependency', () => {
-  assert.match(J, /id: "studioLoginsSoon"/);
-  assert.match(J, /text: "Coming soon"/);
-  assert.match(J, /PR #271/);
-  for (const fn of ['team_deactivate_member', 'team_reactivate_member', 'admin_delete_user', 'hq_studio_member_', 'hq_add_studio_user'])
-    assert.ok(!J.includes(fn), 'HQ page calls no studio-member write: ' + fn);
+t('studio logins from HQ: R245 (0415) replaced "Coming soon" - Make admin / Deactivate only (never delete), HQ Owner, reason', () => {
+  assert.doesNotMatch(J, /id: "studioLoginsSoon"/);
+  assert.match(J, /id: "studioLogins"/);
+  assert.match(J, /"hq_studio_member_promote"/);
+  assert.match(J, /"hq_studio_member_deactivate"/);
+  assert.match(J, /can\("owner\.only"\)/);
+  for (const fn of ['team_deactivate_member', 'team_reactivate_member', 'admin_delete_user', 'hq_add_studio_user', 'hq_studio_member_delete'])
+    assert.ok(!J.includes(fn), 'HQ page calls no other studio-member write: ' + fn);
 });
 t('home page pricing: stays fixed (coming soon) - HQ says so; /pricing reads live prices with a safe fallback', () => {
   assert.match(H, /The home page’s pricing section still shows its fixed prices - live prices there are coming soon\./);

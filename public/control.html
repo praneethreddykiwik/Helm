@@ -293,7 +293,7 @@
 <link rel="stylesheet" href="control-split.css?v=17">
 <link rel="stylesheet" href="roles-matrix.css?v=2"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=112" id="shellProto"></script>
+<script src="/shell-proto.js?v=113" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -994,14 +994,14 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=401"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=402"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=71"></script>
-<script src="tour.js?v=86"></script>
+<script src="page-tours.js?v=72"></script>
+<script src="tour.js?v=87"></script>
 <script src="pkg-review.js?v=10"></script>
 <script src="onboarding-core.js?v=12"></script>
 <script src="studio-billing-form.js?v=4"></script>
@@ -1019,7 +1019,7 @@
 <script src="venues-admin.js?v=10"></script>
 <script src="studio-templates-core.js?v=6"></script>
 <script src="studio-templates.js?v=15"></script>
-<script src="team-safety.js?v=5"></script><script src="team-status.js?v=5"></script>
+<script src="team-safety.js?v=6"></script><script src="team-status.js?v=5"></script>
 <script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=3"></script><script src="money-lock-ui.js?v=3"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=6"></script><script src="payment-schedule-settings.js?v=4"></script>
 <script src="asset-price-grid.js?v=7"></script><script src="pricing-form-core.js?v=4"></script><script src="menu-pkg-editor.js?v=5"></script><script src="layout-rules.js?v=2"></script>
 <script src="trial-demo.js?v=23"></script>
@@ -1027,7 +1027,7 @@
 <script src="settings-search-core.js?v=2"></script>
 <script src="search-catalog.js?v=13"></script>
 <script src="control-split.js?v=25"></script>
-<script src="role-defaults.js?v=3"></script><script src="access-deps.js?v=1"></script>
+<script src="role-defaults.js?v=4"></script><script src="access-deps.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -2143,7 +2143,7 @@
     tb.querySelectorAll(".ucLink").forEach(btn=>btn.addEventListener("click", ()=>{ const u=rowOf(btn.closest("tr")); if(u) sendSignInLink(u, btn); }));
     tb.querySelectorAll(".ucWork").forEach(btn=>btn.addEventListener("click", async ()=>{
       const tr=btn.closest("tr"), id=tr.dataset.id, u=rowOf(tr)||{};
-      try{ const w=await BPUI.guard(btn, ()=>BPStore.team.openWork(id)); HelmTeam.paintWork($("#team_work"), u.full_name||u.email||"This person", w); }
+      try{ const w=await BPUI.guard(btn, ()=>BPStore.team.openWork(id)); HelmTeam.paintWork($("#team_work"), u.full_name||u.email||"This person", w, await umWorkOpts(u)); }
       catch(err){ setUMsg("err",HelmTeam.errText(err,"Couldn't load their open work.")); }
     }));
   }
@@ -2483,18 +2483,33 @@
   // r33 (0283): Deactivate - nothing is deleted. A non-owner deactivating an admin waits 24 hours.
   // R211: for someone who NEVER signed in the same action is called "Remove access" (their temporary password / sign-in
   // link can't be used any more) - explained in plain words, reversible with Reactivate.
+  // R245 (ACC-20): the "Reassign to ..." step under a deactivated person's open work - active teammates (never the person,
+  // never a client, never someone deactivated) + the Staff list for their tasks; the existing calls move each item
+  async function umWorkOpts(u){
+    const id=ucId(u), team=ucTeamView;
+    const people=(ucRows||[]).filter(x=>ucId(x)!==id && x.role!=="client" && !(team&&team.isOff&&team.isOff(ucId(x))))
+      .map(x=>({id:ucId(x), name:(x.full_name||"").trim()||x.email||"Teammate"}));
+    let crew=[]; try{ crew=(await BPStore.staff.list(false))||[]; }catch(e){ crew=[]; }
+    return { people, crew,
+      run:{ task:(taskId,c)=>BPStore.ops.reassign(taskId, c.id, c.name, c.phone),
+            event:(quoteId,userId)=>BPStore.ops.setEventManager(quoteId, userId),
+            lead:(leadId,userId)=>BPStore.leads.update(leadId, {owner:userId}) } };
+  }
   async function umDeactivate(u, btn, never){
     const id=ucId(u), email=u.email||u.full_name||"this user", team=ucTeamView;
     const delayed=!!(team&&!team.iAmOwner&&u.role==="admin");
     const text=delayed?`Deactivate ${email}? Only the studio owner can remove an admin at once - your request takes effect in 24 hours. The owner and ${email} are told now, and the owner can cancel it.`
       :never?`Remove access for ${email}? They never signed in. Their login is switched off (deactivated): their temporary password or sign-in link can't be used any more and the seat is freed. Nothing is deleted, and you can reactivate them later.`
       :`Deactivate ${email}? They can't sign in or see studio data from now on, and they're signed out everywhere. Everything they made stays, with their name marked "(deactivated)". They no longer use a seat, and you can reactivate them later.`;
-    if(!(await BPUI.confirm(text,{title:delayed?"Deactivate an admin":never?"Remove access":"Deactivate team member",okLabel:delayed?"Ask to deactivate":never?"Remove access":"Deactivate",danger:true}))) return;
+    // R245 (ACC-20): say up front what they still have open (the next step offers "Reassign to ...")
+    let workTxt="";
+    try{ const w=await BPStore.team.openWork(id), n=HelmTeam.workLinks(w).length; if(n) workTxt=` They still have ${n} open item${n===1?"":"s"} (tasks, events or leads) - after this you can reassign ${n===1?"it":"them"} to a teammate in one step.`; }catch(e){}
+    if(!(await BPUI.confirm(text+workTxt,{title:delayed?"Deactivate an admin":never?"Remove access":"Deactivate team member",okLabel:delayed?"Ask to deactivate":never?"Remove access":"Deactivate",danger:true}))) return;
     try{
       const r=await BPUI.guard(btn, ()=>BPStore.team?BPStore.team.deactivate(id, null):BPStore.auth.admin.deleteUser(id));
       await renderUsers();
       if(r&&r.scheduled) setUMsg("ok","Asked. "+email+" is deactivated in 24 hours unless the owner cancels it.");
-      else { setUMsg("ok",never?"Access removed for "+email+". Nothing was deleted - Reactivate on their row lets them back in.":email+" is deactivated. Their records are kept."); if(r&&r.open_work&&typeof HelmTeam!=="undefined") HelmTeam.paintWork($("#team_work"), u.full_name||email, r.open_work); }
+      else { setUMsg("ok",never?"Access removed for "+email+". Nothing was deleted - Reactivate on their row lets them back in.":email+" is deactivated. Their records are kept."); if(r&&r.open_work&&typeof HelmTeam!=="undefined") HelmTeam.paintWork($("#team_work"), u.full_name||email, r.open_work, await umWorkOpts(u)); }
     }
     catch(err){ setUMsg("err",typeof HelmTeam!=="undefined"?HelmTeam.errText(err,"Couldn't deactivate them."):errMsg(err,"deactivate the user")); }
   }
@@ -2786,6 +2801,9 @@
     cellPending++; $("#matrix").setAttribute("aria-busy","true");
     cellQueue = cellQueue.then(async()=>{
       try{ for(const n of AD.unmet(area, cellOf(role), isPerm(area))){ const cur=cellNow(role,n.area);
+          // R245 (ROLE-03): a needed money area for a Crew / view-only role is asked first too
+          const ask=RD.moneyGrantAsk?RD.moneyGrantAsk(role, n.area, cur, {view:true, edit:n.level==="edit"||!!cur.edit}, BPStore.auth.admin.roleLabel(role), areaName(n.area)):null;
+          if(ask && !(await BPUI.confirm(ask,{title:"Give money access?",okLabel:"Give access",danger:true}))) continue;
           await BPStore.auth.admin.setAccess(role, n.area, true, n.level==="edit" ? true : !!cur.edit); await loadMatrix(); }
         BPUI.toast(`${BPStore.auth.admin.roleLabel(role)}: ${areaName(area)} now has what it needs`,{type:"ok",timeout:2500}); }
       catch(err){ BPUI.toast(errMsg(err,"change access"),{type:"err"}); }
@@ -2951,6 +2969,9 @@
       if(kind==="perm"){ view=edit=!(cur.view&&cur.edit); }   // r32: one switch = view + edit together
       else if(kind==="edit"){ edit=!cur.edit; view=cur.view||edit; }
       else { view=!cur.view; edit=view?cur.edit:false; }
+      // R245 (ROLE-03): money access for a Crew / view-only role needs an "are you sure?" first
+      const ask=RD.moneyGrantAsk?RD.moneyGrantAsk(role, area, cur, {view, edit}, BPStore.auth.admin.roleLabel(role), areaName(area)):null;
+      if(ask && !(await BPUI.confirm(ask,{title:"Give money access?",okLabel:"Give access",danger:true}))) return;
       let saved=false;
       try{ await BPStore.auth.admin.setAccess(role, area, view, edit); saved=true; }
       catch(e){ BPUI.toast(errMsg(e,"change access"),{type:"err"}); }   // 1017: a toast, so the grid never moves under the pointer
