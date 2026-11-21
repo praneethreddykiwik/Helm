@@ -65,6 +65,9 @@ do $$ begin
   -- a reversal row is a minus amount: only the one amount check this migration re-issues may look at quote_payments.amount
   if exists (select 1 from pg_constraint c where c.conrelid = 'public.quote_payments'::regclass and c.contype = 'c'
               and c.conname not in ('quote_payments_amount_finite_chk', 'quote_payments_r404_reversal_sign_chk')
+              -- the hand-applied Wave 16 rule (amount > 0) is known: section 1 re-issues it under the same name (R244)
+              and not (c.conname = 'quote_payments_amount_pos' and (pg_get_constraintdef(c.oid) = 'CHECK ((amount > (0)::numeric))'
+                       or pg_get_constraintdef(c.oid) like '%reverses_payment_id%'))
               and pg_get_constraintdef(c.oid) ~ '\mamount\M') then
     raise exception 'STOP 0404: quote_payments has another amount check - tell the developer before running this'; end if;
 end $$;
@@ -126,6 +129,23 @@ do $$ begin
   if not exists (select 1 from pg_constraint where conrelid = 'public.quote_payments'::regclass and conname = 'quote_payments_r404_reversal_sign_chk') then
     alter table public.quote_payments add constraint quote_payments_r404_reversal_sign_chk
       check (reverses_payment_id is null or (amount < 0 and status = 'paid' and char_length(btrim(coalesce(reversal_reason, ''))) between 5 and 500)) not valid;
+  end if;
+end $$;
+
+-- R244: staging and production also carry a hand-applied rule quote_payments_amount_pos = (amount > 0) (Wave 16, W16-01;
+-- not in the migration chain). It would refuse every reversal row. Re-issue it under the SAME name, exactly as strict for a
+-- normal payment (still > 0, never 0) and allowing a minus amount only on a reversal row. Only where it exists (it is never
+-- created here); it keeps its validated state (validated again only if it was validated before - every existing row already
+-- passed amount > 0). No row is changed.
+do $$ declare v_valid boolean; begin
+  select c.convalidated into v_valid from pg_constraint c
+   where c.conrelid = 'public.quote_payments'::regclass and c.conname = 'quote_payments_amount_pos';
+  if found and not exists (select 1 from pg_constraint where conrelid = 'public.quote_payments'::regclass and conname = 'quote_payments_amount_pos'
+                             and pg_get_constraintdef(oid) like '%reverses_payment_id%') then
+    alter table public.quote_payments drop constraint quote_payments_amount_pos;
+    alter table public.quote_payments add constraint quote_payments_amount_pos
+      check ((amount > 0) or ((reverses_payment_id is not null) and (amount < 0))) not valid;
+    if v_valid then alter table public.quote_payments validate constraint quote_payments_amount_pos; end if;
   end if;
 end $$;
 
