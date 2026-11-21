@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (360 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (362 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4794 objects): body 173, bucket 9, col 274, con 419, cron 20, exec 19, fn 2148, idx 551, marker 124, pol 190, polexpr 4, pre 116, pub 5, seq 1, tbl 310, trg 429, view 2.
+-- What is checked (4804 objects): body 174, bucket 9, col 275, con 419, cron 20, exec 19, fn 2153, idx 551, marker 124, pol 190, polexpr 4, pre 117, pub 5, seq 1, tbl 311, trg 430, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -472,7 +472,6 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', '_next_occasion', 'date'),
   ('base-v1-2026-09-25', 'fn', 'public', '_valid_role', 'text'),
   ('base-v1-2026-09-25', 'fn', 'public', 'add_event_dish', 'uuid,uuid'),
-  ('base-v1-2026-09-25', 'fn', 'public', 'add_quote_version', 'uuid,text,jsonb,integer'),
   ('base-v1-2026-09-25', 'fn', 'public', 'adjust_inventory_total', 'uuid,numeric'),
   ('base-v1-2026-09-25', 'fn', 'public', 'admin_create_user_temp', 'text,text'),
   ('base-v1-2026-09-25', 'fn', 'public', 'admin_delete_user', 'uuid'),
@@ -671,6 +670,7 @@ with o(m, k, s, n, x) as (values
   ('base-v1-2026-09-25', 'fn', 'public', 'event_activity', 'uuid'),
   ('base-v1-2026-09-25', 'con', 'public.profiles', 'profiles_role_check', null),
   ('base-v1-2026-09-25', 'con', 'public.invitations', 'invitations_role_chk', null),
+  ('base-v1-2026-09-25', 'fn', 'public', 'add_quote_version', 'uuid,text,jsonb,integer'),
   ('0001_pricing_authority', 'body', 'public', 'enforce_pricing_total', '|906e8a4240c9079e5ecde18fd774d385'),
   ('0001_pricing_authority', 'fn', 'public', 'helm_quote_total_canonical', 'jsonb'),
   ('0003_money_integrity', 'fn', 'public', 'helm_total_paid', 'uuid,uuid,uuid'),
@@ -4787,6 +4787,16 @@ with o(m, k, s, n, x) as (values
   ('0405_r240_insights_overview', 'fn', 'public', '_r405_funnel', 'uuid,text,date,date,boolean'),
   ('0405_r240_insights_overview', 'fn', 'public', '_r405_timing', 'uuid,text,date,date'),
   ('0405_r240_insights_overview', 'fn', 'public', 'insights_overview', 'date,date,text'),
+  ('0407_r241_layout_save_conflict', 'tbl', 'public.r407_legacy_calls', null, null),
+  ('0407_r241_layout_save_conflict', 'fn', 'public', '_r407_qv_lock', 'uuid'),
+  ('0407_r241_layout_save_conflict', 'fn', 'public', '_r407_note_legacy', 'text,uuid'),
+  ('0407_r241_layout_save_conflict', 'fn', 'public', 'add_quote_version__pre0407', 'uuid,text,jsonb,integer'),
+  ('0407_r241_layout_save_conflict', 'body', 'public', 'add_quote_version', 'uuid,text,jsonb,integer|c76b1666a2e0d836f3a8eb8f94112f4d'),
+  ('0407_r241_layout_save_conflict', 'fn', 'public', 'add_quote_version_checked', 'uuid,text,jsonb,integer,integer,boolean'),
+  ('0407_r241_layout_save_conflict', 'pre', null, '__pre0407', null),
+  ('0408_r241_quote_meta_rev', 'col', 'public.quotes', 'meta_rev', null),
+  ('0408_r241_quote_meta_rev', 'fn', 'public', '_r408_tg_meta_rev', ''),
+  ('0408_r241_quote_meta_rev', 'trg', 'public.quotes', 'zzzzz_r408_meta_rev', null),
   ('0409_r242_cron_stagger', 'fn', 'public', '_r409_plan', ''),
   ('0409_r242_cron_stagger', 'fn', 'public', '_r409_known_jobs', ''),
   ('0409_r242_cron_stagger', 'fn', 'public', '_r409_mailer_jobs', ''),
@@ -5177,10 +5187,12 @@ mig(ord, m, ov, note) as (values
   (354, '0403_r238_signup_safety', null, null),
   (355, '0404_r239_money_safety', null, 'R239 money safety: _pkg_tg_payment patched in place with dynamic SQL (one condition, old body copied to _pkg_tg_payment__pre0404) and the free-trial purge list patched the same way - checked by markers. R244: the hand-applied Wave 16 rule quote_payments_amount_pos is only re-issued where it already exists, so it is not expected on a fresh database'),
   (356, '0405_r240_insights_overview', null, null),
-  (357, '0409_r242_cron_stagger', null, 'R242 cron stagger: only the SCHEDULE of up to 12 jobs Helm''s migrations made changes (cron.alter_job, not an object) - see APPLY-0409 check rows 02 / 03 or select * from public.ops_cron_stagger_report()'),
-  (358, '0410_r242_mailer_wake_ledger', null, 'R242 package code wake + ledger lanes: _ops402_lane re-issued with 5 more lanes (if APPLY-0402 was run again after APPLY-0410 this body shows as older - run APPLY-0410 again), lane CHECK widened (the 0402 one replaced)'),
-  (359, '0411_r242_render_cap', null, 'R242 Helm-wide render cap: the HQ bell label is patched in place with dynamic SQL - checked by its marker'),
-  (360, '0412_r242_switches_schema', null, 'R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)')
+  (357, '0407_r241_layout_save_conflict', null, null),
+  (358, '0408_r241_quote_meta_rev', null, null),
+  (359, '0409_r242_cron_stagger', null, 'R242 cron stagger: only the SCHEDULE of up to 12 jobs Helm''s migrations made changes (cron.alter_job, not an object) - see APPLY-0409 check rows 02 / 03 or select * from public.ops_cron_stagger_report()'),
+  (360, '0410_r242_mailer_wake_ledger', null, 'R242 package code wake + ledger lanes: _ops402_lane re-issued with 5 more lanes (if APPLY-0402 was run again after APPLY-0410 this body shows as older - run APPLY-0410 again), lane CHECK widened (the 0402 one replaced)'),
+  (361, '0411_r242_render_cap', null, 'R242 Helm-wide render cap: the HQ bell label is patched in place with dynamic SQL - checked by its marker'),
+  (362, '0412_r242_switches_schema', null, 'R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)')
 ),
 env as (
   select

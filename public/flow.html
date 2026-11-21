@@ -126,7 +126,7 @@
 <link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=5">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=110" id="shellProto"></script>
+<script src="/shell-proto.js?v=111" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -462,9 +462,9 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=399"></script><script src="/trial-sim.js?v=3"></script>
-<script src="page-tours.js?v=69"></script>
-<script src="tour.js?v=84"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=400"></script><script src="/trial-sim.js?v=3"></script>
+<script src="page-tours.js?v=70"></script>
+<script src="tour.js?v=85"></script>
 <script src="payment-schedule.js?v=6"></script>
 <script src="booklet.js?v=36"></script>
 <script src="share-checklist.js?v=16"></script>
@@ -1719,7 +1719,7 @@
     try{
       if(!canEdit || quoteBlocked() || !ev) return;
       const next=BPStore.tax.restampUnpriced(ev, BPStore.tax.resolve(rates||{})); if(!next) return;
-      const row=await BPStore.quotes.updateMeta(id,{ pricing: next }); if(row&&row.updated_at) ev.updatedAt=row.updated_at;   // keep the lock base (no false conflict on the first step-1 save)
+      const row=await BPStore.quotes.updateMeta(id,{ pricing: next }, ev.updatedAt); if(row&&row.updated_at) ev.updatedAt=row.updated_at;   // keep the lock base (no false conflict on the first step-1 save); R241: under the lock too (a teammate's price is never overwritten)
       ev.pricing=next; paintCurBanner();
     }catch(_){ /* best effort: saveQuotation re-stamps an unpriced quote anyway */ }
   }

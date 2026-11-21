@@ -199,7 +199,7 @@ t('APPLY-0101.sql: ASCII, one transaction, verify rows', () => {
 });
 t('versions bumped', () => {
   for (const f of [flow, approve, portal, invite, studio, settle, closure]) { assert.match(f, /event-name\.js\?v=9/); assert.match(f, /country-profile\.js\?v=7/); }
-  for (const f of [flow, studio, settle, closure]) assert.match(f, /store-api\.js\?v=399/);
+  for (const f of [flow, studio, settle, closure]) assert.match(f, /store-api\.js\?v=400/);
   for (const f of [approve, portal, invite]) assert.match(f, /client-api\.js\?v=\d+/);   // R216: client link pages
   assert.match(read('public/booklet.html'), /booklet\.js\?v=36/); assert.match(flow, /booklet\.js\?v=36/);
 });

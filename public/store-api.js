@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=110"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=111"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -3670,6 +3670,7 @@ window.HelmUrl = HelmUrl;
       // the server to refuse (HTTP 406 in the log). The caller still gets the same "not found" (PGRST116) error as before.
       const { data: q, error } = await supa.from("quotes").select("*").eq("id", id).maybeSingle(); if (error) throw error;
       if (!q) { const e = new Error("This quote doesn't exist or was deleted."); e.code = "PGRST116"; throw e; }
+      noteMetaRev(q);   // R241 (0408): the lock token behind this updated_at
       const { data: vs, error: e2 } = await supa.from("quote_versions")
         .select("id,version_no,label,object_count,created_at").eq("quote_id", id).order("version_no", { ascending: false });
       if (e2) throw e2;
@@ -3763,10 +3764,36 @@ window.HelmUrl = HelmUrl;
       const { data, error } = await supa.rpc("rebrand_quote_code", { p_quote_id: quoteId });
       if (error) throw error; return data;
     },
-    async addVersion(quoteId, label, data, objectCount) {
-      const { data: v, error } = await supa.rpc("add_quote_version",
-        { p_quote_id: quoteId, p_label: label, p_data: data, p_object_count: objectCount });
-      if (error) throw error; return Array.isArray(v) ? v[0] : v;
+    // R241 (0407, Phase 4 FE-01 / DB-07): opts.baseVersion = the version the editor's canvas is built on. The server
+    // refuses (writes nothing) when a NEWER version exists -> a NEWER_VERSION error with e.conflict {latestVersion,
+    // latestBy, latestByMe, latestAt, baseVersion}; opts.saveAsNew = "Save mine as a new version" (append, keep both).
+    // No base = the old call. A database without 0407 (PGRST202 / 42883) = the old call too. Two saves at the same
+    // moment on an older server (duplicate version number 23505) or a deadlock: ONE automatic retry.
+    async addVersion(quoteId, label, data, objectCount, opts) {
+      const o = opts || {};
+      const base = Number.isInteger(o.baseVersion) && o.baseVersion > 0 ? o.baseVersion : null;
+      const once = async () => {
+        if (base != null && !qvCheckedMissing) {
+          const { data: r, error } = await supa.rpc("add_quote_version_checked",
+            { p_quote_id: quoteId, p_label: label, p_data: data, p_object_count: objectCount, p_base_version: base, p_save_as_new: !!o.saveAsNew });
+          if (!error) {
+            if (r && r.ok === false) throw newerVersionError(r);
+            const v = r && r.version; if (!v) { const e = new Error("Couldn't save the layout - the server gave no answer. Press Save to retry."); e.code = "NOT_SAVED"; throw e; }
+            return v;
+          }
+          if (!isMissingFn(error)) throw error;
+          qvCheckedMissing = true;   // server without 0407: the old call from now on (this tab)
+        }
+        const { data: v, error } = await supa.rpc("add_quote_version",
+          { p_quote_id: quoteId, p_label: label, p_data: data, p_object_count: objectCount });
+        if (error) throw error; return Array.isArray(v) ? v[0] : v;
+      };
+      try { return await once(); }
+      catch (e) {
+        if (!(e && (e.code === "23505" || e.code === "40P01" || e.code === "40001"))) throw e;
+        await new Promise((res) => setTimeout(res, 300 + Math.round(Math.random() * 400)));
+        return once();
+      }
     },
     async confirm(quoteId, client, pricing) {
       const { data: q, error } = await supa.rpc("confirm_quote",
@@ -3784,10 +3811,17 @@ window.HelmUrl = HelmUrl;
       if (patch.client) upd.client = patch.client; if (patch.pricing) upd.pricing = patch.pricing; if (patch.status) upd.status = patch.status;
       if (patch.eventDate !== undefined) upd.event_date = patch.eventDate || null;
       if (patch.eventTime !== undefined) upd.event_time = patch.eventTime || null;
-      let q = supa.from("quotes").update(upd).eq("id", quoteId);
-      if (expectedUpdatedAt) q = q.eq("updated_at", expectedUpdatedAt);
-      const { data, error } = await q.select();
+      // R241 (0408, Phase 4 Q-02 / DB-08): the lock token is the details counter quotes.meta_rev the page read with this
+      // updated_at (it moves only when a detail really changes - a teammate's layout autosave no longer looks like a
+      // conflict). Unknown counter / a database without 0408 = the old updated_at check.
+      const rev = expectedUpdatedAt ? metaRevFor(quoteId, expectedUpdatedAt) : null;
+      const send = (useRev) => { let q = supa.from("quotes").update(upd).eq("id", quoteId);
+        if (expectedUpdatedAt) q = useRev ? q.eq("meta_rev", rev) : q.eq("updated_at", expectedUpdatedAt);
+        return q.select(); };
+      let { data, error } = await send(rev != null);
+      if (error && rev != null && isMissingColumn(error)) ({ data, error } = await send(false));
       if (error) throw error;
+      if (data && data[0]) noteMetaRev(data[0]);
       // FAIL CLOSED: an update that changed NO rows must never report success — otherwise
       // the UI flashes "Saved ✓" while nothing persisted and the data is lost on reload
       // (QA H-01). With an optimistic-lock token a 0-row result means a concurrent edit;
@@ -3797,9 +3831,9 @@ window.HelmUrl = HelmUrl;
           // money-1024: 0 rows is ALSO what a refused write looks like (RLS / no edit right / locked
           // event) - only call it a conflict when the row really moved on since we read it.
           let cur = null;
-          try { const r = await supa.from("quotes").select("updated_at").eq("id", quoteId).maybeSingle(); cur = r && !r.error && r.data ? r.data.updated_at : null; } catch (_) { cur = null; }
-          if (cur && !sameStamp(cur, expectedUpdatedAt)) {
-            const e = new Error("This event was changed by someone else since you opened it. Reload to get the latest, then reapply your change."); e.code = "CONFLICT"; throw e;
+          try { const r = await supa.from("quotes").select(rev != null ? "updated_at,meta_rev" : "updated_at").eq("id", quoteId).maybeSingle(); cur = r && !r.error && r.data ? r.data : null; } catch (_) { cur = null; }
+          if (cur && (rev != null ? String(cur.meta_rev) !== String(rev) : !sameStamp(cur.updated_at, expectedUpdatedAt))) {
+            const e = new Error(CONFLICT_MSG); e.code = "CONFLICT"; throw e;
           }
           const e = new Error("Couldn't save — you may not have permission to change this event, or it is locked. Nothing was changed."); e.code = "NOT_SAVED"; throw e;
         }
@@ -3811,6 +3845,30 @@ window.HelmUrl = HelmUrl;
     // server refuses a hard delete of a quote that is not on that shelf
     async remove(quoteId) { await rpc("move_quote_to_shelf", { p_quote_id: quoteId, p_shelf: "delete" }); return true; },
   };
+  // R241 (Phase 4): one plain conflict sentence for every "someone saved first" refusal (details + layout)
+  const CONFLICT_MSG = "Someone saved a newer version of this event since you opened it. Nothing was overwritten - reload to see their change, then reapply yours.";
+  // R241 (0407): a layout save refused because a newer version exists (nothing was written)
+  let qvCheckedMissing = false;
+  function newerVersionError(r) {
+    const e = new Error(String((r && r.message) || "Someone saved a newer version. Nothing was saved and nothing was overwritten."));
+    e.code = "NEWER_VERSION";
+    e.conflict = { latestVersion: +(r && r.latest_version) || null, latestBy: (r && r.latest_by) || null, latestByMe: !!(r && r.latest_by_me),
+      latestAt: (r && r.latest_at) || null, baseVersion: +(r && r.base_version) || null };
+    return e;
+  }
+  // R241 (0408): the details counter seen with each updated_at of a quote (last few per quote), so updateMeta can lock
+  // on what the page READ even though callers pass the updated_at they hold
+  const _metaRevSeen = new Map();
+  function noteMetaRev(row) {
+    try {
+      if (!row || !row.id || row.meta_rev == null || !row.updated_at) return;
+      const list = _metaRevSeen.get(row.id) || [];
+      if (!list.some((x) => sameStamp(x.at, row.updated_at))) list.push({ at: row.updated_at, rev: row.meta_rev });
+      while (list.length > 8) list.shift();
+      _metaRevSeen.set(row.id, list);
+    } catch (e) {}
+  }
+  function metaRevFor(id, stamp) { const list = _metaRevSeen.get(id) || []; const hit = list.find((x) => sameStamp(x.at, stamp)); return hit ? hit.rev : null; }
   // money-1024: compare two timestamptz strings by instant (formats can differ: "+00:00" vs "Z", precision)
   function sameStamp(a, b) { if (a === b) return true; const x = Date.parse(a), y = Date.parse(b); return Number.isFinite(x) && x === y; }
   // localStorage fallback tier
@@ -3852,8 +3910,13 @@ window.HelmUrl = HelmUrl;
       status: "quote", client: {}, pricing: {}, currentVersion: 1, createdAt: now(), updatedAt: now(), confirmedAt: null,
       versions: [{ id: uid(), versionNo: 1, label: null, data: data || { items: [] }, objectCount: objectCount || 0, createdAt: now() }] };
       const a = this.read(); a.push(q); this.write(a); return q; },
-    async addVersion(id, label, data, objectCount) { const a = this.read(); const q = a.find((x) => x.id === id);
+    async addVersion(id, label, data, objectCount, opts) { const a = this.read(); const q = a.find((x) => x.id === id);
       const no = Math.max(0, ...q.versions.map((v) => v.versionNo)) + 1;
+      // R241: the same newer-version refusal as the server (0407) - another tab of this browser may have saved
+      const base = opts && Number.isInteger(opts.baseVersion) && opts.baseVersion > 0 ? opts.baseVersion : null;
+      if (base != null && !opts.saveAsNew && no - 1 > base) { const lv = q.versions.find((v) => v.versionNo === no - 1) || {};
+        throw newerVersionError({ latest_version: no - 1, base_version: base, latest_at: lv.createdAt || null, latest_by: lv.createdBy || null,
+          message: "Someone saved a newer version (V" + (no - 1) + ") after you opened V" + base + ". Nothing was saved and nothing was overwritten." }); }
       const v = { id: uid(), versionNo: no, label, data: data || { items: [] }, objectCount: objectCount || 0, createdAt: now() };
       q.versions.push(v); q.currentVersion = no; q.updatedAt = now(); this.write(a); return v; },
     async confirm(id, client, pricing) { const a = this.read(); const q = a.find((x) => x.id === id);
@@ -3960,10 +4023,15 @@ window.HelmUrl = HelmUrl;
     } catch (e) {}
   }
   function rtLive(make, onBack) {
-    let ch = null, stopped = false, idleT = null, retryT = null, tries = 0, gen = 0, errs = 0, rounds = 0;
+    /* R241 (Phase 4 RT-01): Supabase does not replay changes sent while a channel was down. A library rejoin (Wi-Fi blip,
+       laptop lid, server restart: CHANNEL_ERROR / TIMED_OUT / CLOSED, then SUBSCRIBED again) now runs the catch-up once,
+       like a re-open does, and so does the browser coming back "online". A channel's first SUBSCRIBED never does. */
+    let ch = null, stopped = false, idleT = null, retryT = null, tries = 0, gen = 0, errs = 0, rounds = 0, joined = false, dropped = false;
+    const catchUp = (why) => { try { onBack && onBack(why); } catch (e) {} };   // why: "rejoin" / "online" (a re-open passes nothing)
     const st = (g) => (status) => {
       if (g !== gen || stopped) return;   // a status from a channel this handle already closed
-      if (status === "SUBSCRIBED") { errs = 0; rounds = 0; return; }
+      if (status === "SUBSCRIBED") { errs = 0; rounds = 0; const back = joined && dropped; joined = true; dropped = false; if (back) catchUp("rejoin"); return; }
+      if (joined && (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED")) dropped = true;   // R241
       if (status !== "CHANNEL_ERROR" && status !== "TIMED_OUT") return;
       if (++errs < RT_ERR_MAX) return;
       errs = 0; close(); clearTimeout(retryT);
@@ -3973,16 +4041,21 @@ window.HelmUrl = HelmUrl;
     const open = () => { if (stopped || ch) return; clearTimeout(retryT); retryT = null;
       if (!rtSessionOk()) { if (++tries <= 40) retryT = setTimeout(() => { retryT = null; if (!(typeof document !== "undefined" && document.hidden)) { open(); try { if (ch) onBack && onBack(); } catch (e) {} } }, RT_RETRY_MS); return; }
       if (rtOpen >= RT_MAX_CHANNELS) { rtNote("cap", "HELM_RT_CAP"); return; }
-      tries = 0; gen++; try { ch = make(st(gen)); } catch (e) { ch = null; } if (ch) rtOpen++; };
+      tries = 0; gen++; joined = false; dropped = false; try { ch = make(st(gen)); } catch (e) { ch = null; } if (ch) rtOpen++; };
     const close = () => { if (!ch) return; gen++; rtOpen = Math.max(0, rtOpen - 1); try { if (supa && typeof supa.removeChannel === "function") supa.removeChannel(ch); else if (ch.unsubscribe) ch.unsubscribe(); } catch (e) {} ch = null; };
     const onVis = () => {
       if (typeof document === "undefined") return;
       if (document.hidden) { clearTimeout(idleT); idleT = setTimeout(close, RT_IDLE_MS); return; }
       clearTimeout(idleT); if (!ch && !stopped) { open(); try { onBack && onBack(); } catch (e) {} }
     };
+    // R241: the network came back - an open channel catches up; a closed one (visible tab) opens again + catches up
+    const onOnline = () => { if (stopped || (typeof document !== "undefined" && document.hidden)) return;
+      if (ch) { catchUp("online"); return; } open(); if (ch) catchUp(); };
     open();
     try { document.addEventListener("visibilitychange", onVis); } catch (e) {}
-    return { unsubscribe() { stopped = true; clearTimeout(idleT); clearTimeout(retryT); try { document.removeEventListener("visibilitychange", onVis); } catch (e) {} close(); } };
+    try { if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("online", onOnline); } catch (e) {}
+    return { unsubscribe() { stopped = true; clearTimeout(idleT); clearTimeout(retryT); try { document.removeEventListener("visibilitychange", onVis); } catch (e) {}
+      try { if (typeof window !== "undefined" && window.removeEventListener) window.removeEventListener("online", onOnline); } catch (e) {} close(); } };
   }
   const MEMO_LIST_MS = 8000;
   // Any non-read method on the object forgets the shared read first, so a list() asked for after a
@@ -4057,7 +4130,7 @@ window.HelmUrl = HelmUrl;
     create: (code, title, eventType, data, objectCount) => qt().create(code, title, eventType, data, objectCount),
     discardEmptyDrafts: () => { const t = qt(); return typeof t.discardEmptyDrafts === "function" ? t.discardEmptyDrafts() : Promise.resolve({ discarded: 0 }); },
     startBlank: (code) => { const t = qt(); return typeof t.startBlank === "function" ? t.startBlank(code) : t.create(code, code, null, { items: [] }, 0); },
-    addVersion: (id, label, data, objectCount) => qt().addVersion(id, label, data, objectCount),
+    addVersion: (id, label, data, objectCount, opts) => qt().addVersion(id, label, data, objectCount, opts),   // R241: opts {baseVersion, saveAsNew}
     confirm: (id, client, pricing) => qt().confirm(id, client, pricing),
     setStage: (id, stage, overrideReason) => qt().setStage(id, stage, overrideReason),
     // 0198: what blocks moving this event to `stage`, in plain words: [] = free; {hard:true} entries can
@@ -5456,7 +5529,7 @@ window.HelmUrl = HelmUrl;
         return rtLive((st) => supa.channel("leads-rt")
           .on("postgres_changes", spec, (payload) => cb && cb(payload))
           .subscribe((status) => { st(status); if (onStatus) onStatus(status); }),   // real status: SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED
-          () => { if (onStatus) onStatus("CONNECTING"); try { cb && cb(null); } catch (e) {} });
+          (why) => { if (onStatus && !why) onStatus("CONNECTING"); try { cb && cb(null); } catch (e) {} });   // R241: a rejoin / online catch-up keeps the pill (the channel is live)
       } catch { if (onStatus) onStatus("ERROR"); return { unsubscribe() {} }; }
     },
   };
