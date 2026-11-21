@@ -53,6 +53,11 @@
   .prog .fill{height:100%;background:linear-gradient(120deg,var(--accent),var(--accent-2));width:0%;transition:width .3s}
   @media (prefers-reduced-motion: reduce){.prog .fill{transition:none}}
   .offline{background:#fff7e6;color:#946200;border:1px solid #f0d9a8;border-radius:10px;padding:9px 12px;font-size:12px;margin-bottom:12px}
+  /* R243 (P11 OPS-03): presses saved on the phone while offline */
+  .offq{background:#eef6ff;color:#1e3a5f;border:1px solid #bcd6f5;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+  .offq b{display:block;margin-bottom:2px} .offq ul{margin:6px 0 0;padding-left:18px} .offq .btn{margin-top:8px}
+  .offq .warn{color:#946200;margin-top:6px} .st.queued{background:#eef6ff;color:#1e3a5f}
+  .q-note{font-size:12px;color:#1e3a5f;font-weight:600}
   .refresh{width:100%;margin-bottom:12px}
   .eq{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
   .eq .en{flex:1;font-size:14px;font-weight:600} .eq .eq-q{font-family:var(--mono);font-size:12px;color:var(--ink-3);font-weight:400;margin-top:2px}
@@ -84,10 +89,10 @@
     #tasks > .task{margin-bottom:0}
   }
 </style>
-<link rel="stylesheet" href="/theme.css?v=85"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="/theme.css?v=86"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="/public-pages-v2.css?v=6">
 <link rel="stylesheet" href="/crew-shifts.css?v=8">
-<script src="/trusted-types.js?v=9"></script>
+<script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
 <script src="/public-theme.js?v=4"></script>
 </head>
 <body>
@@ -110,6 +115,7 @@
     </div>
     <button class="btn refresh" id="refreshBtn" type="button">↻ Refresh</button>
     <div id="msg" role="alert"></div>
+    <div id="offQ" class="offq" role="status" aria-live="polite" hidden></div>
     <!-- r23 (0265): event-day check-in, open shifts, my availability (built by crew-self.js; hidden when off / before 0265) -->
     <div id="crewCheck" hidden></div>
     <div id="rsSec" hidden><div class="cat">🗓 Your run-sheet</div><div id="rs"></div></div>
@@ -162,8 +168,9 @@
 <script src="/telemetry.js?v=14"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=397"></script>
-<script src="/staff-home.js?v=3"></script>
+<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=398"></script>
+<script src="/staff-home.js?v=4"></script>
+<script src="/crew-offline.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s||"").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -227,6 +234,7 @@
       window.__helmWorkToken=t; if(window.HelmCrewSelf&&HelmCrewSelf.useToken) HelmCrewSelf.useToken(t);   // check-in / shifts / availability
     }
     if(!token){ $("#loading").hidden=true; $("#badlink").hidden=false; return; }
+    if(window.HelmCrewQueue){ try{ await HelmCrewQueue.use(token); }catch{} }   // R243: presses saved offline for this link
     if(LINK){                                // studio name must own this crew link (offline: fall through to cache)
       try{ if(!(await BPStore.links.verify(LINK))){ $("#loading").hidden=true; $("#badlink").hidden=false; return; } }catch(e){}
     }
@@ -235,6 +243,7 @@
     if(cached && cached.data){ data=cached.data; equip=cached.equip||[]; $("#loading").hidden=true; $("#content").hidden=false; paintHeader(); render(); }
     await BPStore.init();
     await refresh(!cached);
+    if(window.HelmCrewQueue) HelmCrewQueue.run().catch(()=>{});
     window.addEventListener("online", ()=>refresh(false));
     // 0132: pick up newly assigned / changed work while the link is open
     setInterval(()=>{ if(document.visibilityState==="visible" && navigator.onLine!==false) refresh(false); }, 60000);
@@ -285,15 +294,18 @@
     const byCat={}; all.forEach(t=>{ (byCat[t.category]=byCat[t.category]||[]).push(t); });
     const host=$("#tasks");
     host.innerHTML = all.length ? Object.entries(byCat).map(([cat,ts])=>`<div class="cat">${esc(cat)}</div>`+
-      ts.map(t=>{
+      ts.map(t0=>{
+        // R243 (OPS-03): a press saved offline shows as done-on-this-phone ("Saved offline") until it is sent
+        const q=qFor(t0.id), t=q.length?Object.assign({},t0,{status:qStatus(t0.status,q)}):t0;
         let acts="";
-        if(t.status==='assigned') acts=`<button type="button" class="btn ok" data-a="accept">✓ Accept</button><button type="button" class="btn no" data-a="reject">Reject</button>`;
+        if(q.length && (t.status==='completed'||t.status==='rejected')) acts=`<span class="q-note">📶 Saved offline — will send when connected</span>`;
+        else if(t.status==='assigned') acts=`<button type="button" class="btn ok" data-a="accept">✓ Accept</button><button type="button" class="btn no" data-a="reject">Reject</button>`;
         else if(t.status==='accepted') acts=`<button type="button" class="btn primary" data-a="start">Start task</button>`;
         else if(t.status==='in_progress') acts=`<button type="button" class="btn primary" data-a="complete">Mark done</button>`;
         else if(t.status==='completed') acts=`<span class="done">✅ Completed — thank you</span>`;
         else if(t.status==='rejected') acts=`<span class="rej">Rejected</span>`;
         else if(t.status==='cancelled') acts=`<span class="cxl">Cancelled by the office</span>`;   // r96 (0312): no actions
-        return `<div class="task${t.status==='cancelled'?' is-cancelled':''}" data-id="${esc(String(t.id))}"><span class="st ${esc(t.status)}">${LABEL[t.status]||esc(t.status)}</span>
+        return `<div class="task${t.status==='cancelled'?' is-cancelled':''}" data-id="${esc(String(t.id))}"><span class="st ${q.length?'queued':esc(t.status)}">${q.length?'Saved offline':(LABEL[t.status]||esc(t.status))}</span>
           <div class="tt">${esc(t.title)}${isUpd(changed[String(t.id)])?`<span class="upd">Updated</span>`:""}</div><div class="acts">${acts}</div></div>`;
       }).join("")).join("") : '<div class="card muted">No tasks assigned to you yet.</div>';
     host.querySelectorAll(".task").forEach(card=>{
@@ -336,8 +348,72 @@
     // reject → optional reason + voice note; done → optional proof photos (0038)
     if(action==='reject' || action==='complete'){ evOpen(id,action,btn); return; }
     setMsg();
+    if(qOffline()){ queuePress(id,action); return; }   // R243: no signal - save it, send it later
     try{ await BPUI.guard(btn, async()=>{ await BPStore.ops.worker.respond(token,id,action); await refresh(false); }, {busyLabel:"…"}); }
-    catch(e){ setMsg(e&&e.refused ? e.message : BPUI.friendlyError(e,{action:"update the task"})); if(e&&e.refused) refresh(false).catch(()=>{}); }
+    catch(e){
+      if(window.HelmCrewQueue && HelmCrewQueue.shouldQueue(e)){ queuePress(id,action); return; }
+      setMsg(e&&e.refused ? e.message : BPUI.friendlyError(e,{action:"update the task"})); if(e&&e.refused) refresh(false).catch(()=>{}); }
+  }
+
+  /* ---- R243 (P11 OPS-03): the offline "send later" list (crew-offline.js). A press with no signal is saved on
+     this phone and sent in order when the connection is back; a press that is already done (an earlier send whose
+     answer was lost) is skipped, and the server refuses a repeat anyway - never applied twice. ---- */
+  const Q_TARGET={accept:'accepted',start:'in_progress',complete:'completed',reject:'rejected'};
+  const Q_RANK={assigned:0,accepted:1,in_progress:2,completed:3};
+  const Q_WORD={accept:'Accept',start:'Start task',complete:'Mark done',reject:'Reject'};
+  const qOffline=()=>!!(window.HelmCrewQueue && navigator.onLine===false);
+  const qFor=(id)=>window.HelmCrewQueue?HelmCrewQueue.forTask(id):[];
+  function qStatus(st,q){ let s=st; q.forEach(x=>{ const to=Q_TARGET[x.action]; if(to && !(Q_RANK[s]>=Q_RANK[to])) s=to; }); return s; }
+  function queuePress(id,action){
+    const t=((data&&data.tasks)||[]).find(x=>String(x.id)===String(id));
+    try{ HelmCrewQueue.add({kind:'task',task:id,action,title:t&&t.title}); }
+    catch(e){ setMsg(e&&e.message||"Couldn't save that on this phone - try again when connected."); return false; }
+    try{ BPUI.toast("Saved offline — will send when connected.",{type:"ok"}); }catch{}
+    if(data) render();
+    return true;
+  }
+  let qFresh=null;   // one fresh read of the tasks per send round (also tells us at once if we are still offline)
+  function qTasks(){ if(!qFresh||Date.now()-qFresh.t>5000) qFresh={t:Date.now(),p:BPStore.ops.worker.getTasks(token)}; return qFresh.p; }
+  function qRefused(msg){ const e=new Error(msg); e.refused=true; return e; }
+  if(window.HelmCrewQueue){
+    HelmCrewQueue.sender('task', async (it)=>{
+      const fresh=await qTasks(), t=((fresh&&fresh.tasks)||[]).find(x=>String(x.id)===String(it.task));
+      if(!t) throw qRefused(`"${it.title||'A task'}" is no longer on your list - your saved ${Q_WORD[it.action]||it.action} was not sent.`);
+      const to=Q_TARGET[it.action], st=t.status;
+      if(st===to || (Q_RANK[st]!=null && Q_RANK[to]!=null && Q_RANK[st]>=Q_RANK[to])) return;   // already done: never twice
+      if(st==='cancelled'||st==='completed'||st==='rejected')
+        throw qRefused(`"${t.title}" is now ${(LABEL[st]||st).toLowerCase()} - your saved ${Q_WORD[it.action]||it.action} was not sent.`);
+      await BPStore.ops.worker.respond(token,it.task,it.action);
+      qFresh=null;
+    });
+    HelmCrewQueue.onChange(()=>{ paintQueue(); if(data && !$("#content").hidden) render(); });
+    HelmCrewQueue.onDrained((r)=>{
+      qFresh=null;
+      if(r && r.refused && r.refused.length) setMsg(r.refused.map(x=>(x.error&&x.error.refused)?x.error.message:BPUI.friendlyError(x.error,{action:"send a saved action"})).join(" "));
+      if(r && r.sent){ try{ BPUI.toast(r.sent===1?"Your saved action was sent.":`${r.sent} saved actions were sent.`,{type:"ok"}); }catch{} }
+      refresh(false).catch(()=>{});
+      if(window.HelmCrewSelf && HelmCrewSelf.reload) HelmCrewSelf.reload();
+    });
+  }
+  function paintQueue(){
+    const box=$("#offQ"); if(!box||!window.HelmCrewQueue) return;
+    const s=HelmCrewQueue.state(); box.replaceChildren();
+    if(!s.count && !s.expired.length){ box.hidden=true; return; }
+    box.hidden=false;
+    const mk=(tag,txt,cls)=>{ const n=document.createElement(tag); if(cls) n.className=cls; if(txt!=null) n.textContent=txt; return n; };
+    if(s.count){
+      box.appendChild(mk("b",`📶 Saved offline — ${s.count===1?"1 action":s.count+" actions"} will send when connected`));
+      const ul=mk("ul");
+      s.items.forEach(x=>ul.appendChild(mk("li", x.kind==='check' ? (x.action==='out'?"Check out":"Check in")+" (the office sees the time it arrives)" : `${Q_WORD[x.action]||x.action}: ${x.title||"task"}`)));
+      box.appendChild(ul);
+      if(s.memoryOnly) box.appendChild(mk("div","This browser can't keep them if you close this page - keep it open until they are sent.","warn"));
+      if(s.online){ const b=mk("button",s.sending?"Sending…":"Send now","btn primary"); b.type="button"; b.disabled=s.sending;
+        b.addEventListener("click",()=>{ BPUI.guard(b,()=>HelmCrewQueue.run()).catch(()=>{}); }); box.appendChild(b); }
+    }
+    if(s.expired.length){
+      box.appendChild(mk("div",`${s.expired.length===1?"An action":"Some actions"} saved on an earlier day ${s.expired.length===1?"was":"were"} not sent (too old) - please tell the office.`,"warn"));
+      const ok=mk("button","OK","btn"); ok.type="button"; ok.addEventListener("click",()=>HelmCrewQueue.clearExpired()); box.appendChild(ok);
+    }
   }
 
   /* ---- evidence sheet (0038): files go to the private task-proof bucket through
@@ -438,6 +514,14 @@
     const cur=ev, go=$("#evGo"), label=go.textContent;
     const reason=$("#evReason").value.trim();
     if(reason.length>EV_REASON_MAX){ evErr("Keep the reason under "+EV_REASON_MAX+" characters."); return; }
+    // R243 (OPS-03): no signal - a plain Mark done / Reject is saved and sent later; photos / voice need a connection
+    const plain = cur.action==='reject' ? (!reason && !cur.voice) : !cur.photos.length;
+    if(qOffline()){
+      if(!plain){ evErr(cur.action==='reject' ? "You're offline. A reason or voice note needs a connection - remove them to save the rejection offline, or try again when connected."
+        : "You're offline. Photos need a connection - remove the photos to save \"done\" offline now, or try again when connected."); return; }
+      if(queuePress(cur.id,cur.action)) await evClose();
+      return;
+    }
     cur.busy=true; go.disabled=true; $("#evCancel").disabled=true; evErr("");
     const W=BPStore.ops.worker;
     try{
@@ -463,6 +547,7 @@
     }catch(e){
       // an upload whose grant ran out can't be attached: upload it again on the next try
       if(/upload not found|expired/i.test((e&&e.message)||"")){ cur.photos.forEach(p=>{ p.path=null; }); if(cur.voice) cur.voice.path=null; }
+      if(plain && window.HelmCrewQueue && HelmCrewQueue.shouldQueue(e)){ cur.busy=false; if(queuePress(cur.id,cur.action)) await evClose(); return; }
       if(ev===cur) evErr(e&&e.refused ? e.message : BPUI.friendlyError(e,{action:cur.action==='reject'?"reject the task":"mark the task done"}));
     }finally{
       cur.busy=false; go.disabled=false; $("#evCancel").disabled=false; if(ev===cur) go.textContent=label;
@@ -482,6 +567,6 @@
   $("#retryFirst").addEventListener("click",(ev)=>{ BPUI.guard(ev.currentTarget,()=>refresh(true)).catch(()=>{}); });
   BPUI.boot(load);
 </script>
-<script src="/crew-self.js?v=5"></script>
+<script src="/crew-self.js?v=6"></script>
 </body>
 </html>

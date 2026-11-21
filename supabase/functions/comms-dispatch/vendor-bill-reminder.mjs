@@ -7,6 +7,7 @@
 //       "Your bill #142 is due for payment on 20/12/2026" - no link, no other money than the vendor's own bill
 // Every dynamic value is clipped (text) and HTML-escaped (html). Anything unexpected -> empty text, and comms-dispatch then
 // marks the row skipped (fails closed). Crew never get these e-mails (the claim only gives office payers / the vendor).
+import { plainDate } from "../_shared/plain-date.mjs";   // R243 (LOC-04)
 import * as L from "../_shared/email-layout.mjs";
 
 export const VENDOR_BILL_TX_REASON = "your studio chose you to pay its vendor bills on Helm";
@@ -49,12 +50,13 @@ export function vendorBillMessage(row, origin) {
   if (!row || typeof row !== "object" || !VENDOR_BILL_KINDS.includes(String(row.kind))) return { subject: "", text: "" };
   const kind = String(row.kind), audience = String(row.audience || "");
   const studio = clip(row.studio, 80) || "your studio", event = clip(row.event, 120) || "the event";
-  const vendor = clip(row.vendor, 120), billNo = clip(row.bill_no, 40), due = clip(row.due_text, 12);
+  const vendor = clip(row.vendor, 120), billNo = clip(row.bill_no, 40), dueRaw = clip(row.due_text, 12);
   const date = clip(row.event_date, 12), name = clip(row.name, 80).split(" ")[0] || "";
   const open = billMoney(row.open, row.currency), total = billMoney(row.amount, row.currency);
-  if (!open || !DATE.test(due)) return { subject: "", text: "" };
+  if (!open || !DATE.test(dueRaw)) return { subject: "", text: "" };
+  const due = plainDate(dueRaw);   // R243 (LOC-04): "20 Dec 2026" in every country
   const billRef = billNo ? "bill #" + billNo : "bill";
-  const evLine = event + (DATE.test(date) ? " (" + date + ")" : "");
+  const evLine = event + (DATE.test(date) ? " (" + plainDate(date) + ")" : "");
   if (audience === "vendor") {
     if (kind !== "vendor_before") return { subject: "", text: "" };
     return {
@@ -101,14 +103,14 @@ export function vendorBillHtml(row, origin, opts = {}) {
   if (!msg.text) return "";
   const kind = String(row.kind), vendorSide = String(row.audience) === "vendor";
   const studio = clip(row.studio, 80) || "your studio", event = clip(row.event, 120) || "the event";
-  const vendor = clip(row.vendor, 120), billNo = clip(row.bill_no, 40), due = clip(row.due_text, 12), date = clip(row.event_date, 12);
+  const vendor = clip(row.vendor, 120), billNo = clip(row.bill_no, 40), due = plainDate(clip(row.due_text, 12)), date = clip(row.event_date, 12);
   const open = billMoney(row.open, row.currency), total = billMoney(row.amount, row.currency);
   const name = vendorSide ? vendor : (clip(row.name, 80).split(" ")[0] || "");
   const site = String(origin || "").replace(/\/+$/, "");
   const lay = { site: ORIGIN.test(site) ? site : L.SITE, address: opts.address, sub: "" };
   const hello = L.para("Hello" + (name ? " " + L.strong(e(name)) : "") + ",", "0 0 14px");
   const rows = [["Vendor", vendorSide ? "" : vendor], ["Bill", billNo ? "#" + billNo : ""], ["Due", due],
-    ["Still to pay", open], ["Bill total", total && total !== open ? total : ""], ["Event", event], ["Event date", DATE.test(date) ? date : ""]];
+    ["Still to pay", open], ["Bill total", total && total !== open ? total : ""], ["Event", event], ["Event date", DATE.test(date) ? plainDate(date) : ""]];
   if (vendorSide) {
     const inner = eyebrow(studio) + L.h1("Your bill is due for payment") + hello +
       L.para(L.strong(e(studio)) + " has your " + e(billNo ? "bill #" + billNo : "bill") + " for " + L.strong(e(event)) + " due for payment on " + L.strong(e(due)) + ".") +

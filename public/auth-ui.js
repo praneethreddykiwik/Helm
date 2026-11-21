@@ -1037,7 +1037,7 @@
     ]).then(function (r) { return r[0] && r[1]; });
     return libsP;
   }
-  var FORM_LIB_V = "5", PHONE_LIB_V = "9";
+  var FORM_LIB_V = "6", PHONE_LIB_V = "9";
   function pathIcon(path, cls) {
     var ns = "http://www.w3.org/2000/svg", s = doc.createElementNS(ns, "svg");
     s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("width", "16"); s.setAttribute("height", "16"); s.setAttribute("aria-hidden", "true"); if (cls) s.setAttribute("class", cls);
@@ -2097,7 +2097,7 @@
     if (id === "suggest" || id === "suggest_mine") {
       var view = id === "suggest" ? "send" : "mine";
       if (window.HelmSuggest) return window.HelmSuggest.open({ view: view });
-      var sc = doc.createElement("script"); sc.src = "/suggest.js?v=5";
+      var sc = doc.createElement("script"); sc.src = "/suggest.js?v=6";
       sc.onload = function () { if (window.HelmSuggest) window.HelmSuggest.open({ view: view }); };
       doc.head.appendChild(sc); return;
     }

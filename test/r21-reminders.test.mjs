@@ -61,8 +61,8 @@ const ROW = { id: 'x', kind: 'party', to: 'orders@deccan.test', offset_min: 60, 
   due_text: '20/10/2026, 04:30 PM', event: 'Wedding A', event_date: '20/10/2026', studio: 'Aurora Events', token: TOK, quote_id: '11111111-2222-4333-8444-555555555555' };
 await t('vendor e-mail: what x qty, event, due time, "in 1 hour", and the one-tap link on APP_URL', () => {
   const m = deliveryMessage(ROW, ORIGIN);
-  assert.match(m.subject, /^Reminder: Chairs x120 for Wedding A - due 20\/10\/2026, 04:30 PM$/);
-  assert.match(m.text, /Hello Deccan Rentals/); assert.match(m.text, /due in 1 hour \(20\/10\/2026, 04:30 PM\)/);
+  assert.match(m.subject, /^Reminder: Chairs x120 for Wedding A - due 20 Oct 2026, 04:30 PM$/);
+  assert.match(m.text, /Hello Deccan Rentals/); assert.match(m.text, /due in 1 hour \(20 Oct 2026, 04:30 PM\)/);
   assert.ok(m.text.includes(ORIGIN + '/delivery?t=' + TOK)); assert.match(m.text, /On the way, Arrived, Delayed .* or Problem/);
 });
 await t('"at the time" reminder says "Due now"', () => {

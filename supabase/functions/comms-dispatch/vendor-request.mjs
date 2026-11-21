@@ -3,6 +3,7 @@
 // Each row carries a fresh 64-hex link token minted by the claim (only its sha-256 is stored); the link is
 // APP_URL + "/vendor-request?t=" + token - the host never comes from the database. Anything unexpected ->
 // empty text, and comms-dispatch then marks the row skipped (fails closed). No money in the e-mail.
+import { plainDate } from "../_shared/plain-date.mjs";   // R243 (LOC-04): "20 Oct 2026", never a bare dd/mm/yyyy
 export const VENDOR_TOKEN = /^[0-9a-f]{64}$/;
 export const VENDOR_TX_REASON = "a studio on Helm sent you a vendor request for an event";
 const ORIGIN = /^https:\/\/[A-Za-z0-9.-]{1,190}(?::[0-9]{1,5})?$/;
@@ -25,13 +26,14 @@ export function vendorRequestMessage(row, origin) {
   const link = vendorRequestLink(row, origin);
   if (!what || !WHEN.test(when) || !link) return { subject: "", text: "" };
   const qty = Number(row.qty) > 0 ? " x" + Number(row.qty).toLocaleString("en-IN") : "";
-  const item = what + qty, evLine = event + (DATE.test(date) ? " on " + date : "");
-  const reply = WHEN.test(by) ? " Please reply by " + by + "." : "";
+  const item = what + qty, evLine = event + (DATE.test(date) ? " on " + plainDate(date) : "");
+  const reply = WHEN.test(by) ? " Please reply by " + plainDate(by) + "." : "";
+  const whenAt = plainDate(when);   // R243 (LOC-04)
   return {
-    subject: (row.kind === "reminder" ? "Reminder: " : "") + "Request from " + studio + ": " + item + " for " + event + " (" + when + ")",
+    subject: (row.kind === "reminder" ? "Reminder: " : "") + "Request from " + studio + ": " + item + " for " + event + " (" + whenAt + ")",
     text: "Hello" + (who ? " " + who : "") + ",\n\n" +
       studio + (row.kind === "reminder" ? " is still waiting for your answer: " : " would like to book you: ") + item + " for " + evLine +
-      ", needed " + when + "." + reply + "\n\n" +
+      ", needed " + whenAt + "." + reply + "\n\n" +
       "See the details and the agreed amount, then Accept or Decline - one tap, no sign-in:\n" + link + "\n\n" +
       "After the work you can send your tax invoice from the same link.\n\n" +
       "Thank you,\n" + studio,
