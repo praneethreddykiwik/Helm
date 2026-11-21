@@ -78,6 +78,11 @@ t('MANIFEST + run-all + prod checker know 0413-0415 in order', () => {
   assert.deepEqual(nums.slice(i, i + 4), ['0412', '0413', '0414', '0415']);
   assert.match(RA, /run "r245-p6-account-safety-0413-0415" "R245-P6-ACCOUNT-SAFETY-0413-0415: ALL PASS \\\(40\/40\\\)"/);
   assert.match(RA, /run "r245-apply-0413-0415" "APPLY-0413-0415: ALL OK"/);
+  // owner decision 20 Nov: Phase 9 (0423-0425) is ON HOLD - APPLY-0413..0415 are proven on a DB without 0423-0425
+  assert.match(RA, /^run "r245-apply-order-0413" "R245-APPLY-ORDER-0413: PASS" bash tests\/db\/r245-apply-order-0413\.sh$/m);
+  const ORD = readFileSync(new URL('../tests/db/r245-apply-order-0413.sh', import.meta.url), 'utf8');
+  assert.match(ORD, /\*041\[345\]_r245_\*\|\*042\[345\]_r246_\*\) continue;;/);
+  assert.match(ORD, /for k in 1 2; do\n  for f in 0413 0414 0415;/);
   for (const nn of NUMS) assert.ok(CHK.includes(MIG[nn] ? '_r245_' : 'x') && CHK.includes(`'${nn}_r245_`), nn + ' in CHECK-PROD');
 });
 t('ROLE-03: money access for a Crew / view-only role asks first (pure helper + the matrix uses it)', () => {
