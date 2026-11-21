@@ -96,7 +96,7 @@ t('0412 switches: HQ gate, read-only (stable), Vault by NAME from vault.secrets 
 });
 t('MANIFEST numeric order (0405-0408 left free), checker overrides (notes paste-safe), CHECK-PROD current, release lists, run-all + package', () => {
   const nums = [...MF.matchAll(/^forward  supabase\/migrations\/(\d{4})_/gm)].map((m) => m[1]);
-  { const i = nums.indexOf('0403'); assert.deepEqual(nums.slice(i, i + 9), ['0403', '0404', '0405', '0407', '0408', '0409', '0410', '0411', '0412']); }   // R245: later phases follow 0412   // R240: 0405 = insights overview; R241: 0407 + 0408 = concurrent edits; 0406 left free
+  { const i = nums.indexOf('0403'); assert.deepEqual(nums.slice(i, i + 9), ['0403', '0404', '0405', '0407', '0408', '0409', '0410', '0411', '0412']); }   // R246: 0423+ follow;   // R240: 0405 = insights overview; R241: 0407 + 0408 = concurrent edits; 0406 left free
   for (const nn of NUMS) {
     assert.ok(OV[nn] && OV[nn].note, nn + ' override');
     assert.ok(!/;|\binto\s+[a-z_]/i.test(OV[nn].note), nn + ' note paste-safe');

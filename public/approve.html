@@ -273,7 +273,14 @@
       rows.push(`<div class="r"><span>Subtotal</span><span class="amt">${inr(Math.round(c.subtotal||0))}</span></div>`);
       if(c.discount) rows.push(`<div class="r"><span>Discount</span><span class="amt">− ${inr(Math.round(c.discount))}</span></div>`);
       if(apTax && apTax.country!=="IN") BPStore.tax.rows(c, p, apTax).forEach(r=>add(r.label, Math.round(r.amount||0)));
-      else if(p.placeOfSupply==='inter') add("IGST", Math.round(c.igst||0)); else { const hv=(BPStore.tax&&BPStore.tax.halves)?BPStore.tax.halves((+c.cgst||0)+(+c.sgst||0)):[Math.round(c.cgst||0),Math.round(c.sgst||0)]; add("CGST", hv[0]); add("SGST", hv[1]); }
+      else {
+        // R246 (Q-07): each tax part to paise + a Round-off line, so the lines shown add up to the total payable exactly
+        // (taxable = the subtotal and discount as shown above; the total is the stored one, never recomputed)
+        const g=(+c.cgst||0)+(+c.sgst||0)+(+c.igst||0), tr=(BPStore.tax&&BPStore.tax.rows&&isPriced(p))
+          ? BPStore.tax.rows({ totalGst:g, subtotal:Math.round(c.subtotal||0), discount:Math.round(c.discount||0), total:Number(p.total) }, p, apTax||BPStore.tax.resolve(p||{})) : null;
+        if(tr) tr.forEach(r=>rows.push(`<div class="r"><span>${esc(r.label)}</span><span class="amt">${esc(r.text||inr(r.amount))}</span></div>`));
+        else if(p.placeOfSupply==='inter') add("IGST", Math.round(c.igst||0)); else { const hv=(BPStore.tax&&BPStore.tax.halves)?BPStore.tax.halves((+c.cgst||0)+(+c.sgst||0)):[Math.round(c.cgst||0),Math.round(c.sgst||0)]; add("CGST", hv[0]); add("SGST", hv[1]); }
+      }
     }
     rows.push(isPriced(p) ? `<div class="r grand"><span>Total payable</span><span class="amt">${inr((p&&Number(p.total))||0)}</span></div>`
       : `<div class="r grand"><span>Total payable</span><span class="amt">Not priced yet</span></div>`);

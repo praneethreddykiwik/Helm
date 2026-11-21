@@ -126,7 +126,7 @@
     // raw inputs (same canonical formula as the server's helm_quote_total) and use it
     // only when it adds up to the server-stamped total.
     const c=(function(){ try{ if(!("gstPct" in pr) || !BPStore.pricing || !BPStore.pricing.quoteTotal || !isFinite(+pr.total)) return {};
-      const q=BPStore.pricing.quoteTotal(pr); if(!q || Math.round(q.total)!==Math.round(+pr.total)) return {}; const r={}; Object.keys(q).forEach(k=>{ r[k]=Math.round(+q[k]||0); }); return r; }catch(e){ return {}; } })();
+      const q=BPStore.pricing.quoteTotal(pr); if(!q || Math.round(q.total)!==Math.round(+pr.total)) return {}; const r={}; Object.keys(q).forEach(k=>{ r[k]=Math.round(+q[k]||0); }); r._gst=+q.totalGst||0; return r; }catch(e){ return {}; } })();
     let pvTax=null; try{ pvTax=BPStore.tax.resolve(pr); }catch(e){ pvTax=null; }   // 0079
     const inr=(n)=> (n==null||n===""||isNaN(+n))?"":(pvTax&&pvTax.country!=="IN")?BPStore.tax.money(Number(n),pvTax):"₹"+Number(n).toLocaleString("en-IN");
     const num=(v)=>+v||0;
@@ -139,10 +139,14 @@
     if(c.subtotal!=null)       rows.push(["Subtotal", inr(c.subtotal), "sub"]);
     if(num(c.discount)>0)      rows.push(["Discount", "− "+inr(c.discount), "sub"]);
     if(pvTax && pvTax.country!=="IN"){ BPStore.tax.rows(c, pr, pvTax).forEach(r=>{ if(num(r.amount)>0) rows.push([r.label, inr(Math.round(r.amount)), "sub"]); }); } else {
+    // R246 (Q-07): each tax part to paise + a Round-off line, so the lines add up to the stored total exactly
+    if((num(c.igst)>0||num(c.cgst)>0||num(c.sgst)>0) && BPStore.tax && BPStore.tax.rows && isFinite(+pr.total)){
+      BPStore.tax.rows({ totalGst:c._gst, subtotal:c.subtotal, discount:c.discount||0, total:+pr.total }, pr, pvTax||BPStore.tax.resolve(pr)).forEach(r=>rows.push([r.label, r.text||inr(r.amount), "sub"]));
+    } else {
     if(num(c.igst)>0)          rows.push(["IGST", inr(c.igst), "sub"]);
     { const hv=(BPStore.tax&&BPStore.tax.halves)?BPStore.tax.halves(num(c.cgst)+num(c.sgst)):[num(c.cgst),num(c.sgst)];   // one rounding, CGST + SGST = GST
     if(num(c.cgst)>0)          rows.push(["CGST", inr(hv[0]), "sub"]);
-    if(num(c.sgst)>0)          rows.push(["SGST", inr(hv[1]), "sub"]); }
+    if(num(c.sgst)>0)          rows.push(["SGST", inr(hv[1]), "sub"]); } }
     if(!num(c.igst)&&!num(c.cgst)&&num(c.totalGst)>0) rows.push(["GST", inr(c.totalGst), "sub"]); }
     const total = p.total || c.total || pr.total;
     if(total)                  rows.push(["Total", inr(total), "total"]);

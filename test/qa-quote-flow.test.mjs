@@ -124,15 +124,14 @@ t('B19: confirmed + sent reads "Sent · awaiting client approval" (the label the
   assert.equal(S.quoteStatus({ status: 'confirmed', approvalStatus: 'sent' }).label, 'Sent · awaiting client approval');
   assert.equal(S.quoteStatus({ status: 'confirmed', approvalStatus: 'sent' }, { advance: true }).label, 'Confirmed · advance paid');
 });
-t('B28: GST is rounded once and split from it - CGST + SGST = GST, no half rupees', () => {
-  assert.deepEqual(J(S.tax.halves(79443)), [39722, 39721]);
-  assert.deepEqual(J(S.tax.halves(79442.6)), [39722, 39721]);
+t('B28 -> R246 Q-07: CGST = SGST, each rounded to paise on its own (Indian invoice style); a Round-off line meets the stored total', () => {
+  assert.deepEqual(J(S.tax.halves(79443)), [39722, 39721]);   // the helper is kept (fallback when no breakdown is known)
   assert.deepEqual(J(S.tax.halves(0)), [0, 0]);
   const rows = S.tax.rows({ totalGst: 79443 }, { placeOfSupply: 'intra' }, S.tax.resolve({}));
-  assert.equal(rows.length, 2); assert.deepEqual(J(rows.map((r) => r.amount)), [39722, 39721]);   // was 39,721.5 + 39,721.5
-  assert.match(read('public/approve.html'), /BPStore\.tax\.halves\(\(\+c\.cgst\|\|0\)\+\(\+c\.sgst\|\|0\)\)/);
-  assert.match(read('public/proposal-view.html'), /BPStore\.tax\.halves\(num\(c\.cgst\)\+num\(c\.sgst\)\)/);
-  assert.match(read('public/booklet.js'), /const g2 = Math\.round\(\(cgst \|\| 0\) \+ \(sgst \|\| 0\)\), c2 = Math\.round\(g2 \/ 2\);/);
+  assert.equal(rows.length, 2); assert.deepEqual(J(rows.map((r) => r.amount)), [39721.5, 39721.5]);   // R246 Q-07 (owner-approved fix plan P9): was 39,722 + 39,721
+  assert.match(read('public/approve.html'), /BPStore\.tax\.rows\(\{ totalGst:g,/);
+  assert.match(read('public/proposal-view.html'), /BPStore\.tax\.rows\(\{ totalGst:c\._gst,/);
+  assert.match(read('public/booklet.js'), /const h = r2\(\(\(cgst \|\| 0\) \+ \(sgst \|\| 0\)\) \/ 2\);/);
 });
 
 /* ------------------------------------------------------------------ B20 hall size on step 7, once */
