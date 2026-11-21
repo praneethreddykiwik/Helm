@@ -54,7 +54,10 @@ echo "== r233 anon RPC list (fresh DB) =="; R233="$(bash tests/db/r233-anon-rpcs
 psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1
 
 reseed() { psql -q -v ON_ERROR_STOP=1 -f supabase/test-harness/10-fixtures.sql >/dev/null 2>&1; }
-run() { local name="$1" marker="$2"; shift 2; reseed; local out; out="$("$@" 2>&1)"; if echo "$out" | grep -qE "$marker"; then echo "  ✓ $name"; else echo "  ✗ $name"; echo "$out" | tail -3; fail=1; fi; }
+# R240: the marker is searched in a here-string, not "echo | grep -q": under pipefail, grep -q stopping at the first match
+# while echo is still writing a long output made echo die of SIGPIPE (141), and a suite that printed its ALL PASS line
+# was marked failed (seen on r22-closure-0254: 68/68 printed, marked failed)
+run() { local name="$1" marker="$2"; shift 2; reseed; local out; out="$("$@" 2>&1)"; if grep -qE "$marker" <<<"$out"; then echo "  ✓ $name"; else echo "  ✗ $name"; echo "$out" | tail -3; fail=1; fi; }
 echo "== behavioral suites =="
 # r235 (0401) FIRST (one transaction, rolled back; needs the freshly migrated bodies - later suites re-apply older ones): the bell / badge / Home unread look at the last 90 days - every answer identical before / after for the window (12 people of every role, both kept bodies swapped back in), older rows left out of the bell but kept on the Inbox page, the window copy = the live rule (tripwire), Inbox details only for the page shown; request keys (assign tasks crew / vendor, Remind -> Bell): the same key = the first answer, nothing created / sent twice, different values refused, no key = the old call; seven jobs lock_timeout=10s; time zone copy complete; rolled back
 run "r235-db-load-0401" "R235-DB-LOAD-0401: ALL PASS \(31/31\)" psql -q -f tests/db/r235-db-load-0401.sql
@@ -507,6 +510,10 @@ run "concurrency-otp"    "OTP-CONCURRENCY: PASS"           bash tests/db/concurr
 run "r238-signup-safety-0403" "R238-SIGNUP-SAFETY-0403: ALL PASS \(23/23\)" psql -q -f tests/db/r238-signup-safety-0403.sql
 # r238: APPLY-0403 the way the owner pastes it (one transaction, lock_timeout 5s) on the migrated DB - every check row ok
 run "r238-apply-0403" "APPLY-0403: ALL OK" bash -c 'out="$(psql -X -q -A -t -F "|" -v ON_ERROR_STOP=1 -f supabase/APPLY-0403.sql 2>&1)" || { echo "$out" | tail -3; exit 1; }; n="$(echo "$out" | grep -cE "^[0-9]{2} [^|]*\|t\|")"; if echo "$out" | grep -qE "^[0-9]{2} [^|]*\|f\|"; then echo "$out" | grep -E "\|f\|"; else [ "$n" -ge 8 ] && echo "APPLY-0403: ALL OK ($n)"; fi'
+# r240 (0405): Insights overview - signed in + Insights area + own studio only, Leads / Quotes / Finance parts hidden without their area, previous period of the same shape, funnel / source / month counts, next 30 days with task load, packages, cancellation reasons, overdue = the dashboard overdue list row for row (every row counted, ageing), payment timing, read-only, applied twice; rolled back
+run "r240-insights-overview-0405" "R240-INSIGHTS-0405: ALL PASS \(20/20\)" psql -q -f tests/db/r240-insights-overview-0405.sql
+# r240: APPLY-0405 the way the owner pastes it (one transaction, lock_timeout 5s) on the migrated DB - every check row ok
+run "r240-apply-0405" "APPLY-0405: ALL OK" bash -c 'out="$(psql -X -q -A -t -F "|" -v ON_ERROR_STOP=1 -f supabase/APPLY-0405.sql 2>&1)" || { echo "$out" | tail -3; exit 1; }; n="$(echo "$out" | grep -cE "^[0-9]{2} [^|]*\|t\|")"; if echo "$out" | grep -qE "^[0-9]{2} [^|]*\|f\|"; then echo "$out" | grep -E "\|f\|"; else [ "$n" -ge 5 ] && echo "APPLY-0405: ALL OK ($n)"; fi'
 # r242 (0409-0412, fix plan Phase 5): cron stagger (only jobs exactly as the migration made them move, schedule only; hand-changed / owner / mailer jobs untouched; same interval; undo), package-code wake (never blocks the insert, one call per 20 s, switch / test switch off), ledger lanes for the other mailers, Helm-wide render cap (kill switch, studio day, Helm day / month / cost, plain message + hint, HQ bell at 80 %), HQ switches (HQ only, never a secret value / job text), schema version (signed-in, numbers only); applied twice, rolled back
 run "r242-p5-jobs-0409-0412" "R242-P5-JOBS-0409-0412: ALL PASS \(48/48\)" psql -q -f tests/db/r242-p5-jobs-0409-0412.sql
 # r242: APPLY-0409 .. APPLY-0412 the way the owner pastes them (one transaction each, lock_timeout 5s), twice, on the migrated DB - every check row ok

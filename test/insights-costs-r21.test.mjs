@@ -27,7 +27,7 @@ t('page: masked amounts have no grey box (R115: the shared lock + "Hidden" chip;
 t('page: cost cards wired (finance only), loaded with the 12-month benchmark window, CSP-safe', () => {
   assert.match(INS, /<script src="insights-costs\.js\?v=\d+"><\/script>/);
   assert.match(INS, /if\(canFin && window\.HelmInsightsCosts\) costsUI=HelmInsightsCosts\.mount\(\$\("#costsBody"\),\$\("#benchBody"\)/);
-  assert.match(INS, /BPStore\.insights\.costs\(benchFrom\(r\),r\.to\)/);
+  assert.match(INS, /const pv=BPStore\.insights\.prevRange\?BPStore\.insights\.prevRange\(r\.from,r\.to\):null, bf=benchFrom\(r\), lf=pv&&bf&&pv\.from<bf\?pv\.from:bf;/); assert.match(INS, /BPStore\.insights\.costs\(lf,r\.to\)/);   // R240: + the period before (the cost card still gets only its 12 months: benchRows)
   assert.match(INS, /insights_costs_missing/);
   assert.match(INS, /id="costsCard"[\s\S]*id="benchCard"[\s\S]*id="perEventCard"/);
   assert.doesNotMatch(INS, /style="/);

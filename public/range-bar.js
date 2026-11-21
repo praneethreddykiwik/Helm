@@ -1,6 +1,8 @@
 /* range-bar.js — the shared date-filter bar of Insights + Reports (0076 pass).
-   HelmRange.mount(host, { storeKey, defaultKey, onChange(range) }) builds:
+   HelmRange.mount(host, { storeKey, defaultKey, keys, onChange(range) }) builds:
      Today · Last day · This month · Last month · This year · Custom range   (r26: 30/60/90 days removed)
+     R240: keys = the choices to offer, in order (Insights: Last 7 days · This month · Last month · Last 6 months ·
+     Last 12 months · This year · Custom range); no keys = the shared list above (Reports).
    range = { key, from: "YYYY-MM-DD", to: "YYYY-MM-DD", label }. Preset maths lives in
    BPStore.insights.rangeFor / rangeCheck (pure, unit-tested). CSP: DOM-built only (no HTML strings,
    no inline styling); the look comes from .rb-* rules in each page's <style>.
@@ -37,7 +39,7 @@
     var S = global.BPStore && global.BPStore.insights;
     if (!host || !S) return null;
     var key = opts.storeKey || "helm_range";
-    var presets = S.presets();
+    var presets = S.presets(opts.keys);
     var saved = load(key) || {};
     var known = function (k) { return presets.some(function (p) { return p.key === k; }); };
     var def = known(opts.defaultKey) ? opts.defaultKey : "this_month";
