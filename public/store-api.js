@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=109"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=110"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -11093,8 +11093,19 @@ window.HelmUrl = HelmUrl;
     },
   };
   const insights = {
-    presets: () => RANGE_PRESETS.map((p) => ({ key: p[0], label: p[1] })),
-    rangeFor, rangeCheck, inRange,
+    // R240: presets(keys) = those choices in that order (Insights: INSIGHTS_RANGE_KEYS); no keys = the shared list
+    presets: (keys) => { const all = RANGE_PRESETS.concat(RANGE_EXTRA);
+      return (Array.isArray(keys) && keys.length ? keys.map((k) => all.find((p) => p[0] === k)).filter(Boolean) : RANGE_PRESETS).map((p) => ({ key: p[0], label: p[1] })); },
+    get INSIGHTS_RANGE_KEYS() { return INSIGHTS_RANGE_KEYS.slice(); },   // a getter: the list is declared further down
+    rangeFor, rangeCheck, inRange, prevRange,
+    // R240 (0405) insights_overview: funnel + previous period, lead sources, months, next 30 days, packages,
+    // cancellation reasons, payments (overdue with the dashboard rule + timing; Finance only). Read-only.
+    async overview(from, to) {
+      if (mode !== "supabase" || !supa) return null;
+      let cur = ""; try { cur = String(BPStore.studioCurrency() || "").toUpperCase(); } catch (e) {}
+      try { return await rpc("insights_overview", { p_from: from, p_to: to, p_currency: /^[A-Z]{3}$/.test(cur) ? cur : null }); }
+      catch (e) { if (rpcMissing(e)) { const er = new Error("The sales, payments and coming-up cards need database update 0405 (ask your admin to run APPLY-0405.sql)."); er.code = "insights_overview_missing"; throw er; } throw e; }
+    },
     // 0077 insights_events: per-event profit rows (money null without finance)
     async events(from, to) {
       if (mode !== "supabase" || !supa) return null;
@@ -11135,7 +11146,10 @@ window.HelmUrl = HelmUrl;
     },
     // r = { from, to } (optional): tasks of events dated in the range, losses checked in during
     // it, closed events dated in it. No r = all time (Reports' P&L export without a range).
-    async summary(r) {
+    // R240: opts.margins === false skips the margin trend (Insights draws it from the ledger rows it already has -
+    // no closure.pl call per closed event); Reports' P&L export still gets it.
+    async summary(r, opts) {
+      const noMargins = !!(opts && opts.margins === false);
       const empty = { vendors: [], taskSlips: [], losses: { total: 0, byItem: [], byMonth: [] }, margins: { events: [], withRevenue: [], noRevenue: [], totalProfit: 0, avgMargin: null } };
       if (mode !== "supabase" || !supa) return empty;
       // Wave 16 perf: fetch the event list alongside the three aggregates instead
@@ -11174,7 +11188,7 @@ window.HelmUrl = HelmUrl;
         byItem: Object.entries(byItem).map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty),
         byMonth: Object.entries(byMonth).map(([month, qty]) => ({ month, qty })).sort((a, b) => a.month.localeCompare(b.month)) };
       // margin trends across closed events
-      const closed = events.filter((e) => e.lifecycleStage === "closed" && (!r || inRange(evDate(e), r)));
+      const closed = noMargins ? [] : events.filter((e) => e.lifecycleStage === "closed" && (!r || inRange(evDate(e), r)));
       const pls = await Promise.all(closed.map((e) => closure.pl(e.id)
         .then((pl) => ({ code: e.code, date: e.eventDate, profit: pl.profit, marginPct: pl.marginPct, revenue: pl.revenue, currency: BPStore.quoteCurrency(e) })).catch(() => null)));
       const mlist = pls.filter(Boolean).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
@@ -11539,6 +11553,10 @@ window.HelmUrl = HelmUrl;
   // (last_30/60/90) is not a preset any more → range-bar falls back to This month.
   const RANGE_PRESETS = [["today", "Today"], ["yesterday", "Last day"], ["this_month", "This month"], ["last_month", "Last month"],
     ["this_year", "This year"], ["custom", "Custom range"]];
+  // R240 (owner's parked 7 days / 1 month / 6 months / 1 year idea): extra choices a page can ask for by key
+  // (Insights does; Reports keeps RANGE_PRESETS). "6 / 12 months" are whole months ending with this month.
+  const RANGE_EXTRA = [["last_7", "Last 7 days"], ["last_6m", "Last 6 months"], ["last_12m", "Last 12 months"]];
+  const INSIGHTS_RANGE_KEYS = ["last_7", "this_month", "last_month", "last_6m", "last_12m", "this_year", "custom"];
   function rangeFor(key, today) {
     // r37: no date given = the STUDIO's today (a local Date that reads the studio's calendar day)
     let wall = null; if (!(today && typeof today.getFullYear === "function")) { try { const c = BPStore.studioClock(); if (c) wall = new Date(c.y, c.mo - 1, c.d); } catch (e) {} }
@@ -11554,6 +11572,9 @@ window.HelmUrl = HelmUrl;
       case "last_30": return back(30);
       case "last_60": return back(60);
       case "last_90": return back(90);
+      case "last_7": return back(7);
+      case "last_6m": return { from: iso(new Date(y, m - 5, 1)), to: iso(new Date(y, m + 1, 0)) };
+      case "last_12m": return { from: iso(new Date(y, m - 11, 1)), to: iso(new Date(y, m + 1, 0)) };
       case "this_year": return { from: iso(new Date(y, 0, 1)), to: iso(new Date(y, 11, 31)) };
       default: return null;
     }
@@ -11563,6 +11584,19 @@ window.HelmUrl = HelmUrl;
     const ok = (s) => { s = String(s || ""); if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false; const d = new Date(s + "T00:00:00Z"); return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s; };
     if (!ok(from) || !ok(to) || String(from) > String(to)) return null;
     return { from: String(from), to: String(to) };
+  }
+  // R240: the period just before {from,to}, of the same shape - the same rule as the server (0405 _r405_prev_range):
+  // whole calendar months (1st .. last day) -> the same number of months before; any other period -> the same number of days
+  function prevRange(from, to) {
+    const r = rangeCheck(from, to); if (!r) return null;
+    const p = (s) => s.split("-").map(Number), iso = (d) => d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0");
+    const [fy, fm, fd] = p(r.from), [ty, tm, td] = p(r.to), next = new Date(Date.UTC(ty, tm - 1, td + 1));
+    if (fd === 1 && next.getUTCDate() === 1) {
+      const n = (next.getUTCFullYear() - fy) * 12 + next.getUTCMonth() - (fm - 1);
+      return { from: iso(new Date(Date.UTC(fy, fm - 1 - n, 1))), to: iso(new Date(Date.UTC(fy, fm - 1, 0))) };
+    }
+    const days = Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 864e5) + 1;
+    return { from: iso(new Date(Date.UTC(fy, fm - 1, fd - days))), to: iso(new Date(Date.UTC(fy, fm - 1, fd - 1))) };
   }
   // is a YYYY-MM-DD (or ISO timestamp) inside {from,to}? null range = everything
   // r9: a full timestamp (created_at / paid_at, stored in UTC) is compared by its LOCAL calendar

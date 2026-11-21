@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (359 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (360 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4790 objects): body 173, bucket 9, col 274, con 419, cron 20, exec 19, fn 2144, idx 551, marker 124, pol 190, polexpr 4, pre 116, pub 5, seq 1, tbl 310, trg 429, view 2.
+-- What is checked (4794 objects): body 173, bucket 9, col 274, con 419, cron 20, exec 19, fn 2148, idx 551, marker 124, pol 190, polexpr 4, pre 116, pub 5, seq 1, tbl 310, trg 429, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4783,6 +4783,10 @@ with o(m, k, s, n, x) as (values
   ('0404_r239_money_safety', 'marker', 'public', '_pkg_tg_payment', '|r239-money-0404'),
   ('0404_r239_money_safety', 'fn', 'public', '_pkg_tg_payment__pre0404', ''),
   ('0404_r239_money_safety', 'marker', 'public', '_tr184_purge_tables', '|''money_credits'''),
+  ('0405_r240_insights_overview', 'fn', 'public', '_r405_prev_range', 'date,date'),
+  ('0405_r240_insights_overview', 'fn', 'public', '_r405_funnel', 'uuid,text,date,date,boolean'),
+  ('0405_r240_insights_overview', 'fn', 'public', '_r405_timing', 'uuid,text,date,date'),
+  ('0405_r240_insights_overview', 'fn', 'public', 'insights_overview', 'date,date,text'),
   ('0409_r242_cron_stagger', 'fn', 'public', '_r409_plan', ''),
   ('0409_r242_cron_stagger', 'fn', 'public', '_r409_known_jobs', ''),
   ('0409_r242_cron_stagger', 'fn', 'public', '_r409_mailer_jobs', ''),
@@ -5172,10 +5176,11 @@ mig(ord, m, ov, note) as (values
   (353, '0402_r236_ops_health', null, 'R236: backoff trigger and next_attempt_at on the 7 staff / reminder queues, 8-try limit in the claim bodies (dynamic SQL), mailer cron jobs made only when the Vault secrets exist (see APPLY-0402 check rows 10) - not checked here'),
   (354, '0403_r238_signup_safety', null, null),
   (355, '0404_r239_money_safety', null, 'R239 money safety: _pkg_tg_payment patched in place with dynamic SQL (one condition, old body copied to _pkg_tg_payment__pre0404) and the free-trial purge list patched the same way - checked by markers. R244: the hand-applied Wave 16 rule quote_payments_amount_pos is only re-issued where it already exists, so it is not expected on a fresh database'),
-  (356, '0409_r242_cron_stagger', null, 'R242 cron stagger: only the SCHEDULE of up to 12 jobs Helm''s migrations made changes (cron.alter_job, not an object) - see APPLY-0409 check rows 02 / 03 or select * from public.ops_cron_stagger_report()'),
-  (357, '0410_r242_mailer_wake_ledger', null, 'R242 package code wake + ledger lanes: _ops402_lane re-issued with 5 more lanes (if APPLY-0402 was run again after APPLY-0410 this body shows as older - run APPLY-0410 again), lane CHECK widened (the 0402 one replaced)'),
-  (358, '0411_r242_render_cap', null, 'R242 Helm-wide render cap: the HQ bell label is patched in place with dynamic SQL - checked by its marker'),
-  (359, '0412_r242_switches_schema', null, 'R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)')
+  (356, '0405_r240_insights_overview', null, null),
+  (357, '0409_r242_cron_stagger', null, 'R242 cron stagger: only the SCHEDULE of up to 12 jobs Helm''s migrations made changes (cron.alter_job, not an object) - see APPLY-0409 check rows 02 / 03 or select * from public.ops_cron_stagger_report()'),
+  (358, '0410_r242_mailer_wake_ledger', null, 'R242 package code wake + ledger lanes: _ops402_lane re-issued with 5 more lanes (if APPLY-0402 was run again after APPLY-0410 this body shows as older - run APPLY-0410 again), lane CHECK widened (the 0402 one replaced)'),
+  (359, '0411_r242_render_cap', null, 'R242 Helm-wide render cap: the HQ bell label is patched in place with dynamic SQL - checked by its marker'),
+  (360, '0412_r242_switches_schema', null, 'R242 HQ switches + schema version: read-only functions, helm_schema_markers rows 409-412 are data (APPLY-0412 check row 01)')
 ),
 env as (
   select

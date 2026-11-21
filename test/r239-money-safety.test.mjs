@@ -48,7 +48,8 @@ t('1b paste-safe and additive: no temp table, no psql meta-command, no drop tabl
 });
 t('1c MANIFEST: 0404 right after 0403 (0401 belongs to #478, 0405 / 0406 unused); run-all runs the suite + APPLY; test switch documented', () => {
   assert.match(MAN, /\nforward  supabase\/migrations\/0402_r236_ops_health\.sql\n(# 0401 [^\n]+\nforward  supabase\/migrations\/0401_[^\n]+\n)?# 0403 [^\n]+\nforward  supabase\/migrations\/0403_r238_signup_safety\.sql\n# 0404 [^\n]+\nforward  supabase\/migrations\/0404_r239_money_safety\.sql\n/);
-  assert.ok(!/forward  supabase\/migrations\/040[56]_/.test(MAN), '0405 / 0406 unused');
+  assert.ok(!/forward  supabase\/migrations\/0406_/.test(MAN), '0406 unused');   // R240: 0405 = insights overview (after 0404)
+  assert.match(MAN, /0404_r239_money_safety\.sql\n# 0405 [^\n]+\nforward  supabase\/migrations\/0405_r240_insights_overview\.sql/);
   assert.match(RUNALL, /-c helm\.money_void_gate=off -c helm\.retired_role_gate=off -c helm\.r400_remove=off"/);
   assert.match(RUNALL, /run "r239-money-safety-0404" "R239-MONEY-SAFETY-0404: ALL PASS \\\(60\/60\\\)" psql -q -f tests\/db\/r239-money-safety-0404\.sql/);
   assert.match(RUNALL, /run "r239-apply-0404" "APPLY-0404: ALL OK"/);
