@@ -314,13 +314,13 @@ do $$ declare v jsonb; begin
   perform pg_temp.su();
   perform auth.login_as((select id from public.profiles where org_id = 'a0000000-0000-4000-8000-000000000001' and role = 'admin' order by id limit 1));
   v := public.helm_schema_version();
-  perform pg_temp.t('7b signed-in: version 412 + recent numbers found (numbers only)', (v ->> 'version')::int = 412
+  perform pg_temp.t('7b signed-in: version 412 + recent numbers found (numbers only)', (v ->> 'version')::int >= 412   -- R246: later migrations (0423+) add their own marker rows
     and v -> 'applied' @> '[402, 403, 409, 410, 411, 412]'::jsonb and v ->> 'marker' = 'r242-0412'
     and not exists (select 1 from jsonb_array_elements(v -> 'applied') x where jsonb_typeof(x) <> 'number'), v::text);
   perform pg_temp.su();
-  insert into public.helm_schema_markers(num, name) values (413, '0413_future_update');
+  insert into public.helm_schema_markers(num, name) values (9990, 'r9990_future_update');   -- R246: above every real migration number
   perform auth.login_as((select id from public.profiles where org_id = 'a0000000-0000-4000-8000-000000000001' and role = 'admin' order by id limit 1));
-  perform pg_temp.t('7c a later migration''s marker row raises the version', (public.helm_schema_version() ->> 'version')::int = 413);
+  perform pg_temp.t('7c a later migration''s marker row raises the version', (public.helm_schema_version() ->> 'version')::int = 9990);
   perform pg_temp.su();
 exception when others then perform pg_temp.su(); insert into _rs values ('7x', 'FAIL: ' || sqlstate || ' ' || sqlerrm); end $$;
 

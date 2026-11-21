@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=111"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=112"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -3520,7 +3520,7 @@ window.HelmUrl = HelmUrl;
       lifecycleStage: q.lifecycle_stage || "quote",
       approvalStatus: q.approval_status || "none", approvalToken: q.approval_token,
       currentVersion: q.current_version, client: q.client || {}, pricing, total: pricing.total || 0,
-      eventDate: q.event_date || null, eventTime: q.event_time || null,
+      eventDate: q.event_date || null, eventTime: q.event_time || null, eventEndDate: q.event_end_date || null,   // R246 (0424): last day of a multi-day event (null = one day)
       guests: listGuests(q.pricing_guests, q.client_guests, pricing.guests, q.client && q.client.guests),   // cal-events-1018 (null when unknown)
       updatedAt: q.updated_at, createdAt: q.created_at, confirmedAt: q.confirmed_at,
       // 0040 soft shelves (absent → null on a database without them)
@@ -3530,6 +3530,9 @@ window.HelmUrl = HelmUrl;
   // 0040 adds quotes.archived_at / deleted_at (soft Archive / Deleted shelves). Until a
   // database has them the list queries must not name them: learn it once per tab.
   const QUOTE_SHELF_COLS = ",archived_at,archived_reason,deleted_at,deleted_reason,link_expired_at";
+  // R246 (0424): quotes.event_end_date (last day of a multi-day event) is named in the list reads only once the database
+  // says it has update 0424 (helm_schema_version, 0412) - an older database never gets a "no such column" error
+  const quoteEndCols = async () => { try { return (BPStore.schema && (await BPStore.schema.has(424)) === true) ? ",event_end_date" : ""; } catch (e) { return ""; } };
   let shelfColsKnown = (() => { try { const v = sessionStorage.getItem("bp_q_shelf"); return v === "1" ? true : v === "0" ? false : null; } catch (e) { return null; } })();
   const setShelfColsKnown = (v) => { shelfColsKnown = v; try { sessionStorage.setItem("bp_q_shelf", v ? "1" : "0"); } catch (e) {} };
   // run build(shelf) with the shelf columns when the database may have them; on "no
@@ -3606,9 +3609,10 @@ window.HelmUrl = HelmUrl;
     // is missing one of the named columns falls back to select * rather than a 400.
     // Quotes moved to Archive / Deleted (0040) are left out, guarded like page().
     async list() {
+      const endCols = await quoteEndCols();
       const r = await withShelf(async (shelf) => {
         const data = await sbAll(() => {
-          let q = supa.from("quotes").select(QUOTE_LIST_COLS + (shelf ? QUOTE_SHELF_COLS : ""));
+          let q = supa.from("quotes").select(QUOTE_LIST_COLS + endCols + (shelf ? QUOTE_SHELF_COLS : ""));
           if (shelf) q = q.is("archived_at", null).is("deleted_at", null);
           return q.order("updated_at", { ascending: false }).order("id", { ascending: false });
         });
@@ -3641,7 +3645,8 @@ window.HelmUrl = HelmUrl;
         if (o.sort === "confirmedFirst") q = q.order("status", { ascending: o.view !== "archived" });
         return q.order("updated_at", { ascending: false }).order("id", { ascending: false });
       };
-      const r = await withShelf((shelf) => sbPage(build(QUOTE_PAGE_COLS + (shelf ? QUOTE_SHELF_COLS : ""), shelf), o));
+      const endCols = await quoteEndCols();
+      const r = await withShelf((shelf) => sbPage(build(QUOTE_PAGE_COLS + endCols + (shelf ? QUOTE_SHELF_COLS : ""), shelf), o));
       return { rows: r.rows.map(mapQuoteSummary), hasMore: r.hasMore, offset: r.offset };
     },
     // KPI counters without downloading rows (quotes moved to Archive / Deleted excluded):
@@ -3677,7 +3682,7 @@ window.HelmUrl = HelmUrl;
       return { id: q.id, code: q.code, title: q.title, eventType: q.event_type, status: q.status, lifecycleStage: q.lifecycle_stage || "quote",
         approvalStatus: q.approval_status || "none", approvalToken: q.approval_token, client: q.client || {},
         pricing: q.pricing || {}, currentVersion: q.current_version, createdAt: q.created_at, updatedAt: q.updated_at,
-        eventDate: q.event_date || null, eventTime: q.event_time || null, tax_snapshot: q.tax_snapshot || null, currency: q.currency || null,
+        eventDate: q.event_date || null, eventTime: q.event_time || null, eventEndDate: q.event_end_date || null, tax_snapshot: q.tax_snapshot || null, currency: q.currency || null,
         capacityDecision: q.capacity_decision || null,   // 0197: over-capacity decision (set_quote_capacity_decision)
         consentStale: !!q.consent_stale,   // R112: waiting for the client to approve a changed price again
         confirmedAt: q.confirmed_at, versions: vs.map((v) => ({ id: v.id, versionNo: v.version_no, label: v.label,
@@ -3811,6 +3816,7 @@ window.HelmUrl = HelmUrl;
       if (patch.client) upd.client = patch.client; if (patch.pricing) upd.pricing = patch.pricing; if (patch.status) upd.status = patch.status;
       if (patch.eventDate !== undefined) upd.event_date = patch.eventDate || null;
       if (patch.eventTime !== undefined) upd.event_time = patch.eventTime || null;
+      if (patch.eventEndDate !== undefined) upd.event_end_date = patch.eventEndDate || null;   // R246 (0424): send only after the page checked BPStore.schema.has(424)
       // R241 (0408, Phase 4 Q-02 / DB-08): the lock token is the details counter quotes.meta_rev the page read with this
       // updated_at (it moves only when a detail really changes - a teammate's layout autosave no longer looks like a
       // conflict). Unknown counter / a database without 0408 = the old updated_at check.
@@ -5207,7 +5213,8 @@ window.HelmUrl = HelmUrl;
       const layoutBase   = +rates.layoutBase||0;
       const svcPct       = +(inp.serviceChargePct!=null?inp.serviceChargePct:rates.serviceChargePct)||0;
       const preSvc       = chairsCost + objectsCost + cateringCost + layoutBase;
-      const gstPct       = +(rates.gstPct!=null?rates.gstPct:18);
+      // R246 (Q-08): no rate in the studio's config -> its country's default (UAE 5, US 0, India / others 18 as before)
+      const gstPct       = +(rates.gstPct!=null?rates.gstPct:((BPStore.tax&&BPStore.tax.defaultGst)?BPStore.tax.defaultGst(rates.taxCountry, rates.taxRateOverride):18));
       // D3: percent discount + coupon now honoured here too (were previously
       // dropped by the builder path). D1/D5/D7 via the shared core.
       const c = this._canon({ preSvc, svcPct, discountFixed:+inp.discount||0,
@@ -14752,16 +14759,35 @@ window.HelmUrl = HelmUrl;
     // qa-quote-flow B28: GST is rounded ONCE to whole rupees and split from that, so CGST + SGST always
     // add up to the GST line and every screen shows the same two numbers (39,722 + 39,721, never 39,721.5)
     function halves(gst) { var g = Math.round(Number(gst) || 0), a = Math.round(g / 2); return [a, g - a]; }
-    // display rows for the tax part of a breakdown: [{label, pct, amount}]
+    // R246 (Q-07): Indian invoice style. Each tax part (CGST, SGST or IGST) is rounded to paise (2 decimals) on its own,
+    // and a "Round-off" line (under one rupee, + or -) makes the lines add up to the total exactly. DISPLAY ONLY: the total
+    // is always the stored, server-stamped one (D8) - it is never recomputed or changed here, for old or new quotes.
+    function r2(n) { var x = Number(n); if (!isFinite(x)) return 0; var v = Math.round((Math.abs(x) + 1e-9) * 100) / 100; return x < 0 ? -v : v; }
+    function paise(n) { var x = r2(n), neg = x < 0; return (neg ? "\u2212 " : "") + "\u20b9" + Math.abs(x).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    // the tax parts at 2 decimals: [CGST, SGST] (each half of the tax, rounded on its own) or [IGST]
+    function gstParts(gst, inter) { var g = Number(gst) || 0; if (inter) return [r2(g)]; var h = r2(g / 2); return [h, h]; }
+    // total - (taxable value shown + tax parts shown); 0 when it can't be worked out or would be a rupee or more (then no line)
+    function roundOff(total, taxable, taxParts) {
+      var tt = Number(total), tx = Number(taxable); if (total == null || total === "" || !isFinite(tt) || !isFinite(tx)) return 0;
+      var s = (taxParts || []).reduce(function (a, b) { return a + (Number(b) || 0); }, 0), ro = r2(tt - r2(tx) - s);
+      return Math.abs(ro) < 1 ? ro : 0;
+    }
+    // display rows for the tax part of a breakdown: [{label, pct, amount}] (+ text = the amount at 2 decimals for India)
     function rows(t, pricing, res) {
       res = res || resolve(pricing); t = t || {}; pricing = pricing || {};
       var gst = Number(t.totalGst != null ? t.totalGst : t.gst) || 0, pct = res.rate;
       var inc = res.inclusive ? " (included)" : "";
       if (res.exempt || String(pricing.taxExempt).toLowerCase() === "true") return [{ label: res.name + " (exempt)", pct: 0, amount: 0 }];
       if (res.split) {
-        if (pricing.placeOfSupply === "inter") return [{ label: "IGST" + inc, pct: pct, amount: gst }];
-        var hv = halves(gst);
-        return [{ label: "CGST" + inc, pct: pct / 2, amount: hv[0] }, { label: "SGST" + inc, pct: pct / 2, amount: hv[1] }];
+        var inter = pricing.placeOfSupply === "inter", gp = gstParts(gst, inter);
+        var out = inter ? [{ label: "IGST" + inc, pct: pct, amount: gp[0], text: paise(gp[0]) }]
+          : [{ label: "CGST" + inc, pct: pct / 2, amount: gp[0], text: paise(gp[0]) }, { label: "SGST" + inc, pct: pct / 2, amount: gp[1], text: paise(gp[1]) }];
+        // Round-off only when the breakdown carries the total and the subtotal it shows (taxable = subtotal - discount)
+        if (t.total != null && t.subtotal != null) {
+          var ro = roundOff(t.total, Math.max(0, (Number(t.subtotal) || 0) - (Number(t.discount) || 0)), res.inclusive ? [] : gp);
+          if (ro) out.push({ label: "Round-off", pct: 0, amount: ro, text: (ro > 0 ? "+ " : "") + paise(ro), roundOff: true });
+        }
+        return out;
       }
       var st = ""; if (res.country === "US" && res.region) { var HC = (typeof window !== "undefined" && window.HelmCountry) || null, f = HC && HC.findRegion("US", res.region); st = " (" + (f ? f.code : res.region) + ")"; }
       return [{ label: res.name + st + inc, pct: pct, amount: gst }];
@@ -14804,8 +14830,15 @@ window.HelmUrl = HelmUrl;
       var same = IDENT.every(function (k) { return pr[k] === out[k]; });
       return same ? null : out;
     }
+    // R246 (Q-08, mirrors helm_country_default_gst / 0423): the rate a pricing payload WITHOUT gstPct is priced at -
+    // UAE 5, US 0 (a valid studio override first); India, no country and every other country keep the old 18
+    function defaultGst(cc, override) {
+      cc = String(cc || "").trim().toUpperCase(); if (cc !== "AE" && cc !== "US") return 18;
+      var o = Number(override); if (override != null && override !== "" && isFinite(o) && o >= 0 && o <= 100) return o;
+      return cc === "AE" ? 5 : 0;
+    }
     function countries() { return Object.keys(C).map(function (k) { return { iso: k, name: C[k].name }; }); }
-    return { COUNTRIES: C, profile: profile, resolve: resolve, money: money, validateId: validateId, placeOfSupply: placeOfSupply, halves: halves, rows: rows, snapshot: snapshot, preserveSnapshot: preserveSnapshot, isPricedQuote: isPricedQuote, restampUnpriced: restampUnpriced, SNAPSHOT_KEYS: IDENT.concat(SOFT), countries: countries, code: code };
+    return { COUNTRIES: C, profile: profile, resolve: resolve, money: money, validateId: validateId, placeOfSupply: placeOfSupply, halves: halves, rows: rows, r2: r2, paise: paise, gstParts: gstParts, roundOff: roundOff, defaultGst: defaultGst, snapshot: snapshot, preserveSnapshot: preserveSnapshot, isPricedQuote: isPricedQuote, restampUnpriced: restampUnpriced, SNAPSHOT_KEYS: IDENT.concat(SOFT), countries: countries, code: code };
   })();
 
   // ---- studio money (0089) -------------------------------------------------------
