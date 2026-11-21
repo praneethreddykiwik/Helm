@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=107"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=110"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -222,6 +222,7 @@ window.HelmUrl = HelmUrl;
   let roleCache = null;         // this user's RBAC role
   let accessCache = null;       // { role, map:{area:{view,edit}} | null } — the live access matrix for this user
   let photoProbe = null;        // in-flight / cached render-photo deploy probe (0095)
+  let schemaInfo = null;        // R242 (0412): helm_schema_version() answer, asked once per page
   let rolePromise = null;       // in-flight getRole() (dedupes the parallel canView fan-out)
   let accessPromise = null;     // in-flight loadAccess()
   let trialOrgInflight = null;  // in-flight my_trial_org() (trial strip + read-only check share one call)
@@ -1968,7 +1969,7 @@ window.HelmUrl = HelmUrl;
     loadAuthUi();
   }
   // Account menu / two-step banner live in auth-ui.js (loaded on signed-in staff pages only).
-  const AUTH_UI_VERSION = "66";
+  const AUTH_UI_VERSION = "67";
   let authUiLoading = null;
   function loadAuthUi() {
     if (authUiLoading || typeof document === "undefined") return authUiLoading;
@@ -8845,11 +8846,11 @@ window.HelmUrl = HelmUrl;
   const COST_LS = "bp_costs", CHG_LS = "bp_changes";
   const budget = {
     async listCosts(quoteId) {
-      if (mode === "supabase") { const { data, error } = await supa.from("event_costs").select("*").eq("quote_id", quoteId).order("created_at"); if (error) throw error; return data; }
+      if (mode === "supabase") { const { data, error } = await supa.from("event_costs").select("*").eq("quote_id", quoteId).order("created_at"); if (error) throw error; return (data || []).filter((c) => !c.voided_at); }   // r239
       return readLs(COST_LS).filter((c) => c.quote_id === quoteId);
     },
-    async addCost(quoteId, c) {
-      if (mode === "supabase") { const { data, error } = await supa.from("event_costs").insert({ quote_id: quoteId, ...c }).select().single(); if (error) throw error; return data; }
+    async addCost(quoteId, c, key) {
+      if (mode === "supabase") return keyedInsert("event_costs", { quote_id: quoteId, ...c }, key);   // r239: one form = one row
       const a = readLs(COST_LS); const row = { id: uid(), quote_id: quoteId, estimated: 0, kind: "internal", ...c, created_at: now() }; a.push(row); localStorage.setItem(COST_LS, JSON.stringify(a)); return row;
     },
     async updateCost(id, patch) {
@@ -9076,11 +9077,12 @@ window.HelmUrl = HelmUrl;
   };
   const milestones = {
     async list(quoteId) {
-      if (mode === "supabase") { const { data, error } = await supa.from("payment_milestones").select("*").eq("quote_id", quoteId).order("due_date").order("seq"); if (error) throw error; return data; }
+      // r239 (0404): a voided milestone is history (Settlement -> Voided entries), never part of the schedule
+      if (mode === "supabase") { const { data, error } = await supa.from("payment_milestones").select("*").eq("quote_id", quoteId).order("due_date").order("seq"); if (error) throw error; return (data || []).filter((m) => !m.voided_at); }
       return readLs(MILE_LS).filter((m) => m.quote_id === quoteId).sort((a, b) => String(a.due_date || "").localeCompare(String(b.due_date || "")));
     },
-    async add(quoteId, m) {
-      if (mode === "supabase") { const { data, error } = await supa.from("payment_milestones").insert({ quote_id: quoteId, ...m }).select().single(); if (error) throw error; return data; }
+    async add(quoteId, m, key) {
+      if (mode === "supabase") return keyedInsert("payment_milestones", { quote_id: quoteId, ...m }, key);   // r239: one form = one row
       const a = readLs(MILE_LS); const row = { id: uid(), quote_id: quoteId, status: "due", amount: 0, ...m, created_at: now() }; a.push(row); localStorage.setItem(MILE_LS, JSON.stringify(a)); return row;
     },
     async update(id, patch) {
@@ -9097,9 +9099,13 @@ window.HelmUrl = HelmUrl;
       if (status === "paid" && mode === "supabase") return this.settle(id);
       return this.update(id, { status, paid_at: status === "paid" ? now() : null });
     },
-    settle: (id, method, idempotencyKey) =>
-      rpc("settle_milestone", { p_milestone: id, p_method: method || "cash",
-        p_idempotency_key: idempotencyKey || ((typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "ms-" + id + "-" + Date.now()) }),
+    // r239 (0404): one key per milestone, kept in sessionStorage until the server answers - a retry after a lost answer
+    // (or a reload) gets the same receipt back instead of a "already paid" error for money that was saved
+    async settle(id, method, idempotencyKey) {
+      const scope = "ms-settle:" + id, key = idempotencyKey || moneyKey.get(scope, String(method || "cash"));
+      try { const r = await rpc("settle_milestone", { p_milestone: id, p_method: method || "cash", p_idempotency_key: key }); moneyKey.done(scope); return r; }
+      catch (e) { if (e && (e.code === "23514" || e.code === "42501" || e.code === "22023")) moneyKey.done(scope); throw e; }
+    },
     async remove(id) {
       if (mode === "supabase") { const { error } = await supa.from("payment_milestones").delete().eq("id", id); if (error) throw error; return true; }
       localStorage.setItem(MILE_LS, JSON.stringify(readLs(MILE_LS).filter((m) => m.id !== id))); return true;
@@ -9457,12 +9463,12 @@ window.HelmUrl = HelmUrl;
     async list(quoteId) {
       if (mode === "supabase") {
         const { data, error } = await supa.from("event_refunds").select("*").eq("quote_id", quoteId).order("created_at");
-        if (error) throw error; return data;
+        if (error) throw error; return (data || []).filter((r) => !r.voided_at);   // r239 (0404): voided = history only
       }
       return readLs(REFUND_LS).filter((r) => r.quote_id === quoteId);
     },
-    async add(quoteId, r) {
-      if (mode === "supabase") { const { data, error } = await supa.from("event_refunds").insert({ quote_id: quoteId, ...r }).select().single(); if (error) throw error; return data; }
+    async add(quoteId, r, key) {
+      if (mode === "supabase") return keyedInsert("event_refunds", { quote_id: quoteId, ...r }, key);   // r239: one form = one row
       const a = readLs(REFUND_LS); const row = { id: uid(), quote_id: quoteId, kind: "refund", amount: 0, status: "pending", ...r, created_at: now() }; a.push(row); localStorage.setItem(REFUND_LS, JSON.stringify(a)); return row;
     },
     async setStatus(id, status) {
@@ -9481,11 +9487,11 @@ window.HelmUrl = HelmUrl;
   const EXP_LS = "bp_expenses";
   const expenses = {
     async list(quoteId) {
-      if (mode === "supabase") { const { data, error } = await supa.from("expense_claims").select("*").eq("quote_id", quoteId).order("created_at"); if (error) throw error; return data; }
+      if (mode === "supabase") { const { data, error } = await supa.from("expense_claims").select("*").eq("quote_id", quoteId).order("created_at"); if (error) throw error; return (data || []).filter((e) => !e.voided_at); }   // r239
       return readLs(EXP_LS).filter((e) => e.quote_id === quoteId);
     },
-    async add(quoteId, e) {
-      if (mode === "supabase") { const { data, error } = await supa.from("expense_claims").insert({ quote_id: quoteId, ...e }).select().single(); if (error) throw error; return data; }
+    async add(quoteId, e, key) {
+      if (mode === "supabase") return keyedInsert("expense_claims", { quote_id: quoteId, ...e }, key);   // r239: one form = one row
       const a = readLs(EXP_LS); const row = { id: uid(), quote_id: quoteId, status: "pending", amount: 0, ...e, created_at: now() }; a.push(row); localStorage.setItem(EXP_LS, JSON.stringify(a)); return row;
     },
     async setStatus(id, status) {
@@ -9974,18 +9980,95 @@ window.HelmUrl = HelmUrl;
     saveSettings(patch) { return mlkWrite("money_settings_set", { p: patch || {} }); },
     versions(quoteId) { return mlkCall("event_pnl_versions", { p_quote: quoteId }); },
     freezeNow(quoteId) { return mlkWrite("pnl_freeze_now", { p_quote: quoteId }); },
-    addCorrection(quoteId, category, amount, reason, targetKind) {
-      return mlkWrite("money_correction_add", { p_quote: quoteId, p_category: category, p_amount: amount, p_reason: reason, p_target_kind: targetKind || null, p_target_id: null });
+    async addCorrection(quoteId, category, amount, reason, targetKind, key) {
+      const a = { p_quote: quoteId, p_category: category, p_amount: amount, p_reason: reason, p_target_kind: targetKind || null, p_target_id: null };
+      if (key && mode === "supabase") { try { return await rpc("money_correction_add_once", { p_key: key, ...a }); } catch (e) { if (!rpcMissing(e)) throw e; } }   // r239 (0404)
+      return mlkWrite("money_correction_add", a);
     },
     attendance(quoteId) { return mlkCall("crew_attendance", { p_quote: quoteId }); },
     confirmAttendance(quoteId, rows) { return mlkWrite("crew_attendance_confirm", { p_quote: quoteId, p_rows: rows && rows.length ? rows : null }); },
     tds(quoteId) { return mlkCall("client_tds_list", { p_quote: quoteId }); },
-    recordTds(quoteId, amount, section, rate, note) {
-      return mlkWrite("client_tds_record", { p_quote: quoteId, p_amount: amount, p_section: section || null, p_rate: rate == null || rate === "" ? null : Number(rate), p_note: note || null, p_payment: null });
+    async recordTds(quoteId, amount, section, rate, note, key) {
+      const a = { p_quote: quoteId, p_amount: amount, p_section: section || null, p_rate: rate == null || rate === "" ? null : Number(rate), p_note: note || null, p_payment: null };
+      if (key && mode === "supabase") { try { return await rpc("client_tds_record_once", { p_key: key, ...a }); } catch (e) { if (!rpcMissing(e)) throw e; } }   // r239 (0404)
+      return mlkWrite("client_tds_record", a);
     },
     reverseTds(tdsId, reason) { return mlkWrite("client_tds_reverse", { p_tds: tdsId, p_reason: reason }); },
     form16a(tdsId, receivedOn, note) { return mlkWrite("client_tds_form16a", { p_tds: tdsId, p_received_on: receivedOn || null, p_note: note || null }); },
     taxByMonth(from, to) { return mlkCall("business_tax_by_month", { p_from: from || null, p_to: to || null }); },
+  };
+
+  /* ---------------- R239 / Phase 3 money safety (0404) ----------------
+     (1) a request key per money form that SURVIVES A RELOAD (sessionStorage, until the server answers): a retry after a
+         lost answer sends the same key, so the server records the money once; (2) Void instead of delete (row kept, reason
+         required, left out of every total); (3) Undo paid = a reversing receipt; (4) credit on account; (5) Freeze now. */
+  const MK_PREFIX = "helm_mk:", MK_TTL = 24 * 3600 * 1000;
+  function mkNew() { try { if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID(); } catch (_) {} return "k" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12); }
+  const moneyKey = {
+    // the same scope + the same form contents (sig) = the same key, also after a reload; anything else = a new key
+    get(scope, sig) {
+      const k = MK_PREFIX + String(scope || "form"), s0 = String(sig == null ? "" : sig);
+      try { const raw = global.sessionStorage && sessionStorage.getItem(k); if (raw) { const o = JSON.parse(raw);
+        if (o && o.sig === s0 && o.key && (Date.now() - Number(o.ts || 0)) < MK_TTL) return o.key; } } catch (_) {}
+      const key = mkNew();
+      try { if (global.sessionStorage) sessionStorage.setItem(k, JSON.stringify({ sig: s0, key, ts: Date.now() })); } catch (_) {}
+      return key;
+    },
+    // the server answered (saved, or refused for good): the next entry is a new one
+    done(scope) { try { if (global.sessionStorage) sessionStorage.removeItem(MK_PREFIX + String(scope || "form")); } catch (_) {} },
+    peek(scope) { try { const raw = global.sessionStorage && sessionStorage.getItem(MK_PREFIX + String(scope || "form")); return raw ? (JSON.parse(raw) || {}).key || null : null; } catch (_) { return null; } },
+  };
+  const msNeeds = (e) => { const er = new Error("This needs database update 0404 (ask your admin to run APPLY-0404.sql)."); er.code = "money_safety_missing"; er.cause = e; return er; };
+  const msWrite = async (fn, args) => {
+    if (mode !== "supabase") throw new Error("Needs the online database.");
+    try { return await rpc(fn, args || {}); } catch (e) { if (rpcMissing(e)) throw msNeeds(e); throw e; }
+  };
+  const msRead = async (fn, args) => {
+    if (mode !== "supabase") return null;
+    try { return await rpc(fn, args || {}); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+  };
+  const VOID_KINDS = { refund: "event_refunds", claim: "expense_claims", cost: "event_costs", milestone: "payment_milestones" };
+  // a duplicate-key answer for the form's own request key = the first send was saved
+  const isKeyDup = (e) => !!(e && e.code === "23505" && /_r404_request_key_uq/.test(String(e.message || "") + String(e.details || "")));
+  const isNoKeyCol = (e) => !!(e && (e.code === "PGRST204" || e.code === "42703") && /request_key/.test(String(e.message || "")));
+  // insert one money row with its form key; a repeat returns the row already saved (duplicate: true)
+  async function keyedInsert(table, row, key) {
+    const withKey = key ? { ...row, request_key: key } : row;
+    let r = await supa.from(table).insert(withKey).select().single();
+    if (r.error && key && isNoKeyCol(r.error)) r = await supa.from(table).insert(row).select().single();   // a database before 0404
+    if (r.error && key && isKeyDup(r.error)) {
+      const g = await supa.from(table).select("*").eq("quote_id", row.quote_id).eq("request_key", key).maybeSingle();
+      if (!g.error && g.data) return { ...g.data, duplicate: true };
+    }
+    if (r.error) throw r.error;
+    return r.data;
+  }
+  const moneySafety = {
+    key: moneyKey,
+    voidKinds: Object.keys(VOID_KINDS),
+    // Void: the row stays (who / when / why), crossed out, left out of every total. reason 5-500 characters.
+    voidEntry(kind, id, reason, key) {
+      if (!VOID_KINDS[kind]) return Promise.reject(new Error("Unknown kind of entry."));
+      const r = String(reason || "").trim();
+      if (r.length < 5 || r.length > 500) return Promise.reject(new Error("Give a reason of 5 to 500 characters."));
+      return msWrite("money_void", { p_kind: kind, p_id: id, p_reason: r, p_key: key || null });
+    },
+    voided(quoteId) { return msRead("money_voided_list", { p_quote: quoteId }).then((d) => (d && Array.isArray(d.rows) ? d.rows : null)); },
+    // Undo paid: a NEW minus receipt linked to the original (never an edit of it)
+    reverse(paymentId, reason, key) { return msWrite("payment_reverse", { p_payment: paymentId, p_reason: String(reason || "").trim(), p_key: key || null }); },
+    undoPaid(milestoneId, reason, key) { return msWrite("milestone_undo_paid", { p_milestone: milestoneId, p_reason: String(reason || "").trim(), p_key: key || null }); },
+    // credit on account: what is due = the normal receipt; the extra = a credit (never revenue)
+    recordWithCredit(quoteId, amount, method, note, key) {
+      return msWrite("record_payment_with_credit", { p_quote: quoteId, p_amount: Number(amount) || 0, p_method: method || "cash", p_note: note || null, p_key: key });
+    },
+    credits(quoteId) { return msRead("money_credits_list", { p_quote: quoteId }); },
+    applyCredit(creditId, key) { return msWrite("money_credit_apply", { p_credit: creditId, p_key: key || null }); },
+    refundCredit(creditId, reason, key) { return msWrite("money_credit_refund", { p_credit: creditId, p_reason: String(reason || "").trim(), p_key: key || null }); },
+    // Freeze now (admin + reason; unfreeze too)
+    freeze(quoteId) { return msRead("event_money_freeze_get", { p_quote: quoteId }); },
+    setFreeze(quoteId, on, reason) { return msWrite("event_money_freeze_set", { p_quote: quoteId, p_frozen: !!on, p_reason: String(reason || "").trim() }); },
+    // pure: is this ledger row a reversal / has it been reversed (for the receipts list)
+    reversalOf(rows) { const m = {}; (rows || []).forEach((p) => { if (p && p.reverses_payment_id) m[p.reverses_payment_id] = p; }); return m; },
   };
 
   /* ---------------- R197 P&L clarity phase 1 (0376): the one-glance event money header ----------------
@@ -11083,8 +11166,19 @@ window.HelmUrl = HelmUrl;
     },
   };
   const insights = {
-    presets: () => RANGE_PRESETS.map((p) => ({ key: p[0], label: p[1] })),
-    rangeFor, rangeCheck, inRange,
+    // R240: presets(keys) = those choices in that order (Insights: INSIGHTS_RANGE_KEYS); no keys = the shared list
+    presets: (keys) => { const all = RANGE_PRESETS.concat(RANGE_EXTRA);
+      return (Array.isArray(keys) && keys.length ? keys.map((k) => all.find((p) => p[0] === k)).filter(Boolean) : RANGE_PRESETS).map((p) => ({ key: p[0], label: p[1] })); },
+    get INSIGHTS_RANGE_KEYS() { return INSIGHTS_RANGE_KEYS.slice(); },   // a getter: the list is declared further down
+    rangeFor, rangeCheck, inRange, prevRange,
+    // R240 (0405) insights_overview: funnel + previous period, lead sources, months, next 30 days, packages,
+    // cancellation reasons, payments (overdue with the dashboard rule + timing; Finance only). Read-only.
+    async overview(from, to) {
+      if (mode !== "supabase" || !supa) return null;
+      let cur = ""; try { cur = String(BPStore.studioCurrency() || "").toUpperCase(); } catch (e) {}
+      try { return await rpc("insights_overview", { p_from: from, p_to: to, p_currency: /^[A-Z]{3}$/.test(cur) ? cur : null }); }
+      catch (e) { if (rpcMissing(e)) { const er = new Error("The sales, payments and coming-up cards need database update 0405 (ask your admin to run APPLY-0405.sql)."); er.code = "insights_overview_missing"; throw er; } throw e; }
+    },
     // 0077 insights_events: per-event profit rows (money null without finance)
     async events(from, to) {
       if (mode !== "supabase" || !supa) return null;
@@ -11125,7 +11219,10 @@ window.HelmUrl = HelmUrl;
     },
     // r = { from, to } (optional): tasks of events dated in the range, losses checked in during
     // it, closed events dated in it. No r = all time (Reports' P&L export without a range).
-    async summary(r) {
+    // R240: opts.margins === false skips the margin trend (Insights draws it from the ledger rows it already has -
+    // no closure.pl call per closed event); Reports' P&L export still gets it.
+    async summary(r, opts) {
+      const noMargins = !!(opts && opts.margins === false);
       const empty = { vendors: [], taskSlips: [], losses: { total: 0, byItem: [], byMonth: [] }, margins: { events: [], withRevenue: [], noRevenue: [], totalProfit: 0, avgMargin: null } };
       if (mode !== "supabase" || !supa) return empty;
       // Wave 16 perf: fetch the event list alongside the three aggregates instead
@@ -11164,7 +11261,7 @@ window.HelmUrl = HelmUrl;
         byItem: Object.entries(byItem).map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty),
         byMonth: Object.entries(byMonth).map(([month, qty]) => ({ month, qty })).sort((a, b) => a.month.localeCompare(b.month)) };
       // margin trends across closed events
-      const closed = events.filter((e) => e.lifecycleStage === "closed" && (!r || inRange(evDate(e), r)));
+      const closed = noMargins ? [] : events.filter((e) => e.lifecycleStage === "closed" && (!r || inRange(evDate(e), r)));
       const pls = await Promise.all(closed.map((e) => closure.pl(e.id)
         .then((pl) => ({ code: e.code, date: e.eventDate, profit: pl.profit, marginPct: pl.marginPct, revenue: pl.revenue, currency: BPStore.quoteCurrency(e) })).catch(() => null)));
       const mlist = pls.filter(Boolean).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
@@ -11529,6 +11626,10 @@ window.HelmUrl = HelmUrl;
   // (last_30/60/90) is not a preset any more → range-bar falls back to This month.
   const RANGE_PRESETS = [["today", "Today"], ["yesterday", "Last day"], ["this_month", "This month"], ["last_month", "Last month"],
     ["this_year", "This year"], ["custom", "Custom range"]];
+  // R240 (owner's parked 7 days / 1 month / 6 months / 1 year idea): extra choices a page can ask for by key
+  // (Insights does; Reports keeps RANGE_PRESETS). "6 / 12 months" are whole months ending with this month.
+  const RANGE_EXTRA = [["last_7", "Last 7 days"], ["last_6m", "Last 6 months"], ["last_12m", "Last 12 months"]];
+  const INSIGHTS_RANGE_KEYS = ["last_7", "this_month", "last_month", "last_6m", "last_12m", "this_year", "custom"];
   function rangeFor(key, today) {
     // r37: no date given = the STUDIO's today (a local Date that reads the studio's calendar day)
     let wall = null; if (!(today && typeof today.getFullYear === "function")) { try { const c = BPStore.studioClock(); if (c) wall = new Date(c.y, c.mo - 1, c.d); } catch (e) {} }
@@ -11544,6 +11645,9 @@ window.HelmUrl = HelmUrl;
       case "last_30": return back(30);
       case "last_60": return back(60);
       case "last_90": return back(90);
+      case "last_7": return back(7);
+      case "last_6m": return { from: iso(new Date(y, m - 5, 1)), to: iso(new Date(y, m + 1, 0)) };
+      case "last_12m": return { from: iso(new Date(y, m - 11, 1)), to: iso(new Date(y, m + 1, 0)) };
       case "this_year": return { from: iso(new Date(y, 0, 1)), to: iso(new Date(y, 11, 31)) };
       default: return null;
     }
@@ -11553,6 +11657,19 @@ window.HelmUrl = HelmUrl;
     const ok = (s) => { s = String(s || ""); if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false; const d = new Date(s + "T00:00:00Z"); return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s; };
     if (!ok(from) || !ok(to) || String(from) > String(to)) return null;
     return { from: String(from), to: String(to) };
+  }
+  // R240: the period just before {from,to}, of the same shape - the same rule as the server (0405 _r405_prev_range):
+  // whole calendar months (1st .. last day) -> the same number of months before; any other period -> the same number of days
+  function prevRange(from, to) {
+    const r = rangeCheck(from, to); if (!r) return null;
+    const p = (s) => s.split("-").map(Number), iso = (d) => d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0");
+    const [fy, fm, fd] = p(r.from), [ty, tm, td] = p(r.to), next = new Date(Date.UTC(ty, tm - 1, td + 1));
+    if (fd === 1 && next.getUTCDate() === 1) {
+      const n = (next.getUTCFullYear() - fy) * 12 + next.getUTCMonth() - (fm - 1);
+      return { from: iso(new Date(Date.UTC(fy, fm - 1 - n, 1))), to: iso(new Date(Date.UTC(fy, fm - 1, 0))) };
+    }
+    const days = Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 864e5) + 1;
+    return { from: iso(new Date(Date.UTC(fy, fm - 1, fd - days))), to: iso(new Date(Date.UTC(fy, fm - 1, fd - 1))) };
   }
   // is a YYYY-MM-DD (or ISO timestamp) inside {from,to}? null range = everything
   // r9: a full timestamp (created_at / paid_at, stored in UTC) is compared by its LOCAL calendar
@@ -12319,6 +12436,7 @@ window.HelmUrl = HelmUrl;
     reservedEmailDomain, RESERVED_EMAIL_MESSAGE, preauthorisedHqEmail,
     isStaffEmail, STAFF_GOOGLE_MESSAGE, staffGoogleOnlyFor, staffGoogleSessionCheck,
     moneyLock,   // R189 (0372)
+    moneySafety, // R239 (0404)
     moneyHeader, // R197 (0376)
     moneyCash, // R198 (0377)
     signinNotice,    // R205 (0383)
@@ -12528,6 +12646,27 @@ window.HelmUrl = HelmUrl;
         : Promise.resolve(null)),
       setSettings: (enabled, monthlyQuota, hourlyLimit) => rpc("photo_render_settings_set",
         { p_enabled: !!enabled, p_monthly_quota: Math.round(Number(monthlyQuota) || 0), p_hourly_limit: Math.round(Number(hourlyLimit) || 0) }),
+      // R242 (0411): Helm-wide render limits for this studio (renders paused / today's pictures used / Helm-wide day or month
+      // full) - numbers + flags only. null = a database without 0411 (no Helm-wide limits there).
+      capStatus: () => (supa && mode === "supabase"
+        ? rpc("render_cap_status", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; })
+        : Promise.resolve(null)),
+    },
+    // R242 (0412, HQ-04): which database updates this database has - helm_schema_version() (signed-in, numbers only), asked once
+    // per page. has(n): true = update n is in; false = it is not (the page hides that feature and says "database update
+    // pending" instead of failing); null = unknown (a database before 0412 cannot say for updates before 0412 - the page just
+    // tries, as before). Never throws.
+    schema: {
+      info: () => schemaInfo || (schemaInfo = (supa && mode === "supabase"
+        ? rpc("helm_schema_version", {})
+            .then((r) => (r && Array.isArray(r.applied) ? { version: Number(r.version) || 0, applied: r.applied.map(Number), known: true } : { version: 0, applied: [], known: false }))
+            .catch((e) => { const missing = rpcMissing(e); if (!missing) schemaInfo = null; return { version: 0, applied: [], known: false, before: missing ? 412 : 0 }; })
+        : Promise.resolve({ version: 0, applied: [], known: false, before: 0 }))),
+      has: async (n) => {
+        const i = await BPStore.schema.info(), k = Math.round(Number(n) || 0);
+        if (i.known) return i.applied.includes(k) || (k < 381 && i.version >= 381);
+        return i.before && k >= i.before ? false : null;
+      },
     },
     // 0065 — client event booklet (public/booklet.html?t=<token>). Staff whose role may EDIT
     // quotes share / revoke; current() needs quotes VIEW. get() is the signed-out client read

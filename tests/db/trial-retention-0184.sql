@@ -152,6 +152,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0397_r227_event_plan_lock.sql
 -- 0399 (R230) adds event_department_supervisor_log + event_department_supervisors to the purge list
 \ir ../../supabase/migrations/0399_r230_dept_supervisors.sql
+-- 0404 (R239) adds money_credits, money_request_keys, event_money_freeze_log + event_money_freezes to the purge list before client_tds_certificates
+\ir ../../supabase/migrations/0404_r239_money_safety.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

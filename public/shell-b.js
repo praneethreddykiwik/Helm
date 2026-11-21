@@ -527,7 +527,7 @@
   function suggestOpen(view) {
     function go() { if (window.HelmSuggest) window.HelmSuggest.open({ view: view }); }
     if (window.HelmSuggest) { go(); return; }
-    var sc = document.createElement("script"); sc.src = "/suggest.js?v=5"; sc.onload = go; document.head.appendChild(sc);
+    var sc = document.createElement("script"); sc.src = "/suggest.js?v=6"; sc.onload = go; document.head.appendChild(sc);
   }
 
   function quickCreate(split, nq) {

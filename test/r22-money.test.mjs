@@ -63,7 +63,9 @@ t('moneyByCurrency: only events dated in the range, per currency; margin = the c
   assert.deepEqual(J(X.moneyByCurrency([], null, null)), {});
 });
 t('page: the ledger rows feed the per-event table and the Money tiles (one source), older DB keeps the old numbers', () => {
-  assert.match(INS, /const ledger=\(costsUI && costRes\.status==="fulfilled"[^\n]*costRes\.value\.events : null;/);
+  // R240: the same ledger rows (allRows), cut to the cost card's own 12 months (benchRows), are "ledger"
+  assert.match(INS, /const allRows=\(costsUI && costRes\.status==="fulfilled"[^\n]*costRes\.value\.events : null;/);
+  assert.match(INS, /const ledger=benchRows;/);
   assert.match(INS, /peRows=ledger\?HelmInsightsCosts\.alignEvents\(raw,ledger\):raw;/);
   assert.match(INS, /renderRange\(rangeRes\.value, ledger\?HelmInsightsCosts\.moneyByCurrency\(ledger,r\.from,r\.to\):null\)/);
   assert.match(INS, /function renderRange\(d, led\)\{/);
