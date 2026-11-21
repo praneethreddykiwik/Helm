@@ -92,6 +92,22 @@
     return out;
   }
 
+  // R245 (ACC-20): what "Reassign to <person>" does with the open work (pure; the calls are the existing ones:
+  // tasks = reassign_task to that person's Staff record, events = the event manager, leads = the lead owner).
+  // people = [{ id, name }] (active teammates), crew = Staff rows [{ id, name, phone, profile_id }].
+  // -> { tasks: [{ id, crew }], events: [quote ids], leads: [lead ids], noStaff: n tasks that can't move (no Staff record) }
+  function reassignPlan(work, toUser, crew) {
+    const w = work && typeof work === "object" ? work : {};
+    const staff = (Array.isArray(crew) ? crew : []).find((c) => c && c.profile_id && c.profile_id === toUser && c.active !== false) || null;
+    const tasks = (Array.isArray(w.tasks) ? w.tasks : []).filter((t) => t && t.id);
+    return {
+      tasks: staff ? tasks.map((t) => ({ id: t.id, crew: staff })) : [],
+      noStaff: staff ? 0 : tasks.length,
+      events: (Array.isArray(w.events) ? w.events : []).map((q) => q && q.quote_id).filter(Boolean),
+      leads: (Array.isArray(w.leads) ? w.leads : []).map((l) => l && l.id).filter(Boolean),
+    };
+  }
+
   // ---- DOM ---------------------------------------------------------------------------------------------------------
   function el(tag, attrs, kids) {
     const n = document.createElement(tag);
@@ -171,7 +187,7 @@
   }
 
   // "what they still have open" panel (after a deactivation, or from a deactivated row)
-  function paintWork(box, name, work) {
+  function paintWork(box, name, work, opts) {
     if (!box) return;
     while (box.firstChild) box.removeChild(box.firstChild);
     const links = workLinks(work);
@@ -185,11 +201,38 @@
         ul.appendChild(el("li", null, [el("a", { href: l.href, text: l.text })]));
       });
     }
+    // R245 (ACC-20): "Reassign to ..." - give all of it to one teammate in one step (opts from the page; optional)
+    const o = opts && typeof opts === "object" ? opts : null;
+    if (links.length && o && o.run && Array.isArray(o.people) && o.people.length) {
+      const sel = el("select", { "aria-label": "Reassign to" });
+      sel.appendChild(el("option", { value: "", text: "Pick a teammate" }));
+      o.people.forEach((p) => sel.appendChild(el("option", { value: p.id, text: p.name || "Teammate" })));
+      const go = el("button", { type: "button", cls: "btn sm primary", text: "Reassign" });
+      const note = el("p", { cls: "tsWorkN", role: "status" });
+      go.addEventListener("click", async () => {
+        if (!sel.value) { note.textContent = "Pick the teammate who takes over."; sel.focus(); return; }
+        const plan = reassignPlan(work, sel.value, o.crew);
+        go.disabled = true; sel.disabled = true; note.textContent = "Moving their work...";
+        let ok = 0, bad = 0;
+        const step = async (fn) => { try { await fn(); ok++; } catch (e) { bad++; } };
+        for (const t of plan.tasks) await step(() => o.run.task(t.id, t.crew));
+        for (const q of plan.events) await step(() => o.run.event(q, sel.value));
+        for (const l of plan.leads) await step(() => o.run.lead(l, sel.value));
+        const who = (o.people.find((p) => p.id === sel.value) || {}).name || "them";
+        note.textContent = ok + " item" + (ok === 1 ? "" : "s") + " moved to " + who + "." +
+          (bad ? " " + bad + " could not be moved - open them from the list above." : "") +
+          (plan.noStaff ? " " + plan.noStaff + " task" + (plan.noStaff === 1 ? "" : "s") + " stayed: " + who + " has no Staff record yet." : "");
+        go.disabled = false; sel.disabled = false;
+        if (typeof o.done === "function") o.done();
+      });
+      card.appendChild(el("div", { cls: "tsWorkR" }, [el("label", null, ["Reassign to ", sel]), go]));
+      card.appendChild(note);
+    }
     const close = el("button", { type: "button", cls: "btn sm", text: "Close" });
     close.addEventListener("click", () => { box.hidden = true; while (box.firstChild) box.removeChild(box.firstChild); });
     card.appendChild(close);
     box.appendChild(card); box.hidden = false;
   }
 
-  global.HelmTeam = { view, bannerItems, workLinks, errText, hintOf, when, call, paint, paintWork, HINT_TEXT };
+  global.HelmTeam = { view, bannerItems, workLinks, reassignPlan, errText, hintOf, when, call, paint, paintWork, HINT_TEXT };
 })(typeof window !== "undefined" ? window : globalThis);

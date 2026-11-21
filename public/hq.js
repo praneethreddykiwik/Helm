@@ -1101,10 +1101,9 @@
       el("p", { cls: "hint", text: "E-mails are masked - Show is recorded. Reset two-step only after you have confirmed who is asking (lost phone)." }),
       el("div", { cls: "scroll" }, [el("table", { cls: "rt" }, [el("thead", null, [el("tr", null, ["Name", "E-mail", "Role", "Status", "Last sign-in", "2-step"].map(function (h) { return el("th", { text: h }); }))]), mt])])]));
 
-    // r42: adding / deactivating a studio's logins from HQ is COMING SOON - it waits for PR #271 (r33 team safety:
-    // Deactivate, never delete) and will be HQ Owner / Admin only, two-step + a fresh code, a written reason, logged.
-    wrap.appendChild(el("div", { cls: "card", id: "studioLoginsSoon" }, [el("h2", null, [document.createTextNode("Add or deactivate a studio login "), el("span", { cls: "pill", text: "Coming soon" })]),
-      el("p", { cls: "muted", text: "Studio admins add and deactivate their own people in Settings → Team. Doing it from Helm HQ is coming soon: it will be for HQ Owners and Admins only, with two-step, a written reason and a log entry, and it deactivates (never deletes). Until then, ask a studio admin - or reset two-step above for a lost phone." })]));
+    // R245 (0415, ACC-18 + ACC-24): HQ Owner only - make a named member an admin (a studio whose only admin left) or
+    // deactivate a studio login (never deletes). Two-step + a fresh code, a written reason, logged in HQ + the studio.
+    wrap.appendChild(memberActionsBox(org, d.name, d.members || []));
 
     // r33 (0283): the studio owner, its history, and "Recover studio owner" (owner gone: HQ Owner role, two-step, reason)
     var ownBox = el("div"); wrap.appendChild(ownBox);
@@ -1219,6 +1218,66 @@
     det.appendChild(el("div", { cls: "form" }, [field("New owner (an active admin)", sel), field("Reason", why), go]));
     card.appendChild(det);
   }
+  /* ---------------- R245 (0415): studio logins - Make admin / Deactivate (HQ Owner, two-step, reason) ---------------- */
+  // pure (exported for tests): the members HQ may act on - active, not a client, with a user id
+  function actionableMembers(list) {
+    return (Array.isArray(list) ? list : []).filter(function (m) { return m && m.user_id && m.active !== false && m.role !== "client"; });
+  }
+  function memberActionsBox(org, studio, members) {
+    var card = el("div", { cls: "card", id: "studioLogins" }, [el("h2", { text: "Make admin or deactivate a studio login" })]);
+    if (!can("owner.only")) {
+      card.appendChild(el("p", { cls: "muted", text: "Only the Helm HQ owner can do this. Studio admins add and deactivate their own people in Settings -> Team." }));
+      return card;
+    }
+    card.appendChild(el("p", { cls: "hint", text: "Only after you have checked who is asking (a call back on the registered number, proof of the business). Make admin = a studio whose only admin left. Deactivate switches the login off - nothing is deleted and the studio can reactivate them. Never the studio owner or the last admin. The studio's admins are told." }));
+    var list = actionableMembers(members);
+    if (!list.length) { card.appendChild(el("p", { cls: "muted", text: "Nobody here to act on." })); return card; }
+    var sel = el("select", { "aria-label": "Studio member" });
+    list.forEach(function (m, i) { var mk = isMasked(m.email) ? m.email : maskEmail(m.email || "");
+      sel.appendChild(el("option", { value: String(i), text: (m.display_name || mk || "Member") + (mk ? " (" + mk + ")" : "") + " - " + (m.role || "member") })); });
+    var why = el("textarea", { maxlength: "1000", rows: "3", "aria-label": "Reason", placeholder: "Why, and how you checked who is asking (20+ characters)" });
+    function run(btn, fn, verb, done) {
+      var reason = String(why.value || "").trim();
+      if (reason.length < 20) { showErr({ message: "Write at least 20 characters: why, and how you checked who is asking." }); why.focus(); return; }
+      var m = list[Number(sel.value)]; if (!m) return;
+      if (!window.confirm(verb + " " + (m.display_name || "this member") + " in " + (studio || "this studio") + "? The studio's admins are told.")) return;
+      busy(btn, function () { return call(fn, { p_org: org, p_user: m.user_id, p_reason: reason }).then(function (r) {
+        okMsg(r && r.already ? "Nothing to change - already done." : done); why.value = ""; refreshAfterWrite(org); }); });
+    }
+    var mk = el("button", { cls: "btn", type: "button", text: "Make admin" });
+    mk.addEventListener("click", function () { run(mk, "hq_studio_member_promote", "Make an admin:", "They are now an admin of the studio."); });
+    var off = el("button", { cls: "btn danger", type: "button", text: "Deactivate login" });
+    off.addEventListener("click", function () { run(off, "hq_studio_member_deactivate", "Deactivate the login of", "Login deactivated. Nothing was deleted."); });
+    card.appendChild(el("div", { cls: "form" }, [field("Member", sel), field("Reason", why), el("div", { cls: "actions" }, [mk, off])]));
+    return card;
+  }
+
+  /* ---------------- R245 (0414, ACC-03 + ACC-04): read-only account checks (People tab) ---------------- */
+  var CHECK_WHY = { same_phone: "same phone", same_name_similar_email: "same name + similar e-mail" };
+  // pure (exported for tests): one duplicate pair -> the words shown
+  function dupReason(x) { return ((x && x.reasons) || []).map(function (r) { return CHECK_WHY[r] || r; }).join(", "); }
+  async function loadAccountChecks() {
+    var days = Number($("#acDays").value) || 30;
+    var r = await call("hq_account_checks", { p_days: days }); r = r && !Array.isArray(r) ? r : {};
+    var u = r.unconfirmed || {}, du = r.duplicates || {};
+    $("#acUnconfN").textContent = int(u.count) + " login" + (num(u.count) === 1 ? "" : "s");
+    var tb = clear($("#tUnconf"));
+    (u.rows || []).forEach(function (x) {
+      tb.appendChild(el("tr", null, [el("td", { text: x.email || "—" }), el("td", { text: x.studio || x.role || "—" }), el("td", { text: x.studio ? (x.role || "—") : "—" }),
+        el("td", { text: date(x.created_at) }), el("td", { cls: "n", text: int(x.days_old) }), el("td", { text: x.open_invitation ? "yes" : "no" })]));
+    });
+    if (!tb.firstChild) tb.appendChild(el("tr", null, [el("td", { colspan: "6", cls: "empty", text: "No unconfirmed logins older than " + int(r.days || days) + " days." })]));
+    $("#acDupN").textContent = int(du.count) + " pair" + (num(du.count) === 1 ? "" : "s");
+    var td = clear($("#tDup"));
+    (du.rows || []).forEach(function (x) {
+      var a = x.a || {}, b = x.b || {};
+      td.appendChild(el("tr", null, [el("td", { text: dupReason(x) }), el("td", { text: (a.name || "—") + " · " + (a.email || "") + " · " + (a.studio || "—") }),
+        el("td", { text: (b.name || "—") + " · " + (b.email || "") + " · " + (b.studio || "—") }), el("td", { text: x.same_studio ? "yes" : "no" })]));
+    });
+    if (!td.firstChild) td.appendChild(el("tr", null, [el("td", { colspan: "4", cls: "empty", text: "No possible duplicates found." })]));
+    $("#acOut").hidden = false;
+  }
+
   // pure (r126): stored notes written by Helm's own set-up carry a build number ("... owner (0283)."): never shown (exported for tests)
   function plainText(v) { return String(v == null ? "" : v).replace(/\s*\(0\d{3}[a-z]?\)/g, ""); }
   // pure (r126): who did it - a stored "migration 0277" / "owner decision 0277b" reads as Helm's set-up; an address stays (exported for tests)
@@ -1226,7 +1285,8 @@
   var ACTION_WORDS = { "hq.studio.suspend": "Suspended", "hq.studio.reactivate": "Reactivated", "hq.studio.identity": "Name / link changed",
     "hq.subscription.set": "Subscription changed", "hq.subscription.activate": "Plan activated", "hq.payment.record": "Payment recorded",
     "hq.payment.void": "Payment voided", "hq.trial.extend": "Trial extended", "hq.studio_account.set": "Business details saved", "hq.mfa.reset": "Two-step reset",
-    "hq.reveal": "A masked detail was shown", "hq.credit.grant": "Credit added", "hq.studio.owner_recover": "Studio owner recovered" };
+    "hq.reveal": "A masked detail was shown", "hq.credit.grant": "Credit added", "hq.studio.owner_recover": "Studio owner recovered",
+    "hq.studio.member_promote": "Member made admin", "hq.studio.member_deactivate": "Studio login deactivated" };
   async function loadUsage(org, box, d, useBox) {
     var u = await call("hq_studio_usage", { p_org: org }); u = u && !Array.isArray(u) ? u : {};
     if (useBox) {
@@ -2163,7 +2223,7 @@
     "hq.sales_enquiry.update": "answered a sales enquiry", "hq.suggestion.update": "marked a suggestion", "hq.reveal": "showed a masked detail", "hq.credit.grant": "added a studio credit",
     "hq.self.signout_others": "logged out of all other devices", "hq.self.signout_one": "signed out one of their devices",
     "hq.subscription.set": "changed a subscription by hand", "hq.subscription.activated": "activated a plan", "hq.studio_account.set": "saved a studio's business details",
-    "hq.studio.owner_recover": "recovered a studio owner", "hq.studio.flag_clear": "cleared a studio flag", "hq.studio.test_mode": "switched a test studio on / off", "hq.billing.auto_past_due": "marked a studio past due (automatic)",
+    "hq.studio.owner_recover": "recovered a studio owner", "hq.studio.member_promote": "made a studio member an admin", "hq.studio.member_deactivate": "deactivated a studio login", "hq.studio.flag_clear": "cleared a studio flag", "hq.studio.test_mode": "switched a test studio on / off", "hq.billing.auto_past_due": "marked a studio past due (automatic)",
     "hq.billing.refresh": "refreshed past-due", "hq.billing.settings": "changed invoice settings", "hq.checkout.settings": "changed checkout settings",
     "hq.payment.provider_settled": "a payment settled online", "hq.payment.realised": "marked an export payment realised", "hq.plan.checkout": "changed a plan's website text",
     "hq.plan.price": "changed a plan price", "hq.plan.upsert": "saved a plan", "hq.tax_rule.upsert": "saved a tax rule", "hq.operator.add": "added someone to HQ", "hq.operator.remove": "removed someone from HQ",
@@ -2623,6 +2683,7 @@
     on("#btnPlanCo", "click", savePlanCheckout);
     on("#pcCur", "change", function () { var p = planCo.filter(function (x) { return x.code === $("#pcCode").value; })[0]; if (p) fillPlanCoForm(p, $("#pcCur").value); });
     on("#btnTax", "click", saveTaxRule);
+    on("#btnAcc", "click", function () { var b = $("#btnAcc"); busy(b, loadAccountChecks); });   // R245 (0414): read-only checks
     on("#btnAudit", "click", function () { loadAudit().catch(showErr); loadSecurity().catch(showErr); });
     on("#aWrites", "change", function () { loadAudit().catch(showErr); });
     on("#btnTmAdd", "click", addTeamMember);

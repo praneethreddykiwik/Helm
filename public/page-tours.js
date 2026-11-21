@@ -229,6 +229,8 @@
           { sel: "#um_rows .btn.primary", title: "One main button per person", desc: "Anyone not in yet has one clear next step under their status: Resend invite (an expired link gets a new 7-day one), Send sign-in link (never signed in), or Reactivate. Signed-in people have none." },
           { sel: "#um_rows .ucView", title: "View a person", desc: "View opens their details: the full e-mail (with Copy), phone, role, when they joined and last signed in, who invited them, and New temporary password for a never-used Add user login." },
           { sel: "#um_rows .ucMore", title: "More actions", desc: "The ⋯ button holds the rest: Deactivate (nothing is deleted), Remove access, Open work, Copy invite link or Cancel invite. Arrow keys move through it and Esc closes it." },
+          // R245 (ACC-20): open work -> "Reassign to ..." in one step
+          { sel: "#team_work", title: "Reassign their open work", desc: "After you deactivate someone (or press Open work), their open tasks, events and leads are listed. Pick a teammate under Reassign to and press Reassign to move them all in one step." },
         ],
         access: [
           { sel: "#roleTabs", title: "Pick a role", desc: "Choose the role you want to set up: manager, planner, sales and so on. The box below says in plain words what that role can do, and Needs under a row lists what else must be on (Turn on fixes it)." },
@@ -238,7 +240,7 @@
           { sel: "#mgrClose", title: "Managers can close events", desc: "On by default. Switch it off if only the admin should close events and settle accounts." },
           { sel: '#matrix .chip[data-area="discount_approve"]', title: "Finance: approve discounts", desc: "One switch. Lets this role approve a change that lowers the price. Nobody can approve their own discount." },
           { sel: '#matrix .chip[data-area="close_owed"]', title: "Finance: close with money owed", desc: "One switch. Lets this role close an event that still has a balance due. They must write a reason, and it is logged." },
-          { sel: "#matrix", title: "Saved straight away", desc: "Each tap saves at once. People see the change the next time they open a page." },
+          { sel: "#matrix", title: "Saved straight away", desc: "Each tap saves at once. People see the change the next time they open a page. Giving Crew or a view-only role a money area asks \"are you sure?\" first." },   // R245 (ROLE-03)
         ],
         compliance: [
           { sel: "#btn-export-gdpr", title: "Download your data", desc: "Owner and admins only. Makes a file of your studio's data. It has personal details, so keep it private. Every download is logged." },
@@ -542,11 +544,11 @@
       { sel: "#attList", title: "Needs attention", desc: "Studios and requests waiting on HQ. System health rates every queue, job and sender and says why if job history can't be read. Switches below lists every on / off switch, read-only (secrets: set / not set)." },
       // R154e (0351): Suggestions = the in-app Suggestion box (status, +1, a reply the sender reads in the app)
       { sel: "#tab-requests", side: "right", title: "Requests", desc: "Plan requests, sales enquiries and suggestions from studios. Under Suggestions, filter by status, kind or text, see the +1 count, mark New / Planned / Done / Not now and write a reply the sender reads under My suggestions." },
-      { sel: "#tab-staff", side: "right", title: "Staff access", desc: "Who on the Helm team can use HQ, and with which rights." },
+      { sel: "#tab-staff", side: "right", title: "Staff access", desc: "Who on the Helm team can use HQ, and with which rights. Owner only: the Google-only sign-in card there makes every Helm staff member sign in with their helm.events Google account." },   // + r39 (0288) sgCard
       // r123a (0332): every HQ person - their own sign-ins
       { sel: "#tab-account", side: "right", title: "Where you're logged in", desc: "Every device signed in to HQ with your account: device, rough location, last active. Sign out one, or log out of all other devices." },
-      // r39 (0288): owner-only card on the Staff access tab (shown there only)
-      { sel: "#sgCard", title: "Google-only sign-in", desc: "Owner only: make every Helm staff member sign in to HQ with their helm.events Google account. Read the warning first and keep the emergency undo handy." },
+      // R245 (0414 + 0415): People tab account checks (read-only) + a studio's Make admin / Deactivate login (HQ owner)
+      { sel: "#btnAcc", title: "Account checks", desc: "Read-only: logins never confirmed (30+ days) and people who may have two logins. Nothing is deleted or merged. HQ owner: a studio's People tab can make a member admin or deactivate a login." },
     ],
     "hq-referrals.html": [
       // r118 (F-16): Helm HQ Referrals & partners (HQ staff only; the button sits in the top bar, shown only after the HQ gate)
