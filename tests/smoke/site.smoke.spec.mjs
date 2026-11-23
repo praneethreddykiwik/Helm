@@ -60,7 +60,7 @@ test.describe('anonymous', () => {
     await expect(page.locator('#googleBtn, .gis-btn, iframe[src*="accounts.google.com"]').first()).toBeAttached();
     await page.waitForLoadState('networkidle').catch(() => {});
     await errors.settle();
-    expect(errors, 'console errors on /login').toEqual([]);
+    expect([...errors], 'console errors on /login').toEqual([]);   // R252: copy - errors also carries settle(), so the bare array never equalled []
   });
 
   test('A5 homepage has no console errors', async ({ page }) => {
@@ -68,7 +68,7 @@ test.describe('anonymous', () => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle').catch(() => {});
     await errors.settle();
-    expect(errors, 'console errors on /').toEqual([]);
+    expect([...errors], 'console errors on /').toEqual([]);   // R252: copy - errors also carries settle(), so the bare array never equalled []
   });
 });
 
