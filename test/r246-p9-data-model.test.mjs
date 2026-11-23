@@ -13,8 +13,17 @@ let n = 0; const t = (name, fn) => { fn(); n++; console.log('  ✓ ' + name); };
 const src = rd('public/store-api.js');
 const ti = src.indexOf('BPStore.tax = (function () {'); const te = src.indexOf('})();', ti) + 5;
 const ctx = { BPStore: { countries: () => [] } };
-vm.runInNewContext(src.slice(ti, te), ctx);
+// R250: Phase 9 is on hold in the shipped code (P9_TAX = false); these Q-07 / Q-08 checks run the module with the switch ON
+const TAXSRC = src.slice(ti, te);
+assert.ok(TAXSRC.includes('var P9_TAX = false;'), 'R250 hold switch present and OFF');
+vm.runInNewContext(TAXSRC.replace('var P9_TAX = false;', 'var P9_TAX = true;'), ctx);
 const T = ctx.BPStore.tax;
+// R250: as shipped (switch OFF) the old B28 whole-rupee halves, no Round-off, and every studio defaults to 18 %
+{ const c0 = { BPStore: { countries: () => [] } }; vm.runInNewContext(TAXSRC, c0); const H = c0.BPStore.tax;
+  const r0 = H.rows({ totalGst: 79443, subtotal: 441350, total: 520793 }, { placeOfSupply: 'intra' }, H.resolve({}));
+  assert.equal(JSON.stringify(r0.map((x) => x.label)), '["CGST","SGST"]'); assert.equal(JSON.stringify(r0.map((x) => x.amount)), '[39722,39721]'); assert.ok(r0.every((x) => !x.text));
+  assert.equal(H.defaultGst('AE'), 18); assert.equal(H.defaultGst('US'), 18); assert.equal(H.p9, false);
+  console.log('  ✓ R250 hold: shipped tax module keeps B28 halves, no Round-off, 18 % default'); }
 const J = (x) => JSON.parse(JSON.stringify(x));
 const IN = T.resolve({}), INTER = { placeOfSupply: 'inter' };
 // the canonical money core (same as the server's helm_quote_total for these inputs)
@@ -78,7 +87,8 @@ t('Q-16: last day field (only after 0424), validated, saved with the date; list 
   assert.match(src, /eventEndDate: q\.event_end_date \|\| null/);
   assert.match(src, /if \(patch\.eventEndDate !== undefined\) upd\.event_end_date = patch\.eventEndDate \|\| null;/);
   assert.match(rd('public/calendar.html'), /const end=e\.eventEndDate\|\|e\.endDate\|\|null;/);
-  assert.match(rd('public/page-tours.js'), /a multi-day event shows on every day from its first to its last day/);
+  // R250: Phase 9 on hold - the tours don't promise multi-day / Round-off yet (put the sentences back when P9_TAX goes on)
+  assert.doesNotMatch(rd('public/page-tours.js'), /a multi-day event shows on every day|Round-off line/);
 });
 const MIG = {}; for (const [k, f] of [['0423', '0423_r246_tax_default_country'], ['0424', '0424_r246_event_end_date'], ['0425', '0425_r246_text_len_checks']]) MIG[k] = rd('supabase/migrations/' + f + '.sql');
 t('migrations: additive + idempotent, D8 pricing functions never re-issued, definers pin search_path, NOT VALID only', () => {

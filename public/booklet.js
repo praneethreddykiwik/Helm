@@ -43,6 +43,8 @@
     const o = paise ? { style: "currency", currency: FMT.currency, minimumFractionDigits: 2, maximumFractionDigits: 2 } : { style: "currency", currency: FMT.currency, maximumFractionDigits: 0 };
     try { return new Intl.NumberFormat(FMT.locale, o).format(v); } catch (e) { return paise ? v.toFixed(2) : String(Math.round(v)); }
   }
+  // R250: Phase 9 (R246 Q-07) tax display switch - false while the owner holds Phase 9; true releases paise + Round-off
+  const P9_TAX = false;
   function r2(n) { const x = Number(n); if (!isFinite(x)) return 0; const v = Math.round((Math.abs(x) + 1e-9) * 100) / 100; return x < 0 ? -v : v; }
   // R36: parse with HelmCountry.parseTime so "6:30 PM" stays PM (the old H:MM-only match made it 6:30 AM).
   // Without country-profile.js a 12h string is shown as typed rather than guessed.
@@ -116,6 +118,14 @@
     const inc = incl ? " (included)" : "";
     if (tn && (gst || igst || cgst || sgst)) out.push({ label: tn + inc, detail: pct ? pct + "%" : "", amount: gst || ((igst || 0) + (cgst || 0) + (sgst || 0)) });
     else if (tn) { /* no tax on this quote */ }
+    // R250: Phase 9 is ON HOLD - while P9_TAX is false the booklet keeps the B28 whole-rupee lines (no paise, no Round-off)
+    else if (!P9_TAX && igst) out.push({ label: "IGST" + inc, detail: pct ? pct + "%" : "", amount: igst });
+    else if (!P9_TAX && (cgst || sgst)) {
+      // one rounding to whole rupees, split from it: CGST + SGST = GST on every screen
+      const g2 = Math.round((cgst || 0) + (sgst || 0)), c2 = Math.round(g2 / 2);
+      out.push({ label: "CGST" + inc, detail: pct ? pct / 2 + "%" : "", amount: c2 });
+      out.push({ label: "SGST" + inc, detail: pct ? pct / 2 + "%" : "", amount: g2 - c2 });
+    }
     else if (igst) out.push({ label: "IGST" + inc, detail: pct ? pct + "%" : "", amount: r2(igst), paise: true });
     else if (cgst || sgst) {
       // R246 (Q-07): each half of the tax rounded to paise on its own (Indian invoice style); the Round-off line below
@@ -127,7 +137,7 @@
     const total = num(q.total) != null ? num(q.total) : num(c.total);
     // R246 (Q-07): India - total minus (taxable value + tax parts) shown as "Round-off" (under one rupee; display only,
     // the total is the stored one)
-    if (!tn && (igst || cgst || sgst) && total != null && sub != null) {
+    if (P9_TAX && !tn && (igst || cgst || sgst) && total != null && sub != null) {
       const parts = out.filter((l) => l.paise).reduce((a, l) => a + l.amount, 0);
       const ro = r2(total - r2(Math.max(0, sub - (disc || 0))) - (incl ? 0 : parts));
       if (ro && Math.abs(ro) < 1) out.push({ label: "Round-off", detail: "", amount: ro, paise: true, kind: "roundoff" });
