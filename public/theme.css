@@ -72,6 +72,14 @@ html[data-theme="dark"] .skip-link { background: #047857; color: #fff; }   /* 5.
 }
 #boot:empty::before { height: 56px; }
 #boot:empty::after  { height: 320px; }
+/* R249: the shared spinner rules (store-api BPUI, ":where(#boot:empty)::before" - 36px wide, a ring mask, a rotation) leaked
+   into these bars: the top bar drew as a lone half-drawn spinner glyph, centred, above a tall empty box. The bars are full
+   width, unmasked and never rotate; the block starts at the top (not centred in 40vh). */
+#boot { align-items: stretch; justify-content: flex-start; min-height: 0; }
+#boot:empty::before, #boot:empty::after {
+  width: auto; align-self: stretch; border: 0; box-sizing: border-box; animation: none;
+  -webkit-mask: none; mask: none;
+}
 @media (prefers-reduced-motion: no-preference) {
   #boot:empty::before, #boot:empty::after { animation: bpShimmer 1.3s ease-in-out infinite; }
   @keyframes bpShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }

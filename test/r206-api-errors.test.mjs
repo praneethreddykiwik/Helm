@@ -63,8 +63,10 @@ await t('APPLY-0384 = the migration + a final all-true check list; CONCURRENT = 
 
 await t('quotes.get: maybeSingle (no 406 for 0 rows), still the same "not found" error for its callers', async () => {
   const i = S.indexOf('    async get(id) {\n      // a truncated/garbled id'); assert.ok(i > 0);
-  const g = S.slice(i, S.indexOf('\n    },', i));
-  assert.match(g, /supa\.from\("quotes"\)\.select\("\*"\)\.eq\("id", id\)\.maybeSingle\(\); if \(error\) throw error;\n\s+if \(!q\) \{ const e = new Error\([^)]*\); e\.code = "PGRST116"; throw e; \}/);
+  const g = S.slice(i, S.indexOf('\n    },', S.indexOf('    _shape({ q, error, vs, e2 }, id) {', i)));
+  // R249: the row + its versions are asked side by side; the same checks in the same order (_shape)
+  assert.match(g, /supa\.from\("quotes"\)\.select\("\*"\)\.eq\("id", id\)\.maybeSingle\(\),/);
+  assert.match(g, /if \(error\) throw error;\n\s+if \(!q\) \{ const e = new Error\([^)]*\); e\.code = "PGRST116"; throw e; \}/);
   assert.doesNotMatch(S, /from\("quotes"\)\.select\("\*"\)\.eq\("id", [a-zA-Z]+\)\.single\(\)/);
 });
 
@@ -81,8 +83,9 @@ await t('anon-key guard: + event_costs, quote_stage_history, quote_validity_get;
 await t('a read call the database does not have yet is asked once per page load (event_money_header / event_money_cash)', async () => {
   const i = S.indexOf('  const goneReads = new Set();'); assert.ok(i > 0);
   const src = S.slice(i, S.indexOf('\n  }\n', i) + 4);
-  assert.match(S, /const moneyHeader = \{\n\s+async get\(quoteId\) \{\n\s+if \(mode !== "supabase" \|\| !quoteId\) return null;\n\s+return softRead\("event_money_header", \{ p_quote: quoteId \}\);/);
-  assert.match(S, /return softRead\("event_money_cash", \{ p_quote: quoteId \}\);/);
+  // R249 (0431): through the one money call; the old softRead stays its fallback (database without 0431)
+  assert.match(S, /const moneyHeader = \{\n\s+async get\(quoteId\) \{\n\s+if \(mode !== "supabase" \|\| !quoteId\) return null;\n\s+return moneyOnce\.get\(quoteId, "header", \(\) => softRead\("event_money_header", \{ p_quote: quoteId \}\)\)/);
+  assert.match(S, /return moneyOnce\.get\(quoteId, "cash", \(\) => softRead\("event_money_cash", \{ p_quote: quoteId \}\)\)/);
   const calls = [];
   const ctx = { Set, calls, rpc: async (fn) => { calls.push(fn); if (fn === 'gone') { const e = new Error('Could not find the function'); e.code = 'PGRST202'; throw e; } if (fn === 'deny') { const e = new Error('no'); e.code = '42501'; throw e; } return { ok: fn }; },
     rpcMissing: (e) => e && e.code === 'PGRST202' };

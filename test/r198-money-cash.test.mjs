@@ -187,7 +187,7 @@ t('tabs: Plan vs actual · Cash in & out · Who owes what, ARIA tabs, drawn on f
   assert.match(HJS, /B\.moneyCash\.get\(id\)/);
   assert.match(HJS, /tabs\.push\(\{ key: "cash", label: "Cash in & out"/); assert.match(HJS, /tabs\.push\(\{ key: "owes", label: "Who owes what"/);
   assert.match(HJS, /\(a\.kind === "bill_due" \|\| a\.kind === "collect"\) && typeof onOwes === "function"/);
-  assert.match(API, /return softRead\("event_money_cash", \{ p_quote: quoteId \}\);/);   // R206: null without 0377, asked once per page
+  assert.match(API, /return moneyOnce\.get\(quoteId, "cash", \(\) => softRead\("event_money_cash", \{ p_quote: quoteId \}\)\)/);   // R249: one money call, softRead the fallback   // R206: null without 0377, asked once per page
   assert.match(API, /moneyCash, \/\/ R198 \(0377\)/);
 });
 t('module: DOM building only, no browser storage, no sends, server does the sums (no adding up in the page)', () => {

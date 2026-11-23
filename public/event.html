@@ -92,14 +92,14 @@
 <link rel="stylesheet" href="booklet-share.css?v=8">
 <link rel="stylesheet" href="pkg-review.css?v=4">
 <link rel="stylesheet" href="share-checklist.css?v=5">
-<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=86"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="event-ui.css?v=3">
+<link rel="stylesheet" href="event-ui.css?v=4">
 <link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=5">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=115" id="shellProto"></script>
+<script src="/shell-proto.js?v=116" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -115,7 +115,21 @@
 
   <main id="main">
   <div id="gate" class="card" hidden><p class="muted">Sign in to open this event.</p></div>
-  <div id="boot" aria-busy="true"></div>
+  <!-- R249: the loading look IS the page - an event header card + stage strip + tool cards in the final layout (no lone spinner,
+       no jump). It is hidden the moment the event card paints from its own row; the cards then fill in. -->
+  <div id="boot" class="evsk" aria-busy="true" role="status" aria-label="Loading the event">
+    <div class="card evsk-head" aria-hidden="true">
+      <div class="evsk-row"><div class="evsk-main"><i class="evsk-b evsk-k"></i><i class="evsk-b evsk-t"></i><i class="evsk-b evsk-m"></i><i class="evsk-b evsk-d"></i></div>
+        <div class="evsk-side"><i class="evsk-b evsk-tl"></i><i class="evsk-b evsk-ta"></i><i class="evsk-b evsk-btn"></i></div></div>
+      <div class="evsk-steps"><i class="evsk-b"></i><i class="evsk-b"></i><i class="evsk-b"></i><i class="evsk-b"></i><i class="evsk-b"></i><i class="evsk-b"></i><i class="evsk-b"></i></div>
+    </div>
+    <div class="evsk-grid" aria-hidden="true">
+      <div class="card evsk-mod"><i class="evsk-b evsk-h"></i><i class="evsk-b evsk-l"></i><i class="evsk-b evsk-l2"></i><i class="evsk-b evsk-a"></i></div>
+      <div class="card evsk-mod"><i class="evsk-b evsk-h"></i><i class="evsk-b evsk-l"></i><i class="evsk-b evsk-l2"></i><i class="evsk-b evsk-a"></i></div>
+      <div class="card evsk-mod"><i class="evsk-b evsk-h"></i><i class="evsk-b evsk-l"></i><i class="evsk-b evsk-l2"></i><i class="evsk-b evsk-a"></i></div>
+    </div>
+    <span class="sr-only">Loading the event...</span>
+  </div>
   <div id="loadErr"></div>
   <div id="notfound" class="card" hidden><p class="muted">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
@@ -231,7 +245,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=404"></script><script src="money-header-ui.js?v=2"></script><script src="/trial-sim.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=405"></script><script src="money-header-ui.js?v=3"></script><script src="/trial-sim.js?v=3"></script>
 <script src="flow-resume.js?v=10"></script>
 <script src="event-reminders.js?v=6"></script>
 <script src="page-tours.js?v=74"></script>
@@ -254,6 +268,12 @@
   const M$=(n)=>({__m:n});
   const putMoney=(el,...parts)=>{ el.replaceChildren(...parts.flat(4).map(x=>{ if(x&&typeof x==="object"&&"__m" in x){ const sp=document.createElement("span"); sp.setAttribute("data-money",""); sp.textContent=inr(x.__m); return sp; } return document.createTextNode(x==null?"":String(x)); })); };
   let id=new URLSearchParams(location.search).get("id");
+  // R249: the event row is asked for while the startup read is still on its way (store-api calls HelmPrefetch right after the
+  // session is known) - one round trip less before the event card paints. Used once, only by the first load() for that id.
+  let evEarly=null, evEarlyId=null;
+  window.HelmPrefetch=function(){ try{ if(evEarly||!id||!window.BPStore) return; evEarlyId=id; evEarly=BPStore.quotes.get(id); evEarly.catch(()=>{}); }catch(_){ evEarly=null; } };
+  // R249: the skeleton goes the moment the event card is painted (it used to stay until every card had loaded, above the card)
+  const hideBoot=()=>{ const b=document.getElementById("boot"); if(b){ b.hidden=true; b.removeAttribute("aria-busy"); } };
   // R193: the page's own event check, shared with the widgets that read by the URL id (link views chip, quote validity):
   // they wait for it and stay hidden for an event that is not found instead of calling the server about it.
   let pageQuoteDone=()=>{}; window.HelmPageQuote=new Promise(r=>{ pageQuoteDone=r; });
@@ -336,7 +356,7 @@
     // R163: the event row is asked for NOW, at the same time as the access checks below (each its own round trip on a
     // busy database), instead of after them. Row security still decides what comes back; the answer is only used once
     // the checks have passed. A failure is handled exactly as before (not found / error card with Retry).
-    const evFirst=BPStore.quotes.get(id); evFirst.catch(()=>{});
+    const evFirst=(evEarly && evEarlyId===id) ? evEarly : BPStore.quotes.get(id); evEarly=null; evFirst.catch(()=>{});
     // crew-1020: crew assigned to this event open their own view (run-sheet + my tasks) instead of a dead end
     if(!(await BPStore.auth.canView("quotes")) && BPStore.ops.crew){ try{ if(await BPStore.ops.crew.eventBrief(id)){ location.replace("runsheet.html?id="+encodeURIComponent(id)); return; } }catch(e){} }
     if(!(await BPStore.auth.requireView("quotes"))) return;   // crew/client don't see the workspace
@@ -360,7 +380,9 @@
     { const bk=document.getElementById("bkShare"); if(bk && ev && ev.id){ bk.setAttribute("data-quote", ev.id); if(window.HelmBookletShare) HelmBookletShare.reveal(bk); } }
     if(!ev){ $("#notfound").hidden=false; return; }
     hdrChange=null;
-    $("#app").hidden=false; render();   // paint the workspace shell instantly; summaries fill in below
+    $("#app").hidden=false; render(); hideBoot();   // paint the workspace shell instantly; summaries fill in below
+    // R249 (0431): the money header and the P&L of this event go out as ONE money call (one cost ledger, not two side by side)
+    if(canFin && BPStore.moneyOnce){ try{ BPStore.moneyOnce.wantPage(ev.id||id); BPStore.moneyOnce.want(ev.id||id,["pnl"]); }catch(_){} }
     refreshLinkState();
     // 0206 + r161: a quote not yet Confirmed says what is next: "Next: Venue (step 4 of 8) · Discovery skipped" + Continue where you
     // left off (+ "Last worked on by Priya, 10 min ago"). Editors only, "Not now" hides it for this session. Never blocks the page.

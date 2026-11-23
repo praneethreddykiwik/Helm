@@ -158,3 +158,42 @@ html.hb-priv-on #app .mod .sum :is(.hbp-m,[data-money]){display:inline-block;lin
 @media (max-width:360px){ #evHead .ev-tools{flex-wrap:wrap} }
 /* r24: the Resources stage numbers its cards in the order the work is done (1 stock, 2 people, 3 missing, 4 money) */
 #app .mod .h .mod-step{flex:0 0 auto;display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ---------- R249: loading skeleton in the final layout (header card + stage strip + tool cards) ----------
+   Replaces the shared boot block (a lone spinner glyph above a tall empty box, then the card far below). #boot is hidden the
+   moment the event card paints from its own row; nothing below moves when it goes. */
+#boot.evsk{display:block;max-width:none;min-height:0;margin:0;padding:0;color:inherit}
+#boot.evsk[hidden]{display:none}
+#boot.evsk::before,#boot.evsk::after{content:none;display:none}
+.evsk .evsk-head{padding:20px 22px 16px;margin-bottom:16px}
+.evsk .evsk-row{display:flex;align-items:flex-start;gap:18px}
+.evsk .evsk-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:9px}
+.evsk .evsk-side{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.evsk .evsk-b{display:block;height:12px;border-radius:7px;
+  background:linear-gradient(90deg,var(--panel-2,#f1eee9) 0%,var(--line,#e8e3db) 50%,var(--panel-2,#f1eee9) 100%);background-size:200% 100%}
+.evsk .evsk-k{width:150px;height:14px}
+.evsk .evsk-t{width:min(360px,80%);height:22px}
+.evsk .evsk-m{width:min(240px,60%)}
+.evsk .evsk-d{width:min(200px,50%);height:30px;border-radius:9px;margin-top:4px}
+.evsk .evsk-tl{width:44px;height:10px}
+.evsk .evsk-ta{width:110px;height:24px}
+.evsk .evsk-btn{width:150px;height:34px;border-radius:999px}
+.evsk .evsk-steps{display:flex;gap:8px;margin-top:18px;overflow:hidden}
+.evsk .evsk-steps .evsk-b{flex:1 1 0;min-width:56px;height:34px;border-radius:999px}
+.evsk .evsk-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.evsk .evsk-mod{padding:18px 20px;min-height:180px;border-radius:14px;display:flex;flex-direction:column;gap:12px}
+.evsk .evsk-h{width:55%;height:18px}
+.evsk .evsk-l{width:85%}
+.evsk .evsk-l2{width:65%}
+.evsk .evsk-a{width:120px;height:34px;border-radius:9px;margin-top:auto}
+@media (max-width:1100px){ .evsk .evsk-grid{grid-template-columns:repeat(2,minmax(0,1fr))} .evsk .evsk-grid > :nth-child(3){display:none} }
+@media (max-width:640px){
+  .evsk .evsk-head{padding:16px}
+  .evsk .evsk-row{flex-direction:column;gap:12px}
+  .evsk .evsk-side{align-items:flex-start}
+  .evsk .evsk-steps .evsk-b:nth-child(n+5){display:none}
+  .evsk .evsk-grid{grid-template-columns:minmax(0,1fr);gap:12px}
+  .evsk .evsk-grid > :nth-child(n+2){display:none}
+}
+@media (prefers-reduced-motion:no-preference){ .evsk .evsk-b{animation:evskShimmer 1.3s ease-in-out infinite} }
+@keyframes evskShimmer{from{background-position:100% 0}to{background-position:-100% 0}}
