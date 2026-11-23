@@ -20,11 +20,12 @@ const PAGES = readdirSync(new URL('../public/', import.meta.url)).filter((f) => 
 const PUBLIC = ['index', 'pricing', 'about', 'services', 'contact-sales', 'demo', 'try', 'login', 'terms', 'privacy', 'cookie-policy',
   'acceptable-use', 'accessibility', 'ai-notice', 'copyright', 'data-deletion', 'dpa', 'grievance', 'refund-policy', 'referral-terms',
   'security', 'sla', 'subprocessors'].map((p) => p + '.html');
-function loadSA(href) {
+function loadSA(href, on = true) {   // R251: the shipped file has ENABLED = false; the A-checks run it switched on
   const u = new URL(href), added = [];
   const win = { location: { href: u.href, origin: u.origin, hostname: u.hostname } };
   const doc = { createElement: () => ({}), head: { appendChild: (x) => added.push(x) }, documentElement: {} };
-  vm.runInNewContext(read('public/site-analytics.js'), { window: win, document: doc, URL });
+  const src = read('public/site-analytics.js'); assert.ok(src.includes('var ENABLED = false;'), 'R251 switch present and OFF');
+  vm.runInNewContext(on ? src.replace('var ENABLED = false;', 'var ENABLED = true;') : src, { window: win, document: doc, URL });
   return { win, added };
 }
 
@@ -48,6 +49,10 @@ await t('A2 beforeSend: this origin + an allowlisted path only, query and #hash 
   assert.equal(S.beforeSend(null), null);
   assert.equal(S.beforeSend({ url: 'https://www.helm.events/about', type: 'pageview' }).type, 'pageview', 'other fields kept');
 });
+await t('R251: as shipped (Analytics off in Vercel) nothing is loaded on any page - no 404, no console error', () => {
+  for (const h of ['https://www.helm.events/', 'https://www.helm.events/login', 'https://www.helm.events/pricing']) { const r = loadSA(h, false); assert.equal(r.added.length, 0, h); assert.equal(r.win.va, undefined, h); }
+});
+
 await t('A3 loads /_vercel/insights/script.js (same origin, deferred) on the live site only, after the beforeSend stub', () => {
   const live = loadSA('https://www.helm.events/pricing');
   assert.equal(live.added.length, 1); assert.equal(live.added[0].src, '/_vercel/insights/script.js'); assert.equal(live.added[0].defer, true);
