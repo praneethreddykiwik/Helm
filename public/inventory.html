@@ -98,9 +98,10 @@
 <link rel="stylesheet" href="inventory-polish.css?v=3">
 <link rel="stylesheet" href="theme.css?v=86"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="stock-flow.css?v=2">
+<link rel="stylesheet" href="inventory-layout.css?v=1">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=114" id="shellProto"></script>
+<script src="/shell-proto.js?v=115" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -114,9 +115,22 @@
   </header>
 
   <main id="main">
-  <div id="boot" aria-busy="true"></div>
+  <div id="boot" class="inv-skel" aria-busy="true" aria-label="Loading inventory">
+    <div class="ls-strip" aria-hidden="true"><div class="ls-tile"><span class="sk sk-num"></span><span class="sk w40"></span></div><div class="ls-tile"><span class="sk sk-num"></span><span class="sk w40"></span></div><div class="ls-tile"><span class="sk sk-num"></span><span class="sk w40"></span></div><div class="ls-tile"><span class="sk sk-num"></span><span class="sk w60"></span></div></div>
+    <div class="sk-tabs" aria-hidden="true"><span class="sk w20"></span><span class="sk w20"></span><span class="sk w20"></span></div>
+    <div class="sk-bar" aria-hidden="true"><span class="sk w20"></span><span class="sk sk-in"></span><span class="sk sk-in"></span></div>
+    <div class="card sk-card" aria-hidden="true"><table><thead><tr><th><span class="sk w40"></span></th><th><span class="sk w40 skr"></span></th><th><span class="sk w40 skr"></span></th><th><span class="sk w40 skr"></span></th><th><span class="sk w40 skr"></span></th><th><span class="sk w40 skr"></span></th><th><span class="sk w40 skr"></span></th><th><span class="sk w40 skr"></span></th><th><span class="sk w40 skr"></span></th></tr></thead><tbody><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr></tbody></table></div>
+  </div>
   <div id="app" hidden>
     <div id="eventBar" class="crumb" hidden></div>
+
+    <!-- R248 (0430): numbers only - what you own, what is out, how many upcoming events are short -->
+    <div id="invSummary" class="ls-strip" role="group" aria-label="Stock at a glance">
+      <div class="ls-tile"><span class="ls-tv" id="isItems"><span class="sk sk-num"></span></span><span class="ls-tl">Items</span></div>
+      <div class="ls-tile"><span class="ls-tv" id="isUnits"><span class="sk sk-num"></span></span><span class="ls-tl">Units owned</span></div>
+      <div class="ls-tile"><span class="ls-tv" id="isOut"><span class="sk sk-num"></span></span><span class="ls-tl">Out now</span></div>
+      <button type="button" class="ls-tile ls-tbtn" id="isShortTile"><span class="ls-tv" id="isShort"><span class="sk sk-num"></span></span><span class="ls-tl">Upcoming events short</span></button>
+    </div>
 
     <!-- per-event reservation panel -->
     <div id="eventPanel" class="card" hidden>
@@ -132,9 +146,11 @@
       <div id="rvShort" class="rvs" role="region" aria-label="Not enough stock free" hidden></div>
       <div class="table-scroll"><table class="s-d6f2af6">
         <thead><tr><th scope="col">Item</th><th scope="col" class="num">Reserved</th><th scope="col">Now</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
-        <tbody id="resRows"><tr><td colspan="4" class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></td></tr></tbody>
+        <tbody id="resRows" aria-busy="true"><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr></tbody>
       </table></div>
       <div id="rvShortList" class="rvs-short-list" hidden></div>
+      <!-- R248 (0430): what the latest 2D / 3D floor plan needs vs what is free on this event's stock days -->
+      <div id="layoutNeeds" class="ls-panel" hidden></div>
       <!-- R191 (0374): multi-day stock - the event holds its stock from set-up to teardown (+ the studio's buffer days) -->
       <div id="stockDates" class="sc-card" hidden>
         <h3 class="s-62c1a69">Stock dates</h3>
@@ -152,6 +168,7 @@
     <div class="tabs" role="group" aria-label="Inventory views">
       <button type="button" class="tab active" data-pane="stock" aria-pressed="true" aria-controls="pane-stock">📦 Stock items</button>
       <button type="button" class="tab" data-pane="loans" aria-pressed="false" aria-controls="pane-loans">🔑 Out &amp; back</button>
+      <button type="button" class="tab" data-pane="layout" aria-pressed="false" aria-controls="pane-layout" id="tabLayout" hidden>🧩 From layouts <span id="lsTabBadge" class="ls-badge" title="Upcoming events short" hidden></span></button>
     </div>
 
     <!-- ===== STOCK PANE ===== -->
@@ -171,7 +188,7 @@
     <div class="card table-scroll s-8d8d59e">
       <table>
         <thead><tr><th scope="col">Item</th><th scope="col">Pri</th><th scope="col">Category</th><th scope="col" class="num">Total</th><th scope="col" class="num" title="Reserved for events or out with a person (busiest day)">Reserved / out</th><th scope="col" class="num">Available</th><th scope="col">Unit</th><th scope="col" class="num" id="thCost">Unit cost</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
-        <tbody id="stockRows"><tr><td colspan="9" class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></td></tr></tbody>
+        <tbody id="stockRows" aria-busy="true"><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr></tbody>
       </table>
     </div>
     </div><!-- /pane-stock -->
@@ -195,7 +212,7 @@
         <div class="s-57844cb"><h2 class="s-62c1a69">Out now <span id="loanCount" class="onloan"></span></h2><label class="s-af1acab" title="Check-outs cancelled by mistake are kept for the record; tick to see them."><input type="checkbox" id="showCancelled"> Show cancelled</label></div>
         <table>
           <thead><tr><th scope="col">Item</th><th scope="col">Event</th><th scope="col">Pri</th><th scope="col" class="num">Out</th><th scope="col">Given to</th><th scope="col">When out</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
-          <tbody id="loanRows"><tr><td colspan="7" class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></td></tr></tbody>
+          <tbody id="loanRows" aria-busy="true"><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr></tbody>
         </table>
       </div>
 
@@ -203,7 +220,7 @@
         <div class="s-f145ee8"><h2 class="s-62c1a69">Missing &amp; damaged</h2><span id="lossTotal"></span></div>
         <table>
           <thead><tr><th scope="col">Item</th><th scope="col">Event</th><th scope="col" class="num">Out</th><th scope="col" class="num">Back</th><th scope="col" class="num">Missing</th><th scope="col" class="num">Damaged</th><th scope="col" class="num" id="thLost">Value lost</th><th scope="col">Signed off</th><th scope="col">When back</th><th scope="col">Follow-up</th></tr></thead>
-          <tbody id="lossRows"><tr><td colspan="10" class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></td></tr></tbody>
+          <tbody id="lossRows" aria-busy="true"><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr></tbody>
         </table>
       </div>
       <!-- R191 (0374): stock settings (Inventory edit; the client-portal + cost switches need Finance edit) -->
@@ -217,6 +234,26 @@
         <p id="ss_note" class="sc-note" role="status" aria-live="polite"></p>
       </div>
     </div><!-- /pane-loans -->
+
+    <!-- ===== FROM LAYOUTS PANE (R248, 0430) ===== -->
+    <div id="pane-layout" hidden>
+      <div class="toolbar">
+        <h2>From layouts</h2>
+        <select id="lsRange" class="sel" aria-label="Which events"></select>
+        <label class="ls-check"><input type="checkbox" id="lsShortOnly"> Short only</label>
+        <span class="spacer"></span>
+        <span id="lsSum" class="ls-sub" role="status" aria-live="polite"></span>
+      </div>
+      <p class="ls-note">Helm counts stock by day. Two events on the same day can't share the same units unless they come back - reserve separately or set a later stock date.</p>
+      <div id="lsEvents" class="ls-events"></div>
+      <div class="card" id="lsLinks">
+        <h2>Link layout products</h2>
+        <p class="sub">Tell Helm which stock item each floor-plan product uses. A round table can count as 1 table per object plus 1 chair per seat (two links). Links are used for every event.</p>
+        <div id="lsLinkBody"></div>
+        <h3 class="ls-h">Linked</h3>
+        <div id="lsLinked"></div>
+      </div>
+    </div><!-- /pane-layout -->
   </div>
 
   <div id="gate" class="card" hidden><p class="s-1a1aca0">Sign in to manage inventory.</p></div>
@@ -299,16 +336,17 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=403"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=404"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=73"></script>
-<script src="tour.js?v=88"></script>
+<script src="page-tours.js?v=74"></script>
+<script src="tour.js?v=89"></script>
 <script src="checkout-shortage.js?v=6"></script>
 <script src="stock-flow.js?v=2"></script>
 <script src="stock-checkin.js?v=1"></script>
 <script src="capacity-shortage.js?v=9"></script>
+<script src="inventory-layout.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -323,7 +361,9 @@
   let attrDefs=[], attrEd=null, editingItem=null, canEdit=false, canDelete=false, avail={}, items=[], reservations=[], checkouts=[], quotesById={}, editingId=null, filter="", catF="", priF="", showInactive=false, showCancelled=false;
   const PRI={A:"A",B:"B",C:"C"};
   // R191 (0374): stock settings + what this person may see (server answer); null = database without 0374 (old behaviour)
-  let invCtx=null, story={}, canCost=true, canMoney=true;
+  let invCtx=null, story={}, canCost=true, canMoney=true, layoutMounted=false;
+  // R248: startup state - the settings read (started at boot), the Out & back lists wanted yet?, the page booted?
+  let ctxReady=Promise.resolve(null), loansWanted=!!quoteId, loansBusy=null, booted=false;
   const SC=window.HelmStockCheckin;
   const INV_CATEGORIES=["Seating","Tables","Linens","Lighting","Sound & AV","Staging & Structures","Decor & Florals","Catering Equipment","Tableware","Power & Cabling","Tents & Canopies","Signage","Office & Misc"];
   const STARTER_ITEMS=[
@@ -681,12 +721,15 @@
     document.querySelectorAll(".tab").forEach(x=>{ x.classList.toggle("active",x.dataset.pane===pane); x.setAttribute("aria-pressed",String(x.dataset.pane===pane)); });
     $("#pane-stock").hidden=pane!=="stock";
     $("#pane-loans").hidden=pane!=="loans";
+    $("#pane-layout").hidden=pane!=="layout";
+    if(pane==="loans") loadLoans();
   }
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>activatePane(t.dataset.pane)));
   // Deep-link: inventory.html?tab=loans (or ?tab=checkouts) opens the Check-out / Check-in tab
   // — used by the teardown workflow so check-in/out is reachable from the event flow.
   (function(){ const tp=(new URLSearchParams(location.search).get("tab")||"").toLowerCase();
-    if(tp==="loans"||tp==="checkouts"||tp==="checkin"||tp==="checkout") activatePane("loans"); })();
+    if(tp==="loans"||tp==="checkouts"||tp==="checkin"||tp==="checkout") activatePane("loans");
+    if(tp==="layout"||tp==="layouts") activatePane("layout"); })();
 
   /* ---- check-out / check-in ---- */
   function renderCheckouts(){
@@ -931,19 +974,22 @@
   // L13: ...with Save switched off and a "Choose a plan to add more" link (an edit switches Save back on)
   function capHint(){ if(!window.BPUI) return; if(BPUI.capDialog){ BPUI.capDialog($("#im_save"),$("#im_err"),"inventory_items","items",()=>!editingId&&!$("#itemModal").hidden); return; }
     if(!BPUI.trialCap) return; BPUI.trialCap("inventory_items").then(c=>{ if(c&&c.full&&!editingId&&!$("#itemModal").hidden){ $("#im_err").textContent=BPUI.capText(c,"items"); $("#im_err").hidden=false; } }).catch(()=>{}); }
+  // R248 (owner: the page loaded slowly - prod is ~250 ms a round trip away): the stock list needs ONE round trip -
+  // the items + the demand already counted (inventory_demand, 0430) + the settings, side by side. The Out & back lists
+  // (every check-out, every event name, the loss story) are read only on the event page or once that tab is opened.
   async function load(){
     gateCap();
-    // Wave 16 perf: these five fetches are independent — run them in parallel
-    // (was a 5-deep sequential waterfall) while preserving each group's error UI.
+    const itemsP=BPStore.inventory.items(showInactive);
+    const wantLoans=loansWanted;
     const [itemsR, availR, resR, coR, qlR, stR] = await Promise.allSettled([
-      BPStore.inventory.items(showInactive),
-      BPStore.inventory.availability(quoteId||undefined),
+      itemsP,
+      BPStore.inventory.availability(quoteId||undefined, undefined, itemsP),
       quoteId ? BPStore.inventory.reservations(quoteId) : Promise.resolve(null),
-      BPStore.inventory.checkouts.list(quoteId||null),
-      BPStore.quotes.list(),
-      invCtx && BPStore.inventory.stock ? BPStore.inventory.stock.story(quoteId||null) : Promise.resolve(null),
+      wantLoans ? BPStore.inventory.checkouts.list(quoteId||null) : Promise.resolve(null),
+      wantLoans && !quoteId ? BPStore.quotes.list() : Promise.resolve(null),
+      wantLoans && BPStore.inventory.stock ? BPStore.inventory.stock.story(quoteId||null) : Promise.resolve(null),
+      ctxReady,
     ]);
-    story=(stR.status==="fulfilled"&&stR.value&&stR.value.lines&&typeof stR.value.lines==="object")?stR.value.lines:{};
     if(itemsR.status!=="fulfilled" || availR.status!=="fulfilled"){
       const e=(itemsR.reason||availR.reason);
       BPUI.loadError($("#stockRows"), e, load, {what:"inventory"});
@@ -956,12 +1002,30 @@
     if(canEdit) ["#rv_add","#co_add"].forEach(s=>{ $(s).disabled=false; });
     items=Array.isArray(itemsR.value)?itemsR.value:[]; avail=(availR.value&&typeof availR.value==="object")?availR.value:{}; stockLoaded=true;
     renderStock();
-    if(coR.status==="fulfilled"){ checkouts=coR.value; quotesById = qlR.status==="fulfilled" ? Object.fromEntries((qlR.value||[]).map(q=>[q.id,q])) : {}; renderCheckouts(); }
-    else { checkouts=[]; renderCheckouts(); BPUI.loadError($("#loanRows"), coR.reason, load, {what:"check-outs"}); $("#lossRows").innerHTML='<tr><td colspan="9" class="empty">—</td></tr>'; $("#lossTotal").innerHTML=""; $("#co_add").disabled=true; }
+    if(window.HelmLayoutStock&&layoutMounted) HelmLayoutStock.stockChanged();
+    if(wantLoans) applyLoans(coR, qlR, stR);
     if(quoteId){
       if(resR.status==="fulfilled"){ reservations=resR.value; renderEventPanel(); }
       else { renderEventPanel(); BPUI.loadError($("#resRows"), resR.reason, load, {what:"this event's reservations"}); }
     }
+  }
+  function applyLoans(coR, qlR, stR){
+    story=(stR.status==="fulfilled"&&stR.value&&stR.value.lines&&typeof stR.value.lines==="object")?stR.value.lines:{};
+    if(coR.status==="fulfilled"){ checkouts=coR.value||[];
+      if(qlR.status==="fulfilled"&&Array.isArray(qlR.value)) quotesById=Object.fromEntries(qlR.value.map(q=>[q.id,q]));
+      renderCheckouts(); }
+    else { checkouts=[]; renderCheckouts(); BPUI.loadError($("#loanRows"), coR.reason, load, {what:"check-outs"}); $("#lossRows").innerHTML='<tr><td colspan="9" class="empty">—</td></tr>'; $("#lossTotal").innerHTML=""; $("#co_add").disabled=true; }
+  }
+  // the Out & back tab opened on the main page: its lists are read now (once; later reloads include them)
+  function loadLoans(){
+    if(!booted){ loansWanted=true; return Promise.resolve(); }   // ?tab=loans: the first load reads them with the stock
+    if(loansWanted) return loansBusy||Promise.resolve();
+    loansWanted=true;
+    loansBusy=Promise.allSettled([
+      BPStore.inventory.checkouts.list(null), BPStore.quotes.list(),
+      BPStore.inventory.stock ? BPStore.inventory.stock.story(null) : Promise.resolve(null),
+    ]).then(([coR,qlR,stR])=>{ applyLoans(coR,qlR,stR); }).catch(()=>{});
+    return loansBusy;
   }
 
   // Populate the "Issued to" dropdown with staff + vendors (one shared source)
@@ -974,28 +1038,42 @@
   }
 
   BPUI.boot(async ()=>{
-    await BPStore.init(); await renderAccount();
+    await BPStore.init();
+    renderAccount().catch(()=>{});   // the header account chip never holds up the page
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("inventory"))) return;
+    // role + access come from the one-request startup read (R217): no extra round trip here
     canEdit=await BPStore.auth.canEditArea("inventory"); canDelete=canEdit && await BPStore.auth.can("delete");
-    try{ attrDefs=await BPStore.smartImport.fieldDefs("inventory"); }catch(e){ attrDefs=[]; }
-    // R191 (0374): what this person may see; an older database answers null (costs as the data gives them)
-    try{ invCtx=BPStore.inventory.stock?await BPStore.inventory.stock.settings():null; }catch(e){ invCtx=null; }
-    if(invCtx){ canCost=!!invCtx.can_cost; canMoney=!!invCtx.can_money; }
-    renderSettings();
-    $("#app").hidden=false; $("#newBtn").hidden=!canEdit;
+    booted=true;
+    // R248: the page (with its skeleton rows) shows at once; the same shape as the boot skeleton, so nothing jumps
+    if(quoteId) $("#invSummary").hidden=true;
+    $("#boot").hidden=true; $("#app").hidden=false; $("#newBtn").hidden=!canEdit;
     if(!canEdit) $("#coCard").querySelectorAll("input,select,button").forEach(el=>el.disabled=true);
     if(quoteId){
       $("#eventPanel").hidden=false; $("#eventBar").hidden=false; $("#rvNextStep").href="ops.html?quote="+encodeURIComponent(quoteId);
-      try{ const ev=await BPStore.quotes.get(quoteId); evDateText=ev.eventDate?fmtDate(ev.eventDate):""; evDate=ev.eventDate||""; $("#eventBar").innerHTML=`<a href="event.html?id=${encodeURIComponent(quoteId)}">← Back to workspace</a> · ${esc(ev.code||"")}${ev.title&&ev.title!==ev.code?(" · "+esc(ev.title)):""}`; }catch{}
       if(!canEdit) $("#eventPanel").querySelectorAll("input,select,button").forEach(el=>el.disabled=true);
     }
-    // R116: the people list (staff + vendors for "Issued to") never holds up the stock list - a failed read used to
-    // stop boot before load(), so the table stayed blank with no empty state
-    try{ await fillPeople(); }catch(_){}
-    // r24: reservations that are done (never taken out after the event day, or everything back) are released first
-    if(quoteId && canEdit && BPStore.inventory.releaseUnused){ try{ await BPStore.inventory.releaseUnused(quoteId,false); }catch(_){} }
-    await load();
+    // R248: every startup read starts NOW, side by side (was one after the other: custom fields -> settings -> the event ->
+    // people -> release -> stock -> floor plan). R191 (0374): settings = what this person may see; older database = null.
+    ctxReady=(BPStore.inventory.stock?BPStore.inventory.stock.settings():Promise.resolve(null)).catch(()=>null)
+      .then(c=>{ invCtx=c||null; if(invCtx){ canCost=!!invCtx.can_cost; canMoney=!!invCtx.can_money; } renderSettings(); return invCtx; });
+    const jobs=[
+      BPStore.smartImport.fieldDefs("inventory").then(d=>{ attrDefs=d||[]; },()=>{ attrDefs=[]; }),
+      // R116: the people list (staff + vendors for "Issued to") never holds up the stock list
+      fillPeople().catch(()=>{}),
+      quoteId ? BPStore.quotes.get(quoteId).then(ev=>{ evDateText=ev.eventDate?fmtDate(ev.eventDate):""; evDate=ev.eventDate||""; quotesById[quoteId]=ev;
+        $("#eventBar").innerHTML=`<a href="event.html?id=${encodeURIComponent(quoteId)}">← Back to workspace</a> · ${esc(ev.code||"")}${ev.title&&ev.title!==ev.code?(" · "+esc(ev.title)):""}`;
+        if(stockLoaded) renderEventPanel(); }).catch(()=>{}) : null,
+      (async()=>{
+        // r24: reservations that are done (never taken out after the event day, or everything back) are released first
+        if(quoteId && canEdit && BPStore.inventory.releaseUnused){ try{ await BPStore.inventory.releaseUnused(quoteId,false); }catch(_){} }
+        await load();
+      })(),
+      // R248 (0430): the floor-plan products (From layouts tab, the per-event table, the top strip); hidden on a database without 0430
+      window.HelmLayoutStock ? (layoutMounted=true, HelmLayoutStock.mount({ quoteId:quoteId||null, canEdit, fmtDate, items:()=>items, checkouts:()=>checkouts,
+        outNow:()=>Object.values(avail||{}).reduce((t,a)=>t+(Number(a&&a.outNow)||0),0), ready:()=>stockLoaded, reload:load, openTab:activatePane }).catch(()=>{})) : null,
+    ];
+    await Promise.all(jobs);
   });
 </script>
 <script src="saved-filters.js?v=6"></script>
