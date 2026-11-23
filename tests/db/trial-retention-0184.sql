@@ -157,6 +157,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 -- 0427 (R247) adds quote_live_signals to the purge list; 0429 adds storage_usage_alerts to the keep list
 \ir ../../supabase/migrations/0427_r247_layout_live_signals.sql
 \ir ../../supabase/migrations/0429_r247_storage_usage.sql
+-- 0430 (R248) adds inventory_layout_links (floor-plan product -> stock item links) to the purge list before inventory_checkouts
+\ir ../../supabase/migrations/0430_r248_layout_stock.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

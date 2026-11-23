@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=114"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=115"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -6087,6 +6087,7 @@ window.HelmUrl = HelmUrl;
   /* ---------------- in-house inventory (Phase 7) ---------------- */
   const INV_LS = "bp_inventory", RES_LS = "bp_inv_res";
   const ACTIVE_RES = ["reserved", "allocated"];
+  let demandRpc = null;   // R248 (0430): inventory_demand there? null = not asked yet, false = older database (read the rows)
   let _reserveRpc = null;   // null = untried, true = RPC works, false = not deployed (use the client-side path)
   const inventory = {
     async items(includeInactive) {
@@ -6304,21 +6305,44 @@ window.HelmUrl = HelmUrl;
     // check-outs (out/partial, still-out qty). A checkout against an event that also
     // holds a reservation for the same item is the same physical stock, so per
     // (item, event) the larger of the two counts, not the sum.
-    async _demand(extraQuoteIds, itemIds) {
+    async _demand(extraQuoteIds, itemIds, preItems) {
       const only = Array.isArray(itemIds) ? itemIds : null;   // r24: just these items (fewer rows to read)
-      const [allItems, res, cos] = await Promise.all([
-        this.items(false), this.reservations(null, only || undefined), this.checkouts.list(null, only || undefined).catch(() => []),
-      ]);
-      const items = only ? allItems.filter((i) => only.includes(i.id)) : allItems;
-      // r24 (0268): a written-off missing unit is already off the total - do not count it as still out too
-      const stillOut = (c) => Math.max(Number(c.qty_out || 0) - Number(c.qty_in || 0) - Math.max(Number(c.written_off || 0) - Number(c.qty_damaged || 0), 0), 0);
-      const openCo = (cos || []).filter((c) => (c.status === "out" || c.status === "partial") && stillOut(c) > 0);
-      const liveRes = (res || []).filter((r) => ACTIVE_RES.includes(r.status));
-      const meta = await this._quoteMeta([].concat(liveRes.map((r) => r.quote_id), openCo.map((c) => c.quote_id), extraQuoteIds || []));
       const per = {};   // item|quote -> { res, out }
       const slot = (it, q) => { const k = it + "|" + (q || ""); return per[k] || (per[k] = { it, q: q || null, res: 0, out: 0 }); };
-      liveRes.forEach((r) => { slot(r.item_id, r.quote_id).res += Number(r.qty || 0); });
-      openCo.forEach((c) => { slot(c.item_id, c.quote_id).out += stillOut(c); });
+      const itemsP = preItems ? Promise.resolve(preItems).then((a) => (a || []).filter((i) => i && i.active !== false)) : this.items(false);
+      // R248 (0430): ONE call with the demand already counted per item + event (+ each event's date / live / stock window) -
+      // was every reservation + every check-out, then the events in chunks of 100, then their windows (3+ round trips)
+      let snap = null, allItems;
+      if (mode === "supabase" && demandRpc !== false) {
+        const sp = rpc("inventory_demand", { p_quote: (extraQuoteIds && extraQuoteIds[0]) || null })
+          .catch((e) => { if (rpcMissing(e)) { demandRpc = false; return null; } throw e; });
+        [allItems, snap] = await Promise.all([itemsP, sp]);
+        if (snap && Array.isArray(snap.rows)) demandRpc = true; else snap = null;
+      }
+      let meta;
+      if (snap) {
+        const want = only ? new Set(only) : null;
+        snap.rows.forEach((r) => { if (!r || !r.i || (want && !want.has(r.i))) return; const x = slot(r.i, r.q); x.res += Number(r.res || 0); x.out += Number(r.out || 0); });
+        meta = {};
+        Object.keys(snap.quotes || {}).forEach((id) => { const q = snap.quotes[id] || {};
+          meta[id] = { date: q.date ? String(q.date).slice(0, 10) : null, active: !!q.active };
+          if (q.active && q.from && q.to) { meta[id].from = String(q.from).slice(0, 10); meta[id].to = String(q.to).slice(0, 10); } });
+      } else {
+        const [it2, res, cos] = await Promise.all([
+          allItems ? Promise.resolve(allItems) : itemsP, this.reservations(null, only || undefined), this.checkouts.list(null, only || undefined).catch(() => []),
+        ]);
+        allItems = it2;
+        // r24 (0268): a written-off missing unit is already off the total - do not count it as still out too
+        const stillOut = (c) => Math.max(Number(c.qty_out || 0) - Number(c.qty_in || 0) - Math.max(Number(c.written_off || 0) - Number(c.qty_damaged || 0), 0), 0);
+        const openCo = (cos || []).filter((c) => (c.status === "out" || c.status === "partial") && stillOut(c) > 0);
+        const liveRes = (res || []).filter((r) => ACTIVE_RES.includes(r.status));
+        meta = await this._quoteMeta([].concat(liveRes.map((r) => r.quote_id), openCo.map((c) => c.quote_id), extraQuoteIds || []));
+        liveRes.forEach((r) => { slot(r.item_id, r.quote_id).res += Number(r.qty || 0); });
+        openCo.forEach((c) => { slot(c.item_id, c.quote_id).out += stillOut(c); });
+      }
+      const items = only ? allItems.filter((i) => only.includes(i.id)) : allItems;
+      const outNow = {};   // R248: still out right now per item (every open check-out) - the page's "Out now" without reading the rows
+      Object.values(per).forEach((x) => { if (x.out > 0) outNow[x.it] = (outNow[x.it] || 0) + x.out; });
       const dayTotals = {}, undated = {}, always = {}, spans = {};
       let today = ""; try { today = BPStore.todayLocal(); } catch (e) { today = ""; }
       const addDays = (d, n) => { const t = new Date(d + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
@@ -6343,7 +6367,7 @@ window.HelmUrl = HelmUrl;
       // what overlaps one event's window (the reserve guard's rule: every event whose window touches it, plus its own)
       const onEvent = (itemId, qid) => { const m = meta[qid]; if (!m || !m.date) return null; const f = m.from || m.date, t = m.to || m.date;
         return (spans[itemId] || []).reduce((a, s) => a + ((s.q === qid || (s.from <= t && f <= s.to)) ? s.qty : 0), 0); };
-      return { items, meta, dayTotals, undated, always, spans, onEvent, peakOf };
+      return { items, meta, dayTotals, undated, always, spans, onEvent, peakOf, outNow };
     },
     // committed & available per item id, DATE-AWARE.
     // An item used on two different dates isn't gone twice: it comes back between
@@ -6355,8 +6379,9 @@ window.HelmUrl = HelmUrl;
     // QA-FR2: optional quoteId adds availableOnEvent = what's free on THAT event's date
     // (other events' same-day demand + undated), so reserving for a December event isn't
     // flagged as an over-commit because of a November event. `available` is unchanged.
-    async availability(quoteId, itemIds) {
-      const d = await this._demand(quoteId ? [quoteId] : undefined, itemIds);
+    // R248: preItems = the page's own item read (a promise or a list), so the items are not read twice
+    async availability(quoteId, itemIds, preItems) {
+      const d = await this._demand(quoteId ? [quoteId] : undefined, itemIds, preItems);
       const qd = quoteId && d.meta[quoteId] && d.meta[quoteId].date;
       const map = {};
       d.items.forEach((i) => {
@@ -6366,6 +6391,7 @@ window.HelmUrl = HelmUrl;
         if (qd) { const on = d.onEvent ? d.onEvent(i.id, quoteId) : null;
           row.availableOnEvent = Number(i.total_qty || 0) - ((on != null ? on : ((d.dayTotals[i.id] || {})[qd] || 0)) + base); }
         row.outNotBack = (d.always && d.always[i.id]) || 0;   // R191: still out from a finished event
+        row.outNow = (d.outNow && d.outNow[i.id]) || 0;       // R248: every open check-out of this item
         map[i.id] = row;
       });
       return map;
@@ -6500,6 +6526,19 @@ window.HelmUrl = HelmUrl;
         if (error) throw error;
         const out = {}; (data || []).forEach((d) => { if (d && d.path && d.signedUrl) out[d.path] = d.signedUrl; }); return out;
       },
+    },
+    // R248 (0430): the products of the 2D / 3D floor plan on the Inventory page. null = local mode or a database without 0430
+    // (the page then hides the From layouts tab). Quantities only - never an amount.
+    layout: {
+      async _call(fn, args) { if (mode !== "supabase") return null; try { return await rpc(fn, args || {}); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+      // one event: { types[], items[ { item_id, name, needed, held, free, to_reserve, to_borrow, to_borrow_shared, same_day[] } ], unlinked[] }
+      needs(quoteId) { return quoteId ? this._call("layout_stock_needs", { p_quote: quoteId }) : Promise.resolve(null); },
+      // upcoming events (default today .. +30 days): { from, to, more, events[], summary{ events, events_short, events_shared, unlinked_types } }
+      overview(from, to) { return this._call("layout_stock_overview", { p_from: from || null, p_to: to || null }); },
+      links() { return this._call("layout_links"); },
+      setLink(type, itemId, perObject, countMode) { return this._call("layout_link_set", { p_type: String(type || ""), p_item: itemId,
+        p_per_object: perObject == null || perObject === "" ? 1 : Number(perObject), p_count_mode: countMode === "seats" ? "seats" : "objects" }); },
+      removeLink(linkId) { return this._call("layout_link_remove", { p_link: linkId }); },
     },
     // r24 (0268): release this event's reservations that are done - never taken out (after the event day; Teardown
     // passes includeToday) or everything given out is back. -> number released, or null on an older DB.

@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (371 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (372 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4845 objects): body 175, bucket 9, col 276, con 421, cron 20, exec 19, fn 2176, idx 552, marker 124, pol 192, polexpr 4, pre 119, pub 6, seq 1, tbl 313, trg 436, view 2.
+-- What is checked (4865 objects): body 175, bucket 9, col 276, con 421, cron 20, exec 19, fn 2188, idx 555, marker 124, pol 193, polexpr 4, pre 119, pub 6, seq 1, tbl 314, trg 439, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4869,7 +4869,27 @@ with o(m, k, s, n, x) as (values
   ('0429_r247_storage_usage', 'fn', 'public', '_r429_maybe_bell', 'uuid,jsonb'),
   ('0429_r247_storage_usage', 'fn', 'public', '_r429_tg_usage_check', ''),
   ('0429_r247_storage_usage', 'trg', 'public.storage_upload_log', 'zz_r429_usage_check', null),
-  ('0429_r247_storage_usage', 'fn', 'public', 'storage_usage', '')
+  ('0429_r247_storage_usage', 'fn', 'public', 'storage_usage', ''),
+  ('0430_r248_layout_stock', 'tbl', 'public.inventory_layout_links', null, null),
+  ('0430_r248_layout_stock', 'idx', 'public.inventory_layout_links_active_uq430', null, null),
+  ('0430_r248_layout_stock', 'idx', 'public.ix_inventory_layout_links_org_0430', null, null),
+  ('0430_r248_layout_stock', 'idx', 'public.ix_inventory_layout_links_item_0430', null, null),
+  ('0430_r248_layout_stock', 'pol', 'public.inventory_layout_links', 'r430_links_read', null),
+  ('0430_r248_layout_stock', 'fn', 'public', '_r430_tg_link_guard', ''),
+  ('0430_r248_layout_stock', 'trg', 'public.inventory_layout_links', 'ab_r430_link_guard', null),
+  ('0430_r248_layout_stock', 'trg', 'public.inventory_layout_links', 'zzz_studio_read_only', null),
+  ('0430_r248_layout_stock', 'trg', 'public.inventory_layout_links', 'audit_trg', null),
+  ('0430_r248_layout_stock', 'fn', 'public', '_r430_num', 'jsonb'),
+  ('0430_r248_layout_stock', 'fn', 'public', '_r430_type_counts', 'uuid,uuid'),
+  ('0430_r248_layout_stock', 'fn', 'public', '_r430_item_needs', 'uuid,uuid'),
+  ('0430_r248_layout_stock', 'fn', 'public', '_r430_held', 'uuid,uuid,uuid'),
+  ('0430_r248_layout_stock', 'fn', 'public', '_r430_event_block', 'uuid,uuid'),
+  ('0430_r248_layout_stock', 'fn', 'public', 'layout_stock_needs', 'uuid'),
+  ('0430_r248_layout_stock', 'fn', 'public', 'layout_stock_overview', 'date,date'),
+  ('0430_r248_layout_stock', 'fn', 'public', 'layout_links', ''),
+  ('0430_r248_layout_stock', 'fn', 'public', 'layout_link_set', 'text,uuid,numeric,text'),
+  ('0430_r248_layout_stock', 'fn', 'public', 'layout_link_remove', 'uuid'),
+  ('0430_r248_layout_stock', 'fn', 'public', 'inventory_demand', 'uuid')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5242,7 +5262,8 @@ mig(ord, m, ov, note) as (values
   (368, '0425_r246_text_len_checks', null, 'R246 DATA-01 text limits: NOT VALID checks named per column by a loop (dynamic SQL), counted first - see r425_text_len_report() and APPLY-0425 check rows'),
   (369, '0427_r247_layout_live_signals', null, null),
   (370, '0428_r247_stock_upload_cap', null, null),
-  (371, '0429_r247_storage_usage', null, null)
+  (371, '0429_r247_storage_usage', null, null),
+  (372, '0430_r248_layout_stock', null, null)
 ),
 env as (
   select

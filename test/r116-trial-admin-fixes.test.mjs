@@ -136,7 +136,7 @@ t('5 inventory: friendly empty state; a failed people read never blocks the stoc
   const p = read('public/inventory.html');
   assert.match(p, /<b>No stock items yet — add your first item\.<\/b>/);
   assert.match(p, /id="firstAdd">＋ Add your first item/);
-  assert.match(p, /try\{ await fillPeople\(\); \}catch\(_\)\{\}/);
+  assert.match(p, /      fillPeople\(\)\.catch\(\(\)=>\{\}\),/);   // R248: read side by side with the stock (a failure is swallowed, never blocks)
   assert.match(p, /items=Array\.isArray\(itemsR\.value\)\?itemsR\.value:\[\];/);
 });
 

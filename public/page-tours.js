@@ -129,13 +129,13 @@
     ],
     "inventory.html": [
       { sel: "#eventPanel", title: "Reserve for an event", desc: "Book items to a specific event — this is what the close-out later checks is returned." },
+      { sel: "#layoutNeeds", title: "From the floor plan", desc: "What the latest 2D / 3D floor plan needs: in the layout, reserved, free that day, to borrow. Reserve from layout reserves what is free and records the rest as a shortfall." },
       { sel: "#stockDates", title: "Stock dates", desc: "A multi-day event or a set-up the day before: set the set-up and teardown days and the stock stays held for the whole range. Other events holding the same items on those days are listed." },
       { sel: "#search", title: "Find stock", desc: "Search items, or filter by category and value grade (A / B / C)." },
-      { sel: "#seedBtn", title: "A quick start", desc: "Adds a ready-made list of common event items you can edit." },
-      { sel: "#newBtn", title: "Add stock", desc: "Add equipment to your inventory, graded A / B / C by value so losses are easy to price." },
-      { sel: ["#pane-loans", '[aria-controls="pane-loans"]'], title: "Check out & back in", desc: "Issue stock to a person and record how much comes back. Anything short is flagged with its rupee value." },
-      { sel: "#lossRows", title: "Losses", desc: "Items lost or damaged. Follow-up on each line: Found (a late return goes back into stock), Send to repair, Add photo, and - with Finance access - who pays: the studio or the client." },
+      { sel: "#newBtn", title: "Add stock", desc: "Add equipment, graded A / B / C by value so losses are easy to price - or start from the ready-made list of common event items." },
+      { sel: ["#pane-loans", '[aria-controls="pane-loans"]'], title: "Check out & back in", desc: "Issue stock to a person and record how much comes back. Missing or damaged lines get a follow-up: Found, Send to repair, Add photo, and who pays." },
       { sel: "#stockSettings", title: "Stock settings", desc: "Ask for a photo of damaged or missing items, show damage charges on the client portal, let stock staff see costs, and add buffer days for cleaning." },
+      { sel: ["#pane-layout", '[aria-controls="pane-layout"]'], title: "From layouts", desc: "Upcoming events with a floor plan and what each is short of; Same day as ... = another event uses the same units that day. Link layout products below to a stock item." },
     ],
     "vendors.html": [
       { sel: "#viewTabs", title: "Partners and requests", desc: "Your vendor list, or the requests and invoices you sent them." },

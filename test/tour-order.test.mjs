@@ -94,7 +94,7 @@ t('per-page steps follow each toolbar left to right, then the content below', ()
   assert.deepEqual(sels('quotes.html'), ['#tabs', '#tab_inprogress', '#search', '#typeFilter', '#newBtn', '#rows']);
   assert.deepEqual(sels('leads.html'), ['#search', '#archBtn', '#enqBtn', '#newBtn', '#board']);
   assert.deepEqual(sels('staff.html'), ['#search', '#deptFilter', '#importBtn', '#newBtn', '#cantwork-requests', '#grid', '.person .tag.login-none, .person .tag.login-invited', '[data-act="tlink"]']);   // R199: login pills; R172: the permanent task link button; R187: day-off requests
-  assert.deepEqual(sels('inventory.html'), ['#eventPanel', '#stockDates', '#search', '#seedBtn', '#newBtn', '#pane-loans', '#lossRows', '#stockSettings']);   // R191: stock dates (in the event panel) + stock settings (end of Out & back)
+  assert.deepEqual(sels('inventory.html'), ['#eventPanel', '#layoutNeeds', '#stockDates', '#search', '#newBtn', '#pane-loans', '#stockSettings', '#pane-layout']);   // R191: stock dates (in the event panel) + stock settings (end of Out & back); R248: the floor-plan table (event panel) + From layouts (last tab), the starter list folded into Add stock, losses into Out & back (8 steps max)
   // r20: the builder's first-run tour walks the one-row header left to right (the r19 two-row header was reverted), then the panels
   // R164: + More / App bar (phone only, skipped elsewhere) right after Back home
   assert.deepEqual(sels('builder.html'), ['header .brand', '#bimMore', '#bimNav', '#preset', '#refField', '#customBtn', '#unitSel', '.seg:has(#snapBtn)', '#viewSeg',
@@ -102,7 +102,7 @@ t('per-page steps follow each toolbar left to right, then the content below', ()
     '#moreMenu', '.hg-cap', '.bp-priv-slot .hbp-btn', '#toolbox', '#fabStack', '#rightPanel', '#inspector .isec.screen']);
   // and that is the DOM order of those elements on the page
   for (const [pg, ids] of [['quotes.html', ['tabs', 'search', 'typeFilter', 'newBtn', 'rows']], ['leads.html', ['search', 'archBtn', 'enqBtn', 'newBtn', 'board']],
-    ['staff.html', ['search', 'deptFilter', 'importBtn', 'newBtn', 'grid']], ['inventory.html', ['eventPanel', 'search', 'seedBtn', 'newBtn', 'pane-loans', 'lossRows']], ['builder.html', ['preset', 'refField', 'customBtn', 'unitSel', 'snapBtn', 'viewSeg', 'measureBtn', 'undoBtn',
+    ['staff.html', ['search', 'deptFilter', 'importBtn', 'newBtn', 'grid']], ['inventory.html', ['eventPanel', 'layoutNeeds', 'stockDates', 'search', 'newBtn', 'pane-loans', 'stockSettings', 'pane-layout']], ['builder.html', ['preset', 'refField', 'customBtn', 'unitSel', 'snapBtn', 'viewSeg', 'measureBtn', 'undoBtn',
       'projName', 'verSel', 'designChip', 'backToFlowBtn', 'saveBtn', 'loadBtn', 'clientImgBtn', 'moreMenu', 'capInput', 'toolbox',
       'fabStack', 'rightPanel']]]) {
     const H = r(pg), pos = ids.map((id) => H.indexOf('id="' + id + '"'));
