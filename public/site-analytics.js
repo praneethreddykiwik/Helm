@@ -34,7 +34,12 @@
     out.url = u;
     return out;
   }
-  w.HelmSiteAnalytics = { clean: clean, beforeSend: beforeSend, allowed: function (p) { return ALLOW.test(String(p || "")); } };
+  // R251: OFF until the owner switches Web Analytics on in Vercel (parked with the legal work, 23 Nov 2026). While Vercel
+  // Analytics is off, /_vercel/insights/script.js is a 404 (console error on every public page, red production Smoke run).
+  // To turn it on: enable Web Analytics in the Vercel project, then set ENABLED = true here.
+  var ENABLED = false;
+  w.HelmSiteAnalytics = { clean: clean, beforeSend: beforeSend, enabled: ENABLED, allowed: function (p) { return ALLOW.test(String(p || "")); } };
+  if (!ENABLED) return;
   if (isLocal(host())) return;
   if (!clean(String(w.location.href))) return;            // not a public page (copied onto the wrong page by mistake): load nothing
   w.va = w.va || function () { (w.vaq = w.vaq || []).push(arguments); };
