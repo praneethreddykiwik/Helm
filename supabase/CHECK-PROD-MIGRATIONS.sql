@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4881 objects): body 177, bucket 9, col 276, con 421, cron 20, exec 19, fn 2195, idx 559, marker 124, pol 193, polexpr 4, pre 122, pub 6, seq 1, tbl 314, trg 439, view 2.
+-- What is checked (4880 objects): body 177, bucket 9, col 276, con 421, cron 20, exec 19, fn 2195, idx 558, marker 124, pol 193, polexpr 4, pre 122, pub 6, seq 1, tbl 314, trg 439, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4897,7 +4897,6 @@ with o(m, k, s, n, x) as (values
   ('0432_r249_cron_quiet', 'fn', 'public', '_r432_keep', 'text'),
   ('0432_r249_cron_quiet', 'idx', 'public.ix_delivery_commitments_when_0432', null, null),
   ('0432_r249_cron_quiet', 'idx', 'public.ix_inbox_state_snooze_ret_0432', null, null),
-  ('0432_r249_cron_quiet', 'idx', 'public.ix_event_tasks_remind_due_0432', null, null),
   ('0432_r249_cron_quiet', 'fn', 'public', '_r432_runsheet_due', ''),
   ('0432_r249_cron_quiet', 'fn', 'public', '_r432_task_due', 'timestamp with time zone'),
   ('0432_r249_cron_quiet', 'fn', 'public', '_r432_delivery_due', ''),

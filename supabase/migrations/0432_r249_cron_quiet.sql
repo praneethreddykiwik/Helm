@@ -18,10 +18,10 @@
 --      that came back (digests); a due / invoiced instalment with an amount, a client link that was opened, or an active stock
 --      item (comms); a due / invoiced instalment with an amount (payment schedule). The loop line is edited in place (old body
 --      kept as <name>__pre0432); if the loop line is not exactly as expected the function is left as it is (still correct).
---   C  three small partial indexes for those checks.
+--   C  two small partial indexes for those checks (the task check uses the 0344 planned_start index).
 --   What is sent, to whom, when and with which words: unchanged. Only how quickly a quiet run finds out it is quiet.
 -- ACCESS: unchanged - every job stays service_role / pg_cron only; the kept bodies and the checks are server only.
--- ZERO DATA LOSS: functions + 3 indexes (create index if not exists). Nothing deleted or rewritten. Safe to run twice.
+-- ZERO DATA LOSS: functions + 2 indexes (create index if not exists). Nothing deleted or rewritten. Safe to run twice.
 -- ROLLBACK (manual, only if ever needed; no data involved): for each of runsheet_reminders_tick(), task_reminder_tick(timestamptz),
 --   delivery_reminders_tick(), _r23_queue_digests(), comms_tick__pre0264(), _pst_tick(): drop the function, then rename
 --   <name>__pre0432 back to <name> and grant execute to service_role. The indexes can stay.
@@ -60,9 +60,7 @@ create index if not exists ix_delivery_commitments_when_0432 on public.delivery_
 -- inbox: snooze returns of the last 2 days (the other half of the digest window); only rows ever snoozed
 create index if not exists ix_inbox_state_snooze_ret_0432 on public.notification_inbox_state (snooze_returned_at)
   where snooze_returned_at is not null;
--- task reminders: the every-minute guard (existing ix_event_tasks_planned_start_0344 also works; this one is smaller)
-create index if not exists ix_event_tasks_remind_due_0432 on public.event_tasks (planned_start)
-  where status in ('assigned', 'accepted') and planned_start is not null;
+-- task reminders: the existing ix_event_tasks_planned_start_0344 serves the every-minute check (no new index)
 
 -- ---- 2) "anything due?" guards (read-only, server only) ---------------------------------------------------------------------
 -- run-sheet: kept body loops over run_sheet_items x quotes with start_time not null, event_date in [today-1, today+2],

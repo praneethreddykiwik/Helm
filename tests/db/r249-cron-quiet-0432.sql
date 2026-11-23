@@ -68,13 +68,13 @@ do $$ declare f text; ok boolean := true; begin
     and not has_function_privilege('service_role', 'public.runsheet_reminders_tick__pre0432()', 'execute')
     and not has_function_privilege('authenticated', 'public._pst_tick__pre0432()', 'execute')
     and not has_function_privilege('authenticated', 'public._r432_task_due(timestamptz)', 'execute'));
-  perform pg_temp.res('02 0401 lock_timeout=10s kept on runsheet / digests caller; prefilters in place exactly once; 3 indexes',
+  perform pg_temp.res('02 0401 lock_timeout=10s kept on runsheet / digests caller; prefilters in place exactly once; 2 indexes (the task check uses the 0344 index)',
     (select proconfig @> array['lock_timeout=10s'] from pg_proc where oid = 'public.runsheet_reminders_tick()'::regprocedure)
     and (select proconfig @> array['lock_timeout=10s'] from pg_proc where oid = 'public.inbox_tick()'::regprocedure)
     and (select bool_and((length(pg_get_functiondef(x)) - length(replace(pg_get_functiondef(x), '/* r249-0432 */', ''))) / length('/* r249-0432 */') = 1)
            from unnest(array['public._r23_queue_digests()'::regprocedure, 'public.comms_tick__pre0264()'::regprocedure, 'public._pst_tick()'::regprocedure]) x)
     and to_regclass('public.ix_delivery_commitments_when_0432') is not null and to_regclass('public.ix_inbox_state_snooze_ret_0432') is not null
-    and to_regclass('public.ix_event_tasks_remind_due_0432') is not null);
+    and to_regclass('public.ix_event_tasks_remind_due_0432') is null);
 end $$;
 
 -- ---- quiet: the same answers, nothing written ----------------------------------------------------------------------------------

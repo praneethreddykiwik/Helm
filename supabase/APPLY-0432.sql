@@ -4,7 +4,7 @@
 -- What it does:
 --   * a quick "anything in the window?" check before the run-sheet / task / delivery reminder jobs load their full body;
 --   * inbox digests, comms and the payment schedule only walk studios that can have work;
---   * three small indexes for those checks. Old bodies are kept as <name>__pre0432.
+--   * two small indexes for those checks. Old bodies are kept as <name>__pre0432.
 -- Nothing is changed or deleted.
 -- It waits at most 5 seconds for a lock (then stops with an error and changes nothing - just run it again later).
 -- Paste the whole file into the Supabase SQL editor and press Run. The last result lists checks - every ok must be true.
@@ -31,10 +31,10 @@ set local statement_timeout = '5min';
 --      that came back (digests); a due / invoiced instalment with an amount, a client link that was opened, or an active stock
 --      item (comms); a due / invoiced instalment with an amount (payment schedule). The loop line is edited in place (old body
 --      kept as <name>__pre0432); if the loop line is not exactly as expected the function is left as it is (still correct).
---   C  three small partial indexes for those checks.
+--   C  two small partial indexes for those checks (the task check uses the 0344 planned_start index).
 --   What is sent, to whom, when and with which words: unchanged. Only how quickly a quiet run finds out it is quiet.
 -- ACCESS: unchanged - every job stays service_role / pg_cron only; the kept bodies and the checks are server only.
--- ZERO DATA LOSS: functions + 3 indexes (create index if not exists). Nothing deleted or rewritten. Safe to run twice.
+-- ZERO DATA LOSS: functions + 2 indexes (create index if not exists). Nothing deleted or rewritten. Safe to run twice.
 -- ROLLBACK (manual, only if ever needed; no data involved): for each of runsheet_reminders_tick(), task_reminder_tick(timestamptz),
 --   delivery_reminders_tick(), _r23_queue_digests(), comms_tick__pre0264(), _pst_tick(): drop the function, then rename
 --   <name>__pre0432 back to <name> and grant execute to service_role. The indexes can stay.
@@ -73,9 +73,7 @@ create index if not exists ix_delivery_commitments_when_0432 on public.delivery_
 -- inbox: snooze returns of the last 2 days (the other half of the digest window); only rows ever snoozed
 create index if not exists ix_inbox_state_snooze_ret_0432 on public.notification_inbox_state (snooze_returned_at)
   where snooze_returned_at is not null;
--- task reminders: the every-minute guard (existing ix_event_tasks_planned_start_0344 also works; this one is smaller)
-create index if not exists ix_event_tasks_remind_due_0432 on public.event_tasks (planned_start)
-  where status in ('assigned', 'accepted') and planned_start is not null;
+-- task reminders: the existing ix_event_tasks_planned_start_0344 serves the every-minute check (no new index)
 
 -- ---- 2) "anything due?" guards (read-only, server only) ---------------------------------------------------------------------
 -- run-sheet: kept body loops over run_sheet_items x quotes with start_time not null, event_date in [today-1, today+2],
@@ -217,9 +215,8 @@ select item, ok from (values
      (select proconfig @> array['lock_timeout=10s'] from pg_proc where oid = 'public.runsheet_reminders_tick()'::regprocedure)
      and (select proconfig @> array['lock_timeout=10s'] from pg_proc where oid = 'public.inbox_tick()'::regprocedure)
      and (select proconfig @> array['lock_timeout=10s'] from pg_proc where oid = 'public.comms_tick()'::regprocedure)),
-  ('05 three indexes',
-     to_regclass('public.ix_delivery_commitments_when_0432') is not null and to_regclass('public.ix_inbox_state_snooze_ret_0432') is not null
-     and to_regclass('public.ix_event_tasks_remind_due_0432') is not null),
+  ('05 two indexes',
+     to_regclass('public.ix_delivery_commitments_when_0432') is not null and to_regclass('public.ix_inbox_state_snooze_ret_0432') is not null),
   ('06 schema marker 432 recorded (or no 0412 marker table)',
      to_regclass('public.helm_schema_markers') is null or exists (select 1 from public.helm_schema_markers where num = 432))
 ) v(item, ok) order by item;
