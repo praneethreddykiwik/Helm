@@ -97,7 +97,7 @@ await t('Past renders: inTime settles a promise that never settles (behaviour)',
 });
 
 await t('Event workspace: the event row is read at the same time as the access checks', () => {
-  const a = EV.indexOf('const evFirst=BPStore.quotes.get(id)'), r = EV.indexOf('await BPStore.auth.requireView("quotes")'), g = EV.indexOf('ev=await evFirst;');
+  const a = EV.indexOf('const evFirst=(evEarly && evEarlyId===id) ? evEarly : BPStore.quotes.get(id)'), r = EV.indexOf('await BPStore.auth.requireView("quotes")'), g = EV.indexOf('ev=await evFirst;');
   assert.ok(a > 0 && r > a && g > r, 'started before the checks, used after them');
   assert.match(EV, /evFirst\.catch\(\(\)=>\{\}\);/);   // no unhandled rejection when a check sends the person away
   assert.doesNotMatch(EV, /try\{ ev=await BPStore\.quotes\.get\(id\); \}/);
@@ -204,8 +204,8 @@ await t('0358: catalog built once per request, _r23_tz without the time zone fil
 });
 
 await t('cache-bust: store-api v350 on every page', () => {
-  assert.match(EV, /store-api\.js\?v=404/);
-  assert.match(read('public/dashboard.html'), /store-api\.js\?v=404/);
+  assert.match(EV, /store-api\.js\?v=405/);
+  assert.match(read('public/dashboard.html'), /store-api\.js\?v=405/);
 });
 
 console.log(`\nr163-perf: ${pass} passed, ${fail} failed`);

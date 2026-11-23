@@ -961,6 +961,10 @@
       });
     } catch (e) {}
   }
+  var CNT_AT_KEY = "helm.shellb.cnt.at";
+  // ms before the first rail count of this page: 1.5 s, or - when this tab counted less than 55 s ago - until a minute after that
+  function railBootDelay(lastAt, now) { var age = now - (Number(lastAt) || 0); return age >= 0 && age < 55000 ? Math.max(1500, 60000 - age) : 1500; }
+  try { window.__helmRailBootDelay = railBootDelay; } catch (e) {}
   function railCounts() {
     var c = readCounts(); Object.keys(c).forEach(function (k) { if (COUNT_KEYS[k]) railCount(k, c[k]); });
     var busy = false;
@@ -985,9 +989,12 @@
           railCount("quotes", (Array.isArray(rows) ? rows : []).filter(function (q) { return q && q.status === "quote" && (q.approvalStatus === "sent" || q.approvalStatus === "viewed"); }).length);
         });
       }).catch(function () {}));
-      Promise.all(jobs).then(function () { busy = false; }, function () { busy = false; });
+      Promise.all(jobs).then(function () { busy = false; try { sessionStorage.setItem(CNT_AT_KEY, String(Date.now())); } catch (e) {} }, function () { busy = false; });
     }
-    waitAuth(function () { setTimeout(run, 1500); });
+    // R249 (prod: quotes HEAD count 570 ms, called on EVERY page view): the badges already paint from this tab's stored counts,
+    // so a page opened less than a minute after the last count waits for the regular 60 s run instead of counting again at once
+    var lastAt = 0; try { lastAt = Number(sessionStorage.getItem(CNT_AT_KEY)) || 0; } catch (e) { lastAt = 0; }
+    waitAuth(function () { setTimeout(run, railBootDelay(lastAt, Date.now())); });
     setInterval(run, 60000);
     var lastVisRun = 0;   // manager-1019: same 30s cap for the rail counts on tab show
     document.addEventListener("visibilitychange", function () { if (!document.hidden && Date.now() - lastVisRun > 30000) { lastVisRun = Date.now(); run(); } });

@@ -130,7 +130,7 @@ await t('stage of a line: actual > committed > estimated (0 actual is still actu
 
 await t('store-api: moneyLedger exported; breakdown / studio fall back to null on an older database; vendor bill GST insert retries without the split', () => {
   assert.match(STORE, /settlement, closure, vendorBills, moneyLedger, bell,/);
-  assert.match(STORE, /rpc\("event_cost_breakdown", \{ p_quote: quoteId \}\); \} catch \(e\) \{ if \(rpcMissing\(e\)\) return null; throw e; \}/);
+  assert.match(STORE, /rpc\("event_cost_breakdown", \{ p_quote: quoteId \}\)\); \} catch \(e\) \{ if \(rpcMissing\(e\)\) return null; throw e; \}/);   // R249: inside moneyOnce.get (its fallback)
   assert.match(STORE, /rpc\("studio_cost_breakdown", \{ p_from: from \|\| null, p_to: to \|\| null \}\)/);
   assert.match(STORE, /update\(\{ crew_covered: !!on \}\)\.eq\("id", costId\)/);
   assert.match(STORE, /if \(error && gst\.value != null && vbGstColMissing\(error\)\) \{/);

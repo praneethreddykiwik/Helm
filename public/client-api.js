@@ -16,7 +16,7 @@
    the free-trial flag gets the full store-api.js exactly as before ("full mode"): its calls then go through
    supabase-js with that member's session, so nothing changes for studio members either.
    ========================================================================= */
-var STORE_API_V = "404";   // the store-api.js ?v= of the staff pages (filled in by the generator)
+var STORE_API_V = "405";   // the store-api.js ?v= of the staff pages (filled in by the generator)
 var __HELM_CLIENT_FULL__ = (function () {
   try {
     // a sign-in / auth-link return (?code=, #access_token=...) is store-api.js's job

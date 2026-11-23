@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (372 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (375 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4865 objects): body 175, bucket 9, col 276, con 421, cron 20, exec 19, fn 2188, idx 555, marker 124, pol 193, polexpr 4, pre 119, pub 6, seq 1, tbl 314, trg 439, view 2.
+-- What is checked (4881 objects): body 177, bucket 9, col 276, con 421, cron 20, exec 19, fn 2195, idx 559, marker 124, pol 193, polexpr 4, pre 122, pub 6, seq 1, tbl 314, trg 439, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4214,7 +4214,6 @@ with o(m, k, s, n, x) as (values
   ('0372_r189_money_lock', 'fn', 'public', '_r372_who', ''),
   ('0372_r189_money_lock', 'fn', 'public', '_r372_wage', 'jsonb,numeric,numeric,numeric,numeric,jsonb,numeric'),
   ('0372_r189_money_lock', 'fn', 'public', '_r372_suggest', 'uuid,uuid,uuid,jsonb'),
-  ('0372_r189_money_lock', 'fn', 'public', '_r21_event_money__pre0372', 'uuid,uuid,boolean'),
   ('0372_r189_money_lock', 'fn', 'public', '_vb_event_pnl__pre0372', 'uuid,uuid'),
   ('0372_r189_money_lock', 'fn', 'public', '_a49_close_blockers__pre0372', 'uuid'),
   ('0372_r189_money_lock', 'fn', 'public', '_pst_allocate__pre0372', 'uuid'),
@@ -4241,6 +4240,7 @@ with o(m, k, s, n, x) as (values
   ('0372_r189_money_lock', 'fn', 'public', 'money_settings_get', ''),
   ('0372_r189_money_lock', 'fn', 'public', 'money_settings_set', 'jsonb'),
   ('0372_r189_money_lock', 'fn', 'public', '_r21_cost_lines__pre0372', 'uuid,uuid'),
+  ('0372_r189_money_lock', 'fn', 'public', '_r21_event_money__pre0372', 'uuid,uuid,boolean'),
   ('0372_r189_money_lock', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|r189-money-0372'),
   ('0372_r189_money_lock', 'marker', 'public', '_r21_event_money', 'uuid,uuid,boolean|r189-money-0372'),
   ('0372_r189_money_lock', 'marker', 'public', '_vb_event_pnl', 'uuid,uuid|r189-money-0372'),
@@ -4889,7 +4889,23 @@ with o(m, k, s, n, x) as (values
   ('0430_r248_layout_stock', 'fn', 'public', 'layout_links', ''),
   ('0430_r248_layout_stock', 'fn', 'public', 'layout_link_set', 'text,uuid,numeric,text'),
   ('0430_r248_layout_stock', 'fn', 'public', 'layout_link_remove', 'uuid'),
-  ('0430_r248_layout_stock', 'fn', 'public', 'inventory_demand', 'uuid')
+  ('0430_r248_layout_stock', 'fn', 'public', 'inventory_demand', 'uuid'),
+  ('0431_r249_money_once', 'fn', 'public', '_r21_event_money__pre0372__pre0431', 'uuid,uuid,boolean'),
+  ('0431_r249_money_once', 'body', 'public', '_r21_event_money__pre0372', 'uuid,uuid,boolean|6fc5ffa9ba0dcc23bf75f5c8f0c8ac61'),
+  ('0431_r249_money_once', 'fn', 'public', 'event_money_bundle', 'uuid,text[]'),
+  ('0431_r249_money_once', 'pre', null, '__pre0431', null),
+  ('0432_r249_cron_quiet', 'fn', 'public', '_r432_keep', 'text'),
+  ('0432_r249_cron_quiet', 'idx', 'public.ix_delivery_commitments_when_0432', null, null),
+  ('0432_r249_cron_quiet', 'idx', 'public.ix_inbox_state_snooze_ret_0432', null, null),
+  ('0432_r249_cron_quiet', 'idx', 'public.ix_event_tasks_remind_due_0432', null, null),
+  ('0432_r249_cron_quiet', 'fn', 'public', '_r432_runsheet_due', ''),
+  ('0432_r249_cron_quiet', 'fn', 'public', '_r432_task_due', 'timestamp with time zone'),
+  ('0432_r249_cron_quiet', 'fn', 'public', '_r432_delivery_due', ''),
+  ('0432_r249_cron_quiet', 'pre', null, '__pre0432', null),
+  ('0433_r249_read_speed', 'idx', 'public.chat_messages_org_created_idx_0433', null, null),
+  ('0433_r249_read_speed', 'fn', 'public', 'chat_my_mentions__pre0433', 'integer'),
+  ('0433_r249_read_speed', 'body', 'public', 'chat_my_mentions', 'integer|8c43d525376212a84ec8e66834b1e619'),
+  ('0433_r249_read_speed', 'pre', null, '__pre0433', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5263,7 +5279,10 @@ mig(ord, m, ov, note) as (values
   (369, '0427_r247_layout_live_signals', null, null),
   (370, '0428_r247_stock_upload_cap', null, null),
   (371, '0429_r247_storage_usage', null, null),
-  (372, '0430_r248_layout_stock', null, null)
+  (372, '0430_r248_layout_stock', null, null),
+  (373, '0431_r249_money_once', null, null),
+  (374, '0432_r249_cron_quiet', null, null),
+  (375, '0433_r249_read_speed', null, null)
 ),
 env as (
   select

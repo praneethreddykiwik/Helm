@@ -374,6 +374,8 @@
     if (!id) { box.hidden = true; return; }
     var fin = false; try { fin = await B.auth.canView("finance"); } catch (e) { fin = false; }
     if (!fin) { box.hidden = true; return; }      // no money numbers for this role; the page shows the rest
+    // R249 (0431): every money card of this page in ONE call (the ledger is built once, never three times side by side)
+    try { if (B.moneyOnce && B.moneyOnce.wantPage) B.moneyOnce.wantPage(id); } catch (e) {}
     var want = String(box.getAttribute("data-mh-parts") || "header attention").split(/\s+/);
     var replaces = String(box.getAttribute("data-mh-replaces") || "").split(/\s+/).filter(Boolean);
     var fmt = await fmtFor(id), seq = 0, timer = null, state = { open: {}, uid: ++uid, tab: null }, started = Date.now();

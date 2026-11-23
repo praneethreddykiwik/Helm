@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=115"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=116"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1614,12 +1614,22 @@ window.HelmUrl = HelmUrl;
      401 / 42501 and never reaches the log. public_* and submit_* always go out. tests/db/r233-anon-rpcs.sh fails when a
      migration lets anon run a function that is not in this list (so a new public link can never be blocked by it). */
   const ANON_RPCS = /^(?:public_[a-z0-9_]+|submit_[a-z0-9_]+|_a153_money_key|_r23_enforcing|_r55_purge_allowed|approval_check_shown|booklet_snapshot_upload_ok|client_link_window_days|create_payment|crew_cantwork_ack|crew_check|crew_claim_shift|crew_link_home|crew_set_availability|crew_withdraw_claim|delivery_link_get|delivery_link_update|helm_norm_phone|invitation_preview|invite_media_guest_read_ok|invite_media_on_published_site|mfa_ok|referral_click|referral_lookup|request_otp|request_site_slug|signup_email_preauthorised|staff_google_only_for|staff_link_cantwork|staff_link_cantwork_ack|staff_link_view|storage_object_name_ok|storage_op_is_listing|storage_quota_ok|studio_slug_reserved|studio_slug_valid|studio_slugify|task_proof_upload_ok|trial_simulate_payment|trial_storage_write_ok|trial_test_approve|trial_test_approve_code|trial_test_mode_for_token|try_date|upload_scan_bucket|upload_scan_enforced|upload_scan_org|upload_scan_read_ok|vendor_invoice_submit|vendor_invoice_upload|vendor_invoice_upload_ok|vendor_link_get|vendor_link_respond|verify_and_consent|wa_request_otp|wa_verify_and_consent|worker_assignment_updates|worker_checkin_equipment|worker_evidence_upload|worker_get_equipment|worker_get_tasks|worker_respond|worker_respond_evidence)$/;
+  /* R249 (prod log 22-23 Nov 2026: 4x 42501 "permission denied for function current_org_id", 401 from anon): about 100 tables fill
+     org_id from DEFAULT public.current_org_id(), which anon may not run. A save (insert / update / upsert / delete on a table, not
+     an rpc) sent with the bare anon key - a tab whose sign-in lapsed - always fails there. No table accepts a write from anon (no
+     anon policy grants one), so such a write is answered here with the same 401 / 42501 and never reaches the database log.
+     Reads are left alone (a signed-out table read gets the same answer as before). */
+  const ANON_TABLE = /\/rest\/v1\/(?!rpc\/)[A-Za-z0-9_]+(\?|$)/;
+  function anonTableWrite(u, init, input) {
+    const m = String((init && init.method) || (input && typeof input === "object" && input.method) || "GET").toUpperCase();
+    return m !== "GET" && m !== "HEAD" && ANON_TABLE.test(String(u || ""));
+  }
   function rpcNameOf(u) { const m = /\/rest\/v1\/rpc\/([A-Za-z0-9_]+)(\?|$)/.exec(String(u || "")); return m ? m[1] : ""; }
   function anonDenied(input, init) {
     try {
       const u = typeof input === "string" ? input : (input && input.url) || "";
       const fn = rpcNameOf(u);
-      if (!CFG.anonKey || !(READ_RPCS.test(u) || SIGNED_IN_ONLY.test(u) || (fn && !ANON_RPCS.test(fn)))) return false;
+      if (!CFG.anonKey || !(READ_RPCS.test(u) || SIGNED_IN_ONLY.test(u) || (fn && !ANON_RPCS.test(fn)) || anonTableWrite(u, init, input))) return false;
       return hdrOf(init, input, "Authorization") === "Bearer " + CFG.anonKey;
     } catch (e) { return false; }
   }
@@ -2387,6 +2397,10 @@ window.HelmUrl = HelmUrl;
             // Supabase is configured ⇒ the app uses accounts; no session ⇒ must sign in.
             authRequired = !currentUser;
             mode = "supabase";
+            // R249: a page that knows the one row it opens on (the Event Workspace: ?id=) asks for it NOW, side by side with the
+            // startup read below, instead of after it (one round trip less before the event card paints). Row security decides
+            // what comes back; the page uses the answer only after its own access checks passed, exactly as before.
+            if (currentUser && typeof global.HelmPrefetch === "function") { try { global.HelmPrefetch(); } catch (e) {} }
             // signed in, but a sign-in step (two-step code / temp password / reset) may be pending.
             // On a protected page the studio lookup runs at the same time (it is only
             // USED after the step check passed — the page still shows only after both).
@@ -3633,6 +3647,7 @@ window.HelmUrl = HelmUrl;
     } catch (e) {}
     return false;
   }
+  const quoteGetInflight = new Map();   // R249: quotes.get(id) answers still on their way (shared, never cached)
   const sbq = {
     // every quote, light columns (pickers, calendar, availability…). A database that
     // is missing one of the named columns falls back to select * rather than a 400.
@@ -3702,12 +3717,28 @@ window.HelmUrl = HelmUrl;
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""))) { const e = new Error("This event link is incomplete or no longer exists."); e.code = "PGRST116"; throw e; }
       // R206 (prod API log 18 Nov 2026): .maybeSingle() - a deleted / another studio's quote is 0 rows, which .single() asked
       // the server to refuse (HTTP 406 in the log). The caller still gets the same "not found" (PGRST116) error as before.
-      const { data: q, error } = await supa.from("quotes").select("*").eq("id", id).maybeSingle(); if (error) throw error;
+      // R249: the event row and its layout-version list are asked AT THE SAME TIME (both by id, row security decides each) -
+      // one round trip before the Event Workspace can paint instead of two. The same id asked again while the first answer is
+      // still on its way shares that answer (in flight only - a later call always reads fresh).
+      const key = String(id);
+      if (quoteGetInflight.has(key)) return quoteGetInflight.get(key);
+      const p = (async () => {
+        const [r1, r2] = await Promise.all([supa.from("quotes").select("*").eq("id", id).maybeSingle(),
+          supa.from("quote_versions").select("id,version_no,label,object_count,created_at").eq("quote_id", id).order("version_no", { ascending: false })]);
+        return { q: r1.data, error: r1.error, vs: r2.data, e2: r2.error };
+      })();
+      quoteGetInflight.set(key, p.then((r) => sbq._shape(r, id)));
+      const out = quoteGetInflight.get(key);
+      out.then(() => quoteGetInflight.delete(key), () => quoteGetInflight.delete(key));
+      return out;
+    },
+    // the answer of get() from its two reads (same order of checks as before: the quote first, then its versions)
+    _shape({ q, error, vs, e2 }, id) {
+      if (error) throw error;
       if (!q) { const e = new Error("This quote doesn't exist or was deleted."); e.code = "PGRST116"; throw e; }
       noteMetaRev(q);   // R241 (0408): the lock token behind this updated_at
-      const { data: vs, error: e2 } = await supa.from("quote_versions")
-        .select("id,version_no,label,object_count,created_at").eq("quote_id", id).order("version_no", { ascending: false });
       if (e2) throw e2;
+      vs = vs || [];
       return { id: q.id, code: q.code, title: q.title, eventType: q.event_type, status: q.status, lifecycleStage: q.lifecycle_stage || "quote",
         approvalStatus: q.approval_status || "none", approvalToken: q.approval_token, client: q.client || {},
         pricing: q.pricing || {}, currentVersion: q.current_version, createdAt: q.created_at, updatedAt: q.updated_at,
@@ -9908,6 +9939,70 @@ window.HelmUrl = HelmUrl;
   const vbGstColMissing = (e) => { const c = (e && e.code) || ""; const m = String((e && e.message) || "");
     return c === "PGRST204" || c === "42703" || /gst_(amount|claimable)/i.test(m); };
   const vbMissingErr = () => { const er = new Error("Vendor bills need database update 0124 (ask your admin to run APPLY-0124.sql)."); er.code = "vendor_bills_missing"; return er; };
+  /* ---------------- R249 (0431): the event money reads in ONE call ----------------
+     Prod 22 Nov 2026: event_money_header, event_money_cash and event_cost_breakdown of the same event answered 500 (57014
+     statement timeout) at the same second. Each built the whole cost ledger, side by side, on a server short of memory.
+     Now every money read of an event (header / cash / breakdown / pnl) goes through ONE batch: the parts asked within a short
+     window (and the parts a page said it will show, want()) go out as ONE event_money_bundle call, which builds the ledger once
+     and answers each part exactly as its own call would (the same error for a part the role may not see). A second batch for
+     the same event waits for the first, so the calls never run side by side. A database without 0431 keeps the separate
+     calls (asked once per page load). Pure helpers are unit-tested in test/r249-workspace-speed.test.mjs. */
+  const MONEY_PARTS = ["header", "cash", "breakdown", "pnl"];
+  // the bundle answer for one part: { ok, value } or { ok: false, error } (error shaped like a PostgREST error)
+  function moneyPartOf(res, part) {
+    const errs = res && typeof res === "object" && res.errors && typeof res.errors === "object" ? res.errors : {};
+    if (errs[part]) { const x = errs[part] || {}; const e = new Error(String(x.message || "not authorized")); e.code = String(x.code || ""); return { ok: false, error: e }; }
+    if (!res || typeof res !== "object" || !Object.prototype.hasOwnProperty.call(res, part)) { const e = new Error("money part missing"); e.code = "R249_NOPART"; return { ok: false, error: e }; }
+    return { ok: true, value: res[part] === undefined ? null : res[part] };
+  }
+  const moneyOnce = (() => {
+    const WINDOW_MS = 40;
+    const wants = new Map(), batches = new Map(), chains = new Map();
+    let missing = false;
+    const ok = (q) => mode === "supabase" && !!q && !missing;
+    // a page that WILL show these parts says so early: the first batch for that event includes them
+    function want(q, parts) { if (!q) return; const k = String(q); const w = wants.get(k) || new Set(); (parts || []).forEach((p) => { if (MONEY_PARTS.indexOf(p) >= 0) w.add(p); }); wants.set(k, w); }
+    function flush(k) {
+      const b = batches.get(k); if (!b) return; batches.delete(k);
+      const w = wants.get(k); if (w) { w.forEach((p) => b.parts.add(p)); wants.delete(k); }
+      const parts = MONEY_PARTS.filter((p) => b.parts.has(p));
+      const prev = chains.get(k) || Promise.resolve();
+      const run = prev.catch(() => {}).then(() => rpc("event_money_bundle", { p_quote: k, p_parts: parts })).then((res) => {
+        b.waiters.forEach((x) => { const r = moneyPartOf(res, x.part); if (r.ok) x.resolve(r.value); else if (r.error.code === "R249_NOPART") x.fallback().then(x.resolve, x.reject); else x.reject(r.error); });
+      }, (e) => {
+        if (rpcMissing(e)) { missing = true; b.waiters.forEach((x) => x.fallback().then(x.resolve, x.reject)); return; }
+        b.waiters.forEach((x) => x.reject(e));
+      });
+      chains.set(k, run);
+      run.then(() => { if (chains.get(k) === run) chains.delete(k); });
+    }
+    // part of the event's money; fallback() = the old separate call (database without 0431)
+    function get(q, part, fallback) {
+      if (!ok(q) || MONEY_PARTS.indexOf(part) < 0) return fallback();
+      const k = String(q);
+      return new Promise((resolve, reject) => {
+        let b = batches.get(k);
+        if (!b) { b = { parts: new Set(), waiters: [] }; batches.set(k, b); setTimeout(() => flush(k), WINDOW_MS); }
+        b.parts.add(part); b.waiters.push({ part, resolve, reject, fallback });
+      });
+    }
+    // the parts THIS page's money cards will ask for (money-header-ui data-mh-parts, money-ledger-ui margin card)
+    function pageParts(doc) {
+      const out = new Set();
+      try {
+        Array.prototype.forEach.call(doc.querySelectorAll("[data-mh-mount]"), (n) => {
+          const w = String(n.getAttribute("data-mh-parts") || "header attention").split(/\s+/);
+          if (w.indexOf("header") >= 0 || w.indexOf("attention") >= 0 || w.indexOf("pva") >= 0) out.add("header");
+          if (w.indexOf("cash") >= 0 || w.indexOf("owes") >= 0) out.add("cash");
+        });
+        if (doc.querySelector('[data-ml-mount="margin"]')) out.add("breakdown");
+      } catch (e) {}
+      return MONEY_PARTS.filter((p) => out.has(p));
+    }
+    function wantPage(q) { try { want(q, pageParts(document)); } catch (e) {} }
+    return { want, wantPage, get, pageParts, parts: MONEY_PARTS.slice(), _partOf: moneyPartOf, _missing: () => missing };
+  })();
+
   const vendorBills = {
     calc: vendorPnlCalc, state: vendorBillState, settle: vendorSettle, gstPart: vbGstPart,
     async list(quoteId) {
@@ -9960,7 +10055,7 @@ window.HelmUrl = HelmUrl;
     // per-event P&L: server event_pnl when installed, else the same maths on the client (no bills)
     async pnl(quoteId) {
       if (mode === "supabase") {
-        try { const r = await rpc("event_pnl", { p_quote: quoteId }); if (r) return Object.assign({ source: "server" }, r); }
+        try { const r = await moneyOnce.get(quoteId, "pnl", () => rpc("event_pnl", { p_quote: quoteId })); if (r) return Object.assign({ source: "server" }, r); }
         catch (e) { if (!rpcMissing(e)) throw e; }
       }
       const [b, bk, costs, exp, refs] = await Promise.all([budget.summary(quoteId), bookings.list(quoteId).catch(() => []),
@@ -10059,7 +10154,7 @@ window.HelmUrl = HelmUrl;
     CATS: ML_CATS, catLabel: mlCatLabel, varianceFlag: mlVarianceFlag, stage: mlStage,
     async breakdown(quoteId) {
       if (mode !== "supabase") return null;
-      try { return await rpc("event_cost_breakdown", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; }
+      try { return await moneyOnce.get(quoteId, "breakdown", () => rpc("event_cost_breakdown", { p_quote: quoteId })); } catch (e) { if (rpcMissing(e)) return null; throw e; }
     },
     async studio(from, to) {
       if (mode !== "supabase") return null;
@@ -10215,7 +10310,7 @@ window.HelmUrl = HelmUrl;
   const moneyHeader = {
     async get(quoteId) {
       if (mode !== "supabase" || !quoteId) return null;
-      return softRead("event_money_header", { p_quote: quoteId });
+      return moneyOnce.get(quoteId, "header", () => softRead("event_money_header", { p_quote: quoteId })).catch((e) => { if (rpcMissing(e)) return null; throw e; });
     },
   };
 
@@ -10227,7 +10322,7 @@ window.HelmUrl = HelmUrl;
   const moneyCash = {
     async get(quoteId) {
       if (mode !== "supabase" || !quoteId) return null;
-      return softRead("event_money_cash", { p_quote: quoteId });
+      return moneyOnce.get(quoteId, "cash", () => softRead("event_money_cash", { p_quote: quoteId })).catch((e) => { if (rpcMissing(e)) return null; throw e; });
     },
   };
 
@@ -12617,6 +12712,7 @@ window.HelmUrl = HelmUrl;
     moneySafety, // R239 (0404)
     moneyHeader, // R197 (0376)
     moneyCash, // R198 (0377)
+    moneyOnce, // R249 (0431): want(quote, parts) - the money parts a page will show go out in one call
     signinNotice,    // R205 (0383)
     taskReminders,   // R130 (0338)
     activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,

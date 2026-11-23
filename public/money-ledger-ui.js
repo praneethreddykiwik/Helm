@@ -188,6 +188,8 @@
     var B = S(), id = qid(); if (!id || !B || !B.moneyLedger) { box.hidden = true; return; }
     var finOk = false; try { finOk = await B.auth.canView("finance"); } catch (e) { finOk = false; }
     if (!finOk) { box.hidden = true; return; }
+    // R249 (0431): every money card of this page in ONE call (the ledger is built once, never three times side by side)
+    try { if (B.moneyOnce && B.moneyOnce.wantPage) B.moneyOnce.wantPage(id); } catch (e) {}
     var canEdit = false; try { canEdit = await B.auth.canEditArea("finance"); } catch (e) { canEdit = false; }
     var fmt = await fmtFor(id), seq = 0, timer = null;
     var replaces = String(box.getAttribute("data-ml-replaces") || "").split(/\s+/).filter(Boolean);
