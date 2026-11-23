@@ -81,7 +81,7 @@
 <script src="/telemetry.js?v=14"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=28"></script><script src="/trial-sim.js?v=3" data-trial-sim="proposal"></script>
+<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=29"></script><script src="/trial-sim.js?v=3" data-trial-sim="proposal"></script>
 <script>
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const LINK=BPStore.links.parse("proposal");   // branded /<studio>/proposal/<token> (server-verified below)
@@ -140,7 +140,7 @@
     if(num(c.discount)>0)      rows.push(["Discount", "− "+inr(c.discount), "sub"]);
     if(pvTax && pvTax.country!=="IN"){ BPStore.tax.rows(c, pr, pvTax).forEach(r=>{ if(num(r.amount)>0) rows.push([r.label, inr(Math.round(r.amount)), "sub"]); }); } else {
     // R246 (Q-07): each tax part to paise + a Round-off line, so the lines add up to the stored total exactly
-    if((num(c.igst)>0||num(c.cgst)>0||num(c.sgst)>0) && BPStore.tax && BPStore.tax.rows && isFinite(+pr.total)){
+    if((num(c.igst)>0||num(c.cgst)>0||num(c.sgst)>0) && BPStore.tax && BPStore.tax.rows && BPStore.tax.p9 && isFinite(+pr.total)){
       BPStore.tax.rows({ totalGst:c._gst, subtotal:c.subtotal, discount:c.discount||0, total:+pr.total }, pr, pvTax||BPStore.tax.resolve(pr)).forEach(r=>rows.push([r.label, r.text||inr(r.amount), "sub"]));
     } else {
     if(num(c.igst)>0)          rows.push(["IGST", inr(c.igst), "sub"]);

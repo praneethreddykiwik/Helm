@@ -16,7 +16,7 @@
    the free-trial flag gets the full store-api.js exactly as before ("full mode"): its calls then go through
    supabase-js with that member's session, so nothing changes for studio members either.
    ========================================================================= */
-var STORE_API_V = "405";   // the store-api.js ?v= of the staff pages (filled in by the generator)
+var STORE_API_V = "406";   // the store-api.js ?v= of the staff pages (filled in by the generator)
 var __HELM_CLIENT_FULL__ = (function () {
   try {
     // a sign-in / auth-link return (?code=, #access_token=...) is store-api.js's job
@@ -2019,6 +2019,8 @@ if (!__HELM_CLIENT_FULL__) {
     // R246 (Q-07): Indian invoice style. Each tax part (CGST, SGST or IGST) is rounded to paise (2 decimals) on its own,
     // and a "Round-off" line (under one rupee, + or -) makes the lines add up to the total exactly. DISPLAY ONLY: the total
     // is always the stored, server-stamped one (D8) - it is never recomputed or changed here, for old or new quotes.
+    // R250: Phase 9 (R246) tax display Q-07 + country default Q-08 switch - false while the owner holds Phase 9
+    var P9_TAX = false;
     function r2(n) { var x = Number(n); if (!isFinite(x)) return 0; var v = Math.round((Math.abs(x) + 1e-9) * 100) / 100; return x < 0 ? -v : v; }
     function paise(n) { var x = r2(n), neg = x < 0; return (neg ? "\u2212 " : "") + "\u20b9" + Math.abs(x).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
     // the tax parts at 2 decimals: [CGST, SGST] (each half of the tax, rounded on its own) or [IGST]
@@ -2036,6 +2038,13 @@ if (!__HELM_CLIENT_FULL__) {
       var inc = res.inclusive ? " (included)" : "";
       if (res.exempt || String(pricing.taxExempt).toLowerCase() === "true") return [{ label: res.name + " (exempt)", pct: 0, amount: 0 }];
       if (res.split) {
+        // R250: Phase 9 is ON HOLD (owner, 23 Nov) - while P9_TAX is false the tax lines keep the B28 whole-rupee halves
+        // (no paise, no Round-off line), exactly as production showed before Phase 9. Switch P9_TAX to true to release Q-07.
+        if (!P9_TAX) {
+          if (pricing.placeOfSupply === "inter") return [{ label: "IGST" + inc, pct: pct, amount: gst }];
+          var hv0 = halves(gst);
+          return [{ label: "CGST" + inc, pct: pct / 2, amount: hv0[0] }, { label: "SGST" + inc, pct: pct / 2, amount: hv0[1] }];
+        }
         var inter = pricing.placeOfSupply === "inter", gp = gstParts(gst, inter);
         var out = inter ? [{ label: "IGST" + inc, pct: pct, amount: gp[0], text: paise(gp[0]) }]
           : [{ label: "CGST" + inc, pct: pct / 2, amount: gp[0], text: paise(gp[0]) }, { label: "SGST" + inc, pct: pct / 2, amount: gp[1], text: paise(gp[1]) }];
@@ -2090,12 +2099,13 @@ if (!__HELM_CLIENT_FULL__) {
     // R246 (Q-08, mirrors helm_country_default_gst / 0423): the rate a pricing payload WITHOUT gstPct is priced at -
     // UAE 5, US 0 (a valid studio override first); India, no country and every other country keep the old 18
     function defaultGst(cc, override) {
+      if (!P9_TAX) return 18;   // R250: Phase 9 on hold - every studio without a saved rate keeps the old 18 %
       cc = String(cc || "").trim().toUpperCase(); if (cc !== "AE" && cc !== "US") return 18;
       var o = Number(override); if (override != null && override !== "" && isFinite(o) && o >= 0 && o <= 100) return o;
       return cc === "AE" ? 5 : 0;
     }
     function countries() { return Object.keys(C).map(function (k) { return { iso: k, name: C[k].name }; }); }
-    return { COUNTRIES: C, profile: profile, resolve: resolve, money: money, validateId: validateId, placeOfSupply: placeOfSupply, halves: halves, rows: rows, r2: r2, paise: paise, gstParts: gstParts, roundOff: roundOff, defaultGst: defaultGst, snapshot: snapshot, preserveSnapshot: preserveSnapshot, isPricedQuote: isPricedQuote, restampUnpriced: restampUnpriced, SNAPSHOT_KEYS: IDENT.concat(SOFT), countries: countries, code: code };
+    return { COUNTRIES: C, profile: profile, resolve: resolve, money: money, validateId: validateId, placeOfSupply: placeOfSupply, halves: halves, rows: rows, p9: P9_TAX, r2: r2, paise: paise, gstParts: gstParts, roundOff: roundOff, defaultGst: defaultGst, snapshot: snapshot, preserveSnapshot: preserveSnapshot, isPricedQuote: isPricedQuote, restampUnpriced: restampUnpriced, SNAPSHOT_KEYS: IDENT.concat(SOFT), countries: countries, code: code };
   })();
 
   // ---- studio money (0089) -------------------------------------------------------

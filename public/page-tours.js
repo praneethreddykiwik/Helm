@@ -91,7 +91,7 @@
       { sel: "#typeFilter", title: "Filter", desc: "Show only one event type, or quotes from a date range." },
       { sel: "#newBtn", need: ["create", "edit:quotes"], title: "Start a new quote", desc: "Price a fresh event here. It becomes the event everything else hangs off." },
       { sel: "#rows", uses: "edit:quotes", alt: (can) => can("edit:quotes") ? null : { desc: "Click a row to open the event and see its details." },
-        title: "Your quotes", desc: "Open, confirm or re-price a quote. Not confirmed yet? It has a Continue button that takes you back to the step you left. Pricing: a multi-day event gets a Last day; CGST / SGST show paise plus a Round-off line." },
+        title: "Your quotes", desc: "Open, confirm or re-price a quote. Not confirmed yet? It has a Continue button that takes you back to the step you left." },
     ],
     "flow.html": [
       { sel: "#code", title: "The event workspace", desc: "Every stage of this one event lives here, top to bottom — fill it in order and nothing gets missed. Opened on another step? A Continue where you left off note takes you to the step that is next." },
@@ -146,7 +146,7 @@
     ],
     "calendar.html": [
       { sel: "#cvBar", title: "Events, team or live", desc: "Events = which event is on when. Team = who works when (days someone marked they can't work show in red). Live today = the progress of today's events right now." },
-      { sel: ["#evcal", "#schedule", "#liveToday"], title: "The month at a glance", desc: "Every dated event in one view - a multi-day event shows on every day from its first to its last day. Click an event to open it. On Live today, each event shows how many tasks are done, started, accepted, waiting and late." },
+      { sel: ["#evcal", "#schedule", "#liveToday"], title: "The month at a glance", desc: "Every dated event in one view. Click an event to open it. On Live today, each event shows how many tasks are done, started, accepted, waiting and late." },
       { sel: "#conflicts", title: "Clash detection", desc: "Helm flags staff or stock booked on two events at once, and anyone given work on a day they marked they can't work — before it becomes a problem on the day." },
       { sel: "#agenda", title: "Every event, dated", desc: "A running schedule of all your events so nothing collides." },
       { sel: "#nodateWrap", title: "No date yet", desc: "Quotes without an event date wait here. Give them a date to put them on the calendar." },

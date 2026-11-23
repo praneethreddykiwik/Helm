@@ -124,12 +124,13 @@ t('B19: confirmed + sent reads "Sent · awaiting client approval" (the label the
   assert.equal(S.quoteStatus({ status: 'confirmed', approvalStatus: 'sent' }).label, 'Sent · awaiting client approval');
   assert.equal(S.quoteStatus({ status: 'confirmed', approvalStatus: 'sent' }, { advance: true }).label, 'Confirmed · advance paid');
 });
-t('B28 -> R246 Q-07: CGST = SGST, each rounded to paise on its own (Indian invoice style); a Round-off line meets the stored total', () => {
+t('B28 (R250: Phase 9 Q-07 on hold): GST rounded once to whole rupees and split - CGST + SGST = GST line, no Round-off', () => {
   assert.deepEqual(J(S.tax.halves(79443)), [39722, 39721]);   // the helper is kept (fallback when no breakdown is known)
   assert.deepEqual(J(S.tax.halves(0)), [0, 0]);
   const rows = S.tax.rows({ totalGst: 79443 }, { placeOfSupply: 'intra' }, S.tax.resolve({}));
-  assert.equal(rows.length, 2); assert.deepEqual(J(rows.map((r) => r.amount)), [39721.5, 39721.5]);   // R246 Q-07 (owner-approved fix plan P9): was 39,722 + 39,721
+  assert.equal(rows.length, 2); assert.deepEqual(J(rows.map((r) => r.amount)), [39722, 39721]);   // R250: Phase 9 on hold (P9_TAX false) - with it on: 39,721.50 + 39,721.50 (see r246 test)
   assert.match(read('public/approve.html'), /BPStore\.tax\.rows\(\{ totalGst:g,/);
+  assert.match(read('public/approve.html'), /BPStore\.tax\.p9&&isPriced\(p\)/); assert.match(read('public/proposal-view.html'), /BPStore\.tax\.p9 && isFinite/); assert.match(read('public/booklet.js'), /const P9_TAX = false;/);
   assert.match(read('public/proposal-view.html'), /BPStore\.tax\.rows\(\{ totalGst:c\._gst,/);
   assert.match(read('public/booklet.js'), /const h = r2\(\(\(cgst \|\| 0\) \+ \(sgst \|\| 0\)\) \/ 2\);/);
 });
