@@ -244,7 +244,7 @@ t('smoke: a Google sign-in inline-style hash change is a WARNING listing the has
   assert.equal(c.cspHashOf(msg), 'sha256-NEWHASH+abc=');
   const spec = read('tests/smoke/site.smoke.spec.mjs');
   assert.match(spec, /test\.info\(\)\.annotations\.push\(\{ type: 'warning', description: msg \}\)/);
-  assert.equal((spec.match(/await errors\.settle\(\);\n    expect\(errors, 'console errors on \//g) || []).length, 2);
+  assert.equal((spec.match(/await errors\.settle\(\);\n    expect\(\[\.\.\.errors\], 'console errors on \//g) || []).length, 2);   // R252: a copy (errors carries settle())
 });
 
 let pass = 0, fail = 0;
