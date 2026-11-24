@@ -51,6 +51,7 @@
     var s = ES._pure.preSummary(ctx), parts = [], tasks = s.pre.length + s.day.length, out = s.checkedIn == null ? 0 : s.people - s.checkedIn;
     if (tasks) parts.push(pl(tasks, "task", "tasks") + " open");
     if (out > 0) parts.push(pl(out, "person", "people") + " not checked in");
+    if (s.approve) parts.push(pl(s.approve, "finished task waits", "finished tasks wait") + " for approval");   // R253
     if (s.checks.length) parts.push(pl(s.checks.length, "day-before check", "day-before checks") + " not ticked");
     return { level: red ? "red" : parts.length ? "amber" : "calm", started: started, readyAt: ready, guestsAt: g, now: now, parts: parts, open: parts.length, win: ctx.win };
   }
@@ -73,6 +74,7 @@
       if (T.taskStep(t, { eventDate: ctx.quote.eventDate, eventTime: ctx.quote.eventTime, tz: ctx.tz }) !== "pre") return;
       seen[t.crew_id] = 1; if (!(ctx.sheet[t.crew_id] && ctx.sheet[t.crew_id]["in"])) r[3].push({ kind: "away", text: (who(t) || "Someone") + " - not checked in", task: t });
     });
+    (ctx.tasks || []).forEach(function (t) { if (t && t.status === "completed" && t.verify_status === "pending") r[4].push({ kind: "approve", text: (t.title || "Task") + " - done, waits for approval", task: t }); });
     s.checks.forEach(function (c) { r[4].push({ kind: "check", text: c + " - not ticked", task: null }); });
     return [].concat.apply([], r);
   }
@@ -170,7 +172,7 @@
     P.list.textContent = ""; P.list.hidden = !all.length;
     all.slice(0, MAX).forEach(function (x) {
       var li = mk("li", "pc-it"); li.appendChild(mk("span", "pc-it-t", x.text));
-      var ph = ""; try { ph = x.task && x.kind !== "down" && x.kind !== "nobody" && ctx.phoneOf ? String(ctx.phoneOf(x.task) || "") : ""; } catch (e) {}
+      var ph = ""; try { ph = x.task && x.kind !== "down" && x.kind !== "nobody" && x.kind !== "approve" && ctx.phoneOf ? String(ctx.phoneOf(x.task) || "") : ""; } catch (e) {}
       if (ph) { var a = mk("a", "tc-btn pc-call", "Call"), w = ""; try { w = ctx.nameOf ? ctx.nameOf(x.task) : ""; } catch (e) {} a.href = "tel:" + ph.replace(/[^\d+]/g, ""); a.setAttribute("aria-label", "Call " + (w || "them")); li.appendChild(a); }
       P.list.appendChild(li);
     });

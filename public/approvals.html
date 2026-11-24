@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" data-theme="light" class="auth-pending">
+<head>
+<style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}</style>
+<meta charset="utf-8">
+<base href="/"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approvals — Helm Events</title>
+<link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
+<link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
+<link rel="stylesheet" href="ops-board.css?v=8">
+<link rel="stylesheet" href="approvals.css?v=1">
+<script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
+<script src="/shell-proto.js?v=120" id="shellProto"></script>
+</head>
+<body class="ap-body">
+<a class="skip-link" href="#main">Skip to content</a>
+<!-- R253: finished work waiting for a check (supervisor, quality engineer, event manager, admin). Phone first. Drawn by approvals.js. -->
+<div class="ap-page">
+  <header class="ap-header">
+    <a href="dashboard.html" class="mark" aria-label="Home"></a>
+    <div><h1>Approvals</h1><small>Helm Events</small></div>
+    <span class="spacer"></span>
+    <span id="bell"></span>
+    <span id="account" class="account" hidden></span>
+  </header>
+  <main id="main" class="tc ap-main">
+    <div id="apBoot" class="tc-card ap-pad" aria-busy="true">Loading the finished work…</div>
+    <div id="apErr" hidden></div>
+    <div id="apApp" hidden>
+      <p class="ap-lead" id="apLead"></p>
+      <div class="ap-tools">
+        <div class="tc-seggrp" role="group" aria-label="Show">
+          <button type="button" class="tc-seg" data-ap-view="wait" aria-pressed="true">Waiting <span class="tc-seg-n" id="apWaitN"></span></button>
+          <button type="button" class="tc-seg" data-ap-view="done" aria-pressed="false">Checked</button>
+        </div>
+        <label class="ap-evlbl" for="apEvent">Event
+          <select id="apEvent" class="tc-inp"></select></label>
+      </div>
+      <p class="tc-note warn" id="apNote" role="status" hidden></p>
+      <section aria-labelledby="apListH">
+        <div class="ap-listh"><h2 class="tc-h2" id="apListH" tabindex="-1"></h2>
+          <label class="tc-chk" id="apAllWrap" for="apAll" hidden><input type="checkbox" id="apAll"> Select all</label></div>
+        <ul class="ap-list" id="apList"></ul>
+      </section>
+      <span class="tc-sr" id="apSay" aria-live="polite"></span>
+    </div>
+  </main>
+</div>
+<div class="tc-layer">
+  <div class="tc-bulk ap-bulk" id="apBulk" role="region" aria-label="Selected tasks" hidden>
+    <span class="tc-bulk-n"><b id="apBulkN">0</b> selected</span>
+    <div class="tc-bulk-acts"><button type="button" class="tc-btn" id="apBulkGo">Approve</button></div>
+    <button type="button" class="tc-btn ghost" id="apBulkX">Clear</button>
+  </div>
+</div>
+<dialog class="ap-photo" id="apPhoto" aria-label="Proof photo">
+  <img id="apPhotoImg" alt="">
+  <div class="ap-photo-f"><a id="apPhotoOpen" target="_blank" rel="noopener noreferrer">Open in a new tab</a><button type="button" class="tc-btn" id="apPhotoX">Close</button></div>
+</dialog>
+
+<script src="/console-warning.js?v=1"></script>
+<script src="telemetry.js?v=14"></script>
+<script src="config.js?v=113"></script>
+<script src="event-name.js?v=9"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=409"></script>
+<script src="task-status.js?v=6"></script>
+<script src="approvals.js?v=1"></script>
+</body>
+</html>

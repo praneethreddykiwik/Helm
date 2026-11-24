@@ -1,0 +1,38 @@
+/* event-wrap.css - R253: what can be done inside Wrap-up and on the Vendors card (event-wrap.js). Theme tokens of ops-board.css; phone first, 44px targets. */
+.hwd{margin:8px 0 0 19px;min-width:0}
+.hwd:empty{display:none}
+.hwd-card{padding:14px 16px}
+.hwd-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.hwd-list{list-style:none;margin:0;padding:0;border:1px solid var(--tc-line-2);border-radius:var(--tc-r-ctl);background:var(--tc-panel)}
+.hwd-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;min-height:52px;min-width:0}
+.hwd-row + .hwd-row{border-top:1px solid var(--tc-line-2)}
+.hwd-main{flex:1 1 180px;min-width:0;display:grid;gap:1px;overflow-wrap:anywhere}
+.hwd-main b{font-size:14px;font-weight:600;color:var(--tc-ink)} .hwd-main small{font-size:12.5px;color:var(--tc-ink-3)}
+.hwd-pill{flex:none;font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;background:var(--tc-wait-bg);color:var(--tc-wait)}
+.hwd-pill.is-arrived{background:var(--tc-warn-bg);color:var(--tc-warn)} .hwd-pill.is-left{background:var(--tc-safe-bg);color:var(--tc-safe)} .hwd-pill.is-no_show{background:var(--tc-bad-bg);color:var(--tc-bad)}
+.hwd-card .hwd-pill.is-arrived{background:var(--tc-safe-bg);color:var(--tc-safe)} .hwd-card .hwd-pill.is-left{background:var(--tc-wait-bg);color:var(--tc-wait)}
+.hwd-acts{display:flex;flex-wrap:wrap;gap:6px}
+.hwd-acts:empty{display:none}
+.tc .hwd-b,.hes .hwd-b{min-height:44px;min-width:44px;font-size:13px}
+.tc .hwd-b.is-main,.hes .hwd-b.is-main{border-color:var(--tc-acc);color:var(--tc-acc-text)}
+.tc .hwd-b.is-main:hover,.hes .hwd-b.is-main:hover{background:var(--tc-acc-soft)}
+.hwd-foot{margin-top:8px}
+.hwd-why{margin:8px 0 0;font-size:13px;color:var(--tc-ink-3);display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px}
+.hwd-a,.hwd-a:visited{display:inline-flex;align-items:center;min-height:44px;color:var(--tc-acc-text);font-weight:600}
+.hwd-err{flex-basis:100%;margin:0;font-size:13px;color:var(--tc-bad)}
+.hwd-res{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--tc-bad)}
+.hwd-form{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:end;gap:8px 12px;padding:10px;border:1px solid var(--tc-line);border-radius:10px;background:var(--tc-panel-2)}
+.hwd-form label{display:grid;gap:3px;font-size:12px;font-weight:600;color:var(--tc-ink-3)} .hwd-form input.tc-inp{width:110px;height:44px;min-height:44px} .hwd-form small{flex-basis:100%;font-size:12px;color:var(--tc-ink-3)}
+.hwd-row.is-tick{padding:0 12px}
+.hwd-tick{flex:1 1 120px;min-width:0;display:flex;align-items:center;gap:10px;min-height:48px;font-size:14px;cursor:pointer;overflow-wrap:anywhere}
+.hwd-tick input{width:20px;height:20px;flex:none;margin:0;accent-color:var(--tc-acc)}
+.hwd-row.is-off .hwd-tick span{color:var(--tc-ink-3);text-decoration:line-through}
+.hwd-add{display:flex;gap:8px;margin-top:8px} .hwd-add input.tc-inp{flex:1 1 auto;min-width:0;height:44px;min-height:44px}
+.hes-prog{display:grid;gap:6px;padding:12px 0} .hes-prog b{font-size:14px}
+.hes-prog progress{width:100%;height:8px;appearance:none;border:0;border-radius:999px;overflow:hidden;background:var(--tc-line-2)}
+.hes-prog progress::-webkit-progress-bar{background:var(--tc-line-2)} .hes-prog progress::-webkit-progress-value{background:var(--tc-acc)} .hes-prog progress::-moz-progress-bar{background:var(--tc-acc)}
+/* the shared Mark back dialog (stock-checkin.js) opens over the task panel too */
+html body .sc-modal{z-index:2200}
+.sc-modal .btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border:1px solid var(--line,#e0eae5);border-radius:9px;background:var(--panel,#fff);color:var(--ink,#0b2a22);font:600 14px inherit;cursor:pointer}
+.sc-modal .btn.primary{background:var(--accent,#047857);border-color:var(--accent,#047857);color:var(--hb-acc-ink,#fff)}
+@media (max-width:520px){.hwd{margin-left:0}.hwd-row .hwd-acts{flex:1 1 100%}.hwd-row .hwd-acts .hwd-b{flex:1 1 auto}.hwd-row.is-tick .hwd-acts{flex:0 0 auto}}

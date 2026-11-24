@@ -51,6 +51,7 @@
     sliders: "M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1M15 5v4M9 10v4M17 15v4",
     gift: "M4 9h16v4H4zM5 13v7h14v-7M12 9v11M12 9c-1.5-3-5-3.5-5-1.2C7 9 9 9 12 9zM12 9c1.5-3 5-3.5 5-1.2C17 9 15 9 12 9z",   /* r29: Refer a studio */
     idea: "M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z",   /* R154e: Suggest an idea */
+    approve: "M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12.5l2.7 2.7L16 9.5",   /* R253: Approvals */
     inbox: "M4 13l2.5-7h11l2.5 7v6H4zM4 13h5l1 2h4l1-2h5"   /* R154e: My suggestions */
   };
   var NS = "http://www.w3.org/2000/svg";
@@ -80,7 +81,11 @@
   var GATE_AREA = { monitor: "staff" };   /* R181: nav keys that are pages, not areas - gate them on the area they read */
   var ALWAYS_NAV = { dashboard: 1, chat: 1 };   /* crew-1020: team chat is open to every signed-in member (no area gate) */
   var SC_HINT = { dashboard: "G D", quotes: "G Q", leads: "G L", calendar: "G C", chat: "G M", business: "G B" };
-  var COUNT_KEYS = { leads: 1, quotes: 1, chat: 1 };
+  var COUNT_KEYS = { leads: 1, quotes: 1, chat: 1, approvals: 1 };
+  /* R253: Approvals is for the roles that check finished work (+ a supervisor, for their own departments) and needs the Staff area */
+  var APPR_ROLES = { admin: 1, manager: 1, planner: 1, quality: 1, supervisor: 1 };
+  function myRole() { try { var A = window.BPStore && BPStore.auth; return Promise.resolve(A && A.role ? A.role() : "").catch(function () { return ""; }); } catch (e) { return Promise.resolve(""); } }
+  function approvalsOk() { var B = window.BPStore; if (!(B && B.ops && B.ops.approvals)) return Promise.resolve(false); return Promise.all([can("staff"), myRole()]).then(function (v) { return v[0] && APPR_ROLES[v[1]] === 1; }); }
   function group(title) {
     var g = el("div", "hb-group"); g.appendChild(el("div", "hb-head", title)); return g;
   }
@@ -194,7 +199,7 @@
     var scroll = el("div", "hb-scroll");
     var work = group("Workspace");
     [["dashboard", "Dashboard", "dashboard.html", "dashboard"], ["quotes", "Quotes", "quotes.html", "quotes"], ["leads", "Leads", "leads.html", "leads"],
-     ["calendar", "Calendar", "calendar.html", "calendar"], ["insights", "Event day", "monitor.html", "monitor"], ["chat", "Chat", "chat.html", "chat"]].forEach(function (x) { var it = item(x[0], x[1], x[2], x[3]); if (!ALWAYS_NAV[x[0]]) it.hidden = true; work.appendChild(it); });   /* crew-1020: gated items start hidden (no Quotes/Leads flash) */
+     ["calendar", "Calendar", "calendar.html", "calendar"], ["insights", "Event day", "monitor.html", "monitor"], ["approve", "Approvals", "approvals.html", "approvals"], ["chat", "Chat", "chat.html", "chat"]].forEach(function (x) { var it = item(x[0], x[1], x[2], x[3]); if (!ALWAYS_NAV[x[0]]) it.hidden = true; work.appendChild(it); });   /* crew-1020: gated items start hidden (no Quotes/Leads flash) */
     var manage = group("Manage"); manage.hidden = true; manage.setAttribute("data-tour", "nav-manage");
     var admin = group("Admin"); admin.hidden = true; admin.setAttribute("data-tour", "nav-admin");
     var favs = group("Pinned"); favs.classList.add("hb-fav"); favs.hidden = true; favs.id = "hbFavs";
@@ -629,6 +634,11 @@
       if (x[2] === page) { a.classList.add("on"); a.setAttribute("aria-current", "page"); }
       bar.appendChild(a);
     });
+    /* R253: on site, a supervisor / quality engineer approves from the phone: their own tab (they have no Leads) */
+    var ap = el("a", "hb-tab"); ap.href = abs("approvals.html"); ap.setAttribute("data-key", "approvals"); ap.hidden = true; ap.appendChild(icon("approve")); ap.appendChild(el("span", null, "Approvals"));
+    if (page === "approvals.html") { ap.classList.add("on"); ap.setAttribute("aria-current", "page"); }
+    bar.appendChild(ap);
+    waitAuth(function () { Promise.all([approvalsOk(), myRole()]).then(function (v) { ap.hidden = !(v[0] && (v[1] === "supervisor" || v[1] === "quality")); }); });
     var more = el("button", "hb-tab"); more.type = "button"; more.setAttribute("aria-label", "More: open menu"); more.setAttribute("data-tour", "tabs-more");
     more.appendChild(icon("menu")); more.appendChild(el("span", null, "More"));
     more.addEventListener("click", function (e) { e.stopPropagation(); root.classList.toggle("hb-drawer"); });
@@ -744,7 +754,7 @@
       var k = a.getAttribute("data-key"); if (ALWAYS_NAV[k]) return;
       var row = a.parentNode && a.parentNode.classList.contains("hb-row") ? a.parentNode : a;
       row.hidden = true;
-      waitAuth(function () { can(GATE_AREA[k] || k).then(function (ok) { var r = a.parentNode && a.parentNode.classList.contains("hb-row") ? a.parentNode : a; r.hidden = !ok; if (ok) a.hidden = false; if (!ok) favDrop(k); }); });
+      waitAuth(function () { (k === "approvals" ? approvalsOk() : can(GATE_AREA[k] || k)).then(function (ok) { var r = a.parentNode && a.parentNode.classList.contains("hb-row") ? a.parentNode : a; r.hidden = !ok; if (ok) a.hidden = false; if (!ok) favDrop(k); }); });
     });
   }
   function favDrop(k) { try { var f = document.querySelector('#hbFavs [data-fkey="' + k + '"]'); if (f) f.hidden = true; } catch (e) {} }
@@ -954,6 +964,7 @@
         var a = b.parentNode, base = a.getAttribute("data-label") || a.getAttribute("aria-label") || "";
         if (!a.getAttribute("data-label")) a.setAttribute("data-label", base);
         var why = key === "chat" ? (n === 1 ? "1 unread message" : n + " unread messages")
+          : key === "approvals" ? (n === 1 ? "1 finished task waiting for approval" : n + " finished tasks waiting for approval")
           : key === "leads" ? (n === 1 ? "1 new lead not yet contacted" : n + " new leads not yet contacted")
           : (n === 1 ? "1 quote sent, waiting for client approval" : n + " quotes sent, waiting for client approval");
         b.title = n ? why : ""; a.removeAttribute("title");
@@ -988,6 +999,12 @@
         return Promise.resolve(B.quotes.list()).then(function (rows) {
           railCount("quotes", (Array.isArray(rows) ? rows : []).filter(function (q) { return q && q.status === "quote" && (q.approvalStatus === "sent" || q.approvalStatus === "viewed"); }).length);
         });
+      }).catch(function () {}));
+      /* R253: at most once every 3 minutes (the Approvals page itself is live) */
+      var apAt = 0; try { apAt = Number(sessionStorage.getItem(CNT_AT_KEY + ".ap")) || 0; } catch (e) {}
+      if (B.ops && B.ops.approvals && Date.now() - apAt > 175000) jobs.push(approvalsOk().then(function (ok) {
+        try { sessionStorage.setItem(CNT_AT_KEY + ".ap", String(Date.now())); } catch (e) {}
+        return ok ? B.ops.approvals.count().then(function (n) { railCount("approvals", n); }) : railCount("approvals", 0);
       }).catch(function () {}));
       Promise.all(jobs).then(function () { busy = false; try { sessionStorage.setItem(CNT_AT_KEY, String(Date.now())); } catch (e) {} }, function () { busy = false; });
     }

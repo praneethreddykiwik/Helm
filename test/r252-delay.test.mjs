@@ -125,7 +125,7 @@ test('the file: no HTML strings, no inline style, no fixed hex, no read or save;
 });
 test('both pages: same card, the existing actions, the plan lock, no extra read', () => {
   for (const p of ['ops', 'monitor']) { const h = read(`public/${p}.html`); assert.match(h, /\/event-delay\.js\?v=\d+/); assert.match(h, /\/event-delay\.css\?v=\d+/); }
-  assert.match(OPS, /pre: \["tcReady", "tcDelay",/); assert.match(OPS, /onday: \["tcRun", "tcDelay",/);
+  assert.match(OPS, /pre: \["attn", "work", "tcDelay", "tcReady", "tcFloor"/); assert.match(OPS, /onday: \["attn", "work", "tcRun", "tcDelay"/);
   const ob = OPS.slice(OPS.indexOf('function renderDelay'), OPS.indexOf('function planLocked'));
   assert.match(ob, /locked: planLocked\(\)/); assert.match(ob, /move: canEdit\(\) \? function \(ids, m\)[^\n]*!planLocked\(\)\) openMove\(ts, m\)/); assert.match(ob, /P\(\)\.mail\(b, t\.id, false\)/);
   assert.doesNotMatch(ob, /await|BPStore|B\(\)/);

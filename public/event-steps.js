@@ -15,6 +15,9 @@
  * Both are idempotent: called on every refresh, they skip the redraw when nothing changed, keep the focus, and never open or
  * close the section by themselves. They hide the host when there is no single event or it is cancelled.
  *
+ * R253: what can be DONE at the end (vendor arrived / left, stock back, teardown list, crew check-out, issues) is drawn under its row by
+ * event-wrap.js (HelmWrapDo) when that script is on the page - every write lives there, none here. "6 of 9 wrap-up items done" = progress().
+ *
  * Stage moves use ONLY BPStore.quotes.stageBlockers / setStageGuided (0198: the server checks every move, admin override with a
  * reason is audited). Wrap-up's reads start when it is opened the first time; each one sits behind the area its page uses
  * (vendors / inventory / plan / staff / issues / command) and a refused read hides its row. Money is never read into a row or shown.
@@ -43,7 +46,7 @@
     var all = day.concat(pre), n = function (f) { return all.filter(f).length; };
     var r = { pre: pre, day: day, total: b.pre.total, unassigned: n(function (t) { return key(t) === "unassigned"; }), turned: n(function (t) { return key(t) === "rejected"; }),
       waiting: n(function (t) { return key(t) === "waiting"; }), started: b.pre.tasks.filter(function (t) { var k = key(t); return k === "started" || k === "done"; }).length,
-      people: 0, checkedIn: null, checks: [] };
+      people: 0, checkedIn: null, checks: [], approve: (ctx.tasks || []).filter(function (t) { return t && t.status === "completed" && t.verify_status === "pending"; }).length };   // R253: finished, not checked yet
     var ppl = {}; b.pre.tasks.forEach(function (t) { if (inHouse(t) && key(t) !== "rejected") ppl[t.crew_id] = 1; });
     var ids = Object.keys(ppl); r.people = ids.length;
     if (ctx.sheet && typeof ctx.sheet === "object") r.checkedIn = ids.filter(function (id) { return ctx.sheet[id] && ctx.sheet[id]["in"]; }).length;
@@ -62,6 +65,7 @@
     if (s.people && s.checkedIn === 0) a.push(["bad", "Nobody has checked in yet (" + pl(s.people, "person", "people") + " expected)"]);
     else if (s.people && s.checkedIn != null && s.checkedIn < s.people) a.push(["warn", pl(s.people - s.checkedIn, "person has", "people have") + " not checked in"]);
     else if (s.checkedIn == null && s.total && !s.started) a.push(["warn", "Nobody has started a pre-event task yet"]);
+    if (s.approve) a.push(["warn", pl(s.approve, "finished task waits", "finished tasks wait") + " for approval"]);
     if (s.checks.length) a.push(["warn", pl(s.checks.length, "Day-before check") + " not ticked: " + s.checks.slice(0, 3).join(", ") + (s.checks.length > 3 ? " and " + (s.checks.length - 3) + " more" : "")]);
     return a;
   }
@@ -82,7 +86,7 @@
   }
   // stock out and back on this event - counts only, the same rules as HelmStockFlow (parity-tested)
   function stock(res, cos) {
-    var by = {}, r = { given: 0, back: 0, out: 0, missing: 0, damaged: 0, used: 0, unused: 0, outItems: 0, holders: [] };
+    var by = {}, r = { given: 0, back: 0, out: 0, missing: 0, damaged: 0, used: 0, unused: 0, outItems: 0, items: 0, holders: [] };
     var slot = function (id) { return by[id] || (by[id] = { live: 0, alloc: 0, out: 0, went: false }); };
     (res || []).forEach(function (x) { if (!x || !x.item_id) return; var s = slot(x.item_id);
       if (x.status === "reserved" || x.status === "allocated") s.live += num(x.qty); if (x.status === "allocated") s.alloc += num(x.qty); });
@@ -94,6 +98,7 @@
       else { r.back += Math.max(inn - dmg - used, 0); r.missing += Math.max(num(c.qty_out) - inn, 0); r.damaged += dmg; r.used += used; }
     });
     Object.keys(by).forEach(function (k) { var s = by[k];
+      if (s.went || s.alloc > 0) r.items++;
       if (!s.went) { r.out += s.alloc; r.given += s.alloc; r.unused += Math.max(s.live - s.alloc, 0); if (s.alloc > 0) r.outItems++; }
       else if (s.out > 0) r.outItems++; });
     return r;
@@ -119,7 +124,7 @@
     d = d || {}; var rows = [], q = "?quote=" + encodeURIComponent(ctx.quoteId || ""), T = TS(), qq = ctx.quote || {};
     var open = openOf(ctx.tasks), total = liveOf(ctx.tasks).length, live = ["pre", "onday", "wrapup"].indexOf(ctx.autoWin) >= 0;
     rows.push({ id: "tasks", title: "Tasks", tone: open.length ? "warn" : total ? "ok" : "muted", status: open.length ? open.length + " open" : total ? "All done" : "None",
-      text: open.length ? "Close each one: done, or cancelled with a reason." : total ? "Every task is closed." : "This event has no tasks.", items: open, link: "ops.html" + q, linkText: "Open Tasks & Crew" });
+      text: open.length ? "Close each one: done, or cancelled with a reason." : total ? "Every task is closed." : "This event has no tasks.", items: open.concat(d.vendors === undefined && !d.perm ? [] : liveOf(ctx.tasks).filter(function (t) { return key(t) === "done" && T && T.taskStep && T.taskStep(t, { eventDate: qq.eventDate, eventTime: qq.eventTime, tz: ctx.tz }) === "wrapup"; })), link: "ops.html" + q, linkText: "Open Tasks & Crew" });
     var v = d.vendors;
     if (v === "err") rows.push(errRow("vendors", "Vendors", "teardown.html" + q, d.teardownPage)); else if (v) {
       var vs = vendorsOf(v, d.arrivals), ns = vs.noShow ? " " + vs.noShow + " did not come." : "";
@@ -144,7 +149,8 @@
         text: !c.length ? "No teardown items yet." : left.length ? "Still to do: " + names(left.map(function (x) { return String(x.title || "item"); }), 3) + "." : "Cleared, handed over and checked.",
         link: d.teardownPage ? "teardown.html" + q : "", linkText: "Open teardown" });
     }
-    var w = crewOut(ctx.tasks, ctx.sheet || (d.sheet && d.sheet !== "err" ? d.sheet : null));
+    var w = d.sheet === "err" ? null : crewOut(ctx.tasks, sheetFor(ctx, d));
+    if (d.sheet === "err") rows.push(errRow("crew", "Crew check-out", "ops.html" + q, true));
     if (w && (w.came || live)) {
       var nm = function (id) { var t = liveOf(ctx.tasks).filter(function (x) { return x.crew_id === id; })[0]; var n = ""; try { n = t && ctx.nameOf ? ctx.nameOf(t) : (t && t.assignee_name) || ""; } catch (e) {} return n || (d.sheetNames && d.sheetNames[id]) || "Staff"; };
       rows.push({ id: "crew", title: "Crew check-out", tone: !w.came ? "muted" : w.here.length ? "warn" : "ok", status: !w.came ? "No check-ins" : w.here.length ? w.here.length + " still in" : "All checked out",
@@ -157,6 +163,31 @@
         text: io.length ? names(io.map(function (x) { return String(x.title || "issue"); }), 3) + "." : i.length ? "All " + i.length + " sorted." : "Nothing was logged.", link: "issues.html" + q, linkText: io.length ? "Sort issues" : "See issues" });
     }
     return rows;
+  }
+  /* how far Wrap-up is (pure): tasks = the Wrap-up step's tasks + anything else still open, one per vendor / stock item / teardown line / person who
+     came / issue. A part that could not be read is left out and named. -> { done, total, skipped: [words] } */
+  function progress(ctx, d) {
+    d = d || {}; var r = { done: 0, total: 0, skipped: [] }, add = function (done, total) { r.done += done; r.total += total; }, T = TS(), q = (ctx && ctx.quote) || {};
+    var open = openOf(ctx.tasks), wrap = liveOf(ctx.tasks).filter(function (t) { return T && T.taskStep && T.taskStep(t, { eventDate: q.eventDate, eventTime: q.eventTime, tz: ctx.tz }) === "wrapup"; }), dn = wrap.filter(function (t) { return key(t) === "done"; }).length;
+    add(dn, dn + open.length);
+    if (d.vendors === "err" || d.arrErr) r.skipped.push("vendors"); else if (d.vendors) { var v = vendorsOf(d.vendors, d.arrivals); add(v.left + v.noShow, v.total); }
+    if (d.stock === "err") r.skipped.push("stock"); else if (d.stock) { var s = stock(d.stock.res, d.stock.cos); add(s.items - s.outItems, s.items); }
+    if (d.checklist === "err") r.skipped.push("teardown list"); else if (d.checklist) add(d.checklist.filter(function (x) { return x && x.status !== "open"; }).length, d.checklist.length);
+    if (d.sheet === "err") r.skipped.push("crew"); else { var w = crewOut(ctx.tasks, sheetFor(ctx, d)); if (w) add(w.out, w.came); }
+    if (d.issues === "err") r.skipped.push("issues"); else if (d.issues) add(d.issues.filter(function (x) { return x && x.status === "resolved"; }).length, d.issues.length);
+    return r;
+  }
+  // the freshest check-ins: Wrap-up's own read (event-wrap.js on the page), else what the page has
+  function sheetFor(ctx, d) { var own = d && d.sheet && d.sheet !== "err" ? d.sheet : null; return d && d.ts && own ? own : ctx.sheet || own; }
+  // what is still open, for the confirm text of "Mark event complete": "" = nothing known
+  function openWords(ctx, d) {
+    d = d || {}; var a = [], n = openOf(ctx.tasks).length; if (n) a.push(pl(n, "task"));
+    if (d.vendors && d.vendors !== "err" && !d.arrErr) { var v = vendorsOf(d.vendors, d.arrivals).here.length; if (v) a.push(pl(v, "vendor") + " not left"); }
+    if (d.stock && d.stock !== "err") { var s = stock(d.stock.res, d.stock.cos).out; if (s) a.push(s + (s === 1 ? " piece" : " pieces") + " of stock out"); }
+    if (d.checklist && d.checklist !== "err") { var c = d.checklist.filter(function (x) { return x && x.status === "open"; }).length; if (c) a.push(pl(c, "teardown item")); }
+    var w = crewOut(ctx.tasks, sheetFor(ctx, d)); if (w && w.here.length) a.push(pl(w.here.length, "person", "people") + " not checked out");
+    if (d.issues && d.issues !== "err") { var i = d.issues.filter(function (x) { return x && x.status !== "resolved"; }).length; if (i) a.push(pl(i, "open issue")); }
+    var k = progress(ctx, d).skipped; return (a.length ? "Still open: " + a.join(", ") + ". " : "") + (k.length ? "Not checked: " + k.join(", ") + ". " : "");
   }
   function errRow(id, title, link, on) { return { id: id, title: title, tone: "muted", status: "Not checked", text: "Couldn’t check this just now.", link: on ? link : "", linkText: "Open it", retry: true }; }
   function summaryLine(ctx, d, stage) {
@@ -300,21 +331,31 @@
       var e = es.slice().sort(function (a, b) { return String(b.day).localeCompare(String(a.day)); })[0]; m[x.crew_id] = { "in": e["in"], out: e.out || "" }; });
     return { map: m, names: nm };
   }
+  function reader(p, ctx) {
+    var store = B(), inv = store.inventory, sh = store.ops && store.ops.shifts, id = qid(ctx);
+    return {
+      vendors: function () { return Promise.all([read(p.vendors && store.bookings, function () { return store.bookings.list(id); }), read(p.vendors && p.command && store.dayops, function () { return store.dayops.list(id, "arrival"); })])
+        .then(function (r) { return { vendors: r[0], arrivals: r[1] === "err" ? null : r[1], arrErr: r[1] === "err" }; }); },
+      stock: function () { return read(p.inventory && inv && inv.checkouts, function () { return Promise.all([inv.reservations(id), inv.checkouts.list(id)]).then(function (r) { return { res: r[0] || [], cos: r[1] || [] }; }); }).then(function (r) { return { stock: r }; }); },
+      teardown: function () { return read(p.plan && store.checklist, function () { return store.checklist.list(id, "teardown"); }).then(function (r) { return { checklist: r }; }); },
+      crew: function () { return (ctx.sheet && !global.HelmWrapDo ? Promise.resolve(null) : read(p.staff && sh && sh.timesheet, function () { return sh.timesheet(id); })).then(function (r) { var x = sheetOf(r); return { sheet: x.map, sheetNames: x.names, ts: r && r !== "err" ? r : null }; }); },
+      issues: function () { return read(p.issues && store.issues, function () { return store.issues.list(id); }).then(function (r) { return { issues: r }; }); }
+    };
+  }
+  // one block again (after something was done in it, or Try again): the others keep what they have; an older answer never replaces a newer one
+  function loadPart(S, part) {
+    var ctx = S.ctx, id = qid(ctx); S.seq = S.seq || {}; var n = S.seq[part] = (S.seq[part] || 0) + 1;
+    return perms().then(function (p) { return p && reader(p, ctx)[part](); }).then(function (r) { if (!r || qid(S.ctx) !== id || S.seq[part] !== n) return; S.data = Object.assign({}, S.data || {}, r); if (S.redraw) S.redraw(); });
+  }
   function load(S, redraw) {
-    var ctx = S.ctx, id = qid(ctx), store = B(); if (!store || S.loading === id) return; S.loading = id;
+    var id = qid(S.ctx), store = B(); if (!store || S.loading === id) return; S.loading = id; S.seq = S.seq || {};
+    var keys = ["vendors", "stock", "teardown", "crew", "issues"], at = keys.map(function (k) { return S.seq[k] || 0; });
     perms().then(function (p) {
-      p = p || {}; var inv = store.inventory, sh = store.ops && store.ops.shifts;
-      return Promise.all([
-        read(p.vendors && store.bookings, function () { return store.bookings.list(id); }),
-        read(p.inventory && inv && inv.checkouts, function () { return Promise.all([inv.reservations(id), inv.checkouts.list(id)]).then(function (r) { return { res: r[0] || [], cos: r[1] || [] }; }); }),
-        read(p.plan && store.checklist, function () { return store.checklist.list(id, "teardown"); }),
-        ctx.sheet ? Promise.resolve(null) : read(p.staff && sh && sh.timesheet, function () { return sh.timesheet(id); }),
-        read(p.issues && store.issues, function () { return store.issues.list(id); }),
-        read(p.vendors && p.command && store.dayops, function () { return store.dayops.list(id, "arrival"); })
-      ]).then(function (r) {
+      p = p || {}; var rd = reader(p, S.ctx);
+      return Promise.all(keys.map(function (k) { return rd[k](); })).then(function (r) {
         if (S.loading === id) S.loading = ""; if (qid(S.ctx) !== id) return;
-        var sh2 = sheetOf(r[3]);
-        S.data = { vendors: r[0], stock: r[1], checklist: r[2], sheet: sh2.map, sheetNames: sh2.names, issues: r[4], arrivals: r[5] === "err" ? null : r[5], teardownPage: !!p.inventory, perm: p }; S.at = Date.now(); redraw();
+        var d = Object.assign({}, S.data || {}, { teardownPage: !!p.inventory, perm: p }); r.forEach(function (x, i) { if ((S.seq[keys[i]] || 0) === at[i]) Object.assign(d, x); });   // a block read again meanwhile keeps its newer answer
+        S.data = d; S.at = Date.now(); redraw();
       });
     }).catch(function () { if (S.loading === id) S.loading = ""; });
   }
@@ -334,9 +375,9 @@
     if (!host || !doc) return; ctx = ctx || {};
     var show = applies(ctx); host.hidden = !show; var S = host._hes || (host._hes = { q: "" }); S.ctx = ctx; if (!show) return;
     if (S.q !== qid(ctx) || !S.det || S.det.parentNode !== host) {   // another event = a fresh, closed section
-      S.q = qid(ctx); S.data = null; S.at = 0; S.sig = ""; S.head = ""; S.open = false; S.more = false; S.blk = null; S.blkKey = ""; S.blkBusy = ""; build(host, S);
+      S.q = qid(ctx); S.data = null; S.at = 0; S.sig = ""; S.head = ""; S.open = false; S.more = false; S.blk = null; S.blkKey = ""; S.blkBusy = ""; S.hosts = {}; S.seq = {}; build(host, S);
     }
-    var redraw = function (again) { if (again === true) S.blkKey = ""; S.sig = ""; renderWrap(host, S.ctx); };
+    var redraw = S.redraw = function (again) { if (again === true) S.blkKey = ""; S.sig = ""; renderWrap(host, S.ctx); };
     var st = stageOf(ctx), line = summaryLine(ctx, S.data, st), head = sigOf([line, ctx.autoWin === "wrapup"]);
     if (S.head !== head) { S.head = head; S.sumTxt.textContent = line; S.nowEl.hidden = ctx.autoWin !== "wrapup"; S.det.classList.toggle("is-now", ctx.autoWin === "wrapup"); }
     if (!S.det.open) return;   // closed: nothing is read, nothing is drawn
@@ -346,18 +387,28 @@
     if (!who) perms().then(function (p) { if (p) redraw(); });
     else if (!done && live && who.stage) loadBlk(S, ctx, "settlement", redraw);
     var rows = rowsOf(ctx, S.data || {}), ready = !!(who && who.stage && S.blkKey), g = gate(S.blk, who && who.admin), busy = !!BUSY[qid(ctx)];
-    var sig = sigOf([st, done, live, who, ready, S.blk, busy, ctx.autoWin, !!S.data, S.more, S.data && S.data.perm, rows.map(function (r) { return [r.id, r.tone, r.status, r.text, r.link, (r.items || []).map(function (t) { return [t.id, t.title, key(t)]; })]; })]);
-    if (S.sig === sig) return; S.sig = sig;
-    var body = S.body, keep = focusKey(body); clear(body);
+    var pg = S.data ? progress(ctx, S.data) : null;
+    paintDo(S, rows);   // R253: what can be done under each row - drawn on its own, so a redraw of the rows never loses what somebody is typing
+    var sig = sigOf([pg, openWords(ctx, S.data), (ctx.quote || {}).eventDate, rows.map(function (r) { return !!(S.does && S.does[r.id]); }), st, done, live, who, ready, S.blk, busy, ctx.autoWin, !!S.data, S.more, S.data && S.data.perm, rows.map(function (r) { return [r.id, r.tone, r.status, r.text, r.link, (r.items || []).map(function (t) { return [t.id, t.title, key(t)]; })]; })]);
+    if (S.sig === sig) return;
+    var body = S.body, ae = doc.activeElement; if (ae && body.contains && body.contains(ae) && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName) && ae.type !== "checkbox") return;   // someone is typing in a block: the next refresh draws it
+    S.sig = sig; var keep = focusKey(body); clear(body);
+    if (pg && pg.total) body.appendChild(h("div", { cls: "hes-prog" }, [h("b", { text: pg.done + " of " + pg.total + " wrap-up items done" }), h("progress", { max: String(pg.total), value: String(pg.done), "aria-hidden": "true" }), pg.skipped.length ? h("span", { cls: "hes-hint", text: "Not checked: " + pg.skipped.join(", ") + "." }) : null]));
     var ul = h("ul", { cls: "hes-rows" }); rows.forEach(function (r) { ul.appendChild(rowEl(r, S, host)); });
     body.appendChild(ul);
     if (!S.data) body.appendChild(h("p", { cls: "hes-hint", role: "status", text: "Checking vendors, stock, crew and issues…" }));
     body.appendChild(finish(S, st, done, live, who, ready, g, busy, redraw));
     restoreFocus(body, keep);
   }
+  // the doing part of each row lives in its own host, kept across redraws
+  function paintDo(S, rows) {
+    var DO = global.HelmWrapDo; S.does = {}; if (!DO || !S.data) return; S.hosts = S.hosts || {};
+    var env = { q: qid(S.ctx), ctx: S.ctx, data: S.data, redraw: S.redraw, reload: function (part) { return loadPart(S, part); } };
+    rows.forEach(function (r) { if (!DO.has(r.id) || r.retry) return; var n = S.hosts[r.id] || (S.hosts[r.id] = h("div", { cls: "hwd" })); S.does[r.id] = DO.paint(r.id, n, env) || !!n.firstChild; });
+  }
   function rowEl(r, S, host) {
     var ctx = S.ctx, kids = [h("div", { cls: "hes-row-h" }, [h("span", { cls: "hes-dot " + r.tone, "aria-hidden": "true" }), h("strong", { cls: "hes-row-t", text: r.title }), h("span", { cls: "hes-pill " + r.tone, text: r.status })]),
-      h("p", { cls: "hes-sub", text: r.text })];
+      S.does && S.does[r.id] && r.id !== "stock" ? null : h("p", { cls: "hes-sub", text: r.text })];
     if (r.items && r.items.length) {
       var max = S.more ? r.items.length : 5, ul = h("ul", { cls: "hes-tasks" });
       r.items.slice(0, max).forEach(function (t) {
@@ -369,9 +420,10 @@
       kids.push(ul);
       if (r.items.length > 5) kids.push(h("button", { type: "button", cls: "tc-btn sm", "data-key": "more", "aria-expanded": String(!!S.more), text: S.more ? "Show fewer" : "Show all " + r.items.length, on: { click: function () { S.more = !S.more; S.sig = ""; renderWrap(host, S.ctx); } } }));
     }
+    var does = !!(S.does && S.does[r.id]); if (does) kids.push(S.hosts[r.id]);
     var acts = [];
-    if (r.retry) acts.push(h("button", { type: "button", cls: "tc-btn sm", "data-key": "retry:" + r.id, text: "Try again", on: { click: function () { S.at = 0; S.sig = ""; renderWrap(host, S.ctx); } } }));
-    if (r.link && !((r.id === "tasks" || r.id === "crew") && isPage(/\/ops(\.html)?$/))) acts.push(h("a", { cls: "hes-link", "data-key": "go:" + r.id, href: r.link, text: r.linkText + " →" }));
+    if (r.retry) acts.push(h("button", { type: "button", cls: "tc-btn sm", "data-key": "retry:" + r.id, text: "Try again", on: { click: function () { if (global.HelmWrapDo) { loadPart(S, r.id); return; } S.at = 0; S.sig = ""; renderWrap(host, S.ctx); } } }));
+    if (r.link && !does && !((r.id === "tasks" || r.id === "crew") && isPage(/\/ops(\.html)?$/))) acts.push(h("a", { cls: "hes-link", "data-key": "go:" + r.id, href: r.link, text: r.linkText + " →" }));
     if (acts.length) kids.push(h("div", { cls: "hes-row-a" }, acts));
     return h("li", { cls: "hes-row " + r.tone }, kids);
   }
@@ -395,13 +447,14 @@
     if (!live) box.appendChild(h("p", { cls: "hes-hint", text: "You can mark the event complete on the event day." }));
     else if (who && !who.stage) box.appendChild(h("p", { cls: "hes-hint strong", text: "Someone whose role can change Quotes marks the event complete." }));
     else if (who) {
-      var why = ready ? whyText(S.blk, "Settlement") : "", anyway = ready && g.blocked && g.can;
+      var why = ready ? whyText(S.blk, "Settlement") : "", anyway = ready && g.blocked && g.can, noDate = (ctx.quote || {}).dateSet === false || !/^\d{4}-\d{2}-\d{2}/.test(String((ctx.quote || {}).eventDate || ""));
       if (why) box.appendChild(h("p", { cls: "tc-note warn", id: whyId, text: why + "." }));
-      box.appendChild(h("div", { cls: "hes-acts" }, [h("button", { type: "button", cls: "tc-btn" + (over && !anyway ? " tc-primary" : ""), "data-key": "wrap:go",
+      if (noDate && who.stage) box.appendChild(h("div", { cls: "hes-acts" }, [h("a", { cls: "tc-btn tc-primary", "data-key": "wrap:date", href: "event.html?id=" + enc(qid(ctx)), text: "Set the event date" })]));   // first things first
+      box.appendChild(h("div", { cls: "hes-acts" }, [h("button", { type: "button", cls: "tc-btn" + (over && !anyway && !noDate ? " tc-primary" : noDate ? " ghost" : ""), "data-key": "wrap:go",
         text: busy ? "Marking…" : anyway ? "Mark complete anyway (admin)…" : "Mark event complete → Settlement", disabled: !ready || !g.can || busy ? true : null, "aria-describedby": why ? whyId : null,
         on: { click: function (e) { if (e.detail > 1) return; var c = S.ctx;
           moveStage(c, { stage: "settlement", title: "Mark event complete?", okLabel: "Mark complete", action: "mark the event complete", redraw: redraw,
-            ask: "Mark " + nameOfEvent(c) + " complete? It moves to Settlement. Tasks, crew and check-ins stay as they are.",
+            ask: "Mark " + nameOfEvent(c) + " complete? " + openWords(c, S.data) + "It moves to Settlement. Tasks, crew and check-ins stay as they are.",
             said: function (to) { return "Event complete - moved to " + (to === "closed" ? "Closed" : "Settlement") + "."; } }); } } })]));
     }
     box.appendChild(links(S, false));
@@ -409,7 +462,7 @@
   }
 
   global.HelmEventSteps = { renderPreDone: renderPreDone, stageOf: stageOf, mayStage: function (ctx, then) { var w = may(ctx); if (!w && then) perms().then(function (p) { if (p) then(); }); return w ? w.stage : null; }, _pure: { preSummary: preSummary, preLines: preLines, confirmPre: confirmPre, whyText: whyText, gate: gate } };
-  global.HelmEventWrap = { render: renderWrap, _pure: { stock: stock, vendorsOf: vendorsOf, crewOut: crewOut, rowsOf: rowsOf, summaryLine: summaryLine, refused: refused, sheetOf: sheetOf } };
+  global.HelmEventWrap = { render: renderWrap, _pure: { stock: stock, vendorsOf: vendorsOf, crewOut: crewOut, rowsOf: rowsOf, progress: progress, openWords: openWords, summaryLine: summaryLine, refused: refused, sheetOf: sheetOf } };
   // a new sign-in / role on the same page starts from a clean slate (tests use it too)
   global.HelmEventSteps._reset = function () { PERM = null; MOVED = {}; BUSY = {}; };
 })(typeof window !== "undefined" ? window : globalThis);

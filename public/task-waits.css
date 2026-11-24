@@ -1,0 +1,18 @@
+/* task-waits.css - R253: the "waits for" line of a task (task-waits.js). Page tokens; text contrast 4.5:1 or more. */
+.tw-line{font-size:13px;line-height:1.4;font-weight:600;border-radius:10px;padding:8px 12px;margin:0 0 10px;overflow-wrap:anywhere;
+  background:var(--panel-2,#faf8f5);border:1px solid var(--line,#e8e3db);color:var(--ink-2,#4b475f)}
+.tw-line:last-child{margin:8px 0 0}
+.task.tw-waiting,.task.tw-rework{background:var(--panel-2,#faf8f5);border-style:dashed}
+.task.tw-waiting .tt,.task.tw-rework .tt{color:var(--ink-3,#6b6577)}
+.tw-waiting .tw-line{background:var(--panel,#fff)}
+.tw-rework .tw-line{background:var(--panel,#fff);border-color:var(--warn-text,#8f5f00);color:var(--warn-text,#8f5f00)}
+.tw-released .tw-line{background:var(--accent-soft,#e3f4ed);border-color:var(--accent,#047857);color:var(--accent-2,#036b4d)}
+.task.tw-released{border-color:var(--accent,#047857)}
+.tw-waiting .acts .btn.primary,.tw-rework .acts .btn.primary{background:var(--panel,#fff);border-color:var(--line-strong,#86808f);color:var(--ink-2,#4b475f)}
+/* run-sheet: "My tasks for this event" - the text takes the row, the buttons go under it on a phone, 44px */
+#myTasks .row{grid-template-columns:minmax(0,1fr) auto}
+#myTasks .row .tw-line{margin:8px 0 0;width:fit-content;max-width:100%}
+#myTasks .row.tw-waiting .what b,#myTasks .row.tw-rework .what b{color:var(--ink-3,#6b6577)}
+#myTasks .rowacts .btn{min-height:44px;justify-content:center}
+#myTasks .row.tw-waiting .rowacts .btn.primary,#myTasks .row.tw-rework .rowacts .btn.primary{background:var(--panel,#fff);border-color:var(--line-strong,#86808f);color:var(--ink-2,#4b475f)}
+@media (max-width:560px){#myTasks .row{grid-template-columns:minmax(0,1fr)}#myTasks .rowacts .btn{flex:1}}

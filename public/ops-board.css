@@ -125,7 +125,7 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 /* layout */
 /* R251: one column of cards in the step's own order; Crew, Latest, Issues and the check-in box sit two to a row, the last one alone takes
    the whole row - no tall right column with an empty page beside it */
-.tc-flow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch;margin-bottom:14px}
+.tc-flow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start;margin-bottom:14px}
 .tc-flow > *{grid-column:1/-1;margin:0!important;min-width:0}
 .tc-flow > .is-half{grid-column:auto}
 .tc-work{padding:14px 16px 16px;min-width:0}
@@ -524,3 +524,66 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc h3.tc-h2 .tc-count,.tc h3.tc-h2 .tc-n{text-transform:none;letter-spacing:0}
 .tc .tc-count{white-space:nowrap}
 @media (max-width:640px){ .tc .tc-side-h{flex-wrap:wrap} .tc .tc-iss .tc-arow .grow{flex-basis:calc(100% - 20px)} .tc .tc-iss .tc-arow .tc-btn{margin-left:16px} }
+
+/* R253: "One after another, in this order" in the Add & assign sheet */
+.tc-chainbox{margin-top:8px;padding:8px 12px;border:1px solid var(--tc-line);border-radius:10px;background:var(--tc-panel-2)}
+.tc-chainbox .tc-chk{min-height:44px;font-weight:600}
+.tc-chain{list-style:none;margin:8px 0 0;padding:0;counter-reset:ch;display:grid;gap:6px}
+.tc-chain li{counter-increment:ch;display:flex;align-items:center;gap:8px;min-width:0;padding:0 2px 0 10px;background:var(--tc-panel);border:1px solid var(--tc-line);border-radius:10px}
+.tc-chain li::before{content:counter(ch);flex:none;font-weight:700;font-size:13px;color:var(--tc-acc-text);min-width:16px}
+.tc-chain li .grow{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;font-size:13px}
+.tc-chain .tc-chain-mv{width:44px;min-width:44px;min-height:44px;padding:0;font-size:16px}
+#as_dep,#sc_dep{min-height:44px;text-overflow:ellipsis}
+/* R253: Order of work (a view of the tasks card) */
+.tc-ordv>.tc-hint{margin:0 0 10px;font-size:13px}
+.tc-ord-loop{margin:0 0 10px}
+.tc-ord-top,.tc-ord-list{list-style:none;margin:0;padding:0}
+.tc-ord-top{display:grid;gap:10px}
+.tc-ord-chain{border:1px solid var(--tc-line);border-radius:10px;padding:4px;min-width:0}
+.tc-ord-n{min-width:0}
+/* every step down is one step in (the first four; deeper ones stay in line so a phone keeps room for the words) */
+.tc-ord-n .tc-ord-list{margin-left:15px;padding-left:4px;border-left:2px solid var(--tc-line)}
+.tc-ord-n .tc-ord-n .tc-ord-n .tc-ord-n .tc-ord-list{margin-left:0;padding-left:0;border-left:0}
+.tc-ord-n.is-next>.tc-ord-b{padding-left:26px;position:relative}
+.tc-ord-n.is-next>.tc-ord-b::before{content:"\21B3";position:absolute;left:7px;top:8px;color:var(--tc-acc-text);font-weight:700}
+.tc-ord-b{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;width:100%;min-height:48px;padding:8px 10px;border:0;border-radius:8px;background:none;text-align:left;cursor:pointer}
+.tc-ord-b:hover{background:var(--tc-panel-2)}
+.tc-ord-t{flex:1 1 220px;min-width:0;display:flex;flex-direction:column} .tc-ord-t b{overflow-wrap:anywhere} .tc-ord-t .tc-sub{font-size:12.5px;color:var(--tc-ink-3)}
+.tc-ord-s{display:flex;align-items:center;flex-wrap:wrap;gap:6px} .tc-ord-s .tc-tag{white-space:normal;font-size:12px;padding:1px 9px}
+.tc-appr{gap:7px} .tc-appr .tc-count{background:var(--tc-warn-bg);color:var(--tc-warn)}
+
+
+/* R253: an empty list is words, not a row: the icon column of .tc-feed li squeezed them to one letter per line */
+.tc .tc-feed li.tc-feed-empty,.tc-layer .tc-feed li.tc-feed-empty{display:block;color:var(--tc-ink-3);font-size:13px;border:0}
+/* R253: Needs you now */
+.tc-attn.tc-card{display:block;padding:12px 16px}
+.tc-need-h{margin:0 0 4px!important}
+.tc-need{list-style:none;margin:0;padding:0}
+.tc-need>li+li{border-top:1px solid var(--tc-line-2)}
+.tc-need .tc-arow{border:0;min-height:48px;padding:6px 0;font-size:14px}
+.tc-need .tc-arow .grow{flex:1 1 180px}
+.tc-need-d{flex:none;width:9px;height:9px;border-radius:50%;background:var(--tc-warn)} .tc-need-d.bad{background:var(--tc-bad)}
+.tc-need-s{display:flex;align-items:center;gap:8px;min-height:48px;cursor:pointer;list-style:none;font-size:14px;border-radius:8px}
+.tc-need-s::-webkit-details-marker{display:none} .tc-need-s .grow{flex:1 1 auto;min-width:0}
+.tc-need-go{font-size:13px;font-weight:600;color:var(--tc-acc-text);border:1px solid var(--tc-line);border-radius:var(--tc-r-ctl);padding:0 12px;min-height:44px;display:inline-flex;align-items:center;background:var(--tc-panel)}
+.tc-need-x[open] .tc-need-go{font-size:0} .tc-need-x[open] .tc-need-go::after{content:"Hide";font-size:13px}
+.tc-need-b{padding:0 0 8px 17px} .tc-need-b .tc-arow{border-top:1px solid var(--tc-line-2)}
+.tc-need .tc-btn.sm{min-height:44px;font-size:13px} .tc-need a.tc-btn{color:var(--tc-ink);text-decoration:none}
+.tc-need-ok{margin:0;font-size:14px;color:var(--tc-ink-2)} .tc-need-ok span{color:var(--tc-safe);font-weight:700}
+.tc-attn.is-ok{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 12px} .tc-attn.is-ok .tc-need-h{margin:0!important}
+/* R253: one-row empty states, clear department heads, plan and reminders */
+.tc-empty.is-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;text-align:left;padding:12px 14px} .tc-empty.is-row b{display:inline;font-size:14px;margin:0}
+.tc-none-here{margin:0 0 10px;padding:10px 14px;border:1px dashed var(--tc-line);border-radius:10px;font-size:13px;color:var(--tc-ink-3)}
+.tc-dept .tc-grp-h b{font-size:15px;font-weight:700} .tc-dept .tc-grp-h .mini{font-size:13px;font-weight:600;color:var(--tc-ink-2)}
+#tcViews .tc-seg-n[hidden]{display:none}
+.tc-planrem{padding:0}
+.tc-planrem-h{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;min-height:52px;padding:10px 16px;cursor:pointer;list-style:none;border-radius:var(--tc-r-card)}
+.tc-planrem-h::-webkit-details-marker{display:none} .tc-planrem-h .tc-h2{margin:0} .tc-planrem-h .fold{color:var(--tc-ink-3)} details[open]>.tc-planrem-h .fold{transform:rotate(90deg)}
+.tc-planrem-s{display:flex;flex-wrap:wrap;gap:6px} .tc-planrem-s .tc-tag{font-size:12px;padding:1px 9px}
+.tc-planrem-b{padding:0 16px 14px;display:grid;gap:12px} .tc-planrem-b .ef-lock{margin:0} .tc-planrem-b .trm-line{margin:6px 0 0}
+.tc-flow>.flow-next{margin:-4px 2px 0!important;font-size:13px}
+@media (max-width:760px){#tcViews{flex-wrap:wrap} .tc-work-head #tcViews .tc-seg{flex:1 1 45%}}
+@media (min-width:1000px){.tc-need{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:28px;align-items:start} .tc-need>li{border-top:1px solid var(--tc-line-2)} .tc-need>li:nth-child(-n+2){border-top:0} .tc-need>li:has(details[open]),.tc-need>li:only-child{grid-column:1/-1}}
+.tc-need-acts{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.tc .tc-count:empty{display:none}
+@media (max-width:760px){.tc-dept .tc-grp-h{flex-wrap:wrap;gap:4px 8px} .tc-dept .tc-gbar{display:none} .tc .tc-work-head #tcViews .tc-seg{min-height:44px} .tc-dept .tc-grp-h .mini{white-space:nowrap}}
