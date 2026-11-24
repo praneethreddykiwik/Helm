@@ -71,6 +71,9 @@
       return { day: o.year + "-" + o.month + "-" + o.day, hour: Number(o.hour) % 24 };
     } catch (e) { return { day: d.toISOString().slice(0, 10), hour: d.getHours() }; }
   }
+  // R254: the event time (studio wall clock HH:MM) in the same style as every other time here
+  function guestWord(t) { var m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(t || "").trim()); if (!m || +m[1] > 23) return String(t || "");
+    try { return new Intl.DateTimeFormat(loc(), { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(new Date(Date.UTC(2026, 0, 1, +m[1], +m[2]))); } catch (e) { return String(t); } }
   function fmtClock(ts) {
     var d = new Date(ts); if (!ts || isNaN(d.getTime())) return "";
     try { return new Intl.DateTimeFormat(loc(), { timeZone: tz(), hour: "numeric", minute: "2-digit" }).format(d); } catch (e) { return d.toLocaleTimeString(); }
@@ -158,7 +161,7 @@
                    ["time", "Start time changes"], ["checkin", "Check-in / check-out"], ["email", "E-mails sent"], ["escalation", "Escalations"], ["special", "Special / cancelled"],
                    ["dayoff", "Days off asked / approved"]];   // R187 (0370)
   var actGroup = TS.actGroup;   // R192: shared wording (task-status.js)
-  var ACT_ICON = { assigned: "📋", reassigned: "🔁", unassigned: "➖", time_changed: "🕒", special_on: "🔔", special_off: "🔕",
+  var ACT_ICON = { assigned: "📋", reassigned: "🔁", unassigned: "➖", time_changed: "🕒", step_changed: "↔️", special_on: "🔔", special_off: "🔕",
                    accepted: "✅", rejected: "✋", started: "▶️", completed: "🎉", cancelled: "✖️", reopened: "↩️",
                    check_in: "📍", check_out: "🏁", check_edit: "✏️", email_sent: "✉️", escalated: "🚨", dayoff_asked: "🗓️", dayoff_approved: "🗓️" };
   // R186: "event lead" / "manager" / "admin / owner" - R192: the shared ladder (task-status.js)
@@ -597,7 +600,7 @@
       li.appendChild(h("span", { cls: "mon-tl-ic", text: ACT_ICON[a.kind] || "•" }));
       var body = h("div", { cls: "mon-tl-b" }, [h("span", { text: actText(a) })]);
       var meta = [fmtClock(a.at)];
-      if (a.by_name && (a.kind === "assigned" || a.kind === "reassigned" || a.kind === "unassigned" || a.kind === "time_changed" || a.kind === "special_on" || a.kind === "special_off" || a.kind === "cancelled" || a.kind === "check_edit")) meta.push("by " + a.by_name);
+      if (a.by_name && (a.kind === "assigned" || a.kind === "reassigned" || a.kind === "unassigned" || a.kind === "time_changed" || a.kind === "step_changed" || a.kind === "special_on" || a.kind === "special_off" || a.kind === "cancelled" || a.kind === "check_edit")) meta.push("by " + a.by_name);
       if (a._code) meta.push(a._code);
       body.appendChild(h("small", { cls: "mon-muted", text: meta.join(" · ") }));
       li.appendChild(body); list.appendChild(li);
@@ -1148,6 +1151,7 @@
     if (!silent) $("#monView").setAttribute("aria-busy", "true");
     try {
       var ids = S.quote === "all" ? S.events.filter(function (e) { return e.is_today; }).map(function (e) { return e.quote_id; }) : [S.quote];
+      if (TS.loadAuto) TS.loadAuto().then(function (ch) { if (ch && S.tasks.length) { render(); tick(); } });   // R254: steps picked by people or worked out (one small read a minute)
       var lists = await Promise.all(ids.map(function (q) { return BPStore.ops.listTasks(q).then(function (ts) {
         var code = S.quote === "all" ? ((S.evInfo[q] && S.evInfo[q].code) || "") : "";
         return (ts || []).map(function (t) { t.quote_id = t.quote_id || q; if (code) t._code = code; return t; }); }); }));
@@ -1190,7 +1194,7 @@
   function renderTimes(e) {
     var dl = $("#monTimes"); if (!dl) return; clear(dl);
     function tile(lbl, val, cls, id) { dl.appendChild(h("div", { cls: "tc-t" + (cls ? " " + cls : "") }, [h("dt", { text: lbl }), h("dd", { text: val })])); if (id) dl.lastChild.lastChild.id = id; }
-    if (e && e.event_time) tile("Guests arrive", e.event_time, "key");
+    if (e && e.event_time) tile("Guests arrive", guestWord(e.event_time), "key");
     var cd = S.quote === "all" ? ["Now", fmtClock(new Date().toISOString())] : countdown(e);
     tile(cd[0], cd[1], "count", "monClock");
     dl.setAttribute("data-live", cd[0] === "Now" ? "1" : "");

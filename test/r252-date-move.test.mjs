@@ -51,5 +51,15 @@ await t('10 R253 payments: asked, saved, left; a row paid while the question was
   x = await run({ paid: true }); jeq(x.done.map((d) => d[0]), ['b']); assert.equal(x.r.failed, 1);
   x = await run({ err: true }); assert.equal(x.r.failed, 2); x = await run({ boom: true }); assert.equal(x.r.asked, false);
 });
+await t('11 R254 the same-time question: asked with the new times; No = nothing moved; not in house / no helper = not asked', async () => {
+  const run = async (ans, tasks, helper = true) => { const calls = [], asked = []; W.HelmTaskClash = helper ? { ask: async (it, o) => { asked.push([it, o]); return ans; } } : undefined;
+    W.BPStore = { studioTimezone: () => 'Asia/Kolkata', auth: { canAssignTasks: async () => true }, ops: { listTasks: async () => tasks, setSchedule: async (...a) => { calls.push(a); } } };
+    W.BPUI = { confirm: async () => true, toast: () => {} }; const r = await M.ask({ quoteId: 'q', from: '2026-11-29', to: '2026-11-30' }); W.HelmTaskClash = undefined; return { r, calls, asked }; };
+  const t1 = T({ crew_id: 'c', assignee_name: 'Ravi', duration_min: 30 });
+  let x = await run(true, [t1]); assert.equal(x.calls.length, 1); assert.equal(x.asked[0][0][0].start, '2026-11-30T02:30:00.000Z'); assert.equal(x.asked[0][1].exclude.length, 1);
+  x = await run(false, [t1]); assert.equal(x.calls.length, 0); assert.equal(x.r.moved, 0);
+  x = await run(false, [T({ assignee_kind: 'outsourced', vendor_id: 'v', crew_id: null })]); assert.equal(x.asked.length, 0); assert.equal(x.calls.length, 1);
+  x = await run(false, [t1], false); assert.equal(x.calls.length, 1);
+});
 await t('8 wired on the event page and the quote flow, after the save', () => { for (const p of ['event', 'flow']) { const s = r('public/' + p + '.html'); assert.match(s, /HelmDateMove\.ask\(\{ quoteId:id, from:/); assert.match(s, /event-date-move\.js\?v=\d+/); assert.ok(s.indexOf('studio-time.js') < s.indexOf('event-date-move.js')); } });
 console.log(`r252-date-move: ${pass} passed, ${fail} failed`); if (fail) process.exit(1);

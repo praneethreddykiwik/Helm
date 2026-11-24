@@ -179,6 +179,13 @@
   }
   // the freshest check-ins: Wrap-up's own read (event-wrap.js on the page), else what the page has
   function sheetFor(ctx, d) { var own = d && d.sheet && d.sheet !== "err" ? d.sheet : null; return d && d.ts && own ? own : ctx.sheet || own; }
+  // R254: the guests have not even arrived yet -> say so first (nothing is blocked)
+  function early(ctx) {
+    var q = ctx.quote || {}, T = TS(), ev = String(q.eventDate || "").slice(0, 10), mn = T && T.hmMin ? T.hmMin(q.eventTime) : NaN, g = ev && isFinite(mn) && T.wallMs ? T.wallMs(ev, mn, ctx.tz) : NaN, m = Math.round((g - nowMs(ctx)) / 60000);
+    if (!isFinite(m) || m <= 0) return "";
+    var d = Math.floor(m / 1440), hr = Math.floor(m / 60), w = d > 1 ? d + " days" : hr >= 1 ? hr + (hr === 1 ? " hour" : " hours") : m + " min";
+    return "The guests have not arrived yet - they are due in " + w + ". ";
+  }
   // what is still open, for the confirm text of "Mark event complete": "" = nothing known
   function openWords(ctx, d) {
     d = d || {}; var a = [], n = openOf(ctx.tasks).length; if (n) a.push(pl(n, "task"));
@@ -262,7 +269,7 @@
     var done = false; o.redraw();
     try {
       var r = await B().quotes.setStageGuided(id, o.stage);
-      if (r) { done = true; var to = r.stage || o.stage; MOVED[id] = { from: rawStage(ctx), stage: to, at: Date.now() }; say(ctx, o.said(to, r), "ok"); }
+      if (r) { done = true; var to = r.stage || o.stage; MOVED[id] = { from: rawStage(ctx), stage: to, at: Date.now() }; if (global.HelmEventFloor && global.HelmEventFloor.stale) global.HelmEventFloor.stale(id); say(ctx, o.said(to, r), "ok"); }
     } catch (e) {
       var handled = false; try { handled = await B().auth.handleAuthError(e); } catch (x) {}
       if (!handled) say(ctx, errText(e, o.action), "err");
@@ -454,7 +461,7 @@
         text: busy ? "Marking…" : anyway ? "Mark complete anyway (admin)…" : "Mark event complete → Settlement", disabled: !ready || !g.can || busy ? true : null, "aria-describedby": why ? whyId : null,
         on: { click: function (e) { if (e.detail > 1) return; var c = S.ctx;
           moveStage(c, { stage: "settlement", title: "Mark event complete?", okLabel: "Mark complete", action: "mark the event complete", redraw: redraw,
-            ask: "Mark " + nameOfEvent(c) + " complete? " + openWords(c, S.data) + "It moves to Settlement. Tasks, crew and check-ins stay as they are.",
+            ask: "Mark " + nameOfEvent(c) + " complete? " + early(c) + openWords(c, S.data) + "It moves to Settlement. Tasks, crew and check-ins stay as they are.",
             said: function (to) { return "Event complete - moved to " + (to === "closed" ? "Closed" : "Settlement") + "."; } }); } } })]));
     }
     box.appendChild(links(S, false));
@@ -462,7 +469,7 @@
   }
 
   global.HelmEventSteps = { renderPreDone: renderPreDone, stageOf: stageOf, mayStage: function (ctx, then) { var w = may(ctx); if (!w && then) perms().then(function (p) { if (p) then(); }); return w ? w.stage : null; }, _pure: { preSummary: preSummary, preLines: preLines, confirmPre: confirmPre, whyText: whyText, gate: gate } };
-  global.HelmEventWrap = { render: renderWrap, _pure: { stock: stock, vendorsOf: vendorsOf, crewOut: crewOut, rowsOf: rowsOf, progress: progress, openWords: openWords, summaryLine: summaryLine, refused: refused, sheetOf: sheetOf } };
+  global.HelmEventWrap = { render: renderWrap, _pure: { stock: stock, vendorsOf: vendorsOf, crewOut: crewOut, rowsOf: rowsOf, progress: progress, openWords: openWords, early: early, summaryLine: summaryLine, refused: refused, sheetOf: sheetOf } };
   // a new sign-in / role on the same page starts from a clean slate (tests use it too)
   global.HelmEventSteps._reset = function () { PERM = null; MOVED = {}; BUSY = {}; };
 })(typeof window !== "undefined" ? window : globalThis);

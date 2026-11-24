@@ -124,7 +124,7 @@ test('"the client approved" is said only when the client did', () => {
   const u = shareRun({ approvalStatus: 'none' }, 5000); assert.equal(u['#csApproved'].textContent, 'Booking confirmed by the advance'); assert.equal(shareRun({ approvalStatus: 'approved' }, 0)['#csApproved'].textContent, 'Approved ✓');
   assert.match(FL, /CONSENT=Array\.isArray\(acts\)\?acts\.some\(a=>a&&a\.kind==="consent"\):null/); assert.match(EV, /ap\.basis==="advance"\?' The client has not approved yet\.'/);
   const f = new Function(API.slice(API.indexOf('  function approvalWords('), API.indexOf('  // r20 coord (b): ONE "advance is in" rule')) + ' return approvalWords;')();
-  assert.deepEqual(f('paid', { basis: 'advance' }), { label: pend, detail: 'by the advance - client has not approved' }); assert.equal(f('paid', null).label, 'Booking confirmed by the advance'); assert.equal(f('paid', { basis: 'client' }).label, 'Client approved'); assert.deepEqual(f('approved'), { label: 'Client approved', detail: 'approved' }); assert.equal(f(null).detail, 'none');
+  assert.deepEqual(f('paid', { basis: 'advance' }), { label: pend, detail: 'by the advance - client has not approved' }); assert.equal(f('paid', null).label, 'Booking confirmed by the advance'); assert.equal(f('paid', { basis: 'client' }).label, 'Client approved'); assert.deepEqual(f('approved'), { label: 'Client approved', detail: 'approved' }); assert.equal(f(null).detail, 'link not sent yet');
   assert.match(API, /\{ key: "approval", \.\.\.approvalWords\(ev\.approvalStatus, basis && basis\[0\]\), critical: true, ok: \["approved", "paid"\]\.includes\(ev\.approvalStatus\) \}/, 'the ok rule is as it was');
 });
 test('step 5 counts the saved dishes and the lock', () => {

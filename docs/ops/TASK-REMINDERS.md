@@ -69,3 +69,7 @@ Delivered / Read need Meta's webhook (wa-webhook). If a message is not delivered
    `*/5 * * * *`, run the line printed there to change it.
 3. Deploy `comms-dispatch` and `wa-connect` (new templates), then the site.
 4. On the Integrations page press **Set up message templates** again so the new templates are created.
+
+## The step of a task (R254, migration 0438)
+`event_tasks.step` (daybefore, pre, onday, wrapup) is the step somebody picked; empty = the page's own rule. Studio switch
+`task_reminder_settings.auto_steps` (off by default). It never changes when anybody is reminded: reminders use the time.

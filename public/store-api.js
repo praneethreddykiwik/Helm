@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=120"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=121"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1995,7 +1995,7 @@ window.HelmUrl = HelmUrl;
   // 0061 universal search (top-bar trigger + Cmd/Ctrl+K palette). Studio pages only:
   // never on HQ / public client pages; studio-search.js re-checks the role (no clients).
   // verify-166: PR #166 merged four branches that each shipped a different store-api.js as v=232 (and shell-b as 114) - re-bumped so no browser keeps a stale copy
-  const STUDIO_SEARCH_VERSION = "21";
+  const STUDIO_SEARCH_VERSION = "22";
   // nav trail (breadcrumbs + Recent records). Pages may call HelmTrail.setCurrent before
   // nav-trail.js loads: this stub queues the calls; nav-trail.js replays them after boot.
   const NAV_TRAIL_VERSION = "8";
@@ -4765,11 +4765,25 @@ window.HelmUrl = HelmUrl;
       if (!rpcMissing(r.error)) throw r.error;
       const { data, error } = await supa.from("work_tokens").select("token,phone,name").eq("quote_id", quoteId);
       if (error) throw error; return data; },
-    assignTasks: (quoteId, category, titles, crewId, name, phone) => rpcKeyed("assign_tasks", "assign_tasks_once",   // R235: sent twice = done once
-      { p_quote_id: quoteId, p_category: category, p_titles: titles, p_crew_id: crewId || null, p_name: name, p_phone: phone }),
+    // R254 (0438): opts.step = the step the person picked, saved in the same transaction. A database without 0438 = the old calls, no step.
+    STEP_RPC: { assign: "assign_tasks_step", assignOnce: "assign_tasks_step_once", vendor: "assign_tasks_vendor_step", vendorOnce: "assign_tasks_vendor_step_once", set: "set_task_step" },
+    async _withStep(step, fn, once, args, old) {
+      if (!["daybefore", "pre", "onday", "wrapup"].includes(step)) return old();
+      try { return await rpcKeyed(fn, once, Object.assign({}, args, { p_step: step })); } catch (e) { if (rpcMissing(e)) return old(); throw e; }
+    },
+    assignTasks(quoteId, category, titles, crewId, name, phone, opts) {
+      const a = { p_quote_id: quoteId, p_category: category, p_titles: titles, p_crew_id: crewId || null, p_name: name, p_phone: phone };
+      return this._withStep(opts && opts.step, this.STEP_RPC.assign, this.STEP_RPC.assignOnce, a, () => rpcKeyed("assign_tasks", "assign_tasks_once", a));   // R235: sent twice = done once
+    },
+    // R254-B (0438): what each { crew_id, start, end, depends_on } overlaps, at most 60 items -> the server's answer; null = a database without it
+    timeClashes(items, exclude) { return rpc("crew_time_clashes", { p_items: items, p_exclude: exclude && exclude.length ? exclude : null }).catch((e) => { if (rpcMissing(e)) return null; throw e; }); },
+    // move tasks to another step -> { changed, skipped: [{ id, reason }] }. No message to anybody; refused while the plan is locked.
+    setTaskStep(ids, step) { return rpc(this.STEP_RPC.set, { p_tasks: ids, p_step: step }); },
     // Phase 40 — outsource a set of tasks to a vendor (sends them the checklist via the worker link)
-    assignTasksVendor: (quoteId, category, titles, vendorId) => rpcKeyed("assign_tasks_vendor", "assign_tasks_vendor_once",
-      { p_quote_id: quoteId, p_category: category, p_titles: titles, p_vendor_id: vendorId }),
+    assignTasksVendor(quoteId, category, titles, vendorId, opts) {
+      const a = { p_quote_id: quoteId, p_category: category, p_titles: titles, p_vendor_id: vendorId };
+      return this._withStep(opts && opts.step, this.STEP_RPC.vendor, this.STEP_RPC.vendorOnce, a, () => rpcKeyed("assign_tasks_vendor", "assign_tasks_vendor_once", a));
+    },
     // R170 (0361): "Send by email" - the server reads the address from the staff record. all = every open task of that
     // person on this event. Answer { ok, masked? , name, reason? } (reason: no_email | just_sent | trial | not_live | vendor | closed)
     emailTasks: (taskId, all) => rpc("staff_email_send", { p_task: taskId, p_all: all !== false }),
@@ -4787,7 +4801,9 @@ window.HelmUrl = HelmUrl;
     // r96 (0312): the office cancels an assigned / accepted / in-progress task; a reason (3-300 chars) is required
     cancel: (taskId, reason) => rpc("cancel_task", { p_task: taskId, p_reason: String(reason || "").trim() }),
     // ---- Phase 35: quality-engineer verification ----
-    verify: (taskId, pass, note) => rpc("verify_task", { p_id: taskId, p_pass: !!pass, p_note: note || null }),
+    // R254: sending work back always needs a reason (every role; the person reads it)
+    verify: (taskId, pass, note) => { const n = String(note == null ? "" : note).trim();
+      return !pass && !n ? Promise.reject(new Error("Please write what has to be done again.")) : rpc("verify_task", { p_id: taskId, p_pass: !!pass, p_note: n || null }); },
     // R253: the Approvals page + its nav count. Reads only, through the tables' own row rules (Staff view, own studio); verify() above
     // decides who may approve. A supervisor gets the departments they supervise (0399), everyone else every event. No money, no contact columns.
     approvals: {
@@ -9405,7 +9421,8 @@ window.HelmUrl = HelmUrl;
     const st = String(status || "none"), b = (a && a.basis) || "";
     if (st === "paid" && b === "advance") return { label: "Confirmed by advance - client approval pending", detail: "by the advance - client has not approved" };
     if (st === "paid" && b !== "client") return { label: "Booking confirmed by the advance", detail: "advance received" };
-    return { label: "Client approved", detail: st === "paid" ? "approved, advance received" : st };
+    const W = { none: "link not sent yet", sent: "link sent - not approved yet", approved: "approved", paid: "approved, advance received", cancelled: "cancelled" };   // R254: never the raw word
+    return { label: "Client approved", detail: W[st] || st };
   }
   // r20 coord (b): ONE "advance is in" rule for every screen - the same truth the status label
   // ("Confirmed · advance paid") uses: the client paid (approval_status "paid"), or a payment
@@ -9537,7 +9554,10 @@ window.HelmUrl = HelmUrl;
     },
     async add(quoteId, item) {
       const withDefault = { status: item.kind === "check" ? "pending" : "expected", ...item };
-      if (mode === "supabase") { const { data, error } = await supa.from("event_day").insert({ quote_id: quoteId, ...withDefault }).select().single(); if (error) throw error; return data; }
+      if (mode === "supabase") { const { data, error } = await supa.from("event_day").insert({ quote_id: quoteId, ...withDefault }).select().single();
+        // R254 (0437): one row per vendor / person and event - somebody else added it in the same moment: their row is kept, untouched
+        if (error && error.code === "23505" && item.ref_id) { const cur = (await this.list(quoteId, item.kind)).find((x) => x.ref_id === item.ref_id); if (cur) return { ...cur, existed: true }; }
+        if (error) throw error; return data; }
       const a = readLs(DAY_LS); const row = { id: uid(), quote_id: quoteId, ...withDefault, created_at: now() }; a.push(row); localStorage.setItem(DAY_LS, JSON.stringify(a)); return row;
     },
     async setStatus(id, status) {
@@ -9563,9 +9583,9 @@ window.HelmUrl = HelmUrl;
       const vById = {}; vends.forEach((v) => { vById[v.id] = v; });
       const crewIds = [...new Set(tasks.map((t) => t.crew_id))];
       for (const cid of crewIds) { if (have.has(cid)) continue; const p = staffById[cid] || {};
-        await this.add(quoteId, { kind: "arrival", who: p.name || "Crew", role: p.department || "Staff", ref_id: cid, status: "expected" }); added++; }
+        (await this.add(quoteId, { kind: "arrival", who: p.name || "Crew", role: p.department || "Staff", ref_id: cid, status: "expected" })).existed || added++; }
       for (const b of bk) { if (b.status === "cancelled" || b.status === "enquiry" || have.has(b.id)) continue; const v = vById[b.vendor_id] || {};
-        await this.add(quoteId, { kind: "arrival", who: v.name || b.label || "Vendor", role: "vendor", ref_id: b.id, status: "expected" }); added++; }
+        (await this.add(quoteId, { kind: "arrival", who: v.name || b.label || "Vendor", role: "vendor", ref_id: b.id, status: "expected" })).existed || added++; }
       return added;
     },
   };

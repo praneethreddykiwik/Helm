@@ -296,7 +296,12 @@
         say(ctx, "Already with " + nameOf(ctx, ex.t) + ".", "err"); UI.form = null; if (ctx.onChanged) await ctx.onChanged(); return;
       }
       if (ex && ex.free && parts[0] === "v") { f.err = "There is already a task for this that was turned down or has nobody on it. Reassign it on Tasks & Crew."; return; }
-      if (parts[0] !== "v" && B.calendar && B.calendar.wouldClash && global.BPUI && global.BPUI.confirm) {
+      var TC = parts[0] !== "v" && global.HelmTaskClash;
+      if (TC) {   // R254-B: the same time first, then the day
+        var T2 = TS(), day2 = iso && T2.ymdIn ? T2.ymdIn(ctx.tz, ms(iso)) : String(ctx.eventDate || "").slice(0, 10), cal = B.calendar && B.calendar.wouldClash;
+        if (!(await TC.give(iso ? [{ crew_id: who.id, name: who.name, start: iso, title: title, id: ex && ex.free ? ex.t.id : undefined }] : [], { quoteId: q, tasks: fresh, exclude: ex && ex.free ? [ex.t.id] : [], toast: function (m) { say(ctx, m, "ok"); }, dayOk: "Give anyway",
+          dayText: function (x) { return who.name + " is " + x.detail + ". Give the task anyway?"; } }, cal ? function () { return B.calendar.wouldClash({ date: day2, crewId: who.id, excludeQuote: q }); } : null))) return;
+      } else if (parts[0] !== "v" && B.calendar && B.calendar.wouldClash && global.BPUI && global.BPUI.confirm) {
         var T = TS(), day = iso && T.ymdIn ? T.ymdIn(ctx.tz, ms(iso)) : String(ctx.eventDate || "").slice(0, 10);
         var c = await B.calendar.wouldClash({ date: day, crewId: who.id, excludeQuote: q }).catch(function () { return { clash: false }; });
         if (c && c.clash && !(await global.BPUI.confirm(who.name + " is " + c.detail + ". Give the task anyway?", { title: "Scheduling clash", okLabel: "Give anyway" }))) return;
@@ -304,7 +309,7 @@
       var had = {}, timeBad = false, made = []; fresh.forEach(function (t) { had[t.id] = 1; });
       if (ex && ex.free) { await O.reassign(ex.t.id, who.id, who.name, who.phone); if (!ex.t.planned_start) made = [ex.t]; }
       else {
-        if (parts[0] === "v") await O.assignTasksVendor(q, CAT, [title], who.id); else await O.assignTasks(q, CAT, [title], who.id, who.name, who.phone);
+        if (parts[0] === "v") await O.assignTasksVendor(q, CAT, [title], who.id, { step: "daybefore" }); else await O.assignTasks(q, CAT, [title], who.id, who.name, who.phone, { step: "daybefore" });
         if (iso) try { made = (await O.listTasks(q)).filter(function (t) { return !had[t.id] && nl(t.category) === nl(CAT) && nl(t.title) === nl(title) && String((parts[0] === "v" ? t.vendor_id : t.crew_id) || "") === String(who.id); }); } catch (e) { timeBad = true; }
       }
       if (iso) for (var i = 0; i < made.length; i++) try { await O.setSchedule(made[i].id, iso, null, made[i].depends_on || null); } catch (e) { timeBad = true; }

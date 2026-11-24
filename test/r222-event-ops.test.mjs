@@ -146,13 +146,13 @@ await t('3a the page: switch kept, Get set up, run-sheet, issues and wrap-up box
   for (const l of ['"staff.html"', '"resources.html?quote="', '"vendors.html"', '"runsheet.html?quote="', 'builderHref()', '"ready.html?quote="']) assert.ok(BRD.includes(l), 'Get set up links ' + l);
 });
 await t('3b no clock note; a look at another step is dropped when it matches the clock; #live opens On the event', () => {
-  assert.match(BRD, /if \(S\.manual === S\.autoStep \|\| /);   // R251: studio time only
+  assert.match(BRD, /if \(S\.manual === S\.openStep \|\| /);   // R251: studio time only
   assert.match(BRD, /location\.hash === "#live" && G\(\)\.quoteId && modeNow\(\)\.mode !== "live"\) S\.manual = TS\.normWin\("live"\);/);
   assert.doesNotMatch(BRD, /=== "#live"\) \{ S\.phase = "live";/, 'the old one-shot flip (undone by the next refresh) is gone');
   assert.match(CSS, /\.tc-phase-row \.tc-seg\[aria-pressed="true"\]\{background:var\(--tc-acc\);color:var\(--hb-acc-ink,white\)/, 'R251: the theme accent, like + Add & assign and the All chip');
 });
 await t('3c crew cards and the side list use the words; busy elsewhere comes from the staff suggestions', () => {
-  assert.match(BRD, /if \(S\.phase === "plan"\) io = availPill\(c\.id\);/);
+  assert.match(BRD, /if \(S\.auto === "plan"\) io = availPill\(c\.id\);/);
   assert.match(BRD, /if \(!live\) io = availPill\(c\.id\);/);
   assert.match(BRD, /function dayInfo\(crewId\) \{ return crewDay\(crewId, G\(\)\.tasks, evDate\(\), taskDay, offOn, bookedOn\); \}/, 'one source for every card');
   assert.match(OPS, /booked:bookedIds/, 'the Add & assign list uses crew_day_status too');

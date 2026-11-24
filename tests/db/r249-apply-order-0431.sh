@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # r249-apply-order-0431.sh - R249: the REAL order on staging / production. Phase 9 (0423-0425) is ON HOLD and R248 (0430) may land
 # before or after this PR, so APPLY-0431 .. APPLY-0433 must work on a database WITHOUT 0423-0425 and WITHOUT 0430:
-#   1 a database migrated with every MANIFEST entry except 0423-0425, 0430, 0431-0433 and the later 0434 - 0436 (no harness switches, like the SQL editor)
+#   1 a database migrated with every MANIFEST entry except 0423-0425, 0430, 0431-0433 and the later 0434 - 0437 (no harness switches, like the SQL editor)
 #   2 APPLY-0431, APPLY-0432, APPLY-0433 pasted twice: every check row true, nothing doubled
 #   3 events, money rows, bell notices, chat messages, outboxes untouched (same count + content digest)
 #   4 the prod checker reports 0431-0433 present and nothing else missing / partial except 0423-0425 (and 0430 when absent)
@@ -21,7 +21,7 @@ q "create table if not exists public.helm_schema_migrations(filename text primar
 n=0; bad=""
 while read -r scope path _; do
   [ -z "${scope:-}" ] && continue; case "$scope" in \#*) continue;; esac
-  case "$path" in *0423_r246_*|*0424_r246_*|*0425_r246_*|*0430_*|*0431_r249_*|*0432_r249_*|*0433_r249_*|*0434_r252_*|*0435_r252_*|*0436_r253_*) continue;; esac
+  case "$path" in *0423_r246_*|*0424_r246_*|*0425_r246_*|*0430_*|*0431_r249_*|*0432_r249_*|*0433_r249_*|*0434_r252_*|*0435_r252_*|*0436_r253_*|*0437_r254_*|*0438_r254_*) continue;; esac
   PGDATABASE=$DB psql -X -q -v ON_ERROR_STOP=1 -1 -f "$path" >/dev/null 2>&1 || { bad="$path"; break; }
   n=$((n+1))
 done < supabase/migrations/MANIFEST
@@ -43,7 +43,7 @@ ok "events, notices, chat, outboxes, money rows untouched (same count + digest)"
 ok "the jobs still run on this order (quiet answers)" "$(q "select public.task_reminder_tick(now()) ? 'escalated' and public.runsheet_reminders_tick() ? 'done' and public.delivery_reminders_tick() ? 'queued' and public.inbox_tick() ? 'queued' and public.comms_tick() ? 'pay_reminders'")"
 CHK="$(PGDATABASE=$DB psql -X -q -A -t -F '|' -v ON_ERROR_STOP=1 -f supabase/CHECK-PROD-MIGRATIONS.sql 2>&1)"
 ok "prod checker: 0431 + 0432 + 0433 present" "$( grep -qE '^0431_r249_money_once\|present\|' <<<"$CHK" && grep -qE '^0432_r249_cron_quiet\|present\|' <<<"$CHK" && grep -qE '^0433_r249_read_speed\|present\|' <<<"$CHK" && echo t || grep -E '^043[123]' <<<"$CHK" | head -3)"
-ok "prod checker: only 0423-0425 / 0430 missing / partial" "$( ! grep -E '^[^|]+\|(missing|partial)\|' <<<"$CHK" | grep -qvE '^0(42[345]_r246|430|434|435|436)_' && echo t || grep -E '^[^|]+\|(missing|partial)\|' <<<"$CHK" | grep -vE '^0(42[345]_r246|430|434|435|436)_' | head -3)"
+ok "prod checker: only 0423-0425 / 0430 missing / partial" "$( ! grep -E '^[^|]+\|(missing|partial)\|' <<<"$CHK" | grep -qvE '^0(42[345]_r246|430|434|435|436|437|438)_' && echo t || grep -E '^[^|]+\|(missing|partial)\|' <<<"$CHK" | grep -vE '^0(42[345]_r246|430|434|435|436|437|438)_' | head -3)"
 for f in 0423 0424 0425; do
   out="$(checks supabase/APPLY-$f.sql)"
   ok "later: APPLY-$f after 0431-0433: every check row true" "$( ! grep -qE '^[0-9]{2} [^|]*\|f(\||$)|ERROR' <<<"$out" && [ "$(grep -cE '^[0-9]{2} [^|]*\|t(\||$)' <<<"$out")" -ge 3 ] && echo t || { grep -E '\|f(\||$)|ERROR' <<<"$out" | head -3; })"

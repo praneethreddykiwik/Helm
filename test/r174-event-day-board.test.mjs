@@ -110,7 +110,7 @@ t('Tasks & staff: progress card above Live status, Late chip, can\'t-work in the
   assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>\n(<script src="event-plan\.js\?v=\d+"><\/script>\n)?(<script src="day-before\.js\?v=\d+"><\/script>\n)?<script src="ops-board\.js\?v=\d+"><\/script>/);
   assert.match(OPS, /⛔ approved day off/); assert.match(OPS, /⏳ asked off this day \(waiting for approval\)/);   // R187 (0370): pending vs approved
   assert.match(OPS, /async function loadOff\(\)/);
-  assert.match(OPS, /BPStore\.calendar\.wouldClash\(\{date:\(when&&\$\("#as_when"\)\.value/);
+  assert.match(OPS, /askTime\(c, when\?\[\{start:when\.start, title:titles\[0\], depends_on:dep\|\|null\}\]:\[\], \[\], when&&\$\("#as_when"\)\.value/);
 });
 
 t('Home: "Ongoing & upcoming today" card, mounted once, compact', () => {
