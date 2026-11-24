@@ -152,7 +152,7 @@ t('readiness: no saved venue = "Not checked" (never passed, not a blocker, not c
   assert.match(c.detail, /^not checked - no saved venue linked$/);
   assert.equal(r.passed, r.checks.filter((x) => x.ok).length);
   const R = read('public/ready.html');
-  assert.match(R, /c\.unchecked\?"Not checked"/); assert.match(R, /c\.unchecked\?'<span class="opt">not checked<\/span>'/);
+  assert.match(R, /c\.unchecked\?"Not checked"/); assert.match(R, /c\.unchecked\?"not checked"/);
 });
 
 /* ---------------------------------------------------------------- 3: logistics */

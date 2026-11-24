@@ -59,12 +59,13 @@
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
   :root{--neg:#b42318} html[data-theme="dark"]{--neg:#f87171}
 </style>
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
+<link rel="stylesheet" href="/event-flow-line.css?v=1">
 <link rel="stylesheet" href="vendor-bills.css?v=3">
 <link rel="stylesheet" href="money-ledger.css?v=2"><link rel="stylesheet" href="money-lock.css?v=2"><link rel="stylesheet" href="money-header.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=119" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -83,7 +84,7 @@
   <div id="notfound" class="card" hidden><p class="s-1a1aca0">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="flowLine"></span></div>
     <p class="page-purpose" id="pagePurpose"><b>Final result</b> and close the event.</p>
     <div id="closedBanner" class="closed-banner" hidden>✓ Event closed &amp; archived <span class="s-1afaaf4" id="closedWhen"></span></div>
 
@@ -138,6 +139,7 @@
       <p class="sub">Marks the event complete and moves it to Closed. Follow-up: keep the client warm for the next occasion.</p>
       <div id="closeBlockers" class="note" role="status" hidden></div>
       <div id="closeChecklist" hidden></div>
+      <div id="closeLeft" class="note efl-left" role="status" hidden></div>
       <div id="close-request" role="status" aria-live="polite" hidden></div>
       <div class="foot s-a562f4f">
         <a class="btn" id="followBtn" href="#">＋ Add CRM follow-up lead</a>
@@ -164,9 +166,10 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=3"></script><script src="save-back.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-ledger-ui.js?v=4"></script><script src="money-lock-ui.js?v=3"></script><script src="stock-flow.js?v=2"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=408"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=3"></script><script src="save-back.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-ledger-ui.js?v=4"></script><script src="money-lock-ui.js?v=3"></script><script src="stock-flow.js?v=2"></script>
 <script src="closure-checklist.js?v=4"></script>
-<script src="page-tours.js?v=76"></script>
+<script src="/event-flow-line.js?v=1"></script>
+<script src="page-tours.js?v=77"></script>
 <script src="tour.js?v=91"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -339,6 +342,33 @@
       if(bl.checkouts>0){ if(links.childNodes.length) links.appendChild(document.createTextNode(" · ")); const a=document.createElement("a"); a.href="inventory.html?quote="+encodeURIComponent(id); a.textContent="Open Inventory"; links.appendChild(a); }
       box.appendChild(links); box.hidden=false;
     }catch(_){ box.hidden=true; closeLabel(null); /* summary is advisory only */ }
+  }
+  // R252: what the event day left open and the close rules do not ask about (tasks, issues, teardown list, vendors). Words only.
+  function leftoverParts(c, o){ c=c||{}; o=o||{}; const q="?quote="+encodeURIComponent(id), p=[], n=(x,one,many)=>x+" "+(x===1?one:many);
+    if(Number(c.tasks_open)>0) p.push([n(Number(c.tasks_open),"task not finished","tasks not finished"), o.staff?"ops.html"+q:""]);
+    if(Number(c.issues_open)>0) p.push([n(Number(c.issues_open),"issue open","issues open"), o.issues?"issues.html"+q:""]);
+    if(o.teardown>0) p.push([n(o.teardown,"teardown item open","teardown items open"), o.inventory?"teardown.html"+q:""]);
+    if(o.notLeft>0) p.push([n(o.notLeft,"vendor not marked as left","vendors not marked as left"), o.inventory?"teardown.html"+q:""]);
+    if(o.noCost>0) p.push([n(o.noCost,"vendor with no cost or bill (counts as 0)","vendors with no cost or bill (count as 0)"), o.resources?"resources.html"+q+"#bookings":""]);
+    return p; }
+  async function renderLeftovers(){
+    const box=$("#closeLeft"); if(!box) return; box.hidden=true;
+    if(closedAt || !review || !review.counts || futureEventDate() || (ev&&ev.status==="cancelled")) return;
+    const A=BPStore.auth, may=(a)=>Promise.resolve().then(()=>A.canView(a)).then(v=>v===true,()=>false), soft=(f)=>Promise.resolve().then(f).catch(()=>null);
+    const [staff,iss,inv,plan,vend,cmd,res]=await Promise.all(["staff","issues","inventory","plan","vendors","command","resources"].map(may));
+    const [td,bk,arr,bills]=await Promise.all([plan?soft(()=>BPStore.checklist.list(id,"teardown")):null, vend?soft(()=>BPStore.bookings.list(id)):null,
+      vend&&cmd?soft(()=>BPStore.dayops.list(id,"arrival")):null, vend&&BPStore.vendorBills?soft(()=>BPStore.vendorBills.list(id)):null]);
+    const gone={}; (arr||[]).forEach(a=>{ if(a&&a.ref_id&&(a.status==="left"||a.status==="no_show")) gone[a.ref_id]=1; });
+    const live=(bk||[]).filter(b=>b&&(b.status==="booked"||b.status==="confirmed")), billed={};
+    (bills||[]).forEach(b=>{ if(b&&b.status!=="void"){ if(b.booking_id) billed[b.booking_id]=1; else if(b.vendor_id) billed["v"+b.vendor_id]=1; } });
+    const parts=leftoverParts(review.counts,{ staff, issues:iss, inventory:inv, resources:res, teardown:(td||[]).filter(x=>x&&x.status==="open").length,
+      notLeft: cmd?live.filter(b=>!gone[b.id]).length:0,
+      noCost: bills?(bk||[]).filter(b=>b&&b.vendor_id&&(b.status==="booked"||b.status==="confirmed"||b.status==="delivered")&&b.cost==null&&!billed[b.id]&&!billed["v"+b.vendor_id]).length:0 });
+    if(!parts.length) return;
+    box.replaceChildren(); const h=document.createElement("strong"); h.textContent="Also still open (this does not stop closing):"; box.appendChild(h);
+    const ul=document.createElement("ul"); parts.forEach(([t,href])=>{ const li=document.createElement("li");
+      if(href){ const a=document.createElement("a"); a.href=href; a.textContent=t+" →"; li.appendChild(a); } else li.textContent=t; ul.appendChild(li); });
+    box.appendChild(ul); box.hidden=false;
   }
   // r20 planner: with blockers listed above, the close button no longer reads like a plain "go". It says what a click
   // does - "Close anyway…" (the same confirm / admin-override flow as before; no new hard block - the server gate
@@ -513,6 +543,7 @@
     if(!ev){ $("#notfound").hidden=false; return; }
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"");
     $("#followBtn").href="leads.html";
+    if(window.HelmFlowLine) HelmFlowLine.mount($("#flowLine"),ev,{id});
     $("#app").hidden=false; $("#c_save").hidden=!canEdit; $("#rateAdd").hidden=!canEdit; $("#closeBtn").hidden=!canEdit;
     try{ isAdmin=(await BPStore.auth.role())==="admin"; }catch(_){ isAdmin=false; }
     renderStars(); await fillNames();
@@ -522,6 +553,9 @@
     await loadReview();
     renderCloseSummary();
     renderDash().catch(()=>{});
+    renderLeftovers().catch(()=>{});
+    // R252: fixed something on another page? The close list is read again when you come back (nothing in the form is touched)
+    if(window.HelmFlowLine) HelmFlowLine.onReturn(async()=>{ if(closedAt) return; await refreshReview(); await renderLeftovers(); },()=>closing||HelmFlowLine.inUse(null));
     if(location.hash==="#close-request"){ const r=$("#close-request"); if(r&&!r.hidden) r.scrollIntoView({block:"center"}); }
     await renderRatingsSafe();
     if(!canEdit){ document.querySelectorAll("#app input,#app textarea,#app select").forEach(el=>el.disabled=true); }

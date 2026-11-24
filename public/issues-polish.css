@@ -21,3 +21,30 @@
 
 /* r22 ui audit: phones - "Raise a billable change" is a 40px tap target */
 @media (max-width:640px){ #changeLink{display:inline-flex;align-items:center;min-height:40px} }
+
+/* R252: one calm page - back + event, the two tabs, the log form, the filter chips, the list in one card. Status colours as tokens
+   for issue-assign.css (the event-day pages take theirs from ops-board.css). */
+#app{--tc-bad:#b42318;--tc-bad-bg:#fdecec;--tc-warn:#8a5a00;--tc-warn-bg:#fff4de}
+html[data-theme="dark"] #app{--tc-bad:#f97066;--tc-bad-bg:rgba(240,80,90,.14);--tc-warn:#ffd884;--tc-warn-bg:rgba(245,180,40,.14)}
+#app .crumb{display:flex;flex-wrap:wrap;align-items:center;gap:0 6px;margin:0 0 12px;line-height:1.5}
+#app .crumb a{display:inline-flex;align-items:center;min-height:44px}
+#app .toolbar{gap:12px 16px;margin-bottom:16px}
+#app .tabs button{min-height:44px;padding:0 16px}
+#app .card{padding:16px;margin-bottom:16px}
+#app .add{grid-template-columns:minmax(0,1.6fr) minmax(120px,.6fr) minmax(0,1.2fr) auto;gap:12px;align-items:start}
+#app .fld{min-width:0}
+#app .fld label,#app .iss-who .hia-l{line-height:1.3;font-size:12px}
+#app .fld>input,#app .fld>select,#app .fld>.hp-sel{min-height:44px}
+#app .fld>input,#app .fld>select{font-size:16px}
+#app .iss-go{padding-top:21px}
+#app #i_add{min-height:44px;min-width:96px}
+.iss-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.iss-chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink-2);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.iss-chip b{font-variant-numeric:tabular-nums}
+.iss-chip:hover{border-color:var(--accent)}
+.iss-chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.iss-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#issList{padding:4px 16px;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:var(--shadow)}
+#issList:has(>.hia-empty:only-child,>div:only-child){padding:16px}
+@media (max-width:760px){ #app .add{grid-template-columns:minmax(0,1fr)} #app .iss-go{padding-top:0} #app #i_add{width:100%} }
+@media (max-width:480px){ #app .crumb #evName{flex-basis:100%;margin-bottom:8px} #app #opsSep{display:none} #app .tabs{width:100%} #app .tabs button{flex:1 1 0} }

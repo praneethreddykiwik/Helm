@@ -16,6 +16,7 @@
          role the DATABASE answers on a fresh read (never the one picked in the drop-down) -> { ok, tone, text }
      HelmTeamStatus.roleError(err) -> R210: the database's refusal of a role change in plain words, or "" (not one of them)
      HelmTeamStatus.openDrawer({ title, sub, rows: [[label, value, { copy, mono }]], actions: [{ label, onClick, danger, primary }] })
+     HelmTeamStatus.breakMail(tbody) / mailParts(text) -> R252: e-mails wrap only at "@" and dots
      HelmTeamStatus.rowMenus(tbody) -> R228: keyboard-friendly "..." menus of the members table (wired once) */
 (function (root) {
   "use strict";
@@ -46,6 +47,16 @@
     var h = Math.floor(m / 60); if (h < 24) return "in " + h + (h === 1 ? " hour" : " hours");
     var d = Math.floor(h / 24); return "in " + d + (d === 1 ? " day" : " days");
   }
+  // R252: the row's short words. "Active · 6 h ago" in the last day, "Last signed in 19 Sep" after a month; else the full label
+  function dayShort(v, now) {
+    var t = ts(v); if (t == null) return ""; var w = when(v), y = " " + new Date(t).getFullYear();
+    return new Date(t).getFullYear() === new Date(nowMs(now)).getFullYear() && w.slice(-y.length) === y ? w.slice(0, -y.length) : w;
+  }
+  function chipSeen(v, now) {
+    var t = ts(v), m = Math.floor(Math.max(0, nowMs(now) - t) / 60000);
+    if (m < 1) return "Active now"; if (m < 60) return "Active · " + m + " min ago"; if (m < 1440) return "Active · " + Math.floor(m / 60) + " h ago";
+    return m < 43200 ? "" : "Last signed in " + dayShort(v, now);
+  }
   function andList(a) { return a.length < 2 ? (a[0] || "") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]; }
 
   /* one member's account status. u = the member_profile_list row, acct = the 0378 members[] row (or null). */
@@ -54,27 +65,27 @@
     var joined = (a && a.joined_at) || u.created_at || null;
     var joinedTxt = joined ? "Joined " + when(joined) : "";
     if ((a && a.deactivated) || u.deactivated === true) {
-      return { key: "off", tone: "off", label: "Deactivated", detail: a && a.deactivated_at ? "Since " + when(a.deactivated_at) + " · can’t sign in, records kept" : "Can’t sign in, records kept",
+      return { key: "off", tone: "off", label: "Deactivated", line: a && a.deactivated_at ? "Since " + when(a.deactivated_at) : "", detail: a && a.deactivated_at ? "Since " + when(a.deactivated_at) + " · can’t sign in, records kept" : "Can’t sign in, records kept",
         title: "Can’t sign in or see studio data. Everything they made is kept. Reactivate to let them back in." };
     }
     if (!a) return { key: "unknown", tone: "muted", label: "Member", detail: joinedTxt, title: "Sign-in times show after the database update 0378" };
     var last = ts(a.last_sign_in_at);
     if (last == null && a.needs_password) {
-      return { key: "setup", tone: "warn", label: "Signed up – no password yet", detail: [joinedTxt, a.signin_link_at ? "sign-in link sent " + ago(a.signin_link_at, now) : ""].filter(Boolean).join(" · "),
+      return { key: "setup", tone: "warn", label: "Signed up – no password yet", line: a.signin_link_at ? "Sign-in link sent " + ago(a.signin_link_at, now) : joinedTxt, detail: [joinedTxt, a.signin_link_at ? "sign-in link sent " + ago(a.signin_link_at, now) : ""].filter(Boolean).join(" · "),
         title: "Their login was made by the invitation e-mail and has no password yet. Use “Send sign-in link”, or they can use “Forgot password?” on the sign-in page." };
     }
     if (last == null) {
       // R202: plainer words for an "Add user" login ("Added – never signed in · temporary password not used yet" read as jargon)
       var link = a.signin_link_at ? "sign-in link sent " + ago(a.signin_link_at, now) : "";
       if (a.temp_password) {
-        return { key: "never", tone: "warn", label: "Added by admin – hasn’t signed in yet",
+        return { key: "never", tone: "warn", label: "Added by admin – hasn’t signed in yet", chip: "Added – not signed in yet", line: link ? "Sign-in link sent " + ago(a.signin_link_at, now) : joined ? "Added " + when(joined) : "",
           detail: ["Temporary password unused", link, joined ? "Added " + when(joined) : ""].filter(Boolean).join(" · "),
           title: "An admin made this login with “Add user” and a one-time temporary password (shown once). They haven’t signed in yet. Use “Send sign-in link” to e-mail them a link to set their own password." };
       }
-      return { key: "never", tone: "warn", label: "Signed up – never signed in", detail: [joinedTxt, link].filter(Boolean).join(" · "),
+      return { key: "never", tone: "warn", label: "Signed up – never signed in", line: link ? "Sign-in link sent " + ago(a.signin_link_at, now) : joinedTxt, detail: [joinedTxt, link].filter(Boolean).join(" · "),
         title: "Their account exists but they have never signed in." };
     }
-    return { key: "active", tone: "ok", label: "Last signed in " + ago(a.last_sign_in_at, now),
+    return { key: "active", tone: "ok", label: "Last signed in " + ago(a.last_sign_in_at, now), chip: chipSeen(a.last_sign_in_at, now),
       detail: joinedTxt + (a.temp_password ? (joinedTxt ? " · " : "") + "still on the temporary password" : ""),
       title: "Last sign-in: " + when(a.last_sign_in_at, true) };
   }
@@ -133,12 +144,12 @@
     var exp = ts(inv.expires_at), expired = inv.expired === true || (exp != null && exp <= nowMs(now));
     var sent = inv.created_at ? "Sent " + when(inv.created_at) : "";
     if (expired) {
-      return { key: "expired", tone: "off", label: "Invite expired – not signed up",
+      return { key: "expired", tone: "off", label: "Invite expired – not signed up", line: exp != null ? "The link expired " + when(inv.expires_at) : "",
         detail: [sent, exp != null ? "link expired " + when(inv.expires_at) : ""].filter(Boolean).join(" · "),
         title: "The join link no longer works. Use “Resend invite” to send a new link (valid 7 days)." };
     }
     var u = until(inv.expires_at, now);
-    return { key: "invited", tone: "warn", label: "Invited – not signed up yet",
+    return { key: "invited", tone: "warn", label: "Invited – not signed up yet", line: exp != null ? "The link expires " + when(inv.expires_at) : "",
       detail: [sent, exp != null ? "link expires " + when(inv.expires_at, true) + (u ? " (" + u + ")" : "") : ""].filter(Boolean).join(" · "),
       title: "They haven’t used the join link yet." + (inv.emailed_at ? " Invitation e-mail sent " + when(inv.emailed_at, true) + "." : "") };
   }
@@ -164,6 +175,20 @@
     if (filter === "incomplete") return !!u && !u.__invite && u.complete === false;
     if (filter === "complete") return !!u && !u.__invite && u.complete === true;
     return true;
+  }
+
+  /* R252: an e-mail (or a name made from one) may wrap after "@" and before a dot, never in the middle of a word; a part that still
+     does not fit ends in "..." (CSS) and the full text is in the title. Text nodes + <wbr> only, so copying it gives the same text. */
+  function mailParts(v) { return String(v == null ? "" : v).replace(/@/g, "@\n").replace(/\./g, "\n.").split("\n").filter(Boolean); }
+  function breakMail(root2) {
+    if (!root2 || !root2.querySelectorAll) return;
+    Array.prototype.forEach.call(root2.querySelectorAll("tr.ucr .ucsub.em, tr.ucr .dnTxt"), function (el) {
+      var v = el.textContent, p = mailParts(v); if (el.firstElementChild) return;
+      if (v.length > 18 && !el.getAttribute("title")) el.setAttribute("title", v);
+      if (p.length < 2 || /\s/.test(v)) return;   // a real name ("S. Koushik") wraps at its spaces
+      el.textContent = "";
+      p.forEach(function (x, i) { if (i) el.appendChild(root.document.createElement("wbr")); el.appendChild(root.document.createTextNode(x)); });
+    });
   }
 
   /* ---------------- the details drawer (one per page, re-used) ---------------- */
@@ -313,7 +338,7 @@
   }
 
   var api = { roleSaved: roleSaved, roleError: roleError, member: member, invite: invite, signInHelp: signInHelp, rowActions: rowActions, profileHint: profileHint, matches: matches, ago: ago, until: until, when: when,
-    openDrawer: openDrawer, closeDrawer: closeDrawer, copyText: copyText, rowMenus: rowMenus };
+    openDrawer: openDrawer, closeDrawer: closeDrawer, copyText: copyText, rowMenus: rowMenus, breakMail: breakMail, mailParts: mailParts };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HelmTeamStatus = api;
 })(typeof window !== "undefined" ? window : globalThis);

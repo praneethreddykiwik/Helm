@@ -228,7 +228,7 @@
           { sel: ["#um_which", "#um_more"], title: "Which should I use?", desc: "Invite by email link (recommended): they choose their own password. Add user under More options (admins only): the login exists now and a temporary password is shown to you once. Learn more compares them with the Staff page options." },
           { sel: "#uc_tools", title: "Find a teammate", desc: "Search the team, or use the tabs to show only Active people, people Invited but not signed up, people who never signed in, incomplete profiles or Deactivated people. Each tab shows how many." },
           { sel: "#um_rows", title: "Team members", desc: "Everyone with a login, plus people invited but not signed up yet. Status shows the real state: Last signed in, Invited (and when the link expires), Never signed in, or Deactivated. Admins also show whether two-step is on." },
-          { sel: "#um_rows .btn.primary", title: "One main button per person", desc: "Anyone not in yet has one clear next step under their status: Resend invite (an expired link gets a new 7-day one), Send sign-in link (never signed in), or Reactivate. Signed-in people have none." },
+          { sel: "#um_rows .btn.primary", title: "One main button per person", desc: "Anyone not in yet has one clear next step at the end of their row: Resend invite (an expired link gets a new 7-day one), Send sign-in link (never signed in), or Reactivate. Signed-in people have none." },
           { sel: "#um_rows .ucView", title: "View a person", desc: "View opens their details: the full e-mail (with Copy), phone, role, when they joined and last signed in, who invited them, and New temporary password for a never-used Add user login." },
           { sel: "#um_rows .ucMore", title: "More actions", desc: "The ⋯ button holds the rest: Deactivate (nothing is deleted), Remove access, Open work, Copy invite link or Cancel invite. Arrow keys move through it and Esc closes it." },
           // R245 (ACC-20): open work -> "Reassign to ..." in one step
@@ -405,7 +405,7 @@
     "monitor.html": [
       { sel: ".mon-evpick", title: "Pick the event", desc: "Tap the event name to switch: today and the next 3 days first, then the rest of the month (or All events today). On the right: guests arrive, and the countdown or, on the day, a live clock." },
       { sel: "#monWins", title: "Where the event is", desc: "Day before, Pre-event, On the event. The green dot and Now mark where it is by your studio's clock. Tap a step to look ahead or back; tap the one marked Now to return. Wrap-up is the closed section at the bottom." },
-      { sel: "#monSummary", title: "At a glance", desc: "Day before: who is assigned and who accepted, plus what needs action. Pre-event: the set-up work, then Mark pre-event complete. On the event: done, late, checked in, issues and the run-sheet." },
+      { sel: "#monSummary", title: "At a glance", desc: "Day before: readiness, vendors, stock and floor plan, logistics, people - with optional assign. Pre-event: set-up work, then Mark pre-event complete. On the event: late work, issues, the run-sheet, and Running late - what it affects." },
       { sel: "#monAlerts", title: "Late tasks", desc: "On the event: every task whose start time has passed and is not started. A special task shows how far it has been escalated, for example Escalated to manager 3:10 PM." },
       { sel: ["#monLock", "#monFloor"], title: "Floor plan and the plan lock", desc: "Day before: tick the checklist, check the floor plan, and lock the plan for tomorrow. Ready by shows each set-up job's latest start. Only an admin or the event manager can unlock, with a reason." },
       { sel: "#monTabs", title: "People, Work, Activity", desc: "People: each person's tasks and, on the day, their check-in. Work: by section. Activity: every update. Tap a status chip (Not assigned, Late, Still open...) to show just those; on a phone more sit behind the Filters button." },
@@ -471,7 +471,7 @@
     ],
     "ready.html": [
       { sel: "#hero", title: "Is the event ready?", desc: "A score from the checks below. Green means good to go." },
-      { sel: "#checks", title: "The checks", desc: "Two parts: 1 Is everything booked? (Helm checks staff, stock, vendors, payments and the run-sheet; Fix opens the page) and 2 Call, confirm and pack (the day-before list your team ticks)." },
+      { sel: "#checks", title: "The checks", desc: "Two parts: 1 Is everything booked? (Helm checks; Fix opens the page) and 2 the day-before list: vendors, stock and floor plan, logistics, people. Each line can be given to someone (optional)." },
       { sel: "#rsLink", title: "The run-sheet", desc: "Open the minute-by-minute plan for the day." },
       { sel: "#markBtn", title: "Mark ready", desc: "When every check passes, mark the event ready." },
     ],
@@ -481,7 +481,7 @@
       { sel: ["#chips", "#tcQ"], title: "Find a task", desc: "Tap a chip (Late, Special, Not assigned, Not accepted yet, No time, QC to check...) - each shows its count. Search finds tasks and people; press / to jump to it." },
       { sel: "#addBtn", title: "Add & assign", desc: "First the part of the job: Pre-event, On the event, Wrap-up, Day before. Then what, who (Free that day / Busy elsewhere / Day off), start time, reminders, Special, the task it waits for. Once accepted, use Cancel (a reason is required)." },
       { sel: "#tcPhase", title: "Event steps", desc: "Day before / Pre-event / On the event, picked from your studio's clock. Day before: tick the checklist. Ready by: each set-up job's latest start. Then Mark pre-event complete. On the event: the run-sheet and issues." },
-      { sel: "#attn", title: "What needs you", desc: "Day before: tasks to sort out, with Fix. On the event day: late tasks, can't-work requests and check-ins." },
+      { sel: "#attn", title: "What needs you", desc: "Day before: tasks to sort out, with Fix. On the event day: late tasks, can't-work requests, check-ins, issues (assign them if you like) and Running late - what it affects." },
       { sel: "#assignEmailWrap", title: "Send by email or WhatsApp", desc: "Ticked: the person gets their tasks by email. Tick Send on WhatsApp to send from your studio number too - if it isn't connected, Helm says so and nothing is sent." },
       { sel: "#trmLine", title: "Task reminders", desc: "Reminders go by email to each staff record address and on WhatsApp once connected. Change time in a task's panel sets its start time and reminders; tick tasks to move many at once." },
     ],
@@ -500,8 +500,8 @@
     ],
     "issues.html": [
       { sel: "#tabs", title: "Issues and incidents", desc: "Issues are problems to fix; incidents are things that happened (a guest hurt, damage)." },
-      { sel: "#i_title", title: "Log one", desc: "Say what happened, how serious it is and who owns it." },
-      { sel: "#list", title: "Open issues", desc: "Everything logged for this event. Close each one when it is sorted." },
+      { sel: "#i_title", title: "Log one", desc: "Say what happened, how serious it is and, if you like, who handles it (staff, vendor or a name) - you can also give them a task." },
+      { sel: "#list", title: "Open issues", desc: "High first. Nobody yet is marked - Assign it. Resolve each one when it is sorted; resolved ones are folded." },
       { sel: "#changeLink", title: "Charge the client", desc: "If the fix costs the client, add a change request in Budget." },
     ],
     "templates.html": [

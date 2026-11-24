@@ -2,7 +2,8 @@
 <html lang="en" data-theme="light" class="auth-pending">
 <head>
 <style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}</style>
-<link rel="stylesheet" href="/issues-polish.css?v=3">
+<link rel="stylesheet" href="/issues-polish.css?v=4">
+<link rel="stylesheet" href="/issue-assign.css?v=1">
 <meta charset="utf-8">
 <base href="/">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -66,10 +67,10 @@
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
   html[data-theme="dark"] .tabs button.on{background:#047857;color:#fff}
 </style>
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=119" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -103,9 +104,15 @@
       <div class="add">
         <div class="fld"><label id="titleLbl" for="i_title">Issue</label><input id="i_title" maxlength="500" placeholder="e.g. Generator not delivered"></div>
         <div class="fld"><label for="i_sev">Severity</label><select id="i_sev"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
-        <div class="fld"><label for="i_owner">Owner</label><input id="i_owner" placeholder="Who is handling it"></div>
-        <div class="fld"><span class="s-6cb285c" aria-hidden="true">&nbsp;</span><button type="button" class="btn primary" id="i_add">＋ Log</button></div>
+        <div class="fld iss-who" id="i_who"></div>
+        <div class="fld iss-go"><button type="button" class="btn primary" id="i_add">＋ Log</button></div>
       </div>
+    </div>
+
+    <div class="iss-chips" id="filters" role="group" aria-label="Show only" hidden>
+      <button type="button" class="iss-chip" data-f="" aria-pressed="true">All open <b id="f_all"></b></button>
+      <button type="button" class="iss-chip" data-f="none" aria-pressed="false">Not assigned <b id="f_none"></b></button>
+      <button type="button" class="iss-chip" data-f="high" aria-pressed="false">High <b id="f_high"></b></button>
     </div>
 
     <div id="list"><div class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></div></div>
@@ -128,15 +135,15 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=408"></script>
+<script src="/issue-assign.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
-  const SEV={low:"Low",medium:"Medium",high:"High"}, ST={open:"Open",in_progress:"In progress",resolved:"Resolved"};
   /* HelmUI empty state (guarded: falls back to the plain message if the kit isn't loaded) */
   const hEmpty=(host,o,cols)=>{ const H=window.HelmUI; if(!(H&&H.emptyState)||!host) return false; const n=H.emptyState(o); if(cols){ const tr=document.createElement("tr"),td=document.createElement("td"); td.colSpan=cols; td.className="hs-empty-cell"; td.appendChild(n); tr.appendChild(td); host.replaceChildren(tr); } else host.replaceChildren(n); return true; };
-  let canEdit=false, canDelete=false, tab="issue", ev=null;
+  let canEdit=false, canDelete=false, tab="issue", ev=null, filter="", pick=null, shownTab="";
 
   async function renderAccount(){ const el=$("#account"); if(!BPStore.auth.enabled()){el.hidden=true;return;} el.hidden=false;
     const u=BPStore.auth.user(); if(u){ const role=await BPStore.auth.role();
@@ -149,33 +156,35 @@
   async function render(){
     $("#titleLbl").textContent = tab==="incident"?"Incident":"Issue";
     $("#i_title").placeholder = tab==="incident"?"what happened (safety/incident)":"what's happening";
-    const items=await BPStore.issues.list(id, tab);
-    const open=items.filter(i=>i.status!=="resolved").length;
+    const t=tab, items=await BPStore.issues.list(id, t); if(t!==tab) return;   // the other tab was picked meanwhile
+    const IA=HelmIssueAssign, P=IA._pure, open=P.organise(items).open.length;
     $("#openBadge").innerHTML = items.length?`<b>${open}</b> open · ${items.length} total`:"";
-    $("#list").innerHTML = items.length ? items.map(i=>`<div class="issue ${i.status==='resolved'?'resolved':''}">
-      <div class="sev ${esc(i.severity)}"></div>
-      <div style="flex:1"><div class="t">${esc(i.title)}<span class="tag ${esc(i.severity)}">${esc(SEV[i.severity]||i.severity)}</span></div>
-        ${i.detail?`<div class="d">${esc(i.detail)}</div>`:""}
-        <div class="meta">${esc(when(i.created_at))}${i.owner?` · 👤 ${esc(i.owner)}`:""} · <span class="st ${esc(i.status)}">${esc(ST[i.status]||i.status)}</span>${i.resolved_at?` · resolved ${esc(when(i.resolved_at))}`:""}</div></div>
-      ${canEdit?`<div class="acts">
-        ${i.status==="open"?`<button type="button" class="mini" data-st="${esc(i.id)}" data-s="in_progress" aria-label="Start ${esc(i.title)}">Start</button>`:""}
-        ${i.status!=="resolved"?`<button type="button" class="mini go" data-st="${esc(i.id)}" data-s="resolved" aria-label="Resolve ${esc(i.title)}">Resolve</button>`:`<button type="button" class="mini" data-st="${esc(i.id)}" data-s="open" aria-label="Reopen ${esc(i.title)}">Reopen</button>`}
-        ${canDelete?`<button type="button" class="mini del" data-del="${esc(i.id)}" data-name="${esc(i.title)}" aria-label="Delete ${esc(i.title)}">✕</button>`:""}
-      </div>`:""}
-    </div>`).join("") : `<div class="empty">No ${tab==="incident"?"incidents":"issues"} logged. ${tab==="incident"?"Good — keep it that way.":""}</div>`;
-    if(!$("#list").querySelector("[data-st],[data-del],.t")&&!$("#list").querySelector(".hs-empty")) hEmpty($("#list"),{icon:tab==="incident"?"🛡":"✓",title:tab==="incident"?"No incidents logged":"No issues logged",text:tab==="incident"?"Good — keep it that way.":"Log anything that needs sorting out during the event.",actionLabel:canEdit?(tab==="incident"?"Log an incident":"Log an issue"):"",onAction:()=>{ const i=$("#i_title"); if(i){ i.scrollIntoView({block:"center"}); i.focus(); } }});
-    $("#list").querySelectorAll("[data-st]").forEach(b=>b.addEventListener("click",()=>BPUI.guard(b,async()=>{ try{ await BPStore.issues.setStatus(b.dataset.st,b.dataset.s); await safeRender(); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the "+tab}),{type:"err"}); } })));
-    $("#list").querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",async()=>{
-      if(!(await BPUI.confirm(`Delete “${b.dataset.name||""}”? It will be removed from the ${tab} log.`,{title:"Delete "+tab+"?",danger:true}))) return;
-      await BPUI.guard(b,async()=>{ try{ await BPStore.issues.remove(b.dataset.del); await safeRender(); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"delete the "+tab}),{type:"err"}); } }); }));
+    $("#filters").hidden=!open; $("#f_all").textContent=String(open);
+    for(const k of ["none","high"]) $("#f_"+k).textContent=String(P.organise(items).open.filter(i=>P.pass(i,k)).length);
+    if(!open) setFilter("");
+    if(shownTab!==t){ shownTab=t; $("#list").replaceChildren(); const n=document.createElement("div"); n.id="issList"; $("#list").appendChild(n); }
+    const word=t==="incident"?"incident":"issue", act=(o,f)=>async(i,b)=>BPUI.guard(b,async()=>{ try{ await f(i); await safeRender(); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:o+" the "+word}),{type:"err"}); } });
+    let empty="";
+    if(!items.length){ empty=document.createElement("div"); if(!hEmpty(empty,{icon:t==="incident"?"🛡":"✓",title:t==="incident"?"No incidents logged":"No issues logged",text:t==="incident"?"Good — keep it that way.":"Log anything that needs sorting out for this event.",actionLabel:canEdit?(t==="incident"?"Log an incident":"Log an issue"):"",onAction:()=>{ const i=$("#i_title"); if(i){ i.scrollIntoView({block:"center"}); i.focus(); } }})) empty="No "+word+"s logged."; }
+    else if(!open) empty="Nothing open. Everything logged is sorted.";
+    IA.list($("#issList"),{ items, quoteId:id, canEdit, filter, empty, when, reload:safeRender, toast:(m,k)=>BPUI.toast(m,{type:k}),
+      start:act("update",i=>BPStore.issues.setStatus(i.id,"in_progress")), resolve:act("resolve",i=>BPStore.issues.setStatus(i.id,"resolved")), reopen:act("reopen",i=>BPStore.issues.setStatus(i.id,"open")),
+      remove:!canDelete?null:async(i,b)=>{
+        if(!(await BPUI.confirm(`Delete “${i.title||""}”? It will be removed from the ${tab} log.`,{title:"Delete "+tab+"?",danger:true}))) return;
+        await BPUI.guard(b,async()=>{ try{ await BPStore.issues.remove(i.id); await safeRender(); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"delete the "+tab}),{type:"err"}); } }); } });
   }
-  async function safeRender(){ try{ await render(); }catch(e){ $("#openBadge").textContent=""; BPUI.loadError($("#list"),e,safeRender,{what:tab==="incident"?"incidents":"issues"}); } }
+  function setFilter(f){ filter=f; $("#filters").querySelectorAll("[data-f]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.f===f))); }
+  async function safeRender(){ try{ await render(); }catch(e){ shownTab=""; $("#openBadge").textContent=""; $("#filters").hidden=true; BPUI.loadError($("#list"),e,safeRender,{what:tab==="incident"?"incidents":"issues"}); } }
   function add(){ const t=$("#i_title").value.trim(); if(!t){ BPUI.toast((tab==="incident"?"Incident":"Issue")+" description is required.",{type:"err"}); $("#i_title").focus(); return; }
     if(t.length>500){ BPUI.toast("Keep it under 500 characters.",{type:"err"}); $("#i_title").focus(); return; }
+    const who=pick.value(); if(who.error){ BPUI.toast(who.error,{type:"err"}); pick.focus(); return; }
     return BPUI.guard($("#i_add"),async()=>{
-      try{ await BPStore.issues.add(id,{ kind:tab, title:t, severity:$("#i_sev").value, owner:$("#i_owner").value.trim()||null });
-        $("#i_title").value=""; $("#i_owner").value=""; await safeRender(); $("#i_title").focus(); }
-      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"log the "+tab,setupHint:"phase17-issues.sql"}),{type:"err"}); }
+      const word=tab==="incident"?"Incident":"Issue";
+      try{ await BPStore.issues.add(id,{ kind:tab, title:t, severity:$("#i_sev").value, owner:who.name||null }); }
+      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"log the "+tab,setupHint:"phase17-issues.sql"}),{type:"err"}); return; }
+      // the issue is saved whatever happens to the task
+      const r=await HelmIssueAssign.withTask(id,t,who,word+" logged"+(who.name?" - "+who.name+" has it":"")+"."); BPUI.toast(r.msg,{type:r.ok?"ok":"err"});
+      $("#i_title").value=""; pick.reset(); await safeRender(); $("#i_title").focus();
     });
   }
 
@@ -189,24 +198,36 @@
   });
   $("#i_add").addEventListener("click",add);
   $("#i_title").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); add(); } });
+  $("#filters").addEventListener("click",e=>{ const b=e.target.closest("[data-f]"); if(!b) return; setFilter(b.dataset.f); safeRender(); });
   $("#tabs").addEventListener("click",e=>{ const b=e.target.closest("button[data-t]"); if(!b) return;
-    tab=b.dataset.t; $("#tabs").querySelectorAll("button").forEach(x=>{ x.classList.toggle("on",x===b); x.setAttribute("aria-pressed",String(x===b)); }); safeRender(); });
+    tab=b.dataset.t; $("#tabs").querySelectorAll("button").forEach(x=>{ x.classList.toggle("on",x===b); x.setAttribute("aria-pressed",String(x===b)); }); setFilter(""); safeRender(); });
+
+  function cameFrom(){
+    let f=new URLSearchParams(location.search).get("from")||"";
+    if(!f) try{ const r=new URL(document.referrer); if(r.origin===location.origin) f=(HelmUrl.parse(r.pathname)||{}).page||(/^\/(ops|monitor)(?:\.html)?\/?$/.exec(r.pathname)||[])[1]||""; }catch(e){}
+    return f==="ops"||f==="monitor"?f:"";
+  }
 
   BPUI.boot(async ()=>{
     await BPStore.init(); await renderAccount();
-    $("#backLink").href = id?("command.html?quote="+encodeURIComponent(id)):"quotes.html";
+    // Back = the event-day page the person came from (Tasks & Crew or the monitor), else event-day command as before.
+    // Only these two names count; the address is always built here, never taken from the link or the referrer.
+    const from=cameFrom();
+    $("#backLink").href = id?((from?from+".html":"command.html")+"?quote="+encodeURIComponent(id)):"quotes.html";
+    if(id&&from) $("#backLink").textContent = from==="ops"?"← Back to Tasks & Crew":"← Back to the event-day monitor";
     $("#changeLink").href = id?("budget.html?quote="+encodeURIComponent(id)):"#";
     if(!id){ $("#notfound").hidden=false; return; }
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("issues"))) return;
     canEdit=await BPStore.auth.canEditArea("issues"); canDelete=canEdit && await BPStore.auth.can("delete");
     // r20-coord: the billable-change link opens Budget (finance) - hidden for a role that can't open it
-    if(await BPStore.auth.canView("staff").catch(()=>false)){ const o=$("#opsLink"); o.href="ops.html?quote="+encodeURIComponent(id); o.hidden=false; $("#opsSep").hidden=false; }
+    if(from!=="ops" && await BPStore.auth.canView("staff").catch(()=>false)){ const o=$("#opsLink"); o.href="ops.html?quote="+encodeURIComponent(id); o.hidden=false; $("#opsSep").hidden=false; }
     { const fin=await BPStore.auth.canView("finance").catch(()=>false), cl=$("#changeLink"); if(cl && !fin) cl.hidden=true; if(!fin){ const ch=$("#changeHint"); if(ch) ch.hidden=true; } }
     try{ ev=await BPStore.quotes.get(id); }catch(e){ if(BPUI.isNotFound(e)){ $("#notfound").hidden=false; return; } throw e; }
     if(!ev){ $("#notfound").hidden=false; return; }
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"");
     $("#app").hidden=false; $("#addCard").hidden=!canEdit;
+    if(canEdit){ pick=HelmIssueAssign.picker({ quoteId:id, ids:"issWho" }); $("#i_who").replaceChildren(pick.el); }
     await safeRender();
   });
 </script>

@@ -170,15 +170,20 @@
     .titem input,input[type=checkbox]{min-height:0;width:22px;height:22px}
   }
 </style>
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="task-reminders.css?v=4"><link rel="stylesheet" href="when-picker.css?v=3"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="task-reminders.css?v=4"><link rel="stylesheet" href="when-picker.css?v=3"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=8">
-<link rel="stylesheet" href="ops-board.css?v=6">
+<link rel="stylesheet" href="ops-board.css?v=7">
 <link rel="stylesheet" href="event-plan.css?v=2">
+<link rel="stylesheet" href="day-before.css?v=1">
 <link rel="stylesheet" href="event-floor.css?v=1">
 <link rel="stylesheet" href="/event-steps.css?v=1">
+<link rel="stylesheet" href="/issue-assign.css?v=1">
+<link rel="stylesheet" href="/stock-vendor.css?v=1">
+<link rel="stylesheet" href="/event-delay.css?v=1">
+<link rel="stylesheet" href="/pre-check.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=119" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -201,6 +206,8 @@
   <!-- R192 Tasks & Crew (TASKS-CREW-PAGE-PLAN.md), R251: the event's steps first, each with its own content.
        Laid out by ops-board.js (DOM only); every action stays in the page script below. -->
   <div id="app" class="tc" hidden>
+    <!-- R252 (pre-check.js): red, pinned - Ready by has passed and pre-event is not marked complete -->
+    <section class="pc-top" id="tcPreTop" hidden></section>
     <div class="tc-top">
       <h1 id="pageTitle">Tasks &amp; Crew</h1>
       <span class="tc-viewonly" id="tcViewOnly" hidden>View only</span>
@@ -220,8 +227,12 @@
           <button type="button" class="tc-seg" data-phase="live" data-win="pre" aria-pressed="false">Pre-event</button>
           <button type="button" class="tc-seg" data-phase="live" data-win="onday" aria-pressed="false">On the event</button>
         </div>
+        <!-- R252 (pre-check.js): "How the steps work", closed -->
+        <div class="pc-how" id="tcHow"></div>
       </div>
     </section>
+    <!-- R252 (pre-check.js): the pre-event check, on Pre-event from 1 hour before Ready by until it is marked complete -->
+    <section class="pc" id="tcPreCheck" hidden></section>
     <span class="tc-sr" id="tcAnnounce" aria-live="polite"></span>
 
     <div class="tc-flow" id="tcFlow">
@@ -232,6 +243,8 @@
       <!-- R226 (0396, event-plan.js): the Day-before checklist and the Ready-by card (latest start per set-up job); hidden before 0396 -->
       <section class="tc-card ep-card" id="tcReady" aria-labelledby="tcReadyH" hidden></section>
       <section class="tc-card tc-runcard" id="tcRun" aria-label="Run-sheet" hidden></section>
+      <!-- R252 (event-delay.js): "Running late - what it affects" -->
+      <section class="dly" id="tcDelay" hidden></section>
       <section class="tc-attn" id="tcLate" aria-label="Late work"></section>
       <section class="tc-attn" id="attn" aria-label="Needs attention"></section>
       <section class="tc-card tc-iss" id="tcIssues" aria-label="Issues" hidden></section>
@@ -365,7 +378,7 @@
         <legend><span data-step>5. </span>Waits for another task <small>(optional)</small></legend>
         <label for="as_dep" class="tc-sr">Waits for</label>
         <select class="tc-inp" id="as_dep" aria-describedby="as_depHint"></select>
-        <p class="tc-hint" id="as_depHint">Pick the task that must be done first. The reminder for this work goes once that task is done.</p>
+        <p class="tc-hint" id="as_depHint">Pick the task that must be done first. With a start time, this work's reminders wait until that task is done. Without one, no reminder is sent.</p>
       </fieldset>
       <fieldset class="tc-fs">
         <legend><span data-step>6. </span>Tell them</legend>
@@ -443,12 +456,17 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=408"></script>
 <script src="task-status.js?v=6"></script>
-<script src="event-plan.js?v=4"></script>
-<script src="ops-board.js?v=9"></script>
+<script src="event-plan.js?v=5"></script>
+<script src="day-before.js?v=1"></script>
+<script src="ops-board.js?v=10"></script>
 <script src="event-floor.js?v=1"></script>
-<script src="/event-steps.js?v=1"></script>
+<script src="/event-steps.js?v=2"></script>
+<script src="/issue-assign.js?v=1"></script>
+<script src="/stock-vendor.js?v=1"></script>
+<script src="/event-delay.js?v=1"></script>
+<script src="/pre-check.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
