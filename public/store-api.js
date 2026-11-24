@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=118"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=119"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -4687,6 +4687,8 @@ window.HelmUrl = HelmUrl;
             p_terms_version: termsVersion, p_consent_text: consentText, p_user_agent: ua }); })),
     generateToken: (quoteId) => rpc("generate_approval_token", { p_quote_id: quoteId }),
     markPaid: (quoteId, ref) => rpc("mark_paid", { p_quote_id: quoteId, p_provider_ref: ref || null }),
+    // R252 (0435): who said yes for these events -> [{quote_id, basis, client_approved, ...}]; null = older than 0435
+    basis: (ids) => (supa ? rpc("quote_approval_basis", { p_quotes: ids || [] }).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
     async consents(quoteId) { if (!supa) return []; const { data, error } = await supa.from("quote_consents")
       .select("*").eq("quote_id", quoteId).order("created_at", { ascending: false }); if (error) throw error; return data; },
     async payments(quoteId) { if (!supa) return []; const { data, error } = await supa.from("quote_payments")
@@ -8660,8 +8662,12 @@ window.HelmUrl = HelmUrl;
         const mineBk = bk.filter((b) => b.need_id === n.id);
         const vendorLost = mineBk.length > 0 && mineBk.every((b) => b.status === "cancelled");
         const outsourced = n.status === "outsourced" && !vendorLost;
-        const covered = outsourced || (qty > 0 && have >= qty);
-        const gap = covered ? 0 : Math.max(0, qty - have);
+        // R252: a vendor bringing 20 of 120 leaves 100 missing (a booking with no quantity counts as the whole need, as before)
+        const liveBk = mineBk.filter((b) => b.status !== "cancelled");
+        const fromVendors = liveBk.some((b) => !(Number(b.qty) > 0)) ? qty : liveBk.reduce((t, b) => t + Number(b.qty), 0);
+        const vendorShort = outsourced && liveBk.length > 0 && qty > 0 ? Math.max(0, qty - have - fromVendors) : 0;
+        const covered = (outsourced && vendorShort === 0) || (qty > 0 && have >= qty);
+        const gap = covered ? 0 : outsourced ? vendorShort : Math.max(0, qty - have);
         return { ...n, have, unit, detail, people, covered, gap, outsourced, vendorBooked: mineBk.some((b) => b.status !== "cancelled") };
       });
     },
@@ -9326,6 +9332,13 @@ window.HelmUrl = HelmUrl;
     if (r && r.source === "buy") return head + " \u2014 outsource / buy";
     return head + " \u2014 unsourced";
   }
+  // R252: the "Client approved" words, honestly. a = { basis: client | advance | studio } (0435) or null = not known
+  function approvalWords(status, a) {
+    const st = String(status || "none"), b = (a && a.basis) || "";
+    if (st === "paid" && b === "advance") return { label: "Confirmed by advance - client approval pending", detail: "by the advance - client has not approved" };
+    if (st === "paid" && b !== "client") return { label: "Booking confirmed by the advance", detail: "advance received" };
+    return { label: "Client approved", detail: st === "paid" ? "approved, advance received" : st };
+  }
   // r20 coord (b): ONE "advance is in" rule for every screen - the same truth the status label
   // ("Confirmed · advance paid") uses: the client paid (approval_status "paid"), or a payment
   // milestone is paid, or the payments ledger has a paid receipt, or settlement received > 0.
@@ -9380,11 +9393,13 @@ window.HelmUrl = HelmUrl;
       const pkgName = String((planRow && (planRow.package || planRow.menu_template)) || (ev && ev.pricing && ev.pricing._packageName) || "").trim();
       const menuLocked = !!(planRow && planRow.menu_locked);
       // 0197: stock shortages + guests vs the linked venue
-      const [shorts, items, vlist, dishes] = await Promise.all([
+      const [shorts, items, vlist, dishes, basis] = await Promise.all([
         inventory.shortages(quoteId).catch(() => []),
         inventory.items(true).catch(() => []),
         (ev && ev.client && (ev.client.venueId || String(ev.client.venue || "").trim())) ? venues.list({ all: true }).catch(() => []) : Promise.resolve([]),
         eventMenu.list(quoteId).catch(() => null),
+        // R252 (0435): an advance confirmed the booking - did the client approve too? Only asked then; refused / older = not known
+        String(ev.approvalStatus || "") === "paid" ? approval.basis([quoteId]).catch(() => null) : Promise.resolve(null),
       ]);
       const menuHas = (Array.isArray(dishes) && dishes.length > 0) || !!pkgName || !!String((planRow && planRow.menu) || "").trim();
       // r20 coord (b): the linked venue, else a saved venue matching the typed venue name ("Demo · Green Meadows Lawn")
@@ -9396,9 +9411,17 @@ window.HelmUrl = HelmUrl;
       const vend = (shorts || []).some((r) => r.vendor_id) ? await vendors.listAll(true).catch(() => []) : [];
       const shortLines = (shorts || []).map((r) => { const b = bk.find((x) => x.id === r.booking_id), v = (vend || []).find((x) => x.id === r.vendor_id);
         return shortageText(r, { itemName: itemName(r.item_id), bookingStatus: b && b.status, vendorName: v && v.name }); });
-      const unsourced = (shorts || []).filter((r) => r.source !== "vendor" && r.source !== "buy").length;
+      // R252: a vendor who is only asked, or whose booking was cancelled, does not bring the missing stock yet
+      const bkById = {}; bk.forEach((b) => { bkById[b.id] = b; });
+      const unsourced = (shorts || []).filter((r) => { if (r.source === "buy") return false; if (r.source !== "vendor") return true;
+        const b = r.booking_id ? bkById[r.booking_id] : null; return !!b && (b.status === "enquiry" || b.status === "cancelled"); }).length;
       const gaps = resCheck.filter((c) => !c.covered).length;
+      // R252: "confirmed" means confirmed (or delivered) - an asked or only-booked vendor is still open; cancelled bookings don't count
       const enquiry = bk.filter((b) => b.status === "enquiry").length;
+      const liveBk = bk.filter((b) => b.status !== "cancelled"), bookedOnly = liveBk.filter((b) => b.status === "booked").length;
+      const vendOk = liveBk.length ? liveBk.every((b) => b.status === "confirmed" || b.status === "delivered") : bk.length ? resCheck.length > 0 && gaps === 0 : resCheck.length > 0;
+      const vendWhy = liveBk.length ? ([enquiry ? enquiry + " still enquiry" : "", bookedOnly ? bookedOnly + " booked, not confirmed" : ""].filter(Boolean).join(", ") || "all confirmed")
+        : bk.length ? "every vendor booking was cancelled" : "";
       const crew = new Set(tasks.map((t) => t.crew_id)).size;
       // ledger receipts only when the milestones don't already show it (a role without finance gets [])
       const pays = (canFin && ev && String(ev.approvalStatus || "") !== "paid" && !ms.some((m) => m && m.status === "paid"))
@@ -9406,11 +9429,11 @@ window.HelmUrl = HelmUrl;
       const paid = advanceIn(ev, { milestones: ms, payments: pays });
       const checks = [
         { key: "date", label: "Event date set", critical: true, ok: !!ev.eventDate, detail: ev.eventDate || "not set" },
-        { key: "approval", label: "Client approved", critical: true, ok: ["approved", "paid"].includes(ev.approvalStatus), detail: ev.approvalStatus || "none" },
+        { key: "approval", ...approvalWords(ev.approvalStatus, basis && basis[0]), critical: true, ok: ["approved", "paid"].includes(ev.approvalStatus) },
         { key: "menu", label: "Menu & package locked", critical: true, ok: menuLocked && menuHas,
           detail: menuLocked ? (menuHas ? "locked" + (pkgName ? " - " + pkgName : "") : "locked, but no package or dishes yet") : "not locked" },
         { key: "resources", label: "Resources covered (nothing missing)", critical: true, ok: resCheck.length > 0 && gaps === 0, detail: resCheck.length === 0 ? "no needs listed yet" : (gaps ? (gaps + " missing") : "all covered") },
-        { key: "vendors", label: "Vendors confirmed", critical: true, ok: enquiry === 0 && (bk.length > 0 || resCheck.length > 0), detail: enquiry ? (enquiry + " still enquiry") : (bk.length ? "all confirmed" : (resCheck.length ? "in-house — none needed" : "nothing planned")) },
+        { key: "vendors", label: "Vendors confirmed", critical: true, ok: vendOk, detail: vendWhy || (resCheck.length ? "in-house — none needed" : "nothing planned") },
         { key: "staff", label: "Staff assigned", critical: true, ok: crew > 0, detail: crew ? (crew + " assigned") : "none" },
         { key: "runsheet", label: "Run-sheet built", critical: true, ok: rs.length > 0, detail: rs.length ? (rs.length + " items") : "empty" },
         // r20: no saved venue (or no capacity / guest count) = NOT CHECKED - a warning, never counted as passed
@@ -9577,6 +9600,16 @@ window.HelmUrl = HelmUrl;
     async setStatus(id, status) {
       const patch = { status, resolved_at: status === "resolved" ? now() : null };
       if (mode === "supabase") { const { error } = await supa.from("event_issues").update(patch).eq("id", id); if (error) throw error; return true; }
+      const a = readLs(ISS_LS); const r = a.find((x) => x.id === id); if (r) { Object.assign(r, patch); localStorage.setItem(ISS_LS, JSON.stringify(a)); } return true;
+    },
+    // R252: who handles it (a name; null = nobody yet). Same Issues - Can change rule as setStatus; no row changed = say so.
+    async setOwner(id, owner) {
+      const patch = { owner: String(owner == null ? "" : owner).replace(/\s+/g, " ").trim().slice(0, 120) || null };
+      if (mode === "supabase") {
+        const { data, error } = await supa.from("event_issues").update(patch).eq("id", id).select("id"); if (error) throw error;
+        if (!data || !data.length) { const e = new Error("not authorized to change this issue"); e.code = "42501"; throw e; }
+        return true;
+      }
       const a = readLs(ISS_LS); const r = a.find((x) => x.id === id); if (r) { Object.assign(r, patch); localStorage.setItem(ISS_LS, JSON.stringify(a)); } return true;
     },
     async remove(id) {
@@ -12261,6 +12294,13 @@ window.HelmUrl = HelmUrl;
     resync: (quoteId) => (supa ? rpc("payment_schedule_resync", { p_quote: quoteId }) : Promise.reject(new Error("Needs a signed-in studio."))),
     apply: (quoteId, key, preview) => (supa ? rpc("payment_schedule_apply", { p_quote: quoteId, p_template: key || null, p_preview: !!preview })
       : Promise.reject(new Error("Needs a signed-in studio."))),
+    // R252 (0435): a plan of one's own for this event ([{label,kind,value,anchor,offset_days}], checked in the database). null = older than 0435
+    applyCustom: (quoteId, lines, preview) => (supa ? rpc("payment_schedule_apply_custom", { p_quote: quoteId, p_lines: lines || [], p_preview: !!preview }).catch((e) => { if (rpcMissing(e)) return null; throw e; })
+      : Promise.reject(new Error("Needs a signed-in studio."))),
+    // R252 (0435): the advance % of one quote -> { pct, fixed, override: {pct, reason, by, at} | null, can_override }; null = older than 0435
+    advanceGet: (quoteId) => (supa ? rpc("advance_get", { p_quote: quoteId }).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+    advanceSet: (quoteId, pct, reason) => (supa ? rpc("advance_override_set", { p_quote: quoteId, p_pct: pct, p_reason: String(reason || "") }) : Promise.reject(new Error("Needs a signed-in studio."))),
+    advanceClear: (quoteId) => (supa ? rpc("advance_override_clear", { p_quote: quoteId }) : Promise.reject(new Error("Needs a signed-in studio."))),
     pause: (quoteId, paused) => (supa ? rpc("payment_schedule_pause", { p_quote: quoteId, p_paused: !!paused }) : Promise.reject(new Error("Needs a signed-in studio."))),
     // client page (approval token, signed out) - null when unavailable
     publicGet: (token) => (supa ? rpc("public_payment_schedule", { p_token: token }).catch(() => null) : Promise.resolve(null)),

@@ -232,6 +232,7 @@ await t('5b. rtLive: 3 errors in a row = channel removed, opened again after 15-
    or does no network at all (animations, countdowns, dialog watchers). A NEW setInterval must be checked the same way and
    then counted here. */
 const INTERVALS = {
+  'pre-check.js': 1,   // R252: the mm:ss timer of the pre-event banner - no network, stops while the tab is hidden
   'approval-watch.js': 1, 'auth-visual.js': 1, 'auth-ui.js': 1, 'builder-inspector-ui.js': 1, 'crew-self.js': 1, 'delivery-tracker.js': 1,
   'home.js': 2, 'google-gis.js': 1, 'hq-referrals.js': 1, 'inbox.js': 1, 'hq.js': 1, 'live-board.js': 1, 'marketing-features.js': 1,
   'mobile-nav.js': 1, 'monitor.js': 1, 'ops-board.js': 1, 'quote-validity.js': 1, 'shell-b-privacy.js': 3, 'shell-b-dash.js': 2,

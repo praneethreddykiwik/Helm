@@ -5,7 +5,7 @@
  *                                            = the quote workflow's stage moves to Event Day (no second switch, no new column)
  *   HelmEventWrap.render(host, ctx)          the Wrap-up section at the very bottom: closed on every page load, opens only by
  *                                            hand; open tasks, vendors, stock out and back, teardown list, crew check-out, issues,
- *                                            then "Mark event complete -> Settlement" and Settlement -> Teardown -> Closure
+ *                                            then "Mark event complete -> Settlement" and Teardown -> Settlement -> Closure (stock back before the money, R252)
  *
  * ctx: { quoteId, quote: { code, title, status, stage, eventDate, eventTime }, tasks, autoWin, win, tz, now, nameOf(t),
  *        canStage, admin, toast(msg,type), onChanged(), openTask(id) }
@@ -377,7 +377,7 @@
   }
   function links(S, first) {
     var ctx = S.ctx, p = (S.data && S.data.perm) || (PERM && PERM.v) || {}, row = h("div", { cls: "hes-next" }), n = 0;
-    [["Settlement", "settlement.html", "settlement"], ["Teardown", "teardown.html", "inventory"], ["Closure", "closure.html", "closure"]].forEach(function (l) {
+    [["Teardown", "teardown.html", "inventory"], ["Settlement", "settlement.html", "settlement"], ["Closure", "closure.html", "closure"]].forEach(function (l) {
       if (p[l[2]] === false) return; n++;
       row.appendChild(h("a", { cls: "tc-btn" + (first && n === 1 ? " tc-primary" : ""), "data-key": "next:" + l[2], href: l[1] + "?quote=" + enc(qid(ctx)), text: n + " " + l[0] + " →" }));
     });
@@ -387,11 +387,11 @@
     var ctx = S.ctx, box = h("div", { cls: "hes-finish" + (done ? " ok" : "") }), over = ctx.autoWin === "wrapup", whyId = (S.det.parentNode.id || "hesWrap") + "Why";
     if (done) {
       box.appendChild(h("h4", { cls: "hes-h", text: "Event complete" + (st === "closed" ? " and closed" : "") }));
-      box.appendChild(h("p", { cls: "hes-sub", text: st === "closed" ? "Everything is settled and the event is closed." : "Next: settle the money, bring the stock back, then close the event." }));
+      box.appendChild(h("p", { cls: "hes-sub", text: st === "closed" ? "Everything is settled and the event is closed." : "Next: bring the stock back, settle the money, then close the event." }));
       box.appendChild(links(S, st !== "closed")); return box;
     }
     box.appendChild(h("h4", { cls: "hes-h", text: over ? "The event day is over - mark it complete" : "When the event is over" }));
-    box.appendChild(h("p", { cls: "hes-sub", text: "Marking it complete moves the event to Settlement (money), then Teardown and Closure. Tasks stay as they are." }));
+    box.appendChild(h("p", { cls: "hes-sub", text: "Marking it complete moves the event to the Settlement stage. Then: bring the stock back (Teardown), settle the money (Settlement) and close the event (Closure). Tasks stay as they are." }));
     if (!live) box.appendChild(h("p", { cls: "hes-hint", text: "You can mark the event complete on the event day." }));
     else if (who && !who.stage) box.appendChild(h("p", { cls: "hes-hint strong", text: "Someone whose role can change Quotes marks the event complete." }));
     else if (who) {
@@ -408,7 +408,7 @@
     return box;
   }
 
-  global.HelmEventSteps = { renderPreDone: renderPreDone, _pure: { preSummary: preSummary, preLines: preLines, confirmPre: confirmPre, whyText: whyText, gate: gate } };
+  global.HelmEventSteps = { renderPreDone: renderPreDone, stageOf: stageOf, mayStage: function (ctx, then) { var w = may(ctx); if (!w && then) perms().then(function (p) { if (p) then(); }); return w ? w.stage : null; }, _pure: { preSummary: preSummary, preLines: preLines, confirmPre: confirmPre, whyText: whyText, gate: gate } };
   global.HelmEventWrap = { render: renderWrap, _pure: { stock: stock, vendorsOf: vendorsOf, crewOut: crewOut, rowsOf: rowsOf, summaryLine: summaryLine, refused: refused, sheetOf: sheetOf } };
   // a new sign-in / role on the same page starts from a clean slate (tests use it too)
   global.HelmEventSteps._reset = function () { PERM = null; MOVED = {}; BUSY = {}; };

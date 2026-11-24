@@ -74,19 +74,19 @@ await t('table: Name | Role | Status | Two-step | actions; the one main step und
   assert.match(row('u1'), /<td class="ucprof" data-label="Status"><span class="ucst ucst-ok"[^>]*>Last signed in 3 days ago<\/span><\/td>/);
   assert.match(row('u1'), /<td class="uctwo" data-label="Two-step"><span class="ts-badge on"[^>]*>Two-step: on<\/span><\/td>/);
   assert.doesNotMatch(row('u1'), /ucMore|ucmenu/);
-  // never signed in: Send sign-in link right under the status; Remove access in the menu
+  // R252: never signed in: Send sign-in link with the actions; Remove access in the menu
   assert.match(row('u2'), /<div class="ucnext"><button type="button" class="btn sm primary ucLink"/);
   assert.match(row('u2'), /<td class="ucact"><button type="button" class="btn sm ucView"[^>]*>View<\/button><button type="button" class="btn sm ucEdit"[^>]*>Edit<\/button><div class="ucmw"><button type="button" class="btn sm ucMore" aria-haspopup="menu" aria-expanded="false" aria-controls="(ucmn-\d+)" aria-label="More actions for p2@studio\.test"/);
   assert.match(row('u2'), /<div class="ucmenu" id="ucmn-\d+" role="menu" aria-label="More actions for p2@studio\.test" hidden><button type="button" role="menuitem" tabindex="-1" class="ucmi rm" data-never="1"[^>]*>Remove access<\/button><\/div>/);
   assert.match(row('u2'), /<td class="uctwo" data-label="Two-step"><\/td>/, 'no two-step badge for a non-admin (empty cell, hidden on phones)');
-  // deactivated: Reactivate under the status, Open work in the menu
+  // R252: deactivated: Reactivate with the actions, Open work in the menu
   assert.match(row('u3'), /<div class="ucnext"><button type="button" class="btn sm primary ucReact"/);
   assert.match(row('u3'), /class="ucmi ucWork"[^>]*>Open work<\/button>/);
   // ids of the menus are unique; every menu has a trigger that points at it
   const ids = [...r.body.matchAll(/class="ucmenu" id="(ucmn-\d+)"/g)].map((m) => m[1]);
   assert.equal(new Set(ids).size, ids.length); for (const id of ids) assert.ok(r.body.includes('aria-controls="' + id + '"'), id);
-  // invites: Resend under the status; Copy link + Cancel invite in the menu; View stays
-  assert.match(r.body, /data-inv="i1"[\s\S]*?<div class="ucnext"><button type="button" class="btn sm primary ucInvResend"[^>]*>Resend invite<\/button><\/div>[\s\S]*?class="ucmi ucInvCopy"[\s\S]*?class="ucmi ucInvCancel"/);
+  // invites: Resend with the actions (R252); Copy link + Cancel invite in the menu; View stays
+  assert.match(r.body, /data-inv="i1"[\s\S]*?class="ucmi ucInvCopy"[\s\S]*?class="ucmi ucInvCancel"[\s\S]*?<div class="ucnext"><button type="button" class="btn sm primary ucInvResend"[^>]*>Resend invite<\/button><\/div><\/td>/);
   assert.match(r.body, /data-inv="i1"[\s\S]*?<td class="uctwo" data-label="Two-step"><\/td>/);
   // view-only: no menu items that change anything
   const ro = T(rows, { profiles: true, meId: 'u9', roles: ['crew'], q: '', filter: '', acct: ACCT, now: NOW });
@@ -120,7 +120,7 @@ await t('pending invites: rows of the table (Invited tab); the separate card onl
 });
 await t('CSS: column headings from 800px, five fixed columns, tokens only (no hard-coded green) for the new parts', () => {
   assert.match(C, /@container ucm \(min-width:800px\)\{\n      #pane-users \.utable\.ucm>thead\{position:static/);
-  assert.equal((C.match(/minmax\(0,1fr\) 150px 190px 118px 132px/g) || []).length, 2, 'rows and headings share one template');
+  assert.equal((C.match(/minmax\(0,1fr\) 142px 184px 116px 140px/g) || []).length, 2, 'rows and headings share one template');
   const r228 = TSC.slice(TSC.indexOf('---- R228'));
   assert.ok(r228.length > 200);
   assert.doesNotMatch(r228.replace(/var\([^)]*\)/g, ''), /#0f7a43|#e7f6ee|#047857|#059669|#2eb872/i, 'no hard-coded green outside a var() fallback');
@@ -254,7 +254,7 @@ await t('page tour (Settings -> Users & invites): <= 8 steps that point at the n
 });
 await t('asset pins: control.html loads the new team-status / team-safety / control-split; staff.html the same team-status', () => {
   for (const f of ['public/control.html', 'public/staff.html']) {
-    const h = rd(f); assert.match(h, /team-status\.js\?v=5"/, f); assert.match(h, /team-status\.css\?v=4"/, f);
+    const h = rd(f); assert.match(h, /team-status\.js\?v=6"/, f); assert.match(h, /team-status\.css\?v=5"/, f);
   }
   assert.match(C, /team-safety\.js\?v=6"/); assert.match(C, /control-split\.js\?v=26"/); assert.match(C, /control-split\.css\?v=17"/);
 });

@@ -95,13 +95,14 @@
   .sub2{font-size:12px;color:var(--ink-3)}
   .attrbox{margin-top:12px}.attrbox summary{cursor:pointer;font-weight:600;font-size:13px;padding:4px 0}.attrline{font-size:12px;color:var(--ink-3);margin-top:2px}
 </style>
-<link rel="stylesheet" href="inventory-polish.css?v=3">
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="inventory-polish.css?v=4">
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="stock-flow.css?v=2">
-<link rel="stylesheet" href="inventory-layout.css?v=1">
+<link rel="stylesheet" href="inventory-layout.css?v=2">
+<link rel="stylesheet" href="/stock-vendor.css?v=1">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=119" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -336,17 +337,18 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=408"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=76"></script>
+<script src="page-tours.js?v=77"></script>
 <script src="tour.js?v=91"></script>
 <script src="checkout-shortage.js?v=6"></script>
 <script src="stock-flow.js?v=2"></script>
 <script src="stock-checkin.js?v=1"></script>
 <script src="capacity-shortage.js?v=9"></script>
-<script src="inventory-layout.js?v=1"></script>
+<script src="/stock-vendor.js?v=1"></script>
+<script src="inventory-layout.js?v=2"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -401,6 +403,7 @@
   function availClass(a,total){ if(a<=0) return "low"; if(total && a<total*0.2) return "mid"; return "ok"; }
 
   function renderStock(){
+    if(!availPending) $("#stockRows").removeAttribute("aria-busy");
     // present categories on items, deduped against the suggested taxonomy for the datalist
     const presentCats=[...new Set(items.map(i=>i.category).filter(Boolean))].sort();
     $("#catFilter").innerHTML='<option value="">All categories</option>'+presentCats.map(c=>`<option ${c===catF?"selected":""}>${esc(c)}</option>`).join("");
@@ -422,8 +425,8 @@
         <td><span class="pri ${p}" title="Priority ${p}">${p}</span></td>
         <td>${i.category?`<span class="cat">${esc(i.category)}</span>`:""}</td>
         <td class="num">${num(i.total_qty)}</td>
-        <td class="num">${num(a.committed)}</td>
-        <td class="num avail ${availClass(a.available,Number(i.total_qty))}">${num(Math.max(Number(a.available)||0,0))}${Number(a.available)<0?`<span class="overc" title="More is reserved than you own - source the rest from the event's Reserve panel">Short by ${num(-Number(a.available))}</span>`:""}</td>
+        <td class="num">${availPending?'<span class="sk w40 skr" aria-hidden="true"></span>':num(a.committed)}</td>
+        <td class="num avail ${availPending?"":availClass(a.available,Number(i.total_qty))}">${availPending?'<span class="sk w40 skr" aria-hidden="true"></span><span class="sr-only">Counting</span>':num(Math.max(Number(a.available)||0,0))}${Number(a.available)<0?`<span class="overc" title="More is reserved than you own - source the rest from the event's Reserve panel">Short by ${num(-Number(a.available))}</span>`:""}</td>
         <td>${esc(i.unit||"")}</td>
         <td class="num"${canCost?"":" hidden"}>${Number(i.unit_cost||0)?BPStore.studioMoney(i.unit_cost):'<span style="color:var(--ink-3)">—</span>'}</td>
         <td class="s-acts-cell"><button type="button" class="rm" data-hist="${esc(i.id)}" aria-label="History of ${esc(i.name)}">History</button>${canEdit?(inactive
@@ -977,19 +980,28 @@
   // R248 (owner: the page loaded slowly - prod is ~250 ms a round trip away): the stock list needs ONE round trip -
   // the items + the demand already counted (inventory_demand, 0430) + the settings, side by side. The Out & back lists
   // (every check-out, every event name, the loss story) are read only on the event page or once that tab is opened.
+  // R252: on the first load the items show as soon as THEIR answer is here (Reserved / Available fill in when the counts arrive); a later
+  // reload replaces the list in one go, as before. It waits for the settings answer too: unit costs are never drawn for a role that may not see them.
+  let loadSeq=0, bootItems=null, availPending=false;
+  function paintItemsFirst(itemsP){
+    if(stockLoaded) return;
+    Promise.all([itemsP,ctxReady]).then(([it])=>{ if(stockLoaded||!Array.isArray(it)) return; items=it; availPending=true; renderStock(); }).catch(()=>{});
+  }
   async function load(){
     gateCap();
-    const itemsP=BPStore.inventory.items(showInactive);
-    const wantLoans=loansWanted;
-    const [itemsR, availR, resR, coR, qlR, stR] = await Promise.allSettled([
-      itemsP,
-      BPStore.inventory.availability(quoteId||undefined, undefined, itemsP),
+    const itemsP=bootItems||BPStore.inventory.items(showInactive); bootItems=null;
+    const wantLoans=loansWanted, my=++loadSeq;
+    paintItemsFirst(itemsP);
+    // R252: the stock list never waits for the check-outs / reservations / event names: those lists paint when their own answer is here
+    const availP=BPStore.inventory.availability(quoteId||undefined, undefined, itemsP);
+    const restP=Promise.allSettled([
       quoteId ? BPStore.inventory.reservations(quoteId) : Promise.resolve(null),
       wantLoans ? BPStore.inventory.checkouts.list(quoteId||null) : Promise.resolve(null),
       wantLoans && !quoteId ? BPStore.quotes.list() : Promise.resolve(null),
       wantLoans && BPStore.inventory.stock ? BPStore.inventory.stock.story(quoteId||null) : Promise.resolve(null),
-      ctxReady,
     ]);
+    const [itemsR, availR] = await Promise.allSettled([itemsP, availP, ctxReady]);
+    if(my!==loadSeq) return;   // a newer load is on its way
     if(itemsR.status!=="fulfilled" || availR.status!=="fulfilled"){
       const e=(itemsR.reason||availR.reason);
       BPUI.loadError($("#stockRows"), e, load, {what:"inventory"});
@@ -1000,9 +1012,12 @@
       return;
     }
     if(canEdit) ["#rv_add","#co_add"].forEach(s=>{ $(s).disabled=false; });
+    availPending=false;
     items=Array.isArray(itemsR.value)?itemsR.value:[]; avail=(availR.value&&typeof availR.value==="object")?availR.value:{}; stockLoaded=true;
     renderStock();
     if(window.HelmLayoutStock&&layoutMounted) HelmLayoutStock.stockChanged();
+    const [resR, coR, qlR, stR] = await restP;
+    if(my!==loadSeq) return;
     if(wantLoans) applyLoans(coR, qlR, stR);
     if(quoteId){
       if(resR.status==="fulfilled"){ reservations=resR.value; renderEventPanel(); }
@@ -1066,7 +1081,8 @@
         if(stockLoaded) renderEventPanel(); }).catch(()=>{}) : null,
       (async()=>{
         // r24: reservations that are done (never taken out after the event day, or everything back) are released first
-        if(quoteId && canEdit && BPStore.inventory.releaseUnused){ try{ await BPStore.inventory.releaseUnused(quoteId,false); }catch(_){} }
+        // R252: the items are asked for now (releasing changes reservations, never the items) - the list does not wait for it
+        if(quoteId && canEdit && BPStore.inventory.releaseUnused){ bootItems=BPStore.inventory.items(showInactive); bootItems.catch(()=>{}); paintItemsFirst(bootItems); try{ await BPStore.inventory.releaseUnused(quoteId,false); }catch(_){} }
         await load();
       })(),
       // R248 (0430): the floor-plan products (From layouts tab, the per-event table, the top strip); hidden on a database without 0430

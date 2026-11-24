@@ -56,7 +56,7 @@ t('members table CSS (R202): grid rows from 640px that always fit the card, e-ma
   assert.match(CTL, /<div class="table-scroll ucm-wrap"><table class="utable ucm"><thead id="um_head">/);
   assert.match(CTL, /\.ucm-wrap\{container:ucm\/inline-size\}/);
   assert.match(CTL, /\.utable\.ucm td\.dn\{white-space:normal;min-width:0\}/);
-  assert.match(CTL, /\.ucwt \.ucsub\{overflow-wrap:anywhere;word-break:break-word;white-space:normal\}/);
+  assert.match(CTL, /\.ucwt \.ucsub\{overflow-wrap:break-word;white-space:normal\}/);
   assert.match(CTL, /\.utable\.ucm td\.ucrole select\{width:170px;max-width:100%\}/);
   assert.match(CTL, /@media \(min-width:640px\)\{\n    #pane-users \.utable\.ucm,#pane-users \.utable\.ucm>tbody\{display:block;width:100%\}/);
   assert.match(CTL, /#pane-users \.utable\.ucm\.tm-stack td\{width:auto;min-width:0;max-width:none;border-bottom:0\}/);

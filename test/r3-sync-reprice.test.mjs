@@ -30,7 +30,7 @@ t('flow: re-price banner is manual, goes through saveQuotation, stale-approval c
   assert.match(flow, /id="repriceBanner"[^>]*hidden/);
   assert.match(flow, /Prices changed since this quote was priced/);
   const body = flow.slice(flow.indexOf('async function applyReprice'), flow.indexOf('async function renderQuoteVersions'));
-  assert.match(body, /BPUI\.confirm\(/); assert.match(body, /approval will go stale/); assert.match(body, /await saveQuotation\(\)/);
+  assert.match(body, /moneyAsk\("confirm",/);   /* R252: BPUI.confirm, with "Show amount" while amounts are hidden */ assert.match(body, /approval will go stale/); assert.match(body, /await saveQuotation\(\)/);
   assert.doesNotMatch(flow.slice(flow.indexOf('function renderReprice'), flow.indexOf('async function applyReprice')), /saveQuotation|quotationVersions\.save/);
   assert.match(flow, /_ratesAt:ratesSnapshot\(\)/);
 });

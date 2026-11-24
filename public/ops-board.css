@@ -168,6 +168,8 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-st.late{background:var(--tc-bad);color:#fff} .tc-st.late::before{content:"!";background:none;width:auto;height:auto;font-size:10px;font-weight:800}
 .tc-st.cancelled{background:#eceff3;color:#4c5563} .tc-st.cancelled::before{content:"\2013";background:none;width:auto;height:auto}
 .tc-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--tc-ink-3);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.tc-tag.tc-tag-wrap{white-space:normal;overflow:visible}
+.tc-waits.bad{color:var(--tc-bad);font-weight:600}
 .tc-tag.special{color:var(--tc-bad)} .tc-tag.warn{color:var(--tc-warn)} .tc-tag.ok{color:var(--tc-safe)} .tc-tag.box{border:1px solid var(--tc-line);border-radius:999px;padding:0 7px}
 @keyframes tcPulse{0%,100%{opacity:1}50%{opacity:.45}}
 .tc-tag.special.pulse{animation:tcPulse 1.6s ease-in-out infinite}
@@ -421,6 +423,8 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-run-row.done{opacity:.55}
 .tc-run-row.now{background:var(--tc-now-bg);box-shadow:inset 3px 0 0 var(--tc-now-bar)}
 .tc-run-row.next{background:#fffaf0;box-shadow:inset 3px 0 0 #e8912d}
+#tcIssList{margin-top:8px}
+#drawer .hia-pick{margin-top:2px}
 .tc-iss-acts{display:inline-flex;gap:10px;align-items:center;margin-left:auto}
 .tc-sev{width:8px;align-self:stretch;border-radius:4px;flex:none;background:#e8912d}
 .tc-sev.high{background:#d92d20} .tc-sev.low{background:#98a2b3}

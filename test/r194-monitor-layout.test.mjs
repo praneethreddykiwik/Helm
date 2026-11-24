@@ -154,11 +154,12 @@ await t('R251 People and Work in step order with a done count; all events stay o
   assert.match(fn, /g\.done \+ " of " \+ g\.total \+ " done"/); assert.match(fn, /"Allocate pre-event work first - " \+ preLeft \+ " left"/);
   assert.match(JS, /byStep\(list, S\.tab === "work" \? viewWork : viewStaff\)/);
 });
-await t('R251 issues: the same read + log as Tasks & Crew, only with the Issues permission, only On the event', () => {
-  assert.match(JS, /!S\.issView \|\| !single\(\) \|\| S\.win !== "onday"/);
+await t('R251 issues: the same read + log as Tasks & Crew, only with the Issues permission; R252 On the event and Pre-event, assign + resolve', () => {
+  assert.match(JS, /!S\.issView \|\| !single\(\) \|\| !issStep\(\)/);
   assert.match(JS, /S\.issEdit = S\.issView && !!\(await A\.canEditArea\("issues"\)\)/); assert.match(JS, /if \(S\.issEdit\) \{ var lg/);
-  assert.match(JS, /BPStore\.issues\.add\(q, \{ kind: "issue", title: t, severity: sev\.value, owner: null \}\)/);
-  assert.equal((JS.match(/BPStore\.issues\./g) || []).length, 1, 'no other issue write on this page');
+  assert.match(JS, /BPStore\.issues\.add\(q, \{ kind: "issue", title: t, severity: sev\.value, owner: w\.name \|\| null \}\)/);
+  assert.match(JS, /BPStore\.issues\.setStatus\(i\.id, "resolved"\)/); assert.match(JS, /canEdit: S\.issEdit/);
+  assert.equal((JS.match(/BPStore\.issues\./g) || []).length, 2, 'no other issue write on this page (assign = issue-assign.js setOwner)');
 });
 await t('R251 buttons: theme accent, on-accent ink, the page id beats the shell link colour (no black control left)', () => {
   assert.match(CSS, /#monApp a\.tc-btn,#monDrawer a\.tc-btn\{color:var\(--tc-ink\);text-decoration:none\}/);

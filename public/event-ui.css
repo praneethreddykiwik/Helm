@@ -197,3 +197,17 @@ html.hb-priv-on #app .mod .sum :is(.hbp-m,[data-money]){display:inline-block;lin
 }
 @media (prefers-reduced-motion:no-preference){ .evsk .evsk-b{animation:evskShimmer 1.3s ease-in-out infinite} }
 @keyframes evskShimmer{from{background-position:100% 0}to{background-position:-100% 0}}
+
+/* ---------- R252: one gap between the blocks of the event page (stage card, Next cards, Money at a glance, its alerts,
+   Payment schedule, ...). The card grid had no space of its own below it, so the money header touched it whenever the
+   "Show all tools" button was not there; every block now owns the space under it and nothing else does. ---------- */
+#app{--ev-gap:16px}
+#app > :is(.card,.grid,.moretog,.mh-wrap,section){margin-top:0;margin-bottom:var(--ev-gap)}
+#app > #paySchedCard{margin:0 0 var(--ev-gap)}
+#app > :is(#capIssues,#conflictBanner):not(:empty){margin-bottom:var(--ev-gap)}
+#app > :is(#capIssues,#conflictBanner) > :last-child{margin-bottom:0}
+#app > .mh-wrap > *{margin:0 0 var(--ev-gap)}
+#app > .mh-wrap > :last-child{margin-bottom:0}
+#app > .mh-wrap .mh-attn{gap:var(--ev-gap)}
+#boot.evsk .evsk-head{margin-bottom:16px}
+@media (max-width:639px){ #app{--ev-gap:12px} #boot.evsk .evsk-head{margin-bottom:12px} }

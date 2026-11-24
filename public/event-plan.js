@@ -13,8 +13,9 @@
  *   HelmEventPlan.learnedFor(plan, title)   how long a task with this name really took before (0396 learned list)
  *   HelmEventPlan.renderReady(host, ctx)    the "Ready by" card (times, status line, jobs with latest start, edit forms,
  *                                           alert settings)
- *   HelmEventPlan.renderDayBefore(host, ctx) the Day-before card: 1 Is everything booked? (the Readiness checks, R251) +
- *                                           2 Call, confirm and pack (tick = who + when; untick kept); ctx.noReady = part 2 only
+ *   HelmEventPlan.renderDayBefore(host, ctx) the Day-before card = HelmDayBefore (day-before.js, R252: readiness, vendors, stock and
+ *                                           floor plan, logistics, people - the 11 ticks inside); ctx.noReady leaves readiness out
+ *   HelmEventPlan.readyCheck / readySum / readyMask / readySees   the Readiness checks, with the lines a role cannot see masked
  *   ctx: { plan (event_day_plan_get answer), tasks, quoteId, eventDate, eventTime, tz, now, nameOf(t), toast(msg, type),
  *          onChanged() (reload the plan + tasks), compact (monitor: fewer words), locked (R227 0397: plan locked - no time edits) }
  * Before 0396 is applied plan is null and both cards stay hidden (the callers check). DOM calls only (textContent), never
@@ -78,13 +79,16 @@
         plannedLate: isFinite(planned) && planned > j.ls && t.status !== "completed" && t.status !== "in_progress",
         tooEarly: isFinite(venue) && j.ls < venue };
     }).sort(function (a, b) { return a.ls - b.ls || String(a.t.title || "").localeCompare(String(b.t.title || "")); });
-    return { rows: rows, untimed: untimed, ready: ready, estimate: isFinite(est) ? est : NaN, behindMin: isFinite(est) && est > ready ? Math.ceil((est - ready) / 60000) : 0,
+    var lastRow = null; rows.forEach(function (r) { if (r.state !== "done" && isFinite(r.finish) && (!lastRow || r.finish > lastRow.finish)) lastRow = r; });
+    return { rows: rows, untimed: untimed, ready: ready, last: lastRow, estimate: isFinite(est) ? est : NaN, behindMin: isFinite(est) && est > ready ? Math.ceil((est - ready) / 60000) : 0,
       late: rows.filter(function (r) { return r.state === "late"; }).length, done: rows.filter(function (r) { return r.state === "done"; }).length };
   }
   // R251: Ready by is about set-up only: Day before + Pre-event jobs, and the jobs those wait for (dinner service is not "late" at 3 PM)
   function setupJobs(tasks, o) {
     var T = global.HelmTaskStatus, all = (tasks || []).filter(Boolean); if (!T || !T.taskStep) return all;
-    var keep = {}, by = {}; all.forEach(function (t) { by[t.id] = t; var w = T.taskStep(t, o); if (w === "pre" || w === "daybefore") keep[t.id] = 1; });
+    var keep = {}, by = {}; all.forEach(function (t) { by[t.id] = t; var w = T.taskStep(t, o), s = ms(t.planned_start);
+      // planned to start at or after Ready by (guest reception at 6:30 for a 6:00 Ready by) = service, not set-up that could make Ready by late
+      if ((w === "pre" || w === "daybefore") && !(o && isFinite(o.readyAt) && isFinite(s) && s >= o.readyAt)) keep[t.id] = 1; });
     Object.keys(keep).forEach(function (id) { var t = by[id], n = 0; while (t && t.depends_on && by[t.depends_on] && n++ < 200) { keep[t.depends_on] = 1; t = by[t.depends_on]; } });
     return all.filter(function (t) { return keep[t.id]; });
   }
@@ -215,7 +219,7 @@
     if (!host) return; ctx = ctx || {}; ctx._redraw = function () { renderReady(host, ctx); };
     var p = ctx.plan || {}, tz = ctx.tz, now = ctx.now == null ? Date.now() : ctx.now, set = p.settings || {};
     var rAt = readyAt(p, ctx.eventDate, ctx.eventTime, tz), vAt = venueAt(p, ctx.eventDate, tz);
-    var sc = schedule(setupJobs(ctx.tasks, { eventDate: ctx.eventDate, eventTime: ctx.eventTime, tz: tz }), { readyAt: rAt, venueAt: vAt, bufPct: set.buffer_pct, remindMin: set.remind_before_min, now: now });
+    var sc = schedule(setupJobs(ctx.tasks, { eventDate: ctx.eventDate, eventTime: ctx.eventTime, tz: tz, readyAt: rAt }), { readyAt: rAt, venueAt: vAt, bufPct: set.buffer_pct, remindMin: set.remind_before_min, now: now });
     // R227 (0397): a plan locked for the event day keeps its times + durations (the database refuses them); ticks stay open
     var canEdit = !!p.can_edit && !ctx.locked, focusId = doc.activeElement && host.contains(doc.activeElement) ? doc.activeElement.id : "";
     clear(host);
@@ -230,14 +234,25 @@
     host.appendChild(head);
     if (UI.times && canEdit) host.appendChild(timesForm(ctx, host));
     // the one-line answer
-    var line, cls = "";
+    var line, cls = "", why2 = "";
     if (!isFinite(rAt)) { line = "Set Ready by (or Guests arrive on the event) to see when each set-up job must start."; cls = "warn"; }
     else if (!sc.rows.length) { line = "Say how long each set-up job takes (Set time on a job below) and Helm works out the latest start for each, " + (set.buffer_pct == null ? 15 : set.buffer_pct) + "% buffer included."; }
     else if (sc.done === sc.rows.length) { line = "Every set-up job is done."; cls = "ok"; }
-    else if (sc.behindMin > 0) { line = "Behind: at this pace ready around " + clock(sc.estimate, tz) + " - " + durWords(sc.behindMin) + " after Ready by." + (sc.late ? " " + sc.late + " job" + (sc.late === 1 ? "" : "s") + " past the latest start." : ""); cls = "bad"; }
+    else if (sc.behindMin > 0) {
+      // say WHY: the job that finishes last (the sum: start now, its time + the spare, in the order the jobs wait for each other)
+      var L = sc.last, buf2 = set.buffer_pct == null ? 15 : set.buffer_pct;
+      line = "Behind by " + durWords(sc.behindMin) + ": set-up would finish around " + clock(sc.estimate, tz) + ", but it should be ready by " + clock(rAt, tz) + ".";
+      if (L) why2 = "Slowest: " + (L.t.title || "a job") + " - needs " + durWords(L.dur) + " + " + buf2 + "% spare" + (L.need ? ", after " + (L.need.title || "another job") : "") +
+        (L.state === "started" ? ", already started." : ", not started.") + (sc.late ? " " + sc.late + " job" + (sc.late === 1 ? "" : "s") + " should have started already." : "") + " Worked out as if every open job starts now.";
+      cls = "bad";
+    }
     else if (sc.late) { line = sc.late + " job" + (sc.late === 1 ? " is" : "s are") + " past the latest start - start now."; cls = "bad"; }
-    else { line = "On track" + (isFinite(sc.estimate) ? ": ready around " + clock(sc.estimate, tz) : "") + " · " + sc.done + " of " + sc.rows.length + " set-up jobs done."; cls = "ok"; }
+    else {
+      var T9 = global.HelmTaskStatus, today9 = T9 && T9.ymdIn ? T9.ymdIn(tz, now) === String(ctx.eventDate || "").slice(0, 10) : true;   // days before the event a clock time says nothing
+      line = "On track" + (isFinite(sc.estimate) && today9 ? ": ready around " + clock(sc.estimate, tz) : "") + " · " + sc.done + " of " + sc.rows.length + " set-up jobs done."; cls = "ok";
+    }
     host.appendChild(h("p", { cls: "ep-status " + cls, role: cls === "bad" ? "alert" : null, text: line }));
+    if (why2) host.appendChild(h("p", { cls: "ep-hint", text: why2 }));
     if (sc.rows.length) {
       var ol = h("ol", { cls: "ep-jobs", "aria-labelledby": host.id + "H" });
       sc.rows.forEach(function (r) {
@@ -267,9 +282,13 @@
     }
     // who gets told
     var roles = Array.isArray(set.notify_roles) ? set.notify_roles : [], rw = roles.length ? roles.join(" + ") : "admins";
-    var foot = h("p", { cls: "ep-foot" }, [set.enabled === false ? "Alerts are off for the studio." :
+    // R252 (pre-check.js): the pre-event check bell in its own line - when it goes and to whom; the latest-start alerts after it
+    var PC = global.HelmPreCheck, bl = PC && PC.bell ? PC.bell({ plan: p, eventDate: ctx.eventDate, eventTime: ctx.eventTime, tz: tz, tasks: ctx.tasks, status: ctx.status }) : null;
+    var late2 = set.enabled === false || set.latest_alerts === false ? "" : "The same people get a reminder " + durWords(set.remind_before_min == null ? 30 : set.remind_before_min) + " before a job's latest start and a red alert if it has not started.";
+    var foot = h("p", { cls: "ep-foot" }, bl ? [h("span", { cls: "ep-bell", text: bl.text })] : [set.enabled === false ? "Alerts are off for the studio." :
       "Bell alerts: “starts in " + durWords(set.hour_before_min || 60) + " - ready?” to the event manager + " + rw + (set.latest_alerts === false ? "." : "; a reminder " + durWords(set.remind_before_min == null ? 30 : set.remind_before_min) + " before a job's latest start and a red alert if it has not started.")]);
     if (p.can_settings && !UI.settings) foot.appendChild(h("button", { type: "button", cls: "tc-mini-link ep-linkbtn", id: host.id + "Alerts", text: "Alert settings", on: { click: function () { UI.settings = true; ctx._redraw(); var f = doc.getElementById("epAlOn"); if (f) f.focus(); } } }));
+    if (bl && late2) foot.appendChild(h("span", { cls: "ep-late2", text: late2 }));
     host.appendChild(foot);
     if (UI.settings && p.can_settings) host.appendChild(settingsForm(ctx));
     if (focusId) { var back = doc.getElementById(focusId); if (back) try { back.focus(); } catch (e) {} }
@@ -284,24 +303,40 @@
   var RDY = {}, RDY_MS = 300000;
   var RDY_LINK = { date: "event.html?id=", menu: "plan.html?quote=", resources: "resources.html?quote=", vendors: "resources.html?quote=",
     staff: "ops.html?quote=", runsheet: "runsheet.html?quote=", dry_run: "ready.html?quote=", briefing: "ready.html?quote=" };
-  function readyCheck(id) {
-    var c = RDY[id], S = global.BPStore; if (c && (c.busy || Date.now() - c.at < RDY_MS)) return c.p;
+  /* R252: the database answers "no rows" (not an error) to a role that may not read a table, so "Vendors confirmed" and "Stock sourced"
+     could read as done for someone who sees neither. Without Vendors view / Inventory view (+ Event-day command: the shortage list)
+     those lines say "Not visible to you" and count as nothing. see: { vendors, stock } true | false. */
+  var RDY_SEES = { vendors: "vendors", stock: "stock" };
+  function readyMask(r, see, words) {
+    if (!r || !Array.isArray(r.checks) || !see) return r;
+    return Object.assign({}, r, { checks: r.checks.map(function (c) {
+      return c && RDY_SEES[c.key] && see[RDY_SEES[c.key]] === false && !c.hidden ? Object.assign({}, c, { ok: false, hidden: true, detail: words || "Not visible to you" }) : c; }) });
+  }
+  function readySees() {
+    var A = (global.BPStore || {}).auth;
+    function can(x) { return Promise.resolve().then(function () { return A && A.canView ? A.canView(x) : true; }).then(function (v) { return v === true; }, function () { return false; }); }
+    return Promise.all([can("vendors"), can("inventory"), can("command")]).then(function (v) { return { vendors: v[0], stock: v[1] && v[2] }; });
+  }
+  // null = not allowed; a failed read rejects (and is asked again next time)
+  function readyCheck(id, force) {
+    var c = RDY[id], S = global.BPStore; if (c && (c.busy || (!force && Date.now() - c.at < RDY_MS))) return c.p;
     if (!S || !S.readiness || !S.readiness.check) return Promise.resolve(null);
     c = RDY[id] = { at: Date.now(), busy: true, data: c ? c.data : null };
     c.p = Promise.resolve().then(function () { return S.auth && S.auth.canView ? S.auth.canView("ready") : true; })
-      .then(function (ok) { return ok === true ? S.readiness.check(id) : null; })
-      .catch(function () { return null; })
-      .then(function (r) { c.busy = false; c.data = r && Array.isArray(r.checks) ? r : null; return c.data; });
+      .then(function (ok) { return ok === true ? Promise.all([S.readiness.check(id), readySees()]) : null; })
+      .then(function (x) { c.busy = false; var r = x && x[0]; c.data = r && Array.isArray(r.checks) ? readyMask(r, x[1]) : null; return c.data; },
+        function (e) { c.busy = false; if (RDY[id] === c) delete RDY[id]; throw e; });
     return c.p;
   }
   function readySum(r) {
-    var rows = ((r && r.checks) || []).filter(function (c) { return c && c.key !== "payments"; });
+    var all = ((r && r.checks) || []).filter(function (c) { return c && c.key !== "payments"; }), rows = all.filter(function (c) { return !c.hidden; });
     var must = rows.filter(function (c) { return c.critical; });
-    return { open: rows.filter(function (c) { return !c.ok; }), ok: rows.filter(function (c) { return c.ok; }),
+    return { open: rows.filter(function (c) { return !c.ok; }), ok: rows.filter(function (c) { return c.ok; }), hidden: all.filter(function (c) { return c.hidden; }),
       done: must.filter(function (c) { return c.ok; }).length, of: must.length };
   }
   function paintBooked(box, r, ctx, hid) {
-    clear(box); box.hidden = !r; var num = doc.getElementById(hid.slice(0, -1) + "N"); if (num) num.hidden = !r;   // "2 ·" only when part 1 is there if (!r) return;
+    clear(box); box.hidden = !r; var num = doc.getElementById(hid.slice(0, -1) + "N"); if (num) num.hidden = !r;   // "2 ·" only when part 1 is there
+    if (!r) return;
     var s = readySum(r), q = encodeURIComponent(ctx.quoteId || "");
     box.appendChild(h("div", { cls: "ep-part-h" }, [h("h4", { cls: "ep-part-t", id: hid }, ["1 · Is everything booked? ", h("span", { cls: "tc-n" + (s.done === s.of ? " ok" : ""), text: s.done + " / " + s.of })]),
       h("a", { cls: "tc-mini-link", href: "ready.html?quote=" + q, text: "Open Readiness →" })]));
@@ -313,14 +348,17 @@
         href ? h("a", { cls: "tc-mini-link", href: href, text: "Fix →", "aria-label": "Fix: " + c.label }) : null]);
     }
     if (s.open.length) box.appendChild(h("ul", { cls: "ep-bks" }, s.open.map(function (c) { return li(c, false); })));
-    else box.appendChild(h("p", { cls: "ep-facts", text: "Everything is booked." }));
+    else box.appendChild(h("p", { cls: "ep-facts", text: s.hidden.length ? "Everything you can see is booked." : "Everything is booked." }));
+    if (s.hidden.length) box.appendChild(h("p", { cls: "ep-hint", text: "Not visible to you: " + s.hidden.map(function (c) { return c.label; }).join(", ") + "." }));
     if (s.ok.length) {
       var d = h("details", { cls: "ep-more" }, [h("summary", { text: s.ok.length + " done" }), h("ul", { cls: "ep-bks" }, s.ok.map(function (c) { return li(c, true); }))]);
       d.open = !!UI.bookedOpen; d.addEventListener("toggle", function () { UI.bookedOpen = d.open; }); box.appendChild(d);
     }
   }
+  /* R252: the card itself is day-before.js (one checklist from the real data). This list stays as the fallback when that file is missing. */
   function renderDayBefore(host, ctx) {
     if (!host) return; ctx = ctx || {};
+    if (global.HelmDayBefore && global.HelmDayBefore.render) return global.HelmDayBefore.render(host, ctx);
     var p = ctx.plan || {}, checks = p.checks || {}, canEdit = !!p.can_edit, q = encodeURIComponent(ctx.quoteId || "");
     var focusId = doc.activeElement && host.contains(doc.activeElement) ? doc.activeElement.id : "";
     var done = DAYBEFORE.filter(function (d) { return checks[d[0]] && checks[d[0]].done; }).length;
@@ -329,7 +367,7 @@
     if (!ctx.noReady && ctx.quoteId) {
       var box = h("div", { cls: "ep-part", hidden: true }), kept = RDY[ctx.quoteId]; host.appendChild(box);
       if (kept && kept.data) paintBooked(box, kept.data, ctx, host.id + "B");
-      readyCheck(ctx.quoteId).then(function (r) { if (host.contains(box) && !(doc.activeElement && box.contains(doc.activeElement))) paintBooked(box, r, ctx, host.id + "B"); });
+      readyCheck(ctx.quoteId).then(function (r) { if (host.contains(box) && !(doc.activeElement && box.contains(doc.activeElement))) paintBooked(box, r, ctx, host.id + "B"); }, function () {});
     }
     host.appendChild(h("div", { cls: "ep-part-h" }, [h("h4", { cls: "ep-part-t", id: host.id + "C" }, [h("span", { id: host.id + "N", hidden: true, text: "2 · " }), "Call, confirm and pack ", h("span", { cls: "tc-n" + (done === DAYBEFORE.length ? " ok" : ""), text: done + " / " + DAYBEFORE.length })])]));
     host.appendChild(h("p", { cls: "ep-hint", text: done === DAYBEFORE.length ? "All done." : "Your team does these and ticks each line." }));
@@ -355,5 +393,5 @@
   }
 
   global.HelmEventPlan = { DAYBEFORE: DAYBEFORE, schedule: schedule, readyAt: readyAt, venueAt: venueAt, learnedFor: learnedFor, durWords: durWords,
-    renderReady: renderReady, renderDayBefore: renderDayBefore, setupJobs: setupJobs, readySum: readySum, _ui: UI };
+    renderReady: renderReady, renderDayBefore: renderDayBefore, setupJobs: setupJobs, readySum: readySum, readyCheck: readyCheck, readyMask: readyMask, readySees: readySees, READY_LINK: RDY_LINK, _ui: UI };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -98,8 +98,14 @@
 .mon-app:is([data-win="pre"],[data-win="onday"]) .mon-summary{padding:10px 14px}
 .mon-setup{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .mon-setup-a{text-decoration:none}
+/* R252 Day before: "Get set up" = one block - heading, the numbers, their note, then the shortcuts under a hairline */
+.mon-app .mon-summary.is-daybefore{display:grid;gap:12px;padding:16px}
+.mon-summary.is-daybefore :is(.mon-h3,.mon-hint,.mon-facts,.mon-setup){margin:0}
+.mon-summary.is-daybefore .mon-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px}
+.mon-summary.is-daybefore .mon-fact{gap:2px;padding:10px 12px;border-radius:10px;background:var(--m-panel-2)}
+.mon-summary.is-daybefore .mon-setup{padding-top:12px;border-top:1px solid var(--m-line-2)}
 
-/* R251 On the event: run-sheet now / next + open issues, two small cards */
+/* R251 On the event: run-sheet now / next; R252 issues (Pre-event + On the event), two small cards */
 .mon-mini{padding:12px 16px;margin-bottom:12px}
 .mon-mini-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px}
 .mon-mini-h .tc-h2{margin:0;display:flex;align-items:center;gap:8px}
@@ -114,9 +120,11 @@
 .mon-run-t{font-variant-numeric:tabular-nums;white-space:nowrap}
 .mon-run-n{overflow-wrap:anywhere}.mon-run-n small{display:block;font-size:12px;color:var(--m-ink-2)}
 .mon-n.is-warn{background:var(--m-warn-soft);color:var(--m-warn)}
-.mon-issform{display:grid;gap:6px;margin:10px 0;padding:12px;border:1px solid var(--m-line);border-radius:12px;background:var(--m-panel-2)}
+#monIssList{margin-top:8px}
+.mon-issform{display:grid;gap:6px;margin:12px 0;padding:14px;border:1px solid var(--m-line);border-radius:12px;background:var(--m-panel-2)}
 .mon-issform .mon-lbl{margin:4px 0 0}
 .mon-issform .tc-inp{font-size:16px;min-height:44px;background:var(--m-panel)}.mon-issform .mon-select{min-height:44px;width:100%;max-width:220px}
+.mon-issform .hia-pick{margin-top:6px}
 .mon-issform-f{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 
 /* R251 work in step order: Day before / Pre-event / On the event / Wrap-up, each a heading that folds */

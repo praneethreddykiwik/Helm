@@ -60,11 +60,12 @@
   th{position:relative} .table-scroll{position:relative}
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
 </style>
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
+<link rel="stylesheet" href="/event-flow-line.css?v=1">
 <link rel="stylesheet" href="stock-flow.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=119" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -83,7 +84,7 @@
   <div id="notfound" class="card" hidden><p class="s-1a1aca0">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="nextWrap" hidden> · <a id="nextLink" href="#">Next: Closure →</a></span></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="flowLine"></span><span id="nextWrap" hidden> · <a id="nextLink" href="#">Next: Settlement →</a></span></div>
 
     <div class="card">
       <h2>📦 Stock for this event <span class="prog" id="invProg"></span></h2>
@@ -96,7 +97,7 @@
 
     <div class="card">
       <h2>🤝 Vendor &amp; rental exit</h2>
-      <p class="sub">Mark each partner off-site / rentals returned.</p>
+      <p class="sub">Mark each partner off-site / rentals returned. Wrap-up counts a vendor as gone when it is marked here or as Left on Event-day command.<span id="rpWrap" hidden> Marked the wrong one? Change its status on the <a id="rpLink" href="#">Resource plan</a>.</span></p>
       <div id="bkRows"><div class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></div></div>
     </div>
 
@@ -125,9 +126,10 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=408"></script>
 <script src="stock-flow.js?v=2"></script>
 <script src="stock-checkin.js?v=1"></script>
+<script src="/event-flow-line.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -135,6 +137,9 @@
   const BK={enquiry:"Enquiry",booked:"Booked",confirmed:"Confirmed",delivered:"Returned/Exited",cancelled:"Cancelled"};
   const CHK={open:"Open",done:"Done",na:"N/A"};
   let canEdit=false, canDelete=false, ev=null, itemsById={};
+  // R252: the vendor rows are saved under Vendors and the teardown list under Event plan - the database refuses the rest without a
+  // word (no rows), so those controls show only for a role that can really save, and a list that cannot be seen is not "empty"
+  let seeBk=true, canExit=false, seeTd=true, canTd=false, seeArr=false, noRelease=false;
   function act(btn,fn,action){ return BPUI.guard(btn,async()=>{ try{ await fn(); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action}),{type:"err"}); } }); }
   async function section(fn,host,what){ try{ await fn(); }catch(e){ BPUI.loadError(host,e,fn,{what}); } }
 
@@ -154,7 +159,7 @@
     return !/^\d{4}-\d{2}-\d{2}$/.test(d) || (t && d<=t); }
   async function renderInventory(){
     // teardown is after the event: release what was never taken out (server checks the event day itself)
-    if(canEdit && eventDayCome() && BPStore.inventory.releaseUnused){ try{ await BPStore.inventory.releaseUnused(id, true); }catch(_){} }
+    if(canEdit && !noRelease && eventDayCome() && BPStore.inventory.releaseUnused){ try{ await BPStore.inventory.releaseUnused(id, true); }catch(_){} }
     const [res, items, cos] = await Promise.all([BPStore.inventory.reservations(id), BPStore.inventory.items(true),
       BPStore.inventory.checkouts.list(id).catch(()=>[])]);
     itemsById={}; items.forEach(i=>itemsById[i.id]=i);
@@ -203,23 +208,33 @@
   }
 
   async function renderBookings(){
-    const bk=await BPStore.bookings.list(id);
+    if(!seeBk){ $("#bkRows").innerHTML='<div class="empty">Your role can\'t see vendors. Ask someone who can.</div>'; return; }
+    const [bk, arr]=await Promise.all([BPStore.bookings.list(id), seeArr?BPStore.dayops.list(id,"arrival").catch(()=>[]):[]]);
+    const here={}; (arr||[]).forEach(a=>{ if(a&&a.ref_id) here[a.ref_id]=a.status; });   // Event-day command: Arrived / Left / No-show
+    const said=(b)=>b.status==="delivered"||b.status==="cancelled"?"":here[b.id]==="left"?"Marked Left on Event-day command.":here[b.id]==="no_show"?"Marked No-show on Event-day command.":here[b.id]==="arrived"?"On site (Event-day command).":b.status==="enquiry"?"Only asked - never booked.":"";
     $("#bkRows").innerHTML = bk.length ? bk.map(b=>`<div class="rowline">
-      <div><div class="nm">${esc(b.label||"Partner")}</div></div>
+      <div><div class="nm">${esc(b.label||"Partner")}</div>${said(b)?`<div class="efl-note">${esc(said(b))}</div>`:""}</div>
       <span class="st ${esc(b.status)}">${esc(BK[b.status]||b.status)}</span>
-      ${canEdit&&(b.status==="booked"||b.status==="confirmed")?`<div class="acts"><button type="button" class="btn go" data-exit="${esc(b.id)}" aria-label="Mark ${esc(b.label||"partner")} returned or exited">Mark returned/exited</button></div>`:""}
+      ${canExit&&(b.status==="booked"||b.status==="confirmed")?`<div class="acts"><button type="button" class="btn go" data-exit="${esc(b.id)}" aria-label="Mark ${esc(b.label||"partner")} returned or exited">Mark returned/exited</button></div>`:""}
     </div>`).join("") : '<div class="empty">No vendors or rentals booked.</div>';
-    $("#bkRows").querySelectorAll("[data-exit]").forEach(b=>b.addEventListener("click",()=>act(b,async()=>{ await BPStore.bookings.update(b.dataset.exit,{status:"delivered"}); await section(renderBookings,$("#bkRows"),"vendor bookings"); },"update the booking")));
+    $("#bkRows").querySelectorAll("[data-exit]").forEach(b=>b.addEventListener("click",()=>act(b,async()=>{
+      const now=(await BPStore.bookings.list(id)).find(x=>x.id===b.dataset.exit);   // cancelled or changed meanwhile: never overwritten
+      if(!now||(now.status!=="booked"&&now.status!=="confirmed")) BPUI.toast("This booking changed meanwhile - nothing was saved.",{type:"info"});
+      else{ await BPStore.bookings.update(b.dataset.exit,{status:"delivered"});
+        const after=(await BPStore.bookings.list(id)).find(x=>x.id===b.dataset.exit);
+        if(!after||after.status!=="delivered") BPUI.toast("That was not saved. Your role may not be allowed to change vendors.",{type:"err"}); }
+      await section(renderBookings,$("#bkRows"),"vendor bookings"); },"update the booking")));
   }
 
   async function renderTeardown(){
+    if(!seeTd){ $("#tdProg").textContent=""; $("#tdRows").innerHTML='<div class="empty">Your role can\'t see the teardown list. Ask someone who can see the event plan.</div>'; return; }
     const items=await BPStore.checklist.list(id,"teardown");
     const done=items.filter(c=>c.status==="done").length;
     $("#tdProg").textContent = items.length?`${done}/${items.length} done`:"";
     $("#tdRows").innerHTML = items.length ? items.map(c=>`<div class="rowline">
       <div><div class="nm">${esc(c.title)}</div></div>
-      ${canEdit?`<select class="ssel" data-td="${esc(c.id)}" aria-label="Status for ${esc(c.title)}">${["open","done","na"].map(s=>`<option value="${s}" ${s===c.status?"selected":""}>${CHK[s]}</option>`).join("")}</select>`:`<span class="st ${esc(c.status)}">${esc(CHK[c.status]||c.status)}</span>`}
-      ${canDelete?`<button type="button" class="rm" data-tddel="${esc(c.id)}" data-name="${esc(c.title)}" aria-label="Remove ${esc(c.title)}">✕</button>`:""}
+      ${canTd?`<select class="ssel" data-td="${esc(c.id)}" aria-label="Status for ${esc(c.title)}">${["open","done","na"].map(s=>`<option value="${s}" ${s===c.status?"selected":""}>${CHK[s]}</option>`).join("")}</select>`:`<span class="st ${esc(c.status)}">${esc(CHK[c.status]||c.status)}</span>`}
+      ${canDelete&&canTd?`<button type="button" class="rm" data-tddel="${esc(c.id)}" data-name="${esc(c.title)}" aria-label="Remove ${esc(c.title)}">✕</button>`:""}
     </div>`).join("") : '<div class="empty">No teardown items yet.</div>';
     const reTd=()=>section(renderTeardown,$("#tdRows"),"teardown items");
     $("#tdRows").querySelectorAll("[data-td]").forEach(s=>s.addEventListener("change",()=>BPUI.guard(s,async()=>{ try{ await BPStore.checklist.update(s.dataset.td,{status:s.value}); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the item"}),{type:"err"}); } await reTd(); })));
@@ -246,17 +261,27 @@
     if(!id){ $("#notfound").hidden=false; return; }
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("inventory"))) return;
-    if(await BPStore.auth.canView("closure").catch(()=>false)){ $("#nextLink").href="closure.html?quote="+encodeURIComponent(id); $("#nextWrap").hidden=false; }
+    // R252: stock and vendors first (what is missing or damaged goes on the bill), then the money, then close
+    { const A=BPStore.auth, q="?quote="+encodeURIComponent(id), set=await A.canView("settlement").catch(()=>false), clo=set?false:await A.canView("closure").catch(()=>false);
+      if(set||clo){ $("#nextLink").href=(set?"settlement.html":"closure.html")+q; $("#nextLink").textContent=set?"Next: Settlement →":"Next: Closure →"; $("#nextWrap").hidden=false; } }
     canEdit=await BPStore.auth.canEditArea("command"); canDelete=canEdit && await BPStore.auth.can("delete");
     try{ ev=await BPStore.quotes.get(id); }catch(e){ if(BPUI.isNotFound(e)){ $("#notfound").hidden=false; return; } throw e; }
     if(!ev){ $("#notfound").hidden=false; return; }
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"");
-    $("#app").hidden=false; $("#tdAdd").hidden=!canEdit;
+    { const A=BPStore.auth, may=(p)=>Promise.resolve().then(p).then(v=>v===true,()=>false);
+      const r=await Promise.all([may(()=>A.canView("vendors")), may(()=>A.canEditArea("vendors")), may(()=>A.canView("plan")), may(()=>A.canEditArea("plan")), may(()=>A.canView("command")), may(()=>A.canView("resources"))]);
+      seeBk=r[0]; canExit=canEdit&&r[0]&&r[1]; seeTd=r[2]; canTd=canEdit&&r[2]&&r[3]; seeArr=r[4];
+      if(r[5]&&seeBk){ $("#rpLink").href="resources.html?quote="+encodeURIComponent(id)+"#bookings"; $("#rpWrap").hidden=false; } }
+    if(window.HelmFlowLine) HelmFlowLine.mount($("#flowLine"),ev,{id});
+    $("#app").hidden=false; $("#tdAdd").hidden=!canTd;
     $("#ciLink").href="inventory.html?quote="+encodeURIComponent(id);
     try{ tdCtx=BPStore.inventory.stock?await BPStore.inventory.stock.settings():null; }catch(e){ tdCtx=null; }
     await section(renderInventory,$("#invRows"),"stock");
     await section(renderBookings,$("#bkRows"),"vendor bookings");
     await section(renderTeardown,$("#tdRows"),"teardown items");
+    // R252: back on the page (another tab, the Back button): read again - and only read (nothing is released again)
+    if(window.HelmFlowLine) HelmFlowLine.onReturn(async()=>{ noRelease=true; try{ await section(renderInventory,$("#invRows"),"stock"); } finally { noRelease=false; }
+      await section(renderBookings,$("#bkRows"),"vendor bookings"); await section(renderTeardown,$("#tdRows"),"teardown items"); },()=>!!backOpen||HelmFlowLine.inUse($("#app")));
   });
 </script>
 </body>

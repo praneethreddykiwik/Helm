@@ -182,7 +182,7 @@ await t('2i mark event complete -> Settlement: same rules as before; done state 
   const b = btn(w.host, 'wrap:go'); assert.equal(b.textContent, 'Mark event complete → Settlement'); assert.match(b.className, /tc-primary/);
   assert.deepEqual(w.calls.find((c) => c[0] === 'stageBlockers').slice(1), ['q1', 'settlement']);
   b.fire('click'); b.fire('click'); await tick(); assert.deepEqual(w.calls.filter((x) => x[0] === 'setStageGuided'), [['setStageGuided', 'q1', 'settlement']]); assert.equal(ch, 1);
-  assert.match(said[0], /moved to Settlement/); assert.match(w.host.textContent, /Event complete.*1 Settlement →.*2 Teardown →.*3 Closure →/); assert.equal(btn(w.host, 'wrap:go'), undefined);
+  assert.match(said[0], /moved to Settlement/); assert.match(w.host.textContent, /Event complete.*1 Teardown →.*2 Settlement →.*3 Closure →/); assert.equal(btn(w.host, 'wrap:go'), undefined);
   const v = world(); v.W.HelmEventWrap.render(v.host, CTX({ autoWin: 'daybefore', win: 'daybefore' })); await openIt(v); assert.equal(btn(v.host, 'wrap:go'), undefined); assert.match(v.host.textContent, /on the event day/); assert.equal(v.n('stageBlockers'), 0);
   const x = world({ quotesEdit: false }); x.W.HelmEventWrap.render(x.host, CTX({ autoWin: 'onday', win: 'onday' })); await openIt(x); assert.equal(btn(x.host, 'wrap:go'), undefined); assert.match(x.host.textContent, /role can change Quotes/);
 });

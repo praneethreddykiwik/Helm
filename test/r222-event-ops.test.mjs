@@ -141,8 +141,8 @@ await t('3a the page: switch kept, Get set up, run-sheet, issues and wrap-up box
   assert.doesNotMatch(OPS, /tcPhaseAuto|tcPhaseNote/);   // R251: studio time only
   for (const id of ['tcPrep', 'tcRun', 'tcIssues', 'tcWrap']) assert.match(OPS, new RegExp('id="' + id + '"[^>]*hidden'), id + ' starts hidden');
   assert.match(BRD, /card\("tcPrep", S\.win === "daybefore"/); assert.match(BRD, /card\("tcRun", S\.win === "onday" && Array\.isArray\(S\.rs\)\)/);
-  assert.match(BRD, /card\("tcIssues", S\.win === "onday" && Array\.isArray\(S\.iss\)\)/);
-  assert.match(BRD, /renderPrep\(\); (renderFloor\(\); )?(renderPlan\(\); )?renderRun\(\); renderAttn\(\); renderIssues\(\); renderSteps\(\);/);
+  assert.match(BRD, /card\("tcIssues", issStep\(\) && \(Array\.isArray\(S\.iss\) \|\| S\.issErr\)\)/);
+  assert.match(BRD, /renderPrep\(\); (renderFloor\(\); )?(renderPlan\(\); )?renderRun\(\); (renderDelay\(\); )?renderAttn\(\); renderIssues\(\); renderSteps\(\);/);
   for (const l of ['"staff.html"', '"resources.html?quote="', '"vendors.html"', '"runsheet.html?quote="', 'builderHref()', '"ready.html?quote="']) assert.ok(BRD.includes(l), 'Get set up links ' + l);
 });
 await t('3b no clock note; a look at another step is dropped when it matches the clock; #live opens On the event', () => {

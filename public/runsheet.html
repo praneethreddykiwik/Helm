@@ -65,11 +65,12 @@
   .crumb a,.sub a,.rs-intro a,a#floorLink{text-decoration:underline}
 </style>
 <link rel="stylesheet" href="runsheet-polish.css?v=6">
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
+<link rel="stylesheet" href="/event-flow-line.css?v=1">
 <link rel="stylesheet" href="event-floor.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=119" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -88,7 +89,7 @@
   <div id="notfound" class="card" hidden><p class="s-1a1aca0">Event not found, or it isn't assigned to you. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="flowLine"></span></div>
     <div class="head">
       <h2 id="rsTitle">Event-day run-sheet</h2>
       <span class="win" id="win" hidden></span>
@@ -165,11 +166,12 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
-<script src="page-tours.js?v=76"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=408"></script>
+<script src="page-tours.js?v=77"></script>
 <script src="tour.js?v=91"></script>
 <script src="runsheet-remind.js?v=3"></script>
 <script src="event-floor.js?v=1"></script>
+<script src="/event-flow-line.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -299,6 +301,7 @@
     // R227 (0397): a plan locked for the event day = the run-sheet is view only here (no bar / no change before 0397)
     if(!BRIEF && window.HelmEventFloor){ const st=await HelmEventFloor.lockBar($("#planLock"),{ quoteId:id, onChange:()=>location.reload() });
       if(st && st.locked){ canEdit=false; canDelete=false; } }
+    if(!BRIEF && window.HelmFlowLine) HelmFlowLine.mount($("#flowLine"),ev,{id,dayBefore:true});
     $("#app").hidden=false; $("#addCard").hidden=!canEdit;
     await RR.init(BPStore,{ canPick:canEdit });   // R231: view-only -> no team list asked (Run sheet - Can change only)
     RR.fillOwner("r",null); RR.wire("r"); RR.wire("e");
@@ -306,6 +309,7 @@
     $("#r_grpWrap").hidden=$("#e_grpWrap").hidden=!GROUP.has_group;
     $("#r_grp").checked=$("#e_grp").checked=GROUP.has_group&&GROUP.member;
     await load();
+    if(window.HelmFlowLine) HelmFlowLine.onReturn(()=>load(),()=>HelmFlowLine.inUse(null)||!$("#editModal").hidden);   // R252: reads only
   });
 </script>
 </body>
