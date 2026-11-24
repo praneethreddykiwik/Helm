@@ -13,8 +13,7 @@
  *   HelmEventPlan.learnedFor(plan, title)   how long a task with this name really took before (0396 learned list)
  *   HelmEventPlan.renderReady(host, ctx)    the "Ready by" card (times, status line, jobs with latest start, edit forms,
  *                                           alert settings)
- *   HelmEventPlan.renderDayBefore(host, ctx) the Day-before card: 1 Is everything booked? (the Readiness checks, R251) +
- *                                           2 Call, confirm and pack (tick = who + when; untick kept); ctx.noReady = part 2 only
+ *   HelmEventPlan.renderDayBefore(host, ctx) the Day-before checklist card (tick = who + when; untick kept)
  *   ctx: { plan (event_day_plan_get answer), tasks, quoteId, eventDate, eventTime, tz, now, nameOf(t), toast(msg, type),
  *          onChanged() (reload the plan + tasks), compact (monitor: fewer words), locked (R227 0397: plan locked - no time edits) }
  * Before 0396 is applied plan is null and both cards stay hidden (the callers check). DOM calls only (textContent), never
@@ -32,7 +31,7 @@
     ["transport", "Trucks / tempo booked", "driver names and numbers saved, pick-up time fixed", "logistics"],
     ["venue_access", "Venue access confirmed", "gate, lift, parking and the load-in time - put it in Venue opens", ""],
     ["power", "Power and generator confirmed", "load, diesel, a backup plan if the venue supply fails", ""],
-    ["permits", "Permits in hand", "police / loudspeaker permission (no loudspeakers 10 PM - 6 AM), fire NOC where needed", "logistics"],
+    ["permits", "Permits in hand", "police / loudspeaker permission (no loudspeakers 10 PM - 6 AM), fire NOC where needed", ""],
     ["weather", "Rain / weather plan checked", "forecast, covers for the mandap and food counters, the backup space", ""],
     ["runsheet", "Run-sheet final and shared", "with the client, the venue and every vendor", "runsheet"],
     ["client", "Client confirmed the final timings", "and any last-minute changes", "event"]
@@ -80,13 +79,6 @@
     }).sort(function (a, b) { return a.ls - b.ls || String(a.t.title || "").localeCompare(String(b.t.title || "")); });
     return { rows: rows, untimed: untimed, ready: ready, estimate: isFinite(est) ? est : NaN, behindMin: isFinite(est) && est > ready ? Math.ceil((est - ready) / 60000) : 0,
       late: rows.filter(function (r) { return r.state === "late"; }).length, done: rows.filter(function (r) { return r.state === "done"; }).length };
-  }
-  // R251: Ready by is about set-up only: Day before + Pre-event jobs, and the jobs those wait for (dinner service is not "late" at 3 PM)
-  function setupJobs(tasks, o) {
-    var T = global.HelmTaskStatus, all = (tasks || []).filter(Boolean); if (!T || !T.taskStep) return all;
-    var keep = {}, by = {}; all.forEach(function (t) { by[t.id] = t; var w = T.taskStep(t, o); if (w === "pre" || w === "daybefore") keep[t.id] = 1; });
-    Object.keys(keep).forEach(function (id) { var t = by[id], n = 0; while (t && t.depends_on && by[t.depends_on] && n++ < 200) { keep[t.depends_on] = 1; t = by[t.depends_on]; } });
-    return all.filter(function (t) { return keep[t.id]; });
   }
   function hmMin(v) { var T = global.HelmTaskStatus; return T && T.hmMin ? T.hmMin(v) : NaN; }
   function readyAt(plan, ev, guestsAt, tz) {
@@ -215,7 +207,7 @@
     if (!host) return; ctx = ctx || {}; ctx._redraw = function () { renderReady(host, ctx); };
     var p = ctx.plan || {}, tz = ctx.tz, now = ctx.now == null ? Date.now() : ctx.now, set = p.settings || {};
     var rAt = readyAt(p, ctx.eventDate, ctx.eventTime, tz), vAt = venueAt(p, ctx.eventDate, tz);
-    var sc = schedule(setupJobs(ctx.tasks, { eventDate: ctx.eventDate, eventTime: ctx.eventTime, tz: tz }), { readyAt: rAt, venueAt: vAt, bufPct: set.buffer_pct, remindMin: set.remind_before_min, now: now });
+    var sc = schedule(ctx.tasks, { readyAt: rAt, venueAt: vAt, bufPct: set.buffer_pct, remindMin: set.remind_before_min, now: now });
     // R227 (0397): a plan locked for the event day keeps its times + durations (the database refuses them); ticks stay open
     var canEdit = !!p.can_edit && !ctx.locked, focusId = doc.activeElement && host.contains(doc.activeElement) ? doc.activeElement.id : "";
     clear(host);
@@ -242,7 +234,7 @@
       var ol = h("ol", { cls: "ep-jobs", "aria-labelledby": host.id + "H" });
       sc.rows.forEach(function (r) {
         var st = STATE[r.state] || STATE.ok, who = ctx.nameOf ? ctx.nameOf(r.t) : (r.t.assignee_name || "");
-        var sub = [who || "Not assigned", durWords(r.dur) + " + " + (set.buffer_pct == null ? 15 : set.buffer_pct) + "%", r.need ? "needs " + (r.need.title || "a task") + " first" : ""];
+        var sub = [who || "No one yet", durWords(r.dur) + " + " + (set.buffer_pct == null ? 15 : set.buffer_pct) + "%", r.need ? "needs " + (r.need.title || "a task") + " first" : ""];
         if (r.plannedLate) sub.push("planned start is after the latest start");
         if (r.tooEarly) sub.push("would have to start before the venue opens");
         if (r.loop) sub.push("loop in 'needs first' - timed from Ready by");
@@ -275,65 +267,15 @@
     if (focusId) { var back = doc.getElementById(focusId); if (back) try { back.focus(); } catch (e) {} }
   }
 
-  /* R251 (owner 24 Nov: "Day before is the readiness page - but the two lists are different"): ONE card, two parts with their own
-     names and counts, so nobody reads two lists as one:
-       1 Is everything booked?   the Readiness page's checks (BPStore.readiness.check) - Helm works these out, nobody ticks them
-       2 Call, confirm and pack  the 11 Day-before lines - the team ticks them by hand
-     Part 1 needs Readiness access, is read once per event and kept 5 minutes (it is a heavy read); no access / failed = part 2 only.
-     ctx.noReady leaves part 1 out (ready.html already shows it). Money is left out; "Advance received" is left to ready.html. */
-  var RDY = {}, RDY_MS = 300000;
-  var RDY_LINK = { date: "event.html?id=", menu: "plan.html?quote=", resources: "resources.html?quote=", vendors: "resources.html?quote=",
-    staff: "ops.html?quote=", runsheet: "runsheet.html?quote=", dry_run: "ready.html?quote=", briefing: "ready.html?quote=" };
-  function readyCheck(id) {
-    var c = RDY[id], S = global.BPStore; if (c && (c.busy || Date.now() - c.at < RDY_MS)) return c.p;
-    if (!S || !S.readiness || !S.readiness.check) return Promise.resolve(null);
-    c = RDY[id] = { at: Date.now(), busy: true, data: c ? c.data : null };
-    c.p = Promise.resolve().then(function () { return S.auth && S.auth.canView ? S.auth.canView("ready") : true; })
-      .then(function (ok) { return ok === true ? S.readiness.check(id) : null; })
-      .catch(function () { return null; })
-      .then(function (r) { c.busy = false; c.data = r && Array.isArray(r.checks) ? r : null; return c.data; });
-    return c.p;
-  }
-  function readySum(r) {
-    var rows = ((r && r.checks) || []).filter(function (c) { return c && c.key !== "payments"; });
-    var must = rows.filter(function (c) { return c.critical; });
-    return { open: rows.filter(function (c) { return !c.ok; }), ok: rows.filter(function (c) { return c.ok; }),
-      done: must.filter(function (c) { return c.ok; }).length, of: must.length };
-  }
-  function paintBooked(box, r, ctx, hid) {
-    clear(box); box.hidden = !r; var num = doc.getElementById(hid.slice(0, -1) + "N"); if (num) num.hidden = !r;   // "2 ·" only when part 1 is there if (!r) return;
-    var s = readySum(r), q = encodeURIComponent(ctx.quoteId || "");
-    box.appendChild(h("div", { cls: "ep-part-h" }, [h("h4", { cls: "ep-part-t", id: hid }, ["1 · Is everything booked? ", h("span", { cls: "tc-n" + (s.done === s.of ? " ok" : ""), text: s.done + " / " + s.of })]),
-      h("a", { cls: "tc-mini-link", href: "ready.html?quote=" + q, text: "Open Readiness →" })]));
-    box.appendChild(h("p", { cls: "ep-hint", text: "Helm checks these from the plan. Dry run and team briefing are marked by hand." }));
-    function li(c, ok) {
-      var href = !ok && RDY_LINK[c.key] ? RDY_LINK[c.key] + q : "";
-      return h("li", { cls: "ep-bk" + (ok ? " on" : c.critical ? "" : " soft") }, [h("span", { cls: "ep-bk-i", "aria-hidden": "true", text: ok ? "✓" : c.unchecked ? "?" : c.critical ? "✕" : "!" }),
-        h("span", { cls: "grow" }, [h("span", { cls: "tc-sr", text: ok ? "Done: " : c.unchecked ? "Not checked: " : "Not done: " }), h("b", { text: c.label }), c.detail && !ok ? h("span", { cls: "tc-sub", text: c.detail }) : null]),
-        href ? h("a", { cls: "tc-mini-link", href: href, text: "Fix →", "aria-label": "Fix: " + c.label }) : null]);
-    }
-    if (s.open.length) box.appendChild(h("ul", { cls: "ep-bks" }, s.open.map(function (c) { return li(c, false); })));
-    else box.appendChild(h("p", { cls: "ep-facts", text: "Everything is booked." }));
-    if (s.ok.length) {
-      var d = h("details", { cls: "ep-more" }, [h("summary", { text: s.ok.length + " done" }), h("ul", { cls: "ep-bks" }, s.ok.map(function (c) { return li(c, true); }))]);
-      d.open = !!UI.bookedOpen; d.addEventListener("toggle", function () { UI.bookedOpen = d.open; }); box.appendChild(d);
-    }
-  }
   function renderDayBefore(host, ctx) {
     if (!host) return; ctx = ctx || {};
     var p = ctx.plan || {}, checks = p.checks || {}, canEdit = !!p.can_edit, q = encodeURIComponent(ctx.quoteId || "");
     var focusId = doc.activeElement && host.contains(doc.activeElement) ? doc.activeElement.id : "";
     var done = DAYBEFORE.filter(function (d) { return checks[d[0]] && checks[d[0]].done; }).length;
     clear(host);
-    host.appendChild(h("div", { cls: "ep-head" }, [h("h3", { cls: "tc-h2", id: host.id + "H", text: ctx.noReady ? "Day before" : "Day before - are we ready?" })]));
-    if (!ctx.noReady && ctx.quoteId) {
-      var box = h("div", { cls: "ep-part", hidden: true }), kept = RDY[ctx.quoteId]; host.appendChild(box);
-      if (kept && kept.data) paintBooked(box, kept.data, ctx, host.id + "B");
-      readyCheck(ctx.quoteId).then(function (r) { if (host.contains(box) && !(doc.activeElement && box.contains(doc.activeElement))) paintBooked(box, r, ctx, host.id + "B"); });
-    }
-    host.appendChild(h("div", { cls: "ep-part-h" }, [h("h4", { cls: "ep-part-t", id: host.id + "C" }, [h("span", { id: host.id + "N", hidden: true, text: "2 · " }), "Call, confirm and pack ", h("span", { cls: "tc-n" + (done === DAYBEFORE.length ? " ok" : ""), text: done + " / " + DAYBEFORE.length })])]));
-    host.appendChild(h("p", { cls: "ep-hint", text: done === DAYBEFORE.length ? "All done." : "Your team does these and ticks each line." }));
-    var ul = h("ul", { cls: "ep-checks", "aria-labelledby": host.id + "C" });
+    host.appendChild(h("div", { cls: "ep-head" }, [h("h3", { cls: "tc-h2", id: host.id + "H" }, ["Day before ", h("span", { cls: "tc-n", text: done + " / " + DAYBEFORE.length })]),
+      h("span", { cls: "ep-facts", text: done === DAYBEFORE.length ? "All set for tomorrow." : "Call, confirm and pack - tick each line when it is done." })]));
+    var ul = h("ul", { cls: "ep-checks", "aria-labelledby": host.id + "H" });
     DAYBEFORE.forEach(function (d) {
       var c = checks[d[0]] || {}, on = !!c.done, href = "";
       if (d[3] === "event") href = "event.html?id=" + q; else if (d[3] === "ops") href = "ops.html?quote=" + q;
@@ -355,5 +297,5 @@
   }
 
   global.HelmEventPlan = { DAYBEFORE: DAYBEFORE, schedule: schedule, readyAt: readyAt, venueAt: venueAt, learnedFor: learnedFor, durWords: durWords,
-    renderReady: renderReady, renderDayBefore: renderDayBefore, setupJobs: setupJobs, readySum: readySum, _ui: UI };
+    renderReady: renderReady, renderDayBefore: renderDayBefore, _ui: UI };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -22,7 +22,7 @@ await t('1 quick filter chips + search replace the drop-downs', async () => {
   for (const id of ['opsFilter', 'of_q', 'of_person', 'of_section', 'of_status']) assert.ok(!ops.includes(`id="${id}"`), id + ' gone');
   assert.match(ops, /<div class="tc-chips" id="chips" role="group" aria-label="Quick filters"><\/div>/);
   assert.match(ops, /<input id="tcQ" type="search" maxlength="80" placeholder="Search tasks or people"/);
-  assert.deepEqual(JSON.parse(JSON.stringify(PURE.CHIPS.map((c) => c[1]))), ['All', 'Late', 'Special', 'Not assigned', 'Turned down', 'Not accepted yet', 'No time', 'QC to check', 'Can’t-work clash', 'Done', 'Cancelled']);
+  assert.deepEqual(JSON.parse(JSON.stringify(PURE.CHIPS.map((c) => c[1]))), ['All', 'Late', 'Special', 'No one yet', 'Waiting for a yes', 'No time', 'QC to check', 'Can’t-work clash', 'Done', 'Cancelled']);
 });
 await t('2 chip rules', async () => {
   const now = Date.parse('2026-11-21T10:00:00Z'), past = '2026-11-21T09:00:00Z', later = '2026-11-21T12:00:00Z';
@@ -38,7 +38,6 @@ await t('2 chip rules', async () => {
   assert.equal(ids(''), '1,2,3,4,5', 'All leaves cancelled out');
   assert.equal(ids('late'), '2'); assert.equal(ids('special'), '2');
   assert.equal(ids('none'), '4,5', 'no one yet = nobody or turned down');
-  assert.equal(ids('down'), '4', 'R251: turned down has its own chip');
   assert.equal(ids('wait'), '3', 'an "unassigned" row that names someone is waiting for a yes (r20)');
   assert.equal(ids('notime'), '4,5'); assert.equal(ids('qc'), '1'); assert.equal(ids('done'), '1'); assert.equal(ids('cancelled'), '6');
   assert.equal(ids('clash', (x) => x.id === '2' || x.id === '1'), '2', 'a done task never counts as a clash');

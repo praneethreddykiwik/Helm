@@ -15,15 +15,15 @@ const STORE = read('public/store-api.js'), TOURS = read('public/page-tours.js'),
 const APPLY = read('supabase/APPLY-0399.sql'), MAN = read('supabase/migrations/MANIFEST'), RUNALL = read('scripts/db-test/run-all.sh');
 const DBT = read('tests/db/r230-dept-supervisors-0399.sql'), OVR = read('supabase/check-prod-overrides.json');
 
-await t('1a page order (R251): event header -> the three steps -> the step cards with Tasks by department among them -> Wrap-up last', () => {
+await t('1a page order: event header -> Tasks by department (+ crew side) -> Event steps (the four-step switch and its cards)', () => {
   const iHead = OPS.indexOf('id="evhead"'), iWork = OPS.indexOf('id="work"'), iSteps = OPS.indexOf('id="tcSteps"'), iPhase = OPS.indexOf('id="tcPhase"');
-  assert.ok(iHead > 0 && iHead < iSteps && iSteps < iPhase && iPhase < iWork, 'order');
+  assert.ok(iHead > 0 && iHead < iWork && iWork < iSteps && iSteps < iPhase, 'order');
   for (const id of ['tcPrep', 'tcDayBefore', 'tcReady', 'tcRun', 'attn', 'tcIssues', 'tcWrap']) {
     const i = OPS.indexOf('id="' + id + '"'); assert.ok(i > iSteps, id + ' sits inside the steps section');
   }
   assert.match(OPS, />Tasks by department </);
   assert.match(OPS, /data-view="list" aria-pressed="true">By department</);
-  for (const w of ['Day before', 'Pre-event', 'On the event']) assert.ok(OPS.includes('>' + w + '</button>'), w);
+  for (const w of ['Before the event', 'Day before', 'On the day', 'Wrap-up']) assert.ok(OPS.includes('>' + w + '</button>'), w);
 });
 await t('1b the page opens on By department (new saved-view key, so an old Timeline pick does not hide it)', () => {
   assert.match(BRD, /lsGet\("helm\.tc\.view2"\)/); assert.match(BRD, /lsSet\("helm\.tc\.view2", v\)/);
@@ -50,7 +50,7 @@ await t('2d plan lock (0397): + Add task is refused while locked with the lock m
   assert.match(BRD, /function addIn\(cat\) \{[\s\S]{0,200}if \(planLocked\(\)\) \{ toast\(LOCK_ADD, "err", 8000\); return; \}/);
   assert.match(BRD, /var LOCK_ADD = "The plan is locked for the event day - unlock it \(bar above\) to add tasks\."/);
   assert.doesNotMatch(BRD.slice(BRD.indexOf('async function setSup'), BRD.indexOf('function supTools')), /planLocked/);
-  assert.ok(OPS.indexOf('id="tcLock"') < OPS.indexOf('id="work"') && /if \(planLocked\(\)\) \{ ids\.splice\(ids\.indexOf\("tcLock"\), 1\); ids\.unshift\("tcLock"\); \}/.test(BRD) && OPS.indexOf('id="tcFloor"') > OPS.indexOf('id="tcSteps"'), 'lock bar by the header, floor card in the steps');
+  assert.ok(OPS.indexOf('id="tcLock"') < OPS.indexOf('id="work"') && OPS.indexOf('id="tcFloor"') > OPS.indexOf('id="tcSteps"'), 'lock bar by the header, floor card in the steps');
 });
 await t('2c the supervisor history shows in Latest ("X set Y as Catering supervisor")', () => {
   assert.match(BRD, /" as " \+ l\.department \+ " supervisor"/); assert.match(BRD, /concat\(supLogActs\(\)\)/);

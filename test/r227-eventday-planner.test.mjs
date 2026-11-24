@@ -125,8 +125,8 @@ await t('3a Tasks & Crew + monitor: lock bar + Floor plan card, loaded through e
     assert.match(html, new RegExp('<section class="tc-card ef-card" id="' + floor + '" aria-labelledby="' + floor + 'H" hidden></section>'));
     assert.match(html, /<script src="event-floor\.js\?v=\d+"><\/script>/); assert.match(html, /<link rel="stylesheet" href="event-floor\.css\?v=\d+">/);
   }
-  assert.match(BRD, /EF\.panel\(\{ quoteId: qid\(\), lockHost: cancelled \? null : \$\("#tcLock"\), floorHost: \$\("#tcFloor"\), showFloor: !cancelled,/);   // R251: every step (On the event: below the work)
-  assert.match(MON, /EF\.panel\(\{ quoteId: S\.quote, lockHost: lh, floorHost: fh, showFloor: true/);   // R251: every step (On the event: below the work)
+  assert.match(BRD, /EF\.panel\(\{ quoteId: qid\(\), lockHost: cancelled \? null : \$\("#tcLock"\), floorHost: \$\("#tcFloor"\), showFloor: !cancelled && \(S\.win === "daybefore" \|\| S\.win === "onday"\)/);
+  assert.match(MON, /EF\.panel\(\{ quoteId: S\.quote, lockHost: lh, floorHost: fh, showFloor: S\.win === "daybefore" \|\| S\.win === "onday"/);
   assert.match(STORE, /async floor\(quoteId\) \{ if \(!supa \|\| !quoteId\) return null; try \{ return await rpc\("event_floor_get", \{ p_quote: quoteId \}\); \} catch \(e\) \{ if \(rpcMissing\(e\)\) return null; throw e; \} \}/);
   assert.match(STORE, /async get\(quoteId\) \{ if \(!supa \|\| !quoteId\) return null; try \{ return await rpc\("event_plan_lock_get"/);
   assert.match(EFJS, /if \(!f \|\| !c\.lock\) \{ o\.lockHost\.hidden = true; \}/, 'no answer (before 0397) = no bar');

@@ -642,11 +642,10 @@ html[data-shell="b"] .hd-editing [data-block] { min-width: 0; max-width: 100%; o
 html[data-shell="b"] .hd-dash.hd-editing { overflow-x: clip; }
 
 /* ---- "Today" strip (very top): one calm line of counts + quick links ---- */
-/* r250: Today strip uses the same card shape as the other dashboard sections (was a pill) */
-html[data-shell="b"] .hd-today { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px; padding: 10px 12px; border: 1px solid var(--hd-hair); border-radius: var(--hd-r-lg); box-shadow: var(--hd-sh-1); background: var(--hd-card); font: 500 13px/18px var(--hd-f-ui); color: var(--hd-ink-2); min-width: 0; }
+html[data-shell="b"] .hd-today { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px; padding: 6px 8px; border: 1px solid var(--hd-hair); border-radius: var(--hd-r-pill); background: var(--hd-card); font: 500 13px/18px var(--hd-f-ui); color: var(--hd-ink-2); min-width: 0; }
 html[data-shell="b"] .hd-today[hidden] { display: none; }
 html[data-shell="b"] .hd-today-lbl { padding: 0 8px 0 6px; color: var(--hd-ink-3); }
-html[data-shell="b"] .hd-today-seg { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 10px; border-radius: var(--hd-r-sm); color: var(--hd-ink-2); text-decoration: none; min-width: 0; max-width: 100%;
+html[data-shell="b"] .hd-today-seg { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 10px; border-radius: var(--hd-r-pill); color: var(--hd-ink-2); text-decoration: none; min-width: 0; max-width: 100%;
   transition: background-color var(--hd-t-fast) var(--hd-ease), color var(--hd-t-fast) var(--hd-ease); }
 html[data-shell="b"] .hd-today-seg > span, html[data-shell="b"] .hd-today-seg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html[data-shell="b"] .hd-today-seg .hd-ic { width: 15px; height: 15px; flex: none; color: var(--hd-ink-3); }

@@ -173,12 +173,11 @@
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="task-reminders.css?v=4"><link rel="stylesheet" href="when-picker.css?v=3"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=8">
-<link rel="stylesheet" href="ops-board.css?v=6">
-<link rel="stylesheet" href="event-plan.css?v=2">
+<link rel="stylesheet" href="ops-board.css?v=5">
+<link rel="stylesheet" href="event-plan.css?v=1">
 <link rel="stylesheet" href="event-floor.css?v=1">
-<link rel="stylesheet" href="/event-steps.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=117" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -198,7 +197,7 @@
   <div id="loadErr"></div>
   <div id="noquote" class="card" hidden><p class="muted" id="noquoteMsg">Open an event from <a class="s-dea29d3" href="quotes.html">Quotes</a> → Operations.</p></div>
 
-  <!-- R192 Tasks & Crew (TASKS-CREW-PAGE-PLAN.md), R251: the event's steps first, each with its own content.
+  <!-- R192 Tasks & Crew (TASKS-CREW-PAGE-PLAN.md): "Are we ready?" before the event, "What needs me right now?" on the day.
        Laid out by ops-board.js (DOM only); every action stays in the page script below. -->
   <div id="app" class="tc" hidden>
     <div class="tc-top">
@@ -209,35 +208,12 @@
     </div>
 
     <section class="tc-ev tc-card" id="evhead" aria-label="Event"></section>
+    <!-- R227 (0397, event-floor.js): "Locked for the event day - Unlock to edit" / Lock plan; hidden before 0397 -->
+    <section class="ef-lock" id="tcLock" hidden></section>
 
-    <!-- R251 (owner 24 Nov): the steps sit right under the event header - Day before, Pre-event, On the event (the same three as the
-         Event-day monitor). Wrap-up is not a step: it is the closed section at the very bottom. data-phase = the R222 two-mode rule.
-         ops-board.js shows each step's own content in #tcFlow, in that step's order (ORDER) -->
-    <section class="tc-stepbar" id="tcSteps" aria-label="Event steps">
-      <div class="tc-phase-row" id="tcPhase">
-        <div class="tc-seggrp" role="group" aria-label="Which part of the job">
-          <button type="button" class="tc-seg" data-phase="plan" data-win="daybefore" aria-pressed="false">Day before</button>
-          <button type="button" class="tc-seg" data-phase="live" data-win="pre" aria-pressed="false">Pre-event</button>
-          <button type="button" class="tc-seg" data-phase="live" data-win="onday" aria-pressed="false">On the event</button>
-        </div>
-      </div>
-    </section>
-    <span class="tc-sr" id="tcAnnounce" aria-live="polite"></span>
-
-    <div class="tc-flow" id="tcFlow">
-      <!-- R227 (0397, event-floor.js): "Locked for the event day - Unlock to edit" / Lock plan; hidden before 0397 -->
-      <section class="ef-lock" id="tcLock" hidden></section>
-      <!-- R222: Day before = "Get set up" shortcuts; On the event = run-sheet now / next, issues (ops-board.js) -->
-      <section class="tc-card tc-prep" id="tcPrep" aria-label="Get set up" hidden></section>
-      <!-- R226 (0396, event-plan.js): the Day-before checklist and the Ready-by card (latest start per set-up job); hidden before 0396 -->
-      <section class="tc-card ep-card" id="tcReady" aria-labelledby="tcReadyH" hidden></section>
-      <section class="tc-card tc-runcard" id="tcRun" aria-label="Run-sheet" hidden></section>
-      <section class="tc-attn" id="tcLate" aria-label="Late work"></section>
-      <section class="tc-attn" id="attn" aria-label="Needs attention"></section>
-      <section class="tc-card tc-iss" id="tcIssues" aria-label="Issues" hidden></section>
-
-      <!-- R230: Tasks by department (each section = a department card: its tasks with person, time, status, Email / WhatsApp,
-           + Add task, and its Supervisor, 0399). R251: grouped by step first - Day before, Pre-event, On the event, Wrap-up -->
+    <!-- R230: Tasks by department is the main section again (each section = a department card: its tasks with person, time,
+         status, Email / WhatsApp, + Add task, and its Supervisor, 0399); the event steps sit below it -->
+    <div class="tc-layout">
       <section class="tc-work tc-card" id="work" aria-labelledby="workH">
         <div class="tc-work-head">
           <h2 id="workH" class="tc-h2">Tasks by department <span class="tc-count" id="taskCount"></span></h2>
@@ -253,34 +229,58 @@
         <span class="tc-sr" id="tcUpdated" aria-live="polite"></span>
       </section>
 
-      <!-- R251 (event-steps.js): "Mark pre-event complete", the last card of the Pre-event step -->
-      <section class="tc-card tc-predone" id="tcPreDone" aria-label="Pre-event complete" hidden></section>
+      <aside class="tc-side" aria-label="Crew and activity">
+        <section class="tc-card" aria-labelledby="crewH">
+          <div class="tc-side-h"><h2 id="crewH" class="tc-h2">Crew today <span class="tc-count" id="crewCount"></span></h2><a class="tc-mini-link" href="staff.html">Staff page</a></div>
+          <ul class="tc-crew" id="crewList"></ul>
+        </section>
+        <section class="tc-card" aria-labelledby="actH">
+          <div class="tc-side-h"><h2 id="actH" class="tc-h2">Latest</h2><a id="allActivity" class="tc-mini-link" href="monitor.html">All activity</a></div>
+          <ol class="tc-feed" id="feed"></ol>
+        </section>
+        <section class="tc-card" id="trmCardOps" aria-labelledby="remH">
+          <h2 id="remH" class="tc-h2">Reminders</h2>
+          <!-- R130 (0338): reminders go out on their own every minute (WhatsApp, the studio's own number) - no Remind / Fire buttons -->
+          <div id="waSetupNote" hidden></div>
+          <p class="muted trm-line" id="trmLine"></p>
+        </section>
+      </aside>
+    </div>
 
+    <!-- R230: the four event steps (R222 / R226) - kept whole, moved below the departments and quieter -->
+    <section class="tc-stepsec" id="tcSteps" aria-labelledby="tcStepsH">
+      <h2 class="tc-h2 tc-stepsec-h" id="tcStepsH">Event steps</h2>
+      <div class="tc-phase-row" id="tcPhase">
+        <div class="tc-seggrp" role="group" aria-label="Which part of the job">
+          <!-- R226 (EVENT-OPS-PLAN-V2.md): the same four windows as the Event-day monitor; data-phase = the R222 two-mode rule -->
+          <button type="button" class="tc-seg" data-phase="plan" data-win="before" aria-pressed="false">Before the event</button>
+          <button type="button" class="tc-seg" data-phase="plan" data-win="daybefore" aria-pressed="false">Day before</button>
+          <button type="button" class="tc-seg" data-phase="live" data-win="onday" aria-pressed="false">On the day</button>
+          <button type="button" class="tc-seg" data-phase="live" data-win="wrapup" aria-pressed="false">Wrap-up</button>
+        </div>
+        <span class="tc-phase-note" id="tcPhaseNote"></span>
+        <button type="button" class="tc-btn sm ghost" id="tcPhaseAuto" hidden>Use the studio’s clock</button>
+      </div>
+
+      <!-- R222 (EVENT-OPS-PLAN.md): Before = "Get set up" shortcuts; On the day = run-sheet now / next, issues, wrap up (ops-board.js) -->
+      <section class="tc-card tc-prep" id="tcPrep" aria-label="Get set up" hidden></section>
+      <!-- R226 (0396, event-plan.js): the Day-before checklist and the Ready-by card (latest start per set-up job); hidden before 0396 -->
       <section class="tc-card ep-card" id="tcDayBefore" aria-labelledby="tcDayBeforeH" hidden></section>
+      <section class="tc-card ep-card" id="tcReady" aria-labelledby="tcReadyH" hidden></section>
       <!-- R227 (0397): the saved floor plan for the day (2D snapshot, sizes, seats vs guests) + 2D / 3D / Measure view only + Print pack -->
       <section class="tc-card ef-card" id="tcFloor" aria-labelledby="tcFloorH" hidden></section>
-
-      <section class="tc-card tc-half" id="tcCrewCard" aria-labelledby="crewH">
-        <div class="tc-side-h"><h2 id="crewH" class="tc-h2">Crew today <span class="tc-count" id="crewCount"></span></h2><a class="tc-mini-link" href="staff.html">Staff page</a></div>
-        <ul class="tc-crew" id="crewList" tabindex="0" aria-labelledby="crewH"></ul>
-      </section>
-      <section class="tc-card tc-half" id="tcActCard" aria-labelledby="actH">
-        <div class="tc-side-h"><h2 id="actH" class="tc-h2">Latest</h2><a id="allActivity" class="tc-mini-link" href="monitor.html">All activity</a></div>
-        <ol class="tc-feed" id="feed" tabindex="0" aria-labelledby="actH"></ol>
-      </section>
-      <section class="tc-card" id="trmCardOps" aria-labelledby="remH">
-        <h2 id="remH" class="tc-h2">Reminders</h2>
-        <!-- R130 (0338): reminders go out on their own every minute (WhatsApp, the studio's own number) - no Remind / Fire buttons -->
-        <div id="waSetupNote" hidden></div>
-        <p class="muted trm-line" id="trmLine"></p>
-      </section>
-    </div>
+      <section class="tc-card tc-runcard" id="tcRun" aria-label="Run-sheet" hidden></section>
+      <section class="tc-attn" id="attn" aria-label="Needs attention"></section>
+      <span class="tc-sr" id="tcAnnounce" aria-live="polite"></span>
+      <div class="tc-ops2">
+        <section class="tc-card tc-iss" id="tcIssues" aria-label="Issues" hidden></section>
+        <section class="tc-card tc-wrap" id="tcWrap" aria-label="Wrap up" hidden></section>
+      </div>
+    </section>
 
     <!-- r23 (0265): open shifts for this event (built by crew-shifts.js; hidden when off / before 0265) -->
     <div class="card" id="shiftCard" hidden></div>
     <p class="muted flow-next" id="flowNext" hidden></p>
-    <!-- R251 (event-steps.js): Wrap-up - one section, closed by default, at the very bottom of the page in every step -->
-    <section class="tc-wraphost" id="tcWrap" aria-label="Wrap up" hidden></section>
   </div>
   </main>
 </div>
@@ -313,27 +313,15 @@
     <div class="tc-d-body" id="sBody">
       <div id="msg" class="tc-msg" role="status" aria-live="polite"></div>
       <div id="sPreset" hidden></div>
-      <!-- R251: the first choice - which step of the event this work is for (its default start time follows it) -->
-      <fieldset class="tc-fs" id="sStep">
-        <legend><span data-step>1. </span>When is this work?</legend>
-        <div class="tc-optrow" id="asSteps" role="group" aria-label="When is this work?">
-          <button type="button" class="tc-opt" data-as-step="pre" aria-pressed="true">Pre-event</button>
-          <button type="button" class="tc-opt" data-as-step="onday" aria-pressed="false">On the event</button>
-          <button type="button" class="tc-opt" data-as-step="wrapup" aria-pressed="false">Wrap-up</button>
-          <button type="button" class="tc-opt" data-as-step="daybefore" aria-pressed="false">Day before</button>
-        </div>
-        <p class="tc-hint" id="asStepHint"></p>
-        <p class="tc-note warn" id="asStepNote" role="status" hidden></p>
-      </fieldset>
       <fieldset class="tc-fs" id="sWhat">
-        <legend><span data-step>2. </span>What</legend>
+        <legend><span data-step>1. </span>What</legend>
         <div class="tc-optrow" id="catTabs" role="group" aria-label="Task section"></div>
         <label class="tc-chk"><input type="checkbox" id="selAll"> Select all in this section</label>
         <div class="tc-tasks-pick" id="taskList"></div>
         <div class="tc-inline"><input class="tc-inp" id="tpl_title" maxlength="120" placeholder="Or type a new task (saved to your checklist)" aria-label="New task for this section"><button type="button" class="tc-btn sm" id="tpl_add">+ Add to checklist</button></div>
       </fieldset>
       <fieldset class="tc-fs">
-        <legend><span data-step>3. </span>Who</legend>
+        <legend><span data-step>2. </span>Who</legend>
         <select class="tc-inp" id="assignKind" aria-label="Assignment type">
           <option value="in_house">Our staff</option>
           <option value="outsourced">A vendor</option>
@@ -346,7 +334,7 @@
         <p class="tc-hint">Someone new? <a class="tc-mini-link" href="staff.html">Add them on the Staff page</a>, then pick them here.</p>
       </fieldset>
       <fieldset class="tc-fs" id="assignTime">
-        <legend><span data-step>4. </span>Start time <small>(optional - needed for reminders)</small></legend>
+        <legend><span data-step>3. </span>When <small>(optional - needed for reminders)</small></legend>
         <div class="tc-optrow" role="group" aria-label="Day">
           <button type="button" class="tc-opt" id="as_daybefore" data-day="before" aria-pressed="false" title="Set-up the evening before">Day before</button>
           <button type="button" class="tc-opt" id="as_evday" data-day="event" aria-pressed="true" title="The event's date">Event day</button>
@@ -361,14 +349,8 @@
         </div>
         <label class="tc-chk"><input type="checkbox" id="asSpecial"> ▲ Special (P1) - if not started: worker → event lead → manager → admin / owner</label>
       </fieldset>
-      <fieldset class="tc-fs" id="sDep">
-        <legend><span data-step>5. </span>Waits for another task <small>(optional)</small></legend>
-        <label for="as_dep" class="tc-sr">Waits for</label>
-        <select class="tc-inp" id="as_dep" aria-describedby="as_depHint"></select>
-        <p class="tc-hint" id="as_depHint">Pick the task that must be done first. The reminder for this work goes once that task is done.</p>
-      </fieldset>
       <fieldset class="tc-fs">
-        <legend><span data-step>6. </span>Tell them</legend>
+        <legend><span data-step>4. </span>Tell them</legend>
         <label class="tc-chk" id="assignEmailWrap" title="E-mail the person their tasks for this event (sent from your studio name; replies come to your studio)"><input type="checkbox" id="assignEmail" checked autocomplete="off"> Send by email</label>
         <label class="tc-chk" id="assignWaWrap" title="Send the person their tasks on WhatsApp from your studio's own number (needs WhatsApp connected in Integrations)"><input type="checkbox" id="assignWa"> Send on WhatsApp (the studio number)</label>
       </fieldset>
@@ -443,12 +425,11 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
-<script src="task-status.js?v=6"></script>
-<script src="event-plan.js?v=4"></script>
-<script src="ops-board.js?v=9"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script>
+<script src="task-status.js?v=5"></script>
+<script src="event-plan.js?v=3"></script>
+<script src="ops-board.js?v=8"></script>
 <script src="event-floor.js?v=1"></script>
-<script src="/event-steps.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -642,39 +623,20 @@
       asRem=HelmTaskReminders.schedFields($("#as_rem"), {remind_before:null, remind_at:[]}, trmSettings, remOpts(asStartISO, "as")); }
     showWhen($("#as_warn"), $("#as_when").value);
   }
-  // at (R251): a start "YYYY-MM-DDTHH:MM" that follows the picked step; without it the date moves and the time stays
-  function setAsDay(d, at){
+  function setAsDay(d){
     asDay=d;
     ["as_daybefore","as_evday","as_none","as_keep"].forEach(id=>{ const b=$("#"+id); if(b) b.setAttribute("aria-pressed", String(b.dataset.day===d)); });
-    if((d==="before"||d==="event") && at) $("#as_when").value=at;
     asSync();
-    if((d==="before"||d==="event") && evDateStr()){
-      if(at){ $("#as_when").value=at; $("#as_when").dispatchEvent(new Event("input",{bubbles:true})); $("#as_when").dispatchEvent(new Event("change",{bubbles:true})); }
-      else quickDate($("#as_when"), d==="before"?"before":"day"); }
+    if((d==="before"||d==="event") && evDateStr()) quickDate($("#as_when"), d==="before"?"before":"day");
     // on the day itself a default time that has already passed moves to the next half hour (studio clock)
     if(d==="event" && $("#as_when").value){ const v=$("#as_when").value, nowL=toLocalInput(new Date());
       if(v.slice(0,10)===nowL.slice(0,10) && fromLocalInput(v).getTime()<Date.now()){ const m=(+nowL.slice(11,13))*60+(+nowL.slice(14,16)), n=Math.min(23*60+30, Math.ceil((m+1)/30)*30);
         $("#as_when").value=nowL.slice(0,10)+"T"+pad2(Math.floor(n/60))+":"+pad2(n%60); $("#as_when").dispatchEvent(new Event("input",{bubbles:true})); $("#as_when").dispatchEvent(new Event("change",{bubbles:true})); } }
     loadOff();   // R174: re-check "can't work" for the new day
   }
-  // R251: "When is this work?" - the first choice in the sheet; the day + default start time follow it (OpsBoard.stepTime)
-  let asStep="pre";
-  function pressAsStep(){ document.querySelectorAll("#asSteps [data-as-step]").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.asStep===asStep))); if(window.OpsBoard&&OpsBoard.stepNote) OpsBoard.stepNote(); }
-  function setAsStep(step){
-    asStep=["pre","onday","wrapup","daybefore"].includes(step)?step:"pre";
-    const at=evDateStr()&&window.OpsBoard&&OpsBoard.stepTime?OpsBoard.stepTime(asStep):"";
-    setAsDay(!evDateStr()?"none":asStep==="daybefore"?"before":"event", at);
-    pressAsStep();
-  }
-  document.querySelectorAll("#asSteps [data-as-step]").forEach(b=>b.addEventListener("click",()=>setAsStep(b.dataset.asStep)));
-  ["as_daybefore","as_evday","as_none","as_keep"].forEach(id=>{ const b=$("#"+id); b && b.addEventListener("click",()=>{
-    const d=b.dataset.day, preset=window.OpsBoard&&OpsBoard.presetIds();
-    if(!preset && d==="before" && asStep!=="daybefore") return setAsStep("daybefore");          // the two choices never disagree
-    if(!preset && d==="event" && asStep==="daybefore") return setAsStep("pre");
-    if(!preset && d==="event" && asDay!=="event") return setAsStep(asStep);
-    setAsDay(d); pressAsStep(); }); });
+  ["as_daybefore","as_evday","as_none","as_keep"].forEach(id=>{ const b=$("#"+id); b && b.addEventListener("click",()=>setAsDay(b.dataset.day)); });
   $("#assignKind").addEventListener("change", asSync);
-  $("#as_when") && $("#as_when").addEventListener("input",()=>{ showWhen($("#as_warn"), $("#as_when").value); if(window.OpsBoard&&OpsBoard.stepNote) OpsBoard.stepNote(); });
+  $("#as_when") && $("#as_when").addEventListener("input",()=>showWhen($("#as_warn"), $("#as_when").value));
   $("#as_when") && $("#as_when").addEventListener("change",()=>loadOff());   // R174: re-check "can't work" for the new day
   // read the start time + reminders for the assign step: null = not used; throws (message shown) when not valid
   function asRead(){
@@ -686,32 +648,6 @@
     try{ mins=asRem?asRem.value():undefined; at=asRem?asRem.times():[]; }catch(e){ setMsg("err","Check the reminders below the start time."); throw e; }
     return { start: fromLocalInput(v).toISOString(), mins, at };
   }
-  // R251: "Waits for another task" in the sheet - the same link (depends_on) and the same checks as Change time -> Depends on.
-  // New work: "" = nothing. Tasks already on the list (preset): "__keep" = leave each task's own link as it is (the default).
-  const DEP_STEPS=[["daybefore","Day before"],["pre","Pre-event"],["onday","On the event"],["wrapup","Wrap-up"]];
-  function fillAsDep(preset, want){
-    const sel=$("#as_dep"); if(!sel) return; const ids=new Set((preset||[]).map(String)), opt=(v,t)=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; return o; };
-    sel.textContent="";
-    if(preset) sel.appendChild(opt("__keep","Keep as it is"));
-    sel.appendChild(opt("","Nothing - can start any time"));
-    const TS=window.HelmTaskStatus, o={eventDate:evDateStr(),eventTime:(quote&&quote.eventTime)||"",tz:studioTz()};
-    const list=tasks.filter(x=>x&&x.status!=="cancelled"&&!ids.has(String(x.id))&&![...ids].some(id=>wouldCycle(id,x.id)));
-    DEP_STEPS.forEach(([k,w])=>{ const own=list.filter(x=>(TS&&TS.taskStep?TS.taskStep(x,o):"pre")===k); if(!own.length) return;
-      const g=document.createElement("optgroup"); g.label=w;
-      own.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
-      own.forEach(x=>g.appendChild(opt(x.id,(x.category?x.category+" - ":"")+(x.title||"task")+(x.assignee_name?" ("+x.assignee_name+")":"")+(x.status==="completed"?" - done":"")))); sel.appendChild(g); });
-    sel.value=want && list.some(x=>String(x.id)===String(want)) ? String(want) : (preset?"__keep":"");
-  }
-  // undefined = leave as it is; null = nothing; else the task id. Throws (message shown) when the times or the links don't fit.
-  function asDepRead(when, ids){
-    const sel=$("#as_dep"); if(!sel || sel.value==="__keep") return undefined;
-    const depId=sel.value||null; if(!depId) return null;
-    if((ids||[]).some(id=>String(id)===depId||wouldCycle(id,depId))){ setMsg("err","That would go round in a circle - the task you picked already waits for this one."); sel.focus(); throw new Error("cycle"); }
-    const dep=tasks.find(x=>String(x.id)===depId);
-    if(!dep){ setMsg("err","That task is no longer on the list - pick another one."); sel.focus(); throw new Error("gone"); }
-    if(when && dep.planned_start && Date.parse(when.start)<Date.parse(dep.planned_start)){ setMsg("err","This work can't start before the task it waits for does ("+fmtTime(dep.planned_start)+"). Pick a later start."); $("#as_when").focus(); throw new Error("early"); }
-    return depId;
-  }
   // R192: existing tasks (task panel "Give to someone" / "Reassign", bulk "Assign") go to the picked person with reassign_task
   async function assignPreset(ids){
     if($("#assignKind").value==="outsourced"){ setMsg("err","Tasks already on the list go to our own staff here. For a vendor, cancel the task and give it out again."); return; }
@@ -720,7 +656,6 @@
     let when=null; try{ when=asRead(); }catch(e){ return; }
     const list=ids.map(id=>tasks.find(x=>String(x.id)===String(id))).filter(t=>t&&["unassigned","assigned","rejected"].includes(t.status));
     if(!list.length){ setMsg("err","These tasks are accepted, started or done - they stay with their person."); return; }
-    let dep; try{ dep=asDepRead(when, list.map(t=>t.id)); }catch(e){ return; }
     const day=when?String($("#as_when").value).slice(0,10):(list[0].planned_start?toLocalInput(list[0].planned_start).slice(0,10):quote.eventDate);
     const clash=await BPStore.calendar.wouldClash({date:day, crewId:c.id, excludeQuote:quoteId}).catch(()=>({clash:false}));
     if(clash.clash && !(await BPUI.confirm(c.name+" is "+clash.detail+". Assign anyway?",{title:"Scheduling clash",okLabel:"Assign anyway",danger:true}))){ return; }
@@ -728,8 +663,7 @@
     let n=0, err="";
     for(const t of list){
       try{ await BPStore.ops.reassign(t.id,c.id,c.name,c.phone); n++;
-        if(when||dep!==undefined) await BPStore.ops.setSchedule(t.id, when?when.start:(t.planned_start||null), null, dep===undefined?(t.depends_on||null):dep);
-        if(when){
+        if(when){ await BPStore.ops.setSchedule(t.id, when.start, null, t.depends_on||null);
           if(when.mins!==undefined && trmSettings) await BPStore.ops.setReminders(t.id, when.mins);
           await saveRemTimes(t.id, when.at, Array.isArray(t.remind_at)&&t.remind_at.length>0); }
         if(special && !t.is_special) await BPStore.ops.setSpecial(t.id, true, 5);
@@ -755,7 +689,7 @@
     const titles=[...$("#taskList").querySelectorAll(".tk:checked")].map(c=>c.value);
     if(!titles.length){ setMsg("err","Select at least one task."); return; }
     const outsource=$("#assignKind").value==="outsourced";
-    let when=null, dep; try{ when=asRead(); dep=asDepRead(when, []); }catch(e){ return; }
+    let when=null; try{ when=asRead(); }catch(e){ return; }
     const before=new Set(tasks.map(x=>x.id));
     try{
       if(outsource){
@@ -765,9 +699,6 @@
         const clash=await BPStore.calendar.wouldClash({date:quote.eventDate, vendorId:vId, excludeQuote:quoteId}).catch(()=>({clash:false}));
         if(clash.clash && !(await BPUI.confirm(((v&&v.name)||"This vendor")+" is "+clash.detail+". Give it to them anyway?",{title:"Scheduling clash",okLabel:"Assign anyway",danger:true}))){ return; }
         const r=await BPStore.ops.assignTasksVendor(quoteId, activeCat, titles, vId);
-        if(dep){ try{ const fresh=await BPStore.ops.listTasks(quoteId); tasks=fresh||tasks;
-            for(const x of (fresh||[]).filter(x=>!before.has(x.id) && String(x.vendor_id||"")===String(vId) && titles.includes(x.title))) await BPStore.ops.setSchedule(x.id, x.planned_start||null, null, dep);
-          }catch(e){ BPUI.toast("The work was given out, but \"Waits for\" could not be saved on every task - set it with Change time.",{type:"err"}); } }
         setMsg("ok", `Gave ${r.tasks_created} ${activeCat} task(s) to ${r.vendor||(v&&v.name)}. Checklist sent — their link is on the task.`);
       } else {
         const crewId=$("#assignCrew").value;
@@ -780,12 +711,12 @@
         // R173 (0364): the start time + reminders go on the NEW tasks first, so the e-mail below already shows the time
         let timeNote="";
         const special=!!($("#asSpecial")&&$("#asSpecial").checked);   // R192: Special (P1) right in the When step
-        if(when||special||dep){
+        if(when||special){
           try{ const fresh=await BPStore.ops.listTasks(quoteId); tasks=fresh||tasks;
             const mine=(fresh||[]).filter(x=>!before.has(x.id) && x.crew_id===c.id && titles.includes(x.title));
             for(const x of mine){
-              if(when||dep) await BPStore.ops.setSchedule(x.id, when?when.start:(x.planned_start||null), null, dep||x.depends_on||null);
               if(when){
+              await BPStore.ops.setSchedule(x.id, when.start, null, x.depends_on||null);
               if(when.mins!==undefined && trmSettings) await BPStore.ops.setReminders(x.id, when.mins);
               await saveRemTimes(x.id, when.at, false);
               }
@@ -793,9 +724,8 @@
             }
             if(when && mine.length){ const s=window.HelmTaskReminders?HelmTaskReminders.summary(Object.assign({}, mine[0], {planned_start:when.start, remind_before:when.mins===undefined?mine[0].remind_before:when.mins, remind_at:when.at}), trmSettings, clockOf):"";
               timeNote=` Starts ${fmtTime(when.start)}${s?", reminders "+s:""}.`; }
-            if(dep && mine.length){ const d0=tasks.find(x=>String(x.id)===dep); timeNote+=" Waits for "+((d0&&d0.title)||"the earlier task")+"."; }
             if(special && mine.length) timeNote+=" Marked special.";
-          }catch(e){ timeNote=" The start time or \"Waits for\" could not be saved on every task - set it with Change time in the task panel. ("+(e&&e.message?String(e.message).slice(0,120):"error")+")"; }
+          }catch(e){ timeNote=" The start time could not be saved on every task - set it with Change time in the task panel. ("+(e&&e.message?String(e.message).slice(0,120):"error")+")"; }
         }
         // R170 (0361): "Send by email" ticked -> e-mail their task list now; unticked -> the automatic e-mail is cancelled
         let mailNote="";
@@ -1156,10 +1086,8 @@
     schedule:(id)=>scheduleFlow(id), cancel:(id)=>openCancelTask(id), evidence:(id)=>openEvidence(id),
     mail:(b,id,all)=>sendMail(b,id,all), wa:(b,id)=>sendWa(b,id), copyLink:(b,id)=>copyStaffLink(b,id), permLink, copyNow, workerLink:workerLinkFor,
     verify:verifyTask, special:toggleSpecial,
-    sheetOpened:(preset, depId)=>{ setMsg(); lastOkMsg=""; resetAssignEmail(); renderSuggestions(); fillAsDep(preset, depId);
-      if(preset) setAsDay("keep"); else { setAsStep(window.OpsBoard&&OpsBoard.sheetStep?OpsBoard.sheetStep():"pre"); $("#selAll").checked=false; } },
-    // R251: the picked step + the start it would save (null = no start time / a vendor), for the "listed under" note
-    sheetPick:()=>({ step:asStep, start:$("#assignKind").value==="outsourced"||!(asDay==="before"||asDay==="event")?null:asStartISO(), vendor:$("#assignKind").value==="outsourced" }),
+    sheetOpened:(preset)=>{ setMsg(); lastOkMsg=""; resetAssignEmail(); renderSuggestions();
+      setAsDay(preset?"keep":(evDateStr()?"event":"none")); if(!preset){ $("#selAll").checked=false; } },
   };
   BPUI.boot(load);
 </script>

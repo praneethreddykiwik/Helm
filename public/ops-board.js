@@ -5,19 +5,17 @@
  *
  *   header       event, date, venue, Guests arrive (event time), countdown, one progress bar. "Venue opens" / "Ready by" show
  *                only when the event already carries them (no new database fields in this round).
- *   steps        R251 (owner 24 Nov): Day before / Pre-event / On the event, right under the header - the same three as the monitor,
- *                picked from the STUDIO's clock and the stage (HelmTaskStatus.opsMode + opsWindow; the note says why), can be
- *                flipped by hand in this tab. Each step shows its own cards, in its own order (ORDER); the header badge is always
- *                the REAL step. Wrap-up is no step: one closed section at the bottom (HelmEventWrap, event-steps.js), and the
- *                last card of Pre-event is "Mark pre-event complete" (HelmEventSteps, event-steps.js).
- *   Day before   "Get set up" shortcuts, "Tasks to sort out" with Fix ->, the Day-before checklist, the plan lock, the floor plan
- *   Pre-event    Ready by + latest starts, check-in, the floor plan, late set-up jobs, tasks, "Mark pre-event complete"
- *   On the event run-sheet now / next, late work (with the R186 escalation ladder), check-in, Issues quick-log (event_issues,
- *                Issues area) beside the activity log, tasks, the floor plan. Crew: Free that day / Busy elsewhere / Day off.
- *   views        By department / Timeline (lanes + Now line; phone = hour-by-hour agenda) / By person - each split by step first:
- *                Day before, Pre-event, On the event, Wrap-up (HelmTaskStatus.taskStep), with a done count per step
+ *   phase        Before the event / On the day: picked from the STUDIO's clock (organizations.timezone), can be flipped
+ *                R222 (EVENT-OPS-PLAN.md): HelmTaskStatus.opsMode - run-sheet, tasks on the day, Guests arrive and the stage
+ *                decide it, the note says why. Before: "Get set up" shortcuts. On the day: the run-sheet now / next timeline,
+ *                Issues quick-log (event_issues, Issues area) and "Mark event complete -> Settlement" (setStageGuided:
+ *                the 0198 gates, Quotes - Can change, admin override with a reason). Crew: Free that day / Busy elsewhere / Day off.
+ *   attention    before: "Ready for the day?" checklist, each line with Fix ->
+ *                on the day: Late (with the R186 escalation ladder), Can't-work requests (R187 Approve / Reject, only when
+ *                the server has them), Not checked in (Call)
+ *   views        Timeline (lanes + Now line; phone = hour-by-hour agenda) / List (no buttons on rows) / By person
  *   task panel   one panel per task with only the actions that make sense right now
- *   sheet        "+ Add & assign": when is this work / what / who / start time / tell them, bulk bar (Assign, Set time = move by, Special,
+ *   sheet        "+ Add & assign" in four steps (what / who / when / tell them), bulk bar (Assign, Set time = move by, Special,
  *                Send, Cancel)
  * Redraws only what changed: list rows are keyed and patched; the other blocks are rebuilt only when their content changed.
  * ONE refresh clock (30 s + at once when you come back to the tab), shared vocabulary + late rules from task-status.js.
@@ -50,7 +48,7 @@
     return { where: where, off: d, min: w.min, ymd: w.ymd };
   }
   var CHIPS = [
-    ["", "All"], ["late", "Late"], ["special", "Special"], ["none", "Not assigned"], ["down", "Turned down"], ["wait", "Not accepted yet"],
+    ["", "All"], ["late", "Late"], ["special", "Special"], ["none", "No one yet"], ["wait", "Waiting for a yes"],
     ["notime", "No time"], ["qc", "QC to check"], ["clash", "Can’t-work clash"], ["done", "Done"], ["cancelled", "Cancelled"]
   ];
   function chipTest(key, t, now, clash) {
@@ -61,7 +59,6 @@
       case "late": return TS.isLate(t, now);
       case "special": return !!t.is_special;
       case "none": return noOne(t);
-      case "down": return TS.baseKey(t) === "rejected";
       case "wait": return TS.baseKey(t) === "waiting" && !TS.isLate(t, now);
       case "notime": return !t.planned_start && t.status !== "completed";
       case "qc": return t.verify_status === "pending";
@@ -74,19 +71,18 @@
   function readyChecks(tasks, o) {
     o = o || {}; var live = (tasks || []).filter(function (t) { return t && t.status !== "cancelled"; });
     var n = function (f) { return live.filter(f).length; }, pl = function (k, w) { return k + " " + (k === 1 ? w : w === "person" ? "people" : w + "s"); };
-    var none = n(function (t) { return TS.baseKey(t) === "unassigned"; }), down = n(function (t) { return TS.baseKey(t) === "rejected"; });
+    var none = n(noOne);
     var notime = n(function (t) { return !t.planned_start && t.status !== "completed" && inHouse(t); });
     var clash = o.clash ? n(function (t) { return t.status !== "completed" && o.clash(t); }) : 0;
     var wait = n(function (t) { return TS.baseKey(t) === "waiting"; });
     var spNo = n(function (t) { return t.is_special && !t.planned_start && t.status !== "completed"; });
     var unsent = o.unsent == null ? null : o.unsent;
     var items = [
-      [none === 0, "Every task has a person", pl(none, "task") + " not assigned", "none"],
+      [none === 0, "Every task has a person", pl(none, "task") + " with no one yet", "none"],
       [notime === 0, "Every task has a start time", pl(notime, "task") + " with no start time (no reminders)", "notime"],
       [clash === 0, "No one is booked on a day they can’t work", pl(clash, "task") + " clash with a can’t-work day", "clash"],
-      [wait === 0, "Everyone accepted", pl(wait, "task") + " not accepted yet", "wait"],
-      [spNo === 0, "Special tasks have a time (so they can escalate)", pl(spNo, "special task") + " without a start time", "special"],
-      [down === 0, "No one turned work down", pl(down, "task") + " turned down - give " + (down === 1 ? "it" : "them") + " to someone else", "down"]
+      [wait === 0, "Everyone said yes", pl(wait, "task") + " still waiting for a yes", "wait"],
+      [spNo === 0, "Special tasks have a time (so they can escalate)", pl(spNo, "special task") + " without a start time", "special"]
     ];
     if (unsent != null) items.push([unsent === 0, "Everyone has been sent their tasks", pl(unsent, "person") + " not sent their tasks yet (Email / WhatsApp)", "people"]);
     if (!live.length) items = [[false, "", "No tasks yet - add the work for this event", "add"]];
@@ -164,47 +160,20 @@
     if (next >= 0) { rows[next].state = "next"; rows[next].inMin = rows[next].s - nowMin; }
     return rows;
   }
-  // R251: where a new task's start time begins for a step: minutes on the event day + how many days off (never past midnight "by hand")
-  //   daybefore 6 PM the evening before; pre Venue opens, else 2 h before Ready by, else 3 h before guests (always before guests);
-  //   onday Guests arrive; wrapup after the last run-sheet item, else 3 h after guests.  o: { guests, venue, ready, runEnd } minutes / NaN
-  function stepStart(step, o) {
-    o = o || {}; var g = +o.guests, v = +o.venue, r = +o.ready, e = +o.runEnd, G0 = o.guests != null && isFinite(g), m;
-    if (step === "daybefore") return { off: -1, min: 1080 };
-    if (step === "onday") return { off: 0, min: G0 ? g : 1080 };
-    if (step === "wrapup") { m = o.runEnd != null && isFinite(e) && (!G0 || e > g) ? e : G0 ? g + 180 : 1320; m = Math.ceil(m / 5) * 5; return { off: Math.floor(m / 1440), min: m % 1440 }; }
-    m = o.venue != null && isFinite(v) && (!G0 || v < g) ? v : o.ready != null && isFinite(r) && (!G0 || r <= g) ? r - 120 : G0 ? g - 180 : 540;
-    if (G0 && m >= g) m = g - 60;
-    return { off: 0, min: Math.max(0, m) };
-  }
-  // when the last run-sheet item ends, in minutes from midnight of the event day (an item before 6 AM after an afternoon start = after midnight)
-  function runEnd(items, guests) {
-    var late = guests != null && isFinite(guests) && guests >= 720, best = NaN;
-    (items || []).forEach(function (x) { var st = TS.hmMin(x && x.start_time); if (!isFinite(st)) return; if (late && st < 360) st += 1440;
-      var d = Number(x.duration_min), e = st + (isFinite(d) && d > 0 ? d : 0); if (!isFinite(best) || e > best) best = e; });
-    return best;
-  }
-  // which step groups start folded on a step's tab (a filter or search opens all of them): while planning (Day before) everything is open;
-  // on the event day only the step's own work (and Wrap-up once the event is over) - a folded head still says done / to give out / late
-  function foldDefault(win, step, autoWin) { return !(win === "daybefore" || step === win || (step === "wrapup" && autoWin === "wrapup")); }
-  // what the header badge says: the REAL step, never the one somebody is looking at
-  function badgeOf(autoWin, stage) {
-    if (autoWin === "wrapup") return stage === "settlement" || stage === "closed" ? { text: "Complete", cls: "over" } : { text: "Event over", cls: "over" };
-    return autoWin === "onday" ? { text: "Event day - live", cls: "live" } : autoWin === "pre" ? { text: "Pre-event", cls: "pre" } : { text: "Planning", cls: "plan" };
-  }
   function rowSig(o) { try { return JSON.stringify(o); } catch (e) { return String(Math.random()); } }
 
   /* ======================= the page ======================= */
-  if (!doc || !doc.getElementById) { global.OpsBoard = { _pure: { moveBy: moveBy, suggestShift: suggestShift, slot: slot, chipTest: chipTest, readyChecks: readyChecks, notCheckedIn: notCheckedIn, stackRows: stackRows, CHIPS: CHIPS, availWord: availWord, crewDay: crewDay, runRows: runRows, stepStart: stepStart, runEnd: runEnd, foldDefault: foldDefault, badgeOf: badgeOf } }; return; }
+  if (!doc || !doc.getElementById) { global.OpsBoard = { _pure: { moveBy: moveBy, suggestShift: suggestShift, slot: slot, chipTest: chipTest, readyChecks: readyChecks, notCheckedIn: notCheckedIn, stackRows: stackRows, CHIPS: CHIPS, availWord: availWord, crewDay: crewDay, runRows: runRows } }; return; }
 
   var S = {
     started: false, phase: null, manual: null, view: "list", chip: "", q: "", sel: {}, openId: null, folded: {},
     acts: null, sheet: {}, hasSheet: false, avail: {}, req: null, escCfg: null, preset: null, sendIds: null,
     sigs: {}, rows: {}, groups: {}, viewKey: "", timer: null, lastFocus: null, layer: null, deepDone: false,
     // R222: run-sheet (null = can't read it), issues (null = can't read), what this role may do, the mode and why
-    rs: null, rsAt: 0, iss: null, perm: null, mode: null,
+    rs: null, rsAt: 0, iss: null, perm: null, mode: null, stageBusy: false, blk: null, blkKey: "",
     dayStat: {}, dayAt: 0, dayKey: "",  // crew_day_status per studio day: { crew_id: [codes] } | null (server without it)
-    // R251: the step on screen (win), the real one (autoWin: also "wrapup"), its tab (autoStep); R226 (0396) the event day plan (null = no 0396)
-    win: null, autoWin: null, autoStep: null, plan: null, planAt: 0, steps: {}, stepFold: {}, addStep: null,
+    // R226 (0396): the four windows (Before the event / Day before / On the day / Wrap-up) and the event day plan (null = no 0396)
+    win: null, autoWin: null, plan: null, planAt: 0,
     // R230 (0399): the department supervisors of this event (null = server without 0399 -> no supervisor UI at all)
     sup: null, supAt: 0
   };
@@ -230,13 +199,15 @@
   function errText(e, action) { try { return global.BPUI.friendlyError(e, { action: action }); } catch (x) { return "Couldn't " + action + " - try again."; } }
   function lsGet(k) { try { return global.localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { global.localStorage.setItem(k, v); } catch (e) {} }
+  function ssGet(k) { try { return global.sessionStorage.getItem(k); } catch (e) { return null; } }
+  function ssSet(k, v) { try { if (v == null) global.sessionStorage.removeItem(k); else global.sessionStorage.setItem(k, v); } catch (e) {} }
 
   /* ---- studio clock ---- */
   function tz() { try { return B().studioTimezone(); } catch (e) { return "Asia/Kolkata"; } }
   function loc() { try { return B().studioLocale(); } catch (e) { return "en-IN"; } }
   // per-redraw memo (cleared at the start of every update): 100+ tasks x many lookups stay cheap
-  var M = { wall: {}, clock: {}, crew: null, live: null, step: {}, by: null };
-  function memoReset() { M = { wall: {}, clock: {}, crew: null, live: null, step: {}, by: null }; }
+  var M = { wall: {}, clock: {}, crew: null, live: null };
+  function memoReset() { M = { wall: {}, clock: {}, crew: null, live: null }; }
   function wall(iso) { var k = String(iso); if (Object.prototype.hasOwnProperty.call(M.wall, k)) return M.wall[k]; return (M.wall[k] = wall0(iso)); }
   function wall0(iso) {
     var d = new Date(iso); if (!iso || isNaN(d.getTime())) return null;
@@ -331,13 +302,6 @@
     return h("span", { cls: "tc-r-time" }, [clock(t.planned_start), small ? h("small", { text: small }) : null]);
   }
 
-  /* ---- R251: which step a task belongs to (Day before / Pre-event / On the event / Wrap-up) ---- */
-  function stepO() { return { eventDate: evDate(), eventTime: (G().quote || {}).eventTime, tz: tz() }; }
-  function stepOfTask(t) { var k = String(t.id); if (!M.step[k]) M.step[k] = TS.taskStep(t, stepO()); return M.step[k]; }
-  function byStep() { if (!M.by) M.by = TS.bySteps(G().tasks, stepO()); return M.by; }
-  function preLeft() { return S.autoWin === "daybefore" || S.autoWin === "pre" ? byStep().pre.unassigned : 0; }   // a hint for planning, gone once the event is on
-  function allocHint() { var n = preLeft(); return n ? "Allocate pre-event work first - " + n + " left" : ""; }
-
   /* ---- filters ---- */
   function matchQ(t, q) { if (!q) return true; return [t.title, t.category, nameOf(t)].join(" ").toLowerCase().indexOf(q) >= 0; }
   function sortKey(t) { var s = ms(t.planned_start); return isFinite(s) ? s : 9e15; }
@@ -348,29 +312,39 @@
   }
 
   /* ======================= render ======================= */
+  function phaseKey() { return "helm.tc.phase." + (G().quoteId || ""); }
   function modeNow() {
     var q = G().quote || {};
     return TS.opsMode({ eventDate: evDate(), eventTime: q.eventTime, stage: q.lifecycleStage || q.lifecycle_stage, status: q.status,
       tasks: G().tasks, runsheet: S.rs, now: Date.now(), tz: tz() });
   }
-  // R251: the step is the studio's clock + the stage (TS.opsWindow), nothing else (owner: studio time only). Tapping another tab only looks
-  // at it: nothing is stored, a reload - or the clock reaching a new step - goes back to the real one.
+  // R226: the window from the clock (TS.opsWindow) + a hand pick kept per event in this tab (an R222 "plan" / "live" pick = Before / On the day)
   function setPhaseAuto() {
-    S.mode = modeNow(); var q = G().quote || {}, was = S.autoStep;
-    S.autoWin = TS.opsWindow(S.mode, { eventDate: evDate(), eventTime: q.eventTime, stage: stageOf(), now: Date.now(), tz: tz() });
-    S.autoStep = TS.stepOf(S.autoWin);
-    if (S.manual === S.autoStep || (was && was !== S.autoStep)) S.manual = null;
-    S.win = S.manual || S.autoStep; S.phase = TS.WIN_PHASE[S.win]; S.auto = TS.WIN_PHASE[S.autoWin];
-  }
-  function pickWin(w) {
-    w = TS.normWin(w); if (!w) return;
-    S.manual = w === S.autoStep ? null : w; S.win = w; S.phase = TS.WIN_PHASE[w]; S.sigs = {}; update();
-    if (S.phase === "live" && S.iss === null) loadExtras().then(update);
+    S.mode = modeNow(); var key = phaseKey();
+    S.autoWin = TS.opsWindow(S.mode, { eventDate: evDate(), now: Date.now(), tz: tz() });
+    var m = ssGet(key); m = m === "plan" ? "before" : m === "live" ? "onday" : m;
+    S.manual = TS.winOk(m) ? m : null;
+    if (S.manual === S.autoWin) { ssSet(key, null); S.manual = null; }   // a hand pick that now matches the clock is no longer "by hand"
+    S.win = S.manual || S.autoWin; S.phase = TS.WIN_PHASE[S.win]; S.auto = TS.WIN_PHASE[S.autoWin];
   }
   function winWord(w) { var r = (TS.WINDOWS || []).filter(function (x) { return x[0] === w; })[0]; return r ? r[1] : ""; }
+  // the note beside the switch: why this mode (studio clock)
+  function modeWhy(m) {
+    if (!m) return "";
+    var at = function (t) { var iso = new Date(t).toISOString(), w = wall(iso); return (w && w.ymd !== today() ? dayWords(w.ymd) + ", " : "") + clock(iso); };
+    switch (m.step) {
+      case "cancelled": return "This event is cancelled";
+      case "done": return "The event is complete - next: Settlement";
+      case "nodate": return "No event date yet";
+      case "before": case "soon": return "On the day starts " + at(m.from);
+      case "on": return "Event day - started " + at(m.from);
+      case "over": return "The event day is over - mark it complete below";
+    }
+    return "";
+  }
   function renderHeader() {
     var g = G(), q = g.quote || {}, host = $("#evhead"); if (!host) return;
-    var sm = TS.summarize(g.tasks), ev = evDate(), live = S.auto === "live";   // R251: the real step, never the tab on screen
+    var sm = TS.summarize(g.tasks), ev = evDate(), live = S.phase === "live";
     var c = q.client || {};
     var venue = q.venue || c.venue || c.address || "", guests = q.guests || (q.pricing && q.pricing.guests) || c.guests || "";
     // owner hasn't approved "Venue opens" / "Ready by" fields yet: show them only when the event already has them
@@ -382,7 +356,7 @@
       if (!readyBy && isFinite(rb)) readyBy = clock(new Date(rb).toISOString());
     }
     var guestsAt = String(q.eventTime || "").trim();
-    var bd = badgeOf(S.autoWin, stageOf()), pill = h("span", { cls: "tc-pill " + bd.cls, id: "tcBadge", text: bd.text });
+    var pill = h("span", { cls: "tc-pill" + (live ? "" : " plan"), text: live ? "Event day - live" : "Planning" });
     var main = h("div", { cls: "tc-ev-main" }, [
       h("div", { cls: "tc-ev-id" }, [h("span", { cls: "tc-ev-code", text: q.code || "" }), pill, q.status && q.status !== "confirmed" ? h("span", { cls: "tc-tag box", text: q.status }) : null]),
       h("h2", { cls: "tc-ev-title", id: "evTitle", text: q.title || q.code || "Event" }),
@@ -399,11 +373,11 @@
     tile(cd[0], cd[1], "count", "tcCountdown");
     var bar = h("div", { cls: "tc-bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(sm.pct), "aria-label": sm.pct + "% of tasks done" }, [h("span")]);
     bar.firstChild.style.width = sm.pct + "%";
-    var txt = h("span", { cls: "tc-progress-txt" }, [h("b", { text: sm.done + " of " + sm.total }), " done · " + sm.started + " started" + (sm.waiting ? " · " + sm.waiting + " not accepted yet" : "")]);
+    var txt = h("span", { cls: "tc-progress-txt" }, [h("b", { text: sm.done + " of " + sm.total }), " done · " + sm.started + " started" + (sm.waiting ? " · " + sm.waiting + " waiting for a yes" : "")]);
     if (sm.late) { txt.appendChild(doc.createTextNode(" · ")); txt.appendChild(h("b", { cls: "bad", text: sm.late + " late" })); }
     var foot = h("div", { cls: "tc-ev-foot" }, [h("div", { cls: "tc-progress" }, [bar, txt])]);
     var tzN = tzNote(); if (tzN) foot.appendChild(h("p", { cls: "tc-tznote", text: tzN }));
-    var sig = rowSig([q.code, q.title, q.status, ev, venue, guests, guestsAt, venueOpens, readyBy, bd, sm, cd, tzN, mine]);
+    var sig = rowSig([q.code, q.title, q.status, ev, venue, guests, guestsAt, venueOpens, readyBy, live, sm, cd, tzN, mine]);
     if (S.sigs.head === sig) return; S.sigs.head = sig;
     clear(host); host.appendChild(main); host.appendChild(dl); host.appendChild(foot);
     host.setAttribute("aria-labelledby", "evTitle");
@@ -413,8 +387,6 @@
   function countdown(ev, hm, live, isReady) {
     if (!ev) return ["Countdown", "No date yet"];
     var d = TS.dayDiff(today(), ev);
-    if (S.autoWin === "wrapup" && d === 0) return ["Event", "Over"];
-    if (S.autoWin === "onday" && d === -1) return ["Event day", "On now"];   // after midnight, still running
     if (!live || d !== 0) {
       if (d > 1) return ["Event in", d + " days"]; if (d === 1) return ["Event", "Tomorrow"];
       if (d < 0) return ["Event was", (-d) + (d === -1 ? " day ago" : " days ago")];
@@ -429,86 +401,24 @@
     if (left <= 0) return [isReady ? "Ready by" : "Guests arrived", left > -60 ? (-left) + " min ago" : "On now"];
     return [lbl, dur(left)];
   }
-  // the three step tabs: the picked one, a "now" mark on the real one, and each step's done count
   function renderPhase() {
-    var row = $("#tcPhase"); if (!row) return; var by = byStep();
-    Array.prototype.forEach.call(row.querySelectorAll("[data-win]"), function (b) {
-      var w = b.getAttribute("data-win"), now = w === S.autoWin, st = by[w] || { done: 0, total: 0 };
-      b.setAttribute("aria-pressed", String(w === S.win));
-      b.classList.toggle("is-now", now); if (now) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
-      var n = b.querySelector(".tc-seg-n"); if (!n) { n = h("span", { cls: "tc-seg-n" }); b.appendChild(n); }
-      var txt = st.total ? st.done + "/" + st.total : "", sr = (st.total ? ", " + st.done + " of " + st.total + " tasks done" : "") + (now ? ", now" : "");
-      if (n._sig !== txt + sr) { n._sig = txt + sr; clear(n); if (txt) n.appendChild(h("span", { "aria-hidden": "true", text: txt })); n.appendChild(h("span", { cls: "tc-sr", text: sr })); }
-    });
-  }
-  /* R251: each step's cards, top to bottom. The nodes are MOVED (not hidden behind order:), so reading and tabbing follow the eye.
-     While the plan is locked the lock bar goes first in every step ("bar above"); unlocked it sits just above the floor plan. */
-  var ORDER = {
-    daybefore: ["tcPrep", "tcDayBefore", "attn", "tcReady", "work", "tcLock", "tcFloor", "tcCrewCard", "tcActCard", "trmCardOps"],
-    pre: ["tcReady", "attn", "tcLate", "tcCrewCard", "tcLock", "tcFloor", "work", "tcPreDone", "tcActCard", "trmCardOps"],
-    onday: ["tcRun", "tcLate", "tcIssues", "tcActCard", "attn", "work", "tcLock", "tcFloor", "tcCrewCard", "trmCardOps"]
-  };
-  function renderFlow() {
-    var f = $("#tcFlow"); if (!f) return; var ids = (ORDER[S.win] || ORDER.daybefore).slice();
-    if (planLocked()) { ids.splice(ids.indexOf("tcLock"), 1); ids.unshift("tcLock"); }
-    f.setAttribute("data-win", S.win);
-    var want = ids.map(function (id) { return doc.getElementById(id); }).filter(Boolean);
-    var rest = Array.prototype.filter.call(f.children, function (n) { return want.indexOf(n) < 0; });   // the cards of the other steps (hidden) stay last
-    var fk = doc.activeElement && f.contains(doc.activeElement) ? doc.activeElement : null;
-    want.concat(rest).forEach(function (n, i) { if (f.children[i] !== n) f.insertBefore(n, f.children[i] || null); });
-    if (fk && fk !== doc.activeElement && fk.isConnected) try { fk.focus({ preventScroll: true }); } catch (e) {}
-    // half-width cards come in pairs; one left alone takes the whole row, so no empty half page is left
-    var half = function (n) { return n.classList.contains("tc-half") || n.id === "tcIssues" || (n.id === "attn" && S.win === "pre"); }, run = [];
-    function flush() { run.forEach(function (n, i) { n.classList.toggle("is-half", !(run.length % 2 && i === run.length - 1)); }); run = []; }
-    want.concat(rest).forEach(function (n) {
-      if (n.hidden || (n.classList.contains("tc-attn") && !n.firstChild)) { n.classList.remove("is-half"); return; }
-      if (half(n)) run.push(n); else { flush(); n.classList.remove("is-half"); }
-    });
-    flush();
-  }
-  // one filled button per step: Day before = Add & assign, Pre-event = Mark pre-event complete, On the event = Log an issue
-  function renderPrimary() {
-    var add = $("#addBtn"); if (!add) return;
-    var pd = $("#tcPreDone"), st = stageOf(), other = S.win === "pre" ? !!(pd && !pd.hidden && S.perm && S.perm.stageEdit && ["event_day", "settlement", "closed"].indexOf(st) < 0) : S.win === "onday" ? !!$("#tcLogIssue") && !$("#tcIssues").hidden : false;
-    add.classList.toggle("tc-primary", !other);
+    var row = $("#tcPhase"); if (!row) return;
+    Array.prototype.forEach.call(row.querySelectorAll("[data-phase]"), function (b) { var w = b.getAttribute("data-win"); b.setAttribute("aria-pressed", String(w ? w === S.win : b.getAttribute("data-phase") === S.phase)); });
+    var why = modeWhy(S.mode), note = $("#tcPhaseNote");
+    if (note) note.textContent = S.manual ? "Picked by hand · the studio’s clock says " + winWord(S.autoWin) + (why ? " (" + why + ")" : "")
+      : "From the studio’s clock" + (why ? " · " + why : "");
+    var reset = $("#tcPhaseAuto"); if (reset) reset.hidden = !S.manual;
   }
 
   /* ---- needs attention ---- */
-  // R187 (0370): can't-work requests of the people on this event (hidden when the server doesn't have the approval step).
-  // always = show "No requests waiting" too (the event-day steps); Day before shows the box only when somebody asked
-  function requestBox(ts, sigParts, always) {
-    var shifts = B() && B().ops && B().ops.shifts;
-    if (S.req && shifts && typeof shifts.decide === "function") {
-      var onEvent = {}; ts.forEach(function (t) { if (t.crew_id) onEvent[t.crew_id] = 1; });
-      var days = {}; ts.forEach(function (t) { days[taskDay(t)] = 1; }); days[evDate()] = 1;
-      var items = (S.req.items || []).filter(function (r) { return r && r.approval === "pending" && onEvent[r.crew_id] && days[String(r.day).slice(0, 10)]; });
-      sigParts.push(items.map(function (r) { return r.id; }), !!S.req.can_decide);
-      if (!items.length && !always) return null;
-      var rb = h("div", { cls: "tc-box " + (items.length ? "warn" : "ok"), role: "region", "aria-label": "Can't-work requests" }, [h("h3", {}, ["Can’t-work requests ", h("span", { cls: "tc-n", text: String(items.length) })])]);
-      if (!items.length) rb.appendChild(h("p", { cls: "tc-aempty", text: "No requests waiting." }));
-      items.forEach(function (r) {
-        var n = ts.filter(function (t) { return t.crew_id === r.crew_id && t.status !== "completed" && taskDay(t) === String(r.day).slice(0, 10); }).length;
-        var row = h("div", { cls: "tc-arow" }, [h("span", { cls: "grow" }, [h("b", { text: r.name || "Staff" }), " asked for " + dayWords(r.day) + " off",
-          h("span", { cls: "tc-sub", text: (r.note ? "“" + r.note + "” · " : "") + "has " + n + " task" + (n === 1 ? "" : "s") + " here that day" })])]);
-        if (S.req.can_decide) {
-          row.appendChild(h("button", { type: "button", cls: "tc-btn sm green", text: "Approve", on: { click: function (e) { decide(e.currentTarget, r, "approve", n); } } }));
-          row.appendChild(h("button", { type: "button", cls: "tc-btn sm", text: "Reject", on: { click: function (e) { decide(e.currentTarget, r, "reject", n); } } }));
-        } else row.appendChild(h("span", { cls: "tc-sub", text: "An admin or someone who can edit Staff decides" }));
-        rb.appendChild(row);
-      });
-      return rb;
-    }
-    return null;
-  }
   function renderAttn() {
     var host = $("#attn"); if (!host) return;
     var now = Date.now(), g = G(), ts = liveTasks();
-    var out = [], sigParts = [S.phase, S.win, Math.floor(now / 60000)];
+    var out = [], sigParts = [S.phase, Math.floor(now / 60000)];
     if (S.phase === "live") {
-      var lateHost = $("#tcLate"), lateSig = [Math.floor(now / 60000)];
       var late = ts.filter(function (t) { return TS.isLate(t, now); }).sort(function (a, b) { return ms(a.planned_start) - ms(b.planned_start); });
       announce(late.length);
-      lateSig.push(canEdit(), late.map(function (t) { return [t.id, t.status, t.planned_start, t.is_special, TS.escStep(t, S.acts, S.escCfg, now)]; }));
+      sigParts.push(late.map(function (t) { return [t.id, t.status, t.planned_start, t.is_special, TS.escStep(t, S.acts, S.escCfg, now)]; }));
       var box = h("div", { cls: "tc-box bad", role: "region", "aria-label": "Late - not started" }, [h("h3", {}, ["Late - not started ", h("span", { cls: "tc-n", text: String(late.length) })])]);
       if (!late.length) { box.className = "tc-box ok"; box.appendChild(h("p", { cls: "tc-aempty", text: "Nothing late. Good." })); }
       late.slice(0, 12).forEach(function (t) {
@@ -517,13 +427,33 @@
           h("span", { cls: "tc-sub", text: (nameOf(t) || "No one") + " · due " + clock(t.planned_start) + " · " + dur(TS.lateMin(t, now)) + " late" + (TS.baseKey(t) === "waiting" ? " · not accepted yet" : "") + (esc ? " · " + TS.escBadge(esc, clock) : "") })]);
         if (step >= 0) info.appendChild(ladderEl(step));
         var row = h("div", { cls: "tc-arow" }, [info]);
-        if (canEdit() && t.crew_id && inHouse(t)) row.appendChild(h("button", { type: "button", cls: "tc-btn sm", "data-key": "nudge:" + t.id, text: "Nudge", title: "E-mail this task to " + (nameOf(t) || "them") + " again now", on: { click: function (e) { P().mail(e.currentTarget, t.id, false); } } }));
-        row.appendChild(h("button", { type: "button", cls: "tc-btn sm", "data-key": "late:" + t.id, text: "Open", "aria-label": "Open " + (t.title || "task"), on: { click: function () { openTask(t.id); } } }));
+        if (canEdit() && t.crew_id && inHouse(t)) row.appendChild(h("button", { type: "button", cls: "tc-btn sm", text: "Nudge", title: "E-mail this task to " + (nameOf(t) || "them") + " again now", on: { click: function (e) { P().mail(e.currentTarget, t.id, false); } } }));
+        row.appendChild(h("button", { type: "button", cls: "tc-btn sm", text: "Open", "aria-label": "Open " + (t.title || "task"), on: { click: function () { openTask(t.id); } } }));
         box.appendChild(row);
       });
-      if (late.length > 12) box.appendChild(h("button", { type: "button", cls: "tc-btn sm ghost", text: "See all " + late.length + " late tasks", on: { click: function () { setChip("late"); toWork(); } } }));
-      if (lateHost) { var ls = rowSig(lateSig); if (S.sigs.late !== ls) { S.sigs.late = ls; var lk = focusKey(lateHost); clear(lateHost); lateHost.appendChild(box); restoreFocus(lateHost, lk); } lateHost.hidden = false; }
-      var rb = requestBox(ts, sigParts, true); if (rb) out.push(rb);   // R251: check-in comes first (below)
+      if (late.length > 12) box.appendChild(h("button", { type: "button", cls: "tc-btn sm ghost", text: "See all " + late.length + " late tasks", on: { click: function () { setChip("late"); } } }));
+      out.push(box);
+      // R187 (0370): can't-work requests of the people on this event (hidden when the server doesn't have the approval step)
+      var shifts = B() && B().ops && B().ops.shifts;
+      if (S.req && shifts && typeof shifts.decide === "function") {
+        var onEvent = {}; ts.forEach(function (t) { if (t.crew_id) onEvent[t.crew_id] = 1; });
+        var days = {}; ts.forEach(function (t) { days[taskDay(t)] = 1; }); days[evDate()] = 1;
+        var items = (S.req.items || []).filter(function (r) { return r && r.approval === "pending" && onEvent[r.crew_id] && days[String(r.day).slice(0, 10)]; });
+        sigParts.push(items.map(function (r) { return r.id; }), !!S.req.can_decide);
+        var rb = h("div", { cls: "tc-box " + (items.length ? "warn" : "ok"), role: "region", "aria-label": "Can't-work requests" }, [h("h3", {}, ["Can’t-work requests ", h("span", { cls: "tc-n", text: String(items.length) })])]);
+        if (!items.length) rb.appendChild(h("p", { cls: "tc-aempty", text: "No requests waiting." }));
+        items.forEach(function (r) {
+          var n = ts.filter(function (t) { return t.crew_id === r.crew_id && t.status !== "completed" && taskDay(t) === String(r.day).slice(0, 10); }).length;
+          var row = h("div", { cls: "tc-arow" }, [h("span", { cls: "grow" }, [h("b", { text: r.name || "Staff" }), " asked for " + dayWords(r.day) + " off",
+            h("span", { cls: "tc-sub", text: (r.note ? "“" + r.note + "” · " : "") + "has " + n + " task" + (n === 1 ? "" : "s") + " here that day" })])]);
+          if (S.req.can_decide) {
+            row.appendChild(h("button", { type: "button", cls: "tc-btn sm green", text: "Approve", on: { click: function (e) { decide(e.currentTarget, r, "approve", n); } } }));
+            row.appendChild(h("button", { type: "button", cls: "tc-btn sm", text: "Reject", on: { click: function (e) { decide(e.currentTarget, r, "reject", n); } } }));
+          } else row.appendChild(h("span", { cls: "tc-sub", text: "An admin or someone who can edit Staff decides" }));
+          rb.appendChild(row);
+        });
+        out.push(rb);
+      }
       if (S.hasSheet) {
         var nci = notCheckedIn(ts, S.sheet, now);
         sigParts.push(nci);
@@ -536,13 +466,13 @@
           if (ph) row.appendChild(h("a", { cls: "tc-btn sm", href: "tel:" + ph, text: "Call", "aria-label": "Call " + (c.name || "them") }));
           cb.appendChild(row);
         });
-        out.unshift(cb);
+        out.push(cb);
       }
     } else {
       var items2 = readyChecks(g.tasks, { clash: clashOf, unsent: unsentCount() });
       sigParts.push(items2);
       var todo = items2.filter(function (i) { return !i[0]; }).length;
-      var rbox = h("div", { cls: "tc-box wide " + (todo ? "warn" : "ok"), role: "region", "aria-label": "Tasks to sort out" }, [h("h3", {}, ["Tasks to sort out ", h("span", { cls: "tc-n", text: (items2.length - todo) + " / " + items2.length })])]);
+      var rbox = h("div", { cls: "tc-box wide " + (todo ? "warn" : "ok"), role: "region", "aria-label": "Ready for the day?" }, [h("h3", {}, ["Ready for the day? ", h("span", { cls: "tc-n", text: (items2.length - todo) + " / " + items2.length })])]);
       var grid = h("div", { cls: "tc-checks" });
       items2.forEach(function (i) {
         var b = h("button", { type: "button", cls: "tc-check " + (i[0] ? "done" : "todo"), disabled: i[0] || (i[3] === "add" && !canEdit()) ? true : null },
@@ -551,10 +481,7 @@
         grid.appendChild(b);
       });
       rbox.appendChild(grid); out.push(rbox);
-      var rq = requestBox(ts, sigParts, false); if (rq) out.push(rq);
-      var lh = $("#tcLate"); if (lh) lh.hidden = true;
     }
-    if (out.length === 1) out[0].classList.add("wide");
     var sig = rowSig(sigParts); if (S.sigs.attn === sig) return; S.sigs.attn = sig;
     var keep = focusKey(host); clear(host); out.forEach(function (n) { host.appendChild(n); }); restoreFocus(host, keep);
   }
@@ -570,9 +497,8 @@
   function fix(k) {
     if (k === "add") { openSheet(null); return; }
     if (k === "people") setView("people"); else { S.chip = k; if (S.view === "people") S.view = "list"; }
-    update(); toWork();
+    update(); try { $("#work").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {}
   }
-  function toWork() { try { $("#work").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} }
   async function decide(btn, r, what, n) {
     var B0 = B(), note = null;
     if (what === "reject") {
@@ -607,74 +533,26 @@
   /* ---- views ---- */
   function setView(v) { S.view = v; lsSet("helm.tc.view2", v); update(); }
   function renderViewBtns() { Array.prototype.forEach.call(doc.querySelectorAll("#tcViews [data-view]"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-view") === S.view)); }); }
+  function phone() { try { return global.matchMedia("(max-width:640px)").matches; } catch (e) { return false; } }
   function emptyBox() {
     if (S.q || S.chip) return h("div", { cls: "tc-empty" }, [h("b", { text: "Nothing matches" }), "Try another word, or clear the filter.", h("br"),
       h("button", { type: "button", cls: "tc-btn", text: "Clear filters", on: { click: function () { S.q = ""; S.chip = ""; var i = $("#tcQ"); if (i) i.value = ""; update(); } } })]);
     return h("div", { cls: "tc-empty" }, [h("b", { text: "No tasks yet for this event" }), "Start from your studio’s checklist (stage, flowers, lighting...) and give each task to a person.", h("br"),
-      canEdit() && planLocked() ? h("span", { cls: "tc-sub", text: "The plan is locked for the event day - unlock it (bar above) to add tasks." }) : canEdit() ? h("button", { type: "button", cls: "tc-btn", text: "+ Add & assign", on: { click: function () { openSheet(null); } } }) : h("span", { cls: "tc-sub", text: "Your role can view this page only. To give out work, an admin switches on \u201cAssign & send tasks\u201d for your role (Settings \u2192 Users & invites \u2192 Access control)." })]);
+      canEdit() && planLocked() ? h("span", { cls: "tc-sub", text: "The plan is locked for the event day - unlock it (bar above) to add tasks." }) : canEdit() ? h("button", { type: "button", cls: "tc-btn tc-primary", text: "+ Add & assign", on: { click: function () { openSheet(null); } } }) : h("span", { cls: "tc-sub", text: "Your role can view this page only. To give out work, an admin switches on \u201cAssign & send tasks\u201d for your role (Settings \u2192 Users & invites \u2192 Access control)." })]);
   }
-  function narrow() { try { return global.matchMedia("(max-width:760px)").matches; } catch (e) { return false; } }
-  /* R251: every view is split by step first (Day before, Pre-event, On the event, Wrap-up) with a done count each; inside a step the view
-     keeps its own grouping. A step's head folds it; on a step's tab its own work is open, later work starts folded (foldDefault). */
   function renderView() {
     var v = $("#view"); if (!v) return;
-    var key = S.view + (S.view === "timeline" ? (narrow() ? ":phone" : ":wide") : "");
-    if (S.viewKey !== key) { clear(v); S.rows = {}; S.groups = {}; S.steps = {}; S.sigs.empty = ""; S.sigs.more = ""; S.viewKey = key; }
+    var key = S.view + (S.view === "timeline" ? (phone() ? ":phone" : ":wide") : "");
+    if (S.viewKey !== key) { clear(v); S.rows = {}; S.groups = {}; S.sigs.view = ""; S.viewKey = key; }
     var ts = filtered();
     v.setAttribute("aria-busy", "false");
-    if (!ts.length) {
-      S.rows = {}; S.groups = {}; S.steps = {};
-      var esig = rowSig([S.q, S.chip, canEdit(), planLocked()]);
-      if (!v.querySelector(".tc-empty") || S.sigs.empty !== esig) { clear(v); v.appendChild(emptyBox()); S.sigs.empty = esig; }
-      return;
-    }
-    var em = v.querySelector(".tc-empty"); if (em) em.remove();
-    var by = {}, stats = byStep(), hint = allocHint(), keepRows = {}, keepGrps = {}, at = 0;
-    ts.forEach(function (t) { var w = stepOfTask(t); (by[w] = by[w] || []).push(t); });
-    TS.WINDOWS.forEach(function (W) {
-      var w = W[0], list = by[w], sec = S.steps[w];
-      if (!list) { if (sec) { sec.el.remove(); delete S.steps[w]; } return; }
-      if (!sec) sec = S.steps[w] = stepSec(W);
-      var st = stats[w], late = st.tasks.filter(function (t) { return TS.isLate(t); }).length, open = !stepFolded(w), hs = rowSig([st.done, st.total, st.unassigned, late, open, w === S.win, list.length, S.q, S.chip]);
-      if (sec.sig !== hs) {
-        sec.sig = hs;
-        sec.el.classList.toggle("is-here", w === S.win); sec.el.classList.toggle("is-folded", !open);
-        clear(sec.head);
-        [h("span", { cls: "fold", "aria-hidden": "true", text: "\u25be" }), h("b", { text: W[1] }), h("span", { cls: "mini", text: st.done + " of " + st.total + " done" }),
-          st.unassigned ? h("span", { cls: "tc-st unassigned", text: st.unassigned + " to give out" }) : null,
-          late ? h("span", { cls: "tc-st late", text: late + " late" }) : null,
-          S.q || S.chip ? h("span", { cls: "mini", text: list.length + " shown" }) : null].forEach(function (n) { if (n) sec.head.appendChild(n); });
-        sec.head.setAttribute("aria-expanded", String(open)); sec.body.hidden = !open;
-      }
-      // hint only, never blocks: pre-event work is given out before the on-event work
-      var ht = w === "onday" && canEdit() ? hint : "";
-      if (sec.hint.textContent !== ht) sec.hint.textContent = ht; sec.hint.hidden = !ht;
-      if (S.view === "list") renderGroups(sec, w, list, keepRows, keepGrps);
-      else {
-        var bs = rowSig([key, list.map(rowData), S.sel, Math.floor(Date.now() / 300000), S.phase, S.view === "timeline" ? Math.round(v.clientWidth / 40) : 0, S.view === "people" ? personSig() : 0]);
-        if (sec.bsig !== bs) { sec.bsig = bs; var keep = focusKey(sec.body); clear(sec.body); sec.body.appendChild(S.view === "timeline" ? viewTimeline(list, w) : viewPeople(list, w)); restoreFocus(sec.body, keep); paint(sec.body); }
-      }
-      if (v.children[at] !== sec.el) v.insertBefore(sec.el, v.children[at] || null);
-      at++;
-    });
-    if (S.view === "list") {
-      Object.keys(S.groups).forEach(function (k) { if (!keepGrps[k]) { var g = S.groups[k]; if (g.el.parentNode) g.el.remove(); delete S.groups[k]; } });
-      Object.keys(S.rows).forEach(function (id) { if (!keepRows[id]) { var r = S.rows[id]; if (r.el.parentNode) r.el.remove(); delete S.rows[id]; } });
-      renderMore(v);
-    } else if (S.view === "timeline") {
-      var lg = v.querySelector(".tc-legend"), any = !!v.querySelector(".tc-tl");
-      if (any && !lg) v.appendChild(h("div", { cls: "tc-legend", "aria-hidden": "true" }, [
-        h("span", {}, [h("i", { cls: "tc-lg-done" }), "Done"]), h("span", {}, [h("i", { cls: "tc-lg-started" }), "Started"]), h("span", {}, [h("i", { cls: "tc-lg-accepted" }), "Accepted"]),
-        h("span", {}, [h("i", { cls: "tc-lg-waiting" }), "Not accepted yet"]), h("span", {}, [h("i", { cls: "tc-lg-late" }), "Late"]), h("span", { text: "▲ Special" })]));
-      else if (!any && lg) lg.remove();
-    }
-  }
-  function personSig() { return people().map(function (c) { return [c.id, S.sheet[c.id], dayInfo(c.id)]; }); }
-  function stepFolded(w) { if (S.q || S.chip) return false; var k = S.win + ":" + w; return k in S.stepFold ? S.stepFold[k] : foldDefault(S.win, w, S.autoWin); }
-  function stepSec(W) {
-    var id = "tcs" + W[0], head = h("button", { type: "button", cls: "tc-stp-h", "data-key": "stp:" + W[0], "aria-controls": id }), hintEl = h("p", { cls: "tc-stp-hint", role: "note", hidden: true }), body = h("div", { cls: "tc-stp-b", id: id });
-    head.addEventListener("click", function () { S.stepFold[S.win + ":" + W[0]] = !stepFolded(W[0]); update(); });
-    return { el: h("section", { cls: "tc-stp", "data-step-of": W[0], "aria-label": W[1] + " tasks" }, [hintEl, h("h3", { cls: "tc-stp-t" }, [head]), body]), head: head, hint: hintEl, body: body, sig: "", bsig: "" };
+    if (S.view === "list") return renderList(v, ts);
+    var sig = rowSig([key, ts.map(rowData), S.sel, Math.floor(Date.now() / 300000)]);
+    if (S.sigs.view === sig) return; S.sigs.view = sig;
+    var keep = focusKey(v); clear(v);
+    v.appendChild(S.view === "timeline" ? viewTimeline(ts) : viewPeople(ts));
+    restoreFocus(v, keep);
+    paint(v);
   }
   function paint(n) { try { B().chat.paintAvatars(n); } catch (e) {} }
   function rowData(t) {
@@ -706,7 +584,7 @@
       var m = String((e && e.message) || "");
       toast(/invalid_person/.test(m) ? "Pick a Supervisor, Event manager or Admin login of your studio." : /invalid_department/.test(m) ? "That department has no tasks on this event yet." : errText(e, "set the supervisor"), "err", 8000);
       sel.value = cur ? String(cur.profile_id) : "";
-    } finally { sel.removeAttribute("aria-busy"); sel.disabled = false; Object.keys(S.groups).forEach(function (c) { S.groups[c].tsig = ""; }); update(); }
+    } finally { sel.removeAttribute("aria-busy"); sel.disabled = false; S.sigs.view = ""; Object.keys(S.groups).forEach(function (c) { S.groups[c].tsig = ""; }); update(); }
   }
   // the supervisor control of one department card: a picker for "Assign & send tasks", else the name (or nothing)
   function supTools(cat) {
@@ -745,26 +623,30 @@
         : by + " set " + (l.name || "someone") + " as " + l.department + " supervisor" };
     });
   }
-  /* List = Tasks by department inside one step: one card per section, rows keyed by task id; only rows whose content changed are redrawn */
-  function renderGroups(sec, step, ts, keepRows, keepGrps) {
-    var v = sec.body, cats = (G().CATS || []).slice(); ts.forEach(function (t) { var c = t.category || "Other"; if (cats.indexOf(c) < 0) cats.push(c); });
+  /* List = Tasks by department: one card per section, rows keyed by task id; only rows whose content changed are redrawn */
+  function renderList(v, ts) {
+    if (!ts.length) { S.rows = {}; S.groups = {}; if (!v.querySelector(".tc-empty") || S.sigs.empty !== S.q + S.chip) { clear(v); v.appendChild(emptyBox()); S.sigs.empty = S.q + S.chip; } return; }
+    var em = v.querySelector(".tc-empty"); if (em) em.remove();
+    var cats = (G().CATS || []).slice(); ts.forEach(function (t) { var c = t.category || "Other"; if (cats.indexOf(c) < 0) cats.push(c); });
     var by = {}; ts.forEach(function (t) { var c = t.category || "Other"; (by[c] = by[c] || []).push(t); });
     var order = cats.filter(function (c) { return by[c]; });
-    var many = liveTasks().length > 80, mine = mineDepts(), stepTasks = byStep()[step].tasks;
+    var many = liveTasks().length > 80, mine = mineDepts();
+    var want = {};
     order.forEach(function (cat, gi) {
-      var gk = step + "|" + cat, g = S.groups[gk]; keepGrps[gk] = 1;
+      want[cat] = 1;
+      var g = S.groups[cat];
       if (!g) {
         var id = "tcg" + Math.random().toString(36).slice(2, 8);
-        var head = h("button", { type: "button", cls: "tc-grp-h", "data-key": "grp:" + gk, "aria-expanded": "true", "aria-controls": id });
+        var head = h("button", { type: "button", cls: "tc-grp-h", "aria-expanded": "true", "aria-controls": id });
         var tools = h("div", { cls: "tc-grp-tools" });
         var rows = h("div", { cls: "tc-grp-rows", id: id, role: "list", "aria-label": cat });
-        g = S.groups[gk] = { el: h("section", { cls: "tc-grp tc-dept", "data-cat": cat, "aria-label": cat }, [h("div", { cls: "tc-grp-top" }, [head, tools]), rows]), head: head, tools: tools, rows: rows, sig: "", tsig: "" };
-        if (many && S.folded[gk] == null) S.folded[gk] = !by[cat].some(function (t) { return TS.isLate(t) || noOne(t); });
-        head.addEventListener("click", function () { S.folded[gk] = !S.folded[gk]; S.groups[gk].sig = ""; update(); });
+        g = S.groups[cat] = { el: h("section", { cls: "tc-grp tc-dept", "data-cat": cat, "aria-label": cat }, [h("div", { cls: "tc-grp-top" }, [head, tools]), rows]), head: head, tools: tools, rows: rows, sig: "", tsig: "" };
+        if (many && S.folded[cat] == null) S.folded[cat] = !by[cat].some(function (t) { return TS.isLate(t) || noOne(t); });
+        head.addEventListener("click", function () { S.folded[cat] = !S.folded[cat]; S.groups[cat].sig = ""; update(); });
       }
-      var all = stepTasks.filter(function (t) { return (t.category || "Other") === cat; }), done = all.filter(function (t) { return t.status === "completed"; }).length;
+      var all = liveTasks().filter(function (t) { return (t.category || "Other") === cat; }), done = all.filter(function (t) { return t.status === "completed"; }).length;
       var late = all.filter(function (t) { return TS.isLate(t); }).length;
-      var folded = !!S.folded[gk] && !S.q && !S.chip;
+      var folded = !!S.folded[cat] && !S.q && !S.chip;
       var gs = rowSig([cat, done, all.length, late, folded]);
       if (g.sig !== gs) {
         g.sig = gs; clear(g.head);
@@ -782,14 +664,14 @@
         g.tsig = ts2; clear(g.tools);
         if (mine.indexOf(cat) >= 0) g.tools.appendChild(h("span", { cls: "tc-tag box tc-you", text: "You supervise" }));
         g.tools.appendChild(supTools(cat));
-        if (canEdit()) g.tools.appendChild(h("button", { type: "button", cls: "tc-btn sm tc-add-in" + (planLocked() ? " is-locked" : ""), "data-key": "add:" + gk, text: planLocked() ? "\ud83d\udd12 Add task" : "+ Add task",
-          "aria-label": planLocked() ? "Add a task in " + cat + " - locked: unlock the plan first" : "Add a task in " + cat, "aria-disabled": planLocked() ? "true" : null, title: planLocked() ? LOCK_ADD : null, on: { click: function () { S.addStep = step; addIn(cat); S.addStep = null; } } }));
+        if (canEdit()) g.tools.appendChild(h("button", { type: "button", cls: "tc-btn sm tc-add-in" + (planLocked() ? " is-locked" : ""), "data-key": "add:" + cat, text: planLocked() ? "\ud83d\udd12 Add task" : "+ Add task",
+          "aria-label": planLocked() ? "Add a task in " + cat + " - locked: unlock the plan first" : "Add a task in " + cat, "aria-disabled": planLocked() ? "true" : null, title: planLocked() ? LOCK_ADD : null, on: { click: function () { addIn(cat); } } }));
         g.el.classList.toggle("is-mine", mine.indexOf(cat) >= 0);
       }
       // rows
       var ids = [];
       by[cat].forEach(function (t) {
-        var sig = rowSig(rowData(t)), r = S.rows[t.id]; keepRows[t.id] = 1;
+        var sig = rowSig(rowData(t)), r = S.rows[t.id];
         if (!r || r.sig !== sig) {
           var el = rowEl(t), old = r && r.el;
           if (old && old.parentNode) { var fk = focusKey(old); old.parentNode.replaceChild(el, old); restoreFocus(el, fk); }
@@ -804,9 +686,10 @@
       // group order
       if (v.children[gi] !== g.el) v.insertBefore(g.el, v.children[gi] || null);
     });
-  }
-  // R230: the departments of the checklist with no task on this event yet - one quiet line, "+ name" adds a task there
-  function renderMore(v) {
+    Object.keys(S.groups).forEach(function (c) { if (!want[c]) { var g = S.groups[c]; if (g.el.parentNode) g.el.remove(); delete S.groups[c]; } });
+    var keepIds = {}; ts.forEach(function (t) { keepIds[t.id] = 1; });
+    Object.keys(S.rows).forEach(function (id) { if (!keepIds[id]) { var r = S.rows[id]; if (r.el.parentNode) r.el.remove(); delete S.rows[id]; } });
+    // R230: the departments of the checklist with no task on this event yet - one quiet line, "+ name" adds a task there
     var rest = (S.q || S.chip || !canEdit() || planLocked()) ? [] : (G().CATS || []).filter(function (c) { return !liveTasks().some(function (t) { return (t.category || "Other") === c; }); });
     var es = rowSig(rest), strip = v.querySelector(".tc-dept-more");
     if (!rest.length) { if (strip) strip.remove(); S.sigs.more = ""; return; }
@@ -827,8 +710,8 @@
       box.addEventListener("change", function () { if (box.checked) S.sel[t.id] = 1; else delete S.sel[t.id]; row.classList.toggle("sel", box.checked); renderBulk(); });
       row.appendChild(box);
     }
-    var who = h("span", { cls: "tc-r-who" + (nm ? "" : " none") }, nm ? [avatar(nm, t.crew_id), h("span", { cls: "nm", text: nm })] : ["Not assigned"]);
-    var main = h("button", { type: "button", cls: "tc-r-main", "data-key": "open:" + t.id, "aria-label": (t.title || "Task") + ", " + TS.LABEL[k] + (nm ? ", " + nm : ", not assigned") + (t.planned_start ? ", " + when(t.planned_start) : ", no start time"),
+    var who = h("span", { cls: "tc-r-who" + (nm ? "" : " none") }, nm ? [avatar(nm, t.crew_id), h("span", { cls: "nm", text: nm })] : ["No one yet"]);
+    var main = h("button", { type: "button", cls: "tc-r-main", "data-key": "open:" + t.id, "aria-label": (t.title || "Task") + ", " + TS.LABEL[k] + (nm ? ", " + nm : ", no one yet") + (t.planned_start ? ", " + when(t.planned_start) : ", no start time"),
       on: { click: function () { openTask(t.id); } } }, [
       timeCell(t),
       h("span", { cls: "tc-r-title" }, [h("b", { text: t.title || "Task" }), h("span", { cls: "tc-r-meta" }, tags(t))]),
@@ -845,97 +728,88 @@
     }
     return row;
   }
-  /* Timeline of one step: one lane per section, hours along the top, the Now / Guests arrive labels in their own strip above the lanes
-     (R251: they used to sit on top of the blocks) and their lines behind the blocks. A block is never narrower than its words: short
-     jobs get a readable width and the lane makes room (extra rows). Phone / narrow: hour-by-hour agenda (no sideways scroll). */
-  var BLK_PX = 168, BLK_ROW = 74;
-  function viewTimeline(ts, step) {
+  /* Timeline: one lane per section, hours along the top, Now line; phone: hour-by-hour agenda (no sideways scroll) */
+  function viewTimeline(ts) {
     var wrap = h("div", { cls: "tc-tlwrap" });
-    var ev = evDate(), groups = { before: [], day: [], after: [], none: [] };
-    ts.forEach(function (t) { var s = slot(t, ev, wall), w = s.where === "night" ? "day" : s.where; if (s.where === "night") s.min += 1440; (groups[w] || groups.none).push({ t: t, s: s }); });
-    function rowsOf(list) { var rows = h("div", { role: "list" }); list.forEach(function (x) { rows.appendChild(rowEl(x.t)); }); return rows; }
-    function fold(lbl, list) {
+    if (!ts.length) { wrap.appendChild(emptyBox()); return wrap; }
+    var ev = evDate(), groups = { before: [], day: [], night: [], after: [], none: [] };
+    ts.forEach(function (t) { var s = slot(t, ev, wall); (groups[s.where] || groups.none).push({ t: t, s: s }); });
+    function fold(lbl, list, open) {
       if (!list.length) return null;
-      var d = h("details", { cls: "tc-fold" }); d.open = true;
-      d.appendChild(h("summary", { text: lbl + " (" + list.length + ")" })); d.appendChild(rowsOf(list));
+      var d = h("details", { cls: "tc-fold" }); if (open) d.open = true;
+      d.appendChild(h("summary", { text: lbl + " (" + list.length + ")" }));
+      var rows = h("div", { role: "list" }); list.forEach(function (x) { rows.appendChild(rowEl(x.t)); }); d.appendChild(rows);
       return d;
     }
-    if (groups.before.length) wrap.appendChild(rowsOf(groups.before));
-    var day = groups.day, nowW = wall(new Date().toISOString()), dd = nowW && ev ? TS.dayDiff(ev, nowW.ymd) : NaN, nowMin = dd === 0 ? nowW.min : dd === 1 && nowW.min < 360 ? nowW.min + 1440 : null;
+    addTo(wrap, fold("Day before / earlier", groups.before));
+    var day = groups.day, nowW = wall(new Date().toISOString()), nowMin = nowW && nowW.ymd === ev ? nowW.min : null;
     var q = G().quote || {}, gm = P() && P().evTimeHM ? P().evTimeHM() : null, guestMin = gm ? (+gm.slice(0, 2)) * 60 + (+gm.slice(3, 5)) : null;
-    if (day.length && narrow()) {
+    if (day.length && phone()) {
       var hrs = {}, order = [];
       day.forEach(function (x) { var hh = Math.floor(x.s.min / 60); if (!hrs[hh]) { hrs[hh] = []; order.push(hh); } hrs[hh].push(x); });
       order.sort(function (a, b) { return a - b; });
-      var first = order[0] * 60, last = order[order.length - 1] * 60 + 60, nowShown = nowMin == null || nowMin < first || nowMin > last;
+      var nowShown = nowMin == null;
       order.forEach(function (hh) {
         if (!nowShown && hh * 60 > nowMin) { wrap.appendChild(h("div", { cls: "tc-agenda-h now", text: "Now " + clock(new Date().toISOString()) })); nowShown = true; }
         wrap.appendChild(h("div", { cls: "tc-agenda-h", text: hourLabel(hh * 60) + (guestMin != null && guestMin >= hh * 60 && guestMin < hh * 60 + 60 ? " · Guests arrive " + (q.eventTime || "") : "") }));
-        wrap.appendChild(rowsOf(hrs[hh]));
+        var rows = h("div", { role: "list" }); hrs[hh].forEach(function (x) { rows.appendChild(rowEl(x.t)); }); wrap.appendChild(rows);
       });
       if (!nowShown) wrap.appendChild(h("div", { cls: "tc-agenda-h now", text: "Now " + clock(new Date().toISOString()) }));
     } else if (day.length) {
-      var lo = Infinity, hi = -Infinity, lastStart = -Infinity;
-      day.forEach(function (x) { var e = ms(x.t.planned_end), d = isFinite(e) && e > ms(x.t.planned_start) ? (e - ms(x.t.planned_start)) / 60000 : 60; x.e = Math.min(1800, x.s.min + d); if (x.s.min < lo) lo = x.s.min; if (x.e > hi) hi = x.e; if (x.s.min > lastStart) lastStart = x.s.min; });
-      // Now widens the picture only by an hour or two (never a half-empty day); Guests arrive closes Pre-event and opens On the event
-      if (nowMin != null && nowMin > lo - 120 && nowMin < hi + 120) { lo = Math.min(lo, nowMin); hi = Math.max(hi, nowMin + 15); }
-      if (guestMin != null && ((step === "pre" && guestMin < hi + 360) || (step === "onday" && guestMin > lo - 360))) { lo = Math.min(lo, guestMin); hi = Math.max(hi, guestMin + 15); }
-      var start = Math.max(0, Math.floor(lo / 60) * 60), end = Math.ceil(hi / 60) * 60; if (end - start < 240) end = start + 240;
-      var px = Math.max(360, (($("#view") || {}).clientWidth || 900) - 136);
-      for (var k = 0; k < 8 && lastStart + (end - start) * BLK_PX / px > end; k++) end += 60;      // the last block's words fit too
-      var span = end - start, H = span / 60, minMin = span * BLK_PX / px, step2 = H > 16 ? 3 : H > 10 ? 2 : 1;
+      var lo = Infinity, hi = -Infinity;
+      day.forEach(function (x) { var e = ms(x.t.planned_end), d = isFinite(e) && e > ms(x.t.planned_start) ? (e - ms(x.t.planned_start)) / 60000 : 60; x.e = Math.min(1440, x.s.min + d); if (x.s.min < lo) lo = x.s.min; if (x.e > hi) hi = x.e; });
+      if (nowMin != null) { lo = Math.min(lo, nowMin); hi = Math.max(hi, nowMin + 30); }
+      if (guestMin != null) hi = Math.max(hi, guestMin + 30);
+      var start = Math.max(0, Math.floor(lo / 60) * 60), end = Math.min(1440, Math.ceil(hi / 60) * 60); if (end - start < 360) end = Math.min(1440, start + 360);
+      var span = end - start, H = span / 60, step = H > 12 ? 2 : 1;
       var pct = function (m) { return ((Math.max(start, Math.min(end, m)) - start) / span * 100).toFixed(2) + "%"; };
       var tl = h("div", { cls: "tc-tl" }), hours = h("div", { cls: "tc-tl-hours", "aria-hidden": "true" });
-      for (var i = 0; i <= H; i += step2) { var sp = h("span", { text: hourLabel(start + i * 60) }); sp.style.left = (i / H * 100) + "%"; if (i === H) sp.style.transform = "translateX(-100%)"; hours.appendChild(sp); }
+      for (var i = 0; i <= H; i += step) { var sp = h("span", { text: hourLabel(start + i * 60) }); sp.style.left = (i / H * 100) + "%"; if (i === H) sp.style.transform = "translateX(-100%)"; hours.appendChild(sp); }
       tl.appendChild(h("div", { cls: "tc-tl-axis" }, [h("span"), hours]));
-      var marks = [];
-      if (guestMin != null && guestMin >= start && guestMin <= end) marks.push(["guests", guestMin, "Guests arrive " + (q.eventTime || "")]);
-      if (nowMin != null && nowMin >= start && nowMin <= end) marks.push(["now", nowMin, "Now " + clock(new Date().toISOString())]);
-      if (marks.length) {
-        var mk = h("div", { cls: "tc-tl-marks" + (marks.length > 1 ? " two" : "") });
-        marks.forEach(function (m, n) { var el = h("i", { cls: m[0], text: m[2] }); el.style.left = pct(m[1]); el.style.top = (n * 20) + "px";
-          if (m[1] > start + span * .8) el.style.transform = "translateX(-100%)"; mk.appendChild(el); });
-        tl.appendChild(h("div", { cls: "tc-tl-axis" }, [h("span"), mk]));
-      }
-      var body = h("div", { cls: "tc-tl-body" }), ov = h("div", { cls: "tc-tl-overlay", "aria-hidden": "true" });
-      marks.forEach(function (m) { var ln = h("span", { cls: "tc-tl-line " + m[0] }); ln.style.left = pct(m[1]); ov.appendChild(ln); });
-      body.appendChild(ov);
       var lanes = [], by = {};
       day.forEach(function (x) { var c = x.t.category || "Other"; if (!by[c]) { by[c] = []; lanes.push(c); } by[c].push(x); });
       var cats = G().CATS || []; lanes.sort(function (a, b) { var ia = cats.indexOf(a), ib = cats.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib); });
       lanes.forEach(function (c) {
-        var st = stackRows(by[c].map(function (x) { return { id: x.t.id, s: x.s.min, e: Math.max(x.e, x.s.min + minMin) }; }));
+        var st = stackRows(by[c].map(function (x) { return { id: x.t.id, s: x.s.min, e: x.e }; }));
         var track = h("div", { cls: "tc-tl-track", role: "list", "aria-label": c });
-        track.style.minHeight = (st.rows * BLK_ROW + 8) + "px";
-        for (var g2 = step2; g2 < H; g2 += step2) { var gl = h("span", { cls: "tc-tl-grid", "aria-hidden": "true" }); gl.style.left = (g2 / H * 100) + "%"; track.appendChild(gl); }
+        track.style.minHeight = (st.rows * 42 + 8) + "px";
+        for (var g2 = step; g2 < H; g2 += step) { var gl = h("span", { cls: "tc-tl-grid", "aria-hidden": "true" }); gl.style.left = (g2 / H * 100) + "%"; track.appendChild(gl); }
         by[c].forEach(function (x) {
-          var t = x.t, kk = TS.shown(t), nm = nameOf(t), w = (Math.min(end, x.e) - Math.max(start, x.s.min)) / span * 100;
-          var b = h("button", { type: "button", cls: "tc-blk " + kk, "data-key": "blk:" + t.id,
-            title: [t.title, clock(t.planned_start), nm || "not assigned", TS.LABEL[kk]].join(" - "),
-            "aria-label": (t.title || "Task") + ", " + clock(t.planned_start) + ", " + (nm || "not assigned") + ", " + TS.LABEL[kk],
-            on: { click: function () { openTask(t.id); } } }, [h("b", { text: (t.is_special ? "▲ " : "") + (t.title || "Task") }), h("span", { text: clock(t.planned_start) + (nm ? " · " + nm.split(/\s+/)[0] : "") }), h("span", { text: TS.LABEL[kk] })]);
-          var li = h("div", { cls: "tc-blk-li", role: "listitem" }, [b]);
-          li.style.top = (5 + st.rowOf[t.id] * BLK_ROW) + "px"; li.style.left = pct(x.s.min); li.style.width = "max(" + (BLK_PX - 4) + "px, calc(" + Math.max(1, w).toFixed(2) + "% - 4px))";
-          track.appendChild(li);
+          var t = x.t, k = TS.shown(t), nm = nameOf(t), w = (Math.min(end, x.e) - Math.max(start, x.s.min)) / span * 100;
+          var b = h("button", { type: "button", cls: "tc-blk " + k, "data-key": "blk:" + t.id, role: "listitem",
+            title: [t.title, clock(t.planned_start), nm || "no one yet", TS.LABEL[k]].join(" - "),
+            "aria-label": (t.title || "Task") + ", " + clock(t.planned_start) + ", " + (nm || "no one yet") + ", " + TS.LABEL[k],
+            on: { click: function () { openTask(t.id); } } }, [h("b", { text: (t.is_special ? "▲ " : "") + (t.title || "Task") }), h("span", { text: (nm ? nm.split(/\s+/)[0] : "No one") + " · " + TS.LABEL[k] })]);
+          b.style.top = (5 + st.rowOf[t.id] * 42) + "px"; b.style.left = pct(x.s.min); b.style.width = "calc(" + Math.max(1, w).toFixed(2) + "% - 3px)";
+          track.appendChild(b);
         });
-        body.appendChild(h("div", { cls: "tc-tl-lane" }, [h("div", { cls: "tc-tl-name", title: c, text: c }), track]));
+        tl.appendChild(h("div", { cls: "tc-tl-lane" }, [h("div", { cls: "tc-tl-name", title: c, text: c }), track]));
       });
-      tl.appendChild(body);
+      var ov = h("div", { cls: "tc-tl-overlay", "aria-hidden": "true" });
+      if (nowMin != null && nowMin >= start && nowMin <= end) { var nl = h("span", { cls: "tc-tl-line now" }, [h("i", { text: "Now " + clock(new Date().toISOString()) })]); nl.style.left = pct(nowMin); ov.appendChild(nl); }
+      if (guestMin != null && guestMin >= start && guestMin <= end) { var gl2 = h("span", { cls: "tc-tl-line mark" }, [h("i", { text: "Guests arrive " + (q.eventTime || "") })]); gl2.style.left = pct(guestMin); ov.appendChild(gl2); }
+      tl.appendChild(ov);
       wrap.appendChild(tl);
+      wrap.appendChild(h("div", { cls: "tc-legend", "aria-hidden": "true" }, [
+        h("span", {}, [h("i", { cls: "tc-lg-done" }), "Done"]), h("span", {}, [h("i", { cls: "tc-lg-started" }), "Started"]), h("span", {}, [h("i", { cls: "tc-lg-accepted" }), "Accepted"]),
+        h("span", {}, [h("i", { cls: "tc-lg-waiting" }), "Waiting for a yes"]), h("span", {}, [h("i", { cls: "tc-lg-late" }), "Late"]), h("span", { text: "▲ Special" })]));
+    } else if (!groups.before.length && !groups.night.length && !groups.after.length) {
+      wrap.appendChild(h("p", { cls: "tc-hint", text: "No task has a start time on the event day yet." }));
     }
-    addTo(wrap, fold(step === "wrapup" ? "The next day" : "After the event day", groups.after));
-    addTo(wrap, fold("No start time yet - these get no reminders", groups.none));
+    addTo(wrap, fold("After midnight / the next day", groups.night.concat(groups.after)));
+    addTo(wrap, fold("No start time yet - these get no reminders", groups.none, true));
     return wrap;
   }
   /* By person: check-in, workload, their tasks in time order, Email / WhatsApp / permanent link */
-  function viewPeople(ts, step) {
-    var ppl = people();
+  function viewPeople(ts) {
+    var q = S.q.trim().toLowerCase(), ppl = people(), now = Date.now();
     var loads = ppl.map(function (c) { return liveTasks().filter(function (t) { return t.crew_id === c.id; }).reduce(function (a, t) { var e = ms(t.planned_end), s = ms(t.planned_start); return a + (isFinite(e) && isFinite(s) && e > s ? (e - s) / 60000 : 60); }, 0); });
     var avg = loads.length ? loads.reduce(function (a, b) { return a + b; }, 0) / loads.length : 0, max = Math.max.apply(null, loads.concat([0]));
-    var grid = h("div", { cls: "tc-ppl" });
+    var grid = h("div", { cls: "tc-ppl" }), any = false;
     ppl.forEach(function (c, i) {
       var mine = ts.filter(function (t) { return t.crew_id === c.id; });
-      if (!mine.length) return;   // R251: nothing in this step (they show under the step they work in)
+      if (!mine.length && (S.chip || (q && String(c.name || "").toLowerCase().indexOf(q) < 0))) return;
+      any = true;
       var all = liveTasks().filter(function (t) { return t.crew_id === c.id; }), done = all.filter(function (t) { return t.status === "completed"; }).length;
       var heavy = ppl.length > 2 && loads[i] === max && loads[i] > avg * 1.4;
       var io;
@@ -947,7 +821,7 @@
       if (off) card.appendChild(h("div", { cls: "tc-offnote", text: (off.state === "asked" ? "Asked for " + (off.day === evDate() ? "this day" : dayWords(off.day)) + " off - waiting for an answer" : "Day off approved" + (off.day === evDate() ? "" : " for " + dayWords(off.day))) + (off.note ? " · “" + off.note + "”" : "") }));
       else if (di.state === "busy") card.appendChild(h("div", { cls: "tc-offnote", text: "Also working on " + di.codes.filter(Boolean).join(", ") + (di.day && di.day !== evDate() ? " on " + dayWords(di.day) : " that day") }));
       var gb = h("span", { cls: "tc-gbar", "aria-hidden": "true" }, [h("span")]); gb.firstChild.style.width = (all.length ? Math.round(done / all.length * 100) : 0) + "%";
-      card.appendChild(h("div", { cls: "tc-load" }, [h("span", { text: all.length + " task" + (all.length === 1 ? "" : "s") + " in all · " + (loads[i] / 60).toFixed(1) + " h" }), gb, h("span", { text: done + " done" }), heavy ? h("span", { cls: "tc-tag warn", text: "Most work" }) : null]));
+      card.appendChild(h("div", { cls: "tc-load" }, [h("span", { text: all.length + " task" + (all.length === 1 ? "" : "s") + " · " + (loads[i] / 60).toFixed(1) + " h" }), gb, h("span", { text: done + " done" }), heavy ? h("span", { cls: "tc-tag warn", text: "Most work" }) : null]));
       var ul = h("ul");
       mine.forEach(function (t) { ul.appendChild(h("li", {}, [h("button", { type: "button", "data-key": "pt:" + t.id, "aria-label": (t.title || "Task") + ", " + TS.LABEL[TS.shown(t)], on: { click: function () { openTask(t.id); } } },
         [h("span", { cls: "t", text: t.planned_start ? clock(t.planned_start) : "no time" }), h("span", { cls: "grow", text: t.title || "Task" }), stPill(t)])])); });
@@ -970,11 +844,12 @@
     // vendors and tasks with no one, so nothing is hidden in this view
     var rest = ts.filter(function (t) { return !t.crew_id || !inHouse(t); });
     if (rest.length) {
-      var rc = h("section", { cls: "tc-pc", "aria-label": "Vendors and not assigned" }, [h("div", { cls: "tc-pc-h" }, [h("span", { cls: "tc-av lg", "aria-hidden": "true", text: "?" }), h("span", { cls: "grow" }, [h("b", { text: "Vendors and not assigned" }), h("small", { text: rest.length + " task" + (rest.length === 1 ? "" : "s") })])])]);
+      any = true;
+      var rc = h("section", { cls: "tc-pc", "aria-label": "Vendors and no one yet" }, [h("div", { cls: "tc-pc-h" }, [h("span", { cls: "tc-av lg", "aria-hidden": "true", text: "?" }), h("span", { cls: "grow" }, [h("b", { text: "Vendors and no one yet" }), h("small", { text: rest.length + " task" + (rest.length === 1 ? "" : "s") })])])]);
       var ul2 = h("ul"); rest.forEach(function (t) { ul2.appendChild(h("li", {}, [h("button", { type: "button", "data-key": "pt:" + t.id, on: { click: function () { openTask(t.id); } } }, [h("span", { cls: "t", text: t.planned_start ? clock(t.planned_start) : "no time" }), h("span", { cls: "grow", text: (t.title || "Task") + (t.assignee_name ? " - " + t.assignee_name : "") }), stPill(t)])])); });
       rc.appendChild(ul2); grid.appendChild(rc);
     }
-    return grid;
+    return any ? grid : emptyBox();
   }
   // before the event: is this person free on the event day (day off / other event / free)
   function bookedOn(crewId, day) {
@@ -1029,18 +904,17 @@
     });
   }
 
-  /* ======================= the steps' cards: Day before = get set up, On the event = run-sheet / issues; Wrap-up (event-steps.js) ======================= */
+  /* ======================= R222: Before = get set up, On the day = run-sheet / issues / wrap up ======================= */
   function qid() { return G().quoteId || ""; }
   function enc(v) { return encodeURIComponent(v || ""); }
   function builderHref() { try { if (global.HelmUrl && global.HelmUrl.build) return global.HelmUrl.build("floor-plan", { id: qid() }); } catch (e) {} return "builder.html?quote=" + enc(qid()); }
   function stageOf() { var q = G().quote || {}; return String(q.lifecycleStage || q.lifecycle_stage || ""); }
   function card(id, show) { var n = $("#" + id); if (n) n.hidden = !show; return show ? n : null; }
-  // Day before: shortcuts to everything that has to be set up (each page checks its own permission)
+  // Before the event: shortcuts to everything that has to be set up (each page checks its own permission)
   function renderPrep() {
-    var host = card("tcPrep", S.win === "daybefore" && G().quote && G().quote.status !== "cancelled"); if (!host) return;
+    var host = card("tcPrep", S.phase === "plan" && G().quote && G().quote.status !== "cancelled"); if (!host) return;
     var rsN = Array.isArray(S.rs) ? S.rs.length : null;
-    var EPx = global.HelmEventPlan, ra = EPx && S.plan && S.plan.ready_by ? EPx.readyAt(S.plan, evDate(), "", tz()) : NaN, rdy = EPx && S.plan ? (isFinite(ra) ? clock(new Date(ra).toISOString()) : "not set") : "";
-    var sig = rowSig([rsN, qid(), rdy]); if (S.sigs.prep === sig) return; S.sigs.prep = sig;
+    var sig = rowSig([rsN, qid()]); if (S.sigs.prep === sig) return; S.sigs.prep = sig;
     var links = [
       ["Crew", "staff.html", "Add people, departments and logins"],
       ["Stock", "resources.html?quote=" + enc(qid()), "What this event needs from Inventory and what is still missing"],
@@ -1053,13 +927,10 @@
     host.appendChild(h("h3", { cls: "tc-prep-h", text: "Get set up" }));
     var row = h("div", { cls: "tc-prep-links" });
     links.forEach(function (l) { row.appendChild(h("a", { cls: "tc-chip tc-link", href: l[1], title: l[2], text: l[0] })); });
-    // Venue opens / Ready by are set on the Ready-by card, which lives in the Pre-event step - one tap away while planning
-    if (rdy) row.appendChild(h("button", { type: "button", cls: "tc-chip", "data-key": "prep:ready", text: "Ready by · " + rdy, title: "Venue opens, Ready by and how long each set-up job takes (Pre-event step)",
-      on: { click: function () { try { $("#tcReady").scrollIntoView({ block: "start" }); } catch (e) {} } } }));
     host.appendChild(row);
   }
-  // R226 (0396, event-plan.js - the same cards as the monitor): Day before = the checklist; Pre-event = Ready by + the latest start
-  // of each set-up job. Hidden before 0396 (no plan). Not redrawn while one of its forms is open.
+  // R226 (0396, event-plan.js - the same cards as the monitor): Day before = the checklist; Before / Day before / On the day =
+  // Ready by + the latest start of each set-up job. Hidden before 0396 (no plan). Not redrawn while one of its forms is open.
   function planCtx() {
     var q = G().quote || {};
     return { plan: S.plan, tasks: G().tasks, quoteId: qid(), eventDate: evDate(), eventTime: String(q.eventTime || "").trim(), tz: tz(), now: Date.now(),
@@ -1074,32 +945,32 @@
   function renderPlan() {
     var EP = global.HelmEventPlan, cancelled = (G().quote || {}).status === "cancelled", ui = EP && EP._ui;
     var dHost = card("tcDayBefore", !!(EP && S.plan) && !cancelled && S.win === "daybefore");
-    var rHost = card("tcReady", !!(EP && S.plan) && !cancelled && (S.win === "daybefore" || S.win === "pre"));
+    var rHost = card("tcReady", !!(EP && S.plan) && !cancelled && S.win !== "wrapup");
     if (ui && (ui.edit || ui.times || ui.settings)) return;   // a form is open: keep what the person is typing
     var tsig = (G().tasks || []).map(function (t) { return [t.id, t.title, t.status, t.duration_min, t.depends_on, t.planned_start, t.started_at, t.completed_at, t.crew_id]; });
     var sig = rowSig([S.plan, tsig, Math.floor(Date.now() / 60000), S.win, planLocked()]);
     if (dHost && S.sigs.dayb !== sig) { S.sigs.dayb = sig; EP.renderDayBefore(dHost, planCtx()); }
     if (rHost && S.sigs.ready !== sig) { S.sigs.ready = sig; EP.renderReady(rHost, planCtx()); }
   }
-  // R227 (0397, event-floor.js): the plan lock bar + the saved floor plan (R251: every step - below the work on the event). Hidden before
+  // R227 (0397, event-floor.js): the plan lock bar (every window) + the saved floor plan (Day before / On the day). Hidden before
   // 0397. While locked the task plan is frozen (the database refuses it): "+ Add & assign" and the Ready-by edits are hidden;
   // status, reassigning, check-ins, proof, issues and reminders keep working.
   function planLocked() { var EF = global.HelmEventFloor; return !!(EF && qid() && EF.isLocked(qid())); }
   function renderFloor() {
     var EF = global.HelmEventFloor; if (!EF || !qid()) return;
     var cancelled = (G().quote || {}).status === "cancelled";
-    EF.panel({ quoteId: qid(), lockHost: cancelled ? null : $("#tcLock"), floorHost: $("#tcFloor"), showFloor: !cancelled,
+    EF.panel({ quoteId: qid(), lockHost: cancelled ? null : $("#tcLock"), floorHost: $("#tcFloor"), showFloor: !cancelled && (S.win === "daybefore" || S.win === "onday"),
       canEditPlan: canEdit(), onChange: function () { S.sigs.dayb = S.sigs.ready = ""; update(); } });
     if (cancelled) { var lh = $("#tcLock"); if (lh) lh.hidden = true; }
   }
-  // On the event: the run-sheet as a now / next timeline (read-only here; editing stays on the Run-sheet page)
+  // On the day: the run-sheet as a now / next timeline (read-only here; editing stays on the Run-sheet page)
   function nowMinOnDay() {
     var ev = evDate(); if (!ev) return null; var d = TS.dayDiff(ev, today());
     if (d > 0) return 100000; if (d < 0) return -1;
     var w = wall(new Date(Math.floor(Date.now() / 60000) * 60000).toISOString()); return w ? w.min : null;
   }
   function renderRun() {
-    var host = card("tcRun", S.win === "onday" && Array.isArray(S.rs)); if (!host) return;
+    var host = card("tcRun", S.phase === "live" && S.win !== "wrapup" && Array.isArray(S.rs)); if (!host) return;
     var nm = nowMinOnDay(), rows = runRows(S.rs, nm);
     var sig = rowSig([nm, rows.map(function (x) { return [x.r.id, x.r.title, x.r.start_time, x.r.duration_min, x.r.owner, x.r.location, x.state]; })]);
     if (S.sigs.run === sig) return; S.sigs.run = sig;
@@ -1120,10 +991,10 @@
     });
     host.appendChild(ol);
   }
-  // On the event: Issues quick-log (event_issues, same as the Issues page; the server checks the Issues area)
+  // On the day: Issues quick-log (event_issues, same as the Issues page; the server checks the Issues area)
   var SEV = { low: "Low", medium: "Medium", high: "High" };
   function renderIssues() {
-    var p = S.perm || {}, host = card("tcIssues", S.win === "onday" && Array.isArray(S.iss)); if (!host) return;
+    var p = S.perm || {}, host = card("tcIssues", S.phase === "live" && Array.isArray(S.iss)); if (!host) return;
     var open = S.iss.filter(function (i) { return i && i.status !== "resolved"; });
     var sig = rowSig([open.map(function (i) { return [i.id, i.title, i.severity, i.status, i.owner, i.kind]; }), !!p.issEdit]); if (S.sigs.iss === sig) return; S.sigs.iss = sig;
     var keep = focusKey(host); clear(host);
@@ -1186,25 +1057,57 @@
       h("p", { cls: "tc-hint", text: "It goes on this event's Issues list (the same one as the Issues page). Resolve it here or there when it is sorted." })
     ], [h("button", { type: "button", cls: "tc-btn", text: "Cancel", on: { click: layerClose } }), go]);
   }
-  /* R251: "Mark pre-event complete" (last card of Pre-event) and the closed Wrap-up section at the bottom of every step - both in
-     event-steps.js, the same on the monitor; stage moves, gates and their permission checks live there (setStageGuided only) */
-  function stepsCtx() {
-    var q = G().quote || {}, p = S.perm;
-    return { quoteId: qid(), quote: { code: q.code, title: q.title, status: q.status, stage: stageOf(), eventDate: evDate(), eventTime: String(q.eventTime || "").trim() },
-      tasks: G().tasks, autoWin: S.autoWin, win: S.win, tz: tz(), now: Date.now(), nameOf: nameOf, canStage: !!p.stageEdit, admin: !!p.admin,
-      plan: S.plan, sheet: S.hasSheet ? S.sheet : undefined,
-      toast: function (m, t) { toast(m, t === "err" ? "err" : t || "ok", 7000); }, onChanged: stageChanged, openTask: openTask };
+  // On the day: wrap up - "Mark event complete -> Settlement" (the 0198 stage machine; the server checks every move)
+  var POST = ["settlement", "closed"];
+  async function loadBlockers() {
+    var p = S.perm || {}, st = stageOf(), key = qid() + "|" + st + "|" + evDate() + "|" + today();
+    if (!p.stageEdit || S.phase !== "live" || POST.indexOf(st) >= 0 || S.blkKey === key) return;
+    S.blkKey = key;
+    try { S.blk = await B().quotes.stageBlockers(qid(), "settlement"); } catch (e) { S.blk = null; }
   }
-  // after a stage move: the quote itself (its stage decides the real step) + the tasks
-  async function stageChanged() {
-    var q = G().quote; try { var fresh = await B().quotes.get(qid()); if (fresh && q) Object.assign(q, fresh); } catch (e) {}
-    try { if (P() && P().reload) await P().reload(); } catch (e) {}
-    S.sigs = {}; await loadExtras(); update();
+  function renderWrap() {
+    var q = G().quote || {}, p = S.perm || {}, st = stageOf();
+    var host = card("tcWrap", S.phase === "live" && q.status !== "cancelled" && !!S.perm); if (!host) return;
+    var done = POST.indexOf(st) >= 0, blk = Array.isArray(S.blk) ? S.blk : [], hard = blk.filter(function (b) { return b && b.hard; });
+    var sig = rowSig([st, done, blk, !!p.stageEdit, !!p.admin, S.stageBusy, S.mode && S.mode.step]); if (S.sigs.wrap === sig) return; S.sigs.wrap = sig;
+    var keep = focusKey(host); clear(host);
+    if (done) {
+      host.className = "tc-card tc-wrap ok";
+      host.appendChild(h("h3", { cls: "tc-h2", text: "Event complete" + (st === "closed" ? " and closed" : "") }));
+      host.appendChild(h("p", { cls: "tc-sub", text: st === "closed" ? "Everything is settled and the event is closed." : "Next: settle the money, bring the stock back, then close the event." }));
+      var nx = h("div", { cls: "tc-prep-links" });
+      [["Settlement", "settlement.html"], ["Teardown", "teardown.html"], ["Closure", "closure.html"]].forEach(function (l, i) {
+        nx.appendChild(h("a", { cls: "tc-btn sm" + (i === 0 && st !== "closed" ? " tc-primary" : ""), href: l[1] + "?quote=" + enc(qid()), text: (i + 1) + " " + l[0] + " →" })); });
+      host.appendChild(nx); restoreFocus(host, keep); return;
+    }
+    var over = S.mode && S.mode.step === "over";
+    host.className = "tc-card tc-wrap" + (over ? " warn" : "");
+    host.appendChild(h("h3", { cls: "tc-h2", text: over ? "The event day is over - mark it complete" : "When the event is over" }));
+    host.appendChild(h("p", { cls: "tc-sub", text: "Marking it complete moves the event to Settlement (money), then Teardown and Closure. Tasks stay as they are." }));
+    var why = blk.map(function (b) { var m = String((b && b.message) || ""); return /^[A-Z]/.test(m) ? m.replace(/\.$/, "") : "Settlement can’t start yet - " + m; }).join(". ");
+    if (!p.stageEdit) { host.appendChild(h("p", { cls: "tc-hint", text: "Someone whose role can change Quotes marks the event complete." })); restoreFocus(host, keep); return; }
+    if (why) host.appendChild(h("p", { cls: "tc-note warn", id: "tcWrapWhy", text: why + "." }));
+    var blocked = blk.length > 0, can = !blocked || (p.admin && !hard.length);
+    host.appendChild(h("div", { cls: "tc-prep-links" }, [h("button", { type: "button", cls: "tc-btn tc-primary", id: "tcComplete", "data-key": "wrap:go",
+      text: blocked && can ? "Mark complete anyway (admin)…" : "Mark event complete → Settlement", disabled: !can || S.stageBusy ? true : null,
+      "aria-describedby": why ? "tcWrapWhy" : null, on: { click: function (e) { if (e.detail > 1) return; markComplete(e.currentTarget); } } })]));
+    restoreFocus(host, keep);
   }
-  function renderSteps() {
-    if (!S.perm || !qid()) return; var ctx = stepsCtx(), ph = $("#tcPreDone"), wh = $("#tcWrap");
-    if (global.HelmEventSteps && ph) try { global.HelmEventSteps.renderPreDone(ph, ctx); } catch (e) { ph.hidden = true; }
-    if (global.HelmEventWrap && wh) try { global.HelmEventWrap.render(wh, ctx); } catch (e) { wh.hidden = true; }
+  async function markComplete(btn) {
+    if (S.stageBusy) return; var q = G().quote || {};
+    var ok = false; try { ok = await global.BPUI.confirm("Mark " + (q.code || q.title || "this event") + " complete? It moves to Settlement. Tasks, crew and check-ins stay as they are.", { title: "Mark event complete?", okLabel: "Mark complete" }); } catch (e) { ok = false; }
+    if (!ok) return;
+    S.stageBusy = true; S.sigs.wrap = ""; renderWrap();
+    try {
+      var r = await B().quotes.setStageGuided(qid(), "settlement");
+      if (r) {
+        try { var fresh = await B().quotes.get(qid()); if (fresh) Object.assign(q, fresh); else q.lifecycleStage = r.stage || "settlement"; } catch (e) { q.lifecycleStage = (r && r.stage) || "settlement"; }
+        toast("Event complete - moved to " + (stageOf() === "closed" ? "Closed" : "Settlement") + ".", "ok", 7000);
+      }
+    } catch (e) {
+      var handled = false; try { handled = await B().auth.handleAuthError(e); } catch (x) {}
+      if (!handled) toast(errText(e, "mark the event complete"), "err", 8000);
+    } finally { S.stageBusy = false; S.blkKey = ""; S.sigs = {}; update(); loadBlockers().then(function () { S.sigs.wrap = ""; renderWrap(); }); }
   }
   async function loadPerm() {
     if (S.perm) return; var A = B() && B().auth; if (!A) { S.perm = {}; return; }
@@ -1300,14 +1203,11 @@
     if (t.status === "cancelled") body.push(h("div", { cls: "tc-note info", text: "Cancelled" + (t.cancel_reason ? ": " + t.cancel_reason : "") + (t.cancelled_at ? " · " + when(t.cancelled_at) : "") }));
     var kv = h("dl", { cls: "tc-kv" });
     function row(a, b) { kv.appendChild(h("dt", { text: a })); kv.appendChild(h("dd", {}, [b])); }
-    row("Person", nm ? nm + (c && c.phone ? " · " + c.phone : t.assignee_phone ? " · " + t.assignee_phone : "") + (!inHouse(t) ? " (vendor)" : "") : "Not assigned");
+    row("Person", nm ? nm + (c && c.phone ? " · " + c.phone : t.assignee_phone ? " · " + t.assignee_phone : "") + (!inHouse(t) ? " (vendor)" : "") : "No one yet");
     if (c && S.hasSheet && inHouse(t)) { var io = ioPill(c.id); if (io) row("Check-in", io); }
     row("Start", t.planned_start ? when(t.planned_start) + (slot(t, evDate(), wall).where === "before" ? " (before the event day)" : "") : "No start time - no reminders");
     var r = remText(t); row("Reminders", r || (!inHouse(t) ? "Vendors get no reminders" : t.planned_start ? "None for this task" : "-"));
-    var d = depOf(t); row("Waits for", h("span", { cls: "tc-waits" }, [d ? (d.title || "task") + " (" + TS.LABEL[TS.shown(d)] + ") " : "Nothing ",
-      canEdit() && t.status !== "completed" && t.status !== "cancelled" ? h("button", { type: "button", cls: "tc-lnk", "data-key": "a:waits", text: "Change", "aria-label": "Change what this task waits for", on: { click: function () { P().schedule(t.id); } } }) : null]));
-    var next = liveTasks().filter(function (x) { return x.depends_on && String(x.depends_on) === String(t.id); });   // R251: the other direction
-    if (next.length) row("Waiting for this", next.map(function (x) { return x.title || "task"; }).join(", "));
+    var d = depOf(t); row("Waits for", d ? (d.title || "task") + " (" + TS.LABEL[TS.shown(d)] + ")" : "Nothing");
     var wa = null; try { wa = P().waChip(t); } catch (e) {} if (wa && wa.text) row("WhatsApp", wa.text);
     if (t.verify_status) row("QC", t.verify_status === "passed" ? "Passed" : t.verify_status === "pending" ? "Waiting for a check" : "Rework");
     body.push(kv);
@@ -1344,8 +1244,7 @@
         foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:wa", text: "WhatsApp", "aria-label": "Send this task on WhatsApp", on: { click: function (e) { P().wa(e.currentTarget, t.id); } } }));
       }
       if (noOne(t) && t.status !== "cancelled") foot.push(h("button", { type: "button", cls: "tc-btn tc-primary", "data-key": "a:give", text: "Give to someone", on: { click: function () { openSheet([String(t.id)]); } } }));
-      if (t.status !== "completed" && t.status !== "cancelled") foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:time", text: t.planned_start ? "Change time" : "Set a time", title: "Start time, the task it waits for, reminders", on: { click: function () { P().schedule(t.id); } } }));
-      if (t.status !== "cancelled" && !planLocked()) foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:after", text: "+ Task after this", title: "Give out work that waits for this task", on: { click: function () { openSheet(null, String(t.id)); } } }));
+      if (t.status !== "completed" && t.status !== "cancelled") foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:time", text: t.planned_start ? "Change time" : "Set a time", on: { click: function () { P().schedule(t.id); } } }));
       if (t.status === "assigned" && !noOne(t)) foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:re", text: "Reassign", on: { click: function () { openSheet([String(t.id)]); } } }));
       if (CANCELLABLE.indexOf(t.status) >= 0) foot.push(h("button", { type: "button", cls: "tc-btn danger push", "data-key": "a:cancel", text: "Cancel task", on: { click: function () { P().cancel(t.id); } } }));
       if (["accepted", "in_progress"].indexOf(t.status) >= 0) body.push(h("p", { cls: "tc-hint", text: "Accepted tasks stay with their person - to move one, cancel it (a reason is required) and give it out again." }));
@@ -1408,8 +1307,7 @@
   }
 
   /* ---- "+ Add & assign" sheet (static form in ops.html; the page script assigns) ---- */
-  // depId (R251): "+ Task after this" - the new work waits for that task
-  function openSheet(ids, depId) {
+  function openSheet(ids) {
     if (!canEdit()) return;
     if (S.layer && S.layer.id === "drawer") { $("#drawer").hidden = true; S.layer = null; S.openId = null; }
     S.preset = ids && ids.length ? ids.map(String) : null;
@@ -1423,41 +1321,11 @@
       var kind = $("#assignKind"); if (kind) { kind.value = "in_house"; kind.dispatchEvent(new Event("change", { bubbles: true })); }
     }
     $("#sTitle").textContent = S.preset ? "Give to someone" : "Give work to someone";
-    var stepFs = $("#sStep"); if (stepFs) stepFs.hidden = !!S.preset;   // tasks already on the list keep their own step
-    var no = 0; Array.prototype.forEach.call(sh.querySelectorAll("[data-step]"), function (n) { var fs = n.closest("fieldset"); if (!fs || !fs.hidden || fs.id === "assignTime") no++; n.textContent = no + ". "; });
+    Array.prototype.forEach.call(sh.querySelectorAll("[data-step]"), function (n, i) { n.textContent = (S.preset ? i : i + 1) + ". "; });
     var keepOpt = $("#as_keep"); if (keepOpt) keepOpt.hidden = !S.preset;
-    try { P().sheetOpened(S.preset, typeof depId === "string" ? depId : ""); } catch (e) {}
+    try { P().sheetOpened(S.preset); } catch (e) {}
     picks(); sheetLabel();
-    if (sh.hidden) { layerOpen(sh); var sb = $("#sBody"); if (sb) sb.scrollTop = 0; }
-  }
-  /* ---- R251: "When is this work?" in the sheet ---- */
-  // the step the sheet opens on: the one whose "+ Add task" was pressed, else Pre-event (On the event once guests are in)
-  function sheetStep() { return S.addStep || (S.autoWin === "onday" || S.autoWin === "wrapup" ? "onday" : "pre"); }
-  // the default start of a step, "YYYY-MM-DDTHH:MM" on the studio's clock ("" = no event date)
-  function stepTime(step) {
-    var ev = evDate(); if (!ev) return ""; var g = TS.hmMin((G().quote || {}).eventTime), pl = S.plan || {}, rd = pl.ready_by ? TS.hmMin(pl.ready_by) : isFinite(g) ? g - 60 : NaN;
-    var r = stepStart(step, { guests: g, venue: pl.venue_access ? TS.hmMin(pl.venue_access) : NaN, ready: rd, runEnd: runEnd(S.rs, g) });
-    var p2 = function (n) { return (n < 10 ? "0" : "") + n; };
-    return (r.off ? addDays(ev, r.off) : ev) + "T" + p2(Math.floor(r.min / 60)) + ":" + p2(r.min % 60);
-  }
-  var STEP_WORDS = { pre: "Set-up work, finished before guests arrive.", onday: "Work while guests are there.", wrapup: "Pack down, returns and handover after the event.", daybefore: "Work finished before the event day." };
-  // the line under the choice: what the step means, "pre-event first" while some is not given out, and where the work will really be listed
-  // (the list reads the step from the start time, else from the words of the task - there is no separate field)
-  function stepNote() {
-    var hintEl = $("#asStepHint"), noteEl = $("#asStepNote"); if (!hintEl || !noteEl || !P() || !P().sheetPick || S.preset) return;
-    var pk = P().sheetPick(), left = preLeft(), words = STEP_WORDS[pk.step] || "";
-    if ((pk.step === "onday" || pk.step === "wrapup") && left) words += " " + allocHint() + ".";
-    if (hintEl.textContent !== words) hintEl.textContent = words;
-    var titles = Array.prototype.map.call(doc.querySelectorAll("#taskList .tk:checked"), function (c) { return c.value; }), o = stepO(), cat = G().activeCat || "";
-    var off = titles.map(function (t) { return { t: t, w: TS.taskStep({ title: t, category: cat, planned_start: pk.start }, o) }; }).filter(function (x) { return x.w !== pk.step; });
-    var msg = "";
-    if (off.length) {
-      var who = off.length === 1 ? "“" + off[0].t + "”" : off.length + " of these tasks", will = who + " will be listed under " + winWord(off[0].w) + ".";
-      msg = !pk.start ? will + (pk.vendor ? " Vendor work has no start time here - set one later with Change time." : " Give a start time to place it.")
-        : pk.step === "wrapup" ? will + " To list it under Wrap-up, use a word like “pack up” or “return” in its name, or start it the next morning."
-        : pk.step === "onday" && !isFinite(TS.hmMin(o.eventTime)) ? will + " This event has no Guests arrive time yet." : will + " That is where its start time puts it.";
-    }
-    if (noteEl.textContent !== msg) noteEl.textContent = msg; noteEl.hidden = !msg;
+    if (sh.hidden) layerOpen(sh);
   }
   function presetIds() { return S.preset ? S.preset.slice() : null; }
   // the person list: free / N open tasks / asked off / day off, star when the department matches; sorted free first
@@ -1503,7 +1371,6 @@
     var g = G(), id = sel ? sel.value : "", who = "";
     if (id) { var x = (vendor ? g.vendors : g.crew || []).filter(function (c) { return c.id === id; })[0]; who = x ? String(x.name || "").split(/\s+/)[0] : ""; }
     var n = S.preset ? S.preset.map(taskById).filter(function (t) { return t && REASSIGNABLE.indexOf(t.status) >= 0; }).length : ($("#taskList") ? $("#taskList").querySelectorAll(".tk:checked").length : 0);
-    stepNote();
     btn.disabled = !canEdit() || !id || !n;
     btn.textContent = !n ? "Tick at least one task" : !id ? "Pick a " + (vendor ? "vendor" : "person") : "Assign " + n + " task" + (n === 1 ? "" : "s") + " to " + who;
   }
@@ -1549,6 +1416,7 @@
       loadSup(false)
     ].filter(Boolean);
     await Promise.all(jobs);
+    await loadBlockers();
   }
   // the studio days with open work on this event for an in-house person (+ the event day), at most 7
   function workDays() {
@@ -1580,8 +1448,8 @@
   function update() {
     if (!S.started) return;
     memoReset();
-    setPhaseAuto();   // R251: always - the badge and the "now" mark follow the real step even while a step is picked by hand
-    renderHeader(); renderPhase(); renderPrep(); renderFloor(); renderPlan(); renderRun(); renderAttn(); renderIssues(); renderSteps(); renderFlow(); renderChips(); renderViewBtns(); renderView(); renderSide(); renderBulk(); renderPrimary();
+    if (S.phase == null || !S.manual) setPhaseAuto();
+    renderHeader(); renderPhase(); renderPrep(); renderFloor(); renderPlan(); renderRun(); renderAttn(); renderIssues(); renderWrap(); renderChips(); renderViewBtns(); renderView(); renderSide(); renderBulk();
     var cnt = $("#taskCount"); if (cnt) cnt.textContent = String(liveTasks().length);
     var vo = $("#tcViewOnly"); if (vo) vo.hidden = canEdit();
     var add = $("#addBtn"); if (add) add.hidden = !canEdit();
@@ -1602,15 +1470,19 @@
   function init() {
     if (S.started) { update(); return; }
     S.started = true;
-    // R222: the monitor's "Open" (#live) opens On the event and it stays there (before, the next refresh flipped it back)
-    if (global.location.hash === "#live" && G().quoteId && modeNow().mode !== "live") S.manual = TS.normWin("live");
+    // R222: the monitor's "Open" (#live) opens On the day and it stays there (before, the next refresh flipped it back)
+    if (global.location.hash === "#live" && G().quoteId && modeNow().mode !== "live") ssSet(phaseKey(), "live");
     // R230: the page opens on Tasks by department (the old direct layout); a pick made after R230 is kept (new key)
     var v = lsGet("helm.tc.view2"); S.view = v === "timeline" || v === "people" || v === "list" ? v : "list";
     var mon = $("#toMonitor"); if (mon) mon.setAttribute("href", "monitor.html?quote=" + encodeURIComponent(G().quoteId || ""));
     var all = $("#allActivity"); if (all) all.setAttribute("href", "monitor.html?quote=" + encodeURIComponent(G().quoteId || ""));
     Array.prototype.forEach.call(doc.querySelectorAll("#tcViews [data-view]"), function (b) { b.addEventListener("click", function () { setView(b.getAttribute("data-view")); }); });
-    // R251: three steps; a tap only looks at a step (the real one carries the now mark)
-    Array.prototype.forEach.call(doc.querySelectorAll("#tcPhase [data-win]"), function (b) { b.addEventListener("click", function () { pickWin(b.getAttribute("data-win")); }); });
+    // R226: four windows; the hand pick is kept per event in this tab (cleared when it matches the clock again)
+    Array.prototype.forEach.call(doc.querySelectorAll("#tcPhase [data-phase]"), function (b) { b.addEventListener("click", function () {
+      var w = b.getAttribute("data-win") || (b.getAttribute("data-phase") === "live" ? "onday" : "before"), key = phaseKey();
+      if (w === S.autoWin) ssSet(key, null); else ssSet(key, w); S.manual = w === S.autoWin ? null : w; S.win = w; S.phase = TS.WIN_PHASE[w]; S.sigs = {}; update();
+      if (S.phase === "live" && S.iss === null) loadExtras().then(update); }); });
+    var pa = $("#tcPhaseAuto"); if (pa) pa.addEventListener("click", function () { ssSet(phaseKey(), null); S.manual = null; S.phase = null; S.sigs = {}; update(); if (S.phase === "live" && S.iss === null) loadExtras().then(update); });
     var qi = $("#tcQ"); if (qi) qi.addEventListener("input", function () { S.q = String(qi.value || "").slice(0, 80); update(); });
     doc.addEventListener("keydown", function (e) {
       trap(e);
@@ -1625,17 +1497,16 @@
     var pq = $("#pickQ"); if (pq) pq.addEventListener("input", picks);
     ["#assignKind", "#assignCrew", "#assignVendor"].forEach(function (s) { var e = $(s); if (e) e.addEventListener("change", function () { picks(); sheetLabel(); }); });
     var tl = $("#taskList"); if (tl) tl.addEventListener("change", sheetLabel);
-    // the timeline's lanes are stacked for the width on screen: redraw it when that changes
-    var rz = null; global.addEventListener("resize", function () { if (S.view !== "timeline") return; clearTimeout(rz); rz = setTimeout(update, 200); });
+    try { var mq = global.matchMedia("(max-width:640px)"); if (mq.addEventListener) mq.addEventListener("change", function () { if (S.view === "timeline") update(); }); } catch (e) {}
     // ONE refresh clock for the page, shared rules with /monitor (30 s + at once when you come back to the tab).
     // Skipped while a pop-up is open or an action is in flight, so nothing redraws under the user.
     S.timer = TS.refresher(function () { if (busyElsewhere()) return; return reload(true); }, TS.REFRESH_MS);
-    setInterval(function () { if (!doc.hidden) { memoReset(); var was = S.win + S.autoWin; setPhaseAuto(); if (was !== S.win + S.autoWin) { update(); return; } renderHeader(); renderPhase(); renderAttn(); renderRun(); renderFloor(); renderPlan(); renderFlow(); } }, 60000);   // countdown / "late" minutes / run-sheet now
+    setInterval(function () { if (!doc.hidden) { memoReset(); renderHeader(); renderAttn(); renderRun(); renderFloor(); renderPlan(); } }, 60000);   // countdown / "late" minutes / run-sheet now
     loadExtras().then(update);
     update();
   }
 
   global.OpsBoard = { init: init, update: update, openTask: openTask, openSheet: openSheet, picks: picks, sheetLabel: sheetLabel, assigned: assigned,
-    presetIds: presetIds, reload: reload, close: layerClose, sheetStep: sheetStep, stepTime: stepTime, stepNote: stepNote,
-    _pure: { winWord: winWord, moveBy: moveBy, suggestShift: suggestShift, slot: slot, chipTest: chipTest, readyChecks: readyChecks, notCheckedIn: notCheckedIn, stackRows: stackRows, CHIPS: CHIPS, availWord: availWord, crewDay: crewDay, runRows: runRows, stepStart: stepStart, runEnd: runEnd, foldDefault: foldDefault, badgeOf: badgeOf }, _S: S };
+    presetIds: presetIds, reload: reload, close: layerClose,
+    _pure: { winWord: winWord, moveBy: moveBy, suggestShift: suggestShift, slot: slot, chipTest: chipTest, readyChecks: readyChecks, notCheckedIn: notCheckedIn, stackRows: stackRows, CHIPS: CHIPS, availWord: availWord, crewDay: crewDay, runRows: runRows }, _S: S };
 })(typeof window !== "undefined" ? window : globalThis);

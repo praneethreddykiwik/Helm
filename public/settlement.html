@@ -72,7 +72,7 @@
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="money-lock.css?v=2"><link rel="stylesheet" href="money-header.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=117" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -91,7 +91,7 @@
   <div id="notfound" class="card" hidden><p class="s-1a1aca0">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="nextWrap" hidden> · <a id="nextLink" href="#">Next: Teardown →</a></span></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span></div>
     <p class="page-purpose" id="pagePurpose"><b>Money in and out:</b> collect from the client, pay vendors &amp; staff.</p>
 
     <div id="priceWarn" class="pwarn" role="alert" hidden>This event has no priced invoice — price the quote to settle.</div>
@@ -180,7 +180,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=3"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=3"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -444,7 +444,6 @@
     if(!id){ if(window.HelmPickEvent) HelmPickEvent.show($("#notfound"),"settlement","settlement"); else $("#notfound").hidden=false; return; }   // QA1026 #10
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("settlement"))) return;
-    if(await BPStore.auth.canView("inventory").catch(()=>false)){ $("#nextLink").href="teardown.html?quote="+encodeURIComponent(id); $("#nextWrap").hidden=false; }
     canEdit=await BPStore.auth.canEditArea("settlement"); canDelete=canEdit && await BPStore.auth.can("delete");
     // r59 (audit E-07): expense claims are saved under Budget & finance - their buttons need Finance edit too
     canClaims=canEdit && await BPStore.auth.canEditArea("finance");

@@ -102,13 +102,13 @@ t('ops: task times and the schedule picker use the studio zone (round trip IST)'
   assert.ok(isNaN(win.fromLocalInput('garbage').getTime()));
   assert.match(O, /const startISO = when \? fromLocalInput\(when\)\.toISOString\(\) : null;/);
 });
-t('ops: a task saved "unassigned" with an assignee reads "Not accepted yet" (display only, R192 shared task-status.js)', () => {
+t('ops: a task saved "unassigned" with an assignee reads "Waiting for a yes" (display only, R192 shared task-status.js)', () => {
   const w = {}; vm.runInNewContext(read('public/task-status.js'), { window: w, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, Promise, setInterval() {}, clearInterval() {} });
   const TS = w.HelmTaskStatus;
   assert.equal(TS.baseKey({ status: 'unassigned', assignee_name: 'Suresh Yadav' }), 'waiting');
   assert.equal(TS.baseKey({ status: 'unassigned', assignee_name: '' }), 'unassigned');
   assert.equal(TS.baseKey({ status: 'accepted', assignee_name: 'Suresh Yadav' }), 'accepted');
-  assert.equal(TS.LABEL.waiting, 'Not accepted yet');   // R250 wording
+  assert.equal(TS.LABEL.waiting, 'Waiting for a yes');
   assert.match(read('public/ops-board.js'), /function stPill\(t\) \{ var k = TS\.shown\(t\); return h\("span", \{ cls: "tc-st " \+ k, text: TS\.LABEL\[k\] \}\); \}/);
 });
 

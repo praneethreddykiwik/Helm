@@ -20,6 +20,3 @@
 #team_work .tsWorkL{margin:0;padding-left:18px}
 #team_work .tsWork .btn{justify-self:start}
 @media (max-width:640px){#team_safety .tsBanner .btn{flex:1 1 auto}}
-/* R250: the "open work" panel, the transfer banner and the Users & invites notes (#umsg) follow the studio's accent (green by default), not the blue .msg.info */
-.msg.info.tsWork,.msg.info.tsBanner,#pane-users #umsg .msg.info{background:var(--hb-acc-soft,var(--accent-soft));color:var(--hb-acc-text,var(--accent));border:1px solid color-mix(in srgb,var(--hb-acc,var(--accent)) 28%,transparent)}
-.msg.info.tsWork a,.msg.info.tsWork strong{color:inherit}

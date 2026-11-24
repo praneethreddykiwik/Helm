@@ -62,14 +62,14 @@
   .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);width:min(380px,96vw);padding:24px}
   .sheet h3{margin:0 0 12px}.foot{display:flex;gap:10px;justify-content:flex-end}
   @media print{ header .nav,.account,#addCard,#planLock,.rowacts,#printBtn,.crumb,footer{display:none!important} .wrap{max-width:100%} body{background:#fff} .card{box-shadow:none;border:none;padding:0} }
-  .crumb a,.sub a,.rs-intro a,a#floorLink{text-decoration:underline}
+  .crumb a,.sub a,a#floorLink{text-decoration:underline}
 </style>
 <link rel="stylesheet" href="runsheet-polish.css?v=6">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="event-floor.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=117" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -95,7 +95,7 @@
       <span class="spacer"></span>
       <button type="button" class="btn sm" id="printBtn">🖨 Print</button>
     </div>
-    <p class="rs-intro" id="rsIntro">Run-sheet = the programme of the event, minute by minute (e.g. 7:00 guests arrive, 8:30 cake cutting). Share it with the client, the venue and vendors. Each line can have an owner who gets a reminder.<span id="rsOpsWrap" hidden> Who does which job is on <a id="rsOps" href="#">Tasks &amp; Crew</a>.</span></p>
+    <p class="rs-intro" id="rsIntro">Run sheet = the minute-by-minute plan for the event day (e.g. 6:00 setup, 7:00 guests arrive). Each line can have an owner who gets a reminder.</p>
 
     <!-- R227 (0397): "Locked for the event day - Unlock to edit"; while locked the lines are view only (the database refuses changes; reminders still go) -->
     <div class="ef-lock" id="planLock" hidden></div>
@@ -165,9 +165,9 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
-<script src="page-tours.js?v=76"></script>
-<script src="tour.js?v=91"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script>
+<script src="page-tours.js?v=75"></script>
+<script src="tour.js?v=90"></script>
 <script src="runsheet-remind.js?v=3"></script>
 <script src="event-floor.js?v=1"></script>
 <script>
@@ -288,7 +288,6 @@
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("runsheet"))) return;
     canEdit=await BPStore.auth.canEditArea("runsheet"); canDelete=canEdit && await BPStore.auth.can("delete");
-    if(await BPStore.auth.canView("staff").catch(()=>false)){ $("#rsOps").href="ops.html?quote="+encodeURIComponent(id); $("#rsOpsWrap").hidden=false; }
     let ev=null; try{ ev=await BPStore.quotes.get(id); }catch(e){ if(!BPUI.isNotFound(e)) throw e; }
     // crew-1020: crew can't read quotes; their own assigned event comes from crew_event_brief (no client / money fields)
     if(!ev){ try{ BRIEF=await BPStore.ops.crew.eventBrief(id); }catch(e){ BRIEF=null; }

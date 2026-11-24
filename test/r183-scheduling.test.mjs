@@ -55,7 +55,7 @@ t('b) "Send by email" is ticked on every visit and after every assign (never res
   assert.match(OPS, /function resetAssignEmail\(\)\{ const x=\$\("#assignEmail"\); if\(x\) x\.checked=true; \}\n  resetAssignEmail\(\);\n  window\.addEventListener\("pageshow", resetAssignEmail\);/);
   assert.match(OPS, /\$\("#selAll"\)\.checked=false; resetAssignEmail\(\); const done=lastOkMsg; await refresh\(\);/);
   // R192: also when the Add & assign sheet opens, and after giving existing tasks to someone
-  assert.match(OPS, /sheetOpened:\(preset, depId\)=>\{ setMsg\(\); lastOkMsg=""; resetAssignEmail\(\);/);
+  assert.match(OPS, /sheetOpened:\(preset\)=>\{ setMsg\(\); lastOkMsg=""; resetAssignEmail\(\);/);
   assert.match(OPS, /resetAssignEmail\(\); const done=lastOkMsg; await refresh\(\); if\(window\.OpsBoard\) OpsBoard\.assigned\(done\);/);
   assert.match(OPS, /No email sent \(\\"Send by email\\" was unticked\) - use Email in the task panel or By person to send it\./);
 });

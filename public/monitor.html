@@ -8,19 +8,18 @@
 <link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
-<link rel="stylesheet" href="ops-board.css?v=6">
-<link rel="stylesheet" href="monitor.css?v=9">
-<link rel="stylesheet" href="event-plan.css?v=2">
+<link rel="stylesheet" href="ops-board.css?v=5">
+<link rel="stylesheet" href="monitor.css?v=8">
+<link rel="stylesheet" href="event-plan.css?v=1">
 <link rel="stylesheet" href="event-floor.css?v=1">
-<link rel="stylesheet" href="/event-steps.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=117" id="shellProto"></script>
 </head>
 <body class="mon-body">
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="mon-page">
   <header class="mon-header">
-    <a href="dashboard.html" class="mark" aria-label="Home"></a>
+    <a href="dashboard.html" class="mark" title="Home"></a>
     <div><h1>Event-day monitor</h1><small>Helm Events</small></div>
     <nav class="nav"><a href="dashboard.html">Home</a><a href="calendar.html?cv=live">Live today</a></nav>
     <span class="spacer"></span>
@@ -41,7 +40,7 @@
             <h2 id="monTitle" class="tc-ev-title mon-title">Event day</h2>
             <span class="mon-evpick-chev" aria-hidden="true"></span>
             <label class="tc-sr" for="monEvent">Switch event</label>
-            <select id="monEvent" class="mon-evpick-sel" aria-describedby="monEventHint"></select>
+            <select id="monEvent" class="mon-evpick-sel" aria-describedby="monEventHint" title="Switch event"></select>
           </div>
           <span id="monEventHint" class="tc-sr">Today and the next 3 days first, then the rest of the month.</span>
           <p id="monSub" class="tc-ev-sub mon-sub"></p>
@@ -51,75 +50,73 @@
           <a id="monOpenOps" class="tc-btn tc-primary" href="ops.html">Open Tasks &amp; Crew</a>
           <button type="button" id="monRefresh" class="tc-btn" aria-describedby="monUpdated">Refresh</button>
           <span id="monUpdated" class="mon-updated" aria-live="polite"></span>
-          <button type="button" id="monWall" class="tc-btn ghost mon-wallbtn" aria-pressed="false">Wall screen</button>
+          <button type="button" id="monWall" class="tc-btn ghost mon-wallbtn" aria-pressed="false" title="Big text for a wall screen or TV (full screen)">Wall screen</button>
         </div>
       </section>
 
-      <!-- R251: one step strip - Day before / Pre-event / On the event, the same steps (data-win) as Tasks & Crew. The filled dot +
-           "Now" marks where the event is (the studio's clock + the quote's stage, task-status.js); the other steps look ahead / back
-           and change what the page shows. Wrap-up is no step: a closed section at the very bottom (#monWrapUp). -->
-      <nav class="mon-stp" id="monWins" aria-label="Where the event is">
-        <ol class="mon-stp-list" id="monStpList">
-          <li><button type="button" class="mon-stp-b" data-win="daybefore" aria-pressed="false">Day before<span class="mon-stp-now">Now</span></button></li>
-          <li><button type="button" class="mon-stp-b" data-win="pre" aria-pressed="false">Pre-event<span class="mon-stp-now">Now</span></button></li>
-          <li><button type="button" class="mon-stp-b" data-win="onday" aria-pressed="false">On the event<span class="mon-stp-now">Now</span></button></li>
-        </ol>
-      </nav>
-
-      <!-- R251: what each step shows, top to bottom. Day before = get set up, needs action, checklist, lock, floor plan.
-           Pre-event = the live strip, late set-up jobs, Ready by, floor plan, the work, "Mark pre-event complete".
-           On the event = the live strip, run-sheet now / next, Late panel, issues, the work + activity, floor plan. -->
-      <section id="monSummary" class="mon-summary" aria-label="At a glance"></section>
-      <section class="tc-card mon-mini" id="monRun" aria-labelledby="monRunH" hidden></section>
-      <section id="monAlerts" class="mon-alerts" aria-label="Late tasks" role="region" hidden></section>
-      <section class="tc-card mon-mini" id="monIssues" aria-labelledby="monIssuesH" hidden></section>
-      <section class="tc-card mon-prep" id="monPrep" aria-labelledby="monPrepH" hidden></section>
-      <section class="tc-card ep-card" id="monDayBefore" aria-labelledby="monDayBeforeH" hidden></section>
-      <!-- R227 (0397, event-floor.js): the plan lock bar (Day before only) + the floor plan; hidden before 0397 -->
-      <div class="mon-lockwrap" id="monLockWrap">
-        <p class="mon-lockh">Lock the plan</p>
-        <section class="ef-lock" id="monLock" hidden></section>
+      <!-- R226 (EVENT-OPS-PLAN-V2.md): the SAME four windows as Tasks & Crew, picked from the studio's clock (task-status.js) -->
+      <div class="tc-phase-row ep-wins" id="monWins">
+        <div class="tc-seggrp" role="group" aria-label="Which part of the job">
+          <button type="button" class="tc-seg" data-win="before" aria-pressed="false">Before the event</button>
+          <button type="button" class="tc-seg" data-win="daybefore" aria-pressed="false">Day before</button>
+          <button type="button" class="tc-seg" data-win="onday" aria-pressed="false">On the day</button>
+          <button type="button" class="tc-seg" data-win="wrapup" aria-pressed="false">Wrap-up</button>
+        </div>
+        <span class="ep-wnote" id="monWinNote" aria-live="polite"></span>
+        <button type="button" class="tc-btn sm ghost" id="monWinAuto" hidden>Use the studio’s clock</button>
       </div>
+      <!-- R227 (0397, event-floor.js): the plan lock bar + the floor plan for the day; hidden before 0397 -->
+      <section class="ef-lock" id="monLock" hidden></section>
+      <section class="tc-card ep-card" id="monDayBefore" aria-labelledby="monDayBeforeH" hidden></section>
       <section class="tc-card ep-card" id="monReady" aria-labelledby="monReadyH" hidden></section>
       <section class="tc-card ef-card" id="monFloor" aria-labelledby="monFloorH" hidden></section>
+      <section class="tc-card ep-card mon-wrapcard" id="monWrap" aria-label="Wrap-up" hidden></section>
 
-      <div class="mon-work" id="monWork">
-        <div class="mon-tabs" role="tablist" aria-label="Views" id="monTabs">
-          <button type="button" role="tab" class="mon-tab" data-tab="staff" id="monTab-staff" aria-controls="monView">People</button>
-          <button type="button" role="tab" class="mon-tab" data-tab="work" id="monTab-work" aria-controls="monView">Work</button>
-          <button type="button" role="tab" class="mon-tab" data-tab="checkin" id="monTab-checkin" aria-controls="monView">Check-in</button>
-          <button type="button" role="tab" class="mon-tab" data-tab="activity" id="monTab-activity" aria-controls="monView">Activity</button>
-        </div>
+      <section id="monSummary" class="mon-summary" aria-label="Progress"></section>
+      <section id="monAlerts" class="mon-alerts" aria-label="Late tasks" role="region" hidden></section>
 
-        <!-- R250: status = filter chips (with counts); search + the menus in one row; on a phone the menus fold behind Filters -->
-        <div class="mon-tools" id="monTools" role="search">
-          <div class="mon-chips" id="monChips" role="group" aria-label="Show only"></div>
-          <label class="tc-search mon-search" for="monQ"><span class="tc-search-ico" aria-hidden="true"></span><input type="search" id="monQ" maxlength="80" placeholder="Search task, person or section" autocomplete="off" aria-label="Search"></label>
-          <button type="button" id="monFiltersBtn" class="tc-btn mon-filtersbtn" aria-expanded="false" aria-controls="monFilters">Filters <span class="mon-n" id="monFiltersN"></span></button>
-          <div class="mon-filters" id="monFilters">
-            <select id="monWho" class="mon-select" aria-label="Person"></select>
-            <select id="monSec" class="mon-select" aria-label="Section"></select>
-            <select id="monSort" class="mon-select" aria-label="Sort">
-              <option value="time">Sort: start time</option>
-              <option value="name">Sort: name</option>
-              <option value="status">Sort: status</option>
-            </select>
-            <button type="button" id="monClear" class="tc-btn ghost mon-clear" hidden>Clear</button>
-          </div>
-        </div>
+      <div class="mon-tabs" role="tablist" aria-label="Views" id="monTabs">
+        <button type="button" role="tab" class="mon-tab" data-tab="staff" id="monTab-staff" aria-controls="monView">By staff</button>
+        <button type="button" role="tab" class="mon-tab" data-tab="work" id="monTab-work" aria-controls="monView">By work</button>
+        <button type="button" role="tab" class="mon-tab" data-tab="status" id="monTab-status" aria-controls="monView">By status</button>
+        <button type="button" role="tab" class="mon-tab" data-tab="left" id="monTab-left" aria-controls="monView">Leftover <span class="mon-n" id="monLeftN"></span></button>
+        <button type="button" role="tab" class="mon-tab" data-tab="checkin" id="monTab-checkin" aria-controls="monView">Check-in</button>
+        <button type="button" role="tab" class="mon-tab" data-tab="activity" id="monTab-activity" aria-controls="monView">Activity</button>
+      </div>
 
-        <div class="mon-grid">
-          <div id="monView" class="mon-view" role="tabpanel" aria-labelledby="monTab-staff" aria-live="polite"></div>
-          <aside class="mon-side tc-card" aria-labelledby="monFeedH">
-            <div class="mon-side-h"><h3 class="mon-h3" id="monFeedH">Recent activity</h3><button type="button" class="tc-mini-link mon-linkbtn" id="monFeedAll">See all</button></div>
-            <ol id="monFeed" class="mon-feed"></ol>
-          </aside>
+      <!-- R194: filters in one row (search + four small menus); on a phone the menus fold behind a Filters button -->
+      <div class="mon-tools" id="monTools" role="search">
+        <label class="tc-search mon-search" for="monQ"><span class="tc-search-ico" aria-hidden="true"></span><input type="search" id="monQ" maxlength="80" placeholder="Search task, person or section" autocomplete="off" aria-label="Search"></label>
+        <button type="button" id="monFiltersBtn" class="tc-btn mon-filtersbtn" aria-expanded="false" aria-controls="monFilters">Filters <span class="mon-n" id="monFiltersN"></span></button>
+        <div class="mon-filters" id="monFilters">
+          <select id="monWho" class="mon-select" aria-label="Person"></select>
+          <select id="monSec" class="mon-select" aria-label="Section"></select>
+          <select id="monSt" class="mon-select" aria-label="Status">
+            <option value="">Any status</option>
+            <option value="late">Late</option>
+            <option value="waiting">Waiting for a yes</option>
+            <option value="accepted">Accepted</option>
+            <option value="started">Started</option>
+            <option value="done">Done</option>
+            <option value="rejected">Turned down</option>
+            <option value="unassigned">No one yet</option>
+          </select>
+          <select id="monSort" class="mon-select" aria-label="Sort">
+            <option value="time">Sort: start time</option>
+            <option value="name">Sort: name</option>
+            <option value="status">Sort: status</option>
+          </select>
+          <button type="button" id="monClear" class="tc-btn ghost mon-clear" hidden>Clear</button>
         </div>
       </div>
 
-      <!-- R251 (event-steps.js, the same parts as Tasks & Crew): the end of Pre-event, then Wrap-up - closed until someone opens it -->
-      <div class="mon-predone" id="monPreDoneBox" hidden><section class="tc-card" id="monPreDone" hidden></section></div>
-      <div class="mon-wrapup"><section class="tc-card" id="monWrapUp" hidden></section></div>
+      <div class="mon-grid">
+        <div id="monView" class="mon-view" role="tabpanel" aria-labelledby="monTab-staff" aria-live="polite"></div>
+        <aside class="mon-side tc-card" aria-labelledby="monFeedH">
+          <div class="mon-side-h"><h3 class="mon-h3" id="monFeedH">Recent activity</h3><button type="button" class="tc-mini-link mon-linkbtn" id="monFeedAll">See all</button></div>
+          <ol id="monFeed" class="mon-feed"></ol>
+        </aside>
+      </div>
     </div>
   </main>
 </div>
@@ -134,12 +131,11 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
-<script src="live-board.js?v=3"></script>
-<script src="task-status.js?v=6"></script>
-<script src="event-plan.js?v=4"></script>
-<script src="monitor.js?v=13"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script>
+<script src="live-board.js?v=2"></script>
+<script src="task-status.js?v=5"></script>
+<script src="event-plan.js?v=3"></script>
+<script src="monitor.js?v=12"></script>
 <script src="event-floor.js?v=1"></script>
-<script src="/event-steps.js?v=1"></script>
 </body>
 </html>

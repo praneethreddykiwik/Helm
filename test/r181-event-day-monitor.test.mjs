@@ -72,13 +72,10 @@ await t('after-midnight tasks say which night they belong to', () => {
   assert.match(JS, /night of/);
 });
 
-// R250: six tabs -> three (People / Work / Activity); status is a row of filter chips (#monChips) instead of a tab + a menu
-await t('page: tabs People / Work / Activity, picker, summary, status chips, filters, feed', () => {
-  for (const id of ['monEvent', 'monSummary', 'monTabs', 'monView', 'monFeed', 'monQ', 'monWho', 'monSec', 'monChips', 'monSort', 'monOpenOps', 'monRefresh', 'monUpdated'])
+await t('page: tabs By staff / By work / By status / Leftover, picker, summary, filters, feed', () => {
+  for (const id of ['monEvent', 'monSummary', 'monTabs', 'monView', 'monFeed', 'monQ', 'monWho', 'monSec', 'monSt', 'monSort', 'monOpenOps', 'monRefresh', 'monUpdated'])
     assert.match(HTML, new RegExp('id="' + id + '"'), id);
-  const tabs = [...HTML.matchAll(/role="tab"[^>]*data-tab="([a-z]+)"[^>]*>([^<]+)</g)].map((m) => m[1] + ':' + m[2]);
-  assert.deepEqual(tabs, ['staff:People', 'work:Work', 'checkin:Check-in', 'activity:Activity']);
-  for (const gone of ['By status', 'Leftover', 'id="monSt"', 'id="monLeftN"']) assert.ok(!HTML.includes(gone), gone + ' gone');
+  for (const tab of ['By staff', 'By work', 'By status', 'Leftover']) assert.ok(HTML.includes(tab), tab);
   assert.match(HTML, /role="tablist"/);
 });
 
@@ -115,13 +112,10 @@ await t('wiring: shell page list, nav item gated on Staff, routes, noindex heade
   assert.match(lb, /Open full monitor/);
 });
 
-// R250: three breakpoints (<=767 / 768-1279 / >=1280); the kanban (By status) is gone; the rail only from 1280px
-await t('responsive css: phone first, 768 / 1280 breakpoints, side feed only on wide screens, print hides controls', () => {
-  assert.match(CSS, /@media \(max-width:767\.98px\)/);
-  assert.match(CSS, /@media \(min-width:768px\)/);
-  assert.match(CSS, /@media \(min-width:1280px\)\{[^]*?\.mon-side\{display:block\}/);
-  assert.match(CSS, /\.mon-side\{display:none;/);
-  assert.doesNotMatch(CSS, /\.mon-board\{|min-width:720px|min-width:1100px|min-width:1380px/);
+await t('responsive css: phone first, kanban scrolls, side feed only on wide screens, print hides controls', () => {
+  assert.match(CSS, /@media \(min-width:720px\)/);
+  assert.match(CSS, /@media \(min-width:1100px\)/);
+  assert.match(CSS, /\.mon-board\{[^}]*overflow-x:auto/);
   assert.match(CSS, /@media print/);
 });
 

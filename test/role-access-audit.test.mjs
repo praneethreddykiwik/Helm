@@ -54,7 +54,7 @@ test("planner-1023: role gates match the server", () => {
   const brd = read("public/ops-board.js");
   assert.match(brd, /bar\.hidden = !ids\.length \|\| !canEdit\(\);/);
   assert.match(brd, /var add = \$\("#addBtn"\); if \(add\) add\.hidden = !canEdit\(\);/);
-  assert.match(brd, /function openSheet\(ids, depId\) \{\n    if \(!canEdit\(\)\) return;/);
+  assert.match(brd, /function openSheet\(ids\) \{\n    if \(!canEdit\(\)\) return;/);
   assert.match(flow, /if\(!canEdit\) \["#q_save","#sendApproval"\]\.forEach/);
   assert.match(shell, /while \(ref && ref\.parentNode !== admin\) ref = ref\.parentNode;/);
   assert.match(iss, /<base href="\/">/);
