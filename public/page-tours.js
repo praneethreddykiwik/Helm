@@ -253,7 +253,7 @@
           { sel: "#nf_table", title: "Who hears about what", desc: "For each kind of alert, pick which roles get it in the bell and by text or e-mail." },
           { sel: "#nf_reset", title: "Back to defaults", desc: "Puts every notification back to how Helm set it up." },
           { sel: "#np_user", title: "Per-person overrides", desc: "Pick one person to mute or add alerts just for them." },
-          { sel: "#trmCard", title: "Task reminders and escalation", desc: "Reminders for the person on each task. For special tasks not started, set when the event lead, the manager and the admin / owner are told (0, 5 and 10 minutes after the start by default). It stops once the task is started." },
+          { sel: "#trmCard", title: "Task reminders and escalation", desc: "Reminders for each task. For special tasks not started, set when the event lead, the manager and the admin / owner are told (0, 5, 10 min after the start). Sort tasks into steps: off = a task stays in the step you pick." },
           { sel: "#sinCard", title: "Teammate sign-ins", desc: "When a teammate signs in, the owner and admins get a bell notice: name, role, time and browser. Choose Off, First sign-in each day (the default) or Every sign-in, and which roles count." },
         ],
         reminders: [
@@ -478,7 +478,7 @@
     "ops.html": [
       { sel: "#evhead", title: "The event at a glance", desc: "Date, venue, guests, countdown, You supervise: Catering. Plan & reminders: the plan lock bar (locked on the day; unlock = admin or event manager + a reason). In the steps: the Floor plan with 2D, 3D, Measure (view only) and Print pack." },
       { sel: "#tcPhase", title: "Event steps", desc: "Day before / Pre-event / On the event, picked from your studio's clock. Day before: tick the checklist. Ready by: each set-up job's latest start. Then Mark pre-event complete. On the event: the run-sheet and issues. Wrap-up is last." },
-      { sel: "#attn", title: "What needs you", desc: "One card with only what is not zero: late tasks, people not checked in, can't-work requests, work to approve, nobody on it, sent back - each with its button. Nothing to do = one quiet line." },
+      { sel: "#attn", title: "What needs you", desc: "One card with only what is not zero: late tasks, people not checked in, can't-work requests, work to approve, nobody on it, sent back, one person with two works at the same time - each with its button. Nothing to do = one quiet line." },
       { sel: ["#view", "#work"], title: "Tasks by department", desc: "One card per department: each task with its person, time, status and Email / WhatsApp. Pick a Supervisor per department - they get a bell and its late alerts. + Add task adds work there. Order of work: who waits for whom." },
       { sel: ["#chips", "#tcQ"], title: "Find a task", desc: "Tap a chip (Late, Special, Not assigned, Not accepted yet, No time, To approve...) - each shows its count. Search finds tasks and people; press / to jump to it." },
       { sel: "#addBtn", title: "Add & assign", desc: "First the part of the job: Day before, Pre-event, On the event, Wrap-up. Then what, who (Free that day / Busy elsewhere / Day off), start time, reminders, Special, the task it waits for. Once accepted, use Cancel (a reason is required)." },

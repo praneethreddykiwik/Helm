@@ -54,9 +54,9 @@
       var p = planPay(await B.paySchedule.forQuote(o.quoteId), o.from, o.to), k = p.rows.length; if (!k) return out;
       var day = function (d) { try { return (B.fmtStudioDate && B.fmtStudioDate(d, { style: "medium" })) || d; } catch (e) { return d; } };
       out.asked = true;
-      var ok = await U.confirm((k === 1 ? "1 unpaid payment has" : k + " unpaid payments have") + " a due date set for the old event date. Change " + (k === 1 ? "it" : "them") + "? " +
-        p.rows.map(function (r) { return r.label + ": " + day(r.from) + " \u2192 " + day(r.to); }).join("; ") +
-        ". Amounts and paid payments don't change. Payment reminders follow the new dates.",
+      var ok = await U.confirm((k === 1 ? "1 unpaid payment has" : k + " unpaid payments have") + " a due date set for the old event date. Change " + (k === 1 ? "it" : "them") + "?\n\n" +
+        p.rows.map(function (r) { return r.label + ": " + day(r.from) + " \u2192 " + day(r.to); }).join("\n") +
+        "\n\nAmounts and paid payments don't change. Payment reminders follow the new dates.",
         { title: "Move the payment dates too?", okLabel: k === 1 ? "Move 1 payment" : "Move " + k + " payments", cancelLabel: "Leave them" });
       if (!ok) { U.toast("The payment dates were left as they are. Change them in Logistics, Payments.", { type: "info", timeout: 8000 }); return out; }
       // read again: somebody may have paid or changed a date while the question was open - those rows are left alone
@@ -87,6 +87,14 @@
         " (same time of day)? Reminders follow the new time, and people already given the work may get a message about the change. If you don't, reminders go out for the old date.",
         { title: "Move the task times too?", okLabel: "Move " + (k === 1 ? "1 task" : k + " tasks"), cancelLabel: "Leave them" });
       if (!ok) { U.toast("The task times were left on the old date. Change them on Tasks & Crew.", { type: "info", timeout: 8000 }); return out; }
+      // R254: one person, two works at the same time on the new date (other events too) -> asked, never blocked
+      if (global.HelmTaskClash && global.HelmTaskClash.ask) {
+        var by = {}; tasks.forEach(function (t) { by[t.id] = t; });
+        var items = p.rows.filter(function (r) { var t = by[r.id]; return t && t.crew_id && t.assignee_kind !== "outsourced" && /^(assigned|accepted|in_progress)$/.test(t.status); })
+          .map(function (r) { var t = by[r.id]; return { id: r.id, crew_id: t.crew_id, name: t.assignee_name || "", title: r.title, start: r.start, end: r.end, duration_min: t.duration_min, depends_on: r.depends }; });
+        if (items.length && !(await global.HelmTaskClash.ask(items, { quoteId: o.quoteId, tasks: tasks, exclude: items.map(function (x) { return x.id; }), question: "Move them anyway?", ok: "Move anyway" }))) {
+          U.toast("The task times were left on the old date. Change them on Tasks & Crew.", { type: "info", timeout: 8000 }); return out; }
+      }
       // the earlier task first when moving forward would put it after the one that waits for it - the server has no order rule, so plain order is fine
       for (var i = 0; i < p.rows.length; i++) {
         var r = p.rows[i];

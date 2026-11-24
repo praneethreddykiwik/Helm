@@ -34,7 +34,8 @@
     return (list || []).filter(function (b) { return b && b.status !== "cancelled" && b.status !== "enquiry"; }).map(function (b) {
       var a = arrivalOf(arrivals, b.id), st = a ? (WORD[a.status] ? a.status : "expected") : "expected", exited = b.status === "delivered";
       return { id: b.id, label: String(b.label || (a && a.who) || "Partner"), status: b.status, arr: a ? a.id : null, state: exited && st !== "left" && st !== "no_show" ? "left" : st,
-        raw: st, at: a && a.status !== "expected" ? a.updated_at || null : null, exited: exited };
+        raw: st, at: a && a.status !== "expected" ? (a.status === "arrived" ? a.arrived_at : a.status === "left" ? a.left_at : null) || a.updated_at || null : null,
+        arrivedAt: a && a.status === "left" ? a.arrived_at || null : null, exited: exited };   // R254 (0437): both times; older databases = the last change only
     });
   }
   function vendorCount(rows) { var r = { total: rows.length, expected: 0, arrived: 0, left: 0, no_show: 0 }; rows.forEach(function (x) { r[x.state]++; }); return r; }
@@ -143,7 +144,7 @@
     var now = await readVendors(env.q), cur = vendorRows(now.list, now.arr).filter(function (x) { return x.id === row.id; })[0];
     if (!cur || cur.state !== row.state || cur.exited !== row.exited) return CHANGED;
     if (cur.arr) await B().dayops.setStatus(cur.arr, to);
-    else await B().dayops.add(env.q, { kind: "arrival", who: row.label, role: "vendor", ref_id: row.id, status: to });
+    else { var made = await B().dayops.add(env.q, { kind: "arrival", who: row.label, role: "vendor", ref_id: row.id, status: to }); if (made && made.existed) return CHANGED; }
     var back = await readVendors(env.q), b2 = vendorRows(back.list, back.arr).filter(function (x) { return x.id === row.id; })[0];
     if (!b2 || b2.raw !== to) return NOSAVE;
     return row.label + ": " + WORD[to].toLowerCase() + (b2.at ? " " + clock(env.ctx, b2.at) : "") + ".";
@@ -164,7 +165,7 @@
         if (r.state === "left" && !r.exited && p.vendors && (r.status === "booked" || r.status === "confirmed")) acts.appendChild(btn("Returned on Teardown too", "v:exit:" + r.id, function () { run(S, env, "vendors", "mark the vendor returned", function () { return exitVendor(env, r); }).then(ring); }, { off: off, label: "Also mark " + r.label + " returned or exited on Teardown" }));
       }
       var when = r.at && r.state !== "expected" ? clock(env.ctx, r.at) : "";
-      ul.appendChild(h("li", { cls: "hwd-row" }, [h("span", { cls: "hwd-main" }, [h("b", { text: r.label }), h("small", { text: WORD[r.state] + (when ? " " + when : "") + (r.exited ? " · returned on Teardown" : r.status === "booked" ? " · not confirmed" : "") })]),
+      ul.appendChild(h("li", { cls: "hwd-row" }, [h("span", { cls: "hwd-main" }, [h("b", { text: r.label }), h("small", { text: (r.arrivedAt ? "Arrived " + clock(env.ctx, r.arrivedAt) + " · " : "") + (r.arrivedAt ? WORD[r.state].toLowerCase() : WORD[r.state]) + (when ? " " + when : "") + (r.exited ? " · returned on Teardown" : r.status === "booked" ? " · not confirmed" : "") })]),
         h("span", { cls: "hwd-pill is-" + r.state, text: WORD[r.state] }), acts]));
     });
     host.appendChild(ul);

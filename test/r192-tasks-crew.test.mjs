@@ -148,7 +148,7 @@ await t('5a page layout: header, phase switch, attention, three views, chips, Ap
 await t('5b "Venue opens" / "Ready by" only when the event already has them (no new DB fields)', () => {
   assert.match(BRD, /var venueOpens = pick\(\["venueOpens", "venue_opens", "venueAccess", "venue_access"\]\), readyBy = pick\(\["readyBy", "ready_by"\]\);/);
   assert.match(BRD, /if \(venueOpens\) tile\("Venue opens", venueOpens\);/); assert.match(BRD, /if \(readyBy\) tile\("Ready by", readyBy, "key"\);/);
-  assert.match(BRD, /if \(guestsAt\) tile\("Guests arrive", guestsAt/);
+  assert.match(BRD, /if \(guestsAt\) tile\("Guests arrive", guestWord\(guestsAt\)/);
 });
 await t('5c the old setup-form page is gone: no Add staff form, no tick box hiding the start time, no stale legend', () => {
   assert.doesNotMatch(OPS, /id="cr_name"|id="cr_phone"|id="cr_add"|addCrew\(/);
@@ -175,7 +175,7 @@ await t('5e the sheet: when is this work / what / who / start time / tell them, 
   assert.match(OPS, /id="asSpecial"> ▲ Special \(P1\)/);
   // existing tasks (Give to someone / Reassign / bulk Assign) go through reassign_task, the can't-work confirm stays
   assert.match(OPS, /async function assignPreset\(ids\)\{/); assert.match(OPS, /await BPStore\.ops\.reassign\(t\.id,c\.id,c\.name,c\.phone\)/);
-  assert.match(OPS, /if\(clash\.clash && !\(await BPUI\.confirm\(c\.name\+" is "\+clash\.detail\+"\. Assign anyway\?"/);
+  assert.match(OPS, /const dayText=\(x\)=>c\.name\+" is "\+x\.detail\+"\. Assign anyway\?"/);
 });
 await t('5f approved day off only warns (no automatic unassign); Approve / Reject feature-detected (0370)', () => {
   assert.match(BRD, /sh && typeof sh\.requests === "function" && typeof sh\.decide === "function" \? sh\.requests\("open"\)/);
@@ -210,7 +210,7 @@ await t('7a R251: the header badge is the REAL step; old hand picks go through n
   assert.match(BRD, /badgeOf\(S\.autoWin, stageOf\(\)\)/); assert.doesNotMatch(BRD, /S\.phase === "live" \? "Event day/);
   assert.match(BRD, /TS\.opsWindow\(S\.mode, \{ eventDate: evDate\(\), eventTime: q\.eventTime, stage: stageOf\(\), now: Date\.now\(\), tz: tz\(\) \}\)/);
   // studio time only: a tap just looks; nothing is stored and no "picked by hand" note
-  assert.match(BRD, /if \(S\.manual === S\.autoStep \|\| \(was && was !== S\.autoStep\)\) S\.manual = null;/); assert.match(BRD, /w = TS\.normWin\(w\); if \(!w\) return;/);
+  assert.match(BRD, /if \(S\.manual === S\.openStep \|\| \(was && was !== S\.autoStep\)\) S\.manual = null;/); assert.match(BRD, /w = TS\.normWin\(w\); if \(!w\) return;/);
   assert.match(BRD, /S\.manual = TS\.normWin\("live"\);/); assert.doesNotMatch(BRD + OPS, /Picked by hand|Use the studio|helm\.tc\.phase/);
 });
 await t('7b R251: the steps are under the header, each step has its own card order, Wrap-up is the last thing on the page and lives in event-steps.js', () => {
@@ -221,7 +221,7 @@ await t('7b R251: the steps are under the header, each step has its own card ord
     assert.deepEqual(list.slice(0, 3), ['attn', 'work', first], 'R253: needs you now, then the tasks, on every step'); assert.equal(list[list.length - 1], last); for (const id of list) assert.ok(at(id) > 0, w + ' ' + id);
     for (const id of ['work', 'tcFloor']) assert.ok(list.includes(id), w + ' keeps ' + id);
   }
-  const pre = BRD.match(/pre: \[([^\]]+)\]/)[1]; assert.ok(pre.indexOf('"work"') >= 0 && /concat\(TAIL, \["tcPreDone"\]\)/.test(BRD) && /TAIL = \["tcIssues", "tcActCard", "tcCrewCard", "tcPlanRem"\]/.test(BRD), 'Mark pre-event complete ends the step');
+  const pre = BRD.match(/pre: \[([^\]]+)\]/)[1]; assert.ok(pre.indexOf('"work"') >= 0 && /concat\(TAIL, \["tcPreDone"\]\)/.test(BRD) && /TAIL = \["tcIssues", "tcActCard", "tcCrewCard", "shiftCard", "tcPlanRem"\]/.test(BRD), 'Mark pre-event complete ends the step');
   assert.match(BRD, /HelmEventSteps\.renderPreDone\(ph, ctx\)/); assert.match(BRD, /HelmEventWrap\.render\(wh, ctx\)/);
   assert.match(OPS, /<link rel="stylesheet" href="\/event-steps\.css\?v=\d+">/); assert.match(OPS, /<script src="\/event-steps\.js\?v=\d+"><\/script>/);
   assert.doesNotMatch(BRD, /setStageGuided\(|stageBlockers\(|setStage\(/, 'one place moves the stage: event-steps.js');

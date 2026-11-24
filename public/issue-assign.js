@@ -181,8 +181,8 @@
       if (!c) return { ok: false, msg: pick.name + " is not on the active staff list." };
       if (digits(c.phone) < 8) return { ok: false, msg: pick.name + " has no phone number on their staff record (a task needs one)." };
     }
-    var before = {}, had = null, others = [];
-    ((await O.listTasks(quoteId)) || []).forEach(function (t) {
+    var before = {}, had = null, others = [], all = (await O.listTasks(quoteId)) || [];
+    all.forEach(function (t) {
       before[t.id] = 1; if (["cancelled", "rejected", "completed"].indexOf(t.status) >= 0) return;
       if (mine(t)) had = t; else if (t.title === title && t.category === CAT && t.assignee_name && others.indexOf(t.assignee_name) < 0) others.push(t.assignee_name);
     });
@@ -191,7 +191,9 @@
     if (C && C.wouldClash && B().quotes && B().quotes.get) {
       ev = await quiet(function () { return B().quotes.get(quoteId); }, null);
       var d = ev && (ev.eventDate || ev.event_date), cl = d ? await quiet(function () { return C.wouldClash(vendor ? { date: d, vendorId: pick.id, excludeQuote: quoteId } : { date: d, crewId: pick.id, excludeQuote: quoteId }); }, null) : null;
-      if (cl && cl.clash && global.BPUI && global.BPUI.confirm && !(await global.BPUI.confirm(pick.name + " is " + cl.detail + ". Give them the task anyway?", { title: "Scheduling clash", okLabel: "Give the task" }))) return { ok: false, stopped: true, msg: "No task was given." };
+      var TC = !vendor && global.HelmTaskClash;   // R254-B: starts now - the same time first, then the day
+      if (TC) { if (!(await TC.give([{ crew_id: pick.id, name: pick.name, start: new Date(Math.floor(Date.now() / 60000) * 60000).toISOString(), title: title }], { quoteId: quoteId, tasks: all, dayOk: "Give the task", dayText: function (x) { return pick.name + " is " + x.detail + ". Give them the task anyway?"; } }, function () { return cl; }))) return { ok: false, stopped: true, msg: "No task was given." }; }
+      else if (cl && cl.clash && global.BPUI && global.BPUI.confirm && !(await global.BPUI.confirm(pick.name + " is " + cl.detail + ". Give them the task anyway?", { title: "Scheduling clash", okLabel: "Give the task" }))) return { ok: false, stopped: true, msg: "No task was given." };
     }
     if (vendor) await O.assignTasksVendor(quoteId, CAT, [title], pick.id); else await O.assignTasks(quoteId, CAT, [title], c.id, c.name, c.phone);
     var note = "";

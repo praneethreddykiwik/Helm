@@ -119,7 +119,7 @@ await t('3a setOwner: the owner column only, trimmed, a refusal is said', () => 
 await t('3b Tasks & Crew, monitor and issues.html use the same parts; Pre-event and On the event; one filled button per step', () => {
   for (const s of [BRD, MON, ISS]) { assert.match(s, /\.picker\(\{/); assert.match(s, /IA\.list\(/); assert.match(s, /\.withTask\(/); }
   assert.match(MON, /function issStep\(\) \{ return S\.win === "onday" \|\| S\.win === "pre"; \}/); assert.match(BRD, /function issStep\(\) \{ return true; \}/);   // R253: every step, beside Latest
-  assert.match(BRD, /TAIL = \["tcIssues", "tcActCard", "tcCrewCard", "tcPlanRem"\]/); assert.match(BRD, /concat\(TAIL, \["tcPreDone"\]\)/);
+  assert.match(BRD, /TAIL = \["tcIssues", "tcActCard", "tcCrewCard", "shiftCard", "tcPlanRem"\]/); assert.match(BRD, /concat\(TAIL, \["tcPreDone"\]\)/);
   assert.match(BRD, /\(main \? " tc-primary" : ""\), id: "tcLogIssue"/); assert.match(BRD, /if \(go\.disabled\) return;/);
   for (const p of ['public/ops.html', 'public/monitor.html', 'public/issues.html']) { const h = read(p); assert.match(h, /href="\/issue-assign\.css\?v=\d+"/); assert.match(h, /src="\/issue-assign\.js\?v=\d+"/); }
   assert.match(MON, /readiness\(S\.tasks\)\.need\.filter\(function \(t\) \{ return !inDayCard\(t\); \}\)/);

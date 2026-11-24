@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (378 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (380 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4989 objects): body 176, bucket 9, col 284, con 423, cron 20, exec 19, fn 2242, idx 570, marker 152, pol 193, polexpr 4, pre 125, pub 6, seq 1, tbl 316, trg 447, view 2.
+-- What is checked (5027 objects): body 176, bucket 9, col 288, con 424, cron 20, exec 19, fn 2261, idx 572, marker 158, pol 193, polexpr 4, pre 127, pub 6, seq 1, tbl 316, trg 451, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4122,7 +4122,6 @@ with o(m, k, s, n, x) as (values
   ('0369_r186_special_escalation', 'idx', 'public.task_escalation_steps_quote369', null, null),
   ('0369_r186_special_escalation', 'trg', 'public.task_escalation_steps', 'zz_quote_org_match', null),
   ('0369_r186_special_escalation', 'con', 'public.staff_email_outbox', 'staff_email_outbox_kind_chk369', null),
-  ('0369_r186_special_escalation', 'con', 'public.event_task_log', 'event_task_log_kind_chk369', null),
   ('0369_r186_special_escalation', 'fn', 'public', '_r369_cfg', 'uuid,text'),
   ('0369_r186_special_escalation', 'fn', 'public', '_r369_people', 'uuid,uuid,uuid,integer'),
   ('0369_r186_special_escalation', 'fn', 'public', '_r369_escalation_tick', 'timestamp with time zone'),
@@ -4133,6 +4132,7 @@ with o(m, k, s, n, x) as (values
   ('0369_r186_special_escalation', 'fn', 'public', 'task_escalation_settings_get', 'text'),
   ('0369_r186_special_escalation', 'fn', 'public', 'task_escalation_settings_set', 'text,boolean,integer[]'),
   ('0369_r186_special_escalation', 'pre', null, '__pre0369', null),
+  ('0369_r186_special_escalation', 'con', 'public.event_task_log', 'event_task_log_kind_chk369', null),
   ('0369_r186_special_escalation', 'marker', 'public', 'task_reminder_tick', 'timestamp with time zone|r186-0369'),
   ('0369_r186_special_escalation', 'marker', 'public', 'staff_email_claim', 'integer|r186-0369'),
   ('0369_r186_special_escalation', 'marker', 'public', '_r23_visible', 'uuid,uuid|r186-0369'),
@@ -4984,7 +4984,6 @@ with o(m, k, s, n, x) as (values
   ('0435_r252_payment_plan', 'marker', 'public', '_pst_apply', 'uuid,text,text,uuid|r252-0435'),
   ('0435_r252_payment_plan', 'marker', 'public', 'payment_schedule_settings_get', '|r252-0435'),
   ('0435_r252_payment_plan', 'marker', 'public', 'payment_schedule_settings_set', 'jsonb|r252-0435'),
-  ('0436_r253_start_now_mail', 'body', 'public', 'verify_task', 'uuid,boolean,text|67e5ad4508c806b5f35a9df1120dc84f'),
   ('0436_r253_start_now_mail', 'body', 'public', 'worker_get_tasks', 'uuid|7e5aedebd1399dd653be9db36dc7f0ad'),
   ('0436_r253_start_now_mail', 'body', 'public', 'event_department_supervisors_get', 'uuid|51c25b4304962c20c428ac35f7e42530'),
   ('0436_r253_start_now_mail', 'col', 'public.task_start_notices', 'mail_id', null),
@@ -5013,7 +5012,46 @@ with o(m, k, s, n, x) as (values
   ('0436_r253_start_now_mail', 'pre', null, '__pre0436', null),
   ('0436_r253_start_now_mail', 'marker', 'public', 'crew_event_brief', 'uuid|r253-0436'),
   ('0436_r253_start_now_mail', 'marker', 'public', 'my_tasks', '|r253-0436'),
-  ('0436_r253_start_now_mail', 'marker', 'public', 'staff_link_view__pre0367', 'text|r253-0436')
+  ('0436_r253_start_now_mail', 'marker', 'public', 'staff_link_view__pre0367', 'text|r253-0436'),
+  ('0437_r254_e2e_fixes', 'body', 'public', 'verify_task', 'uuid,boolean,text|a928a8fc0582b1baf2d56ce9f18518eb'),
+  ('0437_r254_e2e_fixes', 'fn', 'public', '_r437_keep', 'text'),
+  ('0437_r254_e2e_fixes', 'fn', 'public', '_r437_client_open', 'uuid'),
+  ('0437_r254_e2e_fixes', 'fn', 'public', '_r437_public_dates', 'uuid'),
+  ('0437_r254_e2e_fixes', 'col', 'public.event_day', 'arrived_at', null),
+  ('0437_r254_e2e_fixes', 'col', 'public.event_day', 'left_at', null),
+  ('0437_r254_e2e_fixes', 'fn', 'public', '_r437_tg_day_times', ''),
+  ('0437_r254_e2e_fixes', 'trg', 'public.event_day', 'zz_r437_day_times', null),
+  ('0437_r254_e2e_fixes', 'idx', 'public.event_day_ref_uk437', null, null),
+  ('0437_r254_e2e_fixes', 'fn', 'public', '_r437_verify_task', 'uuid,boolean,text'),
+  ('0437_r254_e2e_fixes', 'pre', null, '__pre0437', null),
+  ('0437_r254_e2e_fixes', 'marker', 'public', 'generate_approval_token__pre0039', 'uuid|r254-0437'),
+  ('0437_r254_e2e_fixes', 'marker', 'public', 'quote_validity_tick', '|r254-0437'),
+  ('0437_r254_e2e_fixes', 'marker', 'public', '_qv262_claim', 'integer|r254-0437'),
+  ('0437_r254_e2e_fixes', 'marker', 'public', 'public_get_quote', 'uuid|r254-0437'),
+  ('0437_r254_e2e_fixes', 'marker', 'public', 'crew_check', 'uuid,text,numeric,numeric,numeric|r254-0437'),
+  ('0437_r254_e2e_fixes', 'marker', 'public', 'crew_checkin_office_set', 'uuid,uuid,date,timestamp with time zone,timestamp with time zone,text|r254-0437'),
+  ('0438_r254_task_steps', 'col', 'public.event_tasks', 'step', null),
+  ('0438_r254_task_steps', 'col', 'public.task_reminder_settings', 'auto_steps', null),
+  ('0438_r254_task_steps', 'con', 'public.event_tasks', 'event_tasks_step_chk438', null),
+  ('0438_r254_task_steps', 'idx', 'public.ix_event_tasks_crew_start_0438', null, null),
+  ('0438_r254_task_steps', 'fn', 'public', '_r438_keep', 'text'),
+  ('0438_r254_task_steps', 'fn', 'public', '_r438_auto', 'uuid'),
+  ('0438_r254_task_steps', 'fn', 'public', '_r438_tg_step_default', ''),
+  ('0438_r254_task_steps', 'fn', 'public', '_r438_tg_step_guard', ''),
+  ('0438_r254_task_steps', 'fn', 'public', '_r438_tg_step_log', ''),
+  ('0438_r254_task_steps', 'trg', 'public.event_tasks', 'zz_r438_step_default', null),
+  ('0438_r254_task_steps', 'trg', 'public.event_tasks', 'zz_r438_step_guard', null),
+  ('0438_r254_task_steps', 'trg', 'public.event_tasks', 'zzz_r438_step_log', null),
+  ('0438_r254_task_steps', 'fn', 'public', '_r438_check_step', 'text'),
+  ('0438_r254_task_steps', 'fn', 'public', 'assign_tasks_step', 'uuid,text,text[],uuid,text,text,text'),
+  ('0438_r254_task_steps', 'fn', 'public', 'assign_tasks_vendor_step', 'uuid,text,text[],uuid,text'),
+  ('0438_r254_task_steps', 'fn', 'public', 'assign_tasks_step_once', 'uuid,text,text[],uuid,text,text,text,uuid'),
+  ('0438_r254_task_steps', 'fn', 'public', 'assign_tasks_vendor_step_once', 'uuid,text,text[],uuid,text,uuid'),
+  ('0438_r254_task_steps', 'fn', 'public', 'set_task_step', 'uuid[],text'),
+  ('0438_r254_task_steps', 'fn', 'public', '_r438_end', 'timestamp with time zone,timestamp with time zone,integer'),
+  ('0438_r254_task_steps', 'fn', 'public', '_r438_waits_for', 'uuid,uuid,uuid'),
+  ('0438_r254_task_steps', 'fn', 'public', 'crew_time_clashes', 'jsonb,uuid[]'),
+  ('0438_r254_task_steps', 'pre', null, '__pre0438', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5393,7 +5431,9 @@ mig(ord, m, ov, note) as (values
   (375, '0433_r249_read_speed', null, null),
   (376, '0434_r252_start_now', null, 'R252 You can start now: five existing bodies edited in place with dynamic SQL + task_reminder_tick / assign_notify_claim / settings wrapped - checked by the r252-0434 marker (if an older APPLY of 0338 - 0432 was run again later, run APPLY-0434 again)'),
   (377, '0435_r252_payment_plan', null, 'R252 payment plan, advance and approval: existing money / reminder / approval bodies edited in place with dynamic SQL + _pst_apply and the plan settings wrapped - checked by the r252-0435 marker (if an older APPLY of 0042 - 0432 was run again later, run APPLY-0435 again)'),
-  (378, '0436_r253_start_now_mail', null, 'R253 clear You can start now e-mail, rework = hold, department supervisor check: existing bodies wrapped or edited in place with dynamic SQL - checked by the r253-0436 marker (if an older APPLY of 0311, 0363, 0399, 0402 or 0434 was run again later, run APPLY-0436 again)')
+  (378, '0436_r253_start_now_mail', null, 'R253 clear You can start now e-mail, rework = hold, department supervisor check: existing bodies wrapped or edited in place with dynamic SQL - checked by the r253-0436 marker (if an older APPLY of 0311, 0363, 0399, 0402 or 0434 was run again later, run APPLY-0436 again)'),
+  (379, '0437_r254_e2e_fixes', null, 'R254 end-to-end fixes: existing bodies edited in place with dynamic SQL - checked by the r254-0437 marker, and the unique index event_day_ref_uk437 is left out while duplicate day-of rows exist (see LIST-0437) (if an older APPLY of 0262, 0265, 0311, 0435 or 0436 was run again later, run APPLY-0437 again)'),
+  (380, '0438_r254_task_steps', null, 'R254 task steps and time clashes: task_reminder_settings_get / _set wrapped with dynamic keep - checked by body and the r254-0438 marker (if an older APPLY of 0338 or 0434 was run again later, run APPLY-0438 again)')
 ),
 env as (
   select

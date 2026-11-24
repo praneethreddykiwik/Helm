@@ -368,6 +368,7 @@
     }
     draw(o);
   }
+  function stale(qid) { if (cache[qid]) cache[qid].fat = 0; }   // the stage moved (the plan lock may have changed): read again on the next draw
   function draw(o) {
     var c = cache[o.quoteId] || {}, f = c.floor;
     if (o.lockHost) {
@@ -383,7 +384,7 @@
   function reset(qid) { if (qid) delete cache[qid]; else cache = {}; }
 
   var API = { normalize: normalize, seatsOf: seatsOf, measure: measure, legend: legend, planSvg: planSvg, legendEl: legendEl, factsEl: factsEl,
-    lockWords: lockWords, viewUrl: viewUrl, panel: panel, viewer: viewer, emptyWords: emptyWords, lockBar: lockBar, renderLock: renderLock, isLocked: isLocked, reset: reset,
+    lockWords: lockWords, viewUrl: viewUrl, panel: panel, stale: stale, viewer: viewer, emptyWords: emptyWords, lockBar: lockBar, renderLock: renderLock, isLocked: isLocked, reset: reset,
     size: size, len: len, CAT_LABEL: CAT_LABEL, _ui: UI, _cache: function () { return cache; } };
   global.HelmEventFloor = API;
   if (typeof module !== "undefined" && module.exports) module.exports = API;

@@ -62,7 +62,7 @@ test('Latest: the empty words are not a row of the icon grid; two-up cards are n
   assert.match(BRD, /cls: "tc-feed-empty"/); assert.match(CSS, /\.tc-feed li\.tc-feed-empty[^{]*\{display:block/); assert.match(CSS, /\.tc-flow\{[^}]*align-items:start/);
 });
 test('the four steps read in the order of the day everywhere; the sheet opens on the step being viewed', () => {
-  assert.deepEqual([...OPS.matchAll(/data-as-step="([a-z]+)"/g)].map((m) => m[1]), ['daybefore', 'pre', 'onday', 'wrapup']); assert.match(BRD, /return S\.addStep \|\| S\.win \|\| "pre"/);
+  assert.deepEqual([...OPS.matchAll(/data-as-step="([a-z]+)"/g)].map((m) => m[1]), ['daybefore', 'pre', 'onday', 'wrapup']); assert.match(BRD, /return S\.addStep \|\| \(handSteps\(\) \? "pre" : S\.win \|\| "pre"\)/);
   assert.match(read('public/page-tours.js'), /the part of the job: Day before, Pre-event, On the event, Wrap-up/);
   for (const f of ['public/ops.html', 'public/ops-board.js', 'public/monitor.js', 'public/task-status.js', 'public/page-tours.js']) assert.doesNotMatch(read(f), /wrapup["'], ?["']daybefore|Wrap-up, Day before\b/, f);
 });

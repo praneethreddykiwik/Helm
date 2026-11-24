@@ -113,7 +113,7 @@
   /* ---- R184 activity wording (0368 timeline rows), shared so the monitor feed and the "Latest" column read the same ---- */
   function actGroup(k) {
     return k === "assigned" || k === "reassigned" || k === "unassigned" ? "work" : k === "accepted" || k === "rejected" ? "reply"
-      : k === "started" || k === "completed" || k === "reopened" ? "progress" : k === "time_changed" ? "time"
+      : k === "started" || k === "completed" || k === "reopened" ? "progress" : k === "time_changed" || k === "step_changed" ? "time"
       : k === "check_in" || k === "check_out" || k === "check_edit" ? "checkin" : k === "email_sent" ? "email" : k === "escalated" ? "escalation"
       : k === "dayoff_asked" || k === "dayoff_approved" ? "dayoff" : "special";
   }
@@ -128,6 +128,7 @@
       case "assigned": return task + " given to " + (d.to || a.name || "someone");
       case "reassigned": return task + " moved from " + (d.from || "someone") + " to " + (d.to || a.name || "someone");
       case "unassigned": return task + " no longer has anyone on it";
+      case "step_changed": return task + ": moved to " + stepWord(d.to) + (d.from ? " (was " + stepWord(d.from) + ")" : "");   // R254 (0438)
       case "time_changed": return task + ": start time " + (d.from ? when(d.from) : "not set") + " → " + (d.to ? when(d.to) : "not set");
       case "special_on": return task + " marked special (extra reminders)";
       case "special_off": return task + " is no longer special";
@@ -262,14 +263,37 @@
     return STEPS.some(function (x) { return x[0] === v; }) ? v : null;
   }
   function winOk(w) { return normWin(w) === w && w != null; }
-  /* R251: which step a task belongs to (no new column - read from its time, else its words). o: { eventDate, eventTime, tz }
+  /* R254 (0438, owner 25 Nov): the studio setting "Sort tasks into steps automatically" (off by default) + event_tasks.step (what the person picked).
+       AUTO false      a picked step wins whatever the time, the words or the event date say; a task with none (made before 0438) = the rule below
+       AUTO true       the rule below for every task; a picked step is kept in the row and ignored
+       AUTO undefined  not known / a database without 0438: the rule below, and no new control is shown
+     ONE place: setAuto / loadAuto here, read by taskStep - so counts, pre-check, Ready by, Wrap-up and Order of work always agree. */
+  var AUTO, AUTO_AT = 0, AUTO_P = null;
+  function stepWord(v) { var r = WINDOWS.filter(function (x) { return x[0] === v; })[0]; return r ? r[1] : "another step"; }
+  function validStep(v) { return WINDOWS.some(function (x) { return x[0] === v; }); }
+  // the answer of task_reminder_settings_get (or the same settings inside task_wa_status); without the key nothing changes
+  function readAuto(s) { if (s && typeof s === "object" && "auto_steps" in s) { AUTO = s.auto_steps === true; AUTO_AT = Date.now(); } return AUTO; }
+  function setAuto(v) { AUTO = v === true ? true : v === false ? false : undefined; AUTO_AT = v == null ? 0 : Date.now(); }
+  function autoSteps() { return AUTO; }
+  function picks() { return AUTO === false; }   // the steps are picked by people: the new controls show
+  // at most one read a minute; a failed read keeps what was known. -> true when the answer changed
+  function loadAuto(force) {
+    var R = global.BPStore && global.BPStore.taskReminders; if (!R || typeof R.settings !== "function") return Promise.resolve(false);
+    if (AUTO_P) return AUTO_P; if (!force && AUTO_AT && Date.now() - AUTO_AT < 60000) return Promise.resolve(false);
+    var was = AUTO; AUTO_P = Promise.resolve().then(function () { return R.settings(); }).then(function (s) { readAuto(s); }, function () {}).then(function () { AUTO_AT = Date.now(); AUTO_P = null; return was !== AUTO; });
+    return AUTO_P;
+  }
+  /* R251: which step a task belongs to (read from its time, else its words). o: { eventDate, eventTime, tz }
        timed    before the event day -> daybefore; on the day before Guests arrive -> pre; after -> onday, and clearing-up work after
                 Guests arrive, or anything from 6 AM the next day -> wrapup
        no time  clearing-up words -> wrapup; work done while guests are in -> onday; everything else is set-up -> pre */
   var WRAP_RE = /\b(tear ?down|dismantl\w*|strike|strik(?:e|ing) down|pack(?:ing)?[ -]?(?:up|down)|pack and load|load[ -]?out|clear(?:ing)?[ -]?(?:up|out)|clean[ -]?up|wrap[ -]?up|returns?|return stock|handover|hand over|settle\w*)\b/i;
   var LIVE_RE = /\b(service|serving|buffet|refill|host(?:ess)?|mc|emcee|anchor|usher\w*|valet|welcome drinks|guest (?:reception|assist\w*)|performance|photograph\w*|videograph\w*|live counter|entry)\b/i;
+  // the step a start time alone points to (no words, no pick); "" = no time or no event date
+  function timeStep(start, o) { o = o || {}; return isFinite(ms(start)) && /^\d{4}-\d{2}-\d{2}/.test(String(o.eventDate || "")) ? taskStep({ planned_start: start, title: "", category: "" }, Object.assign({}, o, { auto: true })) : ""; }
   function taskStep(t, o) {
     o = o || {}; if (!t) return "pre";
+    if ((o.auto === undefined ? AUTO : o.auto) === false && validStep(t.step)) return t.step;
     var txt = String(t.category || "") + " " + String(t.title || ""), wrap = WRAP_RE.test(txt);
     var ev = String(o.eventDate || "").slice(0, 10), s = ms(t.planned_start);
     if (isFinite(s) && /^\d{4}-\d{2}-\d{2}$/.test(ev)) {
@@ -313,7 +337,7 @@
       last: function () { return last; }, wait: function () { return wait; } };
   }
 
-  global.HelmTaskStatus = { LABEL: LABEL, RANK: RANK, stateOf: stateOf, shown: shown, isLate: isLate, lateMin: lateMin, baseKey: baseKey,
+  global.HelmTaskStatus = { readAuto: readAuto, setAuto: setAuto, autoSteps: autoSteps, picks: picks, loadAuto: loadAuto, validStep: validStep, timeStep: timeStep, LABEL: LABEL, RANK: RANK, stateOf: stateOf, shown: shown, isLate: isLate, lateMin: lateMin, baseKey: baseKey,
     personKey: personKey, summarize: summarize, leftover: leftover, ladder: ladder, escSteps: steps, escLevel: escLevel,
     lastEscalation: lastEscalation, escBadge: escBadge, escStep: escStep, attendance: attendance, ymdIn: ymdIn, dayDiff: dayDiff,
     phase: phase, opsMode: opsMode, opsWindow: opsWindow, WINDOWS: WINDOWS, STEPS: STEPS, WIN_PHASE: WIN_PHASE, winOk: winOk, normWin: normWin, stepOf: stepOf, taskStep: taskStep, bySteps: bySteps, hmMin: hmMin, wallMs: wallMs, refresher: refresher, actGroup: actGroup, actText: actText, emailWhat: emailWhat, REFRESH_MS: 30000 };

@@ -173,7 +173,7 @@
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="task-reminders.css?v=4"><link rel="stylesheet" href="when-picker.css?v=3"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=8">
-<link rel="stylesheet" href="ops-board.css?v=8">
+<link rel="stylesheet" href="ops-board.css?v=9">
 <link rel="stylesheet" href="event-plan.css?v=3">
 <link rel="stylesheet" href="day-before.css?v=1">
 <link rel="stylesheet" href="event-floor.css?v=2">
@@ -185,7 +185,7 @@
 <link rel="stylesheet" href="/event-wrap.css?v=1">
 <link rel="stylesheet" href="/pre-check.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=120" id="shellProto"></script>
+<script src="/shell-proto.js?v=121" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -250,13 +250,13 @@
       <section class="tc-work tc-card" id="work" aria-labelledby="workH">
         <div class="tc-work-head">
           <h2 id="workH" class="tc-h2">Tasks by department <span class="tc-count" id="taskCount"></span></h2>
+          <button type="button" class="tc-btn tc-primary" id="addBtn">+ Add &amp; assign</button>
           <div class="tc-seggrp" id="tcViews" role="group" aria-label="View">
             <button type="button" class="tc-seg sm" data-view="list" aria-pressed="true">By department</button>
             <button type="button" class="tc-seg sm" data-view="order" aria-pressed="false">Order of work <span class="tc-seg-n" id="tcOrderN" hidden></span></button>
             <button type="button" class="tc-seg sm" data-view="timeline" aria-pressed="false">Timeline</button>
             <button type="button" class="tc-seg sm" data-view="people" aria-pressed="false">By person</button>
           </div>
-          <button type="button" class="tc-btn tc-primary" id="addBtn">+ Add &amp; assign</button>
         </div>
         <div class="tc-chips" id="chips" role="group" aria-label="Quick filters"></div>
         <div id="view"></div>
@@ -322,6 +322,7 @@
     <div class="tc-bulk-acts">
       <button type="button" class="tc-btn" data-bulk="assign">Assign</button>
       <button type="button" class="tc-btn" data-bulk="time">Set time</button>
+      <button type="button" class="tc-btn" data-bulk="step" id="bulkStep" hidden>Move to step</button>
       <button type="button" class="tc-btn" data-bulk="special">Mark special</button>
       <button type="button" class="tc-btn" data-bulk="send">Send</button>
       <button type="button" class="tc-btn danger" data-bulk="cancel">Cancel tasks</button>
@@ -399,8 +400,10 @@
         <div class="tc-chainbox" id="as_chainBox" hidden>
           <label class="tc-chk" for="as_chain"><input type="checkbox" id="as_chain" aria-describedby="as_chainHint"> One after another, in this order</label>
           <p class="tc-hint" id="as_chainHint"></p>
+          <p class="tc-hint tc-sametime" id="as_same" role="status" hidden></p>
           <ol class="tc-chain" id="as_chainList" aria-label="Order of these tasks" hidden></ol>
         </div>
+        <p class="tc-hint" id="as_depLater" role="status" hidden></p>
         <p class="tc-hint" id="as_depHint">Pick the task that must be done first. With a start time, this work's reminders wait until that task is done. Without one, no reminder is sent.</p>
       </fieldset>
       <fieldset class="tc-fs">
@@ -479,19 +482,20 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=409"></script>
-<script src="task-status.js?v=6"></script>
-<script src="event-plan.js?v=6"></script>
-<script src="day-before.js?v=1"></script>
-<script src="ops-board.js?v=11"></script>
-<script src="event-floor.js?v=2"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
+<script src="task-status.js?v=7"></script>
+<script src="event-plan.js?v=7"></script>
+<script src="day-before.js?v=2"></script>
+<script src="ops-board.js?v=12"></script>
+<script src="event-floor.js?v=3"></script>
 <script src="stock-flow.js?v=2"></script>
 <script src="stock-checkin.js?v=1"></script>
-<script src="/event-wrap.js?v=1"></script>
-<script src="/event-steps.js?v=3"></script>
-<script src="/issue-assign.js?v=1"></script>
+<script src="/event-wrap.js?v=2"></script>
+<script src="/event-steps.js?v=4"></script>
+<script src="/issue-assign.js?v=2"></script>
 <script src="/stock-vendor.js?v=1"></script>
 <script src="/event-delay.js?v=2"></script>
+<script src="/task-clash.js?v=1"></script>
 <script src="/pre-check.js?v=2"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -507,7 +511,7 @@
   let asDay="event", sugg={}, lastOkMsg="";
   // R130 (0338): the latest WhatsApp per task + the studio's reminder settings (null before 0338)
   let waRows={}, trmSettings=null, scRem=null;
-  async function loadWa(){ try{ const r=await BPStore.ops.waStatus(quoteId); if(!r) return; trmSettings=r.settings||null; waRows={};
+  async function loadWa(){ try{ const r=await BPStore.ops.waStatus(quoteId); if(!r) return; trmSettings=r.settings||null; waRows={}; if(window.HelmTaskStatus&&HelmTaskStatus.readAuto) HelmTaskStatus.readAuto(trmSettings);   /* R254: auto_steps */
       (r.tasks||[]).forEach(x=>{ if(x&&x.task_id) waRows[x.task_id]=x; });
       const ln=$("#trmLine"); if(ln && window.HelmTaskReminders && trmSettings) ln.textContent=trmSettings.enabled===false?"Task reminders are switched off for your studio (Settings → Notifications).":HelmTaskReminders.explain(trmSettings);
     }catch{} }
@@ -533,6 +537,7 @@
     // one after another behind the loading overlay); the role checks below come from the cached session.
     const pQuote=BPStore.quotes.get(quoteId), pCats=BPStore.ops.categories().catch(()=>null), pOps=fetchOps();
     pQuote.catch(()=>{}); pOps.catch(()=>{});
+    const pAuto=window.HelmTaskStatus&&HelmTaskStatus.loadAuto?HelmTaskStatus.loadAuto():null;
     // R215: the task list's ready-made tasks for the first section are asked as soon as the sections are known (they
     // used to wait for the event too); renderTasks() below uses them for that one section, else asks as before
     preTplP=pCats.then(cats=>{ const list=(cats&&cats.length)?cats:CATS, cat=list.includes(activeCat)?activeCat:list[0];
@@ -564,7 +569,7 @@
       $("#catTabs").querySelectorAll("button").forEach(x=>{ x.setAttribute("aria-pressed",String(x===b)); }); $("#selAll").checked=false; renderTasks(); renderSuggestions(); }));
     if(!canEdit){ ["assignBtn","tpl_add"].forEach(id=>{const e=$("#"+id); if(e)e.disabled=true;}); /* planner-1023 / R208: server needs Assign & send tasks (no row = Staff edit); the page shows "View only" and no action buttons */ }
     else if(!canTpl){ const b=$("#tpl_add"), i=$("#tpl_title"); if(b) b.textContent="+ Add for this event"; if(i) i.placeholder="Or type a task for this event only"; }
-    try{ await refresh(pOps); }
+    try{ await refresh(pOps); if(pAuto) await Promise.race([pAuto, new Promise(r=>setTimeout(r,1500))]); }   // R254: known before the first draw, so no task jumps
     catch(e){ BPUI.loadError($("#view"), e, async()=>{ await refresh(); }, {what:"staff and tasks"}); }
     if(window.OpsBoard) OpsBoard.init();   // R192: header, Before / On the day, attention boxes, views, task panel, one 30 s refresh
     renderTasks();
@@ -730,6 +735,15 @@
     try{ mins=asRem?asRem.value():undefined; at=asRem?asRem.times():[]; }catch(e){ setMsg("err","Check the reminders below the start time."); throw e; }
     return { start: fromLocalInput(v).toISOString(), mins, at };
   }
+  // R254-B: two works at the same time -> asked, never blocked; then the old "busy that day" question (never both for the same event)
+  function askTime(c, items, exclude, day){
+    const TC=window.HelmTaskClash, its=items.map(x=>Object.assign({crew_id:c.id, name:c.name}, x)), dayCheck=()=>BPStore.calendar.wouldClash({date:day, crewId:c.id, excludeQuote:quoteId});
+    const dayText=(x)=>c.name+" is "+x.detail+". Assign anyway?";
+    if(TC) return TC.give(its, {quoteId, tasks, exclude, dayText, dayOk:"Assign anyway"}, dayCheck);
+    return dayCheck().catch(()=>({clash:false})).then(x=>x&&x.clash?BPUI.confirm(dayText(x),{title:"Scheduling clash",okLabel:"Assign anyway",danger:true}):true);
+  }
+  // R254 (0438): the picked step is saved with the task; only when the studio's steps are picked by people
+  const stepOpt=()=>window.HelmTaskStatus&&HelmTaskStatus.picks&&HelmTaskStatus.picks()?{step:asStep}:undefined;
   // R251: "Waits for another task" in the sheet - the same link (depends_on) and the same checks as Change time -> Waits for.
   // New work: "" = nothing. Tasks already on the list (preset): "__keep" = leave each task's own link as it is (the default).
   const DEP_STEPS=[["daybefore","Day before"],["pre","Pre-event"],["onday","On the event"],["wrapup","Wrap-up"]];
@@ -795,8 +809,7 @@
       plan.links.forEach(l=>{ links[l.id]=l.dep; });
     }
     const day=when?String($("#as_when").value).slice(0,10):(list[0].planned_start?toLocalInput(list[0].planned_start).slice(0,10):quote.eventDate);
-    const clash=await BPStore.calendar.wouldClash({date:day, crewId:c.id, excludeQuote:quoteId}).catch(()=>({clash:false}));
-    if(clash.clash && !(await BPUI.confirm(c.name+" is "+clash.detail+". Assign anyway?",{title:"Scheduling clash",okLabel:"Assign anyway",danger:true}))){ return; }
+    if(!(await askTime(c, list.map(t=>({id:t.id, title:t.title, start:when?when.start:t.planned_start, end:when?null:t.planned_end, duration_min:t.duration_min, depends_on:order?links[String(t.id)]:dep===undefined?(t.depends_on||null):dep})), list.map(t=>t.id), day))) return;
     const special=!!($("#asSpecial")&&$("#asSpecial").checked);
     let n=0, err="";
     for(const t of list){
@@ -842,7 +855,7 @@
         const v=vendors.find(x=>x.id===vId);
         const clash=await BPStore.calendar.wouldClash({date:quote.eventDate, vendorId:vId, excludeQuote:quoteId}).catch(()=>({clash:false}));
         if(clash.clash && !(await BPUI.confirm(((v&&v.name)||"This vendor")+" is "+clash.detail+". Give it to them anyway?",{title:"Scheduling clash",okLabel:"Assign anyway",danger:true}))){ return; }
-        const r=await BPStore.ops.assignTasksVendor(quoteId, activeCat, titles, vId);
+        const r=await BPStore.ops.assignTasksVendor(quoteId, activeCat, titles, vId, stepOpt());
         if(dep||order){ try{ const fresh=await BPStore.ops.listTasks(quoteId); tasks=fresh||tasks;
             const mine=inOrder((fresh||[]).filter(x=>!before.has(x.id) && String(x.vendor_id||"")===String(vId) && titles.includes(x.title)));
             for(const x of mine){ const to=depFor(x,mine); if(to) await BPStore.ops.setSchedule(x.id, x.planned_start||null, null, to); }
@@ -853,9 +866,9 @@
         if(!crewId){ setMsg("err","Pick a crew member."); return; }
         const c=crew.find(x=>x.id===crewId);
         if(!c){ setMsg("err","Pick a crew member."); return; }
-        const clash=await BPStore.calendar.wouldClash({date:(when&&$("#as_when").value?String($("#as_when").value).slice(0,10):quote.eventDate), crewId:c.id, excludeQuote:quoteId}).catch(()=>({clash:false}));   // R174: the start time's day when one is set
-        if(clash.clash && !(await BPUI.confirm(c.name+" is "+clash.detail+". Assign anyway?",{title:"Scheduling clash",okLabel:"Assign anyway",danger:true}))){ return; }
-        const r=await BPStore.ops.assignTasks(quoteId, activeCat, titles, c.id, c.name, c.phone);
+        // R174: the start time's day when one is set; R254-B: the same time first
+        if(!(await askTime(c, when?[{start:when.start, title:titles[0], depends_on:dep||null}]:[], [], when&&$("#as_when").value?String($("#as_when").value).slice(0,10):quote.eventDate))) return;
+        const r=await BPStore.ops.assignTasks(quoteId, activeCat, titles, c.id, c.name, c.phone, stepOpt());
         // R173 (0364): the start time + reminders go on the NEW tasks first, so the e-mail below already shows the time
         let timeNote="";
         const special=!!($("#asSpecial")&&$("#asSpecial").checked);   // R192: Special (P1) right in the When step
@@ -1209,6 +1222,10 @@
     try{ remMins = scRem ? scRem.value() : undefined; remAt = scRem ? scRem.times() : []; }catch(err){ return; }   // the field shows its own error
     const hadAt=(()=>{ const t0=tasks.find(x=>x.id===scTaskId); return !!(t0&&Array.isArray(t0.remind_at)&&t0.remind_at.length); })();
     BPUI.guard($("#schedForm"),async()=>{
+      { const t0=tasks.find(x=>x.id===scTaskId), moved=startISO && (!t0||!t0.planned_start||Date.parse(t0.planned_start)!==Date.parse(startISO));   // R254-B
+        if(moved && t0 && t0.crew_id && t0.assignee_kind!=="outsourced" && ["assigned","accepted","in_progress"].includes(t0.status) && window.HelmTaskClash){
+          const c0=crew.find(x=>x.id===t0.crew_id);
+          if(!(await HelmTaskClash.ask([{id:t0.id, crew_id:t0.crew_id, name:(c0&&c0.name)||t0.assignee_name, start:startISO, duration_min:t0.duration_min, title:t0.title, depends_on:depId}], {quoteId, tasks, exclude:[t0.id], question:"Save this time anyway?", ok:"Save anyway"}))) return; } }
       try{ await BPStore.ops.setSchedule(scTaskId, startISO, null, depId);
         if(remMins!==undefined && trmSettings) await BPStore.ops.setReminders(scTaskId, remMins);
         if(scRem) await saveRemTimes(scTaskId, startISO?remAt:[], hadAt);
@@ -1234,7 +1251,7 @@
   // R192: no 7-second full redraw any more - ops-board.js runs ONE 30 s refresh (shared with /monitor, task-status.js) that
   // skips while a pop-up is open, and only redraws the rows that changed
   window.OpsPage={
-    get:()=>({quote, quoteId, crew, tasks, tokens, vendors, evidence, CATS, activeCat, canEdit:canEditOps, canVerify, role:myRole, offIds, booked:bookedIds, suggest:sugg, waRows, trmSettings, memberDir}),
+    get:()=>({quote, quoteId, crew, tasks, tokens, vendors, evidence, CATS, activeCat, canEdit:canEditOps, canVerify, role:myRole, offIds, booked:bookedIds, suggest:sugg, workDay:workDay(), waRows, trmSettings, memberDir}),
     reload:()=>refreshDashboard(), evDateStr, evTimeHM, remSummary,
     waChip:(t)=>window.HelmTaskReminders?HelmTaskReminders.chip(waRows[t.id]):null,
     schedule:(id)=>scheduleFlow(id), cancel:(id)=>openCancelTask(id), evidence:(id)=>openEvidence(id),
@@ -1248,7 +1265,7 @@
   BPUI.boot(load);
 </script>
 
-<script src="wa-setup-note.js?v=1"></script><script src="studio-time.js?v=1"></script><script src="when-picker.js?v=3"></script><script src="task-reminders-ui.js?v=8"></script>
+<script src="wa-setup-note.js?v=1"></script><script src="studio-time.js?v=1"></script><script src="when-picker.js?v=3"></script><script src="task-reminders-ui.js?v=9"></script>
 <script src="crew-shifts.js?v=8"></script>
 </body>
 </html>

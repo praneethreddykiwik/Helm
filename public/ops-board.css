@@ -130,7 +130,8 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-flow > .is-half{grid-column:auto}
 .tc-work{padding:14px 16px 16px;min-width:0}
 .tc-work-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-.tc-work-head .tc-h2{margin-right:auto}
+.tc-work-head .tc-h2{margin-right:0}
+.tc-work-head #addBtn{margin-right:auto;min-height:44px;padding:0 18px;font-size:14px;white-space:nowrap}
 #tcCrewCard,#tcActCard,#trmCardOps{padding:14px 16px}
 #trmCardOps .tc-h2{margin-bottom:6px} #trmCardOps .trm-line{margin:0}
 .tc-crew,.tc-feed{max-height:372px;overflow:auto}
@@ -587,3 +588,18 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-need-acts{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
 .tc .tc-count:empty{display:none}
 @media (max-width:760px){.tc-dept .tc-grp-h{flex-wrap:wrap;gap:4px 8px} .tc-dept .tc-gbar{display:none} .tc .tc-work-head #tcViews .tc-seg{min-height:44px} .tc-dept .tc-grp-h .mini{white-space:nowrap}}
+/* R254: the step of a task */
+.tc-stepsel{min-height:44px;width:auto;max-width:100%;font-size:14px}
+#as_depLater{color:var(--tc-warn);margin-top:6px}
+
+/* R254: "+ Add & assign" is always the filled button and stays in reach while a long list scrolls */
+.tc-work-head{position:sticky;top:var(--hb-top,0px);z-index:12;background:var(--tc-panel);margin:-14px -16px 6px;padding:10px 16px;border-radius:var(--tc-r-card) var(--tc-r-card) 0 0}
+@media (max-width:760px){.tc-work-head{display:contents} .tc-work .tc-work-head .tc-h2{margin:0 0 8px} #work #addBtn{position:sticky;top:calc(var(--hb-top,0px) + 6px);z-index:12;display:flex;width:100%;margin:0 0 10px} #work #tcViews{margin-bottom:10px}}
+#work #addBtn[hidden]{display:none}
+/* R254: the sheet - clear sections, a longer staff list, a footer button that says what is missing */
+.tc-drawer.wide .tc-d-body{overflow-anchor:none}
+.tc-drawer.wide .tc-fs + .tc-fs{border-top:1px solid var(--tc-line-2);padding-top:14px}
+.tc-drawer.wide .tc-fs legend{font-size:15px;text-transform:none;letter-spacing:-.01em;color:var(--tc-ink);float:left;width:100%} .tc-drawer.wide .tc-fs legend + *{clear:both} .tc-drawer.wide .tc-fs legend small{font-size:12.5px;color:var(--tc-ink-3)}
+@media (min-width:761px){.tc-drawer.wide .tc-picklist{max-height:clamp(300px,50vh,520px)}}
+.tc-nodate{padding:10px 12px}
+.tc-layer .tc-d-foot .tc-btn.tc-primary:disabled{opacity:1;background:var(--tc-line-2);border-color:var(--tc-line-strong);color:var(--tc-ink-2)}

@@ -88,7 +88,7 @@
     var T = global.HelmTaskStatus, all = (tasks || []).filter(Boolean); if (!T || !T.taskStep) return all;
     var keep = {}, by = {}; all.forEach(function (t) { by[t.id] = t; var w = T.taskStep(t, o), s = ms(t.planned_start);
       // planned to start at or after Ready by (guest reception at 6:30 for a 6:00 Ready by) = service, not set-up that could make Ready by late
-      if ((w === "pre" || w === "daybefore") && !(o && isFinite(o.readyAt) && isFinite(s) && s >= o.readyAt)) keep[t.id] = 1; });
+      if ((w === "pre" || w === "daybefore") && !(!(T.picks && T.picks() && T.validStep(t.step)) && o && isFinite(o.readyAt) && isFinite(s) && s >= o.readyAt)) keep[t.id] = 1; });
     Object.keys(keep).forEach(function (id) { var t = by[id], n = 0; while (t && t.depends_on && by[t.depends_on] && n++ < 200) { keep[t.depends_on] = 1; t = by[t.depends_on]; } });
     return all.filter(function (t) { return keep[t.id]; });
   }
