@@ -26,7 +26,7 @@
     "invite-studio": ["Quotes", "quotes.html", "Invitation"], ready: ["Quotes", "quotes.html", "Readiness"],
     leads: ["Leads", "leads.html"], crm: ["CRM", "crm.html"], nurture: ["Leads", "leads.html", "Nurture"], discovery: ["Leads", "leads.html", "Discovery"],
     calendar: ["Calendar", "calendar.html"], staff: ["Staff", "staff.html"], vendors: ["Vendors", "vendors.html"],
-    inventory: ["Inventory", "inventory.html"], resources: ["Resources", "resources.html"], ops: ["Operations", "ops.html"],
+    inventory: ["Inventory", "inventory.html"], resources: ["Resources", "resources.html"], ops: ["Operations", "ops.html"], approvals: ["Approvals", "approvals.html"],
     command: ["Operations", "ops.html", "Command"], flow: ["Operations", "ops.html", "Flow"], issues: ["Operations", "ops.html", "Issues"],
     reports: ["Reports", "reports.html"], insights: ["Reports", "reports.html", "Insights"], audit: ["Settings", "control.html", "Audit log"],
     control: ["Settings", "control.html"], settings: ["Settings", "control.html"], onboarding: ["Settings", "control.html", "Studio setup"], templates: ["Settings", "control.html", "Templates"], services: ["Settings", "control.html", "Services"],

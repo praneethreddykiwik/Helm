@@ -197,6 +197,28 @@
     if (d.nobody === "none") return { text: nm + " is not assigned - nobody is doing it", bad: true };
     return { text: "Waits for " + nm + " - " + (ok(d.finish) ? "expected done " + clock(d.finish) : "time unknown"), bad: false };
   }
+  /* R253 (the same three words as the worker page and the e-mails, 0436): what a "waits for" link means right now; null = nothing to say
+       go      the earlier task is done (or cancelled): released. Approval does not gate it.
+       rework  the earlier task was sent back by a check: hold
+       wait    the earlier task is not done
+       early   this one was started (or finished) before the earlier task was done */
+  function linkState(t, d) {
+    if (!t || !d || t.status === "cancelled") return null;
+    var nm = d.title || "the earlier task", done = d.status === "completed" || d.status === "cancelled", redo = !done && d.verify_status === "rejected";
+    var ms = function (v) { var x = v ? new Date(v).getTime() : NaN; return isFinite(x) ? x : NaN; }, s = ms(t.started_at || t.completed_at), e = ms(d.completed_at || d.cancelled_at);
+    // started before the earlier task was done (derived from the times, nothing stored); rework has its own words
+    if (isFinite(s) && !redo && (!done || e > s)) return ["early", "Started early - " + nm + (done ? " was not done yet" : " is not done yet")];
+    if (t.status === "completed") return null;
+    if (done) return t.status === "in_progress" ? null : ["go", "You can start now - " + nm + (d.status === "cancelled" ? " was cancelled" : " is done")];
+    return redo ? ["rework", nm + " needs rework - please hold"] : ["wait", "Waits for " + nm + " (not done yet)"];
+  }
+  // the words for a row / drawer: { kind, text, bad } | null. r = compute()'s result: the expected time, or "nobody is doing it" (R252)
+  function link(t, d, r, clock) {
+    var st = linkState(t, d), wt = st && st[0] !== "go" && r ? waits(t, r, clock) : null; if (!st) return null;
+    if (wt && wt.bad) return { kind: "wait", text: wt.text, bad: true };
+    var m = wt && st[0] === "wait" ? / - expected done .*$/.exec(wt.text) : null;
+    return { kind: st[0], text: st[1] + (m ? m[0] : ""), bad: st[0] === "rework" };
+  }
   function words(row, clock, nameOf) {
     var t = row.t, nm = ttl(t), who = nameOf ? nameOf(t) : t.assignee_name || "", by = who ? " (" + who + ")" : "", c;
     if (row.kind === "order") c = nm + " is planned for " + clock(row.start) + " but waits for " + ttl(row.dep) + ", which " + (ok(row.depEnd) ? "ends at " + clock(row.depEnd) : "only starts at " + clock(row.depStart)) + ".";
@@ -282,7 +304,7 @@
     if (had) { var b = e.acts.querySelector('[data-key="' + had + '"]'); if (b) try { b.focus({ preventScroll: true }); } catch (er) {} }
   }
 
-  var api = { compute: compute, waits: waits, words: words, render: render, clockIn: clockIn, SLACK: SLACK, TIGHT: TIGHT };
+  var api = { compute: compute, waits: waits, linkState: linkState, link: link, words: words, render: render, clockIn: clockIn, SLACK: SLACK, TIGHT: TIGHT };
   global.HelmDelay = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

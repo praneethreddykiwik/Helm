@@ -369,10 +369,11 @@
     if (ls) drawerRow(dl, "Latest start", fmtClock(new Date(ls.ls).toISOString()) + " to be ready by " + fmtClock(new Date(ls.lf).toISOString()) + " · takes " + window.HelmEventPlan.durWords(ls.dur));
     var need = t.depends_on && S.tasks.filter(function (x) { return x.id === t.depends_on; })[0];
     if (need) drawerRow(dl, "Needs first", (need.title || "a task") + " (" + stateOf(need).label + ")");
-    var wt = waitsOf(t); if (wt) drawerRow(dl, wt.bad ? "Blocked" : "Expected", wt.text);
+    var lk = linkOf(t); if (lk) drawerRow(dl, lk.kind === "go" ? "Can start" : lk.kind === "early" ? "Note" : lk.kind === "rework" ? "On hold" : lk.bad ? "Blocked" : "Waiting", lk.text);   // R253
     if (t.responded_at) drawerRow(dl, t.status === "rejected" ? "Turned down" : "Accepted", fmtWhen(t.responded_at));
     if (t.started_at) drawerRow(dl, "Started", fmtWhen(t.started_at));
     if (t.completed_at) drawerRow(dl, "Done", fmtWhen(t.completed_at));
+    if (["pending", "passed", "rejected"].indexOf(t.verify_status) >= 0) drawerRow(dl, "Approval", t.verify_status === "passed" ? "Approved" + (t.verified_at ? " · " + fmtWhen(t.verified_at) : "") : t.verify_status === "pending" ? (s.key === "done" ? h("a", { href: "approvals.html?quote=" + encodeURIComponent(t.quote_id || S.quote), text: "Waiting - open Approvals" }) : "Waiting for a check") : "Sent back for rework" + (t.verify_note ? ": " + t.verify_note : ""));   // R253
     if (t.note) drawerRow(dl, "Note", String(t.note));
     b.appendChild(dl);
     var ph2 = proofThumb(t, true);
@@ -431,11 +432,12 @@
     var meta = h("div", { cls: "mon-row-meta" });
     if (opts.showWho !== false) { var nm = nameOf(t); meta.appendChild(h("span", { cls: nm ? "" : "mon-warn", text: nm || TS.LABEL.unassigned })); }
     if (opts.showSec !== false) meta.appendChild(h("span", { cls: "mon-muted", text: t.category || "Other" }));
-    var wt = waitsOf(t); if (wt) meta.appendChild(h("span", { cls: "mon-waits" + (wt.bad ? " is-bad" : ""), text: "↳ " + wt.text }));   // R252
+    var lk = linkOf(t); if (lk) meta.appendChild(h("span", { cls: "mon-waits" + (lk.bad ? " is-bad" : ""), text: "↳ " + lk.text }));   // R252
     if (t._code) meta.appendChild(h("span", { cls: "mon-code", text: t._code }));
     main.appendChild(meta);
     row.appendChild(main);
     var st = h("div", { cls: "mon-row-st" }); st.appendChild(steps(t)); st.appendChild(chip(lateOn() ? s : { key: s.key, label: s.label, late: false }));
+    if (s.key === "done" && t.verify_status === "pending") st.appendChild(h("span", { cls: "mon-chip is-appr", text: "To approve" }));   // R253
     if (s.key === "done") { var pt = proofThumb(t, false); if (pt) st.appendChild(pt); }   // R226: the proof photo beside Done
     row.appendChild(st);
     row.appendChild(actions(t));
@@ -696,13 +698,16 @@
   }
   // the work that has to be done before guests arrive (Pre-event, and what was left from the day before)
   function preTasks() { var o = stepO(S.quote); return S.tasks.filter(function (t) { var w = TS.taskStep(t, o); return w === "pre" || w === "daybefore"; }); }
+  // R253: finished work nobody has checked yet -> the Approvals page
+  function apprN() { return S.tasks.filter(function (t) { return t.status === "completed" && t.verify_status === "pending"; }).length; }
+  function apprLink(q) { var n = apprN(); return n ? [["To approve · " + n, "approvals.html?quote=" + q]] : []; }
   // R251: the same "Get set up" shortcuts as Tasks & Crew (each page checks its own permission)
   function setupLinks() {
     var q = encodeURIComponent(S.quote), floor = "builder.html?quote=" + q, row = h("nav", { cls: "mon-setup", label: "Get set up" });
     try { if (window.HelmUrl && HelmUrl.build) floor = HelmUrl.build("floor-plan", { id: S.quote }) || floor; } catch (e) {}
     var n = Array.isArray(S.rs) ? S.rs.length : null;
     [["Crew", "staff.html"], ["Stock", "resources.html?quote=" + q], ["Vendors", "vendors.html"], ["Run-sheet" + (n == null ? "" : n ? " · " + n : " · empty"), "runsheet.html?quote=" + q],
-      ["Floor layout", floor], ["Ready check", "ready.html?quote=" + q]].forEach(function (l) { row.appendChild(h("a", { cls: "tc-chip mon-setup-a", href: l[1], text: l[0] })); });
+      ["Floor layout", floor], ["Ready check", "ready.html?quote=" + q]].concat(apprLink(q)).forEach(function (l) { row.appendChild(h("a", { cls: "tc-chip mon-setup-a", href: l[1], text: l[0] })); });
     return row;
   }
   /* R250: Day before - "Needs action before the day": not assigned / not accepted yet / turned down. R252: a task made for a line of the
@@ -717,6 +722,7 @@
     var r = { need: readiness(S.tasks).need.filter(function (t) { return !inDayCard(t); }) };
     box.hidden = false;
     box.appendChild(h("h3", { cls: "tc-h2", id: "monPrepH" }, ["Needs action before the day ", h("span", { cls: "mon-n", text: String(r.need.length) })]));
+    var an = apprN(); if (an) box.appendChild(h("p", { cls: "mon-hint mon-appr" }, [an + " finished task" + (an === 1 ? " waits" : "s wait") + " for approval. ", h("a", { href: "approvals.html?quote=" + encodeURIComponent(S.quote), text: "Open Approvals" })]));   // R253
     if (!r.need.length) { box.appendChild(h("p", { cls: "mon-hint", text: "Nothing - no other task is waiting for a person or a yes." })); return; }
     box.appendChild(h("p", { cls: "mon-hint", text: "Tasks without a person, not accepted yet or turned down. Open shows the task; reassign in Tasks & Crew." }));
     var rows = h("div", { cls: "mon-rows", role: "list" }), MAX = 12;
@@ -867,7 +873,7 @@
     rh.hidden = !(EP && S.plan && one && (S.win === "daybefore" || S.win === "pre"));   // R251: Ready by + latest starts: planned before, used on Pre-event
     // R227 (0397, event-floor.js): the plan lock bar + the saved floor plan (every step; On the event it sits below the work)
     var EF = window.HelmEventFloor, lh = $("#monLock"), fh = $("#monFloor");
-    if (EF && one && !cancelled) EF.panel({ quoteId: S.quote, lockHost: lh, floorHost: fh, showFloor: true, compact: true,
+    if (EF && one && !cancelled) EF.panel({ quoteId: S.quote, lockHost: lh, floorHost: fh, showFloor: true, compact: true, eventType: e.event_type || "",
       onChange: function () { if (EP && S.plan && !(ui && (ui.edit || ui.times || ui.settings)) && !rh.hidden) EP.renderReady(rh, planCtx()); } });
     else { if (lh) lh.hidden = true; if (fh) fh.hidden = true; }
     renderRun(); renderDelay(); renderIssues(); renderSteps();
@@ -882,6 +888,7 @@
       tasks: one ? S.tasks : [], autoWin: S.autoWin, win: S.win, tz: tz(), now: Date.now(), nameOf: nameOf, admin: S.admin, plan: S.plan || undefined, sheet: S.hasSheet ? S.sheet : undefined,
       toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); },
       onChanged: async function () { await readQuote(S.quote, true); await loadTasks(true); },
+      onIssues: async function () { await loadIssues(); renderIssues(); }, onTask: function () { loadTasks(true); },
       openTask: function (id) { var t = S.tasks.filter(function (x) { return x.id === id; })[0]; if (t) openDrawer(t); } };
   }
   function renderSteps() {
@@ -890,6 +897,7 @@
     box.hidden = !pre;
     if (pre) ES.renderPreDone($("#monPreDone"), stepsCtx());
     renderPreCheck();
+    if (window.HelmWrapDo) window.HelmWrapDo.vendorCard($("#monVendors"), Object.assign(stepsCtx(), { show: single() && !!e._read && issStep() && S.autoWin !== "wrapup" }));   // R253
     if (EW && (e._read || e._tried || !single())) EW.render($("#monWrapUp"), stepsCtx()); else $("#monWrapUp").hidden = true;
     var btn = $("#monOpenOps");   // one filled button per screen: Pre-event has "Mark pre-event complete", a finished event has Wrap-up
     if (btn) btn.classList.toggle("tc-primary", S.win !== "pre" && S.autoWin !== "wrapup");
@@ -932,7 +940,8 @@
     DLY = { q: S.quote, ts: S.tasks, w: S.autoWin, r: r }; return r;
   }
   function atClock(m) { return fmtClock(new Date(m).toISOString()); }
-  function waitsOf(t) { var r = t && t.depends_on ? delayRes() : null; return r ? window.HelmDelay.waits(t, r, atClock) : null; }
+  // R253: released / hold / waits - the same words as Tasks & Crew and the worker page (event-delay.js)
+  function linkOf(t) { var HD = window.HelmDelay, d = t && t.depends_on ? S.tasks.filter(function (x) { return x.id === t.depends_on; })[0] : null; return d && HD && HD.link ? HD.link(t, d, delayRes(), atClock) : null; }
   function renderDelay() {
     var HD = window.HelmDelay, host = $("#monDelay"), e = S.evInfo[S.quote] || {}; if (!HD || !host) return;
     var r = delayRes(), on = !!r && e.status !== "cancelled" && S.autoWin !== "wrapup" && (S.win !== "daybefore" || S.autoWin === "daybefore");
@@ -1196,7 +1205,7 @@
       var x = await BPStore.quotes.get(q); if (!x) return;
       var c = x.client || {};
       e.code = x.code || e.code; e.title = x.title || e.title; e.event_date = x.eventDate || x.event_date || e.event_date;
-      e.event_time = x.eventTime || x.event_time || e.event_time; e.venue = e.venue || x.venue || c.venue || "";
+      e.event_time = x.eventTime || x.event_time || e.event_time; e.event_type = x.eventType || x.event_type || e.event_type || ""; e.venue = e.venue || x.venue || c.venue || "";
       e.guests = x.guests || (x.pricing && x.pricing.guests) || c.guests || "";
       e.stage = x.lifecycleStage || x.lifecycle_stage || ""; e.status = x.status || ""; e._read = true;
       if (S.quote === q) headFor();

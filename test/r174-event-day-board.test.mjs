@@ -105,8 +105,8 @@ t('Tasks & staff: progress card above Live status, Late chip, can\'t-work in the
   // task-status.js rule, the same one /monitor uses
   const BRD = r('public/ops-board.js');
   assert.match(BRD, /"aria-valuenow": String\(sm\.pct\), "aria-label": sm\.pct \+ "% of tasks done"/);
-  assert.match(BRD, /h\("h3", \{\}, \["Late - not started ", h\("span", \{ cls: "tc-n", text: String\(late\.length\) \}\)\]\)/);
-  assert.match(BRD, /var late = ts\.filter\(function \(t\) \{ return TS\.isLate\(t, now\); \}\)/);
+  assert.match(BRD, /needRow\("late", "bad", pl2\(late\.length, "task is late - not started", "tasks are late - not started"\)/);
+  assert.match(BRD, /ts\.filter\(function \(t\) \{ return TS\.isLate\(t, now\); \}\)/);
   assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>\n(<script src="event-plan\.js\?v=\d+"><\/script>\n)?(<script src="day-before\.js\?v=\d+"><\/script>\n)?<script src="ops-board\.js\?v=\d+"><\/script>/);
   assert.match(OPS, /⛔ approved day off/); assert.match(OPS, /⏳ asked off this day \(waiting for approval\)/);   // R187 (0370): pending vs approved
   assert.match(OPS, /async function loadOff\(\)/);

@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (377 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (378 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (4960 objects): body 174, bucket 9, col 280, con 422, cron 20, exec 19, fn 2228, idx 568, marker 149, pol 193, polexpr 4, pre 124, pub 6, seq 1, tbl 316, trg 445, view 2.
+-- What is checked (4989 objects): body 176, bucket 9, col 284, con 423, cron 20, exec 19, fn 2242, idx 570, marker 152, pol 193, polexpr 4, pre 125, pub 6, seq 1, tbl 316, trg 447, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -4899,7 +4899,6 @@ with o(m, k, s, n, x) as (values
   ('0433_r249_read_speed', 'fn', 'public', 'chat_my_mentions__pre0433', 'integer'),
   ('0433_r249_read_speed', 'body', 'public', 'chat_my_mentions', 'integer|8c43d525376212a84ec8e66834b1e619'),
   ('0433_r249_read_speed', 'pre', null, '__pre0433', null),
-  ('0434_r252_start_now', 'body', 'public', 'worker_get_tasks', 'uuid|8c896160910fd9e84e14afad135c018e'),
   ('0434_r252_start_now', 'col', 'public.task_reminder_settings', 'start_now', null),
   ('0434_r252_start_now', 'tbl', 'public.task_start_notices', null, null),
   ('0434_r252_start_now', 'idx', 'public.task_start_notices_slot_uk434', null, null),
@@ -4984,7 +4983,37 @@ with o(m, k, s, n, x) as (values
   ('0435_r252_payment_plan', 'marker', 'public', 'payment_schedule_settings_set__pre0285', 'jsonb|r252-0435'),
   ('0435_r252_payment_plan', 'marker', 'public', '_pst_apply', 'uuid,text,text,uuid|r252-0435'),
   ('0435_r252_payment_plan', 'marker', 'public', 'payment_schedule_settings_get', '|r252-0435'),
-  ('0435_r252_payment_plan', 'marker', 'public', 'payment_schedule_settings_set', 'jsonb|r252-0435')
+  ('0435_r252_payment_plan', 'marker', 'public', 'payment_schedule_settings_set', 'jsonb|r252-0435'),
+  ('0436_r253_start_now_mail', 'body', 'public', 'verify_task', 'uuid,boolean,text|67e5ad4508c806b5f35a9df1120dc84f'),
+  ('0436_r253_start_now_mail', 'body', 'public', 'worker_get_tasks', 'uuid|7e5aedebd1399dd653be9db36dc7f0ad'),
+  ('0436_r253_start_now_mail', 'body', 'public', 'event_department_supervisors_get', 'uuid|51c25b4304962c20c428ac35f7e42530'),
+  ('0436_r253_start_now_mail', 'col', 'public.task_start_notices', 'mail_id', null),
+  ('0436_r253_start_now_mail', 'col', 'public.task_start_notices', 'mail_line', null),
+  ('0436_r253_start_now_mail', 'col', 'public.task_start_notices', 'done_by', null),
+  ('0436_r253_start_now_mail', 'col', 'public.task_start_notices', 'wa436_id', null),
+  ('0436_r253_start_now_mail', 'con', 'public.task_start_notices', 'task_start_notices_kind_chk434', null),
+  ('0436_r253_start_now_mail', 'idx', 'public.task_start_notices_mail436', null, null),
+  ('0436_r253_start_now_mail', 'idx', 'public.task_start_notices_wa436', null, null),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_keep', 'text,text'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_waits', 'uuid,uuid,uuid'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_by', 'event_tasks'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_fresh', 'task_start_notices,uuid,text'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_mail', 'uuid,uuid,uuid,text,text'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_wa', 'uuid,uuid,uuid,text,text,text,text,text'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_tell', 'event_tasks,event_tasks,text,timestamp with time zone,text,boolean,text'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_closed', 'event_tasks,timestamp with time zone'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_rework', 'event_tasks,timestamp with time zone'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_tg_rework', ''),
+  ('0436_r253_start_now_mail', 'trg', 'public.event_tasks', 'zzz_r436_rework', null),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_mail_items', 'uuid,jsonb'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_sup_can', 'event_tasks,uuid'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_verify_task', 'uuid,boolean,text'),
+  ('0436_r253_start_now_mail', 'fn', 'public', '_r436_tg_no_circle', ''),
+  ('0436_r253_start_now_mail', 'trg', 'public.event_tasks', 'zz_r436_no_circle', null),
+  ('0436_r253_start_now_mail', 'pre', null, '__pre0436', null),
+  ('0436_r253_start_now_mail', 'marker', 'public', 'crew_event_brief', 'uuid|r253-0436'),
+  ('0436_r253_start_now_mail', 'marker', 'public', 'my_tasks', '|r253-0436'),
+  ('0436_r253_start_now_mail', 'marker', 'public', 'staff_link_view__pre0367', 'text|r253-0436')
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5363,7 +5392,8 @@ mig(ord, m, ov, note) as (values
   (374, '0432_r249_cron_quiet', null, null),
   (375, '0433_r249_read_speed', null, null),
   (376, '0434_r252_start_now', null, 'R252 You can start now: five existing bodies edited in place with dynamic SQL + task_reminder_tick / assign_notify_claim / settings wrapped - checked by the r252-0434 marker (if an older APPLY of 0338 - 0432 was run again later, run APPLY-0434 again)'),
-  (377, '0435_r252_payment_plan', null, 'R252 payment plan, advance and approval: existing money / reminder / approval bodies edited in place with dynamic SQL + _pst_apply and the plan settings wrapped - checked by the r252-0435 marker (if an older APPLY of 0042 - 0432 was run again later, run APPLY-0435 again)')
+  (377, '0435_r252_payment_plan', null, 'R252 payment plan, advance and approval: existing money / reminder / approval bodies edited in place with dynamic SQL + _pst_apply and the plan settings wrapped - checked by the r252-0435 marker (if an older APPLY of 0042 - 0432 was run again later, run APPLY-0435 again)'),
+  (378, '0436_r253_start_now_mail', null, 'R253 clear You can start now e-mail, rework = hold, department supervisor check: existing bodies wrapped or edited in place with dynamic SQL - checked by the r253-0436 marker (if an older APPLY of 0311, 0363, 0399, 0402 or 0434 was run again later, run APPLY-0436 again)')
 ),
 env as (
   select

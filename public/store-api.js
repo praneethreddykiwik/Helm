@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=119"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=120"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1998,7 +1998,7 @@ window.HelmUrl = HelmUrl;
   const STUDIO_SEARCH_VERSION = "21";
   // nav trail (breadcrumbs + Recent records). Pages may call HelmTrail.setCurrent before
   // nav-trail.js loads: this stub queues the calls; nav-trail.js replays them after boot.
-  const NAV_TRAIL_VERSION = "7";
+  const NAV_TRAIL_VERSION = "8";
   if (typeof global.HelmTrail === "undefined") {
     global.HelmTrail = { setCurrent(o) { if (o) (global.__helmTrailQ = global.__helmTrailQ || []).push(o); }, recent() { return []; }, _stub: true };
   }
@@ -4788,6 +4788,74 @@ window.HelmUrl = HelmUrl;
     cancel: (taskId, reason) => rpc("cancel_task", { p_task: taskId, p_reason: String(reason || "").trim() }),
     // ---- Phase 35: quality-engineer verification ----
     verify: (taskId, pass, note) => rpc("verify_task", { p_id: taskId, p_pass: !!pass, p_note: note || null }),
+    // R253: the Approvals page + its nav count. Reads only, through the tables' own row rules (Staff view, own studio); verify() above
+    // decides who may approve. A supervisor gets the departments they supervise (0399), everyone else every event. No money, no contact columns.
+    approvals: {
+      ROLES: ["admin", "manager", "planner", "quality"],   // verify_task (0282 / 0311)
+      // -> null = this role has nothing to approve; else { role, me, all, mine: { quoteId: [department] }, own: [crew ids that are me], old: before 0436 }
+      async scope() {
+        if (!supa || !auth.user()) return null;
+        const role = await auth.role(), me = (auth.user() || {}).id, all = this.ROLES.includes(role); if (!all && role !== "supervisor") return null;
+        if (!(await auth.canView("staff"))) return null;
+        const mine = {}; let own = [], old = false;
+        if (!all) {
+          const [d, c] = await Promise.all([supa.from("event_department_supervisors").select("quote_id,department").eq("profile_id", me).limit(1000),
+            supa.from("crew_members").select("id").eq("profile_id", me).limit(20)]);
+          if (d.error && !["PGRST205", "42P01", "42501"].includes(d.error.code)) throw d.error;
+          (d.data || []).forEach((r) => { (mine[r.quote_id] = mine[r.quote_id] || []).push(r.department); });
+          own = (c.data || []).map((r) => r.id);
+          // 0436 says what a supervisor may check; without it the database refuses them (old = show the work, offer no Approve)
+          const q = Object.keys(mine)[0], g = q ? await ops.deptSupervisors.get(q).catch(() => undefined) : undefined;
+          if (g && !g.verify) old = true; else if (g && Array.isArray(g.verify.my_crew_ids)) own = [...new Set(own.concat(g.verify.my_crew_ids))];
+        }
+        return { role, me, all, mine, own, old };
+      },
+      _in: (sc, t) => sc.all || (sc.mine[t.quote_id] || []).includes(String(t.category || "").trim()),
+      async _rows(sc, cols, build) {
+        const ids = Object.keys(sc.mine); if (!sc.all && !ids.length) return [];
+        let q = build(supa.from("event_tasks").select(cols)); if (!sc.all) q = q.in("quote_id", ids.slice(0, 200));
+        const { data, error } = await q; if (error) throw error; return (data || []).filter((t) => this._in(sc, t));
+      },
+      // the events of these tasks; a cancelled, closed, archived or deleted one is dropped (hidden)
+      async _events(ids) {
+        const a = [...new Set(ids)].filter(Boolean); if (!a.length) return {};
+        const cols = "id,code,title,status,lifecycle_stage,event_date,event_time,venue:client->>venue", out = {};
+        for (let i = 0; i < a.length; i += 100) {
+          let r = await supa.from("quotes").select(cols + ",archived_at,deleted_at").in("id", a.slice(i, i + 100));
+          if (r.error && isMissingColumn(r.error)) r = await supa.from("quotes").select(cols).in("id", a.slice(i, i + 100));
+          if (r.error) continue;   // a role without Quotes still sees its tasks, only without the event's name
+          (r.data || []).forEach((e) => { out[e.id] = { id: e.id, code: e.code, title: e.title, eventDate: e.event_date, eventTime: e.event_time, venue: e.venue || "",
+            hidden: ["cancelled", "lost", "rejected"].includes(e.status) || ["closed", "cancelled"].includes(e.lifecycle_stage) || !!e.archived_at || !!e.deleted_at }; });
+        }
+        return out;
+      },
+      _waiting: (q) => q.eq("status", "completed").eq("verify_status", "pending"),
+      async count() {
+        const sc = await this.scope(); if (!sc) return null;
+        const rows = await this._rows(sc, "id,quote_id,category", (q) => this._waiting(q).order("completed_at", { ascending: false }).limit(500)); if (!rows.length) return 0;
+        const ev = await this._events(rows.map((t) => t.quote_id)); return rows.filter((t) => !(ev[t.quote_id] || {}).hidden).length;
+      },
+      // -> null (nothing for this role) | { scope, pending, history, next: { taskId: [task] }, events, evidence }
+      async list() {
+        const sc = await this.scope(); if (!sc) return null;
+        const cols = "id,quote_id,category,title,status,crew_id,assignee_name,assignee_kind,planned_start,started_at,completed_at,verify_status,verified_by,verified_at,verify_note";
+        let [pending, history] = await Promise.all([
+          this._rows(sc, cols, (q) => this._waiting(q).order("completed_at", { ascending: false }).limit(500)),
+          this._rows(sc, cols, (q) => q.in("verify_status", ["passed", "rejected"]).not("verified_at", "is", null).order("verified_at", { ascending: false }).limit(sc.all ? 60 : 200))]);
+        const events = await this._events(pending.concat(history).map((t) => t.quote_id)), shown = (t) => !(events[t.quote_id] || {}).hidden;
+        pending = pending.filter(shown); history = history.filter(shown).slice(0, 60);
+        const ids = pending.map((t) => t.id), next = {}, evidence = [];
+        for (let i = 0; i < ids.length; i += 100) {
+          const part = ids.slice(i, i + 100);
+          const [n, e] = await Promise.all([supa.from("event_tasks").select("id,quote_id,title,assignee_name,status,depends_on").in("depends_on", part).neq("status", "cancelled").limit(500),
+            supa.from("task_evidence").select("id,task_id,kind,body,storage_path,mime,duration_s,worker_name,created_at").in("task_id", part).order("created_at", { ascending: true }).limit(1000)]);
+          if (n.error) throw n.error;
+          (n.data || []).forEach((t) => { (next[t.depends_on] = next[t.depends_on] || []).push(t); });
+          if (e.error) { if (!["PGRST205", "42P01"].includes(e.error.code)) throw e.error; } else evidence.push(...(e.data || []));
+        }
+        return { scope: sc, pending, history, next, events, evidence };
+      },
+    },
     verifySummary: (quoteId) => rpc("task_verify_summary", { p_quote: quoteId }).then(r => (Array.isArray(r) ? r[0] : r)),
     // ---- Phase 37: scheduling + dependencies ----
     setSchedule: (taskId, start, end, dependsOn) => rpc("set_task_schedule",
@@ -10422,6 +10490,7 @@ window.HelmUrl = HelmUrl;
     if (k === "client_link_viewed" || k === "client_view_followup") return "event.html?id=" + enc(q) + "#link-views";
     // r23 (0262): valid-until reminders / "request a new quote" open the event workspace at the validity line
     if (k === "quote_expiring" || k === "quote_expired" || k === "quote_renew_request") return "event.html?id=" + enc(q) + "#quote-validity";
+    if (k === "task_escalated" && (d.via === "start_now" || d.via === "hold")) return "runsheet.html?quote=" + enc(q) + "#my-tasks";   // R253 (0436): the person's own tasks on that event
     if (k === "task_escalated") return "monitor.html?quote=" + enc(q);   // R186 (0369): the Event day monitor (Late panel)
     if (k === "vendor_bill_due") return "settlement.html?quote=" + enc(q) + "#vendorBills";   // R190 (0373): the event's Vendor bills card
     if (k.indexOf("task_") === 0) return "ops.html?quote=" + enc(q) + (has(d.task_id) ? "&task=" + enc(d.task_id) : "");
@@ -10856,6 +10925,8 @@ window.HelmUrl = HelmUrl;
         : n.status === "failed" ? "Booklet link could not be sent" : n.status === "simulated" ? "Booklet link not sent (sending not set up)" : "Booklet link sent to the client"],
     };
     if (k === "invite_site_link" || k === "booklet_link") return { icon: m[k][0], text: m[k][1] };
+    // R253 (0434 / 0436): the targeted row also carries "You can start now" / "please hold" / "waiting" - their own icon
+    if (k === "task_escalated" && /^(start_now|hold|wait_)/.test(String(d.via || ""))) m[k][0] = /^start/.test(d.via) ? "✅" : /^hold/.test(d.via) ? "✋" : "⏳";
     const hit = m[k] || (k.indexOf("design_") === 0 ? ["🎨", "Design stage: " + k.slice(7).replace(/_/g, " ")]
                       : k.indexOf("nurture_") === 0 ? ["🌱", "Greeting queued" + (k.length > 8 ? " · " + k.slice(8).replace(/_/g, " ") : "")] : null);
     // 0036: an automatic staff text/e-mail the studio switched off is logged, not sent

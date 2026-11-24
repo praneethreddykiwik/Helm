@@ -30,7 +30,7 @@
   background:var(--ef-panel);color:var(--ef-ink);font:inherit;font-weight:600;font-size:13px;cursor:pointer;text-decoration:none;white-space:nowrap}
 .ef-btn:hover{border-color:var(--ef-ink)}
 .ef-btn.dark{background:var(--ef-black);border-color:var(--ef-black);color:#fff}
-.ef-btn.dark:hover{background:#2a2a2a}
+.ef-btn.dark:hover{background:var(--accent-hover,var(--ef-black))}
 .ef-btn:disabled{opacity:.55;cursor:default}
 .ef-btn:focus-visible,.ef-link:focus-visible,.ef-inp:focus-visible{outline:2px solid var(--ef-acc);outline-offset:2px}
 .ef-link{border:0;background:none;padding:4px 2px;font:inherit;font-size:13px;color:var(--ef-acc-text);text-decoration:underline;cursor:pointer}
@@ -70,3 +70,24 @@
 /* page link colours (a{color:...}) must not tint the card's link-buttons */
 .ef-card a.ef-btn,.pk-bar a.ef-btn{color:var(--ef-ink,#1f1d2b)}
 .ef-card a.ef-btn.dark,.ef-lock .ef-btn.dark,.pk-bar .ef-btn.dark{color:#fff}
+
+/* R253: the card shows only the plan (exactly as the planner draws it) + one Layout button; sizes and counts fold away */
+.ef-sheet{margin-top:10px;min-height:180px;display:grid}
+.ef-wait{align-self:center;justify-self:center;color:var(--ef-ink-3);font-size:14px}
+.ef-plan{appearance:none;display:block;width:100%;padding:0;border:1px solid var(--ef-line);border-radius:var(--ef-r);background:#f4f7fd;cursor:zoom-in;overflow:hidden}
+.ef-plan:hover{border-color:var(--ef-ink-2)}
+.ef-plan:focus-visible{outline:3px solid var(--ef-acc);outline-offset:2px}
+.ef-svg.ef-exact{width:100%;height:auto;max-height:min(72vh,720px);background:#f4f7fd;border:0;border-radius:0}
+.ef-layout{min-height:44px}
+.ef-head .fv-menuwrap{margin-left:auto;align-self:center}
+.ef-more{margin-top:8px}
+.ef-more summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600;font-size:14px;color:var(--ef-ink-2)}
+.ef-more summary::-webkit-details-marker{display:none}
+.ef-more summary::before{content:"";width:8px;height:8px;margin:0 10px 0 4px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}
+.ef-more[open] summary::before{transform:rotate(45deg)}
+.ef-more summary:focus-visible{outline:2px solid var(--ef-acc);outline-offset:2px}
+.ef-more .ef-body{margin-top:0}
+.ef-more .ef-legend{flex-direction:column;margin:0}
+
+/* R253: the drawing itself is for Pre-event; the other steps keep one row (Layout opens the same plan full window) */
+:is(#tcFlow,#monApp):is([data-win="daybefore"],[data-win="onday"]) :is(#tcFloor,#monFloor) :is(.ef-sheet,.ef-more){display:none}

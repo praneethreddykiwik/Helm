@@ -148,7 +148,10 @@ select pg_temp.res('15 can_edit true for the manager; settings default (on, 60 m
   and (pg_temp.get('plan')::jsonb #>> '{settings,buffer_pct}') = '15' and (pg_temp.get('plan')::jsonb -> 'settings' -> 'notify_roles') = '["manager", "supervisor"]'::jsonb);
 -- a loop in the links (stage needs flowers, flowers needs stage) never hangs: both timed from Ready by
 select pg_temp.su();
+-- (0436 refuses a new circle: a stored one comes from a system change / restore)
+select set_config('helm.maintenance', 'on', true);
 update public.event_tasks set depends_on = 'a0000000-0000-4000-8000-00000000b396' where id = 'a0000000-0000-4000-8000-00000000a396';
+select set_config('helm.maintenance', 'off', true);
 select pg_temp.res('16 a loop in "needs first" -> both from Ready by (stage 14:42, flowers 15:51)',
   (select string_agg(to_char(s.latest_start at time zone 'Asia/Kolkata', 'HH24:MI'), ',' order by s.latest_start) from public._r396_schedule('a0000000-0000-4000-8000-00000000da01') s) = '14:42,15:51');
 update public.event_tasks set depends_on = null where id = 'a0000000-0000-4000-8000-00000000a396';

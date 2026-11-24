@@ -26,6 +26,12 @@ cannot reach: the event manager gets the bell. Earlier task turned down or late 
 event manager. Late reminders and the special-task escalation never blame a person who cannot start yet; they count from the
 moment the earlier task was done. Studio switch: `task_reminder_settings.start_now` (on by default). Free trial: bell only.
 
+**R253 (migration 0436 + comms-dispatch R253):** the e-mail is "You can start now: Flowers (Rao wedding)" with who finished the
+earlier task and when, the person's task, start time, place and task page. The check (Pass QC) never delays it. When the check
+rejects the earlier task, everyone waiting and not done is asked to hold (bell, e-mail, WhatsApp) and the event manager gets one
+bell; done again = "You can start now" again ("You can go on now" for somebody who had started). A department supervisor may check
+the finished tasks of their own section on that event, never their own task.
+
 ## Details
 - Only tasks with a **start time**, a **person with a phone number**, and status Assigned or Accepted. In progress, done,
   cancelled and declined tasks get nothing.
@@ -51,7 +57,7 @@ Delivered / Read need Meta's webhook (wa-webhook). If a message is not delivered
 | office_staff_alert | Office | staff name, what happened, task, event, date, reason, link | Yes (task overdue) |
 | staff_open_shift | Eligible staff | name, role, event, date, start, end, venue, link | Yes |
 | crew_runsheet_reminder | Crew | name, time, event, item, link | Yes |
-| staff_task_changed | Staff | name, task, event, what changed | Yes, for "You can start now" only (0434) |
+| staff_task_changed | Staff | name, task, event, what changed | Yes, for "You can start now" (0434) and "please hold" (0436) |
 | staff_shift_result | Staff | name, role, event, date, result, link | Not yet (needs Q1 / Q2) |
 | staff_leave_result | Staff | name, date, result, reason | Not yet (needs Q4) |
 | vendor_request, vendor_follow_up, vendor_delivery_reminder, vendor_invoice_update | Vendor | see wa-studio.mjs FIELDS | Not yet (needs Q3) |

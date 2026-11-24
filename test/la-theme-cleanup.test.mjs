@@ -16,7 +16,7 @@ let n = 0; const t = async (name, fn) => { try { await fn(); n++; console.log(' 
 const VIOLET = /#(6d28d9|7c3aed|4f46e5|efe9ff|6b46c1|9333ea|5b21b6|b9a4f5|e7e0ff|4457c8|f2eefc|c4b5fd|8b5cf6|1d1730|2c2346|2a1f4a)(?![0-9a-f])|rgba\(109, ?40, ?217/i;
 // deliberate non-theme colours: client invitation templates, 3D decor palettes, the builder's AV category hue,
 // and the user-selectable midnight / studio / luxe theme definitions
-const ALLOW = new Set(['invite.html', 'invite-studio.html', 'builder-3d.js', 'builder.js', 'photo-render-prompt.js', 'shell-b.css', 'builder-v2.css',
+const ALLOW = new Set(['invite.html', 'invite-studio.html', 'builder-3d.js', 'floor-3d.js', 'builder.js', 'photo-render-prompt.js', 'shell-b.css', 'builder-v2.css',
   'demo.css', 'public-v2.css', 'public-pages-v2.css', 'shell-b-theme-studio.css', 'shell-b-theme-luxe.css', 'shell-b-pages.css', 'shell-b-style.css', 'shell-proto.js']);
 await t('no violet / indigo left in app pages, styles and scripts (outside the allow-list)', () => {
   const bad = [];

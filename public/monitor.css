@@ -378,3 +378,8 @@ body.mon-wall .mon-tab{font-size:17px;min-height:48px}
 .mon-ci-cell{display:flex;flex-direction:column;font-size:14px}.mon-ci-cell small{font-size:11px;text-transform:uppercase;letter-spacing:.06em}
 .mon-ci-st{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 @media (min-width:768px){ .mon-ci-row{grid-template-columns:minmax(0,1.6fr) 90px 90px minmax(0,1.2fr)} .mon-ci-who,.mon-ci-st{grid-column:auto} }
+
+/* R253: finished work nobody has checked yet */
+.mon-chip.is-appr{background:var(--m-warn-soft);color:var(--m-warn)}
+.mon-appr a,.mon-dl a{color:var(--m-acc-2);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.mon-appr a{display:inline-flex;align-items:center;min-height:44px}

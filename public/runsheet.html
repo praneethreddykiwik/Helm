@@ -68,9 +68,10 @@
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="/event-flow-line.css?v=1">
-<link rel="stylesheet" href="event-floor.css?v=1">
+<link rel="stylesheet" href="event-floor.css?v=2">
+<link rel="stylesheet" href="/task-waits.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=119" id="shellProto"></script>
+<script src="/shell-proto.js?v=120" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -166,12 +167,13 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=408"></script>
-<script src="page-tours.js?v=77"></script>
-<script src="tour.js?v=91"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=409"></script>
+<script src="page-tours.js?v=78"></script>
+<script src="tour.js?v=92"></script>
 <script src="runsheet-remind.js?v=3"></script>
-<script src="event-floor.js?v=1"></script>
+<script src="event-floor.js?v=2"></script>
 <script src="/event-flow-line.js?v=1"></script>
+<script src="/task-waits.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -265,17 +267,21 @@
   $("#editModal").addEventListener("click",e=>{ if(e.target.id==="editModal") requestCloseEdit(); });
   $("#printBtn").addEventListener("click",()=>window.print());
 
-  let BRIEF=null;
+  let BRIEF=null, MINE=false;   // MINE: an office person looking at their own tasks (the rest of the page stays as it is)
   const TASK_ACTS={ assigned:[["accept","Accept"],["reject","Can't do it"]], accepted:[["start","Start"]], in_progress:[["complete","Mark done"]] };
   function renderMyTasks(){
     const host=$("#myTasks"), card=$("#myTasksCard"); if(!host||!card||!BRIEF) return;
     const ts=Array.isArray(BRIEF.tasks)?BRIEF.tasks:[]; card.hidden=false;
     if(!ts.length){ host.innerHTML='<div class="empty">No tasks assigned to you on this event.</div>'; return; }
-    host.innerHTML=ts.map(t=>`<div class="row"><div class="what"><b>${esc(t.title||"Task")}</b>
+    host.innerHTML=ts.map(t=>`<div class="row" data-task="${esc(t.id)}"><div class="what"><b>${esc(t.title||"Task")}</b>
         <div class="sub"><span class="tag">${t.status==="cancelled"?"Cancelled by the office":esc(String(t.status||"").replace("_"," "))}</span>${t.category?`<span class="tag">${esc(t.category)}</span>`:""}${t.note?esc(t.note):""}</div></div>
         <div class="rowacts">${(TASK_ACTS[t.status]||[]).map(a=>`<button type="button" class="btn sm${a[0]==="reject"?"":" primary"}" data-tact="${esc(a[0])}" data-tid="${esc(t.id)}">${esc(a[1])}</button>`).join("")}</div></div>`).join("");
+    const byId={}; ts.forEach(t=>{ byId[String(t.id)]=t; });   // R253: what each task waits for
+    if(window.HelmTaskWaits) host.querySelectorAll("[data-task]").forEach(r=>{ const t=byId[r.dataset.task]; if(t) HelmTaskWaits.decorate(r,t.waits_for,t.status); });
     host.querySelectorAll("[data-tact]").forEach(b=>b.addEventListener("click",()=>{
-      BPUI.guard(b, async()=>{ await BPStore.ops.crew.respond(b.dataset.tid, b.dataset.tact); BRIEF=await BPStore.ops.crew.eventBrief(id); renderMyTasks(); BPUI.toast("Task updated.",{type:"ok"}); })
+      BPUI.guard(b, async()=>{ const t=byId[b.dataset.tid];
+        if(window.HelmTaskWaits && !(await HelmTaskWaits.okToStart(t&&t.waits_for,b.dataset.tact,t&&t.status))) return;
+        await BPStore.ops.crew.respond(b.dataset.tid, b.dataset.tact); BRIEF=await BPStore.ops.crew.eventBrief(id); renderMyTasks(); BPUI.toast("Task updated.",{type:"ok"}); })
         .catch(e=>BPUI.toast(e&&e.refused ? e.message : BPUI.friendlyError(e,{action:"update the task"}),{type:"err"})); }));
   }
   async function load(){
@@ -297,11 +303,14 @@
       if(!BRIEF){ $("#notfound").hidden=false; return; }
       ev={ code:BRIEF.code, title:BRIEF.title, eventDate:BRIEF.event_date };
       canEdit=false; canDelete=false; $("#backLink").href="dashboard.html"; $("#backLink").textContent="← Back to dashboard"; renderMyTasks(); }
+    // R253: the bell "You can start now" opens here (#my-tasks) - also for an office person who has tasks on this event
+    if(!BRIEF && location.hash==="#my-tasks"){ try{ BRIEF=await BPStore.ops.crew.eventBrief(id); }catch(e){ BRIEF=null; }
+      if(BRIEF){ MINE=true; renderMyTasks(); } }
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"")+(ev.eventDate?(" · "+ev.eventDate):"");
     // R227 (0397): a plan locked for the event day = the run-sheet is view only here (no bar / no change before 0397)
-    if(!BRIEF && window.HelmEventFloor){ const st=await HelmEventFloor.lockBar($("#planLock"),{ quoteId:id, onChange:()=>location.reload() });
+    if((!BRIEF||MINE) && window.HelmEventFloor){ const st=await HelmEventFloor.lockBar($("#planLock"),{ quoteId:id, onChange:()=>location.reload() });
       if(st && st.locked){ canEdit=false; canDelete=false; } }
-    if(!BRIEF && window.HelmFlowLine) HelmFlowLine.mount($("#flowLine"),ev,{id,dayBefore:true});
+    if((!BRIEF||MINE) && window.HelmFlowLine) HelmFlowLine.mount($("#flowLine"),ev,{id,dayBefore:true});
     $("#app").hidden=false; $("#addCard").hidden=!canEdit;
     await RR.init(BPStore,{ canPick:canEdit });   // R231: view-only -> no team list asked (Run sheet - Can change only)
     RR.fillOwner("r",null); RR.wire("r"); RR.wire("e");
@@ -309,7 +318,8 @@
     $("#r_grpWrap").hidden=$("#e_grpWrap").hidden=!GROUP.has_group;
     $("#r_grp").checked=$("#e_grp").checked=GROUP.has_group&&GROUP.member;
     await load();
-    if(window.HelmFlowLine) HelmFlowLine.onReturn(()=>load(),()=>HelmFlowLine.inUse(null)||!$("#editModal").hidden);   // R252: reads only
+    if(MINE) $("#myTasksCard").scrollIntoView({block:"start"});
+    if(window.HelmFlowLine) HelmFlowLine.onReturn(async()=>{ if(BRIEF){ try{ BRIEF=await BPStore.ops.crew.eventBrief(id); renderMyTasks(); }catch(e){} } await load(); },()=>HelmFlowLine.inUse(null)||!$("#editModal").hidden);   // R252: reads only
   });
 </script>
 </body>

@@ -22,7 +22,7 @@ await t('1 quick filter chips + search replace the drop-downs', async () => {
   for (const id of ['opsFilter', 'of_q', 'of_person', 'of_section', 'of_status']) assert.ok(!ops.includes(`id="${id}"`), id + ' gone');
   assert.match(ops, /<div class="tc-chips" id="chips" role="group" aria-label="Quick filters"><\/div>/);
   assert.match(ops, /<input id="tcQ" type="search" maxlength="80" placeholder="Search tasks or people"/);
-  assert.deepEqual(JSON.parse(JSON.stringify(PURE.CHIPS.map((c) => c[1]))), ['All', 'Late', 'Special', 'Not assigned', 'Turned down', 'Not accepted yet', 'No time', 'QC to check', 'Can’t-work clash', 'Done', 'Cancelled']);
+  assert.deepEqual(JSON.parse(JSON.stringify(PURE.CHIPS.map((c) => c[1]))), ['All', 'Late', 'Special', 'Not assigned', 'Turned down', 'Not accepted yet', 'No time', 'To approve', 'Sent back', 'Can’t-work clash', 'Done', 'Cancelled']);
 });
 await t('2 chip rules', async () => {
   const now = Date.parse('2026-11-21T10:00:00Z'), past = '2026-11-21T09:00:00Z', later = '2026-11-21T12:00:00Z';
@@ -49,7 +49,7 @@ await t('3 Reassign only before the person said yes + QC buttons only for comple
   assert.match(B, /Accepted tasks stay with their person - to move one, cancel it \(a reason is required\) and give it out again\./);
   assert.match(B, /var REASSIGNABLE = \["unassigned", "assigned", "rejected"\];/);
   assert.match(ops, /filter\(t=>t&&\["unassigned","assigned","rejected"\]\.includes\(t\.status\)\)/);   // the sheet re-checks before reassign_task
-  assert.match(B, /g\.canVerify && t\.status === "completed" && t\.verify_status === "pending"/);
+  assert.match(B, /mayVerify\(t\) && t\.status === "completed" && t\.verify_status === "pending"/);
 });
 
 await t('4 CSS + no inline style on suggestions', async () => {

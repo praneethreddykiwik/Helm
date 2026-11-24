@@ -109,7 +109,7 @@ await t('How the steps work: five lines, and each one is what task-status.js doe
 await t('pages: banner under the step strip, how-it-works beside it, the minute clock, no read, no HTML strings', () => {
   for (const [h, pre, how, strip] of [[OPS, 'tcPreCheck', 'tcHow', 'id="tcFlow"'], [MON, 'monPreCheck', 'monHow', 'id="monSummary"']]) {
     assert.ok(h.includes('<section class="pc" id="' + pre + '" hidden></section>')); assert.ok(h.indexOf('id="' + how + '"') < h.indexOf('id="' + pre + '"') && h.indexOf('id="' + pre + '"') < h.indexOf(strip));
-    assert.match(h, /\/pre-check\.js\?v=1"/); assert.match(h, /\/pre-check\.css\?v=1"/);
+    assert.match(h, /\/pre-check\.js\?v=2"/); assert.match(h, /\/pre-check\.css\?v=1"/);
   }
   assert.match(read('public/ops-board.js'), /renderPlan\(\); renderPreCheck\(\); renderFlow\(\); \} \}, 60000\)/); assert.match(read('public/monitor.js'), /DLY = null; renderDelay\(\); renderPreCheck\(\); \}/);
   const code = JS.replace(/\/\*[\s\S]*?\*\//g, '');
