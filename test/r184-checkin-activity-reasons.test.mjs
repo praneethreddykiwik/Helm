@@ -65,17 +65,19 @@ await t('store: ops.live.activity -> event_day_activity, null before 0368; the o
   assert.match(API, /activity: \(quoteId\) => \(mode === "supabase" \? rpc\("event_activity", \{ p_quote: quoteId \}\)/);
 });
 
-await t('monitor: Check-in and Activity tabs exist and are allowed', () => {
-  assert.match(MONH, /data-tab="checkin" id="monTab-checkin"/); assert.match(MONH, /data-tab="activity" id="monTab-activity"/);
-  assert.match(MON, /\/\^\(staff\|work\|status\|left\|checkin\|activity\)\$\//);
-  assert.match(MON, /S\.tab === "checkin" \? viewCheckin\(list\)/);
+// R250: six tabs -> People / Work / Activity; check-in moved onto each person's People card (in / out / hours / late) and the
+// live strip ("Checked in x of y"), shown on the day and at wrap-up only
+await t('monitor: People and Activity tabs exist and are allowed (R251: the Check-in list is back beside the People cards)', () => {
+  assert.match(MONH, /data-tab="checkin" id="monTab-checkin"/); assert.match(MON, /v\.appendChild\(viewCheckin\(list\)\)/); assert.match(MONH, /data-tab="activity" id="monTab-activity"/);
+  assert.match(MON, /\/\^\(staff\|work\|checkin\|activity\)\$\//);
+  assert.match(MON, /if \(first\.crew_id && liveOn\(\)\) \{/);
   assert.match(MON, /if \(S\.tab === "activity"\) v\.appendChild\(viewActivity\(\)\)/);
   assert.doesNotMatch(MON, /innerHTML|insertAdjacentHTML/);
 });
 
 await t('monitor: attendance line, x of y checked in, late check-in, the can\u2019t-work reason; data from timesheet + availability + timeline', () => {
   assert.match(MON, /Checked in " \+ \(e\.inAt \? fmtClock\(e\.inAt\)/); assert.ok(MON.includes('"Checked out \u2014"'));
-  assert.match(MON, /ac\.checkedIn \+ " of " \+ ac\.people \+ " checked in"/);
+  assert.match(MON, /fact\("Checked in", ac\.checkedIn \+ " of " \+ ac\.people/);
   assert.match(MON, /Late check-in/);
   assert.ok(MON.includes('Marked this day as can\u2019t work \u00b7 " + (off || "no reason given")'));
   assert.match(MON, /await Promise\.all\(\[loadSheet\(ids\), loadOff\(ids\), loadActivity\(ids\)[,\]]/);
@@ -137,20 +139,20 @@ await t('Team calendar: the tag shows the reason ("Can\u2019t work \u00b7 Family
   assert.equal(offTxt('Exam', 20, true), 'Asked off (waiting) \u00b7 Exam');
 });
 
-await t('monitor: red LATE panel at the top (every late task: task, person, was due, how long ago, Nudge) + "Latest:" line', () => {
+await t('monitor: red LATE panel at the top (every late task: task, person, was due, how long ago, Nudge); R250: no "Latest:" line', () => {
   assert.match(MONH, /<section id="monAlerts" class="mon-alerts" aria-label="Late tasks" role="region" hidden><\/section>/);
   assert.ok(MONH.indexOf('id="monAlerts"') > MONH.indexOf('id="monSummary"') && MONH.indexOf('id="monAlerts"') < MONH.indexOf('id="monTabs"'));
   assert.match(MON, /function renderAlerts\(now\)/); assert.match(MON, /renderAlerts\(now\);/);
   assert.match(MON, /stateOf\(t, now\)\.late/);
   assert.match(MON, /"was due " \+ fmtClock\(t\.planned_start\) \+ " \(" \+ ago\(t\.planned_start, now\) \+ "\)"/);
   assert.match(MON, /row\.appendChild\(actions\(t\)\);/, 'Open + Nudge on each late task');
-  assert.ok(MON.includes('Latest: " + actText(latest) + " \u00b7 " + ago(latest.at)'));
+  assert.ok(!MON.includes('"Latest: "'), 'R250: the rail / Activity tab carry the latest update');
   assert.match(MONC, /\.mon-alerts\{/);
 });
 
-await t('page tour: the monitor tour names the new Check-in and Activity tabs', () => {
-  assert.match(TOURS, /Six ways to look/); assert.match(TOURS, /Check-in: who is on site, who checked out, who is late/);
-  assert.match(MONC, /\.mon-tl-i\{/); assert.match(MONC, /\.mon-ci-row\{/);
+await t('page tour: the monitor tour names People (with check-in) and Activity', () => {
+  assert.match(TOURS, /title: "People, Work, Activity"/); assert.match(TOURS, /on the day, their check-in/);
+  assert.match(MONC, /\.mon-tl-i\{/);
 });
 
 console.log(`\nr184-checkin-activity-reasons: ${pass} passed, ${fail} failed`);

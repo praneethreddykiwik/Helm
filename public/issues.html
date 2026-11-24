@@ -69,7 +69,7 @@
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=117" id="shellProto"></script>
+<script src="/shell-proto.js?v=118" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -88,7 +88,7 @@
   <div id="notfound" class="card" hidden><p class="s-1a1aca0">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to command center</a> · <span id="evName"></span></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to event-day command</a> · <a id="opsLink" href="#" hidden>Tasks &amp; Crew</a> <span id="opsSep" aria-hidden="true" hidden>·</span> <span id="evName"></span></div>
     <div class="toolbar">
       <div class="tabs" id="tabs" role="group" aria-label="Log type">
         <button type="button" data-t="issue" class="on" aria-pressed="true">🎫 Issues</button>
@@ -128,7 +128,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -201,6 +201,7 @@
     if(!(await BPStore.auth.requireView("issues"))) return;
     canEdit=await BPStore.auth.canEditArea("issues"); canDelete=canEdit && await BPStore.auth.can("delete");
     // r20-coord: the billable-change link opens Budget (finance) - hidden for a role that can't open it
+    if(await BPStore.auth.canView("staff").catch(()=>false)){ const o=$("#opsLink"); o.href="ops.html?quote="+encodeURIComponent(id); o.hidden=false; $("#opsSep").hidden=false; }
     { const fin=await BPStore.auth.canView("finance").catch(()=>false), cl=$("#changeLink"); if(cl && !fin) cl.hidden=true; if(!fin){ const ch=$("#changeHint"); if(ch) ch.hidden=true; } }
     try{ ev=await BPStore.quotes.get(id); }catch(e){ if(BPUI.isNotFound(e)){ $("#notfound").hidden=false; return; } throw e; }
     if(!ev){ $("#notfound").hidden=false; return; }

@@ -1,5 +1,6 @@
 /* ops-board.css - R192 Tasks & Crew page (ops.html). The owner-approved mockup (mockups/tasks-crew), Helm emerald light theme,
-   graphite black / white for the main buttons and the countdown, no dark mode. Every class starts with tc- so nothing here
+   no dark mode. R251 (owner: "black button with green text" does not match): every main button, picked chip / step, the count tile and
+   the bulk bar use the studio theme's accent with white words; --tc-black is no longer painted on this page. Every class starts with tc- so nothing here
    touches the app shell or the page's older modal styles. */
 .tc,.tc-layer{--tc-bg:#f4f8f6;--tc-panel:#fff;--tc-panel-2:#f7faf9;--tc-ink:#0b2a22;--tc-ink-2:#2f4a42;--tc-ink-3:#566b64;
   --tc-line:#e0eae5;--tc-line-2:#edf3f0;--tc-line-strong:#86808f;--tc-acc:#047857;--tc-acc-2:#10a37a;--tc-acc-hover:#065f46;
@@ -12,8 +13,7 @@
   color:var(--tc-ink);font-size:14px;line-height:1.45;min-width:0;max-width:100%}
 .tc-layer{display:contents}
 /* R225 theme colours: in every theme except Emerald the page follows the studio's own colours (Cobalt blue, Graphite black,
-   Studio plum, Luxe oxblood). Emerald (and a page without the shell) keeps the exact green tokens above. --tc-black stays black in
-   every theme (owner: "black is good"); status colours (safe/warn/bad/info) keep their traffic-light meaning. */
+   Studio plum, Luxe oxblood). Emerald (and a page without the shell) keeps the exact green tokens above. Status colours (safe/warn/bad/info) keep their traffic-light meaning. */
 /* Tint recipe (measured from Emerald): every light tint = the theme colour mixed into white at Emerald's own strength -
    card wash 3.5%, soft line 8%, "now" row 7%, selected 10%, line 14%. Graphite tints from a neutral grey (#6b6b6b), not black,
    so it stays light. Text on every tint is WCAG AA (lowest: grey text on a selected row, 4.59:1 in Cobalt). */
@@ -26,16 +26,17 @@ html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) :is(.tc,.tc-l
   --tc-now-bg:color-mix(in srgb,var(--hx-tint) 7%,var(--panel,#fff));--tc-now-bar:var(--accent,var(--hb-acc));
   --tc-elev-sm:0 1px 2px rgba(0,0,0,.06);--tc-elev-lg:0 2px 6px rgba(0,0,0,.08),0 24px 64px rgba(0,0,0,.18)}
 html[data-shell="b"][data-hb-theme][data-hb-theme="graphite"] :is(.tc,.tc-layer){--hx-tint:#6b6b6b}
-/* a faint mint border alone (wrap-up / summary box "OK") read as left-over green on other themes: use the theme's line there.
+/* a faint mint border alone (a summary box "OK") read as left-over green on other themes: use the theme's line there.
    Filled status chips (done / saved / free) keep their green. */
-html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) :is(.tc-wrap.ok,.tc-box.ok){border-color:var(--tc-line)}
+html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) :is(.tc-box.ok){border-color:var(--tc-line)}
 /* the page's own pop-ups (schedule, cancel, crew notes, sign-in) sit above the task panel. R225: the app shell's dialog layer
    (shell-b-pages.css, html[data-shell="b"] .lmodal{z-index:1100}) out-ranked the plain .lmodal rule, so a dialog opened from the
    drawer (e.g. "Crew notes & photos") sat UNDER the drawer's dimmed scrim (2100) - the extra "body" wins on specificity. */
 .lmodal,html[data-shell] body .lmodal{z-index:2200}
 html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc *,.tc-layer *{box-sizing:border-box}
-.tc button,.tc input,.tc select,.tc-layer button,.tc-layer input,.tc-layer select{font:inherit;color:inherit}
+/* :where = the control classes below keep their own size / weight (a plain ".tc button" out-ranked .tc-btn and .tc-chip) */
+:is(.tc,.tc-layer) :where(button,input,select,textarea){font:inherit;color:inherit}
 .tc :focus-visible,.tc-layer :focus-visible{outline:2px solid var(--tc-acc);outline-offset:2px}
 .tc-card{background:var(--tc-panel);border:1px solid var(--tc-line);border-radius:var(--tc-r-card);box-shadow:var(--tc-elev-sm)}
 .tc-h2{font-size:16px;margin:0;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
@@ -63,8 +64,9 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-ev{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px 24px;padding:18px 20px;margin-bottom:14px}
 .tc-ev-id{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .tc-ev-code{font-family:var(--tc-mono);font-weight:600;font-size:13px;color:var(--tc-acc-text)}
-.tc-pill{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--tc-black);color:#fff;border-radius:999px;padding:2px 9px}
-.tc-pill.plan{background:var(--tc-acc-soft);color:var(--tc-acc-text)}
+.tc-pill{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--tc-acc-soft);color:var(--tc-acc-text);border-radius:999px;padding:2px 9px}
+.tc-pill.live{background:var(--tc-acc);color:var(--hb-acc-ink,white)}
+.tc-pill.over{background:var(--tc-wait-bg);color:var(--tc-wait)}
 .tc-ev-title{font-size:23px;letter-spacing:-.02em;margin:4px 0 2px;line-height:1.15;overflow-wrap:anywhere}
 .tc-ev-sub{margin:0;color:var(--tc-ink-3);font-size:13px;overflow-wrap:anywhere}
 .tc-times{display:grid;grid-auto-flow:column;grid-auto-columns:auto;margin:0;align-self:center;border:1px solid var(--tc-line);border-radius:12px;overflow:hidden}
@@ -72,7 +74,7 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-t dt{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--tc-ink-3);white-space:nowrap}
 .tc-t dd{margin:2px 0 0;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .tc-t.key{background:var(--tc-acc-soft)} .tc-t.key dd{color:var(--tc-acc-text)}
-.tc-t.count{background:var(--tc-black);color:#fff} .tc-t.count dt{color:rgba(255,255,255,.75)}
+.tc-t.count{background:var(--tc-acc);color:var(--hb-acc-ink,white)} .tc-t.count dt{color:inherit}
 .tc-ev-foot{grid-column:1/-1;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .tc-progress{flex:1 1 260px;display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
 .tc-bar{flex:1 1 120px;height:8px;border-radius:999px;background:var(--tc-line-2);overflow:hidden;min-width:80px}
@@ -84,7 +86,6 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 /* segmented controls */
 .tc-seggrp{display:inline-flex;background:rgba(118,118,128,.1);border-radius:11px;padding:3px;gap:2px;max-width:100%}
 .tc-phase-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-.tc-phase-note{font-size:12px;color:var(--tc-ink-3)}
 .tc-seg{border:0;background:transparent;border-radius:8px;padding:8px 16px;font-weight:600;font-size:13px;color:var(--tc-ink-2);cursor:pointer;min-height:36px;white-space:nowrap}
 .tc-seg.sm{padding:6px 12px;min-height:32px}
 .tc-seg[aria-pressed="true"]{background:#fff;color:var(--tc-ink);box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
@@ -122,12 +123,17 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-rung-sep{width:10px;height:1px;background:var(--tc-line-strong);opacity:.5}
 
 /* layout */
-.tc-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
+/* R251: one column of cards in the step's own order; Crew, Latest, Issues and the check-in box sit two to a row, the last one alone takes
+   the whole row - no tall right column with an empty page beside it */
+.tc-flow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch;margin-bottom:14px}
+.tc-flow > *{grid-column:1/-1;margin:0!important;min-width:0}
+.tc-flow > .is-half{grid-column:auto}
 .tc-work{padding:14px 16px 16px;min-width:0}
 .tc-work-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
 .tc-work-head .tc-h2{margin-right:auto}
-.tc-side{display:flex;flex-direction:column;gap:14px;min-width:0}
-.tc-side .tc-card{padding:14px 16px;min-width:0}
+#tcCrewCard,#tcActCard,#trmCardOps{padding:14px 16px}
+#trmCardOps .tc-h2{margin-bottom:6px} #trmCardOps .trm-line{margin:0}
+.tc-crew,.tc-feed{max-height:372px;overflow:auto}
 .tc-side-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
 .tc-mini-link{font-size:12px;color:var(--tc-acc-text);font-weight:600;text-decoration:none}
 .tc-mini-link:hover{text-decoration:underline}
@@ -135,8 +141,8 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 /* buttons */
 .tc-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;height:auto;padding:0 14px;border-radius:var(--tc-r-ctl);border:1px solid var(--tc-line);background:var(--tc-panel);font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap;text-decoration:none;color:var(--tc-ink)}
 .tc-btn:hover{border-color:var(--tc-ink)}
-.tc-btn.tc-primary{background:var(--tc-black);border-color:var(--tc-black);color:#fff}
-.tc-btn.tc-primary:hover{background:#2a2a2a}
+.tc-btn.tc-primary{background:var(--tc-acc);border-color:var(--tc-acc);color:var(--hb-acc-ink,white)}
+.tc-btn.tc-primary:hover{background:var(--tc-acc-hover);border-color:var(--tc-acc-hover)}
 .tc-btn.green{background:var(--tc-acc);border-color:var(--tc-acc);color:#fff} .tc-btn.green:hover{background:var(--tc-acc-hover)}
 .tc-btn.sm{min-height:30px;padding:0 10px;font-size:12px}
 .tc-btn.ghost{border-color:transparent;background:transparent}
@@ -148,7 +154,7 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .tc-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--tc-line);background:var(--tc-panel);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;min-height:32px;color:var(--tc-ink-2);flex:none}
 .tc-chip b{font-variant-numeric:tabular-nums;color:var(--tc-ink)}
-.tc-chip[aria-pressed="true"]{background:var(--tc-black);border-color:var(--tc-black);color:#fff} .tc-chip[aria-pressed="true"] b{color:#fff}
+.tc-chip[aria-pressed="true"]{background:var(--tc-acc);border-color:var(--tc-acc);color:var(--hb-acc-ink,white)} .tc-chip[aria-pressed="true"] b{color:inherit}
 
 /* status pills: always a word + a shape, never colour alone */
 .tc-st{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
@@ -204,19 +210,24 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-fold{margin-top:10px;font-size:13px}
 .tc-fold summary{cursor:pointer;font-weight:600;color:var(--tc-ink-2);padding:8px 4px;min-height:40px;list-style-position:inside}
 
-/* timeline view */
+/* timeline view (R251: labels in their own strip, lines behind the blocks, blocks always as wide as their words) */
 .tc-tl{position:relative;margin-top:4px}
-.tc-tl-axis{display:grid;grid-template-columns:120px minmax(0,1fr);font-size:11px;color:var(--tc-ink-3);font-variant-numeric:tabular-nums}
+.tc-tl-axis{display:grid;grid-template-columns:132px minmax(0,1fr);font-size:11px;color:var(--tc-ink-3);font-variant-numeric:tabular-nums}
 .tc-tl-hours{position:relative;height:20px}
 .tc-tl-hours span{position:absolute;transform:translateX(-50%);white-space:nowrap}
 .tc-tl-hours span:first-child{transform:none}
-.tc-tl-lane{display:grid;grid-template-columns:120px minmax(0,1fr);border-top:1px solid var(--tc-line-2);min-height:46px}
-.tc-tl-name{font-size:12px;font-weight:600;padding:8px 8px 8px 2px;color:var(--tc-ink-2);overflow:hidden;text-overflow:ellipsis}
-.tc-tl-track{position:relative;min-height:46px;overflow:hidden}
+.tc-tl-marks{position:relative;height:22px} .tc-tl-marks.two{height:42px}
+.tc-tl-marks i{position:absolute;font-size:11px;font-weight:700;font-style:normal;line-height:18px;padding:0 6px;border-radius:5px;white-space:nowrap;color:white}
+.tc-tl-marks i.now{background:var(--tc-bad)} .tc-tl-marks i.guests{background:var(--tc-acc);color:var(--hb-acc-ink,white)}
+.tc-tl-body{position:relative}
+.tc-tl-lane{display:grid;grid-template-columns:132px minmax(0,1fr);border-top:1px solid var(--tc-line-2);min-height:78px}
+.tc-tl-name{font-size:12px;font-weight:600;padding:10px 10px 8px 2px;color:var(--tc-ink-2);overflow-wrap:anywhere}
+.tc-tl-track{position:relative;min-height:78px}
 .tc-tl-grid{position:absolute;top:0;bottom:0;width:1px;background:var(--tc-line-2)}
-.tc-blk{position:absolute;height:37px;border-radius:7px;padding:3px 7px;font-size:11px;line-height:1.25;overflow:hidden;cursor:pointer;border:1px solid transparent;text-align:left;min-width:12px}
-.tc-blk b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tc-blk span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9}
+.tc-blk-li{position:absolute;z-index:1;max-width:100%}
+.tc-blk{display:block;width:100%;height:68px;border-radius:8px;padding:4px 8px;font-size:11.5px;line-height:1.25;overflow:hidden;cursor:pointer;border:1px solid transparent;text-align:left}
+.tc-blk b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:600;overflow-wrap:anywhere}
+.tc-blk span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tc-blk.done{background:var(--tc-safe-bg);color:var(--tc-safe);border-color:var(--tc-safe-line)}
 .tc-blk.started{background:var(--tc-warn-bg);color:var(--tc-warn);border-color:#f0d8a6}
 .tc-blk.accepted{background:var(--tc-info-bg);color:var(--tc-info);border-color:#cfe0f1}
@@ -225,12 +236,10 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-blk.rejected{background:var(--tc-bad-bg);color:var(--tc-bad);border-color:#f3c3bd}
 .tc-blk.late{background:var(--tc-bad);color:#fff;border-color:var(--tc-bad)}
 .tc-blk.cancelled{background:#eceff3;color:#4c5563;text-decoration:line-through}
-.tc-tl-line{position:absolute;top:0;bottom:0;width:0;pointer-events:none;z-index:3}
+.tc-tl-line{position:absolute;top:0;bottom:0;width:0;pointer-events:none}
 .tc-tl-line.now{border-left:2px solid var(--tc-bad)}
-.tc-tl-line.mark{border-left:2px dashed var(--tc-acc)}
-.tc-tl-line i{position:absolute;left:3px;font-size:10px;font-weight:700;color:#fff;padding:1px 5px;border-radius:4px;white-space:nowrap;font-style:normal}
-.tc-tl-line.now i{top:-1px;background:var(--tc-bad)} .tc-tl-line.mark i{bottom:-1px;background:var(--tc-acc)}
-.tc-tl-overlay{position:absolute;top:20px;bottom:0;left:120px;right:0;pointer-events:none;overflow:hidden}
+.tc-tl-line.guests{border-left:2px dashed var(--tc-acc)}
+.tc-tl-overlay{position:absolute;top:0;bottom:0;left:132px;right:0;pointer-events:none}
 .tc-legend{display:flex;gap:6px 12px;flex-wrap:wrap;font-size:11px;color:var(--tc-ink-3);margin-top:12px}
 .tc-legend i{display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;border:1px solid}
 .tc-lg-done{background:var(--tc-safe-bg);border-color:var(--tc-safe-line)}.tc-lg-started{background:var(--tc-warn-bg);border-color:#f0d8a6}.tc-lg-accepted{background:var(--tc-info-bg);border-color:#cfe0f1}
@@ -271,14 +280,14 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-fi{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--tc-line-2);font-weight:700;font-size:11px}
 .tc-fi.bad{background:var(--tc-bad-bg);color:var(--tc-bad)} .tc-fi.warn{background:var(--tc-warn-bg);color:var(--tc-warn)}
 .tc-feed time{display:block;color:var(--tc-ink-3);font-variant-numeric:tabular-nums}
-.tc-side .muted,.tc-side p{overflow-wrap:anywhere}
+#trmCardOps p{overflow-wrap:anywhere}
 .tc-more summary{cursor:pointer;font-weight:600;font-size:13px;min-height:40px;display:flex;align-items:center}
 
 /* bulk bar */
-.tc-bulk{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2050;display:flex;align-items:center;gap:10px;background:var(--tc-black,#111);color:#fff;border-radius:14px;padding:8px 10px 8px 16px;box-shadow:var(--tc-elev-lg);max-width:calc(100vw - 32px)}
-.tc-bulk .tc-btn{background:#2a2a2a;border-color:#3a3a3a;color:#fff}
-.tc-bulk .tc-btn:hover{border-color:#fff}
-.tc-bulk .tc-btn.danger{color:#ffb4ab;border-color:#5a2f2a}
+.tc-bulk{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2050;display:flex;align-items:center;gap:10px;background:var(--tc-acc);color:var(--hb-acc-ink,white);border-radius:14px;padding:8px 10px 8px 16px;box-shadow:var(--tc-elev-lg);max-width:calc(100vw - 32px)}
+.tc-bulk .tc-btn{background:transparent;border-color:rgba(255,255,255,.55);color:inherit}
+.tc-bulk .tc-btn:hover{border-color:currentColor;background:var(--tc-acc-hover)}
+.tc-bulk :focus-visible{outline-color:currentColor}
 .tc-bulk .tc-btn.ghost{background:transparent;border-color:transparent}
 .tc-bulk-acts{display:flex;gap:6px;flex-wrap:wrap}
 .tc-bulk-n{font-size:13px;white-space:nowrap}
@@ -339,11 +348,10 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 
 /* ---------- responsive ---------- */
 @media (max-width:1100px){
-  .tc-layout{grid-template-columns:minmax(0,1fr)}
-  .tc-side{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
   .tc-r-main{grid-template-columns:70px minmax(0,1fr) 130px 120px 16px}
 }
 @media (max-width:860px){
+  .tc-flow > .is-half{grid-column:1/-1}
   .tc-ev{grid-template-columns:minmax(0,1fr)}
   .tc-times{grid-auto-flow:row;grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
   .tc-t{border-left:0;border-top:1px solid var(--tc-line)} .tc-t:first-child{border-top:0}
@@ -363,7 +371,6 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
   .tc-phase-row .tc-seggrp{display:flex;width:100%} .tc-phase-row .tc-seg{flex:1}
   .tc-attn{grid-template-columns:minmax(0,1fr)}
   .tc-arow .grow{flex-basis:100%}
-  .tc-side{grid-template-columns:minmax(0,1fr)}
   .tc-work{padding:12px}
   .tc-work-head .tc-seggrp{order:3;width:100%;display:flex} .tc-work-head .tc-seg{flex:1;padding:6px 6px}
   .tc-work-head .tc-btn.tc-primary{margin-left:auto}
@@ -398,12 +405,12 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 /* the app shell's phone tab bar (58px + safe area): the bulk bar sits just above it, within thumb reach */
 @media (max-width:819px){ html[data-shell="b"]:not(.hb-kb) .tc-bulk{bottom:calc(66px + env(safe-area-inset-bottom,0px))} }
 
-/* R222 (EVENT-OPS-PLAN.md): the mode switch is the page's main choice - black when picked, like the chips and + Add & assign */
-.tc-phase-row .tc-seg[aria-pressed="true"]{background:var(--tc-black);color:#fff;box-shadow:none}
-.tc-prep,.tc-runcard,.tc-iss,.tc-wrap{padding:14px 16px;margin-bottom:14px}
+/* R222 / R251: the step switch is the page's main choice - the theme accent when picked */
+.tc-phase-row .tc-seg[aria-pressed="true"]{background:var(--tc-acc);color:var(--hb-acc-ink,white);box-shadow:none}
+.tc-prep,.tc-runcard,.tc-iss{padding:14px 16px;margin-bottom:14px}
 .tc-prep-h{margin:0 0 8px;font-size:13px;color:var(--tc-ink)}
 .tc-prep-links{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.tc-chip.tc-link{text-decoration:none;color:var(--tc-ink)} .tc-chip.tc-link:hover{border-color:var(--tc-black)}
+.tc-chip.tc-link{text-decoration:none;color:var(--tc-ink)} .tc-chip.tc-link:hover{border-color:var(--tc-acc)}
 .tc-run{list-style:none;margin:6px 0 0;padding:0;max-height:360px;overflow:auto}
 .tc-run-row{display:flex;gap:12px;align-items:flex-start;padding:8px 6px;border-bottom:1px solid var(--tc-line);border-radius:8px}
 .tc-run-row:last-child{border-bottom:0}
@@ -414,23 +421,16 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-run-row.done{opacity:.55}
 .tc-run-row.now{background:var(--tc-now-bg);box-shadow:inset 3px 0 0 var(--tc-now-bar)}
 .tc-run-row.next{background:#fffaf0;box-shadow:inset 3px 0 0 #e8912d}
-.tc-ops2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
-.tc-ops2 > .tc-card{margin-bottom:14px}
 .tc-iss-acts{display:inline-flex;gap:10px;align-items:center;margin-left:auto}
 .tc-sev{width:8px;align-self:stretch;border-radius:4px;flex:none;background:#e8912d}
 .tc-sev.high{background:#d92d20} .tc-sev.low{background:#98a2b3}
-.tc-wrap.warn{border-color:#f0d8a6;background:linear-gradient(180deg,#fffaf0,#fff)}
-.tc-wrap.ok{border-color:var(--tc-safe-line)}
-.tc-wrap .tc-h2{margin:0 0 4px}
-.tc-wrap .tc-sub{display:block;margin-bottom:10px}
 @media (max-width:640px){ .tc-run-t{flex-basis:64px} .tc-iss-acts{margin-left:0} }
 
 /* R230: Tasks by department is the page's main section again - one card per department (its tasks, its Supervisor,
-   + Add task); the four event steps sit below, quieter. Theme tokens only (--tc-*), black primary buttons. */
-.tc-layout{margin-bottom:18px}
+   + Add task). Theme tokens only (--tc-*). */
 #view .tc-dept{border:1px solid var(--tc-line);border-radius:12px;background:var(--tc-panel);margin-top:10px;overflow:hidden}
 #view .tc-dept:first-child{margin-top:4px}
-#view .tc-dept.is-mine{border-color:var(--tc-ink-3)}
+#view .tc-dept.is-mine{border-color:var(--tc-acc)}
 .tc-grp-top{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:4px 10px 4px 4px;background:var(--tc-panel-2);border-bottom:1px solid var(--tc-line-2)}
 .tc-dept.is-folded .tc-grp-top{border-bottom:0}
 .tc-dept .tc-grp-h{flex:1 1 220px;width:auto;background:transparent;padding:8px 6px;gap:10px}
@@ -461,20 +461,62 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-lnk[aria-busy="true"]{opacity:.6}
 .tc-dept-more{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px dashed var(--tc-line)}
 .tc-dept-more .tc-sub{margin-right:4px}
-/* the event steps: below the departments, a quieter switch (picked = white on grey, not black) */
-.tc-stepsec{margin-top:6px;padding-top:16px;border-top:1px solid var(--tc-line)}
-.tc-stepsec-h{font-size:14px;color:var(--tc-ink-2);margin:0 0 10px}
-.tc-stepsec .tc-phase-row{margin-bottom:12px}
-.tc-stepsec .tc-phase-row .tc-seg{padding:6px 14px;min-height:32px;font-size:12.5px}
-.tc-stepsec .tc-phase-row .tc-seg[aria-pressed="true"]{background:var(--tc-panel);color:var(--tc-ink);box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
 @media (max-width:640px){
   .tc-grp-top{padding:4px 8px 6px 2px}
   .tc-grp-tools{margin-left:0;width:100%;padding-left:6px}
-  .tc-sup{flex:1 1 0;min-width:0} .tc-sup-sel{flex:1 1 0;width:100%;min-width:0;max-width:none;min-height:40px}
+  .tc-sup{flex:1 1 190px;min-width:0} .tc-sup-sel{flex:1 1 0;width:100%;min-width:96px;max-width:none;min-height:40px}
   .tc-row.has-acts,.tc-row.nocheck.has-acts{grid-template-columns:26px minmax(0,1fr)}
   .tc-row.nocheck.has-acts{grid-template-columns:minmax(0,1fr)}
   .tc-r-acts{grid-column:1/-1;justify-content:flex-end;margin-top:-6px;padding-bottom:6px}
-  .tc-stepsec .tc-phase-row .tc-seg{padding:6px 4px}
 }
 @media (pointer:coarse){ .tc-lnk,.tc-sup-sel,.tc-add-in{min-height:44px} }
 .tc-add-in.is-locked{color:var(--tc-ink-3);border-style:dashed;cursor:not-allowed}
+
+/* R251: the step strip under the header, the step groups of the task lists, buttons in the theme's own colour */
+.tc-stepbar{margin:0 0 14px}
+.tc-stepbar .tc-phase-row{margin:0}
+.tc-stepbar .tc-seg{min-height:44px;padding:8px 18px;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;position:relative}
+.tc-seg-n{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--tc-ink-3)}
+.tc-seg-n:empty{display:none}
+.tc-stepbar .tc-seg[aria-pressed="true"] .tc-seg-n{color:inherit}
+.tc-stepbar .tc-seg.is-now::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--tc-acc);flex:none}
+.tc-stepbar .tc-seg.is-now[aria-pressed="true"]::before{background:currentColor}
+.tc-stp{min-width:0}
+.tc-stp + .tc-stp{margin-top:16px}
+.tc-stp-t{margin:0;font-size:14px;text-transform:none;letter-spacing:0;color:var(--tc-ink)}
+.tc .tc-stp-h{display:flex;align-items:center;gap:4px 10px;width:100%;min-height:44px;padding:6px 12px;border:1px solid var(--tc-line);border-radius:10px;background:var(--tc-panel-2);text-align:left;cursor:pointer;color:var(--tc-ink);flex-wrap:wrap}
+.tc .tc-stp-h:hover{border-color:var(--tc-line-strong)}
+.tc .tc-stp.is-here .tc-stp-h{background:var(--tc-acc-soft);border-color:var(--tc-acc)}
+.tc-stp-h b{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.tc-stp-h .mini{font-size:12px;font-weight:500;color:var(--tc-ink-2);font-variant-numeric:tabular-nums}
+.tc-stp-h .fold{color:var(--tc-ink-2);font-size:15px;line-height:1;transition:transform .2s}
+.tc-stp-h[aria-expanded="false"] .fold{transform:rotate(-90deg)}
+.tc-stp-hint{margin:0 0 8px;padding:8px 12px;border-radius:var(--tc-r-ctl);background:var(--tc-warn-bg);color:var(--tc-warn);font-size:13px;font-weight:600}
+.tc-stp-b{padding-top:8px}
+.tc-stp-b .tc-ppl{padding-top:2px}
+/* a link drawn as a button keeps the button's own words (the shell colours every plain link: green on the old black) */
+.tc a.tc-btn,.tc-layer a.tc-btn{text-decoration:none!important;color:var(--tc-ink)!important}
+.tc a.tc-btn.tc-primary,.tc-layer a.tc-btn.tc-primary{color:var(--hb-acc-ink,white)!important}
+.tc a.tc-toplink,.tc a.tc-chip{text-decoration:none!important}
+/* the floor plan's own dark button: outlined here (one filled button per step) */
+.tc .ef-card,.tc .ef-lock{--ef-black:var(--tc-acc)}
+.tc .ef-card a.ef-btn.dark{background:var(--tc-panel);border-color:var(--tc-acc);color:var(--tc-acc-text)}
+.tc .tc-predone.hes{margin:0}
+@media (max-width:640px){
+  .tc .tc-stepbar .tc-phase-row .tc-seggrp{flex-wrap:nowrap}
+  .tc-stepbar .tc-phase-row .tc-seg{flex:1 1 0;min-width:0;padding:6px 4px;font-size:13px;flex-direction:column;gap:0;min-height:52px;white-space:normal;line-height:1.2}
+  .tc-stepbar .tc-seg.is-now::before{position:absolute;top:6px;right:6px}
+}
+@media (pointer:coarse){ .tc-grp-h,.tc .tc-arow .tc-btn,.tc .tc-mini-link,.tc .tc-fold summary{min-height:44px} .tc .tc-mini-link,.tc .flow-next a{display:inline-flex;align-items:center}
+  .tc .flow-next a,.tc-seg.sm,.tc-toplink,.tc .ef-btn,.tc .ef-link{min-height:44px} .tc .ef-link{display:inline-flex;align-items:center} }
+.tc-flow > .tc-attn.is-half{grid-template-columns:minmax(0,1fr);align-content:start}
+@media (min-width:861px){
+  #view .tc-row:not(.nocheck){grid-template-columns:28px minmax(0,1fr) 140px}
+  #view .tc-r-acts{justify-content:flex-end}
+}
+/* card headings read the same whether they are an h2 or an h3 (the page's plain h3 is small capitals) */
+.tc h3.tc-h2,.tc h3.tc-prep-h{font-size:16px;text-transform:none;letter-spacing:-.01em;color:var(--tc-ink);margin:0}
+.tc h3.tc-prep-h{margin-bottom:8px}
+.tc h3.tc-h2 .tc-count,.tc h3.tc-h2 .tc-n{text-transform:none;letter-spacing:0}
+.tc .tc-count{white-space:nowrap}
+@media (max-width:640px){ .tc .tc-side-h{flex-wrap:wrap} .tc .tc-iss .tc-arow .grow{flex-basis:calc(100% - 20px)} .tc .tc-iss .tc-arow .tc-btn{margin-left:16px} }
