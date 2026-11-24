@@ -195,10 +195,10 @@ await t('Tasks & Crew + monitor ask canAssignTasks; Templates - Can change off -
   assert.match(OPS, /else if\(!canTpl\)\{ const b=\$\("#tpl_add"\), i=\$\("#tpl_title"\); if\(b\) b\.textContent="\+ Add for this event";/);
   assert.match(OPS, /if\(!canTpl\)\{ const l=oneOff\[cat\]=oneOff\[cat\]\|\|\[\];[^\n]*\n[^\n]*setMsg\("ok",`Added "\$\{title\.slice\(0,120\)\}" for this event - ticked below\.`\); lastOkMsg=""; return; \}\n\s*try\{ await BPStore\.ops\.addTemplate\(cat,title\); \}/);
   assert.match(OPS, /\(this event only\)/);
-  assert.match(OPS, /<script src="ops-board\.js\?v=8"><\/script>/);
+  assert.match(OPS, /<script src="ops-board\.js\?v=9"><\/script>/);
   const mon = r('public/monitor.js');
   assert.match(mon, /S\.canEdit = !!\(await \(A\.canAssignTasks \? A\.canAssignTasks\(\) : A\.canEditArea\("staff"\)\)\);/);
-  assert.match(r('public/monitor.html'), /monitor\.js\?v=12/);
+  assert.match(r('public/monitor.html'), /monitor\.js\?v=13/);
   assert.match(r('public/ops-board.js'), /Your role can view this page only\. To give out work, an admin switches on \\u201cAssign & send tasks\\u201d/);
   // open shifts + days off keep their own Staff - Can change checks
   assert.match(r('public/crew-shifts.js'), /canEdit = await B\.auth\.canEditArea\("staff"\)/);

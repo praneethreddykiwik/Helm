@@ -68,7 +68,7 @@
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=117" id="shellProto"></script>
+<script src="/shell-proto.js?v=118" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -95,6 +95,8 @@
         <div class="venue" id="b_venue"></div>
       </div>
       <div class="links">
+        <a id="l_monitor" href="#" hidden>📺 Monitor</a>
+        <a id="l_ops" href="#" hidden>🛠 Tasks &amp; Crew</a>
         <a id="l_issues" href="#">🎫 Issues</a>
         <a id="l_runsheet" href="#">🗓 Run-sheet</a>
         <a id="l_floor" href="#">📐 Floor</a>
@@ -163,9 +165,9 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script>
-<script src="page-tours.js?v=75"></script>
-<script src="tour.js?v=90"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
+<script src="page-tours.js?v=76"></script>
+<script src="tour.js?v=91"></script>
 <script src="delivery-tracker.js?v=3"></script>
 <script src="crew-shifts.js?v=8"></script>
 <script src="stock-flow.js?v=2"></script>
@@ -371,6 +373,7 @@
     try{ ev=await BPStore.quotes.get(id); }catch(e){ if(BPUI.isNotFound(e)){ $("#notfound").hidden=false; return; } throw e; }
     if(!ev){ $("#notfound").hidden=false; return; }
     $("#b_code").textContent=ev.code||""; $("#b_meta").textContent=[ev.title,ev.eventDate].filter(Boolean).join(" · ");
+    { const st=await BPStore.auth.canView("staff").catch(()=>false); $("#l_monitor").href="monitor.html?quote="+encodeURIComponent(id); $("#l_ops").href="ops.html?quote="+encodeURIComponent(id); $("#l_monitor").hidden=$("#l_ops").hidden=!st; }
     $("#l_issues").href="issues.html?quote="+encodeURIComponent(id); $("#l_runsheet").href="runsheet.html?quote="+encodeURIComponent(id); $("#l_floor").href="builder.html?quote="+encodeURIComponent(id);
     try{ const p=await BPStore.plan.get(id); if(p&&(p.venue_name||p.access_notes)) $("#b_venue").textContent="📍 "+[p.venue_name,p.access_notes].filter(Boolean).join(" — "); }catch{}
     $("#app").hidden=false; $("#arrTools").hidden=!canEdit; $("#chkAdd").hidden=!canEdit; $("#gstTools").hidden=!canEdit; $("#stkTools").hidden=!canEdit;

@@ -99,7 +99,7 @@
 <link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=5">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=117" id="shellProto"></script>
+<script src="/shell-proto.js?v=118" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -245,11 +245,11 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script><script src="money-header-ui.js?v=3"></script><script src="/trial-sim.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script><script src="money-header-ui.js?v=3"></script><script src="/trial-sim.js?v=3"></script>
 <script src="flow-resume.js?v=10"></script>
 <script src="event-reminders.js?v=6"></script>
-<script src="page-tours.js?v=75"></script>
-<script src="tour.js?v=90"></script>
+<script src="page-tours.js?v=76"></script>
+<script src="tour.js?v=91"></script>
 <script src="payment-schedule.js?v=6"></script>
 <script src="booklet.js?v=38"></script>
 <script src="email-send.js?v=9"></script><script src="share-checklist.js?v=16"></script>
@@ -289,7 +289,7 @@
     // r24: the resources work in the order it is done - our stock, our people, what is still missing (vendors), then money
     {k:"resources",label:"Resources",hint:"1 Reserve our stock → 2 assign our people → 3 get what's missing from vendors → 4 check budget & margin.",mods:["inventory","tasks","resourceplan","budget"],steps:true},
     {k:"ready",label:"Ready",hint:"Pass the readiness gate, then brief the team.",mods:["readycheck","runsheet","logistics"]},
-    {k:"event_day",label:"Event Day",hint:"Run the day and handle issues live.",mods:["command","issues"]},
+    {k:"event_day",label:"Event Day",hint:"Run the day and handle issues live.",mods:["tasks","command","issues"]},
     {k:"settlement",label:"Settlement",hint:"Tear down, then invoice, settle vendors and collect.",mods:["teardown","settle","budget"]},
     {k:"closed",label:"Closed",hint:"Feedback, P&L and archive.",mods:["closure"]},
   ];
@@ -589,6 +589,7 @@
       if(!sumsLoaded){ bar.hidden=true; return false; }   // payments still loading: never flash "Record advance" for an event that has one
       t="Record advance"; href="flow.html?quote="+q+"#sec-pay"; /* money-1024: advances are recorded in the quote workspace payment step */ w="Record the client's advance to book the date."; }
     else if(cur<stageIndex("event_day")){ t="Plan the day"; href="runsheet.html?quote="+q; w="Build the minute-by-minute plan for the day."; }
+    else if(cur===stageIndex("event_day") && !cardDenied.has("tasks") && !(String(ev.eventDate||"").slice(0,10)<BPStore.todayLocal())){ t="Run the day"; href="monitor.html?quote="+q; w="Tasks, check-ins and issues, live. When it is over, mark the event complete in Wrap-up."; }
     else if(cur<stageIndex("closed")){ t="Close the event"; href="closure.html?quote="+q; w="Settle up, collect feedback and close the books."; }
     if(!t || !canEdit){ bar.hidden=true; return false; }
     if(window.HelmUrl&&HelmUrl.upgrade) href=HelmUrl.upgrade(href);   // PL1027 #3: studio-prefixed route (/<studio>/flow?quote=…), like Convert
@@ -806,7 +807,7 @@
       { key:"quote", ic:"🧾", title:"Quote & approval", sum:`${qvLabel?"Quotation "+esc(qvLabel):qvLabel===""?"No quotation saved yet":"Quotation"}${canFin&&!evTotal()?" · not priced yet":""}<div class="muted">${approvalText()}</div>${fromDisc}`,
         acts:[{t:"Open this quote", href:"quotes.html?focus="+encodeURIComponent(ev.code||id), primary:true}] },
       { key:"tasks", ic:"🛠️", title:"Tasks & staff", sum: tasksSummary&&tasksSummary.total?`${tasksSummary.done}/${tasksSummary.total} tasks done${staffSummary&&staffSummary.people?` · ${staffSummary.people} of our people assigned`:""}`:"Assign our people to the event's tasks.",
-        acts:[{t:"Open Tasks & staff", href:"ops.html?quote="+encodeURIComponent(id), primary:true}] },
+        acts:[{t:"Open Tasks & Crew", href:"ops.html?quote="+encodeURIComponent(id), primary:true}, {t:"Event-day monitor", href:"monitor.html?quote="+encodeURIComponent(id)}] },
       { key:"staff", ic:"👷", title:"Staff on this event",
         sum: staffSummary && staffSummary.people ? `${staffSummary.people} staff assigned · ${staffSummary.tasks} task${staffSummary.tasks===1?"":"s"}` : "No staff assigned yet — assign our people in Tasks & staff.",
         acts:[{t:"View event staff", href:"staff.html?quote="+encodeURIComponent(id), primary:true}] },
@@ -856,7 +857,7 @@
       quote:"Quote — the price the client sees, and their approval",
       tasks:"Tasks & staff — assign our people, who does what and when",staff:"Staff — our people working this event",vendors:"Vendors — outside vendors for what we don't have",
       runsheet:"Run-sheet — minute-by-minute plan for the day",command:"Event-day command — arrivals and checks, live",
-      issues:"Issues — problems on the day and how they were fixed",readycheck:"Readiness — is everything in place?",
+      issues:"Issues — problems on the day and how they were fixed",readycheck:"Readiness — is everything booked, and the day-before checklist",
       logistics:canFin?"Logistics — guests, permits and the payment schedule":"Logistics — guests, permits and comms",closure:"Closure — profit, feedback and archive",
       media:"Media — photos and videos for the client",settle:"Settlement — final bill, payments in and vendors paid",
       teardown:"Teardown — pack up, return stock, hand back the venue",budget:"Budget — costs against the quote, and your margin",
@@ -1010,11 +1011,11 @@
       proposal:[["Open proposal","proposal.html?quote="+q],["Open floor layout","builder.html?quote="+q]],
       quote:[["Open this quote","quotes.html?focus="+fq],["Venue & menu","plan.html?quote="+q]],
       confirmed:[["Quote & approval","quotes.html?focus="+fq],[advanceIn()?advanceDoneParts():"Record advance","flow.html?quote="+q+"#sec-pay"]],
-      planning:[["Open run-sheet","runsheet.html?quote="+q],["Open Tasks & staff","ops.html?quote="+q],["Venue & menu","plan.html?quote="+q]],
+      planning:[["Open run-sheet","runsheet.html?quote="+q],["Open Tasks & Crew","ops.html?quote="+q],["Venue & menu","plan.html?quote="+q]],
       resources:[["1 Reserve our stock","inventory.html?quote="+q],["2 Assign our people","ops.html?quote="+q],["3 What's missing","resources.html?quote="+q]],
       ready:[["Open readiness","ready.html?quote="+q],["Open logistics","logistics.html?quote="+q]],
-      event_day:[["Open event-day command","command.html?quote="+q],["Open issues","issues.html?quote="+q]],
-      settlement:[["Open settlement",settleHref()],["Open teardown","teardown.html?quote="+q]],
+      event_day:[...(cardDenied.has("tasks")?[]:[["Event-day monitor","monitor.html?quote="+q],["Tasks & Crew","ops.html?quote="+q]]),["Open event-day command","command.html?quote="+q],["Open issues","issues.html?quote="+q],["Open run-sheet","runsheet.html?quote="+q]],
+      settlement:[["Open settlement",settleHref()],["Open teardown","teardown.html?quote="+q],["Open closure","closure.html?quote="+q]],
       closed:[["Open closure","closure.html?quote="+q]] })[k]||[]; }
   function viewStage(k){
     if(!ev) return;

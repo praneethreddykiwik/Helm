@@ -136,22 +136,20 @@ await t('2f run-sheet now / next / done from the studio minutes; no clock = no s
 });
 
 await t('3a the page: switch kept, Get set up, run-sheet, issues and wrap-up boxes', () => {
-  assert.match(OPS, /data-phase="plan" (data-win="before" )?aria-pressed="false">Before the event<\/button>/);   // R226: + data-win
-  assert.match(OPS, /data-phase="live" (data-win="onday" )?aria-pressed="false">On the day<\/button>/);
-  assert.match(OPS, /id="tcPhaseAuto" hidden>Use the studio’s clock<\/button>/);
+  assert.match(OPS, /data-phase="plan" data-win="daybefore" aria-pressed="false">Day before<\/button>/);   // R251: three steps
+  assert.match(OPS, /data-phase="live" data-win="onday" aria-pressed="false">On the event<\/button>/);
+  assert.doesNotMatch(OPS, /tcPhaseAuto|tcPhaseNote/);   // R251: studio time only
   for (const id of ['tcPrep', 'tcRun', 'tcIssues', 'tcWrap']) assert.match(OPS, new RegExp('id="' + id + '"[^>]*hidden'), id + ' starts hidden');
-  assert.match(BRD, /card\("tcPrep", S\.phase === "plan"/); assert.match(BRD, /card\("tcRun", S\.phase === "live" (&& S\.win !== "wrapup" )?&& Array\.isArray\(S\.rs\)\)/);
-  assert.match(BRD, /card\("tcIssues", S\.phase === "live" && Array\.isArray\(S\.iss\)\)/);
-  assert.match(BRD, /renderPrep\(\); (renderFloor\(\); )?(renderPlan\(\); )?renderRun\(\); renderAttn\(\); renderIssues\(\); renderWrap\(\);/);
+  assert.match(BRD, /card\("tcPrep", S\.win === "daybefore"/); assert.match(BRD, /card\("tcRun", S\.win === "onday" && Array\.isArray\(S\.rs\)\)/);
+  assert.match(BRD, /card\("tcIssues", S\.win === "onday" && Array\.isArray\(S\.iss\)\)/);
+  assert.match(BRD, /renderPrep\(\); (renderFloor\(\); )?(renderPlan\(\); )?renderRun\(\); renderAttn\(\); renderIssues\(\); renderSteps\(\);/);
   for (const l of ['"staff.html"', '"resources.html?quote="', '"vendors.html"', '"runsheet.html?quote="', 'builderHref()', '"ready.html?quote="']) assert.ok(BRD.includes(l), 'Get set up links ' + l);
 });
-await t('3b the note says why; a hand pick that matches the clock is dropped; #live sticks', () => {
-  assert.match(BRD, /"From the studio’s clock" \+ \(why \? " · " \+ why : ""\)/);
-  assert.match(BRD, /"Picked by hand · the studio’s clock says "/);
-  assert.match(BRD, /if \(S\.manual === (auto|S\.autoWin)\) \{ ssSet\(key, null\); S\.manual = null; \}/);   // R226: the window
-  assert.match(BRD, /location\.hash === "#live" && G\(\)\.quoteId && modeNow\(\)\.mode !== "live"\) ssSet\(phaseKey\(\), "live"\)/);
+await t('3b no clock note; a look at another step is dropped when it matches the clock; #live opens On the event', () => {
+  assert.match(BRD, /if \(S\.manual === S\.autoStep \|\| /);   // R251: studio time only
+  assert.match(BRD, /location\.hash === "#live" && G\(\)\.quoteId && modeNow\(\)\.mode !== "live"\) S\.manual = TS\.normWin\("live"\);/);
   assert.doesNotMatch(BRD, /=== "#live"\) \{ S\.phase = "live";/, 'the old one-shot flip (undone by the next refresh) is gone');
-  assert.match(CSS, /\.tc-phase-row \.tc-seg\[aria-pressed="true"\]\{background:var\(--tc-black\);color:#fff/, 'black like + Add & assign and the All chip');
+  assert.match(CSS, /\.tc-phase-row \.tc-seg\[aria-pressed="true"\]\{background:var\(--tc-acc\);color:var\(--hb-acc-ink,white\)/, 'R251: the theme accent, like + Add & assign and the All chip');
 });
 await t('3c crew cards and the side list use the words; busy elsewhere comes from the staff suggestions', () => {
   assert.match(BRD, /if \(S\.phase === "plan"\) io = availPill\(c\.id\);/);
@@ -171,14 +169,16 @@ await t('4a issues: the existing BPStore.issues (Issues area: view to see, Can c
 });
 await t('4b mark complete: setStageGuided to Settlement (0198 gates + admin override), Quotes - Can change, confirm first', () => {
   assert.match(BRD, /A\.canEditArea\("quotes"\)/);
-  assert.match(BRD, /B\(\)\.quotes\.stageBlockers\(qid\(\), "settlement"\)/);
-  assert.match(BRD, /B\(\)\.quotes\.setStageGuided\(qid\(\), "settlement"\)/);
-  assert.match(BRD, /BPUI\.confirm\("Mark "/);
-  assert.match(BRD, /can = !blocked \|\| \(p\.admin && !hard\.length\)/, 'blocked = disabled; an admin may override soft gates (server asks for the reason)');
-  assert.match(BRD, /if \(S\.stageBusy\) return;/, 'one move at a time');
-  assert.match(BRD, /if \(e\.detail > 1\) return; markComplete/, 'a double-click never moves twice');
-  assert.doesNotMatch(BRD, /setStage\(qid\(\)/, 'never the unguarded setStage');
-  for (const p of ['settlement.html', 'teardown.html', 'closure.html']) assert.ok(BRD.includes('"' + p + '"'), 'next step ' + p);
+  // R251: the stage moves left ops-board.js - one place for both pages (event-steps.js, also tested in r251-event-steps.test.mjs)
+  const EVS = read('public/event-steps.js');
+  assert.match(EVS, /B\(\)\.quotes\.stageBlockers\(qid\(ctx\), stage\)/);
+  assert.match(EVS, /B\(\)\.quotes\.setStageGuided\(id, o\.stage\)/);
+  assert.match(EVS, /BPUI\.confirm\(o\.ask/);
+  assert.match(EVS, /can: !a\.length \|\| \(!!admin && !hard\)/, 'blocked = disabled; an admin may override soft gates (server asks for the reason)');
+  assert.match(EVS, /if \(e\.detail > 1\) return;/, 'a double-click never moves twice'); assert.match(EVS, /BUSY\[/, 'one move at a time');
+  assert.match(BRD, /canStage: !!p\.stageEdit, admin: !!p\.admin/);
+  assert.doesNotMatch(BRD + EVS, /quotes\.setStage\(/, 'never the unguarded setStage');
+  for (const p of ['settlement.html', 'teardown.html', 'closure.html']) assert.ok(EVS.includes('"' + p + '"'), 'next step ' + p);
 });
 await t('4c safety: DOM only in ops-board.js, no migration 0396 in phase 1, tour updated', () => {
   assert.doesNotMatch(BRD, /innerHTML|insertAdjacentHTML|outerHTML/);
@@ -186,8 +186,8 @@ await t('4c safety: DOM only in ops-board.js, no migration 0396 in phase 1, tour
   assert.deepEqual(readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter((f) => /^0396/.test(f)), ['0396_r226_event_day_plan.sql']);
   // the tour keeps its 8 steps (page-tours-coverage: 4-8 a page); the changed steps say what is new (R226 wording)
   // R230: the Tasks & Crew tour now leads with Tasks by department + Supervisor; the event steps are one step below them
-  assert.match(TOURS, /Before the event \/ Day before \/ On the day \/ Wrap-up, picked from your studio's clock/);
-  assert.match(TOURS, /On the day: the run-sheet, issues and Mark event complete/);
+  assert.match(TOURS, /Day before \/ Pre-event \/ On the event, picked from your studio's clock/);
+  assert.match(TOURS, /Then Mark pre-event complete\. On the event: the run-sheet and issues/);
   assert.match(TOURS, /Free that day \/ Busy elsewhere \/ Day off/);
 });
 

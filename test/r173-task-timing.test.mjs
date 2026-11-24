@@ -86,7 +86,7 @@ t("Assign work: optional start time + reminders in the same step, scheduled on t
   assert.match(ops, /<input type="datetime-local" id="as_when"/);
   assert.match(ops, /id="as_evday"/); assert.match(ops, /id="as_daybefore"/);
   assert.match(ops, /const mine=\(fresh\|\|\[\]\)\.filter\(x=>!before\.has\(x\.id\) && x\.crew_id===c\.id && titles\.includes\(x\.title\)\);/);
-  const iSched = ops.indexOf("await BPStore.ops.setSchedule(x.id, when.start"), iMail = ops.indexOf("R170 (0361): \"Send by email\" ticked");
+  const iSched = ops.indexOf("await BPStore.ops.setSchedule(x.id, when?when.start"), iMail = ops.indexOf("R170 (0361): \"Send by email\" ticked");
   assert.ok(iSched > 0 && iMail > iSched, "the start time is saved before the e-mail is queued");
   assert.match(read("public/store-api.js"), /setReminderTimes: \(taskId, times\) => rpc\("set_task_reminder_times"/);
 });
@@ -105,7 +105,7 @@ t("comms-dispatch: a reminder 6+ hours ahead names the day; page tour explains t
   assert.match(read("supabase/functions/comms-dispatch/staff-email.mjs"), /const at2 = Number\(row\.minutes\) >= 360 \? when\(row\.start, row\.day\) : clip\(row\.start, 12\);/);
   const tours = read("public/page-tours.js");
   // R192: no tick box any more - the When step and the task panel's Change time
-  assert.match(tours, /when \(Day before, Event day or No time yet, reminders, Special\)/); assert.match(tours, /Change time in a task's panel sets its start time and reminders/);
+  assert.match(tours, /First the part of the job: Pre-event, On the event, Wrap-up, Day before\. Then what, who .*start time, reminders, Special/); assert.match(tours, /Change time in a task's panel sets its start time and reminders/);
 });
 
 const SE = await import("../supabase/functions/comms-dispatch/staff-email.mjs");
