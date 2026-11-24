@@ -31,7 +31,7 @@ const J = (x) => JSON.parse(JSON.stringify(x));
 const { TS, B } = load();
 
 await t('1a one vocabulary: the words both pages use', () => {
-  assert.deepEqual(J(TS.LABEL), { unassigned: 'No one yet', waiting: 'Waiting for a yes', accepted: 'Accepted', started: 'Started', done: 'Done', rejected: 'Turned down', cancelled: 'Cancelled', late: 'Late' });
+  assert.deepEqual(J(TS.LABEL), { unassigned: 'Not assigned', waiting: 'Not accepted yet', accepted: 'Accepted', started: 'Started', done: 'Done', rejected: 'Turned down', cancelled: 'Cancelled', late: 'Late' });
   const k = (s, o) => TS.baseKey(Object.assign({ status: s }, o || {}));
   assert.equal(k('assigned', { crew_id: 'c' }), 'waiting'); assert.equal(k('assigned'), 'unassigned');
   assert.equal(k('unassigned', { assignee_name: 'Asha' }), 'waiting', 'r20: an "unassigned" row that names someone');
@@ -81,7 +81,6 @@ await t('2 the studio clock picks the phase (never the device zone); overnight w
   // R222: the page now uses TS.opsMode (run-sheet / tasks / Guests arrive / stage); TS.phase stays for older callers
   assert.match(BRD, /TS\.opsMode\(\{ eventDate: evDate\(\), eventTime: q\.eventTime, stage: q\.lifecycleStage \|\| q\.lifecycle_stage, status: q\.status,\s+tasks: G\(\)\.tasks, runsheet: S\.rs, now: Date\.now\(\), tz: tz\(\) \}\)/);
   assert.match(BRD, /function tz\(\) \{ try \{ return B\(\)\.studioTimezone\(\); \}/);
-  assert.match(BRD, /"helm\.tc\.phase\." \+ \(G\(\)\.quoteId \|\| ""\)/, 'manual override per event (this browser session)');
 });
 await t('3 one refresh clock: 30 s, never while hidden, at once on return, never overlapping', async () => {
   const L = load(); let n = 0;
@@ -119,9 +118,10 @@ await t('4b overnight + day-before + no-time slots against the event day (studio
 await t('4c "Ready for the day?" lines + Fix target; not checked in (first open task started or within 30 min)', () => {
   const tasks = [{ status: 'unassigned' }, { status: 'assigned', crew_id: 'a' }, { status: 'accepted', crew_id: 'b', planned_start: 'x', is_special: true }, { status: 'cancelled' }];
   const items = B.readyChecks(tasks, { clash: (x) => x.crew_id === 'a', unsent: 2 });
-  assert.deepEqual(J(items.map((i) => [i[0], i[3]])), [[false, 'none'], [false, 'notime'], [false, 'clash'], [false, 'wait'], [true, 'special'], [false, 'people']]);
-  assert.equal(items[0][2], '1 task with no one yet'); assert.equal(items[5][2], '2 people not sent their tasks yet (Email / WhatsApp)');
-  assert.equal(B.readyChecks(tasks, {}).length, 5, 'without the activity timeline the "sent" line is left out');
+  assert.deepEqual(J(items.map((i) => [i[0], i[3]])), [[false, 'none'], [false, 'notime'], [false, 'clash'], [false, 'wait'], [true, 'special'], [true, 'down'], [false, 'people']]);
+  assert.equal(items[0][2], '1 task not assigned'); assert.equal(items[6][2], '2 people not sent their tasks yet (Email / WhatsApp)');
+  assert.equal(B.readyChecks([{ status: 'rejected', crew_id: 'a' }], {})[5][2], '1 task turned down - give it to someone else');   // R251
+  assert.equal(B.readyChecks(tasks, {}).length, 6, 'without the activity timeline the "sent" line is left out');
   assert.equal(B.readyChecks([], {})[0][3], 'add', 'no tasks: one line that opens Add & assign');
   const now = Date.parse('2026-11-21T10:00:00Z');
   const nci = B.notCheckedIn([
@@ -135,7 +135,8 @@ await t('4c "Ready for the day?" lines + Fix target; not checked in (first open 
 await t('5a page layout: header, phase switch, attention, three views, chips, Apple-style search, Monitor link', () => {
   for (const id of ['evhead', 'tcPhase', 'attn', 'tcViews', 'chips', 'tcQ', 'view', 'crewList', 'feed', 'addBtn', 'bulk', 'drawer', 'sheet', 'toMonitor', 'tcViewOnly'])
     assert.ok(OPS.includes(`id="${id}"`), id);
-  assert.match(OPS, /data-phase="plan" (data-win="before" )?aria-pressed="false">Before the event<\/button>/); assert.match(OPS, /data-phase="live" (data-win="onday" )?aria-pressed="false">On the day<\/button>/);
+  // R251: three steps right under the event header (Wrap-up is a closed section at the bottom, not a step)
+  assert.match(OPS, /data-phase="plan" data-win="daybefore" aria-pressed="false">Day before<\/button>/); assert.match(OPS, /data-phase="live" data-win="pre" aria-pressed="false">Pre-event<\/button>/); assert.match(OPS, /data-phase="live" data-win="onday" aria-pressed="false">On the event<\/button>/);
   assert.match(OPS, /data-view="timeline"[^>]*>Timeline<\/button>/); assert.match(OPS, /data-view="list" aria-pressed="true">By department<\/button>/); assert.match(OPS, /data-view="people"[^>]*>By person<\/button>/);
   assert.match(OPS, /<script src="task-status\.js\?v=\d+"><\/script>/); assert.match(read('public/monitor.html'), /<script src="task-status\.js\?v=\d+"><\/script>\n(<script src="event-plan\.js\?v=\d+"><\/script>\n)?(<script src="event-floor\.js\?v=\d+"><\/script>\n)?<script src="monitor\.js/);
   assert.match(OPS, /<link rel="stylesheet" href="ops-board\.css\?v=\d+">/);
@@ -161,9 +162,14 @@ await t('5c the old setup-form page is gone: no Add staff form, no tick box hidi
 await t('5d Smart schedule switch still ON HOLD (phase 7); R226 owns the Ready-by latest start in event-plan.js, not here', () => {
   assert.doesNotMatch(OPS + BRD + CSS, /[Ss]mart schedule|critical path|crit-on|backward/);
 });
-await t('5e the sheet: four steps, the person list with free / busy / asked off / day off, the button says what happens', () => {
-  assert.match(OPS, /<legend><span data-step>1\. <\/span>What<\/legend>/); assert.match(OPS, /<legend><span data-step>2\. <\/span>Who<\/legend>/);
-  assert.match(OPS, /<legend><span data-step>3\. <\/span>When <small>/); assert.match(OPS, /<legend><span data-step>4\. <\/span>Tell them<\/legend>/);
+await t('5e the sheet: when is this work / what / who / start time / tell them, the person list with free / busy / asked off / day off, the button says what happens', () => {
+  assert.match(OPS, /<legend><span data-step>2\. <\/span>What<\/legend>/); assert.match(OPS, /<legend><span data-step>3\. <\/span>Who<\/legend>/);
+  assert.match(OPS, /<legend><span data-step>1\. <\/span>When is this work\?<\/legend>/);   // R251: the step comes first
+  assert.match(OPS, /<legend><span data-step>4\. <\/span>Start time <small>/); assert.match(OPS, /<legend><span data-step>5\. <\/span>Waits for another task <small>/); assert.match(OPS, /<legend><span data-step>6\. <\/span>Tell them<\/legend>/);
+  // R251: the same depends_on link and checks as Change time -> Depends on; the task panel starts follow-on work and shows both directions
+  assert.match(OPS, /<select class="tc-inp" id="as_dep"/); assert.match(OPS, /setSchedule\(x\.id, when\?when\.start:\(x\.planned_start\|\|null\), null, dep\|\|x\.depends_on\|\|null\)/);
+  assert.match(OPS, /wouldCycle\(id,depId\)\)\)\{ setMsg\("err","That would go round in a circle/); assert.match(OPS, /sheetOpened:\(preset, depId\)=>/);
+  assert.match(BRD, /text: "\+ Task after this"/); assert.match(BRD, /row\("Waiting for this"/); assert.match(BRD, /"data-key": "a:waits"/);
   assert.match(BRD, /text: x\.pending \? "asked for the day off" : "day off"/); assert.match(BRD, /text: "busy elsewhere"/); assert.match(BRD, /text: "● free that day"/); assert.match(BRD, /"★ matches"/);
   assert.match(BRD, /"Assign " \+ n \+ " task" \+ \(n === 1 \? "" : "s"\) \+ " to " \+ who/);
   assert.match(OPS, /id="asSpecial"> ▲ Special \(P1\)/);
@@ -197,6 +203,51 @@ await t('6c view-only roles: same page, no action buttons, "View only" label', (
   assert.match(BRD, /var vo = \$\("#tcViewOnly"\); if \(vo\) vo\.hidden = canEdit\(\);/);
   assert.match(BRD, /var cb = canEdit\(\) && t\.status !== "cancelled"/, 'no tick boxes without Staff edit');
   assert.match(BRD, /if \(canEdit\(\)\) \{\n        var open = all\.filter/, 'no Email / WhatsApp / link buttons on cards');
+});
+await t('7a R251: the header badge is the REAL step; old hand picks go through normWin; opsWindow gets Guests arrive + the stage', () => {
+  assert.deepEqual(['daybefore', 'pre', 'onday', 'wrapup'].map((w) => B.badgeOf(w, 'event_day').text), ['Planning', 'Pre-event', 'Event day - live', 'Event over']);
+  assert.equal(B.badgeOf('wrapup', 'settlement').text, 'Complete'); assert.equal(B.badgeOf('wrapup', 'closed').text, 'Complete'); assert.equal(B.badgeOf('daybefore', 'event_day').text, 'Planning', 'the stage alone, days early, never reads as live');
+  assert.match(BRD, /badgeOf\(S\.autoWin, stageOf\(\)\)/); assert.doesNotMatch(BRD, /S\.phase === "live" \? "Event day/);
+  assert.match(BRD, /TS\.opsWindow\(S\.mode, \{ eventDate: evDate\(\), eventTime: q\.eventTime, stage: stageOf\(\), now: Date\.now\(\), tz: tz\(\) \}\)/);
+  // studio time only: a tap just looks; nothing is stored and no "picked by hand" note
+  assert.match(BRD, /if \(S\.manual === S\.autoStep \|\| \(was && was !== S\.autoStep\)\) S\.manual = null;/); assert.match(BRD, /w = TS\.normWin\(w\); if \(!w\) return;/);
+  assert.match(BRD, /S\.manual = TS\.normWin\("live"\);/); assert.doesNotMatch(BRD + OPS, /Picked by hand|Use the studio|helm\.tc\.phase/);
+});
+await t('7b R251: the steps are under the header, each step has its own card order, Wrap-up is the last thing on the page and lives in event-steps.js', () => {
+  const at = (id) => OPS.indexOf('id="' + id + '"');
+  assert.ok(at('evhead') < at('tcSteps') && at('tcSteps') < at('tcPhase') && at('tcPhase') < at('tcFlow') && at('tcFlow') < at('work') && at('work') < at('tcWrap') && at('shiftCard') < at('tcWrap') && at('flowNext') < at('tcWrap'));
+  for (const [w, first, last] of [['daybefore', 'tcPrep', 'trmCardOps'], ['pre', 'tcReady', 'trmCardOps'], ['onday', 'tcRun', 'trmCardOps']]) {
+    const list = JSON.parse('[' + BRD.match(new RegExp(w + ': \\[([^\\]]+)\\]'))[1] + ']');
+    assert.equal(list[0], first); assert.equal(list[list.length - 1], last); for (const id of list) assert.ok(at(id) > 0, w + ' ' + id);
+    for (const id of ['work', 'tcFloor', 'tcLock', 'tcCrewCard', 'tcActCard']) assert.ok(list.includes(id), w + ' keeps ' + id);
+  }
+  const pre = BRD.match(/pre: \[([^\]]+)\]/)[1]; assert.ok(pre.indexOf('"work"') < pre.indexOf('"tcPreDone"'), 'Mark pre-event complete ends the step');
+  assert.match(BRD, /HelmEventSteps\.renderPreDone\(ph, ctx\)/); assert.match(BRD, /HelmEventWrap\.render\(wh, ctx\)/);
+  assert.match(OPS, /<link rel="stylesheet" href="\/event-steps\.css\?v=\d+">/); assert.match(OPS, /<script src="\/event-steps\.js\?v=\d+"><\/script>/);
+  assert.doesNotMatch(BRD, /setStageGuided\(|stageBlockers\(|setStage\(/, 'one place moves the stage: event-steps.js');
+});
+await t('7c R251: default start per step - Venue opens / Ready by side before guests, Guests arrive, after the run-sheet (else + 3 h)', () => {
+  const s = (w, o) => J(B.stepStart(w, o)), G = 19 * 60;
+  assert.deepEqual(s('pre', { guests: G, venue: 420, ready: 1080 }), { off: 0, min: 420 });
+  assert.deepEqual(s('pre', { guests: G, ready: 1080 }), { off: 0, min: 960 }); assert.deepEqual(s('pre', { guests: G }), { off: 0, min: 960 });
+  assert.deepEqual(s('pre', {}), { off: 0, min: 540 }); assert.deepEqual(s('pre', { guests: 360, venue: 480, ready: 300 }), { off: 0, min: 180 }, 'a 6 AM event: before guests, never after');
+  assert.deepEqual(s('pre', { guests: 30 }), { off: 0, min: 0 }); assert.deepEqual(s('onday', { guests: G }), { off: 0, min: G }); assert.deepEqual(s('onday', {}), { off: 0, min: 1080 });
+  assert.deepEqual(s('wrapup', { guests: G, runEnd: 1350 }), { off: 0, min: 1350 }); assert.deepEqual(s('wrapup', { guests: 22 * 60, runEnd: NaN }), { off: 1, min: 60 }); assert.deepEqual(s('wrapup', { guests: G, runEnd: 600 }), { off: 0, min: G + 180 });
+  assert.deepEqual(s('daybefore', { guests: G }), { off: -1, min: 1080 });
+  assert.equal(B.runEnd([{ start_time: '19:00', duration_min: 60 }, { start_time: '00:30', duration_min: 30 }], G), 1500, 'an item after midnight'); assert.ok(isNaN(B.runEnd([], G)));
+});
+await t('7d R251: lists are split by step first in all three views; hint only; folded later work; phone-safe', () => {
+  assert.match(BRD, /TS\.WINDOWS\.forEach\(function \(W\) \{/); assert.match(BRD, /viewTimeline\(list, w\) : viewPeople\(list, w\)/); assert.match(BRD, /renderGroups\(sec, w, list, keepRows, keepGrps\)/);
+  assert.match(BRD, /"Allocate pre-event work first - " \+ n \+ " left"/);
+  assert.equal(B.foldDefault('daybefore', 'wrapup', 'daybefore'), false, 'planning: everything open'); assert.equal(B.foldDefault('pre', 'onday', 'pre'), true); assert.equal(B.foldDefault('pre', 'pre', 'pre'), false); assert.equal(B.foldDefault('onday', 'wrapup', 'wrapup'), false, 'open once the event is over');
+  assert.deepEqual([...OPS.matchAll(/data-as-step="([a-z]+)" aria-pressed="(true|false)"/g)].map((m) => m[1] + m[2]), ['pretrue', 'ondayfalse', 'wrapupfalse', 'daybeforefalse'], 'Pre-event is the default');
+});
+await t('7e R251: buttons in the theme accent, no black control left; timeline labels have their own strip', () => {
+  assert.doesNotMatch(CSS.replace(/\/\*[\s\S]*?\*\//g, ''), /var\(--tc-black|#2a2a2a/);
+  assert.match(CSS, /\.tc-btn\.tc-primary\{background:var\(--tc-acc\);border-color:var\(--tc-acc\);color:var\(--hb-acc-ink,white\)\}/);
+  assert.match(CSS, /\.tc a\.tc-btn\.tc-primary,\.tc-layer a\.tc-btn\.tc-primary\{color:var\(--hb-acc-ink,white\)!important\}/);
+  assert.match(BRD, /cls: "tc-tl-marks"/); assert.doesNotMatch(BRD, /tc-tl-line mark|"mark"/, 'never the page logo class .mark');
+  assert.match(CSS, /\.tc-blk-li\{position:absolute;z-index:1/);
 });
 await t('6d page tour covers the new page', () => {
   const pt = read('public/page-tours.js');

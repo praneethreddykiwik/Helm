@@ -64,7 +64,7 @@
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="stock-flow.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=117" id="shellProto"></script>
+<script src="/shell-proto.js?v=118" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -83,7 +83,7 @@
   <div id="notfound" class="card" hidden><p class="s-1a1aca0">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="nextWrap" hidden> · <a id="nextLink" href="#">Next: Closure →</a></span></div>
 
     <div class="card">
       <h2>📦 Stock for this event <span class="prog" id="invProg"></span></h2>
@@ -125,7 +125,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
 <script src="stock-flow.js?v=2"></script>
 <script src="stock-checkin.js?v=1"></script>
 <script>
@@ -246,6 +246,7 @@
     if(!id){ $("#notfound").hidden=false; return; }
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("inventory"))) return;
+    if(await BPStore.auth.canView("closure").catch(()=>false)){ $("#nextLink").href="closure.html?quote="+encodeURIComponent(id); $("#nextWrap").hidden=false; }
     canEdit=await BPStore.auth.canEditArea("command"); canDelete=canEdit && await BPStore.auth.can("delete");
     try{ ev=await BPStore.quotes.get(id); }catch(e){ if(BPUI.isNotFound(e)){ $("#notfound").hidden=false; return; } throw e; }
     if(!ev){ $("#notfound").hidden=false; return; }
