@@ -186,8 +186,7 @@
   function initials(name) { return String(name || "").replace(/[^\p{L}\p{N}\s]/gu, " ").trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "\u2726"; }
   function renderCover(d) {
     const s = d.studio || {}, e = d.event || {};
-    const accent = safeHex(s.accent);
-    if (accent) { try { doc.documentElement.style.setProperty("--accent", accent); doc.documentElement.style.setProperty("--accent-soft", accent + "1a"); } catch (x) {} }
+    // R261 (owner): the booklet is in Helm's green for every studio (booklet.css --accent); the studio keeps its logo and name here
     $("#s_name").textContent = s.name || "Your event studio";
     // QA1026 #3: the <img> is created only when there is a logo — no empty-src image in the DOM.
     const logo = safeLogo(s.logo);
@@ -213,7 +212,7 @@
     if (s.location) ct.appendChild(el("span", "", String(s.location)));
     const title = clientTitle(e);
     $("#e_title").textContent = title;
-    $("#e_sub").textContent = [fmtDate(e.event_date), e.venue_name].filter(Boolean).join(" · ");
+    $("#e_sub").textContent = [fmtDate(e.event_date), e.event_date ? fmtTime(e.start_time || e.event_time) : "", e.venue_name].filter(Boolean).join(" · ");
     $("#e_for").textContent = e.client_name ? "Prepared for " + e.client_name : "";
     const note = $("#b_note"); note.hidden = !d.note; note.textContent = d.note || "";
     try { doc.title = title + " — Event booklet" + (s.name ? " · " + s.name : ""); } catch (x) {}

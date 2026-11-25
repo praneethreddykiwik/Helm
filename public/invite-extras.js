@@ -5,7 +5,8 @@
  *                       rsvpForm     false  (optional: the studio turns the RSVP form on)
  *                       rsvpContact  true   -> "RSVP on WhatsApp" + "Call" (the default for new sites too)
  *                       addressMode  "full" | "after_rsvp" (venue + city until the guest replies)
- *                       helmBrand    true   ("Made with Helm Studios" in the footer; data.hideHelmBrand hides it)
+ *                       helmBrand    true   R261: "Made with Helm Events" is always in the footer (an old data.hideHelmBrand is ignored)
+ *                       studioBrand  true   ("Designed by <studio>" in the footer; data.hideStudio hides it)
  *   cityOf(address)   the last part of "Street, area, City" (a suggestion for the City field)
  *   LIMITS            the same limits the server checks (public_invite_rsvp)
  *   formProblem(f)    a guest's form -> "" or a short message (the server checks again; this only saves a round trip)
@@ -35,7 +36,8 @@
       rsvpForm: d.rsvpForm === true,
       rsvpContact: d.rsvpContact !== false,
       addressMode: d.addressMode === "after_rsvp" ? "after_rsvp" : "full",
-      helmBrand: d.hideHelmBrand !== true
+      helmBrand: true,
+      studioBrand: d.hideStudio !== true
     };
   }
   function cityOf(address) {

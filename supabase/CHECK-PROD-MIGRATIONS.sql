@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (389 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (391 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (5227 objects): body 170, bucket 9, col 304, con 429, cron 21, exec 19, fn 2360, idx 602, marker 174, pol 196, polexpr 4, pre 133, pub 6, seq 1, tbl 326, trg 471, view 2.
+-- What is checked (5251 objects): body 169, bucket 9, col 305, con 430, cron 21, exec 19, fn 2371, idx 606, marker 175, pol 196, polexpr 4, pre 135, pub 6, seq 1, tbl 327, trg 475, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -1237,8 +1237,8 @@ with o(m, k, s, n, x) as (values
   ('0049_db_gates', 'fn', 'public', 'storage_quota_ok', 'text,text,jsonb'),
   ('0049_db_gates', 'pol', 'storage.objects', 'upload_quota_insert', null),
   ('0049_db_gates', 'pre', null, '__pre0049', null),
-  ('0049_db_gates', 'fn', 'public', '_a49_close_blockers', 'uuid'),
   ('0049_db_gates', 'fn', 'public', '_a49_seed_clean_matrix', 'uuid'),
+  ('0049_db_gates', 'fn', 'public', '_a49_close_blockers', 'uuid'),
   ('0050_auth_limits', 'tbl', 'public.auth_rate_hits', null, null),
   ('0050_auth_limits', 'fn', 'public', 'rate_hit', 'text,text,integer,integer'),
   ('0050_auth_limits', 'tbl', 'public.auth_mfa_attempts', null, null),
@@ -3213,7 +3213,6 @@ with o(m, k, s, n, x) as (values
   ('0281_client_ip_trust', 'fn', 'public', '_r31_client_ip', ''),
   ('0282_r32_security_review', 'body', 'public', 'admin_create_user_temp', 'text,text|f08d8c457c8f5942b25ed9610e6f0cca'),
   ('0282_r32_security_review', 'body', 'public', 'admin_create_user', 'text,text,text|ca38b135466fbe11b2755e0912662064'),
-  ('0282_r32_security_review', 'body', 'public', '_a49_close_gate', 'uuid,text|d72260749f66b8fc4e9ff64e74db7504'),
   ('0282_r32_security_review', 'fn', 'public', '_r282_api_caller', ''),
   ('0282_r32_security_review', 'fn', 'public', '_r282_event_closed', 'uuid'),
   ('0282_r32_security_review', 'col', 'public.invitations', 'mail_key_hash', null),
@@ -5251,7 +5250,32 @@ with o(m, k, s, n, x) as (values
   ('0448_r260_vendor_items', 'fn', 'public', 'event_vendor_items_get', 'uuid'),
   ('0448_r260_vendor_items', 'fn', 'public', 'event_vendor_items_set', 'uuid,text,jsonb,uuid'),
   ('0448_r260_vendor_items', 'trg', 'public.event_vendor_item_log', 'zz_quote_org_match', null),
-  ('0448_r260_vendor_items', 'marker', 'public', 'event_wrap_records_get', 'uuid|r260-0448')
+  ('0448_r260_vendor_items', 'marker', 'public', 'event_wrap_records_get', 'uuid|r260-0448'),
+  ('0450_r261_vendor_money', 'col', 'public.event_resources', 'settled_reason', null),
+  ('0450_r261_vendor_money', 'con', 'public.event_resources', 'event_resources_settled_reason_chk450', null),
+  ('0450_r261_vendor_money', 'tbl', 'public.event_vendor_charges', null, null),
+  ('0450_r261_vendor_money', 'idx', 'public.event_vendor_charges_quote450', null, null),
+  ('0450_r261_vendor_money', 'idx', 'public.event_vendor_charges_org450', null, null),
+  ('0450_r261_vendor_money', 'idx', 'public.event_vendor_charges_bill450', null, null),
+  ('0450_r261_vendor_money', 'idx', 'public.event_vendor_charges_req450', null, null),
+  ('0450_r261_vendor_money', 'trg', 'public.event_vendor_charges', 'zz_quote_org_match', null),
+  ('0450_r261_vendor_money', 'trg', 'public.event_vendor_charges', 'zzz_studio_read_only', null),
+  ('0450_r261_vendor_money', 'trg', 'public.event_vendor_charges', 'audit_trg', null),
+  ('0450_r261_vendor_money', 'fn', 'public', '_r450_text', 'text,integer'),
+  ('0450_r261_vendor_money', 'fn', 'public', '_r450_open', 'uuid'),
+  ('0450_r261_vendor_money', 'fn', 'public', '_r450_bill', 'event_vendor_charges'),
+  ('0450_r261_vendor_money', 'fn', 'public', '_r450_row', 'event_vendor_charges'),
+  ('0450_r261_vendor_money', 'fn', 'public', 'event_vendor_charges_get', 'uuid'),
+  ('0450_r261_vendor_money', 'fn', 'public', 'event_vendor_charge_add', 'uuid,jsonb,uuid'),
+  ('0450_r261_vendor_money', 'fn', 'public', 'event_vendor_charge_set', 'uuid,text,text,text'),
+  ('0450_r261_vendor_money', 'fn', 'public', 'vendor_booking_pay', 'uuid,jsonb,text'),
+  ('0450_r261_vendor_money', 'fn', 'public', '_r21_cost_lines__pre0450', 'uuid,uuid'),
+  ('0450_r261_vendor_money', 'pre', null, '__pre0450', null),
+  ('0450_r261_vendor_money', 'trg', 'public.event_vendor_charges', 'zz_quote_org_match', null),
+  ('0450_r261_vendor_money', 'marker', 'public', '_r21_cost_lines', 'uuid,uuid|r261-0450'),
+  ('0451_r261_close_same_day', 'fn', 'public', '_r451_done_today', 'uuid'),
+  ('0451_r261_close_same_day', 'fn', 'public', '_a49_close_blockers__pre0451', 'uuid'),
+  ('0451_r261_close_same_day', 'pre', null, '__pre0451', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5642,7 +5666,9 @@ mig(ord, m, ov, note) as (values
   (386, '0445_r258_payment_followup', null, null),
   (387, '0446_r258_quotes_page', null, null),
   (388, '0447_r259_vendor_flow', null, null),
-  (389, '0448_r260_vendor_items', null, 'R260 vendor items checked in and out: one new table, two functions for the pages, event_wrap_records_get (0444) re-issued with the worked-out answers (if APPLY-0444 was run again later, run APPLY-0448 again)')
+  (389, '0448_r260_vendor_items', null, 'R260 vendor items checked in and out: one new table, two functions for the pages, event_wrap_records_get (0444) re-issued with the worked-out answers (if APPLY-0444 was run again later, run APPLY-0448 again)'),
+  (390, '0450_r261_vendor_money', null, 'R261 vendor money: one new table, one column, four functions for the pages, _r21_cost_lines wrapped once more with dynamic SQL (old body kept as __pre0450) - checked by the r261-0450 marker (if APPLY-0372, 0373, 0374 or 0387 was run again later, run APPLY-0450 again)'),
+  (391, '0451_r261_close_same_day', null, null)
 ),
 env as (
   select

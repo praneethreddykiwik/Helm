@@ -99,7 +99,7 @@ test('approval page: the phone is compulsory on every channel, kept with the con
 test('portal: the balance once; booklet: initials, Helm green default, no "valid until" once booked; e-mails: "Label:"', async () => {
   assert.equal((PO.match(/Balance due: </g) || []).length, 1); assert.doesNotMatch(PO, /el\.textContent="Balance "/); assert.match(PO, /"Phone: "\+String/); assert.match(PO, /"Email: "\+em/);
   const f = new Function(BK.slice(BK.indexOf('  function initials(name)'), BK.indexOf('  function renderCover(d)')) + ' return initials;')(); assert.deepEqual(['Helm Studio', 'aurora', '  ', 'A & B Events', null].map(f), ['HS', 'A', '✦', 'AB', '✦']);
-  assert.match(read('public/booklet.css'), /--accent:#047857/); assert.match(BK, /const accent = safeHex\(s\.accent\);/, 'a studio\'s own colour still wins'); assert.match(BK, /if \(!booked && global\.HelmQuoteValidity/);
+  assert.match(read('public/booklet.css'), /--accent:#047857/); assert.doesNotMatch(BK, /setProperty\("--accent/, 'R261: Helm green for every studio'); assert.match(BK, /if \(!booked && global\.HelmQuoteValidity/);
   const L = await import('../supabase/functions/_shared/email-layout.mjs'); const h = L.facts([['Phone', '+91 98'], ['Where?', 'x'], ['Date:', 'y']]); assert.match(h, />Phone:<\/td>/); assert.match(h, />Where\?<\/td>/); assert.match(h, />Date:<\/td>/); assert.doesNotMatch(h, /::/);
 });
 

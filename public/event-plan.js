@@ -374,7 +374,7 @@
     DAYBEFORE.forEach(function (d) {
       var c = checks[d[0]] || {}, on = !!c.done, href = "";
       if (d[3] === "event") href = "event.html?id=" + q; else if (d[3] === "ops") href = "ops.html?quote=" + q;
-      else if (d[3] === "vendors.html") href = "vendors.html"; else if (d[3]) href = d[3] + ".html?quote=" + q;
+      else if (d[3] === "vendors.html") href = "vendors.html?tab=requests&quote=" + q; else if (d[3]) href = d[3] + ".html?quote=" + q;
       var by = c.by ? (on ? "✓ " : "Unticked by ") + c.by + (c.at ? " · " + clock(ms(c.at), ctx.tz) + (String(c.at).slice(0, 10) !== new Date(ctx.now || Date.now()).toISOString().slice(0, 10) ? " " + String(c.at).slice(8, 10) + "/" + String(c.at).slice(5, 7) : "") : "") : "";
       var btn = h("button", { type: "button", cls: "ep-tick" + (on ? " on" : ""), id: "epChk-" + d[0], "aria-pressed": on ? "true" : "false", disabled: canEdit ? null : true,
         "aria-label": (on ? "Done: " : "Not done: ") + d[1] }, [h("span", { cls: "ep-box", "aria-hidden": "true", text: on ? "✓" : "" })]);

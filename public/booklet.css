@@ -1,6 +1,6 @@
 /* booklet.css — the client event booklet (public/booklet.html, 0065).
    Mobile-first, editorial, print-friendly ("Download PDF" = window.print()).
-   --accent is replaced at runtime by the studio's brand accent (CSSOM, validated hex). */
+   R261: --accent is Helm's green for every studio (the studio keeps its logo and name). */
 :root{
   --bg:#f7f3ec;--paper:#fffdf9;--ink:#1f1a17;--ink-2:#4a423b;--ink-3:#7a6f64;--line:#e6ddd0;--line-2:#f0e9de;
   --accent:#047857;--accent-ink:#fff;--accent-soft:rgba(4,120,87,.10);--ok:#1f7a4a;--due:#a5512a;

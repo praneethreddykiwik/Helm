@@ -52,6 +52,8 @@ export function notifLink(n) {
     if (!q) return "";
     // r24 (0269): a run-sheet reminder opens that event's run-sheet
     if (k === "event_reminder" && d.source === "0269") return "runsheet.html?quote=" + enc(q);
+    // R261: a vendor answered, sent a price or an invoice (0256 / 0447) -> Vendors, Requests & invoices, that request
+    if (k === "event_reminder" && d.source === "0256") return "vendors.html?tab=requests&quote=" + enc(q) + (/^[0-9a-f-]{36}$/i.test(String(d.vendor_request_id || "")) ? "&req=" + enc(d.vendor_request_id) : "");
     // r22 (0254): a close request / its decision opens the event's Closure page at the request
     if (k === "event_close_request" || k === "event_close_decision") return "closure.html?quote=" + enc(q) + "#close-request";
     // r23 (0261): "Rahul opened the proposal" / "viewed but not approved" -> the event workspace, views timeline open

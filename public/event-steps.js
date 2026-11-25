@@ -124,6 +124,11 @@
   }
   // R258: vendors whose items were not (all) handed back, from the newest answer of each live booking
   function notBackV(list, records) { var v = records && records !== "err" && records.vendor; return v ? (list || []).filter(function (b) { var s = b && b.status !== "cancelled" && b.status !== "enquiry" && v[b.id]; return s && (s.state === "not_returned" || s.state === "problem"); }) : []; }
+  // R261: what the answers say - "not all returned" only when something did not come back; all back but broken = "with a problem"
+  function backWords(list, records, long) {
+    var v = records && records !== "err" && records.vendor, a = notBackV(list, records), no = a.filter(function (b) { return v[b.id].state === "not_returned"; }).length, pr = a.length - no;
+    return [no ? (long ? pl(no, "vendor") + " with items not all returned" : no + " not all returned") : "", pr ? (long ? pl(pr, "vendor") + " returned with a problem" : pr + " with a problem") : ""].filter(Boolean).join(", ");
+  }
   // R260 (0448): items that came in and are not checked out yet (0 = none, or not used)
   function itemsOut(d) { var VI = global.HelmVendorItems; return VI && VI.outOpen && d && d.vitems ? VI.outOpen(d.vitems) : 0; }
   function crewOut(tasks, sheet) {
@@ -143,7 +148,7 @@
     var v = d.vendors;
     if (v === "err") rows.push(errRow("vendors", "Vendors", "teardown.html" + q, d.teardownPage)); else if (v) {
       var vs = vendorsOf(v, d.arrivals), nb = notBackV(v, d.records).length, io = itemsOut(d), ns = vs.noShow ? " " + vs.noShow + " did not come." : "";
-      rows.push({ id: "vendors", title: "Vendors", tone: !vs.total || !live ? "muted" : vs.here.length || nb || io ? "warn" : "ok", status: !vs.total ? "None" : !live ? vs.total + " booked" : vs.here.length ? vs.here.length + " not left yet" : nb ? nb + " not all returned" : io ? pl(io, "item") + " to check out" : "All left",
+      rows.push({ id: "vendors", title: "Vendors", tone: !vs.total || !live ? "muted" : vs.here.length || nb || io ? "warn" : "ok", status: !vs.total ? "None" : !live ? vs.total + " booked" : vs.here.length ? vs.here.length + " not left yet" : nb ? backWords(v, d.records) : io ? pl(io, "item") + " to check out" : "All left",
         text: !vs.total ? "No vendors or rentals are booked." : vs.here.length ? "Not marked as left yet: " + names(vs.here, 4) + "." + (vs.left ? " " + vs.left + " of " + vs.total + " left." : "") + ns : pl(vs.left, "vendor") + " left the venue." + ns,
         link: d.teardownPage ? "teardown.html" + q : "", linkText: vs.here.length ? "Mark who has left" : "See vendors" });
     }
@@ -211,7 +216,7 @@
   // what is still open, for the confirm text of "Mark event complete": "" = nothing known
   function openWords(ctx, d) {
     d = d || {}; var a = [], n = openOf(ctx.tasks).length; if (n) a.push(pl(n, "task"));
-    if (d.vendors && d.vendors !== "err" && !d.arrErr) { var v = vendorsOf(d.vendors, d.arrivals).here.length; if (v) a.push(pl(v, "vendor") + " not left"); var nb = notBackV(d.vendors, d.records).length; if (nb) a.push(pl(nb, "vendor") + " with items not all returned"); var io = itemsOut(d); if (io) a.push(pl(io, "vendor item") + " not checked out"); }
+    if (d.vendors && d.vendors !== "err" && !d.arrErr) { var v = vendorsOf(d.vendors, d.arrivals).here.length; if (v) a.push(pl(v, "vendor") + " not left"); var nb = notBackV(d.vendors, d.records).length; if (nb) a.push(backWords(d.vendors, d.records, true)); var io = itemsOut(d); if (io) a.push(pl(io, "vendor item") + " not checked out"); }
     if (d.stock && d.stock !== "err") { var s = stock(d.stock.res, d.stock.cos).out; if (s) a.push(s + (s === 1 ? " piece" : " pieces") + " of stock out"); }
     if (d.checklist && d.checklist !== "err") { var c = d.checklist.filter(function (x) { return x && x.status === "open"; }).length; if (c) a.push(pl(c, "pack-up note")); }
     var w = crewOut(ctx.tasks, sheetFor(ctx, d)); if (w && w.here.length) a.push(pl(w.here.length, "person", "people") + " not checked out");
@@ -495,6 +500,8 @@
       if (p[l[2]] === false) return; n++;
       row.appendChild(h("a", { cls: "tc-btn" + (first && n === 1 ? " tc-primary" : ""), "data-key": "next:" + l[2], href: l[1] + "?quote=" + enc(qid(ctx)), text: n + " " + l[0] + " →" }));
     });
+    // R261 (owner): the way back to the event's own page, always the last button
+    if (!isPage(/\/event(\.html)?$/)) row.appendChild(h("a", { cls: "tc-btn", "data-key": "next:event", href: "event.html?id=" + enc(qid(ctx)), text: "Go to the event →" }));
     return row;
   }
   function finish(S, st, done, live, who, ready, g, busy, redraw) {

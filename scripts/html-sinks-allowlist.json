@@ -412,6 +412,20 @@
     "public/event.html",
     "public/settlement.html"
    ]
+  },
+  {
+   "name": "vendorActs",
+   "why": "settlement.html (R261): buttons built from fixed words; the vendor name and every id go through esc(), the link through encodeURIComponent, the due amount is a Number",
+   "files": [
+    "public/settlement.html"
+   ]
+  },
+  {
+   "name": "leftTxt",
+   "why": "resources.html (R261): one fixed chip; its only text goes through esc()",
+   "files": [
+    "public/resources.html"
+   ]
   }
  ],
  "sites": [

@@ -41,3 +41,20 @@
 .vrq-modal .foot{flex-wrap:wrap}
 @media(max-width:480px){.vrq-match{grid-template-columns:1fr}.vrq-card{padding:14px}}
 @media(max-width:640px){.vrq-card .ic,.vrq-modal .ic{min-height:44px}}
+
+/* R261: one request fills the page, side by side parts, the next step, counts in the filters, the request a notice opened */
+.vrq-list.is-one{grid-template-columns:minmax(0,1fr)}
+.vrq-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:12px;align-items:start;min-width:0}
+.vrq-cols .vrq-inv{margin:0}
+.vrq-next{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:6px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--accent-soft,var(--panel-2))}
+.vrq-next p{flex:1 1 200px;margin:0;font-weight:600;font-size:13.5px;min-width:0}
+.vrq-nacts{display:flex;flex-wrap:wrap;gap:8px}
+.vrq-fn{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border-radius:99px;background:var(--panel-2,#eee);color:var(--ink-2,inherit);font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.vrq-bar .tabs .on .vrq-fn{background:rgba(255,255,255,.25);color:inherit}
+.vrq-fn[hidden]{display:none}
+.vrq-card.is-seen{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft,rgba(4,120,87,.18))}
+.vrq-card:focus{outline:none}
+.vrq-card .vi-line{font-size:13px;color:#8a5a00}
+.vrq-card .vi-line b{font-weight:600}
+.vrq-card .vi-line-n{display:block;font-size:12px;font-weight:400}
+@media(max-width:640px){.vrq-nacts{flex:1 1 100%}.vrq-nacts .btn{flex:1 1 auto;min-height:44px}}

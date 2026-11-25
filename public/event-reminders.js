@@ -79,10 +79,15 @@
       var it = r.items.filter(function (x) { return x && x.quote_id === id; })[0];
       if (!it || document.getElementById("evrBanner")) return;
       var n = Number(it.days_left);
+      // R261 (owner): the event was marked complete (Settlement) or closed - "Today: final check" goes away
+      var st = n <= 0 && S.quotes && S.quotes.get ? S.quotes.get(id).then(function (q) { return (q && q.lifecycleStage) || ""; }, function () { return ""; }) : Promise.resolve("");
+      return st.then(function (stage) { if (stage !== "settlement" && stage !== "closed" && !document.getElementById("evrBanner")) show(n); });
+      function show(n) {
       var b = el("div", "evr-banner" + (n <= 1 ? " evr-d1" : "")); b.id = "evrBanner"; b.setAttribute("role", "status");
       b.appendChild(el("span", "evr-chip", chipText(n)));
       b.appendChild(el("p", null, n <= 1 ? "Final check: staff, vendors, load-in and the checklist." : "Get ready: check the checklist, staff and vendors."));
       app.insertBefore(b, app.firstChild);
+      }
     }).catch(function () {});
   }
 

@@ -603,3 +603,12 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 @media (min-width:761px){.tc-drawer.wide .tc-picklist{max-height:clamp(300px,50vh,520px)}}
 .tc-nodate{padding:10px 12px}
 .tc-layer .tc-d-foot .tc-btn.tc-primary:disabled{opacity:1;background:var(--tc-line-2);border-color:var(--tc-line-strong);color:var(--tc-ink-2)}
+
+/* R261: #assign (Resources, step 3): only the tasks and the people */
+.tc-asg{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding:14px 16px;margin:0 0 14px}
+.tc-asg[hidden]{display:none}
+.tc-asg-t{flex:1 1 320px;min-width:0}.tc-asg-t p{margin:4px 0 0;font-size:13.5px;color:var(--tc-ink-2)}
+.tc-asg-a{display:flex;flex-wrap:wrap;gap:8px}.tc-asg-a .tc-btn{text-decoration:none;min-height:44px;display:inline-flex;align-items:center}
+.tc.is-assign :is(#tcSteps,#tcPreTop,#tcPreCheck,#tcLock,#tcWrap){display:none}
+.tc.is-assign #tcFlow>:not(#work):not(#tcCrewCard):not(#tcPlanRem){display:none}
+@media(max-width:600px){.tc-asg-a{width:100%}.tc-asg-a .tc-btn{flex:1 1 auto;justify-content:center}}

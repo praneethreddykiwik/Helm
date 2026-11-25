@@ -117,7 +117,7 @@
   .egp-rl{margin-left:auto;color:var(--ink-3);font-size:12px} .egp-empty{padding:14px}
   .egp-btns{display:flex;justify-content:flex-end;gap:8px}
 </style>
-<link rel="stylesheet" href="flow-polish.css?v=11">
+<link rel="stylesheet" href="flow-polish.css?v=12"><link rel="stylesheet" href="flow-done.css?v=1">
 <link rel="stylesheet" href="share-checklist.css?v=5">
 <link rel="stylesheet" href="event-group-picker.css?v=3"><link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="venues.css?v=8">
@@ -126,7 +126,7 @@
 <link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=8">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=126" id="shellProto"></script>
+<script src="/shell-proto.js?v=127" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -176,6 +176,7 @@
             <div class="fld"><label for="c_phone">Phone</label><input id="c_phone" type="tel" inputmode="tel" required></div>
             <div class="fld"><label for="c_type">Event type</label><input id="c_type" required list="eventTypeList" placeholder="Pick or type a new one…"><datalist id="eventTypeList"></datalist></div>
             <div class="fld"><label for="c_date">Event date</label><input id="c_date" type="date" data-min-today required></div>
+            <div class="fld"><label for="c_time">Event time (guests arrive)</label><input id="c_time" type="time"><span class="hint" id="c_timeHint" hidden>Set the event time too - the quotation, booklet and invitation show it.</span></div>
             <div class="fld"><label for="c_city">City</label><input id="c_city" maxlength="60" autocomplete="address-level2" placeholder="e.g. Hyderabad"></div>
             <div class="fld"><label for="c_state" id="c_stateLbl">Client state</label><select id="c_state" autocomplete="address-level1"><option value="">Not set</option></select></div>
             <div class="fld"><label for="c_guests">Guests</label><input id="c_guests" type="number" min="1" max="100000" step="1"></div>
@@ -336,6 +337,10 @@
               <section class="cs-plan" id="csPlan" aria-label="Payment plan" hidden>
                 <div class="cs-plan-row"><span id="csPlanState" role="status"></span><button type="button" class="btn sm" id="csPlanBtn">Go to the payment plan</button></div>
               </section>
+              <!-- R261: a gentle reminder, never a block -->
+              <section class="cs-plan" id="csTime" aria-label="Event time" hidden>
+                <div class="cs-plan-row"><span role="status">No event time is set yet. The client sees only the date.</span><button type="button" class="btn sm" id="csTimeBtn">Set the event time</button></div>
+              </section>
               <section class="cs-part" id="csApprove">
                 <h2><span class="cs-n">1</span> Approval link</h2>
                 <p class="sub" id="csApproveSub">The client's page: the booklet, the quotation and the Approve button. Copy the link or e-mail it.</p>
@@ -385,6 +390,9 @@
           <div class="s-56f4356" id="pay_receipts"><div class="meta"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></div></div>
           <p class="hint next-step" id="pay_next" data-next-step><b>Next step:</b> record the advance above once the client has approved (step 9) — that confirms the booking. Then move on to Resources and Logistics from the event page.</p>
         </section>
+
+        <!-- R261: Done (flow-done.js) -->
+        <section class="card" id="sec-done" aria-label="Done" hidden></section>
 
         <!-- r23 (0263): stage history - one canonical stage pill + every move (stage-history.js fills it; hidden before 0263) -->
         <section class="card r23-sh" id="sec-stages" data-stage-history data-quote-from-url data-refresh-on="#apprState" aria-label="Stage history" hidden></section>
@@ -484,17 +492,18 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script><script src="/trial-sim.js?v=3"></script>
-<script src="page-tours.js?v=84"></script>
-<script src="tour.js?v=98"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=416"></script><script src="/trial-sim.js?v=3"></script>
+<script src="page-tours.js?v=85"></script>
+<script src="tour.js?v=99"></script>
 <script src="payment-followup.js?v=1"></script><script src="payment-schedule.js?v=9"></script><script src="/advance-percent.js?v=1"></script>
 <script src="/studio-time.js?v=1"></script><script src="/task-clash.js?v=2"></script><script src="/event-date-move.js?v=4"></script>
-<script src="booklet.js?v=40"></script>
+<script src="booklet.js?v=41"></script>
 <script src="share-checklist.js?v=16"></script>
 <script src="flow-layout-sync.js?v=6"></script>
 <script src="reprice-guard.js?v=1"></script>
 <script src="event-sizing.js?v=5"></script>
 <script src="flow-autosave.js?v=5"></script>
+<script src="flow-done.js?v=1"></script>
 <script src="flow-validate.js?v=5"></script>
 <script src="flow-resume.js?v=12"></script>
 <script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=6"></script>
@@ -581,10 +590,10 @@
   // (drives the STEPS ticks + "Next step" hints, never the half-typed form).
   const shown=new Set(), edited=new Set(), badgeSt={};
   const persisted={ client:null, discovery:false, venue:false, menu:false, proposal:false };
-  let origDate="", discRow=null, planRow=null, reqRows=[], userId="anon";
+  let origDate="", origTime="", discRow=null, planRow=null, reqRows=[], userId="anon";
   // resume v3 (0206): where to land (server, per person) + the step tracker (saves on open + on a step change)
   let resumeP=Promise.resolve(null), flowTrack=null, resumeLanded=false;
-  const IDS={ client:["c_name","c_company","c_email","c_phone","c_type","c_date","c_city","c_guests","d_bmax"],
+  const IDS={ client:["c_name","c_company","c_email","c_phone","c_type","c_date","c_time","c_city","c_guests","d_bmax"],
     discovery:["d_date","d_mode","d_att","d_notes"], venue:["v_name","v_contact","v_addr","v_access","v_setting"],
     menu:["p_menu"], proposal:["pr_concept","pr_theme","pr_scope"], layout:["g_len","g_wid"],
     quote:["q_chairs","q_guests","q_other","q_coupon","q_platePrice"], reqs:["rq_title","rq_note"] };
@@ -593,6 +602,14 @@
   function phoneCheck(){ const el=$("#c_phone");
     try{ if(el&&el.helmPhone) return el.helmPhone.validate({required:true}); if(window.HelmPhone) return HelmPhone.validate(el.value,{required:true}); }catch(_){ }
     return BPStore.validate.phone(el.value); }
+  // R261: the event time (quotes.event_time - the same field the event page saves). A half-typed time is never saved as empty.
+  const hhmm=(t)=>{ const HC=window.HelmCountry; if(HC&&HC.toHHMM) return HC.toHHMM(t); const m=/^(\d{2}:\d{2})/.exec(String(t||"")); return m?m[1]:""; };
+  function timeTyped(){ const x=$("#c_time"); if(!x) return origTime; return x.value==="" && x.validity && x.validity.badInput ? origTime : x.value; }
+  function paintTimeHint(){ const h=$("#c_timeHint"), n=$("#csTime"), miss=!timeTyped(); if(h) h.hidden=!miss; if(n) n.hidden=!miss || clientApproved(); }
+  // "Friday, 27 November 2026 · 7:00 PM" as it is on the page now; "" = no date yet
+  function whenNow(){ const d=$("#c_date").value||String(ev.eventDate||"").slice(0,10), t=timeTyped(); if(!d) return "";
+    const HC=window.HelmCountry; let cc="IN"; try{ cc=fTax().country||"IN"; }catch(_){}
+    return (HC&&HC.formatEventDate&&HC.formatEventDate(cc,d,t))||(d+(t?" · "+t:"")); }
   const pkgNoPrice=()=>(appliedPkg && !(+appliedPkg.price_per_plate>0)) ? String(appliedPkg.name||"This package") : "";
   // validate one section; `all` = show every error now (a save was tried), else only fields already left
   function check(sec, all){
@@ -885,7 +902,10 @@
       eventDate:$("#c_date").value||null });
     try{
       $("#c_type").value=canonType($("#c_type").value);   // save the canonical list spelling ("wedding" -> "Wedding")
-      const row=await BPStore.quotes.updateMeta(id,{ client, eventType:$("#c_type").value.trim()||null, eventDate:$("#c_date").value||null }, ev.updatedAt);
+      const patch={ client, eventType:$("#c_type").value.trim()||null, eventDate:$("#c_date").value||null }, tmNew=timeTyped();
+      if(tmNew!==origTime) patch.eventTime=tmNew||null;   // R261: only when it was changed here - the event page edits the same field
+      const row=await BPStore.quotes.updateMeta(id, patch, ev.updatedAt);
+      if("eventTime" in patch){ ev.eventTime=patch.eventTime; origTime=tmNew; paintTimeHint(); }
       ev.client=client; if(row&&row.updated_at) ev.updatedAt=row.updated_at;   // refresh optimistic-lock base
       ev.eventType=$("#c_type").value.trim()||null; if(row&&row.title!=null) ev.title=row.title; renderName();
     }catch(e){
@@ -1298,7 +1318,7 @@
       td{padding:8px 0;border-bottom:1px solid #eee} .tot td{font-weight:800;font-size:16px;border-top:2px solid #333;border-bottom:none}
       .hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}</style></head>
       <body>
-      <div class="hd"><div><h1>Quotation</h1><div style="font-weight:600;margin-top:4px">${esc(fTitle)}</div><div class="muted">Ref ${esc(ev.code||'')} · ${esc(BPStore.quoteDate(Date.now(), fTax()))}</div></div>
+      <div class="hd"><div><h1>Quotation</h1><div style="font-weight:600;margin-top:4px">${esc(fTitle)}</div>${whenNow()?`<div style="margin-top:2px">${esc(whenNow())}</div>`:''}<div class="muted">Ref ${esc(ev.code||'')} · ${esc(BPStore.quoteDate(Date.now(), fTax()))}</div></div>
         <div style="text-align:right"><div style="font-weight:700">${esc(cl.name||'')}</div><div class="muted">${esc(cl.phone||'')} ${esc(cl.email||'')}</div><div class="muted">${esc(cl.venue||'')}</div></div></div>
       <table>${rows.join('')}
         <tr><td>Subtotal</td><td style="text-align:right" data-money>${inr(t.subtotal)}</td></tr>
@@ -1324,6 +1344,7 @@
     const hd=mk("div","qprev-hd"), left=mk("div"), right=mk("div","qprev-client");
     const h=mk("h3",null,"Quotation"); h.id="qPreviewTitle"; left.appendChild(h);
     if(fTitle) left.appendChild(mk("div","qprev-title",fTitle));
+    if(whenNow()) left.appendChild(mk("div","qprev-when",whenNow()));   // R261
     left.appendChild(mk("div","qprev-muted","Ref "+(ev.code||"")+" · "+BPStore.quoteDate(Date.now(), fTax())));
     [cl.name, [cl.phone,cl.email].filter(Boolean).join(" "), cl.venue].forEach((x,i)=>{ if(x) right.appendChild(mk("div",i?"qprev-muted":"qprev-strong",x)); });
     hd.append(left,right); body.appendChild(hd);
@@ -1493,6 +1514,7 @@
       if(!contentOf(k)){ if(badgeSt[k]!=="empty"){ badgeSt[k]="empty"; HelmAutosave.paint(b,"empty"); } }
       else if(badgeSt[k]==="empty"){ badgeSt[k]="idle"; HelmAutosave.paint(b,"idle"); } });
     const ms=$("#mPriceStep"); if(ms){ const n=STEPS.filter(([k])=>done[k]).length; ms.textContent=n+" of "+STEPS.length+" steps done"; }
+    paintDone();
     { const n=STEPS.filter(([k])=>done[k]).length, f=$("#progFill"), t=$("#progTxt");   // r21: rail progress bar
       if(f) f.style.width=Math.round(n/STEPS.length*100)+"%"; if(t) t.textContent=n+" of "+STEPS.length+" done"; }
   }
@@ -1648,7 +1670,7 @@
       BPUI.toast("Payment recorded — receipt "+(r&&r.receipt_no||"")+"."+(was>0?"":" Booking confirmed."),{type:"ok",timeout:8000});
       // The button stays disabled until the page has read the new receipt back: from then on the boxes are the NEXT payment and the
       // same advance again is asked for in plain words (R257). Without that answer it stays disabled (re-enabled on failure below).
-      if(PAID_SUM>was+0.5){ $("#pay_record").disabled=false; updateAdvance(); }
+      if(PAID_SUM>was+0.5){ $("#pay_record").disabled=false; updateAdvance(); updateProgress(); if(!(was>0)) celebrateAdvance(); }
     }catch(e){ $("#pay_record").disabled=false; $("#pay_record").removeAttribute("aria-busy"); relock();
       if(e&&(e.code==="23514"||/exceeds the outstanding balance/i.test(String(e.message||"")))){ BPUI.toast("This payment is more than the balance the server allows for this event, so it was not recorded. Check the amount (and that any change orders are approved).",{type:"err",timeout:8000}); return; }
       BPUI.toast(BPUI.friendlyError(e,{action:"record the payment"}),{type:"err"}); }
@@ -1691,6 +1713,7 @@
     set("#csAskRow",n=>{ n.hidden=done; }); set("#csDoneNote",n=>{ n.hidden=!done; }); set("#csApprove",n=>{ n.hidden=!ask && !done; });
     set("#csDoneNote",n=>{ n.textContent=real?"The client has approved this quotation - share the booklet (view-only). Nothing here asks for approval again."
       :"The booking is confirmed by the advance"+(adv?" - the client has not approved the quotation on their page yet":"")+". Share the booklet (view-only) here."; });
+    try{ paintTimeHint(); }catch(_){}
     set("#csApproved",n=>{ n.hidden=!done; n.textContent=real?approvedOnText():advOnly(); });
     set("#csApproveSub",n=>{ n.textContent=done?(real?"The client approved the quotation on their page - nothing more to send for approval.":"The advance is recorded, so the booking is confirmed.")
       :"The client's page: the booklet, the quotation and the Approve button. Copy the link or e-mail it."; }); set("#csApprState",n=>{ n.hidden=done; });
@@ -1754,7 +1777,7 @@
   /* R252: step 9 says whether a payment plan is saved before the quote is sent. Never blocks sending a quote without a plan. */
   const planApproved=()=> clientApproved() || !!(ev&&ev.status==="confirmed");
   let PLAN=null, PLAN_AUTO=null;
-  function planState(d, a){ PLAN=d; if(a) PLAN_AUTO=a; try{ placePlan(); }catch(_){} }
+  function planState(d, a){ PLAN=d; if(a) PLAN_AUTO=a; try{ placePlan(); }catch(_){} paintDone(); }
   function placePlan(){
     const card=$("#sec-payplan"), sec=$("#csPlan"), btn=$("#csPlanBtn"), txt=$("#csPlanState"), bad=$("#ppFail"); if(!card||!sec) return;
     const fail=PLAN==="fail"; card.hidden=!PLAN; if(bad) bad.hidden=!fail; sec.hidden=!PLAN || clientApproved(); if(sec.hidden) return;
@@ -1772,6 +1795,24 @@
     if(!$("#shareModal").hidden) closeShare();
     const c=$("#sec-payplan"); c.scrollIntoView({block:"start",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"}); const f=c.querySelector("select"); if(f) try{ f.focus({preventScroll:true}); }catch(_){}
   }
+  function pressTime(){ if(!$("#shareModal").hidden) closeShare(); const x=$("#c_time"); x.scrollIntoView({block:"center",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"}); try{ x.focus({preventScroll:true}); }catch(_){} }
+  /* ---------- R261: Done - what is still missing, or the "Event confirmed" tick (flow-done.js; reads only) ---------- */
+  function doneState(){
+    if(!ev) return null; const d=stepDone(), pc=persisted.client||{}; let nx=null; try{ nx=payNext(0); }catch(_){}
+    const pn=nx&&nx.plan&&nx.plan.next, due=!pn?"":pn.when==="date"?"due "+BPStore.fmtDateIN(pn.due):pn.when==="now"?"due now":"";
+    const HEN=window.HelmEventName, cl=ev.client||{}, seen=!!PLAN && PLAN!=="fail", rows=seen&&Array.isArray(PLAN.rows)?PLAN.rows.filter(r=>r&&r.state!=="waived"):[];
+    return { client:!!(pc.name&&pc.phone&&pc.eventType), date:!!pc.eventDate, time:!!origTime, guests:+$("#c_guests").value||0, venue:d.venue, menu:d.menu, layout:d.layout, quote:d.quote,
+      plan:seen?rows.length>0:null, approved:d.approve, advance:PAID_SUM>0||(ev.approvalStatus||ev.approval_status)==="paid",
+      discovery:d.discovery, reqs:d.reqs, proposal:d.proposal, cancelled:ev.status==="cancelled",
+      title:HEN?HEN.friendlyTitle(Object.assign({}, ev, {client:cl, eventType:$("#c_type").value||ev.eventType})):(ev.title||ev.code||""), when:whenNow(), clientName:cl.name||"",
+      received:PAID_SUM>0?inr(PAID_SUM):"", receipt:PAID_LAST?PAID_LAST.receipt_no||PAID_LAST.provider_ref||"":"",
+      next:PAID_SUM>0&&nx&&!nx.done&&nx.amount>0.5?{ label:nx.label, amount:inr(nx.amount), due }:null, paidFull:!!(nx&&nx.done) };
+  }
+  let FDONE=null;
+  const doneActions={ go:()=>{ location.href="event.html?id="+encodeURIComponent(id); }, plan:()=>{ location.href="runsheet.html?quote="+encodeURIComponent(id); }, share:()=>openShare() };
+  function paintDone(){ if(loading||!window.HelmFlowDone||!ev) return; try{ if(!FDONE) FDONE=window.HelmFlowDone.mount($("#sec-done"),{ facts:doneState, actions:doneActions }); else FDONE.paint(); }catch(_){} }
+  // the first money in confirms the booking: play the tick once
+  function celebrateAdvance(){ if(!window.HelmFlowDone) return; const f=doneState(); if(f&&!f.cancelled) window.HelmFlowDone.celebrate(Object.assign({ actions:doneActions, returnFocus:$("#sec-done .fd-go") }, f)); }
   // R255: "You changed the payment plan but didn't save it. Save and send?" -> true = nothing to save, or it is saved now
   async function planGate(okLabel, why){
     if(!planDirty()) return true;
@@ -2047,6 +2088,7 @@
     $("#c_guests").value=cl.guests!=null?cl.guests:""; $("#c_city").value=typeof cl.city==="string"?cl.city:"";
     fillClientStates(cl);
     origDate=String(cl.eventDate||ev.eventDate||"").slice(0,10);
+    origTime=hhmm(ev.eventTime); $("#c_time").value=origTime; paintTimeHint();
     persisted.client={ name:cl.name||"", phone:cl.phone||"", eventType:ev.eventType||"", eventDate:origDate };
     setDateWindow();
     $("#g_guests").value=cl.guests!=null?cl.guests:""; $("#q_guestsRo").value=cl.guests!=null?cl.guests:"";
@@ -2238,7 +2280,7 @@
     const clientAuto=(e)=>{ if(loading||!AS||!AS.has("client")) return;
       if(e&&e.type==="blur"){ if(clientEdited){ clientEdited=false; AS.now("client"); } return; }
       clientEdited=true; edited.add("client"); renderName(); AS.schedule("client"); };
-    ["c_name","c_company","c_email","c_phone","c_type","c_date","c_city","c_state","c_guests"].forEach(f=>{ const el=$("#"+f); if(!el) return;
+    ["c_name","c_company","c_email","c_phone","c_type","c_date","c_time","c_city","c_state","c_guests"].forEach(f=>{ const el=$("#"+f); if(!el) return;
       el.addEventListener("input",clientAuto); el.addEventListener("change",clientAuto); el.addEventListener("blur",clientAuto); });
     wireNameEdit();
     $("#c_state").addEventListener("change",()=>{ syncClientMem(); renderPrice(); });
@@ -2332,7 +2374,7 @@
     window.addEventListener("pagehide",()=>{ if(flowTrack) flowTrack.flush().catch(()=>{}); });
     document.addEventListener("visibilitychange",()=>{ if(document.hidden&&flowTrack) flowTrack.flush().catch(()=>{}); });
     $("#sendApproval").addEventListener("click",()=>{ sendApproval().catch(()=>{}); });
-    $("#shareClient").addEventListener("click",openShare);
+    $("#shareClient").addEventListener("click",openShare); $("#csTimeBtn").addEventListener("click",pressTime); $("#c_time").addEventListener("input",paintTimeHint);
     try{ const a=$("#apprState"); if(a&&window.MutationObserver){ new MutationObserver(mirrorApprState).observe(a,{childList:true,characterData:true,subtree:true}); } mirrorApprState(); }catch(_){}
     $("#csClose").addEventListener("click",closeShare);
     $("#csAsk").addEventListener("change",()=>syncShare());

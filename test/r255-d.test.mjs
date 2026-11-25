@@ -56,7 +56,7 @@ await t('Event Ready: a refused move shows the same list with buttons; other err
 /* ---- 2 + 3 the four steps ---- */
 await t('four steps: links keep the event, steps you may not open are left out, Next goes on', () => {
   assert.deepEqual(RS.STEPS.map((s) => s.label), ['Reserve our stock', "Get what's missing from vendors", 'Assign our people', 'Check budget & margin']);
-  assert.deepEqual(RS.STEPS.map((s) => RS.href(s.key, 'q 1')), ['inventory.html?quote=q%201', 'resources.html?quote=q%201', 'ops.html?quote=q%201', 'budget.html?quote=q%201']);
+  assert.deepEqual(RS.STEPS.map((s) => RS.href(s.key, 'q 1')), ['inventory.html?quote=q%201', 'resources.html?quote=q%201', 'ops.html?quote=q%201#assign', 'budget.html?quote=q%201']);
   assert.equal(RS.next('vendors').key, 'people'); assert.equal(RS.next('budget'), null); assert.equal(RS.next('people', { finance: false }), null);
   assert.equal(RS.firstOpen({}, 'q'), 'inventory.html?quote=q'); assert.equal(RS.firstOpen({ inventory: false }, 'q'), 'resources.html?quote=q'); assert.equal(RS.firstOpen({ inventory: false, staff: false, resources: false, finance: false }, 'q'), '');
   assert.equal(RS.href('stock', ''), '');

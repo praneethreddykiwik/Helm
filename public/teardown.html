@@ -63,9 +63,9 @@
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="/event-flow-line.css?v=1">
-<link rel="stylesheet" href="stock-flow.css?v=3">
+<link rel="stylesheet" href="stock-flow.css?v=3"><link rel="stylesheet" href="/vendor-charges.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=126" id="shellProto"></script>
+<script src="/shell-proto.js?v=127" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -97,7 +97,7 @@
 
     <div class="card">
       <h2>🤝 Vendors: left and items handed back</h2>
-      <p class="sub"><b>All returned</b> = the vendor has left with all their items. Not returned or a problem, with a note: the Vendors tab of Wrap-up on Tasks &amp; Crew. Wrap-up counts a vendor as gone when it is marked here or as Left.<span id="rpWrap" hidden> Marked the wrong one? Change its status on the <a id="rpLink" href="#">Resource plan</a>.</span></p>
+      <p class="sub"><b>Mark as left</b> here or on the event day: both show the same. <b>All items returned</b> = they got everything back; not returned or a problem, with a note: the Vendors tab of Wrap-up on Tasks &amp; Crew.<span id="rpWrap" hidden> Marked the wrong one? Change its status on the <a id="rpLink" href="#">Resource plan</a>.</span></p>
       <div id="bkRows"><div class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></div></div>
     </div>
 
@@ -126,9 +126,10 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=416"></script>
 <script src="stock-flow.js?v=3"></script>
 <script src="stock-checkin.js?v=2"></script>
+<script src="/vendor-state.js?v=1"></script><script src="/vendor-charges.js?v=1"></script>
 <script src="/event-flow-line.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -212,23 +213,36 @@
 
   async function renderBookings(){
     if(!seeBk){ $("#bkRows").innerHTML='<div class="empty">Your role can\'t see vendors. Ask someone who can.</div>'; return; }
-    const [bk, arr, rec]=await Promise.all([BPStore.bookings.list(id), seeArr?BPStore.dayops.list(id,"arrival").catch(()=>[]):[], BPStore.wrapRecords?BPStore.wrapRecords.get(id).catch(()=>null):null]);
+    const VS=window.HelmVendorState;
+    const [bk, arr, rec, reqs, vit]=await Promise.all([BPStore.bookings.list(id), seeArr?BPStore.dayops.list(id,"arrival").catch(()=>null):null, BPStore.wrapRecords?BPStore.wrapRecords.get(id).catch(()=>null):null, BPStore.vendorRequests?BPStore.vendorRequests.list(id).catch(()=>[]):[], BPStore.wrapRecords&&BPStore.wrapRecords.items?BPStore.wrapRecords.items(id).catch(()=>null):null]);
+    const nameOf=(b)=>{ const r=(reqs||[]).find(x=>x.booking_id===b.id), v=vit&&vit.vendors&&vit.vendors[b.id]; return (v&&v.vendor)||(r&&r.vendor_name)||b.label||"Vendor"; };
     const RET={returned:"All items returned",not_returned:"Items not returned",problem:"Returned with a problem"};   // R258 (0444): the answer given in Wrap-up
     const ret=(b)=>{ const x=rec&&rec.vendor&&rec.vendor[b.id]; return x&&RET[x.state]?RET[x.state]+(x.qty_total!=null&&x.qty_back!=null&&x.state!=="returned"?" ("+Number(x.qty_back)+" of "+Number(x.qty_total)+")":"")+(x.note?": "+x.note:"")+(x.by?" - "+x.by:""):""; };
-    const here={}; (arr||[]).forEach(a=>{ if(a&&a.ref_id) here[a.ref_id]=a.status; });   // Event-day command: Arrived / Left / No-show
-    const said=(b)=>b.status==="delivered"||b.status==="cancelled"?"":here[b.id]==="left"?"Marked Left on Event-day command.":here[b.id]==="no_show"?"Marked No-show on Event-day command.":here[b.id]==="arrived"?"On site (Event-day command).":b.status==="enquiry"?"Only asked - never booked.":"";
-    $("#bkRows").innerHTML = bk.length ? bk.map(b=>`<div class="rowline">
-      <div><div class="nm">${esc(b.label||"Partner")}</div>${said(b)?`<div class="efl-note">${esc(said(b))}</div>`:""}${ret(b)?`<div class="efl-note">${esc(ret(b))}</div>`:""}</div>
-      <span class="st ${esc(b.status)}">${esc(BK[b.status]||b.status)}</span>
-      ${canExit&&(b.status==="booked"||b.status==="confirmed")?`<div class="acts"><button type="button" class="btn go" data-exit="${esc(b.id)}" aria-label="${esc(b.label||"partner")}: ${ret(b)&&rec.vendor[b.id].state!=="returned"?"mark as left":"left, all items returned"}">${ret(b)&&rec.vendor[b.id].state!=="returned"?"Mark as left":"All returned"}</button></div>`:""}
-    </div>`).join("") : '<div class="empty">No vendors or rentals booked.</div>';
+    // R261 (owner: "Mark as left is not syncing"): the same two records the event day uses (vendor-state.js) - Left there = Left here, and the other way round
+    const st=(b)=>VS.of(b,arr||[]), live=(b)=>b.status!=="enquiry"&&b.status!=="cancelled", canMove=canEdit&&arr!==null;
+    const ans=(b)=>rec&&rec.vendor&&rec.vendor[b.id]||null, canRet=(b)=>canExit&&live(b)&&!(ans(b)&&RET[ans(b).state])&&b.status!=="delivered";
+    $("#bkRows").innerHTML = bk.length ? bk.map(b=>{ const s=live(b)&&(arr!==null||b.status==="delivered")?st(b):null, nm=nameOf(b), mv=s&&canMove&&!s.exited;
+      return `<div class="rowline">
+      <div><div class="nm">${esc(nm)}</div>${nm!==(b.label||"")&&b.label?`<div class="efl-note">${esc(b.label)}${b.qty?" × "+esc(Number(b.qty)):""}</div>`:""}${b.status==="enquiry"?'<div class="efl-note">Only asked - never booked.</div>':""}${ret(b)?`<div class="efl-note">${esc(ret(b))}</div>`:s&&s.exited?'<div class="efl-note">All items returned</div>':""}</div>
+      ${s?`<span class="st td-${esc(s.state)}">${esc(s.text)}</span>`:`<span class="st ${esc(b.status)}">${esc(BK[b.status]||b.status)}</span>`}
+      <div class="acts">${mv&&s.state==="left"?`<button type="button" class="btn" data-vmove="arrived" data-id="${esc(b.id)}" aria-label="Undo: ${esc(nm)} has not left">Undo</button>`:""}${mv&&(s.state==="arrived"||s.state==="expected")?`<button type="button" class="btn go" data-vmove="left" data-id="${esc(b.id)}" aria-label="${esc(nm)}: mark as left">Mark as left</button>`:""}${canRet(b)&&!(s&&s.state==="no_show")?`<button type="button" class="btn" data-exit="${esc(b.id)}" aria-label="${esc(nm)}: all items returned">All items returned</button>`:""}</div>
+      <div class="td-vch" data-vch="${esc(b.id)}" hidden></div>
+    </div>`; }).join("") : '<div class="empty">No vendors or rentals booked.</div>';
+    const again=()=>section(renderBookings,$("#bkRows"),"vendor bookings"), CH="This changed meanwhile - nothing was saved. The new state is shown.", NO="That was not saved. Your role may not be allowed to change vendors.";
+    $("#bkRows").querySelectorAll("[data-vmove]").forEach(b=>b.addEventListener("click",()=>act(b,async()=>{
+      const bb=bk.find(x=>x.id===b.dataset.id), r=await VS.move(id,Object.assign({},bb,{_arr:arr,_name:nameOf(bb)}),b.dataset.vmove);
+      if(r==="changed") BPUI.toast(CH,{type:"info"}); else if(r==="nosave") BPUI.toast(NO,{type:"err"}); else BPUI.toast(nameOf(bb)+": "+(b.dataset.vmove==="left"?"left. The event day shows it too.":"not left."),{type:"ok"});
+      await again(); },"update the vendor")));
     $("#bkRows").querySelectorAll("[data-exit]").forEach(b=>b.addEventListener("click",()=>act(b,async()=>{
-      const now=(await BPStore.bookings.list(id)).find(x=>x.id===b.dataset.exit);   // cancelled or changed meanwhile: never overwritten
+      const bb=bk.find(x=>x.id===b.dataset.exit), now=(await BPStore.bookings.list(id)).find(x=>x.id===b.dataset.exit);   // cancelled or changed meanwhile: never overwritten
       if(!now||(now.status!=="booked"&&now.status!=="confirmed")) BPUI.toast("This booking changed meanwhile - nothing was saved.",{type:"info"});
+      else if(rec){ const r=await BPStore.wrapRecords.vendor(id,bb.id,{ state:"returned", note:"", seen:ans(bb)?ans(bb).id||null:null, key:BPStore.wrapRecords.newKey() }); if(r&&r.changed) BPUI.toast(CH,{type:"info"}); else if(!r||!r.ok) BPUI.toast(NO,{type:"err"}); }   // the Wrap-up answer (0444): Tasks & Crew shows it too
       else{ await BPStore.bookings.update(b.dataset.exit,{status:"delivered"});
         const after=(await BPStore.bookings.list(id)).find(x=>x.id===b.dataset.exit);
-        if(!after||after.status!=="delivered") BPUI.toast("That was not saved. Your role may not be allowed to change vendors.",{type:"err"}); }
-      await section(renderBookings,$("#bkRows"),"vendor bookings"); },"update the booking")));
+        if(!after||after.status!=="delivered") BPUI.toast(NO,{type:"err"}); }
+      await again(); },"update the booking")));
+    if(window.HelmVendorCharges) $("#bkRows").querySelectorAll("[data-vch]").forEach(h=>{ const b=bk.find(x=>x.id===h.dataset.vch); if(!live(b)) return; const v=vit&&vit.vendors&&vit.vendors[b.id], probs=(v&&v.problems)||[], rr=rec&&rec.vendor&&rec.vendor[b.id];
+      HelmVendorCharges.paint(h,{ quoteId:id, bookingId:b.id, vendor:nameOf(b), items:probs, add:probs.length>0||!!(rr&&rr.state!=="returned") }); });
   }
 
   async function renderTeardown(){

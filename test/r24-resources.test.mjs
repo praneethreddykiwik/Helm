@@ -193,11 +193,11 @@ t('resource plan speed: data starts with the role checks, one parallel round, pa
 });
 
 /* ---------------------------------------------------------------- event workspace + wording across pages */
-t('event workspace: Resources stage = 1 Inventory, 2 Resource plan (vendors), 3 Tasks & staff, 4 Budget & margin (numbered, in that order)', () => {
-  assert.match(EV, /\{k:"resources",label:"Resources",hint:"1 Reserve our stock → 2 get what's missing from vendors → 3 assign our people → 4 check budget & margin\.",mods:\["inventory","resourceplan","tasks","budget"\],steps:true\}/);
+t('event workspace: Resources stage = 1 Inventory, 2 Vendors, 3 Tasks & staff, 4 Budget & margin (numbered, in that order)', () => {
+  assert.match(EV, /\{k:"resources",label:"Resources",hint:"1 Reserve our stock → 2 get what's missing from vendors → 3 assign our people → 4 check budget & margin\.",mods:\["inventory","vendors","tasks","budget"\],steps:true\}/);
   assert.match(EV, /const focused=visible\.filter\(c=>recommended\.includes\(c\.key\)\)\.sort\(\(a,b\)=>recommended\.indexOf\(a\.key\)-recommended\.indexOf\(b\.key\)\);/);
   assert.match(EV, /<span class="mod-step" aria-label="Step \$\{i\+1\}">\$\{i\+1\}<\/span>/);
-  assert.match(EV, /resources:\[\["1 Reserve our stock","inventory\.html\?quote="\+q\],\["2 What's missing","resources\.html\?quote="\+q\],\["3 Assign our people","ops\.html\?quote="\+q\]\]/);
+  assert.match(EV, /resources:\[\["1 Reserve our stock","inventory\.html\?quote="\+q\],\["2 What's missing","resources\.html\?quote="\+q\],\["3 Assign our people","ops\.html\?quote="\+q\+"#assign"\]\]/);
   assert.match(EV, /\{t:"Resources",keys:\["inventory","resourceplan","vendors","tasks","staff"\]\}/);
   assert.match(EV, /key:"tasks", ic:"🛠️", title:"Tasks & staff"/); assert.match(EV, /key:"vendors", ic:"🤝", title:"Vendors",/);
   assert.match(EV, /<b class="t-bad">\$\{resSummary\.gaps\} missing<\/b>/);

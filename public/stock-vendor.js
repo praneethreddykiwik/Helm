@@ -242,8 +242,10 @@
       if (have.length && num(o.qty) > 0 && !left) doneBox.appendChild(h("p", { text: "That covers all " + fmt(o.qty) + "." }));
       body.appendChild(doneBox);
       qtyIn = h("input", { id: uid + "q", type: "text", inputmode: "numeric", autocomplete: "off", maxlength: "7", cls: "hsv-in hsv-qty", value: String(Math.max(left, 0) || (num(o.qty) > 0 ? Math.ceil(num(o.qty)) : 1)) });
-      qtyIn.addEventListener("input", function () { okErr(); refreshButton(); });
-      body.appendChild(h("div", { cls: "hsv-f" }, [h("label", { cls: "hsv-lbl", "for": uid + "q", text: "How many from the vendor" }), qtyIn]));
+      var more = h("p", { cls: "hsv-note", role: "status", "aria-live": "polite", hidden: true });   // R261: more than is missing is said before it is asked
+      var moreSay = function () { var q = parseQty(qtyIn.value), x = num(o.qty) > 0 && q ? q - (left || Math.ceil(num(o.qty))) : 0; more.hidden = !(x > 0); more.textContent = x > 0 ? fmt(left || Math.ceil(num(o.qty))) + " missing. You ask for " + fmt(q) + ": " + fmt(x) + " more than needed." : ""; };
+      qtyIn.addEventListener("input", function () { okErr(); refreshButton(); moreSay(); });
+      body.appendChild(h("div", { cls: "hsv-f" }, [h("label", { cls: "hsv-lbl", "for": uid + "q", text: "How many from the vendor" }), qtyIn, more]));
       resIn = null; freeBox = null;
       if (o.itemId && canInv && freeInfo && freeInfo.free > 0 && !shortOpen(o.itemId, data.shortages)) {
         resIn = h("input", { type: "checkbox", id: uid + "r", checked: freeInfo.needed }); resIn.checked = !!freeInfo.needed;
@@ -398,7 +400,7 @@
   var flowP = null;
   function flowLib() {
     if (root.HelmVendorFlow) return Promise.resolve(root.HelmVendorFlow);
-    if (!flowP) flowP = new Promise(function (ok2, no) { var sc = doc.createElement("script"); sc.src = "/vendor-flow.js?v=1"; sc.onload = function () { ok2(root.HelmVendorFlow); }; sc.onerror = function () { flowP = null; sc.remove(); no(new Error("vendor-flow")); }; doc.head.appendChild(sc); });
+    if (!flowP) flowP = new Promise(function (ok2, no) { var sc = doc.createElement("script"); sc.src = "/vendor-flow.js?v=2"; sc.onload = function () { ok2(root.HelmVendorFlow); }; sc.onerror = function () { flowP = null; sc.remove(); no(new Error("vendor-flow")); }; doc.head.appendChild(sc); });
     return flowP;
   }
   api.open = open; api.canUse = canUse;

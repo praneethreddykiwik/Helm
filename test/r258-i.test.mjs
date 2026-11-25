@@ -24,7 +24,7 @@ test('wrap-up: 12 items: 10 back, 1 missing, 1 still out; tabs in order, each wi
   const r = E.rowsOf({ quoteId: 'q', tasks: [] }, { checklist: [], vendors: [{ id: 'b', status: 'confirmed', label: 'Cook' }], arrivals: [{ ref_id: 'b', status: 'left' }], records: { vendor: { b: { state: 'problem' } } } });
   assert.ok(!r.some((x) => x.id === 'teardown'), 'no empty pack-up list');
   assert.equal(E.notBackV([{ id: 'b', status: 'confirmed' }, { id: 'c', status: 'cancelled' }], { vendor: { b: { state: 'not_returned' }, c: { state: 'problem' } } }).length, 1); assert.equal(E.notBackV([{ id: 'b' }], { vendor: { b: { state: 'undo' } } }).length, 0);
-  assert.match(E.openWords({ tasks: [], quote: {} }, { vendors: [{ id: 'b', status: 'delivered' }], records: { vendor: { b: { state: 'problem' } } } }), /1 vendor with items not all returned/);
+  assert.match(E.openWords({ tasks: [], quote: {} }, { vendors: [{ id: 'b', status: 'delivered' }], records: { vendor: { b: { state: 'problem' } } } }), /1 vendor returned with a problem/);
 });
 test('vendor answers: an Undo is no answer but stays "seen"; n of m; invoice states; our stock with them', () => {
   const rec = { vendor: { a: { id: '1', state: 'problem', qty_total: 120, qty_back: 118 }, b: { id: '2', state: 'undo' } } };

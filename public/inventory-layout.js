@@ -222,6 +222,32 @@
     return { needed: needed, held: held, free: free, toReserve: toReserve, toBorrow: toBorrow, toBorrowShared: shared,
       short: toBorrow > 0, sharedShort: shared > toBorrow, covered: needed > 0 && toReserve === 0 };
   }
+  // R261 (owner: "there are only 9 round tables, what is 81?"): how the number in the plan is made, when it is not simply one item per object
+  //   { text: "9 tables x 9 each = 81", per, objects, odd: [{ type, label, per }] }  odd = the stock item is the product itself, yet counted more than once for one
+  function plural(w, k) { w = String(w || "").toLowerCase(); return k === 1 ? w : /(s|x|ch|sh)$/.test(w) ? w + "es" : /[^aeiou]y$/.test(w) ? w.slice(0, -1) + "ies" : w + "s"; }
+  function sumOf(it, types) {
+    var bits = [], odd = [], plain = true;
+    (types || []).forEach(function (t) {
+      ((t && t.links) || []).forEach(function (l) {
+        if (!l || !it || l.item_id !== it.item_id) return;
+        var seats = l.count_mode === "seats", per = n(l.per_object) || 1, cnt = seats ? n(t.seats) : n(t.objects), lab = typeLabel(t.layout_type, t.label), w = head(words(lab)) || lab;
+        if (per !== 1) plain = false;
+        bits.push({ text: fmt(cnt) + " " + (seats ? plural("seat", cnt) : plural(has(TABLES, t.layout_type) ? "table" : w, cnt)) + (per !== 1 ? " \u00d7 " + fmt(per) + " each" : ""), needed: l.needed != null ? n(l.needed) : Math.ceil(cnt * per) });
+        if (!seats && per > 1 && namesOf(t.layout_type, t.label).some(function (nw) { return fitScore(nw, words(it.name)) >= 2; })) odd.push({ type: t.layout_type, label: lab, per: per, word: has(TABLES, t.layout_type) ? "table" : w });
+      });
+    });
+    if (plain) return { text: "", odd: odd };
+    return { text: bits.map(function (b) { return b.text; }).join(" + ") + " = " + fmt(bits.reduce(function (a, b) { return a + b.needed; }, 0)), odd: odd };
+  }
+  // what the Missing column says about what vendors were asked for: never less than what was really asked
+  function missText(r, cov, list) {
+    if (!r.short) return { text: r.covered ? "Covered" : "-", cls: "" };
+    var all = 0; (list || []).forEach(function (s) { if (s.cover !== false) all += n(s.qty); });
+    var extra = Math.max(Math.round((all - r.toBorrow) * 100) / 100, 0);
+    if (cov.left > 0) return { text: fmt(cov.left) + " missing", cls: "red", sub: all > 0 ? fmt(all) + " asked or agreed" : "" };
+    if (!extra) return { text: cov.asked > 0 ? fmt(r.toBorrow) + " asked" : fmt(r.toBorrow) + " from vendor", cls: cov.asked > 0 ? "amber" : "green" };
+    return { text: fmt(all) + (cov.asked > 0 ? " asked" : " from vendor"), cls: cov.asked > 0 ? "amber" : "green", sub: fmt(r.toBorrow) + " missing \u00b7 " + fmt(all) + (cov.asked > 0 ? " asked" : " agreed") + " (" + fmt(extra) + " more than needed)" };
+  }
   // the item lines of one event block, grouped by the floor-plan category of their first layout product
   function groupItems(block) {
     var typeCat = {}, typeLbl = {}, typeObj = {};
@@ -285,7 +311,7 @@
   }
   function shortOnly(events) { return (events || []).filter(function (e) { return n(e.short_items) > 0 || n(e.shared_items) > 0; }); }
 
-  var api = { LABELS: LABELS, FLOOR_SEATS: FLOOR_SEATS, STYLES: STYLES, seatsShown: seatsShown, countText: countText, linkMode: linkMode, thingOf: thingOf, seatGaps: seatGaps, tableGaps: tableGaps,
+  var api = { LABELS: LABELS, FLOOR_SEATS: FLOOR_SEATS, STYLES: STYLES, seatsShown: seatsShown, countText: countText, sumOf: sumOf, missText: missText, linkMode: linkMode, thingOf: thingOf, seatGaps: seatGaps, tableGaps: tableGaps,
     words: words, head: head, namesOf: namesOf, findFits: findFits, planTake: planTake, suggestLink: suggestLink, styleSplit: styleSplit, outQty: outQty, coverOf: coverOf, CATS: CATS, RANGES: RANGES, catName: catName, typeLabel: typeLabel, addDays: addDays, rowNums: rowNums, groupItems: groupItems,
     reservePlan: reservePlan, sameDayText: sameDayText, unlinkedAll: unlinkedAll, strip: strip, shortOnly: shortOnly, fmt: fmt };
   if (typeof module !== "undefined" && module.exports) { module.exports = api; return; }
@@ -375,6 +401,42 @@
     if (!e.checkouts) return "?";                         // not read (the event's own stock page shows it)
     var q = outQty(e.checkouts, it.item_id, block.quote_id); return q ? fmt(q) : "-";
   }
+  // R261: change how many of the stock item one object takes (the same link, the same save)
+  function perDialog(block, it, l, t, from) {
+    var lab = typeLabel(t.layout_type, t.label), w = (has(TABLES, t.layout_type) ? "table" : head(words(lab)) || lab).toLowerCase();
+    var per = h("input", { id: "ls_per1", type: "number", min: "0.01", step: "0.01", inputmode: "decimal", value: String(n(l.per_object) || 1) });
+    var mode = n(t.seats) > 0 ? h("select", { id: "ls_per2", cls: "sel" }, [h("option", { value: "objects", text: "for ONE " + w }), h("option", { value: "seats", text: "for ONE seat" })]) : null;
+    if (mode) mode.value = l.count_mode === "seats" ? "seats" : "objects";
+    var out = h("p", { cls: "ls-sub", role: "status" }), show = function () { var p = Number(per.value), seats = mode && mode.value === "seats", cnt = seats ? n(t.seats) : n(t.objects);
+      out.textContent = p > 0 ? "This event: " + fmt(cnt) + " " + (seats ? plural("seat", cnt) : plural(w, cnt)) + " \u00d7 " + fmt(p) + " = " + fmt(Math.ceil(cnt * p)) + " " + optName(it.name) + "." : ""; };
+    per.addEventListener("input", show); if (mode) mode.addEventListener("change", show); show();
+    modal("How many " + optName(it.name) + "?", h("div", {}, [h("p", { cls: "sub", text: "It counts for every floor plan with " + lab + ". Reservations and what vendors were asked stay as they are." + (n(t.seats) > 0 ? " Chairs are counted on their own line - do not add them here." : "") }),
+      h("div", { cls: "fgrid" }, [h("div", { cls: "fld" }, [h("label", { "for": "ls_per1", text: "How many of this item for ONE " + w }), per]), mode ? h("div", { cls: "fld" }, [h("label", { "for": "ls_per2", text: "Counted" }), mode]) : null]), out]), "Save", function () {
+      var p = Number(per.value); if (!(p > 0) || p > 10000 || Math.round(p * 100) / 100 !== p) { per.focus(); throw userErr("A number above 0, with at most 2 decimals."); }
+      return root.BPStore.inventory.layout.setLink(t.layout_type, it.item_id, p, mode ? mode.value : l.count_mode).then(function () { toast("Saved.", "ok"); return refresh(); });
+    });
+  }
+  function linkOf(block, it, type) { var hit = null; ((block && block.types) || []).forEach(function (t) { if (type && t.layout_type !== type) return; (t.links || []).forEach(function (l) { if (!hit && l && l.item_id === it.item_id) hit = { t: t, l: l }; }); }); return hit; }
+  function changeBtn(block, it) {
+    var b = h("button", { type: "button", cls: "ls-linkbtn", text: "Change", "aria-label": "Change how many " + optName(it.name) + " one product takes" });
+    b.addEventListener("click", function () { var x = linkOf(block, it); if (x) perDialog(block, it, x.l, x.t, b); });
+    return b;
+  }
+  function oddNote(block, it, o) {
+    var row = h("span", { cls: "ls-odd", role: "note" }, ["Is it really " + fmt(o.per) + " per " + o.word.toLowerCase() + "? "]);
+    // R261 (owner: "make chairs and table separate"): a table counts as a table, the chairs around it are their own line
+    var lx = linkOf(block, it, o.type); if (lx && lx.t && n(lx.t.seats) > 0) row.appendChild(doc.createTextNode("Chairs are counted on their own line, so a table counts as 1. "));
+    if (!S.canEdit) return row;
+    var b = h("button", { type: "button", cls: "btn sm ls-act", text: "Use 1 per " + o.word.toLowerCase(), "aria-label": "Use 1 " + optName(it.name) + " per " + o.word.toLowerCase() });
+    b.addEventListener("click", function () {
+      if (b.disabled) return; var x = linkOf(block, it, o.type), now = x ? Math.ceil(n(x.t.objects)) : 0;
+      Promise.resolve(root.BPUI && root.BPUI.confirm ? root.BPUI.confirm("One " + optName(it.name) + " for every " + o.label + " in every floor plan. This event then needs " + fmt(now) + ". What is reserved or asked stays as it is.", { title: "Use 1 per " + o.word.toLowerCase() + "?", okLabel: "Use 1" }) : true).then(function (ok) {
+        if (!ok) return; b.disabled = true;
+        return root.BPStore.inventory.layout.setLink(o.type, it.item_id, 1, "objects").then(function () { toast(optName(it.name) + ": 1 per " + o.word.toLowerCase() + " now.", "ok"); return refresh(); });
+      }).catch(function (e) { b.disabled = false; toast(friendly(e, "change the link"), "err"); });
+    });
+    row.appendChild(b); return row;
+  }
   // one event's numbers as a table (grouped by floor-plan category); mobile = one block per item (CSS)
   function needsTable(block) {
     var groups = groupItems(block);
@@ -385,17 +447,20 @@
       g.items.forEach(function (it) {
         var r = rowNums(it), sd = sameDayText(it.same_day), list = asked(block.quote_id, { itemId: it.item_id, label: it.name }), cov = coverOf(r.toBorrow, list);
         var split = S.floor && (it.types || []).map(function (t) { return styleSplit(S.floor.items, t); }).filter(Boolean).join(", ");
+        var sum = sumOf(it, block.types), mt = missText(r, cov, list);
         var nameCell = h("td", { cls: "ls-name", "data-label": "Item" }, [
           h("span", { cls: "ls-iname", text: optName(it.name) }),
           it.fromText && it.fromText.length ? h("span", { cls: "ls-from", text: "From " + it.fromText.join(", ") }) : null,
+          sum.text ? h("span", { cls: "ls-from ls-sum" }, [sum.text + " ", S.canEdit ? changeBtn(block, it) : null]) : null,
+          sum.odd.length ? oddNote(block, it, sum.odd[0]) : null,
           split ? h("span", { cls: "ls-from", text: "Looks on the plan: " + split }) : null,
           askedLine(list),
           (sd || r.sharedShort) ? h("span", { cls: "ls-chips" }, [
             sd ? h("span", { cls: "ls-chip same", text: sd, title: "Helm counts stock by day: these events use the same units on the same days." }) : null,
             r.sharedShort ? h("span", { cls: "ls-chip amber", text: "Short " + fmt(r.toBorrowShared) + " if all go ahead" }) : null]) : null,
           it.active === false ? h("span", { cls: "ls-chip", text: "Item switched off" }) : null]);
-        var miss = h("td", { cls: "num", "data-label": "Missing" }, [!r.short ? h("span", { cls: "ls-ok", text: r.covered ? "Covered" : "-" })
-          : h("span", { cls: "ls-chip " + (cov.left > 0 ? "red" : cov.asked > 0 ? "amber" : "green"), text: cov.left > 0 ? fmt(cov.left) + " missing" : cov.asked > 0 ? fmt(r.toBorrow) + " asked" : fmt(r.toBorrow) + " from vendor" })]);
+        var miss = h("td", { cls: "num", "data-label": "Missing" }, [!r.short ? h("span", { cls: "ls-ok", text: mt.text })
+          : h("span", { cls: "ls-chip " + mt.cls, text: mt.text }), mt.sub ? h("span", { cls: "ls-from", text: mt.sub }) : null]);
         var acts = h("td", { cls: "ls-actcell" + (S.canEdit || S.canVendor ? "" : " none") });
         var fp = reservePlan(block, { itemId: it.item_id, freeOnly: true });
         if (S.canEdit && fp.qty > 0) {
@@ -723,7 +788,10 @@
         .catch(function (e) { toast(friendly(e, "link the product"), "err"); })
         .then(function () { go.disabled = false; });
     });
-    return h("div", { cls: "ls-ctl" }, [sel, h("span", { cls: "ls-x", text: "x" }), per, mode, go]);
+    var one = (has(TABLES, u.layout_type) ? "table" : head(words(u.label)) || u.label).toLowerCase(), lbl = h("span", { cls: "ls-perl", text: "How many of this item for ONE " + (mode.value === "seats" ? "seat" : one) });   // R261
+    mode.addEventListener("change", function () { lbl.textContent = "How many of this item for ONE " + (mode.value === "seats" ? "seat" : one); per.setAttribute("aria-label", lbl.textContent); });
+    per.setAttribute("aria-label", lbl.textContent);
+    return h("div", { cls: "ls-ctl" }, [sel, h("label", { cls: "ls-perw" }, [lbl, per]), mode, go]);
   }
   function renderLinks() {
     var host = $("lsLinkBody"); if (!host) return;

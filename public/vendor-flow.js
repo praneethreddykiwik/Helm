@@ -6,7 +6,10 @@
  *   HelmVendorFlow.offerBox(row, o)  the vendor's answer: lines against what was asked, total, file, Approve price / Ask to change / Decline. o: { canAssign, reload }
  *   HelmVendorFlow.record(row, o)    the vendor told their answer by phone
  *   HelmVendorFlow.askInvoice(o)     "Please send your invoice": the words first, then send, or only a link. o: { requestId | bookingId, name, onDone }
- *   HelmVendorFlow.steps(row)        Asked - Available - Confirmed - Invoice asked - Received - Approved - Paid, with where it is now
+ *   HelmVendorFlow.steps(row)        Asked - Available - Confirmed - Invoice asked - Invoice received - Approved - Paid - Closed, with where it is now (row.pay: R261)
+ *   HelmVendorFlow.openFile(get, o)  opens a private file in a new tab (the tab is opened inside the click; blocked = a dialog with the link)
+ *   HelmVendorFlow.payBooking(o)     record a payment for a booked vendor without a bill (0450). o: { bookingId, name, due, currency, onDone }
+ *   HelmVendorFlow.closeNoPay(o)     close a vendor without a payment, with the reason. o: { bookingId, name, onDone }
  *   HelmVendorFlow.budget(host, id)  the event budget's "Vendors" card
  *   HelmVendorFlow._pure             the helpers without a page (unit-tested)
  *
@@ -14,8 +17,8 @@
  * button that says so is pressed. DOM calls only (textContent), no HTML strings, no inline styles. */
 (function (global) {
   "use strict";
-  var doc = global.document, CSS_V = "/vendor-flow.css?v=1";
-  var STEPS = ["Asked", "Available", "Confirmed", "Invoice asked", "Received", "Approved", "Paid"];
+  var doc = global.document, CSS_V = "/vendor-flow.css?v=2";
+  var STEPS = ["Asked", "Available", "Confirmed", "Invoice asked", "Invoice received", "Approved", "Paid", "Closed"];
 
   /* ---------------------------------------------------------------- pure */
   function r2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
@@ -26,7 +29,10 @@
   function isFlow(row) { return !!(row && Number(row.flow) === 447); }
   // the state of a row (an older server: from its status and invoice counts)
   function stateOf(r) {
-    if (!r) return "none"; if (r.state) return r.state;
+    if (!r) return "none";
+    // R261: what is really paid on the booking (bills + payouts + advance), when the page knows it: { k: paid | closed | unrecorded | owed | none }
+    if (r.status === "accepted" && r.pay) { if (r.pay.k === "paid" && !num(r.invoices_open) && !num(r.invoices_queried)) return "paid"; if (r.pay.k === "closed" && !num(r.invoices_open)) return "closed_nopay"; if (r.pay.k === "unrecorded" && !num(r.invoices_open)) return "unrecorded"; }
+    if (r.state) return r.state;
     if (r.status === "cancelled" || r.status === "reassigned") return "closed"; if (r.status === "rejected") return "declined"; if (r.status === "sent") return "asked";
     if (num(r.invoices_open)) return "invoice_received"; if (num(r.invoices_queried)) return "invoice_query";
     var ap = (r.invoices || []).filter(function (i) { return i.status === "approved"; });
@@ -34,7 +40,7 @@
     return "confirmed";
   }
   var INFO = { asked: [0, "Asked - waiting for their answer", "warn"], available: [1, "Available - approve their price", "warn"], change: [1, "Change asked - waiting for a new offer", "warn"], declined: [-1, "Not available", "off"], closed: [-1, "Closed", "off"],
-    confirmed: [2, "Confirmed", ""], invoice_asked: [3, "Invoice asked", "warn"], invoice_received: [4, "Invoice received - to review", "warn"], invoice_query: [4, "Question sent about the invoice", "warn"], invoice_approved: [5, "Invoice approved", ""], paid: [6, "Paid", ""], none: [-1, "Not asked", "off"] };
+    confirmed: [2, "Confirmed", ""], invoice_asked: [3, "Invoice asked", "warn"], invoice_received: [4, "Invoice received - to review", "warn"], invoice_query: [4, "Question sent about the invoice", "warn"], invoice_approved: [5, "Invoice approved", ""], paid: [7, "Paid and closed", ""], closed_nopay: [-1, "Closed without payment", "off"], unrecorded: [6, "Marked settled - no payment recorded", "warn"], none: [-1, "Not asked", "off"] };
   function info(r) { var k = stateOf(r), i = INFO[k] || INFO.none, t = i[1]; if (k === "declined" && r && r.declined_by === "studio") t = "You declined their offer"; return { k: k, step: i[0], text: t, tone: i[2] }; }
   function total(lines) { var all = lines.length > 0 && lines.every(function (l) { return l.price != null; }); return all ? r2(lines.reduce(function (a, l) { return a + r2(l.qty * l.price); }, 0)) : null; }
   function clean(t) { return String(t == null ? "" : t).replace(/\s+/g, " ").trim(); }
@@ -270,7 +276,24 @@
     if (num(i.tax_amount) > 0) sums.push(["Tax", money(i.tax_amount, cur)]);
     return table(["Product", "Quantity", "Price each", "Total"], i.lines.map(function (l) { return [l.name, qn(l.qty) + (l.unit ? " " + l.unit : ""), { t: money(l.price, cur), m: 1 }, { t: money(l.total, cur), m: 1 }]; }), sums);
   };
-  function openFile(path) { S().vendorRequests.fileUrl(path).then(function (u) { if (!u) throw new Error("not available"); global.open(u, "_blank", "noopener"); }).catch(function (e) { toast(friendly(e, "open the file"), "err"); }); }
+  // R261 (owner: "open their file is not working"): the browser blocks a tab that is opened after the link has been fetched. The empty tab is opened inside
+  // the click (its opener cut), then sent to the link; a browser that blocks even that gets a dialog with the link.
+  api.openFile = function (get, o) {
+    o = o || {}; var w = null, name = o.name || "the file";
+    try { w = global.open("about:blank", "_blank"); } catch (e) { w = null; }
+    if (w) try { w.opener = null; w.document.title = "Opening…"; w.document.body.textContent = "Opening the file…"; } catch (e) { /* ignore */ }
+    var shut = function () { if (w) try { w.close(); } catch (e) { /* ignore */ } };
+    return Promise.resolve().then(get).then(function (u) {
+      if (!u || !/^https?:\/\//.test(String(u))) throw new Error("The file is not available.");
+      if (w && !w.closed) { try { w.location.replace(u); return "tab"; } catch (e) { shut(); } }
+      var d = dialog("Open " + name, o), dl = u + (u.indexOf("?") >= 0 ? "&" : "?") + "download=";
+      d.body.appendChild(h("p", { text: "Your browser blocked the new tab. Open the file from here." })); d.body.appendChild(h("p", { cls: "hvf-note", text: "The link works for about 2 minutes." }));
+      d.foot.appendChild(h("a", { cls: "hvf-btn", href: dl, rel: "noopener noreferrer", text: "Download" }));
+      var a = h("a", { cls: "hvf-btn is-main", href: u, target: "_blank", rel: "noopener noreferrer", text: "Open the file" }); d.foot.appendChild(a); setTimeout(function () { try { a.focus(); } catch (e) {} }, 60);
+      return "dialog";
+    }).catch(function (e) { shut(); toast(friendly(e, "open the file"), "err"); return "error"; });
+  };
+  function openFile(path, name, from) { return api.openFile(function () { return S().vendorRequests.fileUrl(path); }, { name: name, returnFocus: from }); }
   var STATUS = { offered: "Waiting for you", change_asked: "Change asked", approved: "Approved", declined: "Declined", superseded: "Replaced by a newer answer", withdrawn: "Taken back" };
   api.offerBox = function (row, o) {
     o = o || {}; var f = row && row.offer; if (!f) return null;
@@ -283,7 +306,7 @@
     if (f.review_note && f.status !== "approved") box.appendChild(h("p", { cls: "hvf-note", text: "You wrote: " + f.review_note }));
     box.appendChild(h("p", { cls: "hvf-note", text: (f.at_text || "") + (f.via === "studio" ? " (recorded by the studio)" : "") }));
     var acts = h("div", { cls: "hvf-acts" });
-    if (f.has_file && f.storage_path) acts.appendChild(btn("Open their file", function () { openFile(f.storage_path); }));
+    if (f.has_file && f.storage_path) acts.appendChild(btn("Open their file", function (e) { openFile(f.storage_path, "the file of " + row.vendor_name, e && e.currentTarget); }));
     if (open && o.canAssign) {
       acts.appendChild(btn("Approve price", function (e) { approve(row, f, o, e.currentTarget); }, "is-main", "Approve the price of " + row.vendor_name));
       acts.appendChild(btn("Ask to change", function () { answer(row, f, o, "change"); }, "", "Ask " + row.vendor_name + " to change the offer"));
@@ -372,11 +395,49 @@
     });
   };
 
+  /* ---------------------------------------------------------------- R261: paying a vendor who sent no bill, and closing without a payment */
+  function today() { try { return S().todayLocal(); } catch (e) { return new Date().toISOString().slice(0, 10); } }
+  api.payBooking = function (o) {
+    o = o || {}; var key = "vbp-" + o.bookingId + "-" + uuid(), cur = o.currency;
+    return new Promise(function (done) {
+      var d = dialog("Record a payment to " + (o.name || "the vendor"), o); d.onclose = function (v) { done(v || null); if (o.onDone) o.onDone(v || null); };
+      var amt = inp({ inputmode: "decimal", maxlength: "14", value: num(o.due) > 0 ? String(r2(o.due)) : "" }), day = inp({ type: "date", value: today(), max: today() }), how = h("select", { cls: "hvf-in" }, ["Bank transfer", "UPI", "Cash", "Cheque", "Card", "Other"].map(function (x) { return h("option", { value: x, text: x }); })), ref = inp({ maxlength: "120", placeholder: "UTR / cheque no. (optional)" });
+      d.body.appendChild(h("p", { cls: "hvf-note", text: "No invoice from them yet: Helm makes the bill of the agreed price and records this payment on it." }));
+      d.body.appendChild(h("div", { cls: "hvf-g" }, [fld("Amount paid (" + symbol(cur) + ")", amt), fld("Paid on", day), fld("How", how), fld("Reference", ref)]));
+      if (num(o.due) > 0) d.body.appendChild(h("p", { cls: "hvf-note" }, ["Left to pay: ", h("b", { "data-money": "", text: money(o.due, cur) })]));
+      d.body.appendChild(d.err);
+      var go = btn("Record payment", function () {
+        var a = amount(amt.value); if (!(a > 0)) return d.fail("Enter an amount above zero.", amt);
+        if (num(o.due) > 0 && a > num(o.due) + 0.004) return d.fail("That is more than the " + money(o.due, cur) + " left to pay.", amt);
+        if (!day.value || day.value > today()) return d.fail("Pick the day it was paid, today or before.", day);
+        var MK = S().moneySafety && S().moneySafety.key, ks = "vbp:" + o.bookingId, k = key; if (MK) k = MK.get(ks, [a, day.value, how.value].join("|"));
+        d.run(go, "Saving…", function () { return S().bookings.pay(o.bookingId, { amount: a, paidOn: day.value, method: how.value, reference: ref.value.trim() || null }, k); }).then(function (r) {
+          if (!r) return; if (MK) MK.done(ks); var w = Array.isArray(r.warnings) ? r.warnings.map(function (x) { return x && x.text; }).filter(Boolean).join(" ") : "";
+          toast((r.duplicate ? "Already recorded." : "Payment recorded.") + (w ? " " + w : "")); d.close(r); });
+      }, "is-main");
+      d.foot.appendChild(btn("Cancel", function () { d.close(null); })); d.foot.appendChild(go);
+    });
+  };
+  api.closeNoPay = function (o) {
+    o = o || {};
+    return new Promise(function (done) {
+      var d = dialog("Close " + (o.name || "the vendor") + " without payment?", o); d.onclose = function (v) { done(v || null); if (o.onDone) o.onDone(v || null); };
+      var why2 = h("textarea", { cls: "hvf-in", rows: "3", maxlength: "300", placeholder: "e.g. They did it for free, or it was paid outside Helm" });
+      d.body.appendChild(h("p", { text: "Nothing is recorded as paid. The vendor is closed and this reason stays visible. You can undo it." }));
+      d.body.appendChild(fld("Why is nothing paid?", why2, true)); d.body.appendChild(d.err);
+      var go = btn("Close without payment", function () {
+        var t = clean(why2.value); if (t.length < 3) return d.fail("Say why, at least 3 characters.", why2); if (/[<>]/.test(t)) return d.fail("Leave out < and >.", why2);
+        d.run(go, "Saving…", function () { return S().bookings.closeNoPay(o.bookingId, t); }).then(function (r) { if (!r) return; toast("Closed without payment."); d.close(true); });
+      }, "is-main");
+      d.foot.appendChild(btn("Cancel", function () { d.close(null); })); d.foot.appendChild(go);
+    });
+  };
+
   /* ---------------------------------------------------------------- where it stands */
   api.steps = function (row) {
     var i = info(row);
     if (i.step < 0) return h("ol", { cls: "hvf-steps" }, [h("li", { cls: "is-now is-off", text: i.text })]);
-    return h("ol", { cls: "hvf-steps", "aria-label": "Where it stands: " + i.text }, STEPS.map(function (t, n) { return n < i.step ? h("li", { cls: "is-done", text: t }) : n === i.step ? h("li", { cls: "is-now" + (i.tone === "warn" ? " is-warn" : ""), "aria-current": "step", text: i.k === "change" ? "Change asked" : i.k === "invoice_query" ? "Question sent" : t + (n === 1 && row.offer && row.offer.total != null ? " (" + money(row.offer.total, row.currency) + ")" : "") }) : h("li", { text: t }); }));
+    return h("ol", { cls: "hvf-steps", "aria-label": "Where it stands: " + i.text }, STEPS.map(function (t, n) { return n < i.step ? h("li", { cls: "is-done", text: t }) : n === i.step ? h("li", { cls: "is-now" + (i.tone === "warn" ? " is-warn" : ""), "aria-current": "step", text: i.k === "change" ? "Change asked" : i.k === "invoice_query" ? "Question sent" : i.k === "unrecorded" ? "No payment recorded" : t + (n === 1 && row.offer && row.offer.total != null ? " (" + money(row.offer.total, row.currency) + ")" : "") }) : h("li", { text: t }); }));
   };
   // Budget: every vendor of the event, one line each (hidden without the right to see vendors, or with none)
   api.budget = function (host, quoteId) {
@@ -391,7 +452,14 @@
       });
       bk.forEach(function (b) { ul.appendChild(h("li", {}, [h("div", { cls: "hvf-vtop" }, [h("b", { text: b.label || "Vendor" }), b.cost != null ? h("b", { text: money(b.cost), "data-money": "" }) : null]), api.steps(null)])); });
       host.appendChild(h("div", { cls: "rowh" }, [h("h2", { text: "Vendors: prices and invoices" })]));
-      host.appendChild(ul); host.appendChild(h("p", {}, [h("a", { href: "vendors.html?tab=requests&quote=" + encodeURIComponent(quoteId), text: "Open Requests & invoices" })]));
+      host.appendChild(ul);
+      // R261 (0450): what vendors charge for missing / broken items - its own lines (the ledger counts them under Damages)
+      if (S().vendorCharges) S().vendorCharges.get(quoteId).then(function (st) {
+        var l = ((st && st.rows) || []).filter(function (c) { return c.state !== "void"; }); if (!l.length) return;
+        var W = { asked: "asked, not agreed yet", agreed: "agreed", in_invoice: "already in their invoice" }, list = h("ul", { cls: "hvf-vrows" }, l.map(function (c) { return h("li", {}, [h("div", { cls: "hvf-vtop" }, [h("span", {}, [h("b", { text: "Vendor damage" }), " · " + c.vendor + " · " + c.label + (c.qty ? " ×" + qn(c.qty) : "") + " · " + (c.state === "agreed" && num(c.paid) >= num(c.amount) - 0.005 ? "paid" : W[c.state] || "")]), h("b", { text: money(c.amount, st.currency), "data-money": "" })])]); }));
+        host.insertBefore(h("h3", { cls: "hvf-sub", text: "Charged for missing or broken items" }), link); host.insertBefore(list, link);
+      }, function () {});
+      var link = h("p", {}, [h("a", { href: "vendors.html?tab=requests&quote=" + encodeURIComponent(quoteId), text: "Open Requests & invoices" })]); host.appendChild(link);
       return true;
     }, function () { host.hidden = true; return false; });
   };

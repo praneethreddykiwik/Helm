@@ -238,7 +238,7 @@ await t('UI: Vendor bills card uses the 0373 calls only when the server has them
   assert.match(UI, /var MOUNTS = \{ bills: mountBills, pnl: mountPnl, business: mountBusiness, due: mountDue \};/);
   assert.match(UI, /finOk = await B\.auth\.canView\("finance"\)/, 'Business section needs Finance view');
   assert.match(BIZ, /<div id="vbDue" data-vb-mount="due" data-vb-gate="bzApp" hidden><\/div>/);
-  assert.match(SET, /\(b\._billed&&!b\.settled\)\?`<button type="button" class="btn go" data-gobills="1"/);
+  assert.match(SET, /b\._billed&&\(v\.k==="owed"\|\|v\.k==="unrecorded"\)\) out\.push\(`<button type="button" class="btn go" data-gobills="1"/);
   for (const c of ['.vb-warn', '.vb-set', '.bz-pill-bad']) assert.ok(CSS.includes(c), c);
 });
 

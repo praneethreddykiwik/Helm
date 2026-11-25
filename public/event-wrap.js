@@ -250,6 +250,7 @@
       if (r.state !== "no_show") card.appendChild(itemsPart(S, env, r, nm, p, rec, ret, off, again));
       var our = oursWith(d.stock !== "err" ? d.stock : null, x && x.items, nm); if (our.length) card.appendChild(h("p", { cls: "hwd-our" }, [h("b", { text: "Our items with them: " }), our.join(", ") + ". Mark them back under Inventory."]));
       if (reqs) card.appendChild(invoicePart(S, env, r, nm, p, reqs, off, again));
+      var vch = chargePart(S, env, r, nm, ret); if (vch) card.appendChild(vch);
       ul.appendChild(card);
     });
     host.appendChild(ul);
@@ -288,8 +289,22 @@
   var flowP = null;   // R259: vendor-flow.js is loaded when it is first needed
   function flowLib() {
     if (global.HelmVendorFlow && global.HelmVendorFlow.askInvoice) return Promise.resolve(global.HelmVendorFlow);
-    if (!flowP) flowP = new Promise(function (ok, no) { var sc = doc.createElement("script"); sc.src = "/vendor-flow.js?v=1"; sc.onload = function () { ok(global.HelmVendorFlow); }; sc.onerror = function () { flowP = null; doc.head.removeChild(sc); no(new Error("vendor-flow")); }; doc.head.appendChild(sc); });
+    if (!flowP) flowP = new Promise(function (ok, no) { var sc = doc.createElement("script"); sc.src = "/vendor-flow.js?v=2"; sc.onload = function () { ok(global.HelmVendorFlow); }; sc.onerror = function () { flowP = null; doc.head.removeChild(sc); no(new Error("vendor-flow")); }; doc.head.appendChild(sc); });
     return flowP;
+  }
+  // R261 (0450): what the vendor charges for missing / broken items (people who may see money). The block is kept between redraws: a half-typed form stays.
+  var chargeP = null;
+  function chargeLib() {
+    if (global.HelmVendorCharges) return Promise.resolve(global.HelmVendorCharges);
+    if (!chargeP) chargeP = new Promise(function (ok, no) { var sc = doc.createElement("script"); sc.src = "/vendor-charges.js?v=1"; sc.onload = function () { ok(global.HelmVendorCharges); }; sc.onerror = function () { chargeP = null; doc.head.removeChild(sc); no(new Error("vendor-charges")); }; doc.head.appendChild(sc); });
+    return chargeP;
+  }
+  function chargePart(S, env, r, nm, ret) {
+    if (!B().vendorCharges || r.state === "no_show") return null;
+    var st = VI() && VI().get ? VI().get(env.q) : null, v = st && st.vendors && st.vendors[r.id], probs = (v && v.problems) || [], bad = probs.length > 0 || !!(ret && ret.state !== "returned");
+    S.vch = S.vch || {}; var host = S.vch[r.id]; if (!host) { host = S.vch[r.id] = h("div"); host.hidden = true; }
+    chargeLib().then(function (C) { return C.paint(host, { quoteId: env.q, bookingId: r.id, vendor: nm, items: probs, add: bad }); }).catch(function () {});
+    return host;
   }
   function focusIn(S, key) { setTimeout(function () { var n = S.hostEl && S.hostEl.querySelector('[data-key="' + key + '"]'); if (n) try { n.focus(); } catch (e) {} }, 30); }
   function invoicePart(S, env, r, nm, p, reqs, off, again) {
@@ -301,7 +316,7 @@
         .catch(function () { say(env.ctx, "Couldn’t open it. Try again."); }); }, { main: i.k === "waiting" && !r.asked, off: off, label: "Ask " + nm + " for the invoice" }));
     else if (i.id && p.vendors && (i.k === "waiting" || i.k === "asked")) acts.appendChild(btn(i.k === "waiting" ? "Ask for the invoice" : "Copy their link", "i:ask:" + r.id, function () {
       run(S, env, "vendors", "make the link", async function () { var l = await B().vendorRequests.issueLink(i.id), u = B().vendorRequests.linkUrl(l && l.token); if (!u) throw new Error("No link"); S.link = { id: r.id, url: u }; S.sig = ""; return null; }); }, { off: off, label: "Get the link " + nm + " sends the invoice with" }));
-    acts.appendChild(i.id ? h("a", { cls: "hwd-a", href: "vendors.html?tab=requests&quote=" + enc(env.q), text: i.k === "received" ? "Review it" : i.k === "offer" ? "Approve the price" : "Requests & invoices" }) : h("a", { cls: "hwd-a", href: "resources.html?quote=" + enc(env.q) + "#bookings", text: "Ask them on the Resource plan" }));
+    acts.appendChild(i.id ? h("a", { cls: "hwd-a", href: "vendors.html?tab=requests&quote=" + enc(env.q) + "&req=" + enc(i.id), text: i.k === "received" ? "Review it" : i.k === "offer" ? "Approve the price" : "Requests & invoices" }) : h("a", { cls: "hwd-a", href: "resources.html?quote=" + enc(env.q) + "#bookings", text: "Ask them on the Resource plan" }));
     box.appendChild(acts);
     if (S.link && S.link.id === r.id) { var inp = h("input", { cls: "tc-inp", readonly: true, value: S.link.url, "data-key": "i:url:" + r.id, "aria-label": "Link for " + nm }); inp.addEventListener("focus", function () { inp.select(); });
       box.appendChild(h("div", { cls: "hwd-link" }, [inp, btn("Copy", "i:copy:" + r.id, function () { try { global.navigator.clipboard.writeText(S.link.url).then(function () { say(env.ctx, "Link copied. Nothing was sent - share it with " + nm + "."); }, function () { inp.focus(); }); } catch (e) { inp.focus(); } }, { main: true, label: "Copy the link for " + nm }), h("small", { text: "Nothing is sent by itself. They open it, no sign-in, and send their invoice there." })])); }

@@ -83,6 +83,7 @@ html[data-theme="dark"]:not([data-shell]) { --ink-3: #8b93a7; }
 .qprev-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:8px}
 .qprev-hd h3{margin:0;font-size:20px}
 .qprev-title{font-weight:600;margin-top:4px}
+.qprev-when{margin-top:2px;font-size:14px}
 .qprev-client{text-align:right}
 .qprev-strong{font-weight:700}
 .qprev-muted{color:var(--ink-3,#8b8698);font-size:13px}
@@ -224,3 +225,6 @@ html.hb-priv-on #app .price .prow :is(.hbp-m,[data-money]){display:inline-block;
 .menu-lock > span{flex:1 1 200px;min-width:0}
 .menu-lock b{color:var(--ink)}
 @media (max-width:640px){ .menu-lock .btn,#monBtn{min-height:44px} }
+/* R261: the event time reminder under step 1's time box */
+#c_timeHint{display:block;margin-top:4px;font-size:13px;line-height:1.4;color:var(--ink-2,#4b475f)}
+#c_timeHint[hidden]{display:none}

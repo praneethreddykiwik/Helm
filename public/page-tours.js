@@ -95,13 +95,13 @@
     ],
     "flow.html": [
       { sel: "#code", title: "The event workspace", desc: "Every stage of this one event lives here, top to bottom — fill it in order and nothing gets missed. Opened on another step? A Continue where you left off note takes you to the step that is next." },
-      { sel: "#sec-client", title: "1 · Client", desc: "Who the event is for. Saved here, reused everywhere." },
-      { sel: "#sec-discovery", title: "2 · Discovery", desc: "Capture requirements and the budget range before you price." },
-      { sel: "#sec-proposal", title: "3 · Proposal", desc: "Your pitch to the client — it sits above the floor layout so you sell first, then plan." },
+      { sel: "#sec-client", title: "1 · Client", desc: "Who the event is for. Saved here, reused everywhere. Set the event date and the time guests arrive: the quotation, booklet and invitation show both." },
+      { sel: "#sec-proposal", title: "2 - 3 · Discovery and proposal", desc: "Write what the client wants in Discovery first. Then your pitch to the client — it sits above the floor layout so you sell first, then plan." },
       { sel: "#sec-layout", title: "4 · Floor layout", desc: "Open the builder. The chairs you place here feed straight back into the quotation." },
       { sel: "#sec-quote", title: "5 · Quote", desc: "Final pricing and confirmation. Confirming sets the event live." },
       { sel: "#sec-approve", title: "Share & approval", desc: "Send the client one private link to approve. Change the \"Valid until\" date (dd/mm/yyyy); Undo fixes a mis-click. Client 2D / 3D images need a paid plan. Trial: (Preview) buttons show it all, no link is made." },
       { sel: "#sec-pay", need: "finance", title: "6 · Payment", desc: "Record the advance (amount, method, receipt no.) to confirm the booking. Payment plan, above: pick the split (e.g. 30% / 50% / 20%) and press Save payment plan. Not saved yet = the client cannot see it." },
+      { sel: "#sec-done", title: "Done", desc: "Press Done at the end. It lists what is still missing, with a link to each. When everything needed is done you see the green Event confirmed tick, and buttons to the event, the day plan and the booklet." },
     ],
     "logistics.html": [
       { sel: "#tabs", title: "Event logistics", desc: "Everything that has to happen for this event, organised by section (stage, lighting, catering…)." },
@@ -139,6 +139,7 @@
     ],
     "vendors.html": [
       { sel: "#viewTabs", title: "Partners and requests", desc: "Your vendor list, or Requests & invoices: ask a vendor, they say if they are available and their price from a link. Approve, ask to change or decline. After the event Helm asks for the invoice." },
+      { sel: "#vrqFilters", title: "Where each vendor stands", desc: "Asked, Available, Confirmed, Invoice asked, Invoice received, Approved, Paid, Closed - with the next step as a button: review the invoice, record the payment, or close without a payment. Unpaid = everyone not paid in full yet." },
       { sel: "#kindTabs", title: "Vendor categories", desc: "Outside partners grouped by what they provide — catering, sound, décor, transport and more." },
       { sel: "#search", title: "Search", desc: "Find a vendor by name or what they provide." },
       { sel: "#newBtn", title: "Add a vendor", desc: "Record a partner once (contact + rates) and reuse them across events." },
@@ -455,7 +456,7 @@
       { sel: "#payments", need: "finance", title: "Client payments", desc: "Every payment received against this event. Type an amount and record it: the balance updates straight away." },
       { sel: "#moneySafety", need: "finance", title: "Money safety", desc: "Nothing here is deleted: Void a wrong entry (kept, crossed out, counts 0), Reverse a bounced payment, keep money paid over the balance as a credit. An admin can freeze the money before closing." },
       { sel: "#clientTds", need: "finance", title: "TDS deducted by the client", desc: "A company client kept 2% as TDS? Record it here: it counts as received, so the balance is clear and the event can close. Tick Form 16A when it comes in." },
-      { sel: "#vendBody", title: "Vendors", desc: "What you owe each vendor for this event." },
+      { sel: "#vendBody", title: "Vendors", desc: "What you owe each vendor and what is really paid. Review their invoice, pay the bill, record a payment without an invoice, or close without a payment (with the reason). + Charge from the vendor: what they ask for missing or broken items." },
       { sel: "#vendorBills", need: "finance", title: "Vendor bills", desc: "Each vendor bill and what is paid. Record payout takes the TDS you keep back too, so the bill counts as fully paid. Add the bill's photo later if it is missing. Once the event is closed, an admin adds a late bill with the reason." },
       { sel: "#e_who", title: "Expenses", desc: "Add staff claims and other costs paid out." },
       { sel: "#r_kind", title: "Refunds", desc: "Money returned to the client, or recovered, with a reason." },
@@ -494,7 +495,7 @@
     "teardown.html": [
       { sel: "#invRows", title: "Stock coming back", desc: "Every item that went out, and whether it is back. Mark back: came back OK and damaged (the rest is missing), or tick Some are still out. Consumables: count what is left over - the rest was used." },
       { sel: "#ciLink", title: "Check items back in", desc: "Open Inventory for this event to mark items returned." },
-      { sel: "#bkRows", title: "Vendors packing up", desc: "Vendor pickups and handovers." },
+      { sel: "#bkRows", title: "Vendors packing up", desc: "Who has left - the same as on the event day - and whether their items went back. + Charge from the vendor: what they ask for missing or broken items." },
       { sel: "#tdRows", title: "Teardown tasks", desc: "Tick off each pack-down job." },
       { sel: "#td_title", title: "Add a task", desc: "Add anything else that has to happen before you leave the venue." },
     ],
@@ -536,9 +537,9 @@
     "invite-studio.html": [
       // r34 (#270): 11 themes, the "RSVP & privacy" card (how guests reply, address privacy, footer brand) and guest replies
       { sel: "#tpls", title: "Pick a design", desc: "Choose one of the 11 themes for the invitation website. A sangeet or mehendi event starts on the Mehndi theme." },
-      { sel: "#f_names", title: "The details", desc: "Names, headline, date, time and venue. The preview updates as you type." },
+      { sel: "#f_names", title: "The details", desc: "Names, headline, date, time and venue. The preview updates as you type. If the event has another date or time, a line under them offers it." },
       { sel: "#rsvpModeGroup", title: "How guests reply", desc: "Phone & WhatsApp buttons (the default), an RSVP form where guests say Yes / Maybe / No and how many are coming, or both. With the form only, your number stays private." },
-      { sel: "#addrGroup", title: "Address privacy", desc: "Show the full address and map to everyone with the link (the default), or only the venue name and city until a guest replies Yes or Maybe. This needs the RSVP form. Below it you choose whether the footer says “Made with Helm Studios”." },
+      { sel: "#addrGroup", title: "Address privacy", desc: "Show the full address and map to everyone with the link (the default), or only the venue name and city until a guest replies Yes or Maybe. This needs the RSVP form. Below it: name your studio in the footer or not." },
       { sel: "#photos", title: "Photos, music & schedule", desc: "Add photos and choose how the background looks. Further down: a song for the site and the day's programme (ceremony, dinner, dancing)." },
       { sel: "#shareCard", title: "Send to client", desc: "Share the site link with the client. Free trial: Publish invitation (Preview) shows what they would get - no link is made and nothing is sent." },
       { sel: "#repliesCard", title: "Guest replies", desc: "With the RSVP form on, every reply lands here: who is coming, how many, and a CSV download. Shown once the site is published." },

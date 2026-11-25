@@ -481,7 +481,7 @@
   var SHORT = { vendors: "vendor calls", headcount: "guest count", crew_call: "crew call times", load_list: "load list", transport: "trucks", venue_access: "venue access", power: "power and generator", permits: "permits", weather: "rain plan", runsheet: "run-sheet", client: "client timings" };
   function lineGo(ctx, key) {
     var q = enc(ctx.quoteId);
-    return { vendors: ["vendors.html", "Open vendors"], headcount: ["event.html?id=" + q, "Open event"], client: ["event.html?id=" + q, "Open event"], crew_call: onOps() ? null : ["ops.html?quote=" + q, "Open Tasks & Crew"],
+    return { vendors: ["vendors.html?tab=requests&quote=" + q, "Open vendors"], headcount: ["event.html?id=" + q, "Open event"], client: ["event.html?id=" + q, "Open event"], crew_call: onOps() ? null : ["ops.html?quote=" + q, "Open Tasks & Crew"],
       load_list: ["resources.html?quote=" + q, "Open Resource plan"], runsheet: ["runsheet.html?quote=" + q, "Open run-sheet"], transport: ["logistics.html?quote=" + q, "Open Logistics"], permits: ["logistics.html?quote=" + q, "Open Logistics"],
       venue_access: ["logistics.html?quote=" + q, "Open Logistics"] }[key] || null;
   }

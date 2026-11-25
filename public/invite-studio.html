@@ -205,7 +205,7 @@
 <link rel="stylesheet" href="/ui-pickers.css?v=4">
 <link rel="stylesheet" href="/trial-sim.css?v=2"><script src="/ui-pickers.js?v=5" defer></script>
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=126" id="shellProto"></script>
+<script src="/shell-proto.js?v=127" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -266,6 +266,8 @@
             <div class="fld"><label for="f_date">Date</label><input id="f_date" type="date" data-min-today></div>
             <div class="fld"><label for="f_time">Time</label><input id="f_time" placeholder="e.g. 4:00 PM"></div>
           </div>
+          <!-- R261: the event's own date / time changed after this invitation was saved -->
+          <p class="mnote" id="whenSync" role="status" hidden><span id="whenSyncTxt"></span> <button type="button" class="btn sm" id="whenSyncBtn">Use it here</button></p>
           <div class="fld"><label for="f_venue">Venue name</label><input id="f_venue" placeholder="e.g. The Grand Palm"></div>
           <div class="fld"><label for="f_address">Venue address</label><input id="f_address" placeholder="Street, city"></div>
           <div class="fld"><label for="f_mapUrl">Map link (optional)</label><input id="f_mapUrl" type="url" inputmode="url" maxlength="500" placeholder="https://maps.google.com/…" aria-describedby="f_mapUrlErr"><div class="fv-msg" id="f_mapUrlErr" role="alert" hidden>Use an https:// maps link (Google Maps, Apple Maps…), or leave it blank - guests then get "Open in Maps" from the venue and address.</div></div>
@@ -293,7 +295,7 @@
             <label class="opt"><input type="radio" name="f_addrMode" id="f_addrMode_after" value="after_rsvp"><span>Hide the address until the guest replies Yes or Maybe (optional)<small>Guests see the venue name + city; after replying Yes or Maybe on the RSVP form they see the full address and map (on that phone). Guests who reply No do not.</small><small id="addrNeedsForm">Turn on the RSVP form above to use this.</small></span></label>
           </fieldset>
           <div class="fld" id="cityWrap" hidden><label for="f_city">City (shown to everyone)</label><input id="f_city" maxlength="60" placeholder="e.g. Hyderabad"></div>
-          <label class="ish-opt"><input type="checkbox" id="f_helmBrand" checked> Show “Made with Helm Studios” in the footer (your studio name is always shown)</label>
+          <label class="ish-opt"><input type="checkbox" id="f_studioBrand" checked> <span>Show “Designed by <span id="sbName">your studio</span>” in the footer (“Made with Helm Events” is always shown)</span></label>
         </div>
 
         <div class="card">
@@ -401,9 +403,9 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script><script src="/trial-sim.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=416"></script><script src="/trial-sim.js?v=3"></script>
 <script src="invite-site-share.js?v=13"></script>
-<script src="invite-music.js?v=1"></script><script src="invite-placement.js?v=1"></script><script src="invite-extras.js?v=2"></script>
+<script src="invite-music.js?v=1"></script><script src="invite-placement.js?v=1"></script><script src="invite-extras.js?v=3"></script>
 <script>
   const $=(s,r=document)=>r.querySelector(s);
   const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -582,6 +584,22 @@
     const noTypeWords=(v)=>{ const t=noDemo(v); let o=t, prev; do{ prev=o; o=o.replace(/(?:'s|\u2019s)?\s+(?:wedding|engagement|reception|sangeet|mehendi|mehndi|haldi|ceremony|celebrations?|nikah|shaadi|marriage|ring ceremony|roka|cocktail|party)\s*$/i,"").trim(); }while(o && o!==prev); return o||t; };
     set("f_names",c.names||c.coupleNames||(tOk?((st==="wedding"||st==="engagement")?noTypeWords(tOk):tOk):"")||(st==="corporate"?c.company:"")||c.name);
   }
+  // R261: the event's date and time, in the words of this form; "" = the event has none
+  function eventWhen(){
+    const c=ev&&ev.client&&typeof ev.client==="object"?ev.client:{}, d=String((ev&&ev.eventDate)||c.eventDate||"").slice(0,10), t=(ev&&ev.eventTime)||"", HC=window.HelmCountry;
+    return { date:/^\d{4}-\d{2}-\d{2}$/.test(d)?d:"", time:t?((HC&&HC.formatTime&&HC.formatTime(t))||String(t)):"" };
+  }
+  // the saved invitation says another date / time than the event (or no time at all): say it and offer the event's - nothing changes by itself
+  function paintWhenSync(){
+    const n=$("#whenSync"); if(!n) return; const e=eventWhen(), HC=window.HelmCountry;
+    const key=(t)=>(HC&&HC.toHHMM&&HC.toHHMM(t))||String(t||"").trim().toLowerCase();
+    const dOff=!!e.date && e.date!==$("#f_date").value, tOff=!!e.time && key(e.time)!==key($("#f_time").value);
+    n.hidden=readOnly || !(dOff||tOff); if(n.hidden) return;
+    const day=e.date&&HC&&HC.formatDate?HC.formatDate(studioCC(),e.date,{weekday:false}):e.date;
+    $("#whenSyncTxt").textContent="The event is "+[dOff?"on "+day:"", tOff?"at "+e.time:""].filter(Boolean).join(" ")+".";
+  }
+  function useEventWhen(){ const e=eventWhen(); if(e.date) $("#f_date").value=e.date; if(e.time) $("#f_time").value=e.time;
+    if(dirty) dirty.mark(); try{ $("#f_date").dispatchEvent(new Event("input",{bubbles:true})); }catch(_){} paintWhenSync(); preview(); }
   function gather(){
     return {
       title: $("#f_names").value.trim() || "Invitation",
@@ -595,7 +613,7 @@
         dressCode:$("#f_dressCode").value.trim(), rsvpBy:$("#f_rsvpBy").value,
         // r34: how guests reply (form / phone + WhatsApp / both), address privacy, footer brand
         rsvpForm:rsvpMode()!=="contact", rsvpContact:rsvpMode()!=="form", addressMode:addrMode(), city:$("#f_city").value.trim(),
-        hideHelmBrand:!$("#f_helmBrand").checked,
+        hideStudio:!$("#f_studioBrand").checked,   // R261: "Made with Helm Events" is always shown; only the studio's own line is a choice
         country:studioCC(),   // E8: guests see dates in the studio's country style
         photos:PHOTOS.slice(), photoPlaces:PL.normalize(PHOTOS.length,PLACES),
         bgDim:PL.dim($("#f_bgDim").value), bgBlur:PL.blur($("#f_bgBlur").value),
@@ -620,7 +638,7 @@
   function fill(s){
     site=s; tpl=s.template||tpl; $("#f_type").value=s.event_type||"general"; applyTypeLabels();
     // r34: the phone / address kept private (0284 private_data) come back into the form; a site saved before r34 has no
-    // settings = phone + WhatsApp, full address, Helm footer (exactly today's page)
+    // settings = phone + WhatsApp, full address, both footer lines (exactly today's page)
     const d=Object.assign({}, s.data||{}, (s.private_data&&typeof s.private_data==="object")?s.private_data:{});
     applySettings(d);
     $("#f_names").value=d.names||""; $("#f_headline").value=d.headline||"";
@@ -753,7 +771,7 @@
     if(existing){ fill(existing); paintSettings(); }
     else { await prefillFromPlan(); prefillFromQuote(); applySettings({}); applyTypeLabels(); paintTpls(); paintState(); }   // r34: a NEW site starts exactly like before (phone + WhatsApp, full address); the new options are opt-in
     if(dirty) dirty.clean();
-    preview();
+    preview(); paintWhenSync();
     loadReplies(); loadOldLinks();
   }
 
@@ -762,12 +780,12 @@
   function rsvpMode(){ const r=document.querySelector('input[name="f_rsvpMode"]:checked'); return r?r.value:"contact"; }
   function addrMode(){ const r=document.querySelector('input[name="f_addrMode"]:checked'); return r&&r.value==="after_rsvp"?"after_rsvp":"full"; }
   function applySettings(d){
-    const S=HX?HX.settings(d):{rsvpForm:false,rsvpContact:true,addressMode:"full",helmBrand:true};
+    const S=HX?HX.settings(d):{rsvpForm:false,rsvpContact:true,addressMode:"full",helmBrand:true,studioBrand:true};
     const mode=S.rsvpForm&&S.rsvpContact?"both":S.rsvpForm?"form":"contact";
     $("#f_rsvpMode_"+mode).checked=true;
     $(S.addressMode==="after_rsvp"?"#f_addrMode_after":"#f_addrMode_full").checked=true;
     $("#f_city").value=typeof d.city==="string"?d.city:"";
-    $("#f_helmBrand").checked=S.helmBrand;
+    $("#f_studioBrand").checked=S.studioBrand!==false;
     paintSettings();
   }
   function paintSettings(){
@@ -872,7 +890,7 @@
     try{ if(BPUI.dateHint){ BPUI.dateHint($("#f_date")); BPUI.dateHint($("#f_rsvpBy")); } }catch(_){}
     if(studioCC()==="US") $("#dateFmtNote").textContent="Dates read month / day / year (mm/dd/yyyy). The line under each date box spells the day out.";
     if(!dirty) dirty=BPUI.trackDirty($(".layout"));
-    BPStore.org.current().then(o=>{ STUDIO_NAME=String((o&&o.name)||"").slice(0,80); preview(); }).catch(()=>{});   // r34: footer "Designed by <studio>"
+    BPStore.org.current().then(o=>{ STUDIO_NAME=String((o&&o.name)||"").slice(0,80); if(STUDIO_NAME) $("#sbName").textContent=STUDIO_NAME; preview(); }).catch(()=>{});   // r34: footer "Designed by <studio>"
     if(!share && !readOnly && window.HelmInviteShare) share=HelmInviteShare.mount($("#shareHost"),{
       getSite:()=>site, getQuote:()=>ev, getLink:()=>(site&&site.status==="published"&&site.slug)?$("#pubLink").value:"",
       country:studioCC, isDirty:()=>!!(dirty&&dirty.isDirty()), trial:trialOnce() });
@@ -885,8 +903,9 @@
   ["f_names","f_headline","f_date","f_time","f_venue","f_address","f_mapUrl","f_message","f_host","f_hostPhone","f_dressCode","f_rsvpBy"]
     .forEach(id=>document.getElementById(id).addEventListener("input",preview));
   $("#f_mapUrl").addEventListener("input",()=>{ if(!$("#f_mapUrlErr").hidden) mapUrlOk(); });
+  ["f_date","f_time"].forEach(id=>document.getElementById(id).addEventListener("input",paintWhenSync)); $("#whenSyncBtn").addEventListener("click",useEventWhen);   // R261
   // r34: RSVP & privacy
-  document.querySelectorAll('input[name="f_rsvpMode"],input[name="f_addrMode"],#f_helmBrand').forEach(n=>n.addEventListener("change",()=>{ if(dirty) dirty.mark(); paintSettings(); preview(); if(REPLIES) paintReplies(); }));
+  document.querySelectorAll('input[name="f_rsvpMode"],input[name="f_addrMode"],#f_studioBrand').forEach(n=>n.addEventListener("change",()=>{ if(dirty) dirty.mark(); paintSettings(); preview(); if(REPLIES) paintReplies(); }));
   ["f_city","f_hostPhone"].forEach(id=>$("#"+id).addEventListener("input",()=>{ paintSettings(); preview(); }));
   $("#repliesRefresh").addEventListener("click",()=>BPUI.guard($("#repliesRefresh"),loadReplies));
   $("#repliesCsv").addEventListener("click",downloadCsv);
