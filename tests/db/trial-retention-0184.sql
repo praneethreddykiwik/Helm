@@ -159,6 +159,10 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0429_r247_storage_usage.sql
 -- 0430 (R248) adds inventory_layout_links (floor-plan product -> stock item links) to the purge list before inventory_checkouts
 \ir ../../supabase/migrations/0430_r248_layout_stock.sql
+-- 0434 (R252) adds task_start_notices (who was told they can start) to the purge list before event_ready_alert_sends
+\ir ../../supabase/migrations/0434_r252_start_now.sql
+-- 0435 (R252) adds quote_advance_log (the event's own advance percentage, booked by advance) to the purge list before payment_schedule_quote_prefs
+\ir ../../supabase/migrations/0435_r252_payment_plan.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

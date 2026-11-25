@@ -2,7 +2,7 @@
  * page (ops.html + ops-board.js) and the Event-day monitor (monitor.js), so the same task never has two names or two
  * "late" answers on two pages (plan section 5).
  *
- *   HelmTaskStatus.LABEL                  key -> words: No one yet / Waiting for a yes / Accepted / Started / Done / Turned down / Late
+ *   HelmTaskStatus.LABEL                  key -> words: Not assigned / Not accepted yet / Accepted / Started / Done / Turned down / Late
  *   HelmTaskStatus.stateOf(t, now)        { key, late, label }  key: unassigned | waiting | accepted | started | done | rejected | cancelled
  *   HelmTaskStatus.shown(t, now)          the one word to show (late wins over waiting / accepted)
  *   HelmTaskStatus.isLate(t, now)         start time passed, not started (waiting or accepted)
@@ -20,12 +20,14 @@
  *   HelmTaskStatus.opsMode(o)             R222: the mode + WHY (EVENT-OPS-PLAN.md section 2): { mode: plan|live, step, from, to }
  *                                         step: cancelled | done | nodate | before | soon | on | over (studio clock, run-sheet,
  *                                         tasks, Guests arrive and the lifecycle stage)
- *   HelmTaskStatus.opsWindow(m, o)        R226: before | daybefore | onday | wrapup (WINDOWS words, WIN_PHASE -> plan | live)
+ *   HelmTaskStatus.opsWindow(m, o)        R251: daybefore | pre | onday | wrapup (WINDOWS words, WIN_PHASE -> plan | live)
+ *   HelmTaskStatus.STEPS / stepOf(w) / normWin(v)   the three step tabs; Wrap-up is a closed section, not a tab
+ *   HelmTaskStatus.taskStep(t, o) / bySteps(tasks, o)   which step a task belongs to, and the tasks per step with counts
  *   HelmTaskStatus.refresher(fn, ms)      ONE refresh clock: every ms (30 s) while the tab is visible + at once on return
  * Pure (no DOM) except refresher (document.hidden / visibilitychange). Unit-tested in test/r192-tasks-crew.test.mjs. */
 (function (global) {
   "use strict";
-  var LABEL = { unassigned: "No one yet", waiting: "Waiting for a yes", accepted: "Accepted", started: "Started", done: "Done",
+  var LABEL = { unassigned: "Not assigned", waiting: "Not accepted yet", accepted: "Accepted", started: "Started", done: "Done",
     rejected: "Turned down", cancelled: "Cancelled", late: "Late" };
   var RANK = { unassigned: 0, waiting: 1, accepted: 2, started: 3, rejected: 4, done: 5, cancelled: 6 };
 
@@ -38,7 +40,7 @@
     if (s === "accepted") return "accepted";
     if (s === "rejected") return "rejected";
     if (s === "cancelled") return "cancelled";
-    // r20: a row saved as "unassigned" that already names someone reads "Waiting for a yes" (the row is never rewritten)
+    // r20: a row saved as "unassigned" that already names someone reads "Not accepted yet" (the row is never rewritten)
     return (s === "assigned" || s === "unassigned") && hasPerson(t) ? "waiting" : "unassigned";
   }
   function isLate(t, now) {
@@ -111,7 +113,7 @@
   /* ---- R184 activity wording (0368 timeline rows), shared so the monitor feed and the "Latest" column read the same ---- */
   function actGroup(k) {
     return k === "assigned" || k === "reassigned" || k === "unassigned" ? "work" : k === "accepted" || k === "rejected" ? "reply"
-      : k === "started" || k === "completed" || k === "reopened" ? "progress" : k === "time_changed" ? "time"
+      : k === "started" || k === "completed" || k === "reopened" ? "progress" : k === "time_changed" || k === "step_changed" ? "time"
       : k === "check_in" || k === "check_out" || k === "check_edit" ? "checkin" : k === "email_sent" ? "email" : k === "escalated" ? "escalation"
       : k === "dayoff_asked" || k === "dayoff_approved" ? "dayoff" : "special";
   }
@@ -126,6 +128,7 @@
       case "assigned": return task + " given to " + (d.to || a.name || "someone");
       case "reassigned": return task + " moved from " + (d.from || "someone") + " to " + (d.to || a.name || "someone");
       case "unassigned": return task + " no longer has anyone on it";
+      case "step_changed": return task + ": moved to " + stepWord(d.to) + (d.from ? " (was " + stepWord(d.from) + ")" : "");   // R254 (0438)
       case "time_changed": return task + ": start time " + (d.from ? when(d.from) : "not set") + " → " + (d.to ? when(d.to) : "not set");
       case "special_on": return task + " marked special (extra reminders)";
       case "special_off": return task + " is no longer special";
@@ -228,23 +231,89 @@
     r.mode = "live"; r.step = now <= to ? "on" : "over"; return r;
   }
 
-  /* ---- R226 (EVENT-OPS-PLAN-V2.md): the four windows BOTH pages show - Before the event / Day before / On the day / Wrap-up ----
-     From opsMode's answer m: done / over -> wrapup; on -> onday; before / soon -> daybefore from midnight (studio clock) of the
-     day before the event until On the day starts, else before; cancelled / no date -> before.
-     WIN_PHASE maps a window to the R222 two-mode switch (plan | live) that the rest of each page still uses. */
-  var WINDOWS = [["before", "Before the event"], ["daybefore", "Day before"], ["onday", "On the day"], ["wrapup", "Wrap-up"]];
-  var WIN_PHASE = { before: "plan", daybefore: "plan", onday: "live", wrapup: "live" };
+  /* ---- R251 (owner 24 Nov): the steps BOTH pages show, in this order - Day before / Pre-event / On the event - and Wrap-up, which
+     is no step but a closed section at the bottom of the page (HelmEventWrap). Same keys everywhere:
+       daybefore  any time up to the event day (also: no date, cancelled)
+       pre        the event day until "Pre-event complete" = the quote workflow's stage moves to Event Day (no second switch), or
+                  Guests arrive has passed (nobody pressed it - the page must not sit on set-up while guests are in)
+       onday      the event itself, until the day is over
+       wrapup     over by the clock, or the stage is Settlement / Closed
+     o: { eventDate, eventTime (Guests arrive), stage (lifecycle_stage), now, tz }. WIN_PHASE -> the R222 plan | live switch. */
+  var WINDOWS = [["daybefore", "Day before"], ["pre", "Pre-event"], ["onday", "On the event"], ["wrapup", "Wrap-up"]];
+  var STEPS = WINDOWS.slice(0, 3);
+  var WIN_PHASE = { daybefore: "plan", pre: "live", onday: "live", wrapup: "live" };
+  function guestsMs(ev, time, tz) { var g = hmMin(time); return isFinite(g) ? wallMs(ev, g, tz) : NaN; }
   function opsWindow(m, o) {
-    o = o || {}; if (!m) return "before";
+    o = o || {}; if (!m) return "daybefore";
     if (m.step === "done" || m.step === "over") return "wrapup";
-    if (m.step === "on") return "onday";
-    if (m.step !== "before" && m.step !== "soon") return "before";
+    if (m.step !== "on" && m.step !== "before" && m.step !== "soon") return "daybefore";
     var ev = String(o.eventDate || "").slice(0, 10), now = o.now == null ? Date.now() : o.now;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(ev)) return "before";
-    var d = dayDiff(ymdIn(o.tz, now), ev);
-    return d === 0 || d === 1 ? "daybefore" : "before";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ev)) return "daybefore";
+    if (m.step === "on") {
+      var g = guestsMs(ev, o.eventTime, o.tz);
+      return String(o.stage || "") === "event_day" || (isFinite(g) && now >= g) ? "onday" : "pre";
+    }
+    return dayDiff(ymdIn(o.tz, now), ev) === 0 ? "pre" : "daybefore";
   }
-  function winOk(w) { return Object.prototype.hasOwnProperty.call(WIN_PHASE, w); }
+  // the step tab that shows for a window (Wrap-up has no tab: On the event stays open above it)
+  function stepOf(w) { return w === "wrapup" ? "onday" : w; }
+  // a hand pick kept in the tab: the old names (R222 plan / live, R226 before / wrapup) still land on the right step; else null
+  function normWin(v) {
+    v = v === "plan" || v === "before" ? "daybefore" : v === "live" || v === "wrapup" ? "onday" : v;
+    return STEPS.some(function (x) { return x[0] === v; }) ? v : null;
+  }
+  function winOk(w) { return normWin(w) === w && w != null; }
+  /* R254 (0438, owner 25 Nov): the studio setting "Sort tasks into steps automatically" (off by default) + event_tasks.step (what the person picked).
+       AUTO false      a picked step wins whatever the time, the words or the event date say; a task with none (made before 0438) = the rule below
+       AUTO true       the rule below for every task; a picked step is kept in the row and ignored
+       AUTO undefined  not known / a database without 0438: the rule below, and no new control is shown
+     ONE place: setAuto / loadAuto here, read by taskStep - so counts, pre-check, Ready by, Wrap-up and Order of work always agree. */
+  var AUTO, AUTO_AT = 0, AUTO_P = null;
+  function stepWord(v) { var r = WINDOWS.filter(function (x) { return x[0] === v; })[0]; return r ? r[1] : "another step"; }
+  function validStep(v) { return WINDOWS.some(function (x) { return x[0] === v; }); }
+  // the answer of task_reminder_settings_get (or the same settings inside task_wa_status); without the key nothing changes
+  function readAuto(s) { if (s && typeof s === "object" && "auto_steps" in s) { AUTO = s.auto_steps === true; AUTO_AT = Date.now(); } return AUTO; }
+  function setAuto(v) { AUTO = v === true ? true : v === false ? false : undefined; AUTO_AT = v == null ? 0 : Date.now(); }
+  function autoSteps() { return AUTO; }
+  function picks() { return AUTO === false; }   // the steps are picked by people: the new controls show
+  // at most one read a minute; a failed read keeps what was known. -> true when the answer changed
+  function loadAuto(force) {
+    var R = global.BPStore && global.BPStore.taskReminders; if (!R || typeof R.settings !== "function") return Promise.resolve(false);
+    if (AUTO_P) return AUTO_P; if (!force && AUTO_AT && Date.now() - AUTO_AT < 60000) return Promise.resolve(false);
+    var was = AUTO; AUTO_P = Promise.resolve().then(function () { return R.settings(); }).then(function (s) { readAuto(s); }, function () {}).then(function () { AUTO_AT = Date.now(); AUTO_P = null; return was !== AUTO; });
+    return AUTO_P;
+  }
+  /* R251: which step a task belongs to (read from its time, else its words). o: { eventDate, eventTime, tz }
+       timed    before the event day -> daybefore; on the day before Guests arrive -> pre; after -> onday, and clearing-up work after
+                Guests arrive, or anything from 6 AM the next day -> wrapup
+       no time  clearing-up words -> wrapup; work done while guests are in -> onday; everything else is set-up -> pre */
+  var WRAP_RE = /\b(tear ?down|dismantl\w*|strike|strik(?:e|ing) down|pack(?:ing)?[ -]?(?:up|down)|pack and load|load[ -]?out|clear(?:ing)?[ -]?(?:up|out)|clean[ -]?up|wrap[ -]?up|returns?|return stock|handover|hand over|settle\w*)\b/i;
+  var LIVE_RE = /\b(service|serving|buffet|refill|host(?:ess)?|mc|emcee|anchor|usher\w*|valet|welcome drinks|guest (?:reception|assist\w*)|performance|photograph\w*|videograph\w*|live counter|entry)\b/i;
+  // the step a start time alone points to (no words, no pick); "" = no time or no event date
+  function timeStep(start, o) { o = o || {}; return isFinite(ms(start)) && /^\d{4}-\d{2}-\d{2}/.test(String(o.eventDate || "")) ? taskStep({ planned_start: start, title: "", category: "" }, Object.assign({}, o, { auto: true })) : ""; }
+  function taskStep(t, o) {
+    o = o || {}; if (!t) return "pre";
+    if ((o.auto === undefined ? AUTO : o.auto) === false && validStep(t.step)) return t.step;
+    var txt = String(t.category || "") + " " + String(t.title || ""), wrap = WRAP_RE.test(txt);
+    var ev = String(o.eventDate || "").slice(0, 10), s = ms(t.planned_start);
+    if (isFinite(s) && /^\d{4}-\d{2}-\d{2}$/.test(ev)) {
+      var day0 = wallMs(ev, 0, o.tz), day1 = wallMs(ymdIn(o.tz, day0 + 36 * 3600000), 0, o.tz), g = guestsMs(ev, o.eventTime, o.tz);
+      if (s < day0) return "daybefore";
+      if (s >= day1 + 6 * 3600000) return "wrapup";
+      if (isFinite(g) ? s < g : s < day1 && !wrap) return "pre";
+      return wrap ? "wrapup" : "onday";
+    }
+    return wrap ? "wrapup" : LIVE_RE.test(txt) ? "onday" : "pre";
+  }
+  // tasks split by step, each with its own counts: { daybefore|pre|onday|wrapup: { tasks, open, done, total, unassigned } } (cancelled out)
+  function bySteps(tasks, o) {
+    var r = {}; WINDOWS.forEach(function (x) { r[x[0]] = { tasks: [], open: 0, done: 0, total: 0, unassigned: 0 }; });
+    (tasks || []).forEach(function (t) {
+      if (!t || t.status === "cancelled") return; var b = r[taskStep(t, o)], k = baseKey(t);
+      b.tasks.push(t); b.total++; if (k === "done") b.done++; else b.open++; if (k === "unassigned" || k === "rejected") b.unassigned++;
+    });
+    return r;
+  }
 
   /* ---- ONE refresh clock (30 s, both pages) ---- */
   /* R235 (prod: the wall screen asks ~8 reads per event every 30 s): it backs off when the database is struggling - after a
@@ -268,8 +337,8 @@
       last: function () { return last; }, wait: function () { return wait; } };
   }
 
-  global.HelmTaskStatus = { LABEL: LABEL, RANK: RANK, stateOf: stateOf, shown: shown, isLate: isLate, lateMin: lateMin, baseKey: baseKey,
+  global.HelmTaskStatus = { readAuto: readAuto, setAuto: setAuto, autoSteps: autoSteps, picks: picks, loadAuto: loadAuto, validStep: validStep, timeStep: timeStep, LABEL: LABEL, RANK: RANK, stateOf: stateOf, shown: shown, isLate: isLate, lateMin: lateMin, baseKey: baseKey,
     personKey: personKey, summarize: summarize, leftover: leftover, ladder: ladder, escSteps: steps, escLevel: escLevel,
     lastEscalation: lastEscalation, escBadge: escBadge, escStep: escStep, attendance: attendance, ymdIn: ymdIn, dayDiff: dayDiff,
-    phase: phase, opsMode: opsMode, opsWindow: opsWindow, WINDOWS: WINDOWS, WIN_PHASE: WIN_PHASE, winOk: winOk, hmMin: hmMin, wallMs: wallMs, refresher: refresher, actGroup: actGroup, actText: actText, emailWhat: emailWhat, REFRESH_MS: 30000 };
+    phase: phase, opsMode: opsMode, opsWindow: opsWindow, WINDOWS: WINDOWS, STEPS: STEPS, WIN_PHASE: WIN_PHASE, winOk: winOk, normWin: normWin, stepOf: stepOf, taskStep: taskStep, bySteps: bySteps, hmMin: hmMin, wallMs: wallMs, refresher: refresher, actGroup: actGroup, actText: actText, emailWhat: emailWhat, REFRESH_MS: 30000 };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -65,7 +65,7 @@ t('control center: #crew opens the Notifications tab at the crew settings card (
   assert.match(CREW, /text: "Crew & shifts: availability, open shifts & check-in"/);
 });
 t('run sheet: one-line purpose under the title (hidden in print)', () => {
-  assert.match(RS, /<p class="rs-intro" id="rsIntro">Run sheet = the minute-by-minute plan for the event day \(e\.g\. 6:00 setup, 7:00 guests arrive\)\. Each line can have an owner who gets a reminder\.<\/p>/);
+  assert.match(RS, /<p class="rs-intro" id="rsIntro">Run-sheet = the programme of the event, minute by minute \(e\.g\. 7:00 guests arrive, 8:30 cake cutting\)\. Share it with the client, the venue and vendors\. Each line can have an owner who gets a reminder\.<span id="rsOpsWrap" hidden> Who does which job is on <a id="rsOps" href="#">Tasks &amp; Crew<\/a>\.<\/span><\/p>/);
   assert.match(RSCSS, /@media print\{\.rs-intro\{display:none\}\}/);
 });
 

@@ -89,7 +89,7 @@ await t('fallback ping: once per session per tab, after the page settled, never 
 await t('control.html: the card on the Notifications tab, the script, the init, ?person=<id>#users opens that person', () => {
   assert.match(CTL, /<div class="card" id="sinCard" hidden><\/div>/);
   assert.ok(CTL.indexOf('id="trmCard"') < CTL.indexOf('id="sinCard"') && CTL.indexOf('id="sinCard"') < CTL.indexOf('id="commsCard"'), 'between task reminders and client messages');
-  assert.match(CTL, /<script src="task-reminders-ui\.js\?v=8"><\/script><script src="signin-notice-ui\.js\?v=3"><\/script>/);
+  assert.match(CTL, /<script src="task-reminders-ui\.js\?v=9"><\/script><script src="signin-notice-ui\.js\?v=3"><\/script>/);
   assert.match(CTL, /if\(typeof HelmSigninNotice!=="undefined"\) HelmSigninNotice\.settingsCard\(\$\("#sinCard"\)\);   \/\/ R205 \(0383\) teammate sign-ins/);
   assert.match(CTL, /if\(location\.hash==="#users"\)\{ switchTab\("users"\); openPersonFromLink\(\); \}/);
   const f = fnSrc(CTL, 'openPersonFromLink');
@@ -163,8 +163,8 @@ await t('MANIFEST, checker override, run-all (+ quiet switch), release lists, CH
 await t('asset pins: store-api v376 + page-tours v56 on every page that loads them', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
     const h = read('public/' + f);
-    const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '406', f);
-    const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '75', f);
+    const m = h.match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '410', f);
+    const p = h.match(/page-tours\.js\?v=(\d+)/); if (p) assert.equal(p[1], '79', f);
   }
 });
 

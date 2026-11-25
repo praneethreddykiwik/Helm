@@ -165,6 +165,7 @@
     ["venues", "Venues", "venue hall"],
     ["ltemplates", "Layout templates", "template floor"],
     ["notify", "Notifications — who hears about what", "bell alert"],
+    ["notify", "Sort tasks into steps automatically", "task steps pre-event day before wrap-up tasks and crew automatic sort category"],
     ["notify", "Reset to defaults", "notifications reset"],
     ["notify", "Per-person overrides", "notifications override mute"],
     ["automations", "Automations", "automatic on off everything helm does"],

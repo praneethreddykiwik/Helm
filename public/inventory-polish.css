@@ -40,3 +40,48 @@
     html:not([data-shell]) .foot{flex-wrap:wrap} html:not([data-shell]) .foot .btn{flex:1 1 auto;justify-content:center}
   }
   html:not([data-shell]) .tab{transition:color .15s,border-color .15s} html:not([data-shell]) .tab:hover{color:var(--ink)}
+
+/* ---------- R252: Inventory spacing, in the app shell and the old layout: one gap between blocks, one card padding, the tabs like the
+   other pages' tabs, the toolbar on one row (stacked on a phone) ---------- */
+#app > .ls-strip{margin-bottom:16px}
+#app .card{margin-bottom:16px}
+#app > #eventPanel,#pane-layout > .card,#coCard,#stockSettings{padding:20px}
+#app .card > h2:first-child{margin-top:0}
+#eventPanel > .sub{max-width:80ch;margin:4px 0 12px;line-height:1.5}
+#eventPanel .sf-legend{margin:0 0 16px}
+#eventPanel .reserve-row{margin:0 0 16px;gap:12px}
+#eventPanel :is(.reserve-row,.sc-row) :is(.btn,input,select,.hp-sel-btn){min-height:44px}
+#eventPanel #rvShort:empty{display:none}
+#eventPanel > .ls-panel,#eventPanel > .sc-card{margin:24px 0 0;padding:20px 0 0;border:0;border-top:1px solid var(--line);border-radius:0;background:none;box-shadow:none}
+#eventPanel > .sc-card h3{margin:0 0 4px;font-size:14px}
+#eventPanel > .sc-card > .sub{margin:0 0 12px}
+#eventPanel > .ls-panel > .sub{margin:0 0 12px}
+#app > .tabs{display:flex;width:fit-content;max-width:100%;gap:4px;margin:0 0 16px;padding:4px;border:1px solid var(--line);border-radius:var(--r-ctl,9px);background:var(--panel);overflow-x:auto;-webkit-overflow-scrolling:touch}
+html #app > .tabs .tab{display:inline-flex;align-items:center;min-height:44px;margin:0;padding:8px 14px;border:0;border-radius:7px;font-size:13px;font-weight:600;white-space:nowrap}
+html:not([data-shell]) #app > .tabs .tab.active{background:var(--accent-soft);color:var(--accent)}
+#app .toolbar{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 16px}
+#app .toolbar > h2{margin:0 6px 0 0;font-size:16px}
+#app .toolbar > :is(.search,.sel,.btn){height:auto;min-height:44px}
+#app #pane-stock > .toolbar > h2{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap} /* the tab above says it; kept for screen readers */
+#app #pane-stock > .toolbar > .spacer{flex:1 1 0;margin:0 0 0 -10px}
+#app #pane-stock > .toolbar > span[role="status"]:empty{display:none}
+#app #pane-stock > .toolbar > .search{flex:1 1 140px;max-width:260px;min-width:120px}
+#app #pane-stock > .toolbar > .sel{flex:0 1 125px;min-width:110px;max-width:150px}
+#app #pane-stock > .toolbar > label{display:inline-flex;align-items:center;gap:6px;min-height:44px;white-space:nowrap}
+#app #pane-stock > .toolbar > .btn{padding:6px 14px;white-space:nowrap}
+#pane-layout > .ls-note{max-width:none;margin:0 0 16px}
+#pane-layout .ls-events{gap:16px;margin-bottom:16px}
+#pane-layout .ls-ev{padding:20px}
+#pane-layout .ls-ev > :last-child{margin-bottom:0}
+#pane-layout .ls-ev-h{margin:0 0 12px;padding:0;min-height:0;border:0;background:none}
+@media (max-width:640px){
+  #app > #eventPanel,#pane-layout > .card,#coCard,#stockSettings,#pane-layout .ls-ev{padding:16px}
+  #app > .tabs{width:auto}
+  html #app > .tabs .tab{flex:1 1 auto;justify-content:center;padding:8px 5px;font-size:12.5px}
+  html #app > .tabs{gap:2px;padding:3px}
+  #app #pane-stock > .toolbar > :is(.search,.btn,label),#pane-layout > .toolbar > h2{flex:1 1 100%;max-width:none}
+  #app #pane-stock > .toolbar > .sel{flex:1 1 calc(50% - 5px);max-width:none}
+  #app #pane-stock > .toolbar > .btn{justify-content:center}
+  #app #pane-stock > .toolbar > .spacer{display:none}
+  #eventPanel .sc-row .btn{width:100%;justify-content:center}
+}

@@ -236,11 +236,17 @@
       host.appendChild(row);
       var off = checkbox("trs_office", "Then tell the event manager (bell, email + WhatsApp)", s.alert_office !== false); host.appendChild(off.wrap);
       var hold = checkbox("trs_hold", "Hold a task's reminders while it waits on an unfinished task", s.hold_waiting !== false); host.appendChild(hold.wrap);
+      // R254 (0438): hidden on a database without the setting
+      var steps = "auto_steps" in s ? checkbox("trs_steps", "Sort tasks into steps automatically", s.auto_steps === true) : null;
       host.appendChild(el("p", "muted hint", "Holding while a task waits is the suggested rule; the final rule is waiting for approval and may change."));
+      if (steps) {
+        host.appendChild(el("h4", null, "Steps on Tasks & Crew")); host.appendChild(steps.wrap);
+        var sh = el("p", "muted hint", "Off: a task stays in the step you pick. On: Helm decides from its start time and its name."); sh.id = "trs_stepsHint"; steps.input.setAttribute("aria-describedby", sh.id); host.appendChild(sh);
+      }
       var foot = el("div", "trm-foot"), save = el("button", "btn primary", "Save reminders"); save.type = "button";
       var msg = el("p", "trm-msg"); msg.setAttribute("role", "status"); msg.setAttribute("aria-live", "polite");
       foot.appendChild(save); foot.appendChild(msg); host.appendChild(foot);
-      [on.input, ev, mx, off.input, hold.input, ci, save].concat(boxes.map(function (b) { return b.input; })).forEach(function (x) { x.disabled = !can; });
+      [on.input, ev, mx, off.input, hold.input, ci, save].concat(steps ? [steps.input] : []).concat(boxes.map(function (b) { return b.input; })).forEach(function (x) { x.disabled = !can; });
       if (!can) host.appendChild(el("p", "muted hint", "Only people who can edit Settings can change these."));
       save.addEventListener("click", function () {
         var p = parseCustom(ci.value); if (!p.ok) { msg.textContent = p.error; return; }
@@ -250,8 +256,10 @@
         if (!(every >= 5 && every <= 120)) { msg.textContent = "Late reminders: every 5 to 120 minutes."; ev.focus(); return; }
         if (!(max >= 0 && max <= 10 && max === Math.floor(max))) { msg.textContent = "Late reminders: 0 to 10 times."; mx.focus(); return; }
         save.disabled = true; msg.textContent = "Saving…";
-        R.saveSettings({ enabled: on.input.checked, default_before: mins, late_every_min: every, late_max: max, alert_office: off.input.checked, hold_waiting: hold.input.checked })
-          .then(function (n) { msg.textContent = "Saved."; ex.textContent = explain(n || {}); })
+        var patch = { enabled: on.input.checked, default_before: mins, late_every_min: every, late_max: max, alert_office: off.input.checked, hold_waiting: hold.input.checked };
+        if (steps) patch.auto_steps = steps.input.checked;
+        R.saveSettings(patch)
+          .then(function (n) { if (steps && n && "auto_steps" in n) steps.input.checked = n.auto_steps === true; msg.textContent = "Saved."; ex.textContent = explain(n || {}); })
           .catch(function (e) { msg.textContent = (global.BPUI && global.BPUI.friendlyError) ? global.BPUI.friendlyError(e, { action: "save the reminders" }) : "Couldn't save - try again."; })
           .then(function () { save.disabled = false; });
       });

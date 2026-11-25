@@ -91,9 +91,9 @@
   .utable.ucm td.dn{white-space:normal;min-width:0}
   .ucwt{flex:1 1 0;min-width:0;width:0}
   .ucnm{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;min-width:0}
-  .ucnm .dnTxt{min-width:0;overflow-wrap:anywhere}
+  .ucnm .dnTxt{min-width:0;max-width:100%;overflow-wrap:break-word}
   .utable .ucnm .me{flex:0 0 auto;margin-left:0;line-height:1.3}
-  .ucwt .ucsub{overflow-wrap:anywhere;word-break:break-word;white-space:normal}
+  .ucwt .ucsub{overflow-wrap:break-word;white-space:normal}
   .ucwt .ucmeta{color:var(--ink-2);font-size:11.5px}
   .ucwt .ucmeta .ucphn{font-family:var(--mono);white-space:nowrap}
   .utable.ucm td.ucrole{white-space:nowrap}
@@ -104,30 +104,29 @@
   @media (max-width:639.98px){   /* phone cards (tables-mobile.css): cells use the card's full width, one divider between fields */
     #pane-users .utable.ucm.tm-stack td{width:auto;min-width:0;max-width:none;border-bottom:0}
     #pane-users .utable.ucm.tm-stack td.dn{text-align:left}
-    #pane-users .utable.ucm.tm-stack td.ucact{display:flex;flex-wrap:wrap;gap:6px}
   }
   @media (min-width:640px){
     #pane-users .utable.ucm,#pane-users .utable.ucm>tbody{display:block;width:100%}
     #pane-users .utable.ucm>thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-    #pane-users .utable.ucm tr.ucr{display:grid;grid-template-columns:minmax(0,1fr) 150px 190px 118px 132px;grid-template-areas:"who role prof two act";
-      column-gap:14px;row-gap:8px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-2)}
+    #pane-users .utable.ucm tr.ucr{display:grid;grid-template-columns:minmax(0,1fr) 142px 184px 116px 140px;grid-template-areas:"who role prof two act";
+      column-gap:12px;row-gap:8px;align-items:center;padding:12px 8px;border-bottom:1px solid var(--line-2)}
     #pane-users .utable.ucm tr.ucr>td{padding:0;border:0;min-width:0;max-width:none;width:auto}
     #pane-users .utable.ucm tr.ucr>td.dn{grid-area:who}
-    #pane-users .utable.ucm tr.ucr>td.ucrole{grid-area:role;white-space:normal}   /* a "No access" tag stacks above the picker */
+    #pane-users .utable.ucm tr.ucr>td.ucrole{grid-area:role;white-space:normal;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+    #pane-users .utable.ucm tr.ucr>td.ucrole>.no-access{order:1}   /* a "No access" tag sits under the picker */
     #pane-users .utable.ucm tr.ucr>td.ucprof{grid-area:prof}
     #pane-users .utable.ucm tr.ucr>td.uctwo{grid-area:two}
-    #pane-users .utable.ucm tr.ucr>td.ucact{grid-area:act;display:flex;flex-wrap:nowrap;gap:4px;justify-content:flex-end;align-items:center}
-    #pane-users .utable.ucm tr.ucr>td.ucact>.btn,#pane-users .utable.ucm tr.ucr>td.ucact>.rm{margin:0}
-    #pane-users .utable.ucm tr.ucr>td.ucrole select{width:150px}
+    #pane-users .utable.ucm tr.ucr>td.ucact{grid-area:act;width:140px}
+    #pane-users .utable.ucm tr.ucr>td.ucrole select{width:100%}
     /* R228: column headings over the rows when the card is wide enough for one line per person */
     @container ucm (min-width:800px){
       #pane-users .utable.ucm>thead{position:static;width:auto;height:auto;overflow:visible;clip:auto;display:block}
-      #pane-users .utable.ucm>thead>tr{display:grid;grid-template-columns:minmax(0,1fr) 150px 190px 118px 132px;column-gap:14px;padding:0 4px;border-bottom:1px solid var(--line)}
+      #pane-users .utable.ucm>thead>tr{display:grid;grid-template-columns:minmax(0,1fr) 142px 184px 116px 140px;column-gap:12px;padding:0 8px;border-bottom:1px solid var(--line)}
       #pane-users .utable.ucm>thead th{padding:0 0 8px;border:0;white-space:nowrap;background:transparent}
       #pane-users .utable.ucm>thead th:first-child{padding-left:44px}
     }
     @container ucm (max-width:799.98px){
-      #pane-users .utable.ucm tr.ucr{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"who who role" "prof two act"}
+      #pane-users .utable.ucm tr.ucr{grid-template-columns:minmax(0,1fr) 116px 142px;grid-template-areas:"who who role" "prof two act"}
       #pane-users .utable.ucm tr.ucr>td.ucprof{padding-left:44px}
       #pane-users .utable.ucm tr.ucr>:is(td.ucrole,td.ucact){justify-self:end}
     }
@@ -286,19 +285,19 @@
 </style>
 <link rel="stylesheet" href="pkg-review.css?v=4">
 <link rel="stylesheet" href="comms-settings.css?v=3"><link rel="stylesheet" href="task-reminders.css?v=4"><link rel="stylesheet" href="money-lock.css?v=2">
-<link rel="stylesheet" href="payment-schedule.css?v=5"><link rel="stylesheet" href="automations.css?v=4">
+<link rel="stylesheet" href="payment-schedule.css?v=6"><link rel="stylesheet" href="automations.css?v=4">
 <link rel="stylesheet" href="delivery-tracker.css?v=2">
 <link rel="stylesheet" href="venues.css?v=8">
 <link rel="stylesheet" href="studio-templates.css?v=5"><link rel="stylesheet" href="asset-price-grid.css?v=3">
 <link rel="stylesheet" href="menu-pkg-editor.css?v=6"><link rel="stylesheet" href="layout-rules.css?v=1">
-<link rel="stylesheet" href="team-safety.css?v=2"><link rel="stylesheet" href="team-status.css?v=4">
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="team-safety.css?v=4"><link rel="stylesheet" href="team-status.css?v=5">
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="control-split.css?v=17">
 <link rel="stylesheet" href="roles-matrix.css?v=2"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="link-views.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=117" id="shellProto"></script>
+<script src="/shell-proto.js?v=121" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -512,6 +511,13 @@
         <div class="pst-grid"><div class="fld"><label for="pst_default">Default schedule</label><select id="pst_default"></select></div></div>
         <p class="mnote" id="pst_rem"></p>
       </fieldset>
+      <!-- R252: the advance % every quote starts from (the pricing setting advancePct, saved through the pricing config) + the switch that fixes it (0435) -->
+      <fieldset class="pst-set">
+        <legend>Advance</legend>
+        <div class="pst-grid"><div class="fld"><label for="pst_adv">Advance percentage</label><input id="pst_adv" type="number" min="0" max="100" step="0.5" inputmode="decimal" placeholder="Not set" aria-describedby="pst_adv_help"></div></div>
+        <label class="pst-chk" id="pst_fixrow" hidden><input type="checkbox" id="pst_fixed"><span>Fixed for every quote</span></label>
+        <p class="mnote" id="pst_adv_help">The part of the total a client pays to confirm the booking. Quotes and payment plans start from it. When it is fixed, the quote flow shows it as text - an admin, or someone with Finance - Can change who may also approve discounts, can still change it for one quote with a reason. Payments already recorded and plans already made do not change.</p>
+      </fieldset>
       <fieldset class="pst-set">
         <legend>How clients pay</legend>
         <div class="pst-grid">
@@ -694,7 +700,7 @@
               <ul>
                 <li><b>Invite by email link</b> (recommended) - they get an e-mail, confirm their own address and pick their own password (or sign in with Google). The link works 7 days. Until they join they show as <i>Invited - not signed up yet</i>; <b>Resend invite</b> sends a fresh 7-day link.</li>
                 <li><b>Add user (create login now)</b>, under <b>More options</b> (admins only) - for someone sitting next to you, or with no time to open an e-mail. The login exists at once and a one-time temporary password is shown to you once - nothing is e-mailed, you pass it on yourself; they must change it at first sign-in. Until then they show as <i>Added by admin - hasn't signed in yet</i>. Lost the password? <b>Send sign-in link</b> e-mails them a link to set their own, or <b>View &rarr; New temporary password</b> makes a new one.</li>
-                <li>Someone stuck? Every person who isn't in yet has one main button in their Status: <b>Resend invite</b>, <b>Send sign-in link</b> or <b>Reactivate</b>.</li>
+                <li>Someone stuck? Every person who isn't in yet has one main button at the end of their row: <b>Resend invite</b>, <b>Send sign-in link</b> or <b>Reactivate</b>.</li>
                 <li><b>Staff page</b> - <b>Save as a record only</b> keeps a staff record with no Helm login (they get task links on WhatsApp). <b>Save and invite to sign in</b> sends the same invitation e-mail as Invite by email link and links it to their staff record.</li>
                 <li>Making someone an <b>Admin</b> (either way) needs two-step sign-in on your own account.</li>
               </ul>
@@ -1007,18 +1013,18 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
 <script src="event-reminders.js?v=6"></script><script src="cc-field-rules.js?v=3"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
 <script src="hq-invoice.js?v=3"></script>
-<script src="page-tours.js?v=75"></script>
-<script src="tour.js?v=90"></script>
+<script src="page-tours.js?v=79"></script>
+<script src="tour.js?v=93"></script>
 <script src="pkg-review.js?v=10"></script>
 <script src="onboarding-core.js?v=12"></script>
 <script src="studio-billing-form.js?v=4"></script>
-<script src="comms-settings.js?v=7"></script><script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=8"></script><script src="signin-notice-ui.js?v=3"></script>
+<script src="comms-settings.js?v=7"></script><script src="wa-setup-note.js?v=1"></script><script src="task-reminders-ui.js?v=9"></script><script src="signin-notice-ui.js?v=3"></script>
 <script src="delivery-tracker.js?v=3"></script>
 <script src="delivery-settings.js?v=3"></script>
 <script src="inbox-settings.js?v=4"></script><script src="crew-shifts.js?v=8"></script>
@@ -1032,13 +1038,13 @@
 <script src="venues-admin.js?v=10"></script>
 <script src="studio-templates-core.js?v=6"></script>
 <script src="studio-templates.js?v=15"></script>
-<script src="team-safety.js?v=6"></script><script src="team-status.js?v=5"></script>
-<script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=3"></script><script src="money-lock-ui.js?v=3"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=6"></script><script src="payment-schedule-settings.js?v=4"></script>
+<script src="team-safety.js?v=6"></script><script src="team-status.js?v=6"></script>
+<script src="item-pricing.js?v=2"></script><script src="target-margin-settings.js?v=3"></script><script src="money-lock-ui.js?v=3"></script><script src="quote-validity.js?v=6"></script><script src="stage-machine-settings.js?v=2"></script><script src="payment-schedule.js?v=7"></script><script src="payment-schedule-settings.js?v=5"></script>
 <script src="asset-price-grid.js?v=7"></script><script src="pricing-form-core.js?v=4"></script><script src="menu-pkg-editor.js?v=5"></script><script src="layout-rules.js?v=2"></script>
 <script src="trial-demo.js?v=23"></script>
 <script src="trial-upgrade.js?v=3"></script>
 <script src="settings-search-core.js?v=2"></script>
-<script src="search-catalog.js?v=14"></script>
+<script src="search-catalog.js?v=15"></script>
 <script src="control-split.js?v=26"></script>
 <script src="role-defaults.js?v=4"></script><script src="access-deps.js?v=1"></script>
 <script>
@@ -1199,6 +1205,10 @@
   // If the pricing config didn't load, the form holds placeholders — saving it would
   // overwrite the studio's real rates. Block both pricing saves until a retry succeeds.
   let pricingLoaded = false;
+  // R252: one more value of the same pricing settings, saved from the Payment schedules card (advancePct). The SAME copy the Save buttons on this page
+  // use, so neither can put an older value back over the other.
+  window.HelmPricingCfg = { ready:()=>pricingLoaded, get:(k)=>pricingCfg[k],
+    save:async(patch)=>{ if(!pricingLoaded) throw new Error("Pricing didn't load, so the advance percentage can't be saved yet - reload the page."); const next=Object.assign({}, pricingCfg, patch); await BPStore.config.setPricing(next); pricingCfg=next; } };
   function setPricingEnabled(on){ const b=$("#saveItemPrices"); b.disabled=!on; b.title=on?"":"Pricing didn't load — retry above before saving."; pfValidate(); }
   async function loadPricing(){
     pricingLoaded=false; setPricingEnabled(false);
@@ -1921,7 +1931,7 @@
     return { name:local?local.charAt(0).toUpperCase()+local.slice(1):"", set:false };
   }
   function ucNameHtml(sn){ return sn.set?`<span class="dnTxt">${esc(sn.name)}</span>`
-    :`<span class="dnTxt" style="color:var(--ink-3)"${sn.name?' title="Display name not set yet - showing the name from the account"':""}>${esc(sn.name||"Not set")}</span>`; }
+    :`<span class="dnTxt${sn.name?"":" dn-none"}"${sn.name?' title="Display name not set yet - showing the name from the account"':""}>${esc(sn.name||"Not set")}</span>`; }
   function ucPhone(p){ if(typeof HelmPhone!=="undefined"&&HelmPhone.display) return HelmPhone.display(String(p||"")); const m=/^\+91([6-9]\d{4})(\d{5})$/.exec(String(p||"")); return m?"+91 "+m[1]+" "+m[2]:String(p||""); }
   function ucInitials(n){ const p=String(n||"?").trim().split(/\s+/); return (((p[0]||"")[0]||"?")+((p[1]||"")[0]||"")).toUpperCase(); }
   // Phone / private fields are shown only when the DB returned them (admins + users-view):
@@ -1950,14 +1960,15 @@
     return off?{ key:"off", tone:"off", label:"Deactivated", detail:"", title:"" }:{ key:"unknown", tone:"muted", label:"Member", detail:u.created_at?"Joined "+ucDate(u.created_at):"", title:"" };
   }
   // R199: the Account cell - the status pill, its detail line, and the profile hint kept SEPARATE ("Profile: mobile number missing")
-  // R228: + `next` = the row's ONE main next step (Resend invite / Send sign-in link / Reactivate) right under its status;
-  // a signed-in person's "Joined ..." line is left to View (the chip already says when they last signed in)
-  function ucAcctCell(u, st, priv, next){
+  // R252: one-line chip (st.chip = the short words, the full ones are in its title), one date line, one profile line; the row's main
+  // next step (Resend invite / Send sign-in link / Reactivate) sits with the other buttons in the actions column
+  // R228: a signed-in person's "Joined ..." line is left to View (the chip already says when they last signed in)
+  function ucAcctCell(u, st, priv){
     const hint=u.__invite?"":(typeof HelmTeamStatus!=="undefined"?HelmTeamStatus.profileHint(u, priv):(u.complete===false?"Profile incomplete":""));
-    return `<span class="ucst ucst-${esc(st.tone||"muted")}"${st.title?` title="${esc(st.title)}"`:""}>${esc(st.label)}</span>`
-      +(st.detail&&st.key!=="active"?`<div class="ucsub ucst-d">${esc(st.detail)}</div>`:"")
-      +(hint?`<div class="ucsub ucst-hint" title="Fill it in with Edit">${esc(hint)}</div>`:"")
-      +(next?`<div class="ucnext">${next}</div>`:"");
+    const line=st.line||st.detail||"";
+    return `<span class="ucst ucst-${esc(st.tone||"muted")}"${st.title?` title="${esc((st.chip&&st.chip!==st.label?st.label+". ":"")+st.title)}"`:""}>${esc(st.chip||st.label)}</span>`
+      +(line&&st.key!=="active"?`<div class="ucsub ucst-d"${st.line&&st.detail?` title="${esc(st.detail)}"`:""}>${esc(line)}</div>`:"")
+      +(hint?`<div class="ucsub ucst-hint" title="${esc(hint)} - fill it in with Edit">${esc(hint.replace("name and mobile number","name and mobile"))}</div>`:"");
   }
   // R228: how many rows each filter tab shows (same rules as the filter itself) -> { "": n, active: n, ... }
   function ucCounts(list, o, keys){
@@ -2031,7 +2042,7 @@
     // R199: "Profile" (Complete / Incomplete - read as "signed up") is now "Account": the real sign-up / sign-in status,
     // with the profile completeness as a small separate hint; open invitations are rows too; every row has View.
     // R202: name + e-mail + phone + job title in ONE cell (the table no longer scrolls sideways on a laptop)
-    // R228: Name | Role | Status (one chip + the one main next step) | Two-step | View, Edit and a "..." menu for the rest
+    // R228 / R252: Name | Role | Status (one chip) | Two-step | View, Edit, a "..." menu for the rest, and the one main next step under them
     const cols=5;
     const head=`<tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Two-step</th><th scope="col"><span class="sr-only">Actions</span></th></tr>`;
     let mn=0;
@@ -2047,9 +2058,9 @@
         return `<tr class="ucr ucinv" data-inv="${esc(i.id)}" data-email="${esc(u.email)}" data-role="${esc(u.role||"")}">
         <td class="dn" data-label="Name"><div class="ucwho"><span class="ucav ucav-inv" aria-hidden="true">@</span><div class="ucwt"><div class="ucnm"><span class="dnTxt em ucinv-em">${esc(u.email)}</span></div><div class="ucsub">${esc(by)}</div></div></div></td>
         <td class="ucrole" data-label="Role"><span class="ucinv-role">${esc(rl(u.role||""))}</span>${retiredHint(u)}</td>
-        ${(c=>`<td class="ucprof" data-label="Status">${ucAcctCell(u,st,priv,c.next)}</td>
+        ${(c=>`<td class="ucprof" data-label="Status">${ucAcctCell(u,st,priv)}</td>
         <td class="uctwo" data-label="Two-step"></td>
-        <td class="ucact">${c.act}</td>`)(cells(RA?RA(st, null, { invite:true, canEdit:o.canEdit }):(o.canEdit?[{key:"view"},{key:"resend",primary:true},{key:"cancel"}]:[]), u, st))}
+        <td class="ucact">${c.act}${c.next?`<div class="ucnext">${c.next}</div>`:""}</td>`)(cells(RA?RA(st, null, { invite:true, canEdit:o.canEdit }):(o.canEdit?[{key:"view"},{key:"resend",primary:true},{key:"cancel"}]:[]), u, st))}
       </tr>`; }
       const self=meId&&ucId(u)===meId; const dn=(u.full_name||"").trim(); const who=dn||u.email||u.email_name||"user";
       const av=`<span class="ucav"${u.avatar_path?` data-avatar-path="${esc(u.avatar_path)}"`:""} aria-hidden="true">${esc(ucInitials(dn||u.email||u.email_name))}</span>`;
@@ -2063,9 +2074,9 @@
       return `<tr class="ucr${isOff(u)?" ucoff":""}" data-id="${esc(ucId(u))}">
         <td class="dn" data-label="Name"><div class="ucwho">${av}<div class="ucwt"><div class="ucnm">${ucNameHtml(ucShownName(u,self,o.meName))}${self?' <span class="me">you</span>':""}${badges(u)}</div><div class="ucsub em"${mail?` title="${esc(mail)}"`:""}>${esc(mail)}</div>${meta?`<div class="ucsub ucmeta">${meta}</div>`:""}</div></div></td>
         <td class="ucrole" data-label="Role">${roleSel(u,self)}</td>
-        ${(c=>`<td class="ucprof" data-label="Status">${ucAcctCell(u,st,priv,c.next)}</td>
+        ${(c=>`<td class="ucprof" data-label="Status">${ucAcctCell(u,st,priv)}</td>
         <td class="uctwo" data-label="Two-step">${ts(u)}</td>
-        <td class="ucact">${c.act}</td>`)(cells(ra, u, st, who))}
+        <td class="ucact">${c.act}${c.next?`<div class="ucnext">${c.next}</div>`:""}</td>`)(cells(ra, u, st, who))}
       </tr>`; }).join("") || `<tr><td colspan="${cols}" style="color:var(--ink-3)">${all.length?"No one matches these filters.":"No users."}</td></tr>`;
     return { head, body, shown:rows.length, total:all.length, members:list.length, invited:all.length-list.length };
   }
@@ -2107,6 +2118,7 @@
       mfa:BPStore.auth.mfa, msg:setUMsg, reload:renderUsers, transferBox:$("#ts_xfer") });
     { const dz=$("#ts_danger"), xb=$("#ts_xfer"); if(dz) dz.hidden=!(xb&&xb.firstChild); }
     $("#um_head").innerHTML=t.head; tb.innerHTML=t.body;
+    if(typeof HelmTeamStatus!=="undefined"&&HelmTeamStatus.breakMail) HelmTeamStatus.breakMail(tb);   // R252: never a break in the middle of a word
     const inc=ucProfiles?ucRows.filter(u=>u.complete===false).length:0, invd=t.invited||0, mem=t.members!=null?t.members:t.total;
     $("#uc_count").textContent=(t.shown===t.total?mem+" member"+(mem===1?"":"s"):t.shown+" of "+t.total)+(invd?" · "+invd+" invited":"")+(inc?" · "+inc+" incomplete":"");
     try{ BPStore.chat.paintAvatars(tb); }catch(e){}

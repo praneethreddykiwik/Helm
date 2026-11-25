@@ -1,0 +1,76 @@
+/* pre-check.css - R252: the pre-event check banner + "How the steps work" (pre-check.js), Tasks & Crew + the Event-day monitor.
+   Colours come from the --tc-* tokens of ops-board.css (they follow the studio theme). */
+.pc{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:0 0 12px;padding:12px 16px;border:1px solid var(--tc-line);border-inline-start:5px solid var(--tc-acc);border-radius:var(--tc-r-card,14px);background:var(--tc-panel);color:var(--tc-ink);min-width:0}
+.pc[hidden]{display:none!important}
+.pc-main{flex:1 1 320px;min-width:0;display:grid;gap:2px}
+.pc-t{font-size:15px;font-weight:700;line-height:1.35;overflow-wrap:break-word}
+.pc-x{font-size:13.5px;line-height:1.45;color:var(--tc-ink-2);overflow-wrap:break-word}
+.pc.is-amber{border-color:color-mix(in srgb,var(--tc-warn) 35%,transparent);border-inline-start-color:var(--tc-warn);background:var(--tc-warn-bg)}
+.pc.is-amber .pc-t{color:var(--tc-warn)}
+.pc.is-red{border-color:color-mix(in srgb,var(--tc-bad) 35%,transparent);border-inline-start-color:var(--tc-bad);background:var(--tc-bad-bg)}
+.pc.is-red .pc-t{color:var(--tc-bad)}
+.tc .pc .pc-go{flex:none;min-height:44px;white-space:normal}
+.pc-clock{flex:none;display:grid;justify-items:end;gap:0;line-height:1.15}
+.pc-clock[hidden],.pc-time[hidden]{display:none!important}
+.pc-lbl{font-size:12px;color:var(--tc-ink-2)}
+.pc-time{font-variant-numeric:tabular-nums;font-weight:700}
+.pc-clock .pc-time{font-size:22px}
+.pc.is-amber .pc-time{color:var(--tc-warn)}
+/* from Ready by and not marked: red, pinned at the top of the page content. The box has no box of its own (display:contents), so its bar sticks
+   under the app header for the whole page while the list scrolls away. */
+.pc-top{display:contents}
+.pc-top[hidden]{display:none!important}
+.pc-bar{position:sticky;top:var(--hb-top,0px);z-index:30;display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 16px;border:2px solid var(--tc-bad);border-radius:var(--tc-r-card,14px) var(--tc-r-card,14px) 0 0;background:var(--tc-bad);color:var(--tc-panel);min-width:0}
+.pc-bar .pc-t{flex:1 1 320px;min-width:0;font-size:17px}
+.pc-acts{display:flex;flex-wrap:wrap;gap:8px}
+.tc .pc-acts .tc-btn{min-height:44px;white-space:nowrap}
+.tc .pc-acts .pc-mark[hidden]{display:none!important}
+.tc .pc-bar .pc-hide{color:var(--tc-panel);background:transparent;border-color:color-mix(in srgb,var(--tc-panel) 55%,transparent)}
+.tc .pc-bar .tc-btn:focus-visible{outline:2px solid var(--tc-panel);outline-offset:2px}
+.pc-body{margin:0 0 12px;padding:10px 16px 12px;border:2px solid var(--tc-bad);border-top:0;border-radius:0 0 var(--tc-r-card,14px) var(--tc-r-card,14px);background:var(--tc-bad-bg);color:var(--tc-ink);min-width:0}
+.pc-body .pc-x{margin:0;font-weight:600;color:var(--tc-ink)}
+.pc-list{list-style:none;margin:6px 0 0;padding:0}
+.pc-list[hidden]{display:none}
+.pc-it{display:flex;align-items:center;gap:8px 12px;min-height:44px;padding:2px 0;border-top:1px solid color-mix(in srgb,var(--tc-bad) 18%,transparent);font-size:14px;min-width:0}
+.pc-it-t{flex:1 1 auto;min-width:0;overflow-wrap:break-word}
+.pc-more{min-height:36px;color:var(--tc-ink-2);font-size:13px}
+.tc .pc-it .pc-call{flex:none;min-height:44px;min-width:64px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+/* one pinned thing at a time: the monitor's own sticky strip waits while the red bar is there */
+#monApp.mon-app:has(>.pc-top:not([hidden]))>.mon-summary{position:static}
+.mon-app>.pc-top>*{flex:none}
+.pc-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+/* how the steps work: the button beside the strip, its text under it */
+.pc-how{display:contents}
+.pc-how-b{flex:none;margin-inline-start:auto;min-height:44px;padding:0 10px;border:0;border-radius:var(--tc-r-ctl);background:none;color:var(--tc-acc-text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.pc-how-b::after{content:"\25BE";content:"\25BE" / "";margin-inline-start:6px;display:inline-block;text-decoration:none}
+.pc-how-b[aria-expanded="true"]::after{content:"\25B4";content:"\25B4" / ""}
+.pc-how-b:hover{background:var(--tc-line-2)}
+.pc-how-b:focus-visible{outline:2px solid var(--tc-acc);outline-offset:2px}
+.pc-how-p{flex:1 0 100%;display:grid;gap:0;margin:6px 0 0;padding:4px 14px;border:1px solid var(--tc-line);border-radius:var(--tc-r-ctl);background:var(--tc-panel)}
+.pc-how-p[hidden]{display:none!important}
+.pc-how-r{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;padding:8px 0;border-top:1px solid var(--tc-line-2);font-size:13px;line-height:1.5}
+.pc-how-r:first-child{border-top:0}
+.pc-how-r dt{margin:0;font-weight:700;color:var(--tc-ink)}
+.pc-how-r dd{margin:0;color:var(--tc-ink-2);overflow-wrap:break-word;max-width:80ch}
+.mon-stp:not([hidden]){display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
+.mon-stp>.mon-stp-list{flex:1 1 420px;min-width:0}
+body.mon-wall .pc-how{display:none}
+body.mon-wall .pc-t{font-size:22px}body.mon-wall .pc-x{font-size:18px}body.mon-wall .pc-clock .pc-time{font-size:44px}body.mon-wall .pc-lbl{font-size:15px}
+body.mon-wall .pc-bar{padding:18px 24px}body.mon-wall .pc-bar .pc-t{font-size:34px}body.mon-wall .pc-bar .pc-time{font-size:48px}
+body.mon-wall .pc-it{font-size:20px}body.mon-wall .pc-acts,body.mon-wall .pc .pc-go{display:none}
+/* the Ready by card's bell line */
+.ep-foot .ep-bell{color:var(--tc-ink-2)}
+.ep-foot .ep-late2{flex:1 1 100%}
+[id$="PreDone"]:focus{outline:2px solid var(--tc-acc);outline-offset:2px}
+@media (max-width:640px){
+  .pc{padding:12px 14px}
+  .pc-clock{justify-items:start}
+  .pc-bar{padding:8px 12px}.pc-bar .pc-t{flex:1 1 200px;font-size:15px}.pc-body{padding:10px 12px}
+  .pc-acts{display:contents}.tc .pc-acts .tc-btn{order:2;flex:1 1 auto;padding:0 8px}
+  .tc .pc-acts .pc-hide{order:0;flex:0 0 44px;width:44px;padding:0;font-size:0}.tc .pc-acts .pc-hide::after{content:"\00D7";font-size:22px;line-height:1}
+  .pc-bar .pc-t{order:-1}
+  .tc .pc .pc-go{flex:1 1 100%}
+  .mon-stp>.mon-stp-list{flex-basis:100%}
+  .pc-how-b{margin-inline-start:0}
+  .pc-how-r{grid-template-columns:minmax(0,1fr);gap:0}
+}

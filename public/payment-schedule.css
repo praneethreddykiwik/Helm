@@ -117,3 +117,73 @@
 /* R112 (0321): the schedule no longer adds up to the quote total + re-split button */
 .psch-mismatch{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:10px}
 .psch-resync{font-size:13px}
+
+/* R252: the payment plan at quote time - the line + button in the quote flow's share step, the reminders box, the intro line */
+.psch-intro{margin:-2px 0 10px}
+.psch-auto{margin-top:-4px}
+.psch-holdbox{align-items:flex-start;font-weight:500;line-height:1.45;min-height:44px;padding:4px 0}
+.psch-hold{flex:1 1 100%}
+.cs-plan[hidden],.pay-plan1[hidden]{display:none}
+.cs-plan{border:1px solid var(--line,#e8e3db);border-radius:12px;padding:12px 14px;margin:0 0 14px;min-width:0}
+.cs-plan-row,.pay-plan1{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;min-width:0}
+.cs-plan-row > span,.pay-plan1 > span{flex:1 1 240px;min-width:0;font-size:13px;line-height:1.5;color:var(--ink-2,#4b475f);overflow-wrap:anywhere}
+.cs-plan-row .btn,.pay-plan1 .btn,.psch-retry{min-height:44px}
+.cs-plan-slot{margin-top:4px}
+#paySchedAway{font-size:13px;line-height:1.5;color:var(--ink-3,#6b6577);margin:10px 0 0}
+.cs-plan-slot[hidden]{display:none}
+.pay-plan1{margin:8px 0 0}
+
+/* R252: "How will the client pay?" - the payments of a plan, changed in place (event page, quote flow, Logistics) */
+.psch-apply .psch-sel,.psch-apply .psch-go{min-height:44px;height:44px}
+.psch-apply .psch-go{justify-content:center}
+.psch-acts{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.psch-acts[hidden],.psch-acts .btn[hidden],.psch-save[hidden],.psch-save [hidden],.psch-total[hidden]{display:none}
+.psch-apply .psch-acts .btn,.psch-apply .psch-e-rm,.psch-apply .uip-date-face{min-height:44px!important}
+.psch-in{width:100%;min-width:0;box-sizing:border-box;min-height:44px!important;border:1px solid var(--line,#e8e3db);background:var(--panel,#fff);border-radius:var(--r-ctl,9px);padding:0 10px;font:inherit;font-size:13px;color:var(--ink,#1b1930)}
+.psch-erow{grid-template-columns:minmax(130px,1.5fr) minmax(170px,1fr) minmax(190px,1.4fr) minmax(104px,auto) auto;gap:8px 10px;align-items:center;padding:10px 12px}
+.psch-e-val,.psch-e-when{display:grid;gap:6px;min-width:0}
+.psch-e-val{grid-template-columns:minmax(0,1fr) minmax(86px,auto)}
+.psch-e-when{grid-template-columns:minmax(0,1fr) auto}
+.psch-e-when > :only-child{grid-column:1 / -1}
+.psch-e-when .psch-e-days{width:78px}
+.psch-e-when:has(.psch-e-date){grid-template-columns:minmax(0,1fr)}
+.psch-e-out{display:flex;flex-direction:column;align-items:flex-end;gap:2px;min-width:0;text-align:right}
+.psch-e-due{font-size:12px;color:var(--ink-3,#6b6577);white-space:nowrap}
+.psch-e-rm{color:var(--ink-2,#4b475f)}
+.psch-total{margin:0;font-size:13px;font-weight:700;color:var(--ink,#1b1930)}
+.psch-total.is-off{color:var(--danger,#c0392b)}
+.psch-save{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;min-width:0}
+.psch-save .psch-pause{min-height:44px}
+.psch-save .psch-name{flex:1 1 220px;max-width:340px;width:auto}
+.psch-save .psch-empty{flex:1 1 100%;margin:0}
+/* the card is a column on some pages (Logistics, event page on a tablet): stack by the CARD's width, not the window's */
+.psch-apply{container-type:inline-size}
+@container (max-width:860px){
+  .psch-erow{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto}
+  .psch-erow .psch-e-name{grid-column:1}
+  .psch-erow .psch-e-val{grid-column:2 / -1}
+  .psch-erow .psch-e-when{grid-column:1}
+}
+@container (max-width:520px){
+  .psch-erow{grid-template-columns:minmax(0,1fr) auto}
+  .psch-erow .psch-e-name,.psch-erow .psch-e-val,.psch-erow .psch-e-when{grid-column:1 / -1}
+  .psch-e-when{grid-template-columns:minmax(0,1fr)}
+  .psch-e-when .psch-e-days{width:100%}
+  .psch-erow .psch-e-out{align-items:flex-start;text-align:left}
+}
+/* R252: the advance percentage in the quote flow (advance-percent.js) */
+.adv-pct{display:grid;gap:8px;margin:0 0 8px;min-width:0;font-size:13px;line-height:1.5;color:var(--ink-2,#4b475f)}
+.adv-pct[hidden],.adv-pct [hidden]{display:none}
+.adv-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;min-width:0;overflow-wrap:anywhere}
+.adv-line b{color:var(--ink,#1b1930)}
+.adv-quiet{border:0;background:none;padding:0 4px;min-height:44px;font:inherit;font-size:13px;color:var(--ink-3,#6b6577);text-decoration:underline;cursor:pointer}
+.adv-quiet:hover{color:var(--accent,#047857)}
+.adv-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 12px;padding:12px;border:1px solid var(--line-2,#f1ede7);border-radius:12px;background:var(--panel-2,#faf8f5)}
+.adv-form .psch-fld{flex:1 1 240px;max-width:none}
+.adv-form .psch-fld.adv-n{flex:0 1 110px}
+.adv-form .btn{min-height:44px}
+.adv-form .psch-err{flex:1 1 100%;margin:0}
+#pstCard #pst_adv{min-height:44px}
+#pstCard #pst_fixrow{min-height:44px;align-items:center;cursor:pointer}
+#pstCard #pst_fixrow[hidden]{display:none}
+#pstCard #pst_fixrow input{margin:0}

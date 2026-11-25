@@ -89,9 +89,10 @@
     #tasks > .task{margin-bottom:0}
   }
 </style>
-<link rel="stylesheet" href="/theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="/theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="/public-pages-v2.css?v=6">
 <link rel="stylesheet" href="/crew-shifts.css?v=8">
+<link rel="stylesheet" href="/task-waits.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
 <script src="/public-theme.js?v=4"></script>
 </head>
@@ -168,8 +169,9 @@
 <script src="/telemetry.js?v=14"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=406"></script>
-<script src="/staff-home.js?v=4"></script>
+<script src="/country-profile.js?v=7"></script><script src="/store-api.js?v=410"></script>
+<script src="/task-waits.js?v=1"></script>
+<script src="/staff-home.js?v=5"></script>
 <script src="/crew-offline.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -210,7 +212,7 @@
       data:{
         event:{title:ev.title,code:ev.code,event_date:ev.event_date,event_time:ev.event_time},
         worker:{name:wk.name},
-        tasks:((data&&data.tasks)||[]).map(t=>({id:t.id,title:t.title,category:t.category,status:t.status})),
+        tasks:((data&&data.tasks)||[]).map(t=>({id:t.id,title:t.title,category:t.category,status:t.status,waits_for:t.waits_for||null})),
       },
       equip:(equip||[]).map(e=>({id:e.id,item:e.item,unit:e.unit,qty_out:e.qty_out,qty_in:e.qty_in,status:e.status})),
     };
@@ -308,7 +310,10 @@
         return `<div class="task${t.status==='cancelled'?' is-cancelled':''}" data-id="${esc(String(t.id))}"><span class="st ${q.length?'queued':esc(t.status)}">${q.length?'Saved offline':(LABEL[t.status]||esc(t.status))}</span>
           <div class="tt">${esc(t.title)}${isUpd(changed[String(t.id)])?`<span class="upd">Updated</span>`:""}</div><div class="acts">${acts}</div></div>`;
       }).join("")).join("") : '<div class="card muted">No tasks assigned to you yet.</div>';
+    const byId={}; all.forEach(t=>{ byId[String(t.id)]=t; });
     host.querySelectorAll(".task").forEach(card=>{
+      // R253: what this task waits for ("Waits for ..." / "You can start now - ... is done")
+      const t=byId[card.dataset.id]; if(t && window.HelmTaskWaits) HelmTaskWaits.decorate(card,t.waits_for,qStatus(t.status,qFor(t.id)));
       card.querySelectorAll("[data-a]").forEach(b=>b.addEventListener("click",()=>respond(card.dataset.id,b.dataset.a,b)));
     });
     renderEquip();
@@ -348,6 +353,10 @@
     // reject → optional reason + voice note; done → optional proof photos (0038)
     if(action==='reject' || action==='complete'){ evOpen(id,action,btn); return; }
     setMsg();
+    if(action==='start' && window.HelmTaskWaits){   // R253: the earlier task is not done - ask, never block
+      const t=((data&&data.tasks)||[]).find(x=>String(x.id)===String(id));
+      if(!(await HelmTaskWaits.okToStart(t&&t.waits_for,action,t&&t.status))) return;
+    }
     if(qOffline()){ queuePress(id,action); return; }   // R243: no signal - save it, send it later
     try{ await BPUI.guard(btn, async()=>{ await BPStore.ops.worker.respond(token,id,action); await refresh(false); }, {busyLabel:"…"}); }
     catch(e){

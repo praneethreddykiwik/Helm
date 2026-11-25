@@ -66,11 +66,11 @@ await t('rows: Send sign-in link on never-signed-in rows; one who-cell with e-ma
 await t('layout: grid rows from 640px (no table mode), two-line / one-column on narrow cards, nothing fixed wider than the card', () => {
   assert.match(CTL, /@media \(min-width:640px\)\{\n    #pane-users \.utable\.ucm,#pane-users \.utable\.ucm>tbody\{display:block;width:100%\}/);
   // R228: five columns (Two-step), fixed widths so rows line up under the column headings shown from 800px
-  assert.match(CTL, /grid-template-columns:minmax\(0,1fr\) 150px 190px 118px 132px;grid-template-areas:"who role prof two act"/);
+  assert.match(CTL, /grid-template-columns:minmax\(0,1fr\) 142px 184px 116px 140px;grid-template-areas:"who role prof two act"/);
   assert.match(CTL, /@container ucm \(min-width:800px\)\{\n      #pane-users \.utable\.ucm>thead\{position:static/);
-  assert.match(CTL, /@container ucm \(max-width:799\.98px\)\{\n      #pane-users \.utable\.ucm tr\.ucr\{grid-template-columns:minmax\(0,1fr\) auto auto;grid-template-areas:"who who role" "prof two act"\}/);
+  assert.match(CTL, /@container ucm \(max-width:799\.98px\)\{\n      #pane-users \.utable\.ucm tr\.ucr\{grid-template-columns:minmax\(0,1fr\) 116px 142px;grid-template-areas:"who who role" "prof two act"\}/);
   assert.match(CTL, /@container ucm \(max-width:519\.98px\)\{\n      #pane-users \.utable\.ucm tr\.ucr\{grid-template-columns:minmax\(0,1fr\);grid-template-areas:"who" "role" "prof" "two" "act"\}/);
-  assert.match(CTL, /\.ucwt \.ucsub\{overflow-wrap:anywhere;word-break:break-word;white-space:normal\}/, 'e-mails wrap, never cut off');
+  assert.match(CTL, /\.ucwt \.ucsub\{overflow-wrap:break-word;white-space:normal\}/, 'e-mails wrap (R252: at @ and dots, HelmTeamStatus.breakMail)');
   assert.doesNotMatch(CTL, /\.utable\.ucm td\.dn\{width:34%;min-width:210px/);
   assert.doesNotMatch(CSS, /td\.ucph|td\.ucjob/);
 });
@@ -168,9 +168,9 @@ await t('MANIFEST, checker override, run-all, release lists, CHECK-PROD carry 03
 });
 await t('asset pins: store-api v372 everywhere, team-status.js / .css v2 on Settings + Staff, page-tours has the new steps', () => {
   for (const f of readdirSync(new URL('../public/', import.meta.url)).filter((x) => x.endsWith('.html'))) {
-    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '406', f);
+    const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.equal(m[1], '410', f);
   }
-  for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=\d+"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=4">/, f); }   // R211: css v3 (js: R210 v4, pinned in test/r210)
+  for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=\d+"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=5">/, f); }   // R211: css v3 (js: R210 v4, pinned in test/r210)
   const PT = read('public/page-tours.js');
   for (const s of ['["#um_which", "#um_more"]', '"#um_rows .ucView"', '"#um_rows .ucMore"']) assert.ok(PT.includes('sel: ' + s), s);   // R228: hint + More options share a step; "..." menu (R229: Danger zone step gone - Transfer ownership off)
 });

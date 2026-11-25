@@ -179,7 +179,7 @@ await t('schedule card: Total / Outstanding are the server figures (outstanding 
 await t('flow advance hint reads the schedule\'s first payment + outstanding once a schedule exists', () => {
   const f = extract(FLOW, 'function updateAdvance()');
   assert.match(f, /PSCH&&PSCH\.data/); assert.match(f, /" · Outstanding ", M\$\(sd\.outstanding\)\);/);   // r221: amounts drawn as [data-money] spans
-  assert.match(FLOW, /onLoad:\(\)=>\{ try\{ updateAdvance\(\); \}catch\(_\)\{ \} \}/);
+  assert.match(FLOW, /onLoad:\(d,a\)=>\{ try\{ updateAdvance\(\); \}catch\(_\)\{ \}/);
   assert.match(API, /resync: \(quoteId\) => \(supa \? rpc\("payment_schedule_resync"/);
   assert.match(PSJS, /textContent|createTextNode/); assert.doesNotMatch(PSJS, /innerHTML/);
 });

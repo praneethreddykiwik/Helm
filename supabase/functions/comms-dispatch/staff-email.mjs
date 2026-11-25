@@ -7,6 +7,9 @@
 //   * office_alert               to the event manager: "<worker> has not started <task>", with the Live Status link
 //   * task_update (R172, 0363)    "Update: your tasks for <event> changed" - the change lines collected for that person
 //                                and event (staff_update_claim), their open tasks now, and their permanent link
+//   * task_update with start_now (R253, 0436)  "You can start now: Flowers (Rao wedding)" / "Please hold: ..." - the facts of the
+//                                "you can start now" / rework lines of the notice (the task, its start time, the earlier task, who
+//                                finished it and when, the place); any other change lines follow. No start_now = the R172 words.
 //   * task_escalation (R186, 0369) to an office person on the escalation ladder of a SPECIAL task that is not started:
 //                                "Escalated: <task> not started (<worker>)", the step (1 event lead / 2 manager / 3 admin),
 //                                minutes late, and the Event day monitor link (monitor.html?quote=<event id>)
@@ -137,12 +140,59 @@ export function staffEmailMessage(row, origin) {
   };
 }
 
+// R253 (0436): the checked start / hold facts of a claimed notice; [] = an ordinary change notice (or a database before 0436)
+const START_TYPES = { start_now: "You can start now", go_on: "You can go on now", hold: "Please hold" };
+export function startItems(row) {
+  if (!row || row.cancelled === true || !Array.isArray(row.start_now)) return [];
+  const own = (v) => Object.prototype.hasOwnProperty.call(START_TYPES, String(v));
+  return row.start_now.slice(0, 25).map((x) => {
+    const type = String((x && x.type) || ""), task = clip(x && x.task, 160), earlier = clip(x && x.earlier, 160);
+    if (!own(type) || !task || !earlier) return null;
+    const by = clip(x.by, 80), at = when(x.at, x.at_day), hold = type === "hold", gone = x.earlier_state === "cancelled";
+    return { type, hold, lead: START_TYPES[type], task, earlier, section: clip(x.section, 60), start: when(x.start, x.day), line: clip(x.line, 200),
+      word: hold ? "needs rework" : gone ? "was cancelled" : "is done",
+      before: earlier + (hold ? " - needs rework" : gone ? " - cancelled" : " - done") + (by ? (hold ? ", checked by " : " by ") + by : "") + (at ? " at " + at : "") };
+  }).filter(Boolean).sort((a, b) => Number(a.hold) - Number(b.hold));
+}
+function startHead(items) {
+  const first1 = items[0], same = items.filter((x) => x.hold === first1.hold);
+  const lead = same.some((x) => x.type === "start_now") ? START_TYPES.start_now : first1.lead;
+  return { lead, what: first1.task + (same.length > 1 ? " and " + (same.length - 1) + " more" : "") };
+}
+// the change lines that are not one of the start / hold lines
+function otherLines(row, items) {
+  return (Array.isArray(row.changes) ? row.changes : []).map((x) => clip(x, 200)).filter((l) => l && !items.some((i) => i.line === l)).slice(0, 30);
+}
+const startLink = (row, origin) => staffLink({ ...row, kind: "task_one" }, origin);   // opens this event inside the permanent link
+
+function startNowMessage(row, origin, items) {
+  const studio = clip(row.studio, 80) || "your studio", event = clip(row.event, 120) || "the event";
+  const date = clip(row.event_date, 20), venue = clip(row.venue, 100);
+  const head = startHead(items), link = startLink(row, origin), others = otherLines(row, items);
+  const block = (i) => i.lead + ": " + i.task + "\n" +
+    "  - " + (i.hold ? "Earlier task: " : "Done before you: ") + i.before + "\n" +
+    "  - Your task: " + i.task + (i.section ? " (" + i.section + ")" : "") + "\n" +
+    (i.start ? "  - Start time: " + i.start + "\n" : "") +
+    (i.hold ? "  - We will tell you when you can start.\n" : "") +
+    (venue ? "  - Place: " + venue + "\n" : "") +
+    "  - Event: " + event + (date ? " on " + date : "");
+  return {
+    subject: head.lead + ": " + head.what + " (" + event + ")",
+    text: "Hello" + (first(row.name) ? " " + first(row.name) : "") + ",\n\n" + items.map(block).join("\n\n") +
+      (others.length ? "\n\nAlso changed on your work:\n" + others.map((l) => "  - " + l).join("\n") : "") +
+      (link ? "\n\nOpen your task page" + (items.some((i) => i.type === "start_now") ? " and press Start" : "") + ":\n" + link : "") +
+      "\n\nQuestions? Just reply to this e-mail - it goes to " + studio + "." + "\n\nThank you,\n" + studio,
+  };
+}
+
 // R172 (0363): one "your tasks changed" notice (staff_update_claim row) -> { subject, text }; "" text = do not send
 export function staffUpdateMessage(row, origin) {
   const none = { subject: "", text: "" };
   if (!row || String(row.kind) !== "task_update") return none;
   const lines = (Array.isArray(row.changes) ? row.changes : []).map((x) => clip(x, 200)).filter(Boolean).slice(0, 30);
   if (!lines.length) return none;
+  const items = startItems(row);
+  if (items.length) return startNowMessage(row, origin, items);   // R253 (0436)
   const studio = clip(row.studio, 80) || "your studio", event = clip(row.event, 120) || "the event";
   const date = clip(row.event_date, 20), venue = clip(row.venue, 100);
   const more = Math.max(0, Math.round(Number(row.more) || 0));
@@ -288,10 +338,30 @@ export function staffEmailHtml(row, origin, opts = {}) {
   return staffDoc(msg.subject, worker + " has not started " + task, inner, OFFICE_TX_REASON, site);
 }
 
+// R253 (0436): the designed part of a start / hold notice (same layout, footer and reason line as its neighbours)
+function startNowHtml(row, origin, items, msg, opts) {
+  const studio = clip(row.studio, 80) || "your studio", event = clip(row.event, 120) || "the event";
+  const date = clip(row.event_date, 20), venue = clip(row.venue, 100), name = first(row.name);
+  const head = startHead(items), link = startLink(row, origin), others = otherLines(row, items);
+  const inner = eyebrow(studio) + L.h1(e(head.lead)) +
+    L.para("Hello" + (name ? " " + L.strong(e(name)) : "") + ",", "0 0 14px") +
+    items.map((i) => (i.hold ? banner(i.earlier + " needs rework - please hold " + i.task + ".")
+                             : L.para(chip(i.earlier + " " + i.word, "info"), "0 0 14px") + L.para(e(i.lead) + ": " + L.strong(e(i.task)) + ".")) +
+      facts([[i.hold ? "Earlier task" : "Done before you", i.before], ["Your task", i.task + (i.section ? " (" + i.section + ")" : "")],
+             ["Start time", i.start], ["Place", venue], ["Event", event], ["Date", date]]) +
+      (i.hold ? L.para("We will tell you when you can start.") : "")).join("") +
+    (others.length ? L.para(L.strong("Also changed on your work"), "0 0 10px") + changeRows(others, 0) : "") +
+    cta(link, items[0].hold ? "Open my tasks" : "Open my task page") + replyNote(studio);
+  return staffDoc(msg.subject, items.map((i) => i.earlier + " " + i.word).join(", "), inner, STAFF_TX_REASON,
+    { site: String(origin || "").replace(/\/+$/, ""), address: opts.address });
+}
+
 // { html } for staffUpdateMessage rows ("" when the text is empty - same rule)
 export function staffUpdateHtml(row, origin, opts = {}) {
   const msg = staffUpdateMessage(row, origin);
   if (!msg.text) return "";
+  const items = startItems(row);
+  if (items.length) return startNowHtml(row, origin, items, msg, opts);   // R253 (0436)
   const lines = (Array.isArray(row.changes) ? row.changes : []).map((x) => clip(x, 200)).filter(Boolean).slice(0, 30);
   const studio = clip(row.studio, 80) || "your studio", event = clip(row.event, 120) || "the event";
   const date = clip(row.event_date, 20), venue = clip(row.venue, 100);

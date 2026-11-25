@@ -92,14 +92,14 @@
 <link rel="stylesheet" href="booklet-share.css?v=8">
 <link rel="stylesheet" href="pkg-review.css?v=4">
 <link rel="stylesheet" href="share-checklist.css?v=5">
-<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="event-ui.css?v=4">
-<link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=5">
+<link rel="stylesheet" href="event-ui.css?v=5">
+<link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=6">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=117" id="shellProto"></script>
+<script src="/shell-proto.js?v=121" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -245,12 +245,13 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script><script src="money-header-ui.js?v=3"></script><script src="/trial-sim.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script><script src="money-header-ui.js?v=3"></script><script src="/trial-sim.js?v=3"></script>
 <script src="flow-resume.js?v=10"></script>
 <script src="event-reminders.js?v=6"></script>
-<script src="page-tours.js?v=75"></script>
-<script src="tour.js?v=90"></script>
-<script src="payment-schedule.js?v=6"></script>
+<script src="page-tours.js?v=79"></script>
+<script src="tour.js?v=93"></script>
+<script src="payment-schedule.js?v=7"></script>
+<script src="/studio-time.js?v=1"></script><script src="/task-clash.js?v=1"></script><script src="/event-date-move.js?v=3"></script>
 <script src="booklet.js?v=38"></script>
 <script src="email-send.js?v=9"></script><script src="share-checklist.js?v=16"></script>
 <script src="invite-site-share.js?v=13"></script><script src="booklet-share.js?v=19"></script>
@@ -289,7 +290,7 @@
     // r24: the resources work in the order it is done - our stock, our people, what is still missing (vendors), then money
     {k:"resources",label:"Resources",hint:"1 Reserve our stock → 2 assign our people → 3 get what's missing from vendors → 4 check budget & margin.",mods:["inventory","tasks","resourceplan","budget"],steps:true},
     {k:"ready",label:"Ready",hint:"Pass the readiness gate, then brief the team.",mods:["readycheck","runsheet","logistics"]},
-    {k:"event_day",label:"Event Day",hint:"Run the day and handle issues live.",mods:["command","issues"]},
+    {k:"event_day",label:"Event Day",hint:"Run the day and handle issues live.",mods:["tasks","command","issues"]},
     {k:"settlement",label:"Settlement",hint:"Tear down, then invoice, settle vendors and collect.",mods:["teardown","settle","budget"]},
     {k:"closed",label:"Closed",hint:"Feedback, P&L and archive.",mods:["closure"]},
   ];
@@ -547,7 +548,24 @@
   }
   // r23 (0264): the payment schedule card (the server answers Finance viewers only; hidden otherwise)
   let PSCH=null;
-  function renderPaySchedule(){ try{ if(!canFin || !id || !window.HelmPaySchedule) return; if(PSCH) PSCH.reload(); else PSCH=HelmPaySchedule.mount($("#paySchedCard"), id, { heading:"h2" }); }catch(e){} }
+  // R252 (owner: the plan and the advance are settled with the quote): while the stage is Lead .. Confirmed the card sits right after the Next
+  // cards, above Money at a glance, as "Payment plan"; from Planning on it is the "Payment schedule" below it, as before
+  const planEarly=()=> !!ev && !evLocked() && stageIndex(effStage())<stageIndex("planning");
+  const planUnapproved=()=> !!ev && !["approved","paid"].includes(ev.approvalStatus||"") && ev.status!=="confirmed" && !advanceIn();
+  function placePayPlan(){
+    const c=$("#paySchedCard"), mh=$("#moneyHeader"); if(!c||!mh) return; const up=planEarly();
+    c.setAttribute("aria-label",up?"Payment plan":"Payment schedule");
+    if(up){ if(c.nextElementSibling!==mh) mh.parentNode.insertBefore(c,mh); }
+    else if(mh.nextElementSibling!==c) mh.parentNode.insertBefore(c,mh.nextElementSibling);
+  }
+  function renderPaySchedule(){ try{ if(!canFin || !id || !window.HelmPaySchedule) return; placePayPlan(); if(PSCH) PSCH.reload(); else PSCH=HelmPaySchedule.mount($("#paySchedCard"), id, { heading:"h2",
+    title:()=>planEarly()?"Payment plan":"", early:()=>planEarly()&&planUnapproved(), approved:()=>planEarly()&&!planUnapproved(),
+    intro:(d)=>!planEarly()?"":planUnapproved()&&!(d&&Array.isArray(d.rows)&&d.rows.length)?"Set it before you send the quote - the client's advance comes from the first line.":"The client's advance comes from the first line.",
+    onLoad:(d)=>{ const n=$("#apprLine"); if(n && d && d.approval && d.approval.basis==="advance" && advanceIn()) n.textContent=approvalText(); },
+    onFail:()=>{ if(planEarly()) payPlanRetry(); } }); }catch(e){} }
+  // no answer from the server: one small line with Try again (a role that may not see money sees nothing, as before)
+  function payPlanRetry(){ const c=$("#paySchedCard"); if(!c) return; c.textContent=""; const p=document.createElement("p"); p.className="psch-empty"; p.textContent="Couldn't check the payment plan. ";
+    const b=document.createElement("button"); b.type="button"; b.className="btn sm psch-retry"; b.textContent="Try again"; b.addEventListener("click",()=>{ if(PSCH) PSCH.reload(); }); c.append(p,b); c.hidden=false; }
   // r21: the header's ••• menu (Invitation site, Cancel event). Shown only when it holds a visible item.
   // r22: the real buttons (ids, gates, handlers) are back in the card footer; the menu items are shortcuts that
   // follow them (same hidden state / link) and click the real button - no second copy of any logic.
@@ -589,6 +607,7 @@
       if(!sumsLoaded){ bar.hidden=true; return false; }   // payments still loading: never flash "Record advance" for an event that has one
       t="Record advance"; href="flow.html?quote="+q+"#sec-pay"; /* money-1024: advances are recorded in the quote workspace payment step */ w="Record the client's advance to book the date."; }
     else if(cur<stageIndex("event_day")){ t="Plan the day"; href="runsheet.html?quote="+q; w="Build the minute-by-minute plan for the day."; }
+    else if(cur===stageIndex("event_day") && !cardDenied.has("tasks") && !(String(ev.eventDate||"").slice(0,10)<BPStore.todayLocal())){ t="Run the day"; href="monitor.html?quote="+q; w="Tasks, check-ins and issues, live. When it is over, mark the event complete in Wrap-up."; }
     else if(cur<stageIndex("closed")){ t="Close the event"; href="closure.html?quote="+q; w="Settle up, collect feedback and close the books."; }
     if(!t || !canEdit){ bar.hidden=true; return false; }
     if(window.HelmUrl&&HelmUrl.upgrade) href=HelmUrl.upgrade(href);   // PL1027 #3: studio-prefixed route (/<studio>/flow?quote=…), like Convert
@@ -742,7 +761,7 @@
     try{ return document.documentElement.classList.contains("helm-trial"); }catch(_){ return false; } };
   function approvalText(){
     const a=ev.approvalStatus||"none";
-    if(advanceIn()) return 'Advance received — the date is booked.';
+    if(advanceIn()){ const ap=PSCH&&PSCH.data&&PSCH.data.approval; return 'Advance received — the date is booked.'+(ap&&ap.basis==="advance"?' The client has not approved yet.':''); }
     if(ev.status==="confirmed") return a==="approved"
       ? 'Client approved — record the advance to book the date.'
       : a==="sent" ? (trialNow()
@@ -803,10 +822,10 @@
         acts:[{t: canEdit?"Open proposal":"View proposal", href:"proposal.html?quote="+encodeURIComponent(id), primary:true}] },
       { key:"layout", ic:"📐", title:"Floor layout", sum: layoutSummary&&layoutSummary.objects>0 ? `${layoutSummary.objects} object${layoutSummary.objects===1?"":"s"} on the floor plan · open the builder to adjust it.` : `Design the 2D/3D plan for this event.`,
         acts:[{t:"Open builder", href:"builder.html?quote="+encodeURIComponent(id), primary:true}] },
-      { key:"quote", ic:"🧾", title:"Quote & approval", sum:`${qvLabel?"Quotation "+esc(qvLabel):qvLabel===""?"No quotation saved yet":"Quotation"}${canFin&&!evTotal()?" · not priced yet":""}<div class="muted">${approvalText()}</div>${fromDisc}`,
+      { key:"quote", ic:"🧾", title:"Quote & approval", sum:`${qvLabel?"Quotation "+esc(qvLabel):qvLabel===""?"No quotation saved yet":"Quotation"}${canFin&&!evTotal()?" · not priced yet":""}<div class="muted" id="apprLine">${approvalText()}</div>${fromDisc}`,
         acts:[{t:"Open this quote", href:"quotes.html?focus="+encodeURIComponent(ev.code||id), primary:true}] },
       { key:"tasks", ic:"🛠️", title:"Tasks & staff", sum: tasksSummary&&tasksSummary.total?`${tasksSummary.done}/${tasksSummary.total} tasks done${staffSummary&&staffSummary.people?` · ${staffSummary.people} of our people assigned`:""}`:"Assign our people to the event's tasks.",
-        acts:[{t:"Open Tasks & staff", href:"ops.html?quote="+encodeURIComponent(id), primary:true}] },
+        acts:[{t:"Open Tasks & Crew", href:"ops.html?quote="+encodeURIComponent(id), primary:true}, {t:"Event-day monitor", href:"monitor.html?quote="+encodeURIComponent(id)}] },
       { key:"staff", ic:"👷", title:"Staff on this event",
         sum: staffSummary && staffSummary.people ? `${staffSummary.people} staff assigned · ${staffSummary.tasks} task${staffSummary.tasks===1?"":"s"}` : "No staff assigned yet — assign our people in Tasks & staff.",
         acts:[{t:"View event staff", href:"staff.html?quote="+encodeURIComponent(id), primary:true}] },
@@ -856,7 +875,7 @@
       quote:"Quote — the price the client sees, and their approval",
       tasks:"Tasks & staff — assign our people, who does what and when",staff:"Staff — our people working this event",vendors:"Vendors — outside vendors for what we don't have",
       runsheet:"Run-sheet — minute-by-minute plan for the day",command:"Event-day command — arrivals and checks, live",
-      issues:"Issues — problems on the day and how they were fixed",readycheck:"Readiness — is everything in place?",
+      issues:"Issues — problems on the day and how they were fixed",readycheck:"Readiness — is everything booked, and the day-before checklist",
       logistics:canFin?"Logistics — guests, permits and the payment schedule":"Logistics — guests, permits and comms",closure:"Closure — profit, feedback and archive",
       media:"Media — photos and videos for the client",settle:"Settlement — final bill, payments in and vendors paid",
       teardown:"Teardown — pack up, return stock, hand back the venue",budget:"Budget — costs against the quote, and your margin",
@@ -975,7 +994,7 @@
           // merge into the FRESH client JSON (not the page-load copy) so other fields edited elsewhere aren't overwritten
           let base=ev.client||{}, lock=ev.updatedAt; try{ const fresh=await BPStore.quotes.get(id); if(fresh&&fresh.client) base=fresh.client; if(fresh&&fresh.updatedAt) lock=fresh.updatedAt; }catch(_){}
           const client=Object.assign({}, base, { eventDate: nd });   // keep client.eventDate in sync (invoice/meta read it)
-          const row=await BPStore.quotes.updateMeta(id,{eventDate:nd, client}, lock); ev.eventDate=nd; ev.client=client; if(row&&row.updated_at) ev.updatedAt=row.updated_at; renderDateRow(); BPUI.toast("Event date saved.",{type:"ok"}); }
+          const row=await BPStore.quotes.updateMeta(id,{eventDate:nd, client}, lock); ev.eventDate=nd; ev.client=client; if(row&&row.updated_at) ev.updatedAt=row.updated_at; renderDateRow(); BPUI.toast("Event date saved.",{type:"ok"}); if(d && nd && window.HelmDateMove) HelmDateMove.ask({ quoteId:id, from:d, to:nd }); }
         catch(e){ di.value=d; if(e&&e.code==="CONFLICT"){ await BPUI.alert(e.message,{title:"This quote was changed elsewhere"}); location.reload(); return; } BPUI.toast(BPUI.friendlyError(e,{action:"save the event date"}),{type:"err"}); } });
       };
       di.addEventListener("change",()=>commitDate(false));
@@ -1010,11 +1029,11 @@
       proposal:[["Open proposal","proposal.html?quote="+q],["Open floor layout","builder.html?quote="+q]],
       quote:[["Open this quote","quotes.html?focus="+fq],["Venue & menu","plan.html?quote="+q]],
       confirmed:[["Quote & approval","quotes.html?focus="+fq],[advanceIn()?advanceDoneParts():"Record advance","flow.html?quote="+q+"#sec-pay"]],
-      planning:[["Open run-sheet","runsheet.html?quote="+q],["Open Tasks & staff","ops.html?quote="+q],["Venue & menu","plan.html?quote="+q]],
+      planning:[["Open run-sheet","runsheet.html?quote="+q],["Open Tasks & Crew","ops.html?quote="+q],["Venue & menu","plan.html?quote="+q]],
       resources:[["1 Reserve our stock","inventory.html?quote="+q],["2 Assign our people","ops.html?quote="+q],["3 What's missing","resources.html?quote="+q]],
       ready:[["Open readiness","ready.html?quote="+q],["Open logistics","logistics.html?quote="+q]],
-      event_day:[["Open event-day command","command.html?quote="+q],["Open issues","issues.html?quote="+q]],
-      settlement:[["Open settlement",settleHref()],["Open teardown","teardown.html?quote="+q]],
+      event_day:[...(cardDenied.has("tasks")?[]:[["Event-day monitor","monitor.html?quote="+q],["Tasks & Crew","ops.html?quote="+q]]),["Open event-day command","command.html?quote="+q],["Open issues","issues.html?quote="+q],["Open run-sheet","runsheet.html?quote="+q]],
+      settlement:[["Open settlement",settleHref()],["Open teardown","teardown.html?quote="+q],["Open closure","closure.html?quote="+q]],
       closed:[["Open closure","closure.html?quote="+q]] })[k]||[]; }
   function viewStage(k){
     if(!ev) return;

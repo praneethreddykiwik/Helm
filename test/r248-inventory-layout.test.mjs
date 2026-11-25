@@ -85,7 +85,8 @@ t('strip: active items, units owned, out now (not back of open check-outs), even
 t('addDays + shortOnly + typeLabel + catName', () => {
   assert.equal(L.addDays('2026-12-30', 3), '2027-01-02'); assert.equal(L.addDays('2026-02-28', 1), '2026-03-01'); assert.equal(L.addDays('bad', 1), null);
   assert.deepEqual(L.shortOnly([{ short_items: 0 }, { short_items: 1 }, { shared_items: 2 }]).length, 2);
-  assert.equal(L.typeLabel('table', ''), 'Table'); assert.equal(L.typeLabel('x', 'Round Table'), 'Round Table');
+  assert.equal(L.typeLabel('table', 'Section A'), 'Round Table'); assert.equal(L.typeLabel('mything', ''), 'Mything');   // R252: the catalogue name, not a label typed on the plan
+  assert.equal(L.typeLabel('x', 'Round Table'), 'Round Table');
   assert.equal(L.catName('av'), 'AV & Stage'); assert.equal(L.catName(''), 'Other');
   assert.deepEqual(L.RANGES, [7, 14, 30, 60, 90]);
 });
@@ -143,7 +144,7 @@ t('page: tab + pane + per-event table + strip + the plain-words same-day note; n
   assert.match(INV, /\$\("#pane-layout"\)\.hidden=pane!=="layout"/);
   assert.match(INV, /HelmLayoutStock\.mount\(\{ quoteId:quoteId\|\|null, canEdit,/);
   assert.match(INV, /tp==="layout"\|\|tp==="layouts"/);
-  for (const w of ['In layout', 'Reserved', 'Free that day', 'To borrow', 'Reserve from layout', 'Create stock item', 'Same day as ']) assert.ok(JS.includes(w), w);
+  for (const w of ['In layout', 'Reserved', 'Free that day', 'Given out', 'Missing', 'Reserve from layout', 'Create stock item', 'Same day as ']) assert.ok(JS.includes(w), w);
 });
 t('new script: DOM nodes only (no innerHTML / insertAdjacentHTML / document.write), no inline styles; CSS has a phone layout', () => {
   assert.doesNotMatch(JS, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);

@@ -69,7 +69,7 @@ t('renderUsers answers whether the fresh read worked (false on a load error, tru
   assert.match(ru, /drawUsers\(\);\n    return true;/);
 });
 t('asset pin: team-status.js v4 on Settings + Staff', () => {
-  for (const f of ['public/control.html', 'public/staff.html']) assert.match(read(f), /<script src="team-status\.js\?v=5"><\/script>/, f);
+  for (const f of ['public/control.html', 'public/staff.html']) assert.match(read(f), /<script src="team-status\.js\?v=6"><\/script>/, f);
 });
 
 /* ---------------------------------------------------------------- 3. 0386 wiring */

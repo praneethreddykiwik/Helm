@@ -103,10 +103,10 @@
       stat(c.done, "done", "lb-s-done", "Finished tasks"),
       stat(c.started, "started", "lb-s-started", "Being worked on now"),
       stat(c.accepted, "accepted", "lb-s-acc", "The person said yes but has not started"),
-      stat(c.waiting, "waiting for a yes", "lb-s-wait", "Assigned - the person has not accepted yet"),
+      stat(c.waiting, "not accepted yet", "lb-s-wait", "Assigned - the person has not accepted yet"),
       stat(c.late, "late", "lb-s-late", "Start time has passed and the task has not started"),
       c.rejected ? stat(c.rejected, "turned down", "lb-s-rej", "Turned down - give these to someone else") : null,
-      c.unassigned ? stat(c.unassigned, "no one yet", "lb-s-wait", "Nobody is on these tasks yet") : null
+      c.unassigned ? stat(c.unassigned, "not assigned", "lb-s-wait", "Nobody is on these tasks yet") : null
     ]);
   }
   function lateBox(list, now, more) {

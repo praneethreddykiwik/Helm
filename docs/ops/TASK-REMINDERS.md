@@ -19,6 +19,19 @@ If the studio has not connected a number, the page says so with a **Set up Whats
 Example: a 12:30 task with 10, 5 and 3 ticked gets WhatsApps at 12:20, 12:25 and 12:27. Marking it done at 12:26 stops
 the 12:27 one. If it still hasn't started, late reminders go at 12:45, 13:00 and 13:15, then the event manager is told.
 
+## "You can start now" (R252, migration 0434)
+When a task is finished (or cancelled), everybody whose task was waiting for it is told once: a bell for their Helm login, one
+e-mail, one WhatsApp - also when the waiting task has no start time. Nobody on the task, a vendor's task, or a person Helm
+cannot reach: the event manager gets the bell. Earlier task turned down or late (the studio's late interval): one bell for the
+event manager. Late reminders and the special-task escalation never blame a person who cannot start yet; they count from the
+moment the earlier task was done. Studio switch: `task_reminder_settings.start_now` (on by default). Free trial: bell only.
+
+**R253 (migration 0436 + comms-dispatch R253):** the e-mail is "You can start now: Flowers (Rao wedding)" with who finished the
+earlier task and when, the person's task, start time, place and task page. The check (Pass QC) never delays it. When the check
+rejects the earlier task, everyone waiting and not done is asked to hold (bell, e-mail, WhatsApp) and the event manager gets one
+bell; done again = "You can start now" again ("You can go on now" for somebody who had started). A department supervisor may check
+the finished tasks of their own section on that event, never their own task.
+
 ## Details
 - Only tasks with a **start time**, a **person with a phone number**, and status Assigned or Accepted. In progress, done,
   cancelled and declined tasks get nothing.
@@ -44,7 +57,7 @@ Delivered / Read need Meta's webhook (wa-webhook). If a message is not delivered
 | office_staff_alert | Office | staff name, what happened, task, event, date, reason, link | Yes (task overdue) |
 | staff_open_shift | Eligible staff | name, role, event, date, start, end, venue, link | Yes |
 | crew_runsheet_reminder | Crew | name, time, event, item, link | Yes |
-| staff_task_changed | Staff | name, task, event, what changed | Not yet |
+| staff_task_changed | Staff | name, task, event, what changed | Yes, for "You can start now" (0434) and "please hold" (0436) |
 | staff_shift_result | Staff | name, role, event, date, result, link | Not yet (needs Q1 / Q2) |
 | staff_leave_result | Staff | name, date, result, reason | Not yet (needs Q4) |
 | vendor_request, vendor_follow_up, vendor_delivery_reminder, vendor_invoice_update | Vendor | see wa-studio.mjs FIELDS | Not yet (needs Q3) |
@@ -56,3 +69,7 @@ Delivered / Read need Meta's webhook (wa-webhook). If a message is not delivered
    `*/5 * * * *`, run the line printed there to change it.
 3. Deploy `comms-dispatch` and `wa-connect` (new templates), then the site.
 4. On the Integrations page press **Set up message templates** again so the new templates are created.
+
+## The step of a task (R254, migration 0438)
+`event_tasks.step` (daybefore, pre, onday, wrapup) is the step somebody picked; empty = the page's own rule. Studio switch
+`task_reminder_settings.auto_steps` (off by default). It never changes when anybody is reminded: reminders use the time.

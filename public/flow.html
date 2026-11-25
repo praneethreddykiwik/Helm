@@ -119,14 +119,14 @@
 </style>
 <link rel="stylesheet" href="flow-polish.css?v=9">
 <link rel="stylesheet" href="share-checklist.css?v=5">
-<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="venues.css?v=8">
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="wa-proposal.css?v=3">
-<link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=5">
+<link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=6">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=117" id="shellProto"></script>
+<script src="/shell-proto.js?v=121" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -319,6 +319,12 @@
               <label class="cs-ask" id="csAskRow"><input type="checkbox" id="csAsk" checked>
                 <span><b>Ask the client to approve</b><small>Their page gets an Approve button - they confirm with a one-time code. Untick to share the booklet only.</small></span></label>
               <p class="cs-done" id="csDoneNote" hidden>The client has approved this quotation - share the booklet (view-only). Nothing here asks for approval again.</p>
+              <!-- R252: is a payment plan set before the quote goes out? One press to choose it here (payment-schedule.js; the one card #paySchedule moves
+                   in here until the client approved, then back to step 10). Never blocks sending; hidden without Finance view -->
+              <section class="cs-plan" id="csPlan" aria-label="Payment plan" hidden>
+                <div class="cs-plan-row"><span id="csPlanState" role="status"></span><button type="button" class="btn sm" id="csPlanBtn" aria-expanded="false" aria-controls="csPlanSlot">Choose a payment plan</button></div>
+                <div class="cs-plan-slot" id="csPlanSlot" hidden></div>
+              </section>
               <section class="cs-part" id="csApprove">
                 <h2><span class="cs-n">1</span> Approval link</h2>
                 <p class="sub" id="csApproveSub">The client's page: the booklet, the quotation and the Approve button. Copy the link or e-mail it.</p>
@@ -340,13 +346,15 @@
             </div>
           </div>
           <p class="cs-away" id="csAway" hidden>These controls are open in the Share dialog.</p>
-          <p class="hint next-step" data-next-step><b>Next step:</b> the client approved — record the advance under step 10 to confirm the booking.</p>
+          <p class="hint next-step" id="ap_next" data-next-step><b>Next step:</b> the client approved — record the advance under step 10 to confirm the booking.</p>
         </section>
 
         <!-- 10 ADVANCE PAYMENT & BOOKING -->
         <section class="card" id="sec-pay">
           <h2><span class="step-n">10</span> Advance payment &amp; booking <span class="pill" id="bookingBadge" hidden>Confirmed</span></h2>
           <p class="sub">Accepting the quote isn't a confirmed booking — recording the advance is. <span id="pay_how">Send an online link or record cash.</span> A receipt is issued and both sides are notified.</p>
+          <!-- R252 (0435): the advance % when the studio fixed it (advance-percent.js); hidden before 0435 / when it is not fixed - the Advance % box stays -->
+          <div class="adv-pct" id="pay_advance" hidden></div>
           <!-- r61: one aligned grid - advance %, amount, method, receipt no. and the button (the schedule card below uses the same look) -->
           <div class="pay-adv" id="payAdv">
             <div class="fld pay-f-pct"><label for="pay_pct">Advance %</label><input id="pay_pct" type="number" min="0" max="100" value="10"></div>
@@ -357,10 +365,15 @@
           </div>
           <p class="hint" id="pay_terms" hidden></p>
           <p class="hint" id="pay_adv_note" role="status" hidden></p>
+          <!-- R252: the payment plan's first line, when it is not the amount above -->
+          <div class="pay-plan1" id="pay_plan1" hidden><span id="pay_plan1t"></span><button type="button" class="btn sm" id="pay_plan1b">Use the plan's first part</button></div>
+          <!-- R252: the amount typed above is not the advance % (clients pay odd amounts - never blocked) -->
+          <p class="psch-soft" id="pay_adv_diff" role="status" hidden><span id="pay_adv_difft"></span></p>
           <div class="s-4856645" id="pay_online" hidden></div>
           <div class="s-56f4356" id="pay_receipts"><div class="meta"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></div></div>
           <!-- r23 (0264): the event's payment schedule (paid / due / overdue), reminders + pause - payment-schedule.js; hidden without Finance view -->
-          <div class="psch-box" id="paySchedule" hidden></div>
+          <div id="paySchedHome"><div class="psch-box" id="paySchedule" hidden></div></div>
+          <p class="hint" id="paySchedAway" hidden>The payment plan is in step 9 until the client approves.</p>
           <p class="hint next-step" id="pay_next" data-next-step><b>Next step:</b> record the advance above once the client has approved (step 9) — that confirms the booking. Then move on to Resources and Logistics from the event page.</p>
         </section>
 
@@ -462,10 +475,11 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=406"></script><script src="/trial-sim.js?v=3"></script>
-<script src="page-tours.js?v=75"></script>
-<script src="tour.js?v=90"></script>
-<script src="payment-schedule.js?v=6"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script><script src="/trial-sim.js?v=3"></script>
+<script src="page-tours.js?v=79"></script>
+<script src="tour.js?v=93"></script>
+<script src="payment-schedule.js?v=7"></script><script src="/advance-percent.js?v=1"></script>
+<script src="/studio-time.js?v=1"></script><script src="/task-clash.js?v=1"></script><script src="/event-date-move.js?v=3"></script>
 <script src="booklet.js?v=38"></script>
 <script src="share-checklist.js?v=16"></script>
 <script src="flow-layout-sync.js?v=6"></script>
@@ -589,13 +603,13 @@
   function contentOf(s){
     if(s==="reqs") return reqRows.length>0; if(s==="layout") return layoutItems.length>0;
     if(s==="quote") return !!(ev&&ev.pricing&&+ev.pricing.total>0);
-    if(s==="menu" && appliedPkg) return true;
+    if(s==="menu" && (appliedPkg || menuDishes()>0 || !!(plan&&plan.menu_locked))) return true;
     return FV.hasContent(s, vals(IDS[s]||[]));
   }
   // honest badge: "Saved" only after this section's own save WITH content; empty -> "Not started"
   function paintBadge(s,state,msg){
     if(state==="saved"){ edited.delete(s); if(!contentOf(s)) state="empty"; draftSave(); }
-    badgeSt[s]=state; HelmAutosave.paint($("#sv-"+s),state,msg);
+    badgeSt[s]=state; HelmAutosave.paint($("#sv-"+s),state,msg); if(s==="menu") paintMenuBadge();
     try{ updateProgress(); }catch(_){ }
   }
   // ---- unsaved typing survives leaving the page (same tab): sessionStorage, cleared when saved / discarded ----
@@ -868,6 +882,7 @@
       const row=Object.assign(discFields(discRow), { budget_min:bmin, budget_max:bmax });
       await BPStore.discovery.save(id, row); discRow=row; budgetTouched=false;
     }
+    if(origDate && client.eventDate && origDate!==client.eventDate && window.HelmDateMove) HelmDateMove.ask({ quoteId:id, from:origDate, to:client.eventDate });   // R252: task times follow the date (asks first)
     origDate=client.eventDate||"";
     persisted.client={ name:client.name, phone:client.phone, eventType:ev.eventType, eventDate:client.eventDate };
     vocabAdd("event_types",$("#c_type").value); fillVocab();   // remember a custom event type
@@ -1201,7 +1216,7 @@
     const msg = approved
       ? "This quote is already confirmed/approved. Re-pricing changes the total from "+inr(d.oldTotal)+" to "+inr(d.newTotal)+", so the client’s approval will go stale and they will need to approve again (payments pause until then). Re-price anyway?"
       : "Re-price this quote at today’s Settings prices? The total changes from "+inr(d.oldTotal)+" to "+inr(d.newTotal)+". A new quotation version is saved; earlier versions stay on record.";
-    if(!(await BPUI.confirm(msg,{ title: approved ? "Client approval will go stale" : "Re-price this quote?", okLabel:"Save and re-price" }))) return;
+    if(!(await moneyAsk("confirm",msg,{ title: approved ? "Client approval will go stale" : "Re-price this quote?", okLabel:"Save and re-price" }))) return;
     const wasLoading=loading; loading=true;
     if(d.next.chairPrice!=null) $("#q_chairPrice").value=d.next.chairPrice;
     if(d.next.platePrice!=null) $("#q_platePrice").value=d.next.platePrice;
@@ -1330,9 +1345,20 @@
   // the same list plan.html edits). The notes box keeps only service notes the user
   // typed — applying a package no longer writes dishes into it, and never clears it.
   let dishEd=null;
+  // R252: the step 5 badge counts the dishes saved on this event (not only a package) and says when the menu is locked
+  const menuDishes=()=>{ try{ return dishEd?dishEd.items().length:0; }catch(_){ return 0; } };
+  function paintMenuBadge(){
+    const b=$("#sv-menu"); if(!b || loading || ["invalid","error","saving"].indexOf(badgeSt.menu)>=0) return;
+    const n=menuDishes(), lk=!!(plan&&plan.menu_locked), t=[lk?"Locked":"", n?n+(n===1?" dish":" dishes"):""].filter(Boolean).join(" · ");
+    if(badgeSt.menu==="empty" && contentOf("menu")){ badgeSt.menu="idle"; HelmAutosave.paint(b,"idle"); }
+    else if(badgeSt.menu==="idle" && !contentOf("menu")){ badgeSt.menu="empty"; HelmAutosave.paint(b,"empty"); }
+    if(t && badgeSt.menu!=="empty"){ b.textContent=badgeSt.menu==="saved"?b.textContent+" · "+t:t; b.classList.add("on"); }
+  }
   function mountDishEditor(){
     const host=$("#dishEditor"); if(!host || !window.HelmDishEditor) return;
     dishEd=HelmDishEditor.mount(host,{ store:BPStore, ui:BPUI, quoteId:id, editable:canEdit && !(plan&&plan.menu_locked) });
+    // every list the editor draws (first read, add, rename, remove, a package) repaints the badge and the steps
+    try{ new MutationObserver(()=>{ try{ paintMenuBadge(); updateProgress(); }catch(_){} }).observe(host,{childList:true}); }catch(_){}
     dishEd.init(); }
   // r19: "No package / decide later" (or the chosen card clicked again): the plan forgets the package and its plate
   // price (clear_menu_template, 0211), so the quote is priced at the default plate price; the dishes are kept.
@@ -1373,7 +1399,7 @@
     const bad=(k)=>badgeSt[k]==="invalid"||badgeSt[k]==="error", pc=persisted.client||{};
     return { client:!!(pc.name && pc.phone && pc.eventType && pc.eventDate) && !bad("client"),
       discovery:!!persisted.discovery && !bad("discovery"), reqs:reqRows.length>0, venue:!!persisted.venue && !bad("venue"),
-      menu:(!!appliedPkg || !!persisted.menu) && !bad("menu"), proposal:!!persisted.proposal && !bad("proposal"),
+      menu:(!!appliedPkg || !!persisted.menu || menuDishes()>0) && !bad("menu"), proposal:!!persisted.proposal && !bad("proposal"),
       layout:layoutItems.length>0 && !bad("layout"), quote:!!(ev&&ev.pricing&&+ev.pricing.total>0),
       approve:(()=>{ try{ return clientApproved(); }catch(_){ return false; } })() };   // r22: step 9 is done once the client approved (or an advance is in)
   }
@@ -1416,8 +1442,11 @@
   function quoteTotal(){ return BPStore.pricing.quoteTotal(currentInputs()).total; }
   function updateAdvance(){
     let pct=+$("#pay_pct").value||0; if(pct<0) pct=0; if(pct>100) pct=100;   // advance % is 0–100
-    const amt=Math.round(quoteTotal()*pct/100);
-    if(document.activeElement!==$("#pay_amount")) $("#pay_amount").value=amt;
+    const tot=quoteTotal(), line1=planFirst();   // R252: "Use this amount" = the plan's first line; typing a % goes back to it
+    if(ADV_PLAN && !line1) ADV_PLAN=false;
+    const amt=ADV_PLAN ? line1.rem : Math.round(tot*pct/100);
+    ADV_WANT=amt; if(!ADV_TYPED && document.activeElement!==$("#pay_amount")) $("#pay_amount").value=amt;
+    paintPlanFirst(line1, Math.round(tot*pct/100), pct); paintAdvDiff();
     // Display only: when the total grew after an advance was received, show what is already paid against it
     // R112: once a payment schedule exists, the hint reads the schedule's first payment (the server's figures) - it said
     // "Remaining Rs 0" from the live 30% while the schedule row said "Rs 4,693 left"
@@ -1432,6 +1461,47 @@
         h.hidden=!(PAID_SUM>0); } }
   }
   let PAID_SUM=0;
+  // R252: the first line of the payment plan while nothing is paid yet -> {label, rem} (server figures; the amount changes only when pressed)
+  // ADV_TYPED: an amount typed by hand stays until the %, the plan or a saved payment replaces it; ADV_WANT: what the % (or the plan) comes to
+  let ADV_PLAN=false;
+  let ADV_TYPED=false, ADV_WANT=0, ADV_FIX=null, ADV=null;
+  function planFirst(){
+    let sd=null; try{ sd=PSCH&&PSCH.data; }catch(_){ sd=null; }
+    const r=sd&&!(PAID_SUM>0)&&!sd.mismatch&&Array.isArray(sd.rows)?sd.rows.find(x=>x&&x.state!=="waived"&&x.state!=="paid"):null, rem=r?Number(r.remaining):NaN;
+    return r&&rem>0.5 ? { label:r.label||"First payment", rem:rem } : null;
+  }
+  function paintPlanFirst(f, amt, pct){
+    const b=$("#pay_plan1"); if(!b) return; const show=!!f && !ADV_PLAN && Math.abs(f.rem-amt)>0.5 && !$("#pay_record").disabled;
+    if(show) putMoney($("#pay_plan1t"), "The payment plan's first part, "+f.label+", is ", M$(f.rem), " - not the "+Math.round(pct*100)/100+"% advance.");
+    b.hidden=!show;
+  }
+  // the typed amount is not the advance: say it, never block it
+  function paintAdvDiff(){
+    const n=$("#pay_adv_diff"); if(!n) return; const raw=$("#pay_amount").value, v=+raw, show=ADV_TYPED && raw!=="" && v>0 && ADV_WANT>0 && !(PAID_SUM>0) && Math.abs(v-ADV_WANT)>0.5 && !$("#pay_record").disabled;
+    if(show) putMoney($("#pay_adv_difft"), "This is "+(v<ADV_WANT?"less":"more")+" than the advance asked for (", M$(ADV_WANT), "). You can still record it if this is what the client paid.");
+    n.hidden=!show;
+  }
+  function usePlanFirst(){
+    const f=planFirst(); if(!f) return; ADV_PLAN=true; ADV_TYPED=false; const tot=quoteTotal();
+    if(tot>0 && !ADV_FIX){ /* a fixed advance % stays as it is - only the amount follows the plan */ $("#pay_pct").value=String(Math.round(f.rem/tot*10000)/100); $("#pay_pct").dataset.touched="1"; }
+    updateAdvance(); try{ $("#pay_amount").focus(); }catch(_){}
+  }
+  // R252 (0435): the studio fixed the advance % -> text + a quiet "Change for this quote"; else (or before 0435) the box above, as before
+  function renderAdvance(){
+    if(!id || !window.HelmAdvance || ADV) return;
+    ADV=HelmAdvance.mount($("#pay_advance"), { quoteId:id, wait:true, onChange:(a,d)=>{
+      ADV_FIX=a; if(!a && d && d.pct!=null && !$("#pay_pct").dataset.touched) $("#pay_pct").value=String(d.pct);
+      const w=document.querySelector(".pay-f-pct"); if(w) w.hidden=!!a;
+      if(a){ if(+$("#pay_pct").value!==a.pct) ADV_PLAN=false; $("#pay_pct").value=String(a.pct); $("#pay_pct").dataset.touched="1"; }
+      updateAdvance(); } });
+  }
+  // the plan's answer carries the advance and who said yes (0435); a role that may not see the plan asks for the % on its own
+  let APPR=null, ADV_ASKED=false;
+  function advanceFrom(d){
+    try{ if(d){ APPR=d.approval||APPR; if(ADV) ADV.set(d.advance||null); syncShare(); } else if(ADV && !ADV_ASKED){ ADV_ASKED=true; ADV.reload().then(()=>{ const x=ADV.data; if(x&&x.approval){ APPR=x.approval; syncShare(); } }).catch(()=>{}); } }catch(_){}
+  }
+  // a question about money: "Show amount" (the studio PIN) while amounts are hidden (advance-percent.js)
+  const moneyAsk=(kind,q,o)=>window.HelmAdvance ? HelmAdvance.ask(kind,q,o) : BPUI[kind](q,o);
   async function recordPayment(){
     if(quoteBlocked()){ BPUI.toast("Pricing data didn't load — retry the quotation section before recording a payment.",{type:"err"}); return; }
     // Recording the advance CONFIRMS the booking — require the client's identity first
@@ -1457,8 +1527,8 @@
     const q=over>0.5 ? (bal>0 ? `This is ${inr(over)} more than the balance due (${inr(bal)}) - record ${inr(amount)} (${mlabel}) as the advance anyway? This confirms the booking.` : `Nothing is due on this event - record ${inr(amount)} (${mlabel}) as an extra payment anyway?`)
       : `Record ${inr(amount)} (${mlabel}) as the advance? This confirms the booking.`;
     // The server refuses any payment above the balance, so only explain it (OK) instead of offering to record it anyway.
-    if(over>0.5){ await BPUI.alert((bal>0?`${inr(amount)} is ${inr(over)} more than the balance due (${inr(bal)}). `:`Nothing is due on this event. `)+"Payments can't exceed the balance. Approve a change order to increase the total first.",{title:"More than the balance due"}); return; }
-    if(!(await BPUI.confirm(q,{title:"Record advance payment?",okLabel:"Record payment"}))) return;
+    if(over>0.5){ await moneyAsk("alert",(bal>0?`${inr(amount)} is ${inr(over)} more than the balance due (${inr(bal)}). `:`Nothing is due on this event. `)+"Payments can't exceed the balance. Approve a change order to increase the total first.",{title:"More than the balance due"}); return; }
+    if(!(await moneyAsk("confirm",q,{title:"Record advance payment?",okLabel:"Record payment"}))) return;
     if($("#pay_record").disabled) return;
     $("#pay_record").disabled=true; $("#pay_record").setAttribute("aria-busy","true");
     // W15B/CF (record_payment idempotency): one STABLE key per submission so a
@@ -1477,7 +1547,7 @@
       recordPayment._idem=null; if(MK) MK.done(payScope);   // r218 / r239: saved - the next payment is a new one
       await relock();   // money-1024: recording the advance confirms the booking server-side (bumps quotes.updated_at)
       paintBookingBadge(1); paintStatusBadge({advance:true});
-      $("#pay_receipt").value=""; $("#pay_amount").value="";
+      $("#pay_receipt").value=""; $("#pay_amount").value=""; ADV_TYPED=false;
       if(method==='online' && BPStore.approval.onlinePayAvailable()){ const link=location.origin+"/sim-pay.html?ref="+encodeURIComponent(ev.code||"")+"&amount="+amount;
         $("#pay_online").hidden=false; $("#pay_online").style.display=""; $("#pay_online").innerHTML=`Online link (simulated): <a href="${esc(link)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(link)}</a> — real Razorpay link goes here in production.`; }
       $("#pay_record").removeAttribute("aria-busy");
@@ -1510,25 +1580,40 @@
     try{ d=at ? (BPStore.fmtStudioDate ? BPStore.fmtStudioDate(at) : BPStore.fmtDateIN(at)) : ""; }catch(_){ d=""; }
     const txt=d ? "Approved ✓ on "+d : "Approved ✓", T=(typeof window!=="undefined")?window.HelmTrialTestNote:null;   // R113 (0322): a trial approval is a test
     return (T && T.approvedLabel) ? T.approvedLabel(txt, T.approvalTestMode===true) : txt; }
+  // R252: a recorded advance confirms the booking without the client's own approval - never say "the client approved" then.
+  // "client" = the client approved; "advance" = only the advance is in; "" = can't tell (0435's field, else the consent in the activity trail)
+  let CONSENT=null;
+  function approvalKind(){
+    const ap=(ev&&(ev.approvalStatus||ev.approval_status))||""; if(ap==="approved") return "client"; if(!clientApproved()) return "";
+    let b=""; try{ b=APPR&&APPR.basis||""; }catch(_){ b=""; }
+    return b==="client"||CONSENT===true?"client":b==="advance"||CONSENT===false?"advance":"";
+  }
+  const advOnly=()=>{ const k=approvalKind(); return k==="advance" ? "Confirmed by advance - client approval pending" : "Booking confirmed by the advance"; };
   function syncShare(paid){
     if(paid!=null) sharePaid=!!paid;
-    const done=clientApproved(), box=$("#csAsk"), ask=!done && !!(box&&box.checked), inPage=!!($("#shareBody")&&$("#shareBody").parentNode===$("#csHome"));
+    const done=clientApproved(), real=approvalKind()==="client", adv=approvalKind()==="advance", box=$("#csAsk"), ask=!done && !!(box&&box.checked), inPage=!!($("#shareBody")&&$("#shareBody").parentNode===$("#csHome"));
     const set=(sel,fn)=>{ const n=$(sel); if(n) fn(n); };
     set("#csAskRow",n=>{ n.hidden=done; }); set("#csDoneNote",n=>{ n.hidden=!done; }); set("#csApprove",n=>{ n.hidden=!ask && !done; });
-    set("#csApproved",n=>{ n.hidden=!done; n.textContent=approvedOnText(); });
-    set("#csApproveSub",n=>{ n.textContent=done?"The client approved the quotation on their page - nothing more to send for approval."
+    set("#csDoneNote",n=>{ n.textContent=real?"The client has approved this quotation - share the booklet (view-only). Nothing here asks for approval again."
+      :"The booking is confirmed by the advance"+(adv?" - the client has not approved the quotation on their page yet":"")+". Share the booklet (view-only) here."; });
+    set("#csApproved",n=>{ n.hidden=!done; n.textContent=real?approvedOnText():advOnly(); });
+    set("#csApproveSub",n=>{ n.textContent=done?(real?"The client approved the quotation on their page - nothing more to send for approval.":"The advance is recorded, so the booking is confirmed.")
       :"The client's page: the booklet, the quotation and the Approve button. Copy the link or e-mail it."; }); set("#csApprState",n=>{ n.hidden=done; });
     set("#csTitle",n=>{ n.textContent=ask?"Share with client":"Share booklet"; });
     set("#csSub",n=>{ n.textContent=ask?"One private link: the event booklet, the quotation and an Approve button.":"A private, view-only event booklet for your client - no approval is asked."; });
     set("#apTitle",n=>{ n.textContent=done?"Share booklet":"Share with client & approval"; });
-    set("#apSub",n=>{ n.textContent=done?"The client has approved - share the view-only event booklet whenever you like. The advance is recorded in step 10."
+    set("#apSub",n=>{ n.textContent=done?(real?"The client has approved":advOnly())+" - share the view-only event booklet whenever you like. The advance is recorded in step 10."
       :"One private link for your client: the event booklet, the quotation and an Approve button. Once they approve, record the advance in step 10."; });
+    set("#ap_next",n=>{ const t=!done?" once the client approves, record the advance under step 10 to confirm the booking.":PAID_SUM>0||sharePaid?" "+(real?"the client approved and the advance is in — the booking is confirmed.":"the advance is in, so the booking is confirmed"+(adv?" — the client's own approval is still pending.":"."))+" See step 10.":" the client approved — record the advance under step 10 to confirm the booking.";
+      if(n.replaceChildren && n.dataset.t!==t){ n.dataset.t=t; const b=document.createElement("b"); b.textContent="Next step:"; n.replaceChildren(b, t); } });
+    set("#apprState",n=>{ if(adv && n.textContent==="Booking confirmed.") n.textContent=advOnly()+"."; });
+    try{ placePlan(); }catch(_){}
     document.querySelectorAll("#csGets [data-get]").forEach(li=>{ li.hidden = li.dataset.get==="approve" && !ask; });
     document.querySelectorAll("#shareBody .cs-n").forEach(n=>{ n.hidden=!ask && !done; });
     set("#csInc",n=>{ n.hidden=!ask; });
     set("#csBkFold",n=>{ if(n.dataset.user!=="1") n.open=inPage || !ask; });   // the page = the full version; the dialog folds the booklet settings while asking approval
     set("#shareClient",n=>{ n.textContent=done?"Share booklet →":"Share with client →"; });
-    set("#shareClientNote",n=>{ n.textContent=done?"Approved - share the view-only booklet (also step 9).":"Booklet, quotation and the Approve button - one link (also step 9)."; });
+    set("#shareClientNote",n=>{ n.textContent=done?(real?"Approved":"Booking confirmed")+" - share the view-only booklet (also step 9).":"Booklet, quotation and the Approve button - one link (also step 9)."; });
     try{ updateProgress(); }catch(_){}
   }
   // the rail card's status line is the source; step 9 shows the same words (text only)
@@ -1546,8 +1631,8 @@
   function closeShare(){ $("#shareModal").hidden=true; placeShare(false); syncShare();
     try{ (shareFrom&&shareFrom.isConnected?shareFrom:$("#shareClient")).focus(); }catch(_){} }
   function paintBookingBadge(paidCount){ const b=$("#bookingBadge"); try{ paintApprBtn(paidCount); }catch(_){} if(!b) return;
-    { const st=$("#apprState"); if(st){ if(paidCount>0) st.textContent="Booking confirmed.";   // PL1027 #2
-        else if(st.textContent==="Booking confirmed.") st.textContent=apprStateText(false); } }
+    { const st=$("#apprState"); if(st){ if(paidCount>0) st.textContent=approvalKind()==="advance"?advOnly()+".":"Booking confirmed.";   // PL1027 #2
+        else if(st.textContent==="Booking confirmed."||st.textContent===advOnly()+".") st.textContent=apprStateText(false); } }
     if(paidCount>0){ b.textContent="Confirmed"; b.hidden=false; payNextConfirmed(); return; }
     if(ev&&ev.status==='confirmed'){ b.textContent="Advance pending"; b.hidden=false; return; }
     b.hidden=true; }
@@ -1568,9 +1653,33 @@
     $("#egBarNo").onclick=()=>{ bar.hidden=true; };
   }
   let PSCH=null;   // r23 (0264) payment schedule card
-  function renderSchedule(){ try{ if(!id || !window.HelmPaySchedule) return; if(PSCH) PSCH.reload(); else PSCH=HelmPaySchedule.mount($("#paySchedule"), id, { heading:"h3", onChange:()=>{ renderActivity(); renderReceipts(); }, onLoad:()=>{ try{ updateAdvance(); }catch(_){ } } }); }catch(e){} }
+  function renderSchedule(){ try{ if(!id || !window.HelmPaySchedule) return; if(PSCH) PSCH.reload(); else PSCH=HelmPaySchedule.mount($("#paySchedule"), id, { heading:"h3", autoLine:false,
+    title:()=>clientApproved()?"":"Payment plan", advancePct:()=>ADV_FIX?ADV_FIX.pct:(BPStore.paymentTerms(rates,$("#c_date").value)||{}).advancePct, early:()=>!planApproved(), approved:()=>planApproved(), intro:()=>planApproved()?"":"The client sees it on their page with the quote. The advance comes from the first line.",
+    onChange:()=>{ renderActivity(); renderReceipts(); }, onLoad:(d,a)=>{ try{ updateAdvance(); }catch(_){ } planState(d,a); advanceFrom(d); }, onNone:()=>{ planState(null); advanceFrom(null); }, onFail:()=>planState("fail") }); }catch(e){} }
+  /* R252: step 9 says whether a payment plan is set before the quote is sent, with one press to choose it there. Never blocks sending. */
+  const planApproved=()=> clientApproved() || !!(ev&&ev.status==="confirmed");
+  let PLAN=null, PLAN_AUTO=null;
+  function planState(d, a){ PLAN=d; if(a) PLAN_AUTO=a; try{ placePlan(); }catch(_){} }
+  function placePlan(){
+    const sec=$("#csPlan"), card=$("#paySchedule"), slot=$("#csPlanSlot"), home=$("#paySchedHome"), btn=$("#csPlanBtn"), txt=$("#csPlanState"); if(!sec||!card||!slot||!home) return;
+    const here=!clientApproved() && !!PLAN, ok=here && PLAN!=="fail", to=ok?slot:home;
+    if(card.parentNode!==to) to.appendChild(card);
+    sec.hidden=!here; $("#paySchedAway").hidden=!ok; if(!here) return;
+    if(PLAN==="fail"){ txt.textContent="Couldn't check the payment plan."; btn.textContent="Try again"; btn.hidden=false; btn.removeAttribute("aria-expanded"); slot.hidden=true; return; }
+    const rows=(Array.isArray(PLAN.rows)?PLAN.rows:[]).filter(r=>r&&r.state!=="waived"), open=!slot.hidden;
+    if(rows.length){ const f=rows[0], nm=PLAN.applied&&PLAN.applied.template;
+      putMoney(txt, "Payment plan: "+(nm?nm+" - ":"")+rows.length+(rows.length===1?" payment":" payments")+". First: "+(f.label||"Payment")+" ", M$(f.amount), "."+(PLAN.mismatch?" The price changed since - it follows the new total when the client approves.":" The client sees it on their page.")); }
+    else txt.textContent="No payment plan yet. "+((PLAN_AUTO&&PLAN_AUTO.text)?PLAN_AUTO.text+" ":"")+(PLAN.can_edit?"Choose one now and the client sees it before they approve.":"");
+    btn.hidden=!rows.length && !PLAN.can_edit; btn.setAttribute("aria-expanded",String(open));
+    btn.textContent=open?"Hide the plan":rows.length?"Show the plan":"Choose a payment plan";
+  }
+  function pressPlan(){
+    if(PLAN==="fail"){ if(PSCH) PSCH.reload(); return; }
+    const slot=$("#csPlanSlot"); slot.hidden=!slot.hidden; placePlan();
+    if(!slot.hidden){ const s=slot.querySelector("select"); if(s) try{ s.focus(); }catch(_){} }
+  }
   async function renderReceipts(){
-    renderSchedule();
+    renderAdvance(); renderSchedule();
     let pays=[]; try{ pays=(await BPStore.milestones.payments(id))||[]; }catch(e){ BPUI.loadError($("#pay_receipts"), e, renderReceipts, {what:"receipts"}); return; }
     const paid=pays.filter(p=>p.status==='paid');
     paintBookingBadge(paid.length);
@@ -1582,6 +1691,7 @@
   async function renderActivity(){
     let acts=[]; try{ acts=await BPStore.milestones.activity(id); }catch(e){ BPUI.loadError($("#activityList"), e, renderActivity, {what:"activity"}); return; }
     // r20: the trail promised "quote versions" but only listed layout versions - add the quotation versions (Q1, Q2…)
+    CONSENT=Array.isArray(acts)?acts.some(a=>a&&a.kind==="consent"):null; try{ syncShare(); }catch(_){}   // R252: did the client approve themselves?
     let qv=[]; try{ qv=(BPStore.quotationVersions&&await BPStore.quotationVersions.list(id))||[]; }catch(_){ qv=[]; }
     const tsOf=(a)=>{ const n=Date.parse(a&&a.at||""); return isFinite(n)?n:0; };
     acts=(Array.isArray(acts)?acts:[]).concat((Array.isArray(qv)?qv:[]).filter(v=>v&&v.created_at).map(v=>({ kind:"qversion", at:v.created_at,
@@ -1846,6 +1956,7 @@
     loading=false; dirty=false; dirtyOther=false;
     // flow-validation: honest start state - empty sections say "Not started", none says "Saved"
     ["client","discovery","venue","menu","proposal"].forEach(s=>{ if(!contentOf(s)) paintBadge(s,"empty"); });
+    if(!badgeSt.menu) badgeSt.menu="idle"; paintMenuBadge();
     updateProgress();
     if(canEdit) draftRestore();
     // back from the floor builder (Save & back, or a fresh load after it): re-price from the latest layout
@@ -2094,7 +2205,9 @@
     $("#csBkFold").addEventListener("click",(e)=>{ if(e.target&&e.target.tagName==="SUMMARY") $("#csBkFold").dataset.user="1"; });
     $("#shareModal").addEventListener("click",(e)=>{ if(e.target===$("#shareModal")) closeShare(); });
     $("#shareModal").addEventListener("keydown",(e)=>{ if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); closeShare(); } });
-    $("#pay_pct").addEventListener("input",()=>{ $("#pay_pct").dataset.touched="1"; updateAdvance(); });
+    $("#csPlanBtn").addEventListener("click",pressPlan); $("#pay_plan1b").addEventListener("click",usePlanFirst);   // R252
+    $("#pay_pct").addEventListener("input",()=>{ $("#pay_pct").dataset.touched="1"; ADV_TYPED=false; ADV_PLAN=false; updateAdvance(); });
+    $("#pay_amount").addEventListener("input",()=>{ ADV_TYPED=$("#pay_amount").value!==""; paintAdvDiff(); });
     $("#c_date").addEventListener("change",applyPayTerms);
     ["q_chairs","q_guests","q_chairPrice","q_platePrice","q_other","q_discount","q_discountPct"].forEach(f=>$("#"+f).addEventListener("input",updateAdvance));
     // Production without live Razorpay: manual recording only (no simulated link option)

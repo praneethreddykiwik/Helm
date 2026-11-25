@@ -14,7 +14,7 @@ await t('1 Cancel only for Staff editors on assigned / accepted / in_progress', 
   assert.match(ops, /const CANCELLABLE=\['assigned','accepted','in_progress'\];/);
   assert.match(B, /if \(CANCELLABLE\.indexOf\(t\.status\) >= 0\) foot\.push\(h\("button", \{ type: "button", cls: "tc-btn danger push", "data-key": "a:cancel", text: "Cancel task", on: \{ click: function \(\) \{ P\(\)\.cancel\(t\.id\); \} \} \}\)\);/);
   // every action button in the panel sits inside if (edit) { ... } - view-only roles see "View only" instead
-  assert.match(B, /\} else foot\.push\(h\("span", \{ cls: "tc-viewonly", text: "View only" \}\)\);/);
+  assert.match(B, /\} else if \(!foot\.length\) foot\.push\(h\("span", \{ cls: "tc-viewonly", text: "View only" \}\)\);/);
   // bulk Cancel: only the cancellable ones, a reason of 3-300 characters
   assert.match(B, /var can = ts\.filter\(function \(t\) \{ return CANCELLABLE\.indexOf\(t\.status\) >= 0; \}\);/);
   assert.match(B, /if \(reason\.length < 3 \|\| reason\.length > 300\)/);

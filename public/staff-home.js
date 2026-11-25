@@ -110,12 +110,15 @@
       var card = h("div", { cls: "card staff-ev" }, head);
       (Array.isArray(e.tasks) ? e.tasks : []).forEach(function (t) {
         var st = String(t.status || "assigned");
-        card.appendChild(h("div", { cls: "task" }, [
+        var box = h("div", { cls: "task" }, [
           h("span", { cls: "st " + (STATUS[st] ? st : "assigned"), text: STATUS[st] || "New" }),
           h("div", { cls: "tt", text: String(t.title || "Task") }),
           when(t) ? h("div", { cls: "rsl", text: "Starts " + when(t) }) : null,
           t.category ? h("div", { cls: "muted", text: String(t.category) }) : null,
-        ]));
+        ]);
+        // R253 (0436): what it waits for / "You can start now"
+        if (global.HelmTaskWaits) global.HelmTaskWaits.decorate(box, t.waits_for, st);
+        card.appendChild(box);
       });
       if (e.quote_id && UUID.test(String(e.quote_id))) {
         // R179: open the event inside this same permanent link
@@ -133,13 +136,24 @@
     });
   }
 
+  // R253: read again when the person comes back to this tab (at most every 15 s, no timer)
+  var lastRead = 0, reading = false, wired = false;
+  function wireReturn() {
+    if (wired) return; wired = true;
+    doc.addEventListener("visibilitychange", function () {
+      if (doc.hidden || reading || EVENT || Date.now() - lastRead < 15000) return;
+      reading = true; lastRead = Date.now();
+      Promise.resolve(global.BPStore.ops.worker.staffHome(TOKEN)).then(function (v) { if (v && v.ok === true) render(v); }, function () {}).then(function () { reading = false; });
+    });
+  }
   async function start() {
     if (!TOKEN) { bad(); return; }
     try {
       await global.BPStore.init();
+      lastRead = Date.now();
       var v = await global.BPStore.ops.worker.staffHome(TOKEN);
       if (!v || v.ok !== true) { bad(); return; }
-      render(v);
+      render(v); if (!EVENT) wireReturn();
     } catch (e) {
       if (global.navigator && global.navigator.onLine === false) { show("#loading", false); show("#offlineFirst", true); return; }
       var m = String((e && e.message) || "");

@@ -1,0 +1,73 @@
+/* event-steps.css - R251: the "Before guests arrive" card and the Wrap-up section (event-steps.js), the same on Tasks & Crew and
+   the Event-day monitor. Colours are the --tc-* tokens of ops-board.css (they follow the studio theme); status colours keep their
+   traffic-light meaning. Phone first: one column, 44px targets, no sideways scroll. */
+.hes{min-width:0;max-width:100%;color:var(--tc-ink);overflow-wrap:anywhere}
+.hes[hidden],.hes [hidden]{display:none!important}
+.hes:not(.hes-wraphost){padding:16px;margin:0 0 12px}
+.hes .tc-h2{margin:0}
+.hes-sub{margin:4px 0 0;color:var(--tc-ink-2);font-size:14px}
+.hes-hint{margin:8px 0 0;color:var(--tc-ink-3);font-size:13px}
+.hes-hint.strong{color:var(--tc-ink-2);font-weight:600}
+.hes .tc-note{margin:10px 0 0}
+.hes-dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--tc-line-strong)}
+.hes-dot.ok{background:var(--tc-safe)}
+.hes-dot.warn{background:var(--tc-warn)}
+.hes-dot.bad{background:var(--tc-bad)}
+.hes-lines{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.hes-lines li{display:flex;gap:10px;align-items:baseline;font-size:14px}
+.hes-lines li.bad{color:var(--tc-bad);font-weight:600}
+.hes-acts,.hes-next,.hes-row-a{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.hes .tc-btn{min-height:44px;text-decoration:none}
+/* the theme's own accent, white words, in every state (also a link, also visited) */
+.hes .tc-btn.tc-primary,.hes a.tc-btn.tc-primary:visited{background:var(--tc-acc);border-color:var(--tc-acc);color:#fff}
+.hes .tc-btn.tc-primary:hover{background:var(--tc-acc-hover);border-color:var(--tc-acc-hover);color:#fff}
+/* one at a time: a link that is not the main action looks like the outlined buttons beside it */
+.hes a.tc-btn:not(.tc-primary),.hes a.tc-btn:not(.tc-primary):visited{color:var(--tc-ink)}
+
+/* Wrap-up: closed by default, last on the page */
+.hes-wraphost{margin:16px 0 0}
+.hes-wrap{background:var(--tc-panel);border:1px solid var(--tc-line);border-radius:var(--tc-r-card);box-shadow:var(--tc-elev-sm)}
+.hes-wrap.is-now{border-color:var(--tc-acc)}
+/* the host may already be a card: never a box inside a box */
+.tc-card.hes-wraphost{padding:0;overflow:clip}
+.tc-card.hes-wraphost>.hes-wrap{border:0;box-shadow:none}
+.tc-card.hes-wraphost:has(>.hes-wrap.is-now){border-color:var(--tc-acc)}
+.hes-sum{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:center;gap:4px 10px;min-height:52px;padding:10px 16px;cursor:pointer;list-style:none;border-radius:var(--tc-r-card)}
+.hes-sum::-webkit-details-marker{display:none}
+.hes-sum:hover{background:var(--tc-panel-2)}
+.hes-sum:focus-visible{outline:2px solid var(--tc-acc);outline-offset:-2px}
+.hes-chev{width:9px;height:9px;border-right:2px solid var(--tc-ink-3);border-bottom:2px solid var(--tc-ink-3);transform:rotate(-45deg);transition:transform .15s}
+.hes-wrap[open]>.hes-sum .hes-chev{transform:rotate(45deg)}
+.hes-sumh{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.hes-t{font-size:16px;font-weight:700;letter-spacing:-.01em}
+.hes-now{font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--tc-acc-soft);color:var(--tc-acc-text)}
+.hes-sumtxt{color:var(--tc-ink-3);font-size:13px;min-width:0}
+.hes-body{padding:0 16px 16px}
+.hes-rows{list-style:none;margin:0;padding:0}
+.hes-row{padding:14px 0;border-top:1px solid var(--tc-line-2);min-width:0}
+.hes-row-h{display:flex;align-items:center;gap:10px;min-width:0}
+.hes-row-t{flex:1 1 auto;min-width:0;font-size:14px}
+.hes-pill{flex:0 0 auto;font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;background:var(--tc-wait-bg);color:var(--tc-wait);font-variant-numeric:tabular-nums}
+.hes-pill.ok{background:var(--tc-safe-bg);color:var(--tc-safe)}
+.hes-pill.warn{background:var(--tc-warn-bg);color:var(--tc-warn)}
+.hes-row>.hes-sub,.hes-row>.hes-row-a,.hes-row>.hes-tasks,.hes-row>.tc-btn{margin-left:19px}
+.hes-row-a{margin-top:4px}
+.hes-link{display:inline-flex;align-items:center;min-height:44px;color:var(--tc-acc-text);font-weight:600;font-size:14px;text-decoration:none}
+.hes-link:hover{text-decoration:underline}
+.hes-tasks{list-style:none;margin:8px 0 0;padding:0;border:1px solid var(--tc-line-2);border-radius:var(--tc-r-ctl)}
+.hes-tasks li+li{border-top:1px solid var(--tc-line-2)}
+.hes-task,.tc button.hes-task{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:2px 12px;width:100%;min-height:44px;padding:8px 12px;border:0;background:none;text-align:left;color:var(--tc-ink);text-decoration:none;cursor:pointer;font-size:14px}
+.hes-task:hover{background:var(--tc-panel-2)}
+.hes-task-t{min-width:0;font-weight:500}
+.hes-task-s{color:var(--tc-ink-3);font-size:13px}
+.hes-row>.tc-btn{margin-top:8px}
+.hes-finish{margin-top:2px;padding-top:16px;border-top:1px solid var(--tc-line)}
+.hes-h{margin:0;font-size:15px;font-weight:700}
+@media (max-width:640px){
+  .hes-sum{grid-template-columns:auto minmax(0,1fr);padding:10px 14px}
+  .hes-sumtxt{grid-column:2}
+  .hes-body{padding:0 14px 14px}
+  .hes-acts .tc-btn,.hes-next .tc-btn{flex:1 1 100%}
+}
+@media (prefers-reduced-motion:reduce){.hes-chev{transition:none}}
+@media print{.hes{display:none}}

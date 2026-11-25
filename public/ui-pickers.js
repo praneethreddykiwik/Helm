@@ -28,6 +28,13 @@
   function optedOut(node) { return !!(node.closest && node.closest("[data-native-picker]")); }
   function fire(node, type) { node.dispatchEvent(new Event(type, { bubbles: true })); }
 
+  /* R252: "today" is the STUDIO's calendar day (BPStore.todayLocal - the studio time zone), as a local-midnight Date like every
+     other day here; the device's day only on a page without the store */
+  function studioToday() {
+    var m = null; try { var B = window.BPStore; m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(B && B.todayLocal ? B.todayLocal() : "")); } catch (_) {}
+    var d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(); d.setHours(0, 0, 0, 0); return d;
+  }
+
   /* ---- positioning: below the anchor, flip above if no room, clamp in viewport ---- */
   function place(pop, anchor) {
     var r = anchor.getBoundingClientRect();
@@ -292,7 +299,7 @@
     inp.addEventListener("focus", function () { if (!isTouchPhone()) face.focus(); });
 
     function openCal() {
-      var min = parse(inp.min), max = parse(inp.max), today = new Date(); today.setHours(0, 0, 0, 0);
+      var min = parse(inp.min), max = parse(inp.max), today = studioToday();
       var sel = parse(inp.value);
       var view = new Date((sel || today).getFullYear(), (sel || today).getMonth(), 1);
       var focusD = sel || (min && today < min ? min : (max && today > max ? max : today));
@@ -491,6 +498,6 @@
       }
     }).observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["list"] });
   }
-  window.__helmPickers = { scan: scan, version: 3, _sameGesture: sameGesture, _helperInput: helperInput };
+  window.__helmPickers = { scan: scan, version: 3, _sameGesture: sameGesture, _helperInput: helperInput, _studioToday: studioToday };
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", start); else start();
 })();

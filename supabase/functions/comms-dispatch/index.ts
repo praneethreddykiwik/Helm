@@ -37,6 +37,7 @@
 //                   area, status, cancelled, given to someone else) or to the event (date, time, venue, cancelled) collect
 //                   into one notice per person per event (5 quiet minutes, max 15); staff-email.mjs staffUpdateMessage;
 //                   claimed via staff_update_claim (re-checked there); links to the person's permanent link; e-mail only
+//                   R253 (0436): a notice with start_now facts goes out as "You can start now: Flowers (Rao wedding)" / "Please hold: ..."
 //   * enquiry replies (0269) the instant thank-you to someone who used a studio's public enquiry form (/<studio>/enquiry),
 //                   the studio's own words; claimed via enquiry_reply_claim (re-checked there; trials never queue)
 //   * Helm notices (0244) a studio's plan request -> sales@helm.events, and "Ask my admin to upgrade" -> the

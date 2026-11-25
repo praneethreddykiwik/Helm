@@ -102,13 +102,13 @@ t('ops: task times and the schedule picker use the studio zone (round trip IST)'
   assert.ok(isNaN(win.fromLocalInput('garbage').getTime()));
   assert.match(O, /const startISO = when \? fromLocalInput\(when\)\.toISOString\(\) : null;/);
 });
-t('ops: a task saved "unassigned" with an assignee reads "Waiting for a yes" (display only, R192 shared task-status.js)', () => {
+t('ops: a task saved "unassigned" with an assignee reads "Not accepted yet" (display only, R192 shared task-status.js)', () => {
   const w = {}; vm.runInNewContext(read('public/task-status.js'), { window: w, Intl, Date, Math, Number, String, Object, Array, JSON, isFinite, isNaN, Infinity, Promise, setInterval() {}, clearInterval() {} });
   const TS = w.HelmTaskStatus;
   assert.equal(TS.baseKey({ status: 'unassigned', assignee_name: 'Suresh Yadav' }), 'waiting');
   assert.equal(TS.baseKey({ status: 'unassigned', assignee_name: '' }), 'unassigned');
   assert.equal(TS.baseKey({ status: 'accepted', assignee_name: 'Suresh Yadav' }), 'accepted');
-  assert.equal(TS.LABEL.waiting, 'Waiting for a yes');
+  assert.equal(TS.LABEL.waiting, 'Not accepted yet');   // R250 wording
   assert.match(read('public/ops-board.js'), /function stPill\(t\) \{ var k = TS\.shown\(t\); return h\("span", \{ cls: "tc-st " \+ k, text: TS\.LABEL\[k\] \}\); \}/);
 });
 
@@ -152,7 +152,7 @@ t('readiness: no saved venue = "Not checked" (never passed, not a blocker, not c
   assert.match(c.detail, /^not checked - no saved venue linked$/);
   assert.equal(r.passed, r.checks.filter((x) => x.ok).length);
   const R = read('public/ready.html');
-  assert.match(R, /c\.unchecked\?"Not checked"/); assert.match(R, /c\.unchecked\?'<span class="opt">not checked<\/span>'/);
+  assert.match(R, /c\.unchecked\?"Not checked"/); assert.match(R, /c\.unchecked\?"not checked"/);
 });
 
 /* ---------------------------------------------------------------- 3: logistics */

@@ -1,7 +1,7 @@
 /* monitor.css - R181 Event-day monitor. Green light theme (Helm default), no dark mode. Mobile first. */
 .mon-body{--m-bg:#f4f8f6;--m-panel:#fff;--m-panel-2:#f7faf9;--m-ink:#0b2a22;--m-ink-2:#2f4a42;--m-ink-3:#566b64;--m-line:#e0eae5;--m-line-2:#edf3f0;
   --m-acc:var(--accent,#047857);--m-acc-2:#036b4d;--m-acc-soft:#e3f4ed;--m-late:#b42318;--m-late-soft:#fdecea;--m-warn:#8a5a00;--m-warn-soft:#fff4de;
-  --m-blue:#24476b;--m-blue-soft:#eef4fb;--m-black:#111;--m-shadow:0 1px 2px rgba(11,42,34,.06);
+  --m-blue:#24476b;--m-blue-soft:#eef4fb;--m-shadow:0 1px 2px rgba(11,42,34,.06);
   --m-top:var(--hb-top,0px);
   margin:0;background:var(--m-bg);color:var(--m-ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 .mon-body *{box-sizing:border-box}
@@ -35,56 +35,161 @@
 .mon-head-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .mon-updated{font-size:12px;color:var(--m-ink-3);font-variant-numeric:tabular-nums}
 .mon-wallbtn{margin-left:auto}
-/* the app shell colours every link in <main> green - the black button keeps white text (id beats that rule) */
-#monOpenOps,#monOpenOps:visited,#monOpenOps:hover{color:#fff}
+/* R251 buttons: the app shell's link rule (shell-b-style.css "main a:not(.btn)…", six classes strong) re-coloured every <a class="tc-btn">
+   on this page to the theme's link colour - green words on the filled button. The page id outranks it once for every button link, now
+   and later: filled = the theme accent with its on-accent ink, outlined = plain ink, in normal / hover / visited / focus. */
+#monApp a.tc-btn,#monDrawer a.tc-btn{color:var(--tc-ink);text-decoration:none}
+#monApp .tc-btn.tc-primary,#monDrawer .tc-btn.tc-primary{background:var(--tc-acc);border-color:var(--tc-acc);color:var(--hb-acc-ink,#fff)}
+#monApp .tc-btn.tc-primary:hover,#monDrawer .tc-btn.tc-primary:hover{background:var(--tc-acc-hover);border-color:var(--tc-acc-hover);color:var(--hb-acc-ink,#fff)}
+#monApp .tc-chip[aria-pressed="true"],#monApp .tc-chip[aria-pressed="true"] b{background:var(--tc-acc);border-color:var(--tc-acc);color:var(--hb-acc-ink,#fff)}
+/* the plan lock's black buttons (event-floor.css): outlined at rest, the final "Unlock" filled with the accent */
+#monApp .ef-btn.dark{background:var(--tc-panel);border-color:var(--tc-acc);color:var(--tc-acc-text)} #monApp .ef-btn.dark:hover{background:var(--tc-acc-soft)}
+#monApp #efUnlockGo{background:var(--tc-acc);color:var(--hb-acc-ink,#fff)} #monApp #efUnlockGo:hover{background:var(--tc-acc-hover)}
+/* the live pill and the countdown tile follow the theme too */
+.mon-ev .tc-pill:not(.plan){background:var(--tc-acc);color:var(--hb-acc-ink,#fff)}
+.mon-ev .tc-t.count{background:var(--tc-acc);color:var(--hb-acc-ink,#fff)} .mon-ev .tc-t.count dt{color:inherit;opacity:.9}
 .mon-times .tc-t dd{font-variant-numeric:tabular-nums}
 
-/* summary: sticky under the app bar on a tablet / desktop */
-.mon-summary{background:var(--m-panel);border:1px solid var(--m-line);border-radius:14px;box-shadow:var(--m-shadow);padding:14px 16px;margin-bottom:12px}
-.mon-sum-top{display:grid;gap:10px;grid-template-columns:minmax(0,1fr);align-items:center}
-.mon-pct{font-size:14px;color:var(--m-ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}.mon-pct b{font-size:30px;color:var(--m-ink);letter-spacing:-.02em;line-height:1}
-.mon-bar{display:block;height:10px;border-radius:99px;background:var(--m-line-2);overflow:hidden;min-width:60px}
+/* R250 / R251: the page is one column of blocks; the step you look at (data-win on #monApp) decides which show and in what order.
+   Wrap-up is always last; On the event the floor plan sits below the work */
+.mon-app{display:flex;flex-direction:column}
+.mon-app>*{min-width:0}
+.mon-app[data-win="onday"] .mon-work{order:1}
+.mon-app[data-win="onday"] #monFloor{order:2}
+.mon-predone{order:3}.mon-wrapup{order:4}
+.mon-work{margin-bottom:14px}
+.mon-predone>*,.mon-wrapup>*{margin-bottom:14px}
+.mon-hint{margin:6px 0 0;font-size:12.5px;line-height:1.45;color:var(--m-ink-3)}
+
+/* R251 step strip: Day before -> Pre-event -> On the event; filled dot + "Now" = where the event is (Wrap-up is the closed section below) */
+.mon-stp{background:var(--m-panel);border:1px solid var(--m-line);border-radius:14px;box-shadow:var(--m-shadow);padding:10px 12px;margin-bottom:12px}
+.mon-stp-list{list-style:none;margin:0;padding:0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity}
+.mon-stp-list::-webkit-scrollbar{display:none}
+.mon-stp-list>li{flex:0 0 auto;display:flex;align-items:center;gap:4px;scroll-snap-align:start}
+.mon-stp-list>li+li{flex:1 0 auto}
+.mon-stp-list>li+li::before{content:"";flex:1 1 14px;min-width:14px;height:2px;border-radius:2px;background:var(--m-line)}
+.mon-stp-list>li.is-past+li::before,.mon-stp-list>li.is-past+li.is-now::before{background:var(--m-acc)}
+.mon-stp-b{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:6px 12px;border:1px solid transparent;border-radius:10px;background:transparent;font-family:inherit;font-size:14px;font-weight:600;color:var(--m-ink-3);cursor:pointer;white-space:nowrap}
+.mon-stp-b::before{content:"";flex:none;width:10px;height:10px;border-radius:50%;border:2px solid var(--m-line);background:var(--m-panel)}
+.mon-stp-list>li.is-past .mon-stp-b::before{border-color:var(--m-acc);background:var(--m-acc-soft)}
+.mon-stp-b:hover{color:var(--m-ink);background:var(--m-panel-2)}
+.mon-stp-b:focus-visible{outline:2px solid var(--m-acc);outline-offset:2px}
+.mon-stp-b.is-now{color:var(--m-ink)}
+.mon-stp-b.is-now::before{border-color:var(--m-acc);background:var(--m-acc)}
+.mon-stp-b[aria-pressed="true"]{background:var(--m-acc-soft);border-color:var(--m-acc-soft);color:var(--m-ink)}
+.mon-stp-now{display:none;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:99px;background:var(--m-acc);color:var(--m-panel)}
+.mon-stp-b.is-now .mon-stp-now{display:inline-block}
+
+/* summary: Day before = readiness + get set up; Pre-event / On the event = one slim live strip; event over = still open + hours */
+.mon-summary{background:var(--m-panel);border:1px solid var(--m-line);border-radius:14px;box-shadow:var(--m-shadow);padding:12px 16px;margin-bottom:12px}
+.mon-summary .mon-h3{margin-bottom:8px}
+.mon-live{display:grid;gap:8px 16px;grid-template-columns:minmax(0,1fr);align-items:center}
+.mon-pct{font-size:14px;color:var(--m-ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}.mon-pct b{font-size:26px;color:var(--m-ink);letter-spacing:-.02em;line-height:1}
+.mon-bar{display:block;height:8px;border-radius:99px;background:var(--m-line-2);overflow:hidden;min-width:60px}
 .mon-bar.is-small{height:6px;width:120px}
 .mon-bar-fill{display:block;height:100%;background:linear-gradient(90deg,var(--m-acc-hi,#10a37a),var(--m-acc));border-radius:inherit;transition:width .4s ease}
-.mon-counts{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px 2px}
-.mon-counts::-webkit-scrollbar{display:none}
-.mon-count{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--m-line);background:var(--m-panel);border-radius:99px;padding:5px 11px;min-height:32px;font-family:inherit;font-size:12px;font-weight:600;color:var(--m-ink-2);cursor:pointer;white-space:nowrap}
+.mon-facts{display:flex;flex-wrap:wrap;gap:8px 20px;min-width:0}
+.mon-fact{display:flex;flex-direction:column;gap:1px;min-width:0}
+.mon-fact-l{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--m-ink-3)}
+.mon-fact-v{font-size:16px;color:var(--m-ink);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.mon-fact.is-ok .mon-fact-v{color:var(--m-acc)}.mon-fact.is-warn .mon-fact-v{color:var(--m-warn)}.mon-fact.is-bad .mon-fact-v{color:var(--m-late)}
+.mon-fact.is-next{flex:1 1 220px}.mon-fact.is-next .mon-fact-v{font-size:14px;font-weight:600}
+.mon-sum-acts{margin-top:10px}
+.mon-app:is([data-win="pre"],[data-win="onday"]) .mon-summary{padding:10px 14px}
+.mon-setup{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.mon-setup-a{text-decoration:none}
+/* R252 Day before: "Get set up" = one block - heading, the numbers, their note, then the shortcuts under a hairline */
+.mon-app .mon-summary.is-daybefore{display:grid;gap:12px;padding:16px}
+.mon-summary.is-daybefore :is(.mon-h3,.mon-hint,.mon-facts,.mon-setup){margin:0}
+.mon-summary.is-daybefore .mon-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px}
+.mon-summary.is-daybefore .mon-fact{gap:2px;padding:10px 12px;border-radius:10px;background:var(--m-panel-2)}
+.mon-summary.is-daybefore .mon-setup{padding-top:12px;border-top:1px solid var(--m-line-2)}
+
+/* R251 On the event: run-sheet now / next; R252 issues (Pre-event + On the event), two small cards */
+.mon-mini{padding:12px 16px;margin-bottom:12px}
+.mon-mini-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px}
+.mon-mini-h .tc-h2{margin:0;display:flex;align-items:center;gap:8px}
+.mon-mini-acts{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.mon-mini .tc-mini-link{display:inline-flex;align-items:center;min-height:32px}
+.mon-mini .tc-arow{margin-top:6px;flex-wrap:nowrap}.mon-mini .tc-arow .grow{flex:1 1 0}
+.mon-run{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px}
+.mon-run li{display:grid;grid-template-columns:44px auto minmax(0,1fr);gap:4px 12px;align-items:baseline;padding:8px 10px;border-radius:10px;font-size:14px}
+.mon-run li.is-now{background:var(--m-acc-soft)}
+.mon-run-k{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--m-ink-3)}
+.mon-run li.is-now .mon-run-k{color:var(--m-acc-2)}
+.mon-run-t{font-variant-numeric:tabular-nums;white-space:nowrap}
+.mon-run-n{overflow-wrap:anywhere}.mon-run-n small{display:block;font-size:12px;color:var(--m-ink-2)}
+.mon-n.is-warn{background:var(--m-warn-soft);color:var(--m-warn)}
+#monIssList{margin-top:8px}
+.mon-issform{display:grid;gap:6px;margin:12px 0;padding:14px;border:1px solid var(--m-line);border-radius:12px;background:var(--m-panel-2)}
+.mon-issform .mon-lbl{margin:4px 0 0}
+.mon-issform .tc-inp{font-size:16px;min-height:44px;background:var(--m-panel)}.mon-issform .mon-select{min-height:44px;width:100%;max-width:220px}
+.mon-issform .hia-pick{margin-top:6px}
+.mon-issform-f{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+
+/* R251 work in step order: Day before / Pre-event / On the event / Wrap-up, each a heading that folds */
+.mon-steps-list{display:grid;gap:14px;min-width:0}
+.mon-stepgrp{min-width:0}
+.mon-stepgrp-h{margin:0}.mon-stepgrp-h:has([aria-expanded="true"]){margin-bottom:8px}
+.mon-stepgrp-b{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;width:100%;min-height:44px;padding:6px 10px;border:0;border-radius:10px;background:var(--m-line-2);font-family:inherit;font-size:14px;text-align:left;color:var(--m-ink);cursor:pointer}
+.mon-stepgrp-b:hover{background:var(--m-acc-soft)}
+.mon-stepgrp-b:focus-visible{outline:2px solid var(--m-acc);outline-offset:2px}
+.mon-stepgrp-t{font-size:15px;font-weight:700}
+.mon-stepgrp-n{font-size:13px;font-weight:500;color:var(--m-ink-2);font-variant-numeric:tabular-nums}
+.mon-stepgrp-c{flex:none;width:8px;height:8px;margin:0 4px 0 auto;border-right:2px solid var(--m-ink-2);border-bottom:2px solid var(--m-ink-2);transform:rotate(-45deg);transition:transform .15s}
+.mon-stepgrp-b[aria-expanded="true"] .mon-stepgrp-c{transform:rotate(45deg)}
+.mon-allochint{margin:0;padding:8px 10px;border-radius:10px;background:var(--m-warn-soft);color:var(--m-warn);font-size:13px;font-weight:600}
+
+/* R250 Day before: "Needs action before the day" */
+.mon-prep{margin-bottom:12px;padding:14px 16px}
+.mon-prep .tc-h2{margin:0}
+.mon-prep .tc-h2{display:flex;align-items:center;gap:8px}
+.mon-prep .mon-rows{margin-top:10px}
+/* R250 / R251: the lock bar only on Day before (event-floor.js fills #monLock; it may answer late, so CSS keeps the rule) */
+.mon-lockwrap{margin-bottom:12px}
+.mon-lockwrap:not(:has(#monLock:not([hidden]))){display:none}
+.mon-lockh{margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--m-ink-3)}
+.mon-app:not([data-win="daybefore"]) .mon-lockwrap{display:none}
+.mon-lockwrap .ef-lock{margin:0}
+
+/* status chips: the filter (with counts); tap again = all */
+.mon-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1 1 100%;min-width:0;padding-bottom:2px}
+.mon-chips::-webkit-scrollbar{display:none}
+.mon-count{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--m-line);background:var(--m-panel);border-radius:99px;padding:5px 12px;min-height:36px;font-family:inherit;font-size:13px;font-weight:600;color:var(--m-ink-2);cursor:pointer;white-space:nowrap}
 .mon-count::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--m-ink-3);flex:none}
-.mon-count b{font-size:14px;color:var(--m-ink);font-variant-numeric:tabular-nums}
-.mon-count:hover{border-color:var(--m-ink)}
-.mon-count.is-done::before{background:#0f7a43}.mon-count.is-started::before{background:#d97706}.mon-count.is-accepted::before{background:#2f6fb0}
+.mon-count b{font-size:13px;color:var(--m-ink);font-variant-numeric:tabular-nums}
+.mon-count:hover{border-color:var(--m-ink-3)}
+.mon-count.is-all::before{display:none}
+.mon-count.is-done::before{background:var(--m-acc)}.mon-count.is-started::before{background:var(--m-warn)}.mon-count.is-accepted::before{background:var(--m-blue)}
 .mon-count.is-waiting::before{background:transparent;border:1.5px solid var(--m-ink-2);width:5px;height:5px}
 .mon-count.is-late::before,.mon-count.is-rejected::before{background:var(--m-late)}.mon-count.is-unassigned::before{background:transparent;border:1.5px dashed var(--m-ink-2);width:5px;height:5px}
-.mon-count.is-late:not(.is-zero){background:var(--m-late-soft);border-color:#f3c4bf;color:var(--m-late)}.mon-count.is-late:not(.is-zero) b{color:var(--m-late)}
-.mon-count.is-zero{color:var(--m-ink-3)}.mon-count.is-zero b{color:var(--m-ink-3);font-weight:600}
-.mon-facts{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 0;font-size:13px;color:var(--m-ink-3);margin-top:10px;padding-top:10px;border-top:1px solid var(--m-line-2);min-width:0}
-.mon-facts>*{min-width:0}
-.mon-facts>*+*::before{content:"·";padding:0 9px;color:var(--m-line-strong,#9aa8a2);text-decoration:none;display:inline-block}
+.mon-count.is-open::before{background:transparent;border:1.5px solid var(--m-acc);width:5px;height:5px}
+.mon-count.is-late{color:var(--m-late)}
+.mon-count[aria-pressed="true"]{background:var(--m-acc-soft);border-color:var(--m-acc);color:var(--m-ink)}
 
-/* tabs: the Tasks & Crew segmented control (ops-board.css .tc-seggrp look), scrolls sideways on a phone */
-.mon-tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;background:rgba(118,118,128,.1);border-radius:11px;padding:3px;margin-bottom:10px;max-width:100%;width:max-content}
+/* tabs: People / Work / Activity (the Tasks & Crew segmented control look) */
+.mon-tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;background:var(--m-line-2);border-radius:11px;padding:3px;margin-bottom:10px;max-width:100%;width:max-content}
 .mon-tabs::-webkit-scrollbar{display:none}
 .mon-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;border-radius:8px;padding:7px 14px;min-height:36px;font-family:inherit;font-size:13px;font-weight:600;color:var(--m-ink-2);cursor:pointer;white-space:nowrap}
 .mon-tab:hover{color:var(--m-ink)}
-.mon-tab[aria-selected="true"]{background:#fff;color:var(--m-ink);box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
+.mon-tab[aria-selected="true"]{background:var(--m-panel);color:var(--m-ink);box-shadow:var(--m-shadow)}
 .mon-n{display:inline-block;min-width:20px;padding:1px 7px;border-radius:99px;background:var(--m-line-2);color:var(--m-ink-2);font-size:12px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
 .mon-n:empty{display:none}
-.mon-tab[aria-selected="true"] .mon-n{background:var(--m-black);color:#fff}
 
-/* filters: one row - search, then four small menus; a phone folds the menus behind "Filters" */
+/* filters: chips, then search + the menus; up to 767px the menus fold behind "Filters" */
 .mon-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
 .mon-tools .mon-search{flex:1 1 220px;max-width:none;margin-left:0}
 .mon-filtersbtn{flex:none}
-.mon-filtersbtn .mon-n{background:var(--m-black);color:#fff}
+.mon-filtersbtn .mon-n{background:var(--m-acc);color:var(--hb-acc-ink,#fff)}
 .mon-filters{display:none;width:100%;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .mon-tools.is-open .mon-filters{display:grid}
 .mon-filters .mon-select{width:100%}
 .mon-clear{grid-column:1/-1}
 
-/* layout: view + activity rail (rail top = top of the content) */
+/* layout: the list, and (from 1280px) the activity rail beside it - nothing sticky but the slim live strip (Pre-event / On the event) */
 .mon-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 .mon-grid>*,.mon-view,.mon-cards,.mon-card{min-width:0}
-.mon-side{padding:14px 16px;align-self:start}
+.mon-side{display:none;padding:14px 16px;align-self:start}
 .mon-side-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 .mon-h3{margin:0;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--m-ink-3)}
 .mon-linkbtn{border:0;background:none;padding:4px 0;cursor:pointer;font-family:inherit}
@@ -122,31 +227,14 @@
 .mon-steps{display:inline-flex;gap:3px}
 .mon-step{width:16px;height:6px;border-radius:3px;background:var(--m-line)}.mon-step.is-on{background:var(--m-acc)}.mon-step.is-late{background:var(--m-late)}.mon-step.is-off{background:#f3c4bf}
 
-/* kanban */
-.mon-board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(240px,82%);gap:12px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}
-.mon-col{background:var(--m-panel-2);border:1px solid var(--m-line);border-radius:14px;padding:12px;scroll-snap-align:start;min-height:120px}
-.mon-col-h{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px;font-size:13px;font-weight:700}
-.mon-col.is-late{background:var(--m-late-soft);border-color:#f3c4bf}.mon-col.is-done{background:#f1faf5}
-.mon-col-empty{font-size:12px;margin:4px 0}
-.mon-kcard{background:var(--m-panel);border:1px solid var(--m-line);border-radius:10px;padding:10px;margin-bottom:8px;display:grid;gap:3px;font-size:13px}
-.mon-kcard small{font-size:12px;color:var(--m-ink-2)}.mon-kcard .mon-acts{margin-top:6px}
-
 .mon-empty{background:var(--m-panel);border:1px dashed var(--m-line);border-radius:14px;padding:28px 16px;text-align:center;color:var(--m-ink-3)}
 .mon-dot{width:11px;height:11px;border-radius:50%;border:2px solid #fff}
 
-/* R184: attendance, check-in tab, activity timeline */
+/* R184: attendance, activity timeline */
 .mon-att{display:flex!important;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px!important}
 .mon-att.is-in span:first-child{color:var(--m-acc);font-weight:600}.mon-att.is-out span:first-child{color:var(--m-ink-2)}
 .mon-offnote{display:block;margin-top:3px!important;color:var(--m-late)!important;font-weight:600}
-.mon-factbtn{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline;text-decoration-color:var(--m-line);text-underline-offset:3px}
-.mon-factbtn:hover,.mon-factbtn:focus-visible{text-decoration-color:currentColor}
-.mon-ci>p,.mon-act-bar small{font-size:13px;margin:0}
-.mon-ci-list{display:grid;border-top:1px solid var(--m-line-2);margin-top:8px}
-.mon-ci-row{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--m-line-2)}
-.mon-ci-row:last-child{border-bottom:0}.mon-ci-row.is-late{background:linear-gradient(90deg,var(--m-late-soft),transparent 70%)}
-.mon-ci-who{grid-column:1/-1;display:flex;align-items:center;gap:10px;min-width:0}.mon-ci-who b{display:block;font-size:14px}.mon-ci-who small{display:block;font-size:12px}
-.mon-ci-cell{display:flex;flex-direction:column;font-size:14px}.mon-ci-cell small{font-size:11px;text-transform:uppercase;letter-spacing:.06em}
-.mon-ci-st{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.mon-act-bar small{font-size:13px;margin:0}
 .mon-act-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
 .mon-tl{list-style:none;margin:0;padding:0}
 .mon-tl-day{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--m-ink-3);padding:14px 0 6px;border-bottom:1px solid var(--m-line-2)}
@@ -167,41 +255,52 @@
 .mon-alert{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;background:var(--m-panel);border:1px solid #f3c4bf;border-radius:10px;padding:8px 10px}
 .mon-alert-main{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1 1 200px;font-size:13px}
 .mon-alert-main b{font-size:14px}.mon-alert-main small{color:var(--m-late);font-weight:600;font-size:12px}
-.mon-latest{text-align:left;flex:1 1 260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@media (min-width:720px){ .mon-ci-row{grid-template-columns:minmax(0,1.6fr) 90px 90px minmax(0,1.2fr)} .mon-ci-who,.mon-ci-st{grid-column:auto} }
 
-@media (min-width:720px){
+/* R250 breakpoints: up to 767px one column (strip scrolls, menus behind Filters, no rail, only the slim live strip sticks,
+   Pre-event / On the event); 768-1279px one column, two-line rows, full-width floor card; from 1280px the list + a ~300px activity rail */
+@media (max-width:767.98px){
+  .mon-wallbtn{display:none}
+  .mon-head-acts .tc-btn{flex:1 1 auto}
+  .mon-updated{flex:1 1 100%;order:3}
+  /* a phone: the three steps share the row (no scrolling), dot over the word */
+  .mon-stp{padding:8px}
+  .mon-stp-list>li,.mon-stp-list>li+li{flex:1 1 0;min-width:0}
+  .mon-stp-list>li+li::before{display:none}
+  .mon-stp-b{flex:1 1 auto;flex-direction:column;justify-content:flex-start;gap:5px;font-size:13px;padding:8px 2px;min-height:62px}
+  .mon-head-acts .tc-btn,.mon-acts .mon-btn,.mon-sum-acts .tc-btn,.mon-filtersbtn,.mon-count,.mon-issform .tc-btn,.mon-evpick{min-height:44px}
+  #monApp :is(.mon-search input,.mon-select,.mon-issform .tc-inp){min-height:44px}   /* the shell sets 38px on every field */
+  .mon-app:is([data-win="pre"],[data-win="onday"]) .mon-summary{position:sticky;top:var(--m-top);z-index:5;padding:8px 12px}
+  .mon-app:is([data-win="pre"],[data-win="onday"]) .mon-summary .mon-fact.is-next{display:none}
+  .mon-mini-acts .tc-btn,.mon-mini .tc-mini-link,.mon-app .mon-setup-a{min-height:44px}
+  .mon-facts{gap:6px 16px}
+  .mon-fact-v{font-size:15px}
+}
+@media (min-width:768px){
   .mon-page{padding:0 24px 64px}
-  .mon-summary{position:sticky;top:var(--m-top);z-index:5}
-  .mon-sum-top{grid-template-columns:auto minmax(120px,1fr);gap:10px 18px}
-  .mon-counts{grid-column:1/-1;flex-wrap:wrap;overflow:visible;margin:0;padding:0}
   .mon-filtersbtn{display:none}
   .mon-filters,.mon-tools.is-open .mon-filters{display:flex;flex-wrap:wrap;align-items:center;width:auto;gap:8px}
   .mon-filters .mon-select{width:auto;max-width:200px}
   .mon-clear{grid-column:auto}
+  .mon-chips{flex-wrap:wrap;overflow:visible}
+  .mon-live{grid-template-columns:auto minmax(120px,1fr);gap:8px 18px}
+  .mon-live .mon-facts{grid-column:1/-1}
+  .mon-app:is([data-win="pre"],[data-win="onday"]) .mon-summary{position:sticky;top:var(--m-top);z-index:5}
+  /* two-line rows: time | title + who | actions, then the status under the title */
+  .mon-row{grid-template-columns:96px minmax(0,1fr) auto;grid-template-areas:"time main acts" "time st acts";align-items:center;gap:6px 12px;padding:10px 6px}
+  .mon-row>.mon-time{align-self:start}
+  .mon-acts{justify-content:flex-end}
+}
+@media (min-width:1280px){
+  .mon-live{grid-template-columns:auto minmax(140px,1fr) auto}
+  .mon-live .mon-facts{grid-column:auto;justify-content:flex-end;flex-wrap:nowrap}
+  .mon-live .mon-fact{flex:none}.mon-live .mon-fact.is-next{flex:0 1 auto}
+  .mon-live .mon-fact-v{white-space:nowrap}.mon-live .is-next .mon-fact-v{overflow:hidden;text-overflow:ellipsis;max-width:280px}
+  .mon-grid{grid-template-columns:minmax(0,1fr) 300px}
+  .mon-side{display:block}
   .mon-row{grid-template-columns:104px minmax(0,1fr) minmax(190px,auto) auto;grid-template-areas:"time main st acts";align-items:center;gap:12px;padding:10px 6px}
   .mon-row>.mon-time{align-self:center}
   .mon-row-st{justify-content:flex-start}
-  .mon-acts{justify-content:flex-end;min-width:150px}
-  .mon-board{grid-auto-columns:minmax(230px,1fr)}
-}
-@media (min-width:1380px){
-  /* one row: big % · bar · chips */
-  .mon-sum-top{grid-template-columns:auto minmax(140px,1fr) auto}
-  .mon-counts{grid-column:auto;flex-wrap:wrap;justify-content:flex-end;min-width:0}
-}
-@media (min-width:1100px){
-  .mon-grid{grid-template-columns:minmax(0,1fr) 300px}
-  .mon-side{position:sticky;top:calc(var(--m-top) + var(--mon-sum-h,120px) + 24px);max-height:calc(100vh - var(--m-top) - var(--mon-sum-h,120px) - 40px);overflow:auto}
-}
-@media (max-width:719.98px){
-  .mon-wallbtn{display:none}
-  .mon-head-acts .tc-btn{flex:1 1 auto}
-  .mon-updated{flex:1 1 100%;order:3}
-  .mon-pct b{font-size:26px}
-  .mon-facts{flex-direction:column;gap:4px}
-  .mon-facts>*+*::before{content:none}
-  .mon-latest{flex:none;max-width:100%}
+  .mon-acts{min-width:150px}
 }
 @media (max-width:520px){ .mon-header .nav{display:none} .mon-bar.is-small{width:80px} .mon-tabs{width:auto} }
 
@@ -214,9 +313,9 @@ body.mon-wall .mon-ev .tc-t dd{font-size:26px}
 body.mon-wall .mon-ev .tc-t dt{font-size:13px}
 body.mon-wall .mon-pct{font-size:18px} body.mon-wall .mon-pct b{font-size:52px}
 body.mon-wall .mon-bar{height:16px}
-body.mon-wall .mon-sum-top{grid-template-columns:auto minmax(140px,1fr)} body.mon-wall .mon-counts{grid-column:1/-1;justify-content:flex-start}
-body.mon-wall .mon-count{font-size:15px;min-height:40px;padding:6px 14px} body.mon-wall .mon-count b{font-size:19px}
-body.mon-wall .mon-facts{font-size:16px}
+body.mon-wall .mon-fact-v{font-size:24px} body.mon-wall .mon-fact-l{font-size:13px}
+body.mon-wall .mon-stepgrp-t{font-size:20px} body.mon-wall .mon-stepgrp-n,body.mon-wall .mon-run li{font-size:17px}
+body.mon-wall .mon-stp-b{font-size:17px;min-height:52px}
 body.mon-wall .mon-tab{font-size:16px;min-height:42px}
 body.mon-wall .mon-row-title,body.mon-wall .mon-alert-main b{font-size:18px}
 body.mon-wall .mon-row-meta,body.mon-wall .mon-alert-main{font-size:15px}
@@ -225,11 +324,11 @@ body.mon-wall .mon-chip{font-size:13px;height:26px}
 body.mon-wall .mon-person-who b{font-size:19px}
 body.mon-wall .mon-feed{font-size:15px}
 body.mon-wall .mon-alerts-h{font-size:18px}
-body.mon-wall .mon-wallbtn{background:var(--m-black);border-color:var(--m-black);color:#fff}
-@media (min-width:720px){ body.mon-wall .mon-row{grid-template-columns:120px minmax(0,1fr) minmax(210px,auto) auto} }
-@media (min-width:1100px){ body.mon-wall .mon-grid{grid-template-columns:minmax(0,1fr) 360px} }
+body.mon-wall .mon-wallbtn{background:var(--m-acc);border-color:var(--m-acc);color:var(--hb-acc-ink,#fff)}
+@media (min-width:768px){ body.mon-wall .mon-row{grid-template-columns:120px minmax(0,1fr) auto} }
+@media (min-width:1280px){ body.mon-wall .mon-row{grid-template-columns:120px minmax(0,1fr) minmax(210px,auto) auto} body.mon-wall .mon-grid{grid-template-columns:minmax(0,1fr) 360px} }
 
-@media print{ .mon-tools,.mon-tabs,.mon-side,.mon-head-acts,.mon-acts,.mon-header .nav{display:none!important} .mon-summary{position:static;box-shadow:none} }
+@media print{ .mon-tools,.mon-tabs,.mon-side,.mon-head-acts,.mon-acts,.mon-header .nav{display:none!important} .mon-summary{position:static!important;box-shadow:none} }
 /* R186 (0369): escalation badge on the Late panel (special tasks not started) */
 .mon-chip.mon-esc{height:auto;min-height:22px;white-space:normal;line-height:1.3;padding:2px 9px;background:var(--m-late);color:#fff}
 .mon-chip.mon-esc.is-esc-lead{background:#fff1d6;color:#8a4b00}
@@ -268,6 +367,19 @@ html[data-shell="b"][data-hb-theme]:not([data-hb-theme="emerald"]) .mon-body .mo
 .mon-dl dd{margin:0;overflow-wrap:anywhere}
 .mon-drawer-f{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 body.mon-drawer-open{overflow:hidden}
-.mon-wrapcard .tc-prep-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-@media (max-width:640px){ .mon-tab{padding:9px 14px;font-size:14px} .mon-drawer{width:100%} .mon-menu{right:auto;left:0} }
+@media (max-width:767.98px){ .mon-tab{padding:9px 14px;font-size:14px} .mon-drawer{width:100%} .mon-menu{right:auto;left:0} }
 body.mon-wall .mon-tab{font-size:17px;min-height:48px}
+/* R251: the Check-in list is back (R184 styles) */
+.mon-ci>p{font-size:13px;margin:0}
+.mon-ci-list{display:grid;border-top:1px solid var(--m-line-2);margin-top:8px}
+.mon-ci-row{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--m-line-2)}
+.mon-ci-row:last-child{border-bottom:0}.mon-ci-row.is-late{background:linear-gradient(90deg,var(--m-late-soft),transparent 70%)}
+.mon-ci-who{grid-column:1/-1;display:flex;align-items:center;gap:10px;min-width:0}.mon-ci-who b{display:block;font-size:14px}.mon-ci-who small{display:block;font-size:12px}
+.mon-ci-cell{display:flex;flex-direction:column;font-size:14px}.mon-ci-cell small{font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.mon-ci-st{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+@media (min-width:768px){ .mon-ci-row{grid-template-columns:minmax(0,1.6fr) 90px 90px minmax(0,1.2fr)} .mon-ci-who,.mon-ci-st{grid-column:auto} }
+
+/* R253: finished work nobody has checked yet */
+.mon-chip.is-appr{background:var(--m-warn-soft);color:var(--m-warn)}
+.mon-appr a,.mon-dl a{color:var(--m-acc-2);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.mon-appr a{display:inline-flex;align-items:center;min-height:44px}
