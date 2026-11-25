@@ -110,7 +110,7 @@
     card.appendChild(h("div", { cls: "tt", text: "Reached the venue? Check in" }));
     var bits = [];
     if (ci.expected_start) bits.push("Start time " + t12(ci.expected_start));
-    if (ci.opens_at) bits.push("opens " + t12(ci.opens_at));
+    if (ci.opens_at && EARLY_WAIT) bits.push("opens " + t12(ci.opens_at));
     if (ci.needs_location) bits.push("your phone's location is checked against the venue (only the distance is saved)");
     if (bits.length) card.appendChild(h("p", { cls: "rsl", text: bits.join(" · ") }));
     // R257 (0443): before check-in opens the button waits for it and says when (the server refuses an earlier press anyway); the server's clock
@@ -122,7 +122,10 @@
   }
   // ms until check-in opens (0 = open, or not known). homeAt = when the answer came in: the server's now + the time since then
   var openTimer = null, homeAt = 0;
+  // R268 (owner, 26 Nov: "pause the check-in time feature"): on the event day the button is open at any time (0453 pauses the server's wait too)
+  var EARLY_WAIT = false;
   function opensIn(ci) {
+    if (!EARLY_WAIT) return 0;
     var o = Date.parse((ci && ci.opens_ts) || ""), n = Date.parse((ci && ci.now_ts) || ""); if (isNaN(o) || isNaN(n)) return 0;
     return Math.max(0, o - (n + Math.max(0, Date.now() - (homeAt || Date.now()))));
   }

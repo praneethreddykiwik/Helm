@@ -114,6 +114,7 @@ import { inviteSiteMessage } from "./invite-site.mjs";
 import { trialRowAllowed } from "./trial-row.mjs";   // 0212: free trial = link e-mails only
 import { bookletMessage } from "./booklet-link.mjs";
 import { quoteExpiryMessage } from "./quote-expiry.mjs";
+import { payPageUrl, withPayLink } from "./pay-link.mjs";   // R269: the client's payment page in a payment reminder
 import { deliveryMessage } from "./delivery-reminder.mjs";   // 0241: delivery / arrival reminders
 import { vendorRequestMessage, vendorRequestHtml, vendorFlowMessage, vendorFlowHtml, VENDOR_TX_REASON } from "./vendor-request.mjs";   // 0256: vendor requests + reminders; R259 (0447): product list, change / confirmed / invoice e-mails
 import { vendorBillMessage, vendorBillHtml, VENDOR_BILL_TX_REASON, VENDOR_BILL_VENDOR_TX_REASON } from "./vendor-bill-reminder.mjs";   // R190 (0373): vendor bill due reminders
@@ -352,6 +353,15 @@ export function messageFor(purpose: string, payload: Record<string, unknown>, or
   return { subject: String(payload?.subject ?? "A message from your planner"), text };
 }
 
+// R269: the client page of the reminder's event (service role; the token never leaves the server except in the client's own message)
+async function payPageLink(admin: any, id: string, origin: string): Promise<string> {
+  try {
+    const { data: o } = await admin.from("comms_outbox").select("quote_id").eq("id", id).maybeSingle();
+    if (!o || !o.quote_id) return "";
+    const { data: q } = await admin.from("quotes").select("approval_token,approval_token_expires_at,approval_token_revoked_at,status").eq("id", o.quote_id).maybeSingle();
+    return payPageUrl(origin, q);
+  } catch (_) { return ""; }
+}
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
@@ -416,7 +426,8 @@ Deno.serve(async (req) => {
       if (!UUIDISH.test(id)) { counts.invalid++; continue; }
       const purpose = String(r?.purpose ?? ""), channel = String(r?.channel ?? ""), to = String(r?.to ?? "");
       const payload = (r?.payload && typeof r.payload === "object") ? r.payload : {};
-      const msg = messageFor(purpose, payload, origin);
+      let msg: { subject: string; text: string; html?: string } = messageFor(purpose, payload, origin);
+      if (purpose === "pay_reminder" && !sentBefore.has("comms:" + id)) msg = withPayLink(msg, await payPageLink(admin, id, origin));   // R269
       let res: Res = "skipped";
       if (already("comms", id)) res = "sent";   // R236: went out before, only the mark was missing
       else if (!trialRowAllowed(purpose, channel, payload)) res = "skipped";   // 0212: free trial = link e-mails only
@@ -433,7 +444,7 @@ Deno.serve(async (req) => {
           try { const { data } = await admin.rpc("comms_outbox_unsub", { p_id: id }); u = data; } catch (_) { u = null; }
           extra = marketingExtra(u, String(payload.studio ?? "") || "your event planner", "you asked " + (String(payload.studio ?? "") || "this planner") + " about an event", origin);
         }
-        res = extra ? await sendEmail(id, to, msg.subject, msg.text, String(payload.studio ?? ""), ident, extra) : "skipped";
+        res = extra ? await sendEmail(id, to, msg.subject, msg.text, String(payload.studio ?? ""), ident, extra, msg.html) : "skipped";
       }
       else if (channel === "whatsapp") {
         const org = await orgOfRow(admin, "comms_outbox", id), snd = await waSenderOf(org);

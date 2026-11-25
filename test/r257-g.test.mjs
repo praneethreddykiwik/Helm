@@ -74,7 +74,7 @@ test('3 / 9 the studio\'s name on its own pages; a logo only where the page may 
 });
 test('vii check-in waits for the server\'s opening time; without 0443 the button is as before', () => {
   const C = read('public/crew-self.js'); const a = C.indexOf('  function opensIn(ci) {');
-  const f = new Function('homeAt', C.slice(a, C.indexOf('\n  }', a) + 4) + '; return opensIn;'); const now = Date.now();
+  const f = new Function('homeAt', 'var EARLY_WAIT = true;' + C.slice(a, C.indexOf('\n  }', a) + 4) + '; return opensIn;'); const now = Date.now();
   assert.ok(f(now)({ opens_ts: '2026-11-25T12:30:00Z', now_ts: '2026-11-25T10:30:00Z' }) > 7190000); assert.equal(f(now)({ opens_ts: '2026-11-25T10:00:00Z', now_ts: '2026-11-25T10:30:00Z' }), 0); assert.equal(f(now)({ opens_at: '18:00' }), 0);
 });
 test('5 / 16 a confirmed booking: no "Not opened yet", no "Not confirmed yet"', () => {

@@ -84,3 +84,16 @@ test('14 a chair is one chair, a table one table: a saved link that says more is
 test('15 the resource plan takes you to the vendor invoice', () => {
   const R = read('public/resources.html'); assert.match(R, /invoice_received:"Check the invoice →"/); assert.match(R, /"vendors\.html\?tab=requests&quote="\+encodeURIComponent\(id\)\+"&req="\+encodeURIComponent\(rq\.id\)/);
 });
+test('16 check-in at any time on the event day (paused wait): page and database', () => {
+  const C = read('public/crew-self.js'), q = read('supabase/migrations/0453_r268_checkin_anytime.sql'); assert.match(C, /var EARLY_WAIT = false;/); assert.match(C, /if \(!EARLY_WAIT\) return 0;/);
+  assert.match(q, /and false then   -- r268-0453/); assert.ok(read('supabase/APPLY-0453.sql').includes(q)); assert.ok(!/[^\x00-\x7f]/.test(q)); assert.ok(!/^\s*(drop|delete|truncate|update|insert into public\.(?!helm_schema))/im.test(q));
+});
+test('17 a payment reminder carries the client page (pay, or say paid); never a dead or revoked link', async () => {
+  const P = await import('../supabase/functions/comms-dispatch/pay-link.mjs'), T = '11111111-2222-4333-8444-555555555555', o = 'https://www.helm.events';
+  assert.equal(P.payPageUrl(o, { approval_token: T }), o + '/portal.html?token=' + T);
+  for (const bad of [null, {}, { approval_token: 'x' }, { approval_token: T, approval_token_revoked_at: '2026-01-01' }, { approval_token: T, status: 'cancelled' }, { approval_token: T, approval_token_expires_at: '2020-01-01' }]) assert.equal(P.payPageUrl(o, bad), '');
+  assert.equal(P.payPageUrl('javascript:x', { approval_token: T }), '');
+  const m = P.withPayLink({ subject: 'S', text: 'Hi <b>' }, o + '/portal.html?token=' + T); assert.match(m.text, /tell us you have paid: https:\/\/www\.helm\.events\/portal\.html\?token=/); assert.match(m.html, /Hi &lt;b&gt;/); assert.match(m.html, /Open your payment page/);
+  assert.deepEqual(P.withPayLink({ subject: 'S', text: 't' }, ''), { subject: 'S', text: 't' });
+  const I = read('supabase/functions/comms-dispatch/index.ts'); assert.match(I, /if \(purpose === "pay_reminder" && !sentBefore\.has\("comms:" \+ id\)\) msg = withPayLink/); assert.match(I, /ident, extra, msg\.html\)/);
+});
