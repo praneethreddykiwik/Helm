@@ -17,14 +17,14 @@
   "use strict";
   var FACTS = {
     // ---- the company -----------------------------------------------------------------------
-    legalEntityName: "Helm Events",          // e.g. "Helm Events Private Limited" (exactly as registered)
-    registeredAddress: "Mindspace IT Park, Madhapur, Hyderabad, Telangana 500081, India",        // full registered office address
+    legalEntityName: "",          // e.g. "Helm Events Private Limited" (exactly as registered)
+    registeredAddress: "",        // full registered office address
     cin: "",                      // Company Identification Number (India) / trade licence no.
     gstin: "",                    // GSTIN shown on tax invoices
     uaeTrn: "",                   // UAE VAT TRN - only if registered, else leave "" and confirm below
     sacCode: "",                  // SAC code on invoices (terms say "e.g. 998314 / 998431"): your SAC, or true to confirm that text
-    jurisdictionLaw: "the laws of India",          // governing law, e.g. "the laws of India"
-    jurisdictionSeat: "Hyderabad, India",         // courts / arbitration seat, e.g. "Hyderabad, India"
+    jurisdictionLaw: "",          // governing law, e.g. "the laws of India"
+    jurisdictionSeat: "",         // courts / arbitration seat, e.g. "Hyderabad, India"
     paymentProcessor: "",         // e.g. "Razorpay Software Private Limited"
     hostingRegion: "",            // where the database runs, e.g. "AWS ca-central-1 (Canada)" or "ap-south-1 (Mumbai)"
     // ---- contacts ----------------------------------------------------------------------------
@@ -34,10 +34,10 @@
     grievanceOfficerPhone: "",
     grievanceOfficerAddress: "",  // an address IN INDIA
     dpoName: "",                  // Data Protection Officer / privacy contact name
-    privacyEmail: "notifications@helm.events",             // e.g. "privacy@helm.events"
-    supportEmail: "notifications@helm.events",             // e.g. "support@helm.events"
+    privacyEmail: "",             // e.g. "privacy@helm.events"
+    supportEmail: "",             // e.g. "support@helm.events"
     billingEmail: "",             // e.g. "billing@helm.events"
-    legalEmail: "notifications@helm.events",               // e.g. "legal@helm.events"
+    legalEmail: "",               // e.g. "legal@helm.events"
     legalNotices: "",             // legal notices e-mail AND postal address (one line)
     securityEmail: "",            // e.g. "security@helm.events" (also in /.well-known/security.txt)
     accessibilityEmail: "",
