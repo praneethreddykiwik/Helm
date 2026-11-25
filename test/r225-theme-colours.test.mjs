@@ -35,10 +35,10 @@ t('ops-board.css: non-Emerald themes remap the accent + tint tokens to the theme
 });
 t('ops-board.css: the R222 rows use tokens (run-sheet "now" row, wrap-up OK, step on, picker selected)', () => {
   assert.match(OPS, /\.tc-run-row\.now\{background:var\(--tc-now-bg\);box-shadow:inset 3px 0 0 var\(--tc-now-bar\)\}/);
-  assert.match(OPS, /\.tc-wrap\.ok\{border-color:var\(--tc-safe-line\)\}/);
+  assert.match(OPS, /\.tc-box\.ok\{border-color:var\(--tc-safe-line\)\}/);   // R251: wrap-up moved to event-steps.css
   assert.match(OPS, /\.tc-step\.on\{background:var\(--tc-acc\)/);
   assert.match(OPS, /\.tc-opt\[aria-pressed="true"\]\{background:var\(--tc-acc-soft\);border-color:var\(--tc-acc\);color:var\(--tc-acc-text\)\}/);
-  assert.match(OPS, /\.tc-phase-row \.tc-seg\[aria-pressed="true"\]\{background:var\(--tc-black\)/, 'selected Before / On the day stays black');
+  assert.match(OPS, /\.tc-phase-row \.tc-seg\[aria-pressed="true"\]\{background:var\(--tc-acc\)/, 'R251 (owner): the picked step is the theme accent');
 });
 t('monitor.css + crew-shifts.css: Emerald fallbacks kept, other themes remapped, status green kept', () => {
   const mov = block(MON, THEMED + ' .mon-body{');

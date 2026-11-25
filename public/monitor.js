@@ -20,6 +20,16 @@
  * (ops-board.css .tc-ev: event switcher as the title, date / venue / guests, countdown tile, actions), then the summary
  * (big % + bar, status chips in one row, the other facts in one muted line), tabs, filters in one row (a Filters button on a
  * phone), then the views with the activity rail beside them. "Wall screen" = big text for a TV, full screen when allowed.
+ * R250 (owner: "can't tell before / during / after the event"): a step strip (Before the event / Day before / On the day /
+ * Wrap-up) with a green "Now" dot; the step you look at decides what shows (readiness + what needs action before; checklist,
+ * floor plan and the lock the day before; a slim live strip, Late panel and the work on the day; still open, hours and next
+ * steps at wrap-up). Three tabs (People / Work / Activity); status is a row of filter chips; no hover tooltips.
+ * R251 (owner, 24 Nov: "the day before first, then pre event, then on the event and then wrap up"): the same steps as Tasks & Crew
+ * (task-status.js WINDOWS / STEPS): Day before / Pre-event / On the event. Wrap-up is no step but a closed section at the very bottom
+ * (HelmEventWrap, event-steps.js); Pre-event ends with "Mark pre-event complete" (HelmEventSteps, the quote's stage -> Event Day).
+ * The header badge is the REAL step (autoWin). People and Work list Day before, Pre-event, On the event, Wrap-up work in that order
+ * (TS.taskStep). On the event also has the run-sheet now / next and the open issues (BPStore.issues, as on Tasks & Crew: view with
+ * Issues view, log with Issues edit). "All events today" has no steps and no wrap-up: one flat list, as before.
  * Built with DOM calls only (textContent), never HTML strings. Refreshes every 30 s while the tab is visible
  * (event_tasks is not in a realtime publication, so polling is the cheap, safe choice). */
 (function () {
@@ -103,18 +113,28 @@
 
   /* ---- page state ---- */
   var S = { events: [], quote: null, tasks: [], crew: {}, sheet: {}, off: {}, offAsk: {}, acts: null, actType: "", canEdit: false, tab: "staff", lastLoad: 0, loading: false, evInfo: {}, timer: null,
-    // R226: the four windows (same rule as Tasks & Crew), the event day plan (0396; null = not there), the run-sheet (for the
+    // R226 / R251: the steps (same rule as Tasks & Crew), the event day plan (0396; null = not there), the run-sheet (for the
     // window rule), proof photos (task_evidence, signed 5-minute links), whether Remind -> Bell exists, the open drawer
     win: "onday", autoWin: "onday", manualWin: null, plan: null, planAt: 0, has396: false, rs: null, rsAt: 0, rsView: false,
     proof: {}, proofUrl: {}, proofAt: 0, drawer: null, lastFocus: null,
     // R230 (0399): the departments I supervise, per event ({ quote_id: ["Catering"] }; empty before 0399)
-    mine: {}, mineAt: 0, mineKey: "" };
+    mine: {}, mineAt: 0, mineKey: "",
+    // R250: the status chip that is on ("" = all; "open" = still open)
+    st: "", stpSeen: "",
+    // R251: issues of the event (null = may not read them), what this role may do there, admin, folded work groups (per event + step),
+    // when the quote (stage, date) was last read again
+    iss: null, issQ: "", issView: false, issEdit: false, issOpen: false, admin: false, fold: {}, quoteAt: 0 };
 
   /* ---- R184: attendance (check-in / check-out) + "can't work" reasons ---- */
-  // first start time of a person's tasks on this event (the time they should be there by)
+  // first start time of a person's tasks on the day they check in (else the event day): the time they should be there by. A job the
+  // day before never makes an event-day check-in "1320 min late" (R251); no task that day = their first task
   function firstStart(crewId) {
+    var e = S.sheet[crewId], day = String((e && e.in && e.day) || (S.quote !== "all" && (S.evInfo[S.quote] || {}).event_date) || "").slice(0, 10), v = firstOf(crewId, day);
+    return day && !isFinite(v) ? firstOf(crewId, "") : v;
+  }
+  function firstOf(crewId, day) {
     var best = NaN;
-    S.tasks.forEach(function (t) { if (t.crew_id !== crewId || t.status === "cancelled" || !t.planned_start) return; var v = new Date(t.planned_start).getTime(); if (isFinite(v) && (!isFinite(best) || v < best)) best = v; });
+    S.tasks.forEach(function (t) { if (t.crew_id !== crewId || t.status === "cancelled" || !t.planned_start) return; if (day && (parts(t.planned_start) || {}).day !== day) return; var v = new Date(t.planned_start).getTime(); if (isFinite(v) && (!isFinite(best) || v < best)) best = v; });
     return best;
   }
   // {state: "in"|"out"|"none", text, late, lateMin, hours}
@@ -175,14 +195,14 @@
   }
 
   function filtered() {
-    var q = ($("#monQ").value || "").trim().toLowerCase(), who = $("#monWho").value, sec = $("#monSec").value, st = $("#monSt").value, now = Date.now();
+    var q = ($("#monQ").value || "").trim().toLowerCase(), who = $("#monWho").value, sec = $("#monSec").value, st = S.st || "", now = Date.now();
     var out = S.tasks.filter(function (t) {
       if (t.status === "cancelled") return false;
       var s = stateOf(t, now);
       if (who && personKey(t) !== who) return false;
       if (sec === "__mine") { if ((S.mine[t.quote_id] || []).indexOf(String(t.category || "Other")) < 0) return false; }
       else if (sec && String(t.category || "Other") !== sec) return false;
-      if (st && !(st === "late" ? s.late : s.key === st)) return false;
+      if (st && !(st === "late" ? s.late : st === "open" ? s.key !== "done" : s.key === st)) return false;
       if (q) { var hay = [t.title, t.category, nameOf(t), t._code].join(" ").toLowerCase(); if (hay.indexOf(q) < 0) return false; }
       return true;
     });
@@ -208,8 +228,8 @@
     var s = stateOf(t), lvl = s.key === "done" ? 3 : s.key === "started" ? 2 : s.key === "accepted" ? 1 : s.key === "waiting" ? 0 : -1;
     var wrap = h("span", { cls: "mon-steps", label: "Progress: " + s.label });
     ["Given", "Accepted", "Started", "Done"].forEach(function (lb, i) {
-      var cls = "mon-step" + (s.key === "rejected" ? " is-off" : i <= lvl ? " is-on" : "") + (s.late && i === lvl + 1 ? " is-late" : "");
-      wrap.appendChild(h("span", { cls: cls, title: lb }));
+      var cls = "mon-step" + (s.key === "rejected" ? " is-off" : i <= lvl ? " is-on" : "") + (s.late && lateOn() && i === lvl + 1 ? " is-late" : "");
+      wrap.appendChild(h("span", { cls: cls, "data-step": lb }));
     });
     return wrap;
   }
@@ -226,11 +246,11 @@
   /* R194: the time sits first in the row (as on Tasks & Crew): clock, then the day ("night of ..." after midnight), then
      "in 45 min" / "12 min late". A task with no start time says "No time" quietly in that same first column. */
   function timeCell(t) {
-    if (!t.planned_start) return h("span", { cls: "mon-time is-none", title: "No start time set", text: "No time" });
-    var s = stateOf(t), p = parts(t.planned_start), w = h("span", { cls: "mon-time" + (s.late ? " is-late" : ""), title: fmtWhen(t.planned_start) });
+    if (!t.planned_start) return h("span", { cls: "mon-time is-none", text: "No time" });
+    var s = stateOf(t), p = parts(t.planned_start), w = h("span", { cls: "mon-time" + (s.late && lateOn() ? " is-late" : "") });
     w.appendChild(h("b", { text: fmtClock(t.planned_start) }));
     if (p) w.appendChild(h("small", { text: p.hour < 6 ? "night of " + fmtDayIso(prevDay(p.day)) : fmtDayIso(p.day) }));
-    if (s.key === "waiting" || s.key === "accepted") w.appendChild(h("small", { cls: "mon-time-rel", text: s.late ? lateWords(TS.lateMin(t)) : until(t.planned_start) }));
+    if ((s.key === "waiting" || s.key === "accepted") && (!s.late || lateOn())) w.appendChild(h("small", { cls: "mon-time-rel", text: s.late ? lateWords(TS.lateMin(t)) : until(t.planned_start) }));
     return w;
   }
   function lateWords(m) { return m < 60 ? m + " min late" : m < 1440 ? Math.floor(m / 60) + " h " + (m % 60 ? (m % 60) + " min " : "") + "late" : Math.floor(m / 1440) + " d late"; }
@@ -239,7 +259,7 @@
   function actions(t) {
     var box = h("span", { cls: "mon-acts" });
     // R226: Open shows the task in a drawer on this page (Tasks & Crew is one link away inside it)
-    var o = h("button", { cls: "mon-btn mon-sm", type: "button", text: "Open", title: "Show this task here (who, times, proof photo, updates)", "aria-haspopup": "dialog" });
+    var o = h("button", { cls: "mon-btn mon-sm", type: "button", text: "Open", "aria-haspopup": "dialog" });
     o.addEventListener("click", function () { openDrawer(t, o); });
     box.appendChild(o);
     if (canRemind(t)) box.appendChild(remindBtn(t));
@@ -249,7 +269,7 @@
      Each option says what will happen; nothing is sent without the click. */
   function remindBtn(t) {
     var wrap = h("span", { cls: "mon-remind" });
-    var b = h("button", { cls: "mon-btn mon-sm", type: "button", text: "Remind ▾", title: "Remind " + (nameOf(t) || "them") + ": bell, e-mail or WhatsApp", "aria-haspopup": "menu", "aria-expanded": "false" });
+    var b = h("button", { cls: "mon-btn mon-sm", type: "button", text: "Remind ▾", "aria-label": "Remind " + (nameOf(t) || "them") + " (bell, e-mail or WhatsApp)", "aria-haspopup": "menu", "aria-expanded": "false" });
     var menu = h("span", { cls: "mon-menu", role: "menu", hidden: true });
     function close() { menu.hidden = true; b.setAttribute("aria-expanded", "false"); doc.removeEventListener("click", away, true); }
     function away(e) { if (!wrap.contains(e.target)) close(); }
@@ -310,7 +330,7 @@
     var list = big ? urls : urls.slice(-1);
     var box = h("span", { cls: "mon-proof" + (big ? " is-big" : "") });
     list.forEach(function (u, i) {
-      var a = h("a", { href: u, target: "_blank", rel: "noopener", title: "Open the proof photo", "aria-label": "Proof photo " + (i + 1) + " for " + (t.title || "task") });
+      var a = h("a", { href: u, target: "_blank", rel: "noopener", "aria-label": "Proof photo " + (i + 1) + " for " + (t.title || "task") });
       var img = h("img", { alt: "", loading: "lazy", decoding: "async" }); img.src = u; img.width = big ? 160 : 40; img.height = big ? 120 : 40;
       a.appendChild(img); box.appendChild(a);
     });
@@ -338,7 +358,7 @@
     var head = h("div", { cls: "mon-drawer-st" }); head.appendChild(steps(t)); head.appendChild(chip(s)); if (t.is_special) head.appendChild(h("span", { cls: "mon-chip is-special", text: "🔔 Special" }));
     b.appendChild(head);
     var dl = h("dl", { cls: "mon-dl" }), c = t.crew_id && S.crew[t.crew_id], who = nameOf(t);
-    var wv = who || "No one yet";
+    var wv = who || TS.LABEL.unassigned;
     if (c && c.phone && S.canEdit) { var ph = String(c.phone).replace(/[^\d+]/g, ""); if (ph) wv = h("span", {}, [who + " · ", h("a", { href: "tel:" + ph, text: "Call" })]); }
     drawerRow(dl, "Who", wv);
     drawerRow(dl, "Section", t.category || "Other");
@@ -363,8 +383,9 @@
     else { var ol = h("ol", { cls: "mon-feed" }); acts.forEach(function (a) { ol.appendChild(h("li", {}, [h("span", { text: actText(a) }), h("small", { cls: "mon-muted", text: " · " + ago(a.at) })])); }); b.appendChild(ol); }
     var foot = h("div", { cls: "mon-drawer-f" });
     if (canRemind(t)) foot.appendChild(remindBtn(t));
-    foot.appendChild(h("a", { cls: "tc-btn tc-primary", href: opsHref(t), text: "Edit in Tasks & Crew →", title: "Reassign, change the time, cancel" }));
+    foot.appendChild(h("a", { cls: "tc-btn tc-primary", href: opsHref(t), text: "Edit in Tasks & Crew →" }));
     b.appendChild(foot);
+    b.appendChild(h("p", { cls: "mon-hint", text: "Reassign, change the time or cancel it there." }));
   }
   function closeDrawer() {
     var d = $("#monDrawer"); if (!d || d.hidden) return;
@@ -400,19 +421,19 @@
   function taskRow(t, opts) {
     opts = opts || {};
     var s = stateOf(t);
-    var row = h("div", { cls: "mon-row" + (s.late ? " is-late" : "") + (s.key === "done" ? " is-done" : ""), role: "listitem" });
+    var row = h("div", { cls: "mon-row" + (s.late && lateOn() ? " is-late" : "") + (s.key === "done" ? " is-done" : ""), role: "listitem" });
     row.appendChild(timeCell(t));
     var main = h("div", { cls: "mon-row-main" });
     var tt = h("div", { cls: "mon-row-title" }, [h("span", { text: t.title || "Task" })]);
     if (t.is_special) tt.appendChild(h("span", { cls: "mon-chip is-special", text: "🔔 Special" }));
     main.appendChild(tt);
     var meta = h("div", { cls: "mon-row-meta" });
-    if (opts.showWho !== false) { var nm = nameOf(t); meta.appendChild(h("span", { cls: nm ? "" : "mon-warn", text: nm || "No one yet" })); }
+    if (opts.showWho !== false) { var nm = nameOf(t); meta.appendChild(h("span", { cls: nm ? "" : "mon-warn", text: nm || TS.LABEL.unassigned })); }
     if (opts.showSec !== false) meta.appendChild(h("span", { cls: "mon-muted", text: t.category || "Other" }));
     if (t._code) meta.appendChild(h("span", { cls: "mon-code", text: t._code }));
     main.appendChild(meta);
     row.appendChild(main);
-    var st = h("div", { cls: "mon-row-st" }); st.appendChild(steps(t)); st.appendChild(chip(s));
+    var st = h("div", { cls: "mon-row-st" }); st.appendChild(steps(t)); st.appendChild(chip(lateOn() ? s : { key: s.key, label: s.label, late: false }));
     if (s.key === "done") { var pt = proofThumb(t, false); if (pt) st.appendChild(pt); }   // R226: the proof photo beside Done
     row.appendChild(st);
     row.appendChild(actions(t));
@@ -420,6 +441,31 @@
   }
 
   /* ---- views ---- */
+  /* R251: People and Work show the work in the order it happens - Day before, Pre-event, On the event, Wrap-up - each under its own
+     heading with a done count. "All events" (no steps) keeps one flat list. A group folds: Wrap-up starts closed until the event is
+     over, a finished earlier step starts closed too; with a filter or a search on, every group with a match is open. */
+  function stepO(q) { var e = S.evInfo[q] || {}; return { eventDate: e.event_date ? String(e.event_date).slice(0, 10) : "", eventTime: String(e.event_time || "").trim(), tz: tz() }; }
+  function single() { return !!S.quote && S.quote !== "all"; }
+  function foldDefault(w, g) { return w === "wrapup" ? S.autoWin !== "wrapup" : !g.open && stepIdx(w) < stepIdx(S.win); }
+  function byStep(list, draw) {
+    if (!single()) return draw(list);
+    var o = stepO(S.quote), all = TS.bySteps(S.tasks, o), got = TS.bySteps(list, o), wrap = h("div", { cls: "mon-steps-list" });
+    var filtering = !!(S.st || $("#monWho").value || $("#monSec").value || ($("#monQ").value || "").trim());
+    var preLeft = all.daybefore.unassigned + all.pre.unassigned, hinted = false;
+    TS.WINDOWS.forEach(function (x) {
+      var w = x[0], g = all[w], ts = got[w].tasks; if (!ts.length) return;
+      if (preLeft && !hinted && (S.autoWin === "daybefore" || S.autoWin === "pre") && (w === "onday" || w === "wrapup")) { hinted = true; wrap.appendChild(h("p", { cls: "mon-allochint", text: "Allocate pre-event work first - " + preLeft + " left" })); }
+      var key = S.quote + "|" + S.win + "|" + w, open = filtering || (key in S.fold ? !S.fold[key] : !foldDefault(w, g));
+      var sec = h("section", { cls: "mon-stepgrp is-" + w, "aria-label": x[1] + " work" }), id = "monGrp-" + w;
+      var btn = h("button", { type: "button", cls: "mon-stepgrp-b", id: id + "-b", "aria-expanded": String(open), "aria-controls": id }, [
+        h("span", { cls: "mon-stepgrp-t", text: w === "wrapup" ? "Wrap-up tasks" : x[1] }), h("span", { cls: "mon-stepgrp-n", text: g.done + " of " + g.total + " done" }),
+        g.unassigned ? h("span", { cls: "mon-chip is-unassigned", text: g.unassigned + " to assign" }) : null, h("span", { cls: "mon-stepgrp-c", "aria-hidden": "true" })]);
+      var body = h("div", { id: id, hidden: !open }); body.appendChild(draw(ts));
+      btn.addEventListener("click", function () { var o2 = body.hidden; body.hidden = !o2; btn.setAttribute("aria-expanded", String(o2)); S.fold[key] = !o2; });
+      sec.appendChild(h("h3", { cls: "mon-stepgrp-h" }, [btn])); sec.appendChild(body); wrap.appendChild(sec);
+    });
+    return wrap.firstChild ? wrap : empty("No tasks match these filters.");
+  }
   function viewStaff(list) {
     var groups = {}, order = [];
     list.forEach(function (t) { var k = personKey(t) || "none"; if (!groups[k]) { groups[k] = []; order.push(k); } groups[k].push(t); });
@@ -430,21 +476,23 @@
       return nameOf(groups[a][0]).localeCompare(nameOf(groups[b][0]));
     });
     order.forEach(function (k) {
-      var ts = groups[k], first = ts[0], sm = summarize(ts, now), nm = k === "none" ? "No one yet" : nameOf(first);
-      var card = h("section", { cls: "mon-card mon-person" + (sm.late ? " has-late" : ""), label: nm });
+      var ts = groups[k], first = ts[0], sm = summarize(ts, now), nm = k === "none" ? TS.LABEL.unassigned : nameOf(first);
+      var card = h("section", { cls: "mon-card mon-person" + (sm.late && lateOn() ? " has-late" : ""), label: nm });
       var head = h("div", { cls: "mon-person-head" });
       head.appendChild(avatar(nm, first));
       var who = h("div", { cls: "mon-person-who" }, [h("b", { text: nm })]);
       var c = first.crew_id && S.crew[first.crew_id], line = [];
       if (c && (c.department || c.role)) line.push(c.department || c.role);
       var last = lastAct(ts); if (last) line.push(last);
-      who.appendChild(h("small", { text: line.join(" · ") || (k === "none" ? "Give these tasks to someone in Tasks & staff" : "") }));
+      who.appendChild(h("small", { text: line.join(" · ") || (k === "none" ? "Give these tasks to someone in Tasks & Crew" : "") }));
       // R184: attendance line (check-in / check-out) + the day they said they can't work, with their reason
-      if (first.crew_id) {
+      if (first.crew_id && liveOn()) {   // R250: check-in from the event day on (not the day before)
         var at = attendance(first.crew_id);
-        var att = h("small", { cls: "mon-att is-" + at.state + (at.late ? " is-late" : "") }, [h("span", { text: (at.state === "none" ? "○ " : "📍 ") + at.text })]);
+        var att = h("small", { cls: "mon-att is-" + at.state + (at.late ? " is-late" : "") }, [h("span", { text: (at.state === "none" ? "○ " : "📍 ") + at.text + (at.hours ? " · " + at.hours + " h" : "") })]);
         if (at.late) att.appendChild(h("span", { cls: "mon-chip is-late", text: "Late check-in" + (at.lateMin ? " · " + at.lateMin + " min" : "") }));
         who.appendChild(att);
+      }
+      if (first.crew_id) {
         var off = offReason(first.crew_id);
         // R187 (0370): a day still waiting for the office's approval says so
         if (off != null) who.appendChild(h("small", { cls: "mon-offnote", text: S.offAsk[first.crew_id] ? "⏳ Asked for this day off - waiting for approval · " + (off || "no reason given")
@@ -453,7 +501,7 @@
       head.appendChild(who);
       var pr = h("div", { cls: "mon-person-pr" });
       pr.appendChild(h("b", { text: sm.done + "/" + sm.total + " done" }));
-      if (sm.late) pr.appendChild(h("span", { cls: "mon-chip is-late", text: sm.late + " late" }));
+      if (sm.late && lateOn()) pr.appendChild(h("span", { cls: "mon-chip is-late", text: sm.late + " late" }));
       pr.appendChild(bar(sm.pct, "small"));
       head.appendChild(pr);
       card.appendChild(head);
@@ -469,12 +517,12 @@
     var now = Date.now(), wrap = h("div", { cls: "mon-cards" });
     order.forEach(function (k) {
       var ts = groups[k], sm = summarize(ts, now);
-      var card = h("section", { cls: "mon-card mon-sec" + (sm.late ? " has-late" : ""), label: k });
+      var card = h("section", { cls: "mon-card mon-sec" + (sm.late && lateOn() ? " has-late" : ""), label: k });
       var head = h("div", { cls: "mon-sec-head" }, [h("h3", { cls: "mon-sec-title", text: k })]);
       var pr = h("div", { cls: "mon-person-pr" });
       pr.appendChild(h("b", { text: sm.done + "/" + sm.total + " done" }));
-      if (sm.late) pr.appendChild(h("span", { cls: "mon-chip is-late", text: sm.late + " late" }));
-      if (sm.unassigned) pr.appendChild(h("span", { cls: "mon-chip is-unassigned", text: sm.unassigned + " no one yet" }));
+      if (sm.late && lateOn()) pr.appendChild(h("span", { cls: "mon-chip is-late", text: sm.late + " late" }));
+      if (sm.unassigned) pr.appendChild(h("span", { cls: "mon-chip is-unassigned", text: sm.unassigned + " not assigned" }));
       pr.appendChild(bar(sm.pct, "small"));
       head.appendChild(pr); card.appendChild(head);
       var rows = h("div", { cls: "mon-rows", role: "list" });
@@ -483,40 +531,11 @@
     });
     return order.length ? wrap : empty("No tasks match these filters.");
   }
-  function viewStatus(list) {
-    var now = Date.now(), cols = [["late", "Late"], ["waiting", "Waiting for a yes"], ["accepted", "Accepted"], ["started", "Started"], ["done", "Done"], ["rejected", "Turned down"], ["unassigned", "No one yet"]];
-    var board = h("div", { cls: "mon-board" });
-    cols.forEach(function (c) {
-      var items = list.filter(function (t) { var s = stateOf(t, now); return c[0] === "late" ? s.late : (s.key === c[0] && !s.late); });
-      if (!items.length && (c[0] === "rejected" || c[0] === "unassigned")) return;
-      var col = h("section", { cls: "mon-col is-" + c[0], label: c[1] + ": " + items.length });
-      col.appendChild(h("h3", { cls: "mon-col-h" }, [h("span", { text: c[1] }), h("span", { cls: "mon-n", text: String(items.length) })]));
-      if (!items.length) col.appendChild(h("p", { cls: "mon-muted mon-col-empty", text: "Nothing here" }));
-      items.forEach(function (t) {
-        var k = h("article", { cls: "mon-kcard" });
-        k.appendChild(h("b", { text: t.title || "Task" }));
-        k.appendChild(h("small", { text: [nameOf(t) || "No one yet", t.category || "Other"].join(" · ") }));
-        if (t.planned_start) k.appendChild(h("small", { cls: "mon-muted", text: fmtWhen(t.planned_start) }));
-        if (t._code) k.appendChild(h("small", { cls: "mon-code", text: t._code }));
-        k.appendChild(actions(t));
-        col.appendChild(k);
-      });
-      board.appendChild(col);
-    });
-    return board;
-  }
-  function viewLeft(list) {
-    var left = leftover(list);
-    if (!left.length) return empty(S.tasks.length ? "Everything is done. 🎉" : "No tasks yet for this event.");
-    var card = h("section", { cls: "mon-card", label: "Leftover work" });
-    card.appendChild(h("p", { cls: "mon-muted", text: left.length + " still to do - late ones first, then by start time." }));
-    var rows = h("div", { cls: "mon-rows", role: "list" });
-    left.forEach(function (t) { rows.appendChild(taskRow(t)); });
-    card.appendChild(rows);
-    return card;
-  }
-  /* R184: Check-in - each person on the event: in / out, late, hours, and the day they said they can't work */
+  /* R184: Activity - every update, newest first, grouped by day; filter by person (top filter) and by type */
+  function actPersonKey(a) { return a.crew_id ? "c:" + a.crew_id : (a.name ? "n:" + String(a.name).toLowerCase() : ""); }
+  /* R184 Check-in list (R251: back as its own tab - the owner missed it): who is not here first, in / out times, late, hours */
   function viewCheckin(list) {
+    if (!S.hasSheet) return empty(S.quote === "all" ? "Pick one event to see who has checked in." : "Check-in times can’t be read here.");
     var ppl = {}, order = [];
     list.forEach(function (t) { if (!t.crew_id || t.status === "rejected") return; if (!ppl[t.crew_id]) { ppl[t.crew_id] = []; order.push(t.crew_id); } ppl[t.crew_id].push(t); });
     if (!order.length) return empty(S.tasks.length ? "No one matches these filters." : "No one has work on this event yet.");
@@ -525,7 +544,7 @@
     var ac = attendanceCounts();
     var card = h("section", { cls: "mon-card mon-ci", label: "Check-in" });
     card.appendChild(h("p", { cls: "mon-muted", text: ac.checkedIn + " of " + ac.people + " checked in" + (ac.late ? " · " + ac.late + " late" : "") +
-      ". Staff check in and out on their task page (their link); the office can correct times in Tasks & staff → Timesheet." }));
+      ". Staff check in and out on their task page (their link); the office can correct times in Tasks & Crew → Timesheet." }));
     var tbl = h("div", { cls: "mon-ci-list", role: "list" });
     order.forEach(function (id) {
       var t0 = ppl[id][0], nm = nameOf(t0), at = attendance(id), fs = firstStart(id), e = S.sheet[id] || {}, off = offReason(id);
@@ -549,8 +568,6 @@
     card.appendChild(tbl);
     return card;
   }
-  /* R184: Activity - every update, newest first, grouped by day; filter by person (top filter) and by type */
-  function actPersonKey(a) { return a.crew_id ? "c:" + a.crew_id : (a.name ? "n:" + String(a.name).toLowerCase() : ""); }
   function viewActivity() {
     var who = $("#monWho").value, q = ($("#monQ").value || "").trim().toLowerCase();
     var acts = allActs().filter(function (a) {
@@ -597,45 +614,108 @@
   }
 
   /* ---- render ---- */
+  /* ---- R250: what each step shows ---- */
+  // "late" only means something while the event day is running (days early or after it, a passed start time is no red alert)
+  function lateOn() { return (S.win === "pre" || S.win === "onday") && (S.autoWin === "pre" || S.autoWin === "onday"); }
+  function liveOn() { return S.win !== "daybefore"; }
+  function fact(label, value, cls) { return h("div", { cls: "mon-fact" + (cls ? " " + cls : "") }, [h("span", { cls: "mon-fact-l", text: label }), h("b", { cls: "mon-fact-v", text: value })]); }
+  function hoursIn() {
+    var sum = 0, n = 0;
+    Object.keys(S.sheet).forEach(function (id) { var v = Number(S.sheet[id] && S.sheet[id].hours); if (isFinite(v) && v > 0) { sum += v; n++; } });
+    return { hours: Math.round(sum * 10) / 10, people: n };
+  }
+  // Day before: is everyone assigned and has everyone said yes? (no %, no late, no check-in)
+  function readiness(tasks) {
+    var o = { total: 0, assigned: 0, accepted: 0, noTime: 0, noDur: 0, hasDur: false, need: [] };
+    (tasks || []).forEach(function (t) {
+      if (!t || t.status === "cancelled") return; var s = stateOf(t); o.total++;
+      if (Object.prototype.hasOwnProperty.call(t, "duration_min")) o.hasDur = true;
+      if (s.key !== "unassigned" && s.key !== "rejected") o.assigned++;
+      if (s.key === "accepted" || s.key === "started" || s.key === "done") o.accepted++;
+      if (s.key !== "done" && !t.planned_start) o.noTime++;
+      if (s.key !== "done" && (t.duration_min == null || t.duration_min === "")) o.noDur++;
+      if (s.key === "unassigned" || s.key === "waiting" || s.key === "rejected") o.need.push(t);
+    });
+    var rank = { rejected: 0, unassigned: 1, waiting: 2 };
+    o.need.sort(function (a, b) {
+      var x = rank[stateOf(a).key] - rank[stateOf(b).key]; if (x) return x;
+      var pa = a.planned_start ? new Date(a.planned_start).getTime() : Infinity, pb = b.planned_start ? new Date(b.planned_start).getTime() : Infinity;
+      return pa - pb || String(a.title || "").localeCompare(String(b.title || ""));
+    });
+    return o;
+  }
   function renderSummary() {
     var box = $("#monSummary"); clear(box);
     var sm = summarize(S.tasks), now = Date.now();
-    // R194: row 1 = big % + "x of y tasks" + the bar, with the status chips beside it on a wide screen; row 2 = one muted line
-    var top = h("div", { cls: "mon-sum-top" });
-    top.appendChild(h("div", { cls: "mon-pct" }, [h("b", { text: sm.pct + "%" }), h("span", { text: " done · " + sm.done + " of " + sm.total + " tasks" })]));
-    top.appendChild(bar(sm.pct));
-    box.appendChild(top);
-    var counts = h("div", { cls: "mon-counts", role: "group", label: "Show only" });
-    [["done", sm.done, "Done"], ["started", sm.started, "Started"], ["accepted", sm.accepted, "Accepted"], ["waiting", sm.waiting, "Waiting for a yes"],
-     ["late", sm.late, "Late"], ["rejected", sm.rejected, "Turned down"], ["unassigned", sm.unassigned, "No one yet"]].forEach(function (c) {
-      if ((c[0] === "rejected" || c[0] === "unassigned") && !c[1]) return;
-      var b = h("button", { cls: "mon-count is-" + c[0] + (c[1] ? "" : " is-zero"), type: "button", title: "Show only: " + c[2] });
-      b.appendChild(h("b", { text: String(c[1]) })); b.appendChild(h("span", { text: c[2] }));
-      b.addEventListener("click", function () { $("#monSt").value = c[0]; setTab(c[0] === "done" ? "work" : "left"); render(); });
-      counts.appendChild(b);
-    });
-    top.appendChild(counts);
-    var facts = h("div", { cls: "mon-facts" });
-    facts.appendChild(h("span", { title: "People who accepted, started or finished their work", text: sm.confirmed + " of " + sm.people + " people confirmed" }));
-    var ac = attendanceCounts();   // R184
-    if (ac.people) {
-      var cf = h("button", { cls: "mon-factbtn" + (ac.late ? " mon-warn" : ""), type: "button", title: "Open the Check-in view",
-        text: ac.checkedIn + " of " + ac.people + " checked in" + (ac.late ? " · " + ac.late + " late" : "") });
-      cf.addEventListener("click", function () { setTab("checkin"); render(); });
-      facts.appendChild(cf);
+    box.className = "mon-summary is-" + S.win;
+    box.hidden = !S.tasks.length && S.win !== "daybefore";
+    if (box.hidden) { renderAlerts(now); renderPrep(); return; }
+    if (S.win === "daybefore") {
+      var r = readiness(S.tasks), row = h("div", { cls: "mon-facts" }), e = S.evInfo[S.quote] || {};
+      var tomorrow = e.event_date && TS.dayDiff(todayIso(), String(e.event_date).slice(0, 10)) === 1;
+      box.appendChild(h("h3", { cls: "mon-h3", text: tomorrow ? "Ready for tomorrow?" : "Get set up" }));
+      if (r.total) {
+        row.appendChild(fact("Assigned", r.assigned + " of " + r.total, r.assigned < r.total ? "is-warn" : "is-ok"));
+        row.appendChild(fact("Accepted", r.accepted + " of " + r.total, r.accepted < r.total ? "is-warn" : "is-ok"));
+        if (r.noTime) row.appendChild(fact("No start time", String(r.noTime), "is-warn"));
+        if (r.hasDur && r.noDur) row.appendChild(fact("No duration", String(r.noDur), "is-warn"));
+        box.appendChild(row);
+        if (r.hasDur && r.noDur) box.appendChild(h("p", { cls: "mon-hint", text: "A task with a duration gets a latest start time in Ready by (Pre-event). Add durations in Tasks & Crew." }));
+      }
+      box.appendChild(setupLinks());
+    } else if (S.autoWin === "wrapup" && S.win === "onday") {
+      // the event is over: what is still open + the hours (the rest is in Wrap-up, closed, at the bottom)
+      var left = leftover(S.tasks).length, hi = hoursIn(), row2 = h("div", { cls: "mon-facts" });
+      row2.appendChild(fact("Done", sm.done + " of " + sm.total, "is-ok"));
+      row2.appendChild(fact("Still open", String(left), left ? "is-warn" : "is-ok"));
+      if (hi.people) row2.appendChild(fact("Hours checked in", hi.hours + " h · " + hi.people + (hi.people === 1 ? " person" : " people")));
+      box.appendChild(row2);
+      if (left) {
+        var b = h("button", { cls: "tc-btn sm", type: "button", text: "Show the " + left + " still open" });
+        b.addEventListener("click", function () { S.st = "open"; if (S.tab === "activity") setTab("staff"); render(); try { $("#monWork").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} });
+        box.appendChild(h("div", { cls: "mon-sum-acts" }, [b]));
+      }
+    } else {
+      // one slim live strip - % done, late, checked in, next task (Pre-event: of the work before guests only)
+      if (S.win === "pre") sm = summarize(preTasks());
+      var strip = h("div", { cls: "mon-live" });
+      strip.appendChild(h("div", { cls: "mon-pct" }, [h("b", { text: sm.pct + "%" }), h("span", { text: (S.win === "pre" ? " of pre-event done · " : " done · ") + sm.done + " of " + sm.total })]));
+      strip.appendChild(bar(sm.pct));
+      var facts = h("div", { cls: "mon-facts" });
+      if (lateOn()) facts.appendChild(fact("Late", String(sm.late), sm.late ? "is-bad" : "is-ok"));
+      var ac = attendanceCounts();
+      if (ac.people) facts.appendChild(fact("Checked in", ac.checkedIn + " of " + ac.people + (ac.late ? " · " + ac.late + " late" : ""), ac.late ? "is-warn" : ""));
+      if (sm.next) facts.appendChild(fact("Next", (sm.next.title || "task") + " " + until(sm.next.planned_start, now), "is-next"));
+      strip.appendChild(facts);
+      box.appendChild(strip);
     }
-    if (sm.next) facts.appendChild(h("span", { title: fmtWhen(sm.next.planned_start), text: "Next: " + (sm.next.title || "task") + " " + until(sm.next.planned_start, now) }));
-    // R184: the latest update (same line as the Tasks & staff progress card), from the full timeline
-    var latest = allActs()[0];
-    if (latest) {
-      var lb = h("button", { cls: "mon-factbtn mon-latest", type: "button", title: "Open the Activity view", text: "Latest: " + actText(latest) + " · " + ago(latest.at) });
-      lb.addEventListener("click", function () { setTab("activity"); render(); });
-      facts.appendChild(lb);
-    }
-    box.appendChild(facts);
-    var n = leftover(S.tasks).length; $("#monLeftN").textContent = n ? String(n) : "";
     renderAlerts(now);
-    stickyOffset();
+    renderPrep();
+  }
+  // the work that has to be done before guests arrive (Pre-event, and what was left from the day before)
+  function preTasks() { var o = stepO(S.quote); return S.tasks.filter(function (t) { var w = TS.taskStep(t, o); return w === "pre" || w === "daybefore"; }); }
+  // R251: the same "Get set up" shortcuts as Tasks & Crew (each page checks its own permission)
+  function setupLinks() {
+    var q = encodeURIComponent(S.quote), floor = "builder.html?quote=" + q, row = h("nav", { cls: "mon-setup", label: "Get set up" });
+    try { if (window.HelmUrl && HelmUrl.build) floor = HelmUrl.build("floor-plan", { id: S.quote }) || floor; } catch (e) {}
+    var n = Array.isArray(S.rs) ? S.rs.length : null;
+    [["Crew", "staff.html"], ["Stock", "resources.html?quote=" + q], ["Vendors", "vendors.html"], ["Run-sheet" + (n == null ? "" : n ? " · " + n : " · empty"), "runsheet.html?quote=" + q],
+      ["Floor layout", floor], ["Ready check", "ready.html?quote=" + q]].forEach(function (l) { row.appendChild(h("a", { cls: "tc-chip mon-setup-a", href: l[1], text: l[0] })); });
+    return row;
+  }
+  /* R250: Day before - "Needs action before the day": not assigned / not accepted yet / turned down */
+  function renderPrep() {
+    var box = $("#monPrep"); if (!box) return; clear(box);
+    if (S.win !== "daybefore" || !S.tasks.length) { box.hidden = true; return; }
+    var r = readiness(S.tasks);
+    box.hidden = false;
+    box.appendChild(h("h3", { cls: "tc-h2", id: "monPrepH" }, ["Needs action before the day ", h("span", { cls: "mon-n", text: String(r.need.length) })]));
+    if (!r.need.length) { box.appendChild(h("p", { cls: "mon-hint", text: "Nothing - every task has a person who accepted it." })); return; }
+    box.appendChild(h("p", { cls: "mon-hint", text: "Give each task to someone and get a yes. Open shows the task; reassign in Tasks & Crew." }));
+    var rows = h("div", { cls: "mon-rows", role: "list" }), MAX = 12;
+    r.need.slice(0, MAX).forEach(function (t) { rows.appendChild(taskRow(t)); });
+    box.appendChild(rows);
+    if (r.need.length > MAX) box.appendChild(h("p", { cls: "mon-hint", text: "And " + (r.need.length - MAX) + " more - use the Not assigned / Not accepted yet chips below." }));
   }
   /* R184: red LATE panel - every task whose start time has passed and is not started (task, person, was due, how long ago, Nudge) */
   function lateTasks(now) {
@@ -644,26 +724,44 @@
   }
   function renderAlerts(now) {
     var box = $("#monAlerts"); if (!box) return; clear(box);
-    if (S.win === "before" || S.win === "daybefore") { box.hidden = true; return; }   // R226: no red "late" board days early
+    if (!lateOn()) { box.hidden = true; return; }   // R250: the red Late panel only while the event day runs (Pre-event: set-up jobs)
     var late = lateTasks(now);
+    if (S.win === "pre") { var o = stepO(S.quote); late = late.filter(function (t) { var w = TS.taskStep(t, o); return w === "pre" || w === "daybefore"; }); }
     if (!late.length) { box.hidden = true; return; }
     box.hidden = false;
-    box.appendChild(h("h3", { cls: "mon-alerts-h" }, [h("span", { text: "⚠ Late — start time passed, not started" }), h("span", { cls: "mon-n", text: String(late.length) })]));
+    box.appendChild(h("h3", { cls: "mon-alerts-h" }, [h("span", { text: S.win === "pre" ? "⚠ Late set-up jobs — start time passed, not started" : "⚠ Late — start time passed, not started" }), h("span", { cls: "mon-n", text: String(late.length) })]));
     var list = h("div", { cls: "mon-alerts-list", role: "list" });
     late.forEach(function (t) {
       var row = h("div", { cls: "mon-alert", role: "listitem" });
       row.appendChild(h("div", { cls: "mon-alert-main" }, [
         h("b", { text: t.title || "Task" }),
-        h("span", { text: [nameOf(t) || "No one yet", t._code].filter(Boolean).join(" · ") }),
+        h("span", { text: [nameOf(t) || TS.LABEL.unassigned, t._code].filter(Boolean).join(" · ") }),
         h("small", { text: "was due " + fmtClock(t.planned_start) + " (" + ago(t.planned_start, now) + ")" + (stateOf(t, now).key === "waiting" ? " · not accepted yet" : "") })]));
       // R186 (0369): where the escalation ladder is now (special tasks)
       var esc = lastEscalation(t, S.acts);
-      if (esc) row.appendChild(h("span", { cls: "mon-chip mon-esc is-esc-" + ({ manager: "manager", admin: "admin" }[esc.detail && esc.detail.level] || "lead"), title: "Special task: Helm tells the team step by step until it is started", text: "🚨 " + escBadge(esc) }));
+      if (esc) row.appendChild(h("span", { cls: "mon-chip mon-esc is-esc-" + ({ manager: "manager", admin: "admin" }[esc.detail && esc.detail.level] || "lead"), text: "🚨 " + escBadge(esc) }));
       else if (t.is_special) row.appendChild(h("span", { cls: "mon-chip is-special", text: "🔔 Special" }));
       row.appendChild(actions(t));
       list.appendChild(row);
     });
     box.appendChild(list);
+  }
+  /* R250: status = filter chips with counts (they filter the list; they never switch the tab) */
+  function renderChips() {
+    var box = $("#monChips"); if (!box) return; clear(box);
+    box.hidden = S.tab === "activity" || S.tab === "checkin";
+    var sm = summarize(S.tasks), open = leftover(S.tasks).length;
+    var list = [["", "All", sm.total], ["late", "Late", sm.late], ["unassigned", TS.LABEL.unassigned, sm.unassigned], ["waiting", TS.LABEL.waiting, sm.waiting],
+      ["accepted", TS.LABEL.accepted, sm.accepted], ["started", TS.LABEL.started, sm.started], ["done", TS.LABEL.done, sm.done], ["rejected", TS.LABEL.rejected, sm.rejected], ["open", "Still open", open]];
+    if (S.st === "late" && !lateOn()) S.st = "";
+    list.forEach(function (c) {
+      if (c[0] === "late" && !lateOn()) return;
+      if (c[0] && !c[2] && S.st !== c[0]) return;   // a status nobody is in stays out of the way
+      var on = (S.st || "") === c[0];
+      var b = h("button", { cls: "mon-count is-" + (c[0] || "all") + (on ? " is-on" : ""), type: "button", "aria-pressed": on ? "true" : "false", data: { st: c[0] } });
+      b.appendChild(h("span", { text: c[1] })); b.appendChild(h("b", { text: String(c[2]) }));
+      box.appendChild(b);
+    });
   }
   function renderFeed() {
     var feed = $("#monFeed"), acts = allActs(); clear(feed);   // R184: the full timeline (0368), newest first
@@ -681,21 +779,16 @@
     }
   }
   function openActivity() { setTab("activity"); render(); try { $("#monView").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} }
-  // R194: the activity rail sticks just under the sticky summary card, whatever its height
-  function stickyOffset() {
-    var sm = $("#monSummary"), app = $("#monApp"); if (!sm || !app || !app.style) return;
-    try { app.style.setProperty("--mon-sum-h", Math.round(sm.getBoundingClientRect().height || 0) + "px"); } catch (e) {}
-  }
   // R194: filters - how many are on (the phone's Filters button shows it) and Clear only when something is on
   function filterCount() {
-    var n = 0; ["#monWho", "#monSec", "#monSt"].forEach(function (s) { if ($(s).value) n++; });
+    var n = 0; ["#monWho", "#monSec"].forEach(function (s) { if ($(s).value) n++; });
     if ($("#monSort").value !== "time") n++;
     return n;
   }
   function paintFilters() {
     var n = filterCount(), q = ($("#monQ").value || "").trim();
     $("#monFiltersN").textContent = n ? String(n) : "";
-    $("#monClear").hidden = !(n || q);
+    $("#monClear").hidden = !(n || q || S.st);
   }
   function fillFilters() {
     var who = $("#monWho"), sec = $("#monSec"), wv = who.value, sv = sec.value, people = {}, secs = {};
@@ -709,39 +802,50 @@
     else if (sv === "__mine") sv = "";
     Object.keys(secs).sort().forEach(function (k) { sec.appendChild(opt(k, k, k === sv)); });
   }
-  /* ---- R226: the four windows + the shared cards (event-plan.js), the same as Tasks & Crew ---- */
-  function winKey() { return "helm.mon.win." + (S.quote || ""); }
+  /* ---- R226 / R251: the steps + the shared cards (event-plan.js, event-steps.js), the same as Tasks & Crew ---- */
   function modeFor() {
     var e = S.evInfo[S.quote] || {};
     return TS.opsMode({ eventDate: e.event_date, eventTime: e.event_time, stage: e.stage, status: e.status, tasks: S.tasks, runsheet: S.rs || [], now: Date.now(), tz: tz() });
   }
-  function winWhy(m) {
-    if (!m) return ""; var at = function (t) { var iso = new Date(t).toISOString(), p = parts(iso); return (p && p.day !== todayIso() ? fmtDayIso(p.day) + ", " : "") + fmtClock(iso); };
-    switch (m.step) {
-      case "cancelled": return "This event is cancelled"; case "done": return "The event is complete - next: Settlement"; case "nodate": return "No event date yet";
-      case "before": case "soon": return "On the day starts " + at(m.from); case "on": return "Event day - started " + at(m.from);
-      case "over": return "The event day is over - mark it complete on Tasks & Crew";
-    }
-    return "";
-  }
+  function closedStage() { var st = (S.evInfo[S.quote] || {}).stage; return st === "settlement" || st === "closed"; }
   function setWin() {
-    if (S.quote === "all" || !S.quote) { S.win = S.autoWin = "onday"; S.manualWin = null; S.mode = null; return; }
+    if (!single()) { S.win = S.autoWin = "onday"; S.manualWin = null; S.mode = null; return; }
     S.mode = modeFor(); var e = S.evInfo[S.quote] || {};
-    S.autoWin = TS.opsWindow(S.mode, { eventDate: e.event_date, now: Date.now(), tz: tz() });
-    var m = null; try { m = sessionStorage.getItem(winKey()); } catch (x) {}
-    S.manualWin = TS.winOk(m) && m !== S.autoWin ? m : null;
-    if (m && !S.manualWin) { try { sessionStorage.removeItem(winKey()); } catch (x) {} }
-    S.win = S.manualWin || S.autoWin;
+    S.autoWin = TS.opsWindow(S.mode, { eventDate: e.event_date, eventTime: e.event_time, stage: e.stage, now: Date.now(), tz: tz() });
+    // studio time only (owner): a tap just looks at a step; another event, a reload or a new step by the clock goes back to the real one
+    var now = TS.stepOf(S.autoWin), k = S.quote + ":" + now;
+    if (S.winAt !== k || S.manualWin === now) S.manualWin = null; S.winAt = k;
+    S.win = S.manualWin || now;
   }
-  function wordOf(w) { var r = (TS.WINDOWS || []).filter(function (x) { return x[0] === w; })[0]; return r ? r[1] : ""; }
+  /* R251: the header badge = where the event really is (never the step someone is looking at) */
+  function renderPill() {
+    var p = $("#monPill"); if (!p) return;
+    var w = S.autoWin, txt = !single() ? "Event day - live" : S.mode && S.mode.step === "cancelled" ? "Cancelled" :
+      w === "pre" ? "Pre-event" : w === "onday" ? "Event day - live" : w === "wrapup" ? (closedStage() ? "Complete" : "Event over") : "Planning";
+    p.hidden = false; p.textContent = txt; p.className = "tc-pill" + (w === "onday" ? "" : " plan");
+  }
+  /* R250: the step strip - the dot + "Now" marks where the event is (studio clock) */
   function renderWins() {
+    renderPill();
     var row = $("#monWins"); if (!row) return;
-    row.hidden = S.quote === "all" || !S.quote;
-    Array.prototype.forEach.call(row.querySelectorAll("[data-win]"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-win") === S.win)); });
-    var why = winWhy(S.mode), n = $("#monWinNote");
-    if (n) n.textContent = S.manualWin ? "Picked by hand · the studio’s clock says " + wordOf(S.autoWin) + (why ? " (" + why + ")" : "") : "From the studio’s clock" + (why ? " · " + why : "");
-    var a = $("#monWinAuto"); if (a) a.hidden = !S.manualWin;
+    row.hidden = !single();
+    if (row.hidden) return;
+    var cur = null;
+    Array.prototype.forEach.call(row.querySelectorAll("[data-win]"), function (b) {
+      var w = b.getAttribute("data-win"), isNow = w === S.autoWin, seen = w === S.win;   // over: no step is Now (Wrap-up carries it)
+      b.setAttribute("aria-pressed", String(seen));
+      if (isNow) { b.setAttribute("aria-current", "step"); cur = b; } else b.removeAttribute("aria-current");
+      b.classList.toggle("is-now", isNow); b.classList.toggle("is-seen", seen);
+      var li = b.parentNode; if (li && li.classList) { li.classList.toggle("is-now", isNow); li.classList.toggle("is-past", stepIdx(w) < stepIdx(S.autoWin)); }
+    });
+    // a phone: the strip scrolls sideways; keep the Now step in view when it changes
+    var list = $("#monStpList");
+    if (list && cur && S.stpSeen !== S.quote + ":" + S.autoWin) {
+      S.stpSeen = S.quote + ":" + S.autoWin;
+      try { if (list.scrollWidth > list.clientWidth) list.scrollLeft = Math.max(0, cur.parentNode.offsetLeft - 16); } catch (e) {}
+    }
   }
+  function stepIdx(w) { var i = -1; (TS.WINDOWS || []).forEach(function (x, k) { if (x[0] === w) i = k; }); return i; }
   function planCtx() {
     var e = S.evInfo[S.quote] || {};
     return { plan: S.plan, tasks: S.tasks, quoteId: S.quote, eventDate: e.event_date ? String(e.event_date).slice(0, 10) : "", eventTime: String(e.event_time || "").trim(), tz: tz(), now: Date.now(),
@@ -749,39 +853,119 @@
       onChanged: async function () { await loadPlan(true); await loadTasks(true); } };
   }
   function renderCards() {
-    var EP = window.HelmEventPlan, ui = EP && EP._ui, single = S.quote && S.quote !== "all", e = S.evInfo[S.quote] || {};
-    var dh = $("#monDayBefore"), rh = $("#monReady"), wh = $("#monWrap");
-    dh.hidden = !(EP && S.plan && single && S.win === "daybefore");
-    rh.hidden = !(EP && S.plan && single && S.win !== "wrapup");
-    wh.hidden = !(single && S.win === "wrapup");
-    if (!wh.hidden) {
-      clear(wh); var left = leftover(S.tasks).length, closed = e.stage === "settlement" || e.stage === "closed", q = encodeURIComponent(S.quote);
-      wh.appendChild(h("h3", { cls: "tc-h2", text: closed ? "Event complete" : "Wrap-up" }));
-      wh.appendChild(h("p", { cls: "tc-sub", text: (left ? left + " task" + (left === 1 ? "" : "s") + " still open (see Leftover). " : "Every task is closed. ") +
-        (closed ? "Next: settle the money, bring the stock back, then close the event." : "Mark the event complete on Tasks & Crew, then Settlement, Teardown and Closure.") }));
-      var row = h("div", { cls: "tc-prep-links" });
-      if (!closed) row.appendChild(h("a", { cls: "tc-btn tc-primary", href: "ops.html?quote=" + q + "#live", text: "Mark event complete on Tasks & Crew →" }));
-      [["Settlement", "settlement.html"], ["Teardown", "teardown.html"], ["Closure", "closure.html"]].forEach(function (l, i) {
-        row.appendChild(h("a", { cls: "tc-btn sm" + (closed && i === 0 ? " tc-primary" : ""), href: l[1] + "?quote=" + q, text: (i + 1) + " " + l[0] + " →" })); });
-      wh.appendChild(row);
-    }
-    // R227 (0397, event-floor.js): the plan lock bar + the saved floor plan (Day before / On the day); hidden before 0397
+    var EP = window.HelmEventPlan, ui = EP && EP._ui, one = single(), e = S.evInfo[S.quote] || {}, cancelled = e.status === "cancelled";
+    var dh = $("#monDayBefore"), rh = $("#monReady");
+    var app = $("#monApp"); if (app) app.setAttribute("data-win", S.win);   // CSS: what shows per step (lock bar = Day before) and in what order
+    dh.hidden = !(EP && S.plan && one && S.win === "daybefore");
+    rh.hidden = !(EP && S.plan && one && (S.win === "daybefore" || S.win === "pre"));   // R251: Ready by + latest starts: planned before, used on Pre-event
+    // R227 (0397, event-floor.js): the plan lock bar + the saved floor plan (every step; On the event it sits below the work)
     var EF = window.HelmEventFloor, lh = $("#monLock"), fh = $("#monFloor");
-    if (EF && single && e.status !== "cancelled") EF.panel({ quoteId: S.quote, lockHost: lh, floorHost: fh, showFloor: S.win === "daybefore" || S.win === "onday", compact: true,
+    if (EF && one && !cancelled) EF.panel({ quoteId: S.quote, lockHost: lh, floorHost: fh, showFloor: true, compact: true,
       onChange: function () { if (EP && S.plan && !(ui && (ui.edit || ui.times || ui.settings)) && !rh.hidden) EP.renderReady(rh, planCtx()); } });
     else { if (lh) lh.hidden = true; if (fh) fh.hidden = true; }
+    renderRun(); renderIssues(); renderSteps();
     if (!EP || !S.plan || (ui && (ui.edit || ui.times || ui.settings))) return;   // a form is open: keep what is being typed
     if (!dh.hidden) EP.renderDayBefore(dh, planCtx());
     if (!rh.hidden) EP.renderReady(rh, planCtx());
   }
+  /* R251 (event-steps.js, shared with Tasks & Crew): "Mark pre-event complete" at the end of Pre-event, Wrap-up closed at the bottom */
+  function stepsCtx() {
+    var e = S.evInfo[S.quote] || {}, one = single();
+    return { quoteId: one ? S.quote : "", quote: one ? { code: e.code || "", title: e.title || "", status: e.status || "", stage: e.stage || "", eventDate: e.event_date ? String(e.event_date).slice(0, 10) : "", eventTime: String(e.event_time || "").trim() } : null,
+      tasks: one ? S.tasks : [], autoWin: S.autoWin, win: S.win, tz: tz(), now: Date.now(), nameOf: nameOf, admin: S.admin, plan: S.plan || undefined, sheet: S.hasSheet ? S.sheet : undefined,
+      toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); },
+      onChanged: async function () { await readQuote(S.quote, true); await loadTasks(true); },
+      openTask: function (id) { var t = S.tasks.filter(function (x) { return x.id === id; })[0]; if (t) openDrawer(t); } };
+  }
+  function renderSteps() {
+    var ES = window.HelmEventSteps, EW = window.HelmEventWrap, box = $("#monPreDoneBox"), e = S.evInfo[S.quote] || {};
+    var pre = !!(ES && single() && e._read && S.win === "pre");   // the stage is known
+    box.hidden = !pre;
+    if (pre) ES.renderPreDone($("#monPreDone"), stepsCtx());
+    if (EW && (e._read || e._tried || !single())) EW.render($("#monWrapUp"), stepsCtx()); else $("#monWrapUp").hidden = true;
+    var btn = $("#monOpenOps");   // one filled button per screen: Pre-event has "Mark pre-event complete", a finished event has Wrap-up
+    if (btn) btn.classList.toggle("tc-primary", S.win !== "pre" && S.autoWin !== "wrapup");
+  }
+  /* R251: On the event - the run-sheet's now / next (read-only; the whole list is one link away) */
+  function renderRun() {
+    var box = $("#monRun"), e = S.evInfo[S.quote] || {}, ev = e.event_date ? String(e.event_date).slice(0, 10) : "";
+    if (!box) return; clear(box);
+    box.hidden = !(single() && S.win === "onday" && S.autoWin !== "wrapup" && Array.isArray(S.rs) && ev);
+    if (box.hidden) return;
+    var now = Date.now(), rows = S.rs.map(function (r) { var d = Number(r && r.duration_min); return { r: r, s: TS.wallMs(ev, TS.hmMin(r && r.start_time), tz()), d: isFinite(d) && d > 0 ? d * 60000 : 900000 }; })
+      .filter(function (x) { return x.r && isFinite(x.s) && isFinite(TS.hmMin(x.r.start_time)); }).sort(function (a, b) { return a.s - b.s; });
+    var cur = rows.filter(function (x) { return now >= x.s && now < x.s + x.d; }), next = rows.filter(function (x) { return x.s > now; }).slice(0, 1);
+    box.appendChild(h("div", { cls: "mon-mini-h" }, [h("h3", { cls: "tc-h2", id: "monRunH", text: "Run-sheet" }), h("a", { cls: "tc-mini-link", href: "runsheet.html?quote=" + encodeURIComponent(S.quote), text: "Open run-sheet →" })]));
+    if (!rows.length) { box.appendChild(h("p", { cls: "mon-hint", text: "No run-sheet yet." })); return; }
+    if (!cur.length && !next.length) { box.appendChild(h("p", { cls: "mon-hint", text: "Every run-sheet item is past." })); return; }
+    var ol = h("ol", { cls: "mon-run" });
+    function line(x, isNow) {
+      ol.appendChild(h("li", { cls: isNow ? "is-now" : "is-next" }, [h("span", { cls: "mon-run-k", text: isNow ? "Now" : "Next" }), h("b", { cls: "mon-run-t", text: fmtClock(new Date(x.s).toISOString()) }),
+        h("span", { cls: "mon-run-n" }, [x.r.title || "Item", h("small", { text: [isNow ? "" : until(x.s, now), x.r.owner, x.r.location].filter(Boolean).join(" · ") })])]));
+    }
+    cur.forEach(function (x) { line(x, true); }); next.forEach(function (x) { line(x, false); });
+    box.appendChild(ol);
+  }
+  /* R251: On the event - the open issues (the same list, read and "log" call as Tasks & Crew and the Issues page; the server checks
+     the Issues area). Not redrawn while a new one is being typed. */
+  var SEV = { low: "Low", medium: "Medium", high: "High" };
+  async function loadIssues() {
+    var I = BPStore.issues, q = S.quote; if (!I || !I.list || !S.issView || !single() || S.win !== "onday") { if (S.issQ !== q) S.iss = null; return; }
+    if (S.issQ !== q) { S.iss = null; S.issOpen = false; }
+    try { var r = await I.list(q); if (S.quote === q) { S.iss = Array.isArray(r) ? r : []; S.issQ = q; } } catch (e) { if (S.quote === q) S.iss = null; }
+  }
+  function renderIssues() {
+    var box = $("#monIssues"); if (!box) return;
+    if (!single() || S.win !== "onday" || S.issQ !== S.quote || !Array.isArray(S.iss)) { box.hidden = true; return; }
+    var open = S.iss.filter(function (i) { return i && i.status !== "resolved"; }).sort(function (a, b) { return (b.severity === "high") - (a.severity === "high"); });
+    box.hidden = false;
+    var sig = JSON.stringify([S.quote, S.issEdit, open.map(function (i) { return [i.id, i.title, i.severity, i.status, i.owner, i.kind]; })]);
+    if (S.issOpen || box._sig === sig) return; box._sig = sig;
+    var q = encodeURIComponent(S.quote), act = doc.activeElement, had = act && box.contains(act) ? act.id : ""; clear(box);
+    var head = h("div", { cls: "mon-mini-h" }, [h("h3", { cls: "tc-h2", id: "monIssuesH" }, ["Issues ", h("span", { cls: "mon-n" + (open.length ? " is-warn" : ""), text: open.length ? open.length + " open" : "none open" })])]);
+    var acts = h("span", { cls: "mon-mini-acts" });
+    if (S.issEdit) { var lg = h("button", { type: "button", cls: "tc-btn sm", id: "monIssLog", text: "+ Log an issue" }); lg.addEventListener("click", function () { issueForm(box, lg); }); acts.appendChild(lg); }
+    acts.appendChild(h("a", { cls: "tc-mini-link", id: "monIssAll", href: "issues.html?quote=" + q, text: open.length > 3 ? "See all " + open.length + " →" : "All issues →" }));
+    head.appendChild(acts); box.appendChild(head);
+    if (!open.length) box.appendChild(h("p", { cls: "mon-hint", text: "Nothing open. Something wrong on site? Log it so someone owns it." }));
+    open.slice(0, 3).forEach(function (i) {
+      box.appendChild(h("div", { cls: "tc-arow" }, [h("span", { cls: "tc-sev " + (SEV[i.severity] ? i.severity : "medium"), "aria-hidden": "true" }), h("span", { cls: "grow" }, [h("b", { text: i.title || "Issue" }),
+        h("span", { cls: "tc-sub", text: [(i.kind === "incident" ? "Incident" : "Issue") + " · " + (SEV[i.severity] || "Medium"), i.owner ? i.owner : "No owner yet", i.status === "in_progress" ? "being handled" : "", i.created_at ? ago(i.created_at) : ""].filter(Boolean).join(" · ") })])]));
+    });
+    if (had) { var f = doc.getElementById(had); if (f) try { f.focus(); } catch (e) {} }
+  }
+  function issueForm(box, btn) {
+    if (S.issOpen) return; S.issOpen = true; btn.disabled = true; var q = S.quote;
+    var title = h("input", { cls: "tc-inp", id: "monIssTitle", maxlength: "500", placeholder: "e.g. Generator not delivered", autocomplete: "off" });
+    var sev = h("select", { cls: "mon-select", id: "monIssSev" }); ["low", "medium", "high"].forEach(function (k) { sev.appendChild(opt(k, SEV[k], k === "medium")); });
+    var err = h("p", { cls: "mon-hint mon-warn", role: "alert", hidden: true });
+    var go = h("button", { type: "submit", cls: "tc-btn", text: "Log it" }), no = h("button", { type: "button", cls: "tc-btn ghost", text: "Cancel" });
+    var form = h("form", { cls: "mon-issform", "aria-label": "Log an issue", novalidate: "" }, [
+      h("label", { cls: "mon-lbl", for: "monIssTitle", text: "What is wrong?" }), title,
+      h("label", { cls: "mon-lbl", for: "monIssSev", text: "How serious" }), sev, err, h("div", { cls: "mon-issform-f" }, [go, no])]);
+    function done() { S.issOpen = false; box._sig = ""; renderIssues(); var b = $("#monIssLog"); if (b) try { b.focus(); } catch (e) {} }
+    no.addEventListener("click", done);
+    form.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); done(); } });
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault(); if (go.disabled) return;
+      var t = String(title.value || "").replace(/\s+/g, " ").trim();
+      if (!t) { err.textContent = "Say what is wrong."; err.hidden = false; title.focus(); return; }
+      err.hidden = true; go.disabled = true;
+      try { await BPStore.issues.add(q, { kind: "issue", title: t, severity: sev.value, owner: null }); toast("Issue logged.", "ok"); await loadIssues(); done(); }
+      catch (x) { err.textContent = (window.BPUI && BPUI.friendlyError) ? BPUI.friendlyError(x, { action: "log the issue" }) : "Could not log the issue."; err.hidden = false; go.disabled = false; }
+    });
+    box.insertBefore(form, box.children[1] || null);
+    try { title.focus(); } catch (e) {}
+  }
   function render() {
     setWin(); renderWins(); renderCards();
-    renderSummary(); paintFilters();
-    var list = filtered(), v = $("#monView"); clear(v);
+    renderSummary(); renderChips(); paintFilters();
+    var list = filtered(), v = $("#monView"), fa = doc.activeElement, fid = fa && v.contains(fa) ? fa.id : ""; clear(v);
     if (S.tab === "activity") v.appendChild(viewActivity());   // R184: the timeline shows even before any task exists (check-ins, e-mails)
     else if (!S.tasks.length) v.appendChild(empty("No tasks for this event yet. Give work out in Tasks & staff and it shows here live."));
-    else v.appendChild(S.tab === "work" ? viewWork(list) : S.tab === "status" ? viewStatus(list) : S.tab === "left" ? viewLeft(list)
-      : S.tab === "checkin" ? viewCheckin(list) : viewStaff(list));
+    else if (S.tab === "checkin") v.appendChild(viewCheckin(list));
+    else v.appendChild(byStep(list, S.tab === "work" ? viewWork : viewStaff));
+    if (fid) { var ff = doc.getElementById(fid); if (ff) try { ff.focus({ preventScroll: true }); } catch (e) {} }   // a group heading keeps focus over the 30 s redraw
     renderFeed();
     try { if (BPStore.presence && BPStore.presence.paint) BPStore.presence.paint(v); } catch (e) {}
     if (S.drawer) {   // keep the open drawer fresh, unless its Remind menu is open
@@ -790,7 +974,8 @@
     }
   }
   function setTab(tab) {
-    S.tab = /^(staff|work|status|left|checkin|activity)$/.test(tab) ? tab : "staff";
+    // R250 / R251: People / Work / Check-in / Activity; an old saved By status / Leftover opens People (the status chips do that job)
+    S.tab = /^(staff|work|checkin|activity)$/.test(tab) ? tab : "staff";
     Array.prototype.forEach.call(doc.querySelectorAll(".mon-tab"), function (b) {
       var on = b.getAttribute("data-tab") === S.tab; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1;
       if (on) $("#monView").setAttribute("aria-labelledby", b.id);
@@ -822,9 +1007,10 @@
     try { var list = await BPStore.ops.listCrew(); S.crew = {}; (list || []).forEach(function (c) { if (c && c.id) S.crew[c.id] = c; }); } catch (e) { S.crew = {}; }
   }
   async function loadSheet(quoteIds) {
-    S.sheet = {};
+    S.sheet = {}; S.hasSheet = false;
     var T = BPStore.ops.shifts && BPStore.ops.shifts.timesheet; if (!T) return;
     await Promise.all(quoteIds.map(function (q) { return T(q).then(function (r) {
+      if (r) S.hasSheet = true;   // null = no timesheet here: "checked in" is unknown, not nobody
       ((r && r.rows) || []).forEach(function (x) {
         if (!x || !x.crew_id) return;
         // R184: today's check-in, else the most recent one for this event (a multi-day event / the day after)
@@ -878,7 +1064,7 @@
     }).catch(function () {}); }));
     S.mine = m; S.mineAt = Date.now(); S.mineKey = key;
   }
-  // the run-sheet decides when On the day starts (same rule as Tasks & Crew); read once, then every 5 min, only with Run-sheet view
+  // the run-sheet decides when the event day starts (same rule as Tasks & Crew); read once, then every 5 min, only with Run-sheet view
   async function loadRs() {
     if (!S.rsView || !BPStore.runsheet || !BPStore.runsheet.list || S.quote === "all" || !S.quote) { if (S.rsQ !== S.quote) S.rs = null; return; }
     if (S.rsQ === S.quote && Date.now() - S.rsAt < 300000) return;
@@ -899,44 +1085,41 @@
     } catch (e) { S.proof = {}; S.proofUrl = {}; }
   }
   async function loadTasks(silent) {
-    if (S.loading || !S.quote) return; S.loading = true;
+    if (S.loading || !S.quote) return; S.loading = true; var q0 = S.quote;
     if (!silent) $("#monView").setAttribute("aria-busy", "true");
     try {
       var ids = S.quote === "all" ? S.events.filter(function (e) { return e.is_today; }).map(function (e) { return e.quote_id; }) : [S.quote];
       var lists = await Promise.all(ids.map(function (q) { return BPStore.ops.listTasks(q).then(function (ts) {
         var code = S.quote === "all" ? ((S.evInfo[q] && S.evInfo[q].code) || "") : "";
         return (ts || []).map(function (t) { t.quote_id = t.quote_id || q; if (code) t._code = code; return t; }); }); }));
+      if (S.quote !== q0) return;   // another event was picked meanwhile: never show (or hand on) the old event's tasks under its name
       S.tasks = [].concat.apply([], lists);
-      await Promise.all([loadSheet(ids), loadOff(ids), loadActivity(ids), loadPlan(false), loadRs(), loadProof(ids), loadMine(ids)]);
+      await Promise.all([loadSheet(ids), loadOff(ids), loadActivity(ids), loadPlan(false), loadRs(), loadProof(ids), loadMine(ids), readQuote(S.quote, false)]);
+      if (S.quote !== q0) return;
+      setWin(); await loadIssues(); if (S.quote !== q0) return;
       S.lastLoad = Date.now(); $("#monErr").hidden = true;
       fillFilters(); render(); tick();
     } catch (e) {
       var er = $("#monErr"); er.hidden = false;
       er.textContent = (window.BPUI && BPUI.friendlyError) ? BPUI.friendlyError(e, { action: "load the event's tasks" }) : "Could not load the tasks. Check your connection and press Refresh.";
       return false;   // R235: tells the 30 s refresher to wait longer before the next try
-    } finally { S.loading = false; $("#monView").removeAttribute("aria-busy"); }
+    } finally { S.loading = false; $("#monView").removeAttribute("aria-busy"); if (S.quote !== q0) { S.tasks = []; loadTasks(false); } }
   }
-  /* R194: the header band - code + a Today / Upcoming pill, the event name as the switcher, date · venue · guests, and the
+  /* R194: the header band - code (the badge beside it = renderPill, R251), the event name as the switcher, date · venue · guests, and the
      time tiles (Guests arrive + the countdown: "Event in 9 days", on the day a live clock) */
   function headFor() {
-    var e = S.quote === "all" ? null : S.evInfo[S.quote], pill = $("#monPill");
+    var e = S.quote === "all" ? null : S.evInfo[S.quote];
     if (S.quote === "all") {
       $("#monCode").textContent = "Today"; $("#monTitle").textContent = "All events today";
       $("#monSub").textContent = S.events.filter(function (x) { return x.is_today; }).map(function (x) { return [x.code, x.title].filter(Boolean).join(" · "); }).join("  |  ");
-      $("#monOpenOps").hidden = true; pillFor(pill, 0); renderTimes(null); return;
+      $("#monOpenOps").hidden = true; renderTimes(null); return;
     }
     $("#monOpenOps").hidden = false; $("#monOpenOps").setAttribute("href", "ops.html?quote=" + encodeURIComponent(S.quote));
-    if (!e) { $("#monCode").textContent = ""; $("#monTitle").textContent = "Event"; $("#monSub").textContent = ""; pill.hidden = true; renderTimes(null); return; }
+    if (!e) { $("#monCode").textContent = ""; $("#monTitle").textContent = "Event"; $("#monSub").textContent = ""; renderTimes(null); return; }
     $("#monCode").textContent = e.code || "";
     $("#monTitle").textContent = e.title || e.code || "Event";
     $("#monSub").textContent = [e.event_date ? fmtDayIso(e.event_date, true) : "No event date yet", e.venue, e.guests ? e.guests + " guests" : ""].filter(Boolean).join(" · ");
-    pillFor(pill, e.event_date ? TS.dayDiff(todayIso(), String(e.event_date).slice(0, 10)) : NaN);
     renderTimes(e);
-  }
-  function pillFor(pill, d) {
-    if (!isFinite(d)) { pill.hidden = true; return; }
-    pill.hidden = false; pill.textContent = d === 0 ? "Event day - live" : d > 0 ? "Upcoming" : "Past";
-    pill.className = "tc-pill" + (d === 0 ? "" : " plan");
   }
   function countdown(e) {
     var d = e && e.event_date ? TS.dayDiff(todayIso(), String(e.event_date).slice(0, 10)) : NaN;
@@ -953,22 +1136,25 @@
     tile(cd[0], cd[1], "count", "monClock");
     dl.setAttribute("data-live", cd[0] === "Now" ? "1" : "");
   }
-  // the venue, guests and time come from the quote (not in the live list) - read once per event, quietly
-  async function enrich(q) {
-    var e = S.evInfo[q]; if (!e || e._full || !BPStore.quotes || !BPStore.quotes.get) return;
-    e._full = true;
+  // the venue, guests, time and the lifecycle stage come from the quote (not in the live list): read when the event is picked, again
+  // every 2 min (someone may have moved the stage) and at once after a step changed here (force)
+  async function readQuote(q, force) {
+    var e = S.evInfo[q]; if (!e || q === "all" || !BPStore.quotes || !BPStore.quotes.get) return;
+    if (!force && e._readAt && Date.now() - e._readAt < 120000) return;
+    e._readAt = Date.now();
     try {
       var x = await BPStore.quotes.get(q); if (!x) return;
       var c = x.client || {};
-      e.code = e.code || x.code; e.title = e.title || x.title; e.event_date = e.event_date || x.eventDate || x.event_date;
-      e.event_time = e.event_time || x.eventTime || x.event_time; e.venue = e.venue || x.venue || c.venue || "";
+      e.code = x.code || e.code; e.title = x.title || e.title; e.event_date = x.eventDate || x.event_date || e.event_date;
+      e.event_time = x.eventTime || x.event_time || e.event_time; e.venue = e.venue || x.venue || c.venue || "";
       e.guests = x.guests || (x.pricing && x.pricing.guests) || c.guests || "";
-      e.stage = x.lifecycleStage || x.lifecycle_stage || ""; e.status = x.status || "";   // R226: the window rule
-      if (S.quote === q) { headFor(); if (S.tasks.length) render(); }
-    } catch (err) {}
+      e.stage = x.lifecycleStage || x.lifecycle_stage || ""; e.status = x.status || ""; e._read = true;
+      if (S.quote === q) headFor();
+    } catch (err) { e._tried = true; }   // may not read the quote: Wrap-up still shows its links (the server checks every step)
   }
   async function choose(q, push) {
-    S.quote = q; headFor(); if (q !== "all") enrich(q);
+    S.quote = q; $("#monPill").hidden = true; headFor(); S.issOpen = false;
+    if (q !== "all" && S.evInfo[q]) S.evInfo[q]._readAt = 0;   // picked again: read the stage afresh
     try { localStorage.setItem(LS_KEY, q); } catch (e) {}
     if (push) { try { var u = new URL(location.href); u.searchParams.set("quote", q); history.replaceState(null, "", u.pathname + u.search); } catch (e) {} }
     S.tasks = []; await loadTasks(false);
@@ -992,27 +1178,33 @@
     var b = h("button", { type: "button", text: "Log out" });
     b.addEventListener("click", async function () { await A.signOut(); location.href = "dashboard.html"; }); box.appendChild(b);
   }
+  // another step: draw it, then fetch what only it shows (the open issues, On the event)
+  async function goStep() { render(); if (S.win === "onday" && S.issQ !== S.quote) { await loadIssues(); renderIssues(); } }
   function wire() {
     $("#monEvent").addEventListener("change", function () { choose(this.value, true); });
     $("#monRefresh").addEventListener("click", function () { loadTasks(false); });
-    ["#monQ", "#monWho", "#monSec", "#monSt", "#monSort"].forEach(function (s) { $(s).addEventListener(s === "#monQ" ? "input" : "change", render); });
-    $("#monClear").addEventListener("click", function () { $("#monQ").value = ""; $("#monWho").value = ""; $("#monSec").value = ""; $("#monSt").value = ""; $("#monSort").value = "time"; render(); });
+    ["#monQ", "#monWho", "#monSec", "#monSort"].forEach(function (s) { $(s).addEventListener(s === "#monQ" ? "input" : "change", render); });
+    $("#monClear").addEventListener("click", function () { $("#monQ").value = ""; $("#monWho").value = ""; $("#monSec").value = ""; S.st = ""; $("#monSort").value = "time"; render(); });
+    // R250: the status chips filter the list in place (tap again = all)
+    $("#monChips").addEventListener("click", function (e) {
+      var b = e.target.closest && e.target.closest("[data-st]"); if (!b) return;
+      var k = b.getAttribute("data-st") || ""; S.st = S.st === k ? "" : k; render();
+      var nb = $("#monChips").querySelector('[data-st="' + (S.st || "") + '"]') || $("#monChips").querySelector("[data-st]"); if (nb) try { nb.focus(); } catch (x) {}
+    });
     // R194: phone - the four menus fold behind one Filters button
     $("#monFiltersBtn").addEventListener("click", function () {
       var tools = $("#monTools"), open = !tools.classList.contains("is-open");
       tools.classList.toggle("is-open", open); this.setAttribute("aria-expanded", open ? "true" : "false");
     });
     $("#monFeedAll").addEventListener("click", openActivity);
-    // R226: the four windows (a hand pick is kept per event in this tab) + the task drawer
+    // R226 / R251: the steps (a tap only looks at a step) + the task drawer
     Array.prototype.forEach.call(doc.querySelectorAll("#monWins [data-win]"), function (b) { b.addEventListener("click", function () {
-      var w = b.getAttribute("data-win"); try { if (w === S.autoWin) sessionStorage.removeItem(winKey()); else sessionStorage.setItem(winKey(), w); } catch (e) {}
-      render(); }); });
-    $("#monWinAuto").addEventListener("click", function () { try { sessionStorage.removeItem(winKey()); } catch (e) {} render(); });
+      var w = TS.normWin(b.getAttribute("data-win")); S.manualWin = w === TS.stepOf(S.autoWin) ? null : w;
+      goStep(); }); });
     $("#monDrawerX").addEventListener("click", closeDrawer);
     $("#monScrim").addEventListener("click", closeDrawer);
     doc.addEventListener("keydown", drawerKeys);
     $("#monWall").addEventListener("click", function () { setWall(!doc.body.classList.contains("mon-wall"), true); });
-    window.addEventListener("resize", stickyOffset);
     var tabs = $("#monTabs");
     tabs.addEventListener("click", function (e) { var b = e.target.closest(".mon-tab"); if (!b) return; setTab(b.getAttribute("data-tab")); render(); });
     tabs.addEventListener("keydown", function (e) {
@@ -1036,7 +1228,6 @@
         else if (!on && doc.fullscreenElement && doc.exitFullscreen) doc.exitFullscreen().catch(function () {});
       } catch (e) {}
     }
-    stickyOffset();
   }
   async function start() {
     await BPStore.init(); await renderAccount();
@@ -1047,6 +1238,8 @@
     // R208 (0385): Nudge = "Assign & send tasks" (no row for the role = Staff - Can change, as before)
     try { S.canEdit = !!(await (A.canAssignTasks ? A.canAssignTasks() : A.canEditArea("staff"))); } catch (e) { S.canEdit = false; }
     try { S.rsView = !!(await A.canView("runsheet")); } catch (e) { S.rsView = false; }
+    try { S.issView = !!(await A.canView("issues")); S.issEdit = S.issView && !!(await A.canEditArea("issues")); } catch (e) { S.issEdit = false; }
+    try { S.admin = (await A.role()) === "admin"; } catch (e) { S.admin = false; }
     await Promise.all([loadEvents(), loadCrew()]);
     $("#monBoot").hidden = true; $("#monApp").hidden = false;
     var want = null; try { want = new URLSearchParams(location.search).get("quote"); } catch (e) {}
@@ -1059,7 +1252,7 @@
     var sel = $("#monEvent");
     var pick = (want && (want === "all" || UUID.test(want))) ? want : (saved && (saved === "all" || S.evInfo[saved])) ? saved : (S.events[0] && S.events[0].quote_id);
     if (want && UUID.test(want) && !S.evInfo[want]) { sel.insertBefore(opt(want, "This event"), sel.firstChild); S.evInfo[want] = { quote_id: want }; }
-    if (!pick) { $("#monView").appendChild(empty("No events with work today or this month. Give out tasks in an event's Tasks & staff page.")); $("#monSummary").hidden = true; return; }
+    if (!pick) { $("#monView").appendChild(empty("No events with work today or this month. Give out tasks in an event's Tasks & staff page.")); $("#monSummary").hidden = true; $("#monWins").hidden = true; return; }
     sel.value = pick; wire();
     if (S.evInfo[pick] && !S.evInfo[pick].code) { try { var q = await BPStore.quotes.get(pick); if (q) { S.evInfo[pick] = { quote_id: pick, code: q.code, title: q.title, event_date: q.eventDate || q.event_date, event_time: q.eventTime || q.event_time }; sel.options[0].textContent = [q.code, q.title].filter(Boolean).join(" · "); } } catch (e) {} }
     await choose(pick, false);
@@ -1070,5 +1263,5 @@
   }
   window.HelmMonitor = { stateOf: stateOf, summarize: summarize, leftover: leftover, fmtWhen: fmtWhen, _personKey: personKey,
     actText: actText, actGroup: actGroup, _S: S, _attendance: attendance, lastEscalation: lastEscalation, escBadge: escBadge,
-    _countdown: countdown, _lateWords: lateWords, _todayIso: todayIso, _winWhy: winWhy, _openDrawer: openDrawer, _closeDrawer: closeDrawer };
+    _countdown: countdown, _stepO: stepO, _setWin: setWin, _lateWords: lateWords, _todayIso: todayIso, _openDrawer: openDrawer, _closeDrawer: closeDrawer };
 })();

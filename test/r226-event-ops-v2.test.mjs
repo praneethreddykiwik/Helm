@@ -23,23 +23,40 @@ const W2 = { HelmTaskStatus: TS }; vm.runInNewContext(EPJS, Object.assign({ wind
 const EP = W2.HelmEventPlan;
 const tz = 'Asia/Kolkata', at = (iso) => Date.parse(iso);
 const EV = { eventDate: '2026-11-21', eventTime: '7:00 PM', stage: 'ready', status: 'confirmed', tz, runsheet: [], tasks: [{ status: 'accepted', planned_start: '2026-11-21T03:30:00Z' }] };
-const win = (now, o) => { const m = TS.opsMode(Object.assign({}, EV, o || {}, { now: at(now) })); return TS.opsWindow(m, { eventDate: (o && o.eventDate) || EV.eventDate, now: at(now), tz }); };
+const win = (now, o) => { const m = TS.opsMode(Object.assign({}, EV, o || {}, { now: at(now) })); return TS.opsWindow(m, Object.assign({}, EV, o || {}, { now: at(now) })); };
 
-await t('1a four windows from the studio clock: Before -> Day before (from midnight the day before) -> On the day -> Wrap-up', () => {
-  assert.deepEqual(JSON.parse(JSON.stringify(TS.WINDOWS.map((w) => w[1]))), ['Before the event', 'Day before', 'On the day', 'Wrap-up']);
-  assert.equal(win('2026-11-19T12:00:00Z'), 'before');
-  assert.equal(win('2026-11-19T18:29:00Z'), 'before', '11:59 PM IST on the 19th');
-  assert.equal(win('2026-11-19T18:31:00Z'), 'daybefore', '12:01 AM IST on the 20th');
-  assert.equal(win('2026-11-21T01:00:00Z'), 'daybefore', '6:30 AM on the day, before work starts (8:00 AM)');
-  assert.equal(win('2026-11-21T05:00:00Z'), 'onday');
+await t('1a R251 steps from the studio clock + the stage: Day before -> Pre-event -> On the event -> Wrap-up', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(TS.WINDOWS.map((w) => w[0] + ':' + w[1]))), ['daybefore:Day before', 'pre:Pre-event', 'onday:On the event', 'wrapup:Wrap-up']);
+  assert.deepEqual(JSON.parse(JSON.stringify(TS.STEPS.map((w) => w[0]))), ['daybefore', 'pre', 'onday'], 'Wrap-up is no step tab');
+  assert.equal(win('2026-11-16T12:00:00Z'), 'daybefore');
+  assert.equal(win('2026-11-20T18:29:00Z'), 'daybefore', '11:59 PM IST the evening before');
+  assert.equal(win('2026-11-20T18:31:00Z'), 'pre', '12:01 AM IST on the event day');
+  assert.equal(win('2026-11-21T05:00:00Z'), 'pre', 'set-up is running, nobody marked pre-event complete');
+  assert.equal(win('2026-11-21T05:00:00Z', { stage: 'event_day' }), 'onday', 'pre-event complete = the stage is Event Day');
+  assert.equal(win('2026-11-21T13:31:00Z'), 'onday', 'guests (7 PM IST) are in: never stuck on set-up');
+  assert.equal(win('2026-11-21T13:31:00Z', { eventTime: '' }), 'pre', 'no guests time: waits for the mark');
+  assert.equal(win('2026-11-16T12:00:00Z', { stage: 'event_day' }), 'daybefore', 'the stage alone, days early, never reads as live');
   assert.equal(win('2026-11-22T18:00:00Z'), 'wrapup', 'the day is over');
   assert.equal(win('2026-11-21T05:00:00Z', { stage: 'settlement' }), 'wrapup');
-  assert.equal(win('2026-11-20T05:00:00Z', { status: 'cancelled' }), 'before');
-  assert.equal(win('2026-11-20T05:00:00Z', { eventDate: '' }), 'before');
+  assert.equal(win('2026-11-20T05:00:00Z', { status: 'cancelled' }), 'daybefore');
+  assert.equal(win('2026-11-20T05:00:00Z', { eventDate: '' }), 'daybefore');
 });
-await t('1b each window maps to the R222 two-mode rule the rest of the page uses', () => {
-  assert.deepEqual(JSON.parse(JSON.stringify(TS.WIN_PHASE)), { before: 'plan', daybefore: 'plan', onday: 'live', wrapup: 'live' });
-  assert.ok(TS.winOk('daybefore') && !TS.winOk('plan') && !TS.winOk('__proto__'));
+await t('1b each step maps to the R222 two-mode rule; old hand picks land on a step', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(TS.WIN_PHASE)), { daybefore: 'plan', pre: 'live', onday: 'live', wrapup: 'live' });
+  assert.ok(TS.winOk('daybefore') && TS.winOk('pre') && !TS.winOk('plan') && !TS.winOk('wrapup') && !TS.winOk('__proto__') && !TS.winOk(null));
+  assert.deepEqual(['plan', 'before', 'live', 'wrapup', 'pre', 'zz', '__proto__', null].map((x) => TS.normWin(x)), ['daybefore', 'daybefore', 'onday', 'onday', 'pre', null, null, null]);
+  assert.equal(TS.stepOf('wrapup'), 'onday'); assert.equal(TS.stepOf('pre'), 'pre');
+});
+await t('1c R251 which step a task belongs to: by its time, else its words; counts per step', () => {
+  const o = { eventDate: '2026-11-21', eventTime: '7:00 PM', tz }, st = (title, start, category) => TS.taskStep({ title, category, planned_start: start }, o);
+  assert.equal(st('Load the truck', '2026-11-20T10:00:00Z'), 'daybefore');
+  assert.equal(st('Stage set-up', '2026-11-21T03:30:00Z'), 'pre');
+  assert.equal(st('Dinner service', '2026-11-21T14:30:00Z'), 'onday');
+  assert.equal(st('Pack and load rentals', '2026-11-21T18:00:00Z', 'Teardown'), 'wrapup');
+  assert.equal(st('Return the linen', '2026-11-22T06:00:00Z'), 'wrapup');
+  assert.equal(st('PA system setup'), 'pre'); assert.equal(st('Water & welcome drinks'), 'onday'); assert.equal(st('Anything', null, 'Teardown'), 'wrapup');
+  const b = TS.bySteps([{ title: 'a', status: 'completed', crew_id: 1 }, { title: 'b', status: 'unassigned' }, { title: 'x', status: 'cancelled' }, { title: 'Valet', status: 'assigned', crew_id: 2 }], o);
+  assert.deepEqual([b.pre.total, b.pre.done, b.pre.open, b.pre.unassigned, b.onday.total, b.wrapup.total], [2, 1, 1, 1, 1, 0]);
 });
 
 // the SAME example as tests/db/r226-event-day-plan-0396.sql #13: Ready by 17:00 IST, buffer 15 %
@@ -81,10 +98,10 @@ await t('2d Ready by: the plan time, else 1 h before Guests arrive; learned dura
   assert.deepEqual(JSON.parse(JSON.stringify(EP.DAYBEFORE.map((d) => d[0]))), keys, 'page lines = the server keys');
 });
 
-await t('3a BOTH pages: the same four windows (data-win), the same shared cards, event-plan.js loaded after task-status.js', () => {
+await t('3a BOTH pages: the same three step tabs (data-win), the same shared cards, event-plan.js loaded after task-status.js', () => {
   for (const [name, html] of [['ops', OPS], ['monitor', MONH]]) {
     const wins = [...html.matchAll(/data-win="([a-z]+)"[^>]*>([^<]+)</g)].map((m) => m[1] + ':' + m[2]);
-    assert.deepEqual(wins, ['before:Before the event', 'daybefore:Day before', 'onday:On the day', 'wrapup:Wrap-up'], name);
+    assert.deepEqual(wins, ['daybefore:Day before', 'pre:Pre-event', 'onday:On the event'], name);
     assert.match(html, /task-status\.js\?v=\d+"><\/script>\n<script src="event-plan\.js\?v=\d+"><\/script>/, name + ' load order');
     assert.match(html, /event-plan\.css\?v=\d+/, name);
   }
@@ -100,7 +117,7 @@ await t('3b before 0396 nothing shows and nothing breaks: dayPlan.get answers nu
   assert.match(MON, /if \(S\.has396\) opts\.push\(\["bell"/, 'Bell only with 0396');
 });
 await t('3c monitor: no red Late board before the event; Remind = Bell / E-mail / WhatsApp; Open = drawer; proof beside Done', () => {
-  assert.match(MON, /if \(S\.win === "before" \|\| S\.win === "daybefore"\) \{ box\.hidden = true; return; \}/);
+  assert.match(MON, /if \(!lateOn\(\)\) \{ box\.hidden = true; return; \}/, 'R251: the Late panel only while the event is running');
   assert.match(MON, /text: "Remind ▾"/); assert.doesNotMatch(MON, /text: "✉ Nudge"/);
   assert.match(MON, /BPStore\.ops\.whatsappTasks\(t\.id\)/); assert.match(MON, /BPStore\.ops\.dayPlan\.bell\(t\.id\)/); assert.match(MON, /return nudge\(t, btn\)/);
   assert.match(MON, /BPUI\.confirm\("Send “"/, 'WhatsApp asks first');
@@ -117,7 +134,7 @@ await t('3d theme: new styles use the --tc-* / --m-* tokens, never a hard-coded 
   for (const src of [EPJS, MON.slice(MON.indexOf('function remindBtn'))]) assert.doesNotMatch(src, /innerHTML|insertAdjacentHTML|outerHTML/);
 });
 await t('3e tours updated (both pages) and versions bumped above main', () => {
-  assert.match(TOURS, /sel: "#monWins", title: "Before \/ Day before \/ On the day \/ Wrap-up"/);
+  assert.match(TOURS, /sel: "#monWins", title: "Where the event is"/);   // R250 step strip
   assert.match(TOURS, /Day before: tick the checklist. Ready by: each set-up job.s latest start/);
   assert.doesNotMatch(TOURS, /Nudge e-mails the task to the person again/);
   assert.match(OPS, /ops-board\.js\?v=([4-9]|\d\d)"/); assert.match(MONH, /monitor\.js\?v=([8-9]|\d\d)"/);
