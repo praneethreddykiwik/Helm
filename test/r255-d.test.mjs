@@ -91,7 +91,7 @@ await t('link + reserve: link first, the server says what is still to reserve, t
   const s = cut(LJS, '  function linkAndReserve(block, q) {', '  function doneText(d) {');
   const at = (x) => { const i = s.indexOf(x); assert.ok(i >= 0, x); return i; };
   assert.ok(at('B.layout.setLink(') < at('B.layout.needs(') && at('B.layout.needs(') < at('B.reserve('));
-  assert.match(s, /Math\.min\(q\.want, Math\.ceil\(r\.toReserve\), Math\.floor\(r\.free\)\)/); assert.doesNotMatch(s, /allowOver/);
+  assert.match(s, /Math\.min\(q\.want, q\.most != null \? q\.most : q\.want, Math\.ceil\(r\.toReserve\), Math\.floor\(r\.free\)\)/); assert.doesNotMatch(s, /allowOver/);
   const u = cut(LJS, '  function lastNote() {', '  // a product of the plan with no stock item: its numbers');
   assert.match(u, /setResStatus\(x\.id, "cancelled"\)/); assert.doesNotMatch(u, /removeRes/); assert.match(u, /x\.status === "reserved"/);
   assert.match(LJS, /if \(S\.qbusy\) return; S\.qbusy = true;/); assert.match(INV, /freeFor:\(i\)=>/);

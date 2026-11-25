@@ -128,3 +128,7 @@ html.hb-priv-on .rp-privnote{display:block}
 #offerBody{display:flex;flex-direction:column;gap:10px}
 #bookModal .rp-vq:has(#vr_qtyF[hidden]){grid-template-columns:1fr}
 #vr_lines .hvf-in{height:auto;min-height:44px}
+
+/* R267: the vendor's invoice button; the row's buttons may wrap */
+.rp-act:has(.rp-inv){white-space:normal}
+.rp-act .rp-inv{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0 0 6px;white-space:nowrap;text-decoration:none}

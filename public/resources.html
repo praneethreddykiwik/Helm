@@ -63,7 +63,7 @@
   th{position:relative} .table-scroll{position:relative}
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
 </style>
-<link rel="stylesheet" href="resources-polish.css?v=7">
+<link rel="stylesheet" href="resources-polish.css?v=8">
 <link rel="stylesheet" href="/event-flow-line.css?v=1"><link rel="stylesheet" href="/resource-steps.css?v=2"><link rel="stylesheet" href="/vendor-flow.css?v=3">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
@@ -387,6 +387,9 @@
       const rq=reqFor(b);
       const VF=window.HelmVendorFlow, vi=rq&&VF&&Number(rq.flow)===447?VF.info(rq):null;   // R259: where it stands + the vendor's price waiting
       const rqTxt=rq?`<div class="rp-req"><span class="cov ${esc(vi?(vi.tone==="warn"?"out":vi.tone==="off"?"gap":"ok"):rq.status==="accepted"?"ok":rq.status==="sent"?"out":"gap")}">${esc(vi?vi.text:BPStore.vendorRequests.statusLabel(rq.status))}</span></div>`:"";
+      // R267 (owner): the vendor's invoice is in - the row takes you to it on Vendors (the same link as the bell)
+      const invT=vi&&{ invoice_received:"Check the invoice →", invoice_query:"Open the invoice →", invoice_approved:"Pay the vendor →" }[vi.k];
+      const invH=invT?(h=>window.HelmUrl&&HelmUrl.upgrade?HelmUrl.upgrade(h):h)("vendors.html?tab=requests&quote="+encodeURIComponent(id)+"&req="+encodeURIComponent(rq.id)):"";
       const offer=!!(vi&&rq.offer&&(rq.offer_open||rq.offer.status==="change_asked"));
       const canSend=canVend && BPStore.vendorRequests && b.vendor_id && b.status!=="cancelled" && !(rq&&(rq.status==="sent"||rq.status==="accepted"));
       return `<tr>
@@ -395,7 +398,7 @@
         <td class="num" data-l="Cost">${b.cost!=null?esc(BPStore.studioMoney(b.cost)):(b.status==="cancelled"?"":'<span class="muted" title="Counts as 0 in the budget and the profit until a cost or a bill is added">No cost yet</span>')}</td>
         <td class="num" data-l="Advance">${b.advance!=null?esc(BPStore.studioMoney(b.advance)):""}</td>
         <td>${canEdit?`<select class="rm" data-bkstatus="${esc(b.id)}" aria-label="Status for ${vn}">${opts}</select>`:esc(BK[b.status]||b.status)}${b.contract?' <span class="cov ok">✓ Contract</span>':""}${rqTxt}${leftTxt(b)}</td>
-        <td class="rp-act">${offer?`<button type="button" class="btn sm primary" data-bkoffer="${esc(rq.id)}" aria-label="See the offer from ${esc(rq.vendor_name)}">See offer${rq.offer.total!=null?": "+esc(BPStore.moneyIn(rq.offer.total,rq.currency)):""}</button> `:""}${canSend?`<button type="button" class="btn sm" data-bksend="${esc(b.id)}" aria-label="Send request to ${vn}">Send request</button> `:""}${canEdit?`<button type="button" class="rm" data-bkedit="${esc(b.id)}" aria-label="Edit cost and advance for ${vn}">Edit</button> `:""}${canDelete?`<button type="button" class="rm" data-bkdel="${esc(b.id)}" aria-label="Remove ${vn} from this event">Remove</button>`:""}</td>
+        <td class="rp-act">${invT?`<a class="btn sm${vi.k==="invoice_received"?" primary":""} rp-inv" href="${esc(invH)}" aria-label="${esc(invT.replace(" →","")+" - "+(v?sn(v.name):(b.label||"Vendor")))}">${esc(invT)}</a> `:""}${offer?`<button type="button" class="btn sm primary" data-bkoffer="${esc(rq.id)}" aria-label="See the offer from ${esc(rq.vendor_name)}">See offer${rq.offer.total!=null?": "+esc(BPStore.moneyIn(rq.offer.total,rq.currency)):""}</button> `:""}${canSend?`<button type="button" class="btn sm" data-bksend="${esc(b.id)}" aria-label="Send request to ${vn}">Send request</button> `:""}${canEdit?`<button type="button" class="rm" data-bkedit="${esc(b.id)}" aria-label="Edit cost and advance for ${vn}">Edit</button> `:""}${canDelete?`<button type="button" class="rm" data-bkdel="${esc(b.id)}" aria-label="Remove ${vn} from this event">Remove</button>`:""}</td>
       </tr>`;
     }).join("");
     const B=$("#bookRows");

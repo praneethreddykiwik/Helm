@@ -74,3 +74,13 @@ test('13 Pre-event on the monitor has the Approvals list of that event, the same
   assert.ok(h.indexOf('id="monPreList"') < h.indexOf('id="monApprove"') && h.indexOf('task-status.js') < h.indexOf('approvals.js?v='));
   assert.match(m, /S\.win === "pre" && e\.status !== "cancelled"/); assert.match(m, /A\.hide\(\); return;/);
 });
+test('14 a chair is one chair, a table one table: a saved link that says more is set to 1, everything else stays', () => {
+  const l = (type, name, per, mode, id) => ({ link_id: id || type + name, layout_type: type, item_id: name, item_name: name, per_object: per, count_mode: mode });
+  assert.deepEqual(L.wrongLinks([l('table', 'Chiavari chair', 70, 'seats'), l('table', 'Round Table', 9, 'objects'), l('table', 'Napkin', 2, 'seats'), l('table', 'Table cloth', 2, 'objects'), l('sofa', 'Sofa', 3, 'objects')]).map((x) => [x.name, x.mode]), [['Chiavari chair', 'seats'], ['Round Table', 'objects']]);
+  assert.deepEqual(L.wrongLinks([l('table', 'Chiavari chair', 8, 'objects')]).map((x) => x.mode), ['seats'], '8 per table becomes its own line');
+  assert.deepEqual(L.wrongLinks([l('table', 'Chiavari chair', 8, 'objects', 'a'), l('table', 'Folding chair', 1, 'seats', 'b')]), [], 'never two chair lines');
+  assert.deepEqual(L.wrongLinks([l('table', 'Round table 5ft', 1, 'objects'), l('table', 'Chiavari chair', 1, 'seats'), l('chiavari', 'Chiavari chair', 1, 'objects')]), []);
+});
+test('15 the resource plan takes you to the vendor invoice', () => {
+  const R = read('public/resources.html'); assert.match(R, /invoice_received:"Check the invoice →"/); assert.match(R, /"vendors\.html\?tab=requests&quote="\+encodeURIComponent\(id\)\+"&req="\+encodeURIComponent\(rq\.id\)/);
+});
