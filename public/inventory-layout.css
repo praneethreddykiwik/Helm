@@ -180,3 +180,8 @@ html[data-theme="dark"] .ls-fit.is-ok{color:#5fd49a}
 .ls-pickf{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
 .ls-find{min-height:44px;flex:1 1 200px;max-width:320px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit}
 .ls-pickf .ls-linkbtn{min-height:44px}
+/* R266: how many to take, next to the button */
+.ls-usew{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ls-qty{width:84px;min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;font-variant-numeric:tabular-nums}
+.ls-plan .ls-rline{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ls-plan .ls-rline>span{display:grid;gap:2px;min-width:0}
