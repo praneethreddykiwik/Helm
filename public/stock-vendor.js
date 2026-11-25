@@ -62,7 +62,23 @@
       return { bookingId: b.id, vendorId: b.vendor_id || null, vendorName: (v && v.name) || (d.names && d.names[b.vendor_id]) || "Vendor",
         qty: b.qty != null ? num(b.qty) : (r ? r.qty : 0), status: b.status || "enquiry", statusText: statusText(b.status || "enquiry"),
         fromStock: fromStock, needId: b.need_id || null, priced: b.cost != null };
+    }).concat(fromRequests(thing, d, byV));
+  }
+  // R262: one request can ask one vendor for several products (its booking is not the booking of any one of them): the line of this thing counts
+  function fromRequests(thing, d, byV) {
+    var t = thing || {}, k = nl(t.label), out = [];
+    (d.requests || []).forEach(function (r) {
+      if (!r || (r.status !== "sent" && r.status !== "accepted") || !(r.lines || []).length) return;
+      var b = (d.bookings || []).filter(function (x) { return x && x.id === r.booking_id; })[0];
+      if (b && (b.status === "cancelled" || sameThing(b, t, d.needs, d.shortages))) return;   // counted as a booking above
+      (r.lines || []).forEach(function (l) {
+        var nd = l.need_id ? (d.needs || []).filter(function (x) { return x && x.id === l.need_id; })[0] : null;
+        if (!(nd ? (t.itemId && nd.item_id === t.itemId) || (k && nl(nd.label) === k && !(t.itemId && nd.item_id && nd.item_id !== t.itemId)) : k && nl(l.name) === k)) return;
+        var of = r.offer && (r.offer_open || r.offer.status === "approved") ? (r.offer.lines || []).filter(function (x) { return x && x.id === l.id; })[0] : null, q = num(of ? of.qty : l.qty), v = byV[r.vendor_id], st = r.status === "accepted" ? "booked" : "enquiry";
+        if (q > 0) out.push({ bookingId: r.booking_id || null, vendorId: r.vendor_id || null, vendorName: (v && v.name) || r.vendor_name || "Vendor", qty: q, status: st, statusText: statusText(st), fromStock: false, needId: l.need_id || null, priced: true });
+      });
     });
+    return out;
   }
   function sourcedQty(list) { return (list || []).reduce(function (a, s) { return a + Math.max(num(s.qty), 0); }, 0); }
   // what pressing the button with this vendor + number does:
@@ -137,8 +153,9 @@
   function readEvent(o) {
     return Promise.all([
       S().bookings.list(o.quoteId), S().resources.listNeeds(o.quoteId),
-      o.itemId ? Promise.resolve(S().inventory.shortages(o.quoteId)).catch(function () { return []; }) : []
-    ]).then(function (r) { return { bookings: r[0] || [], needs: r[1] || [], shortages: r[2] || [] }; });
+      o.itemId ? Promise.resolve(S().inventory.shortages(o.quoteId)).catch(function () { return []; }) : [],
+      S().vendorRequests && S().vendorRequests.list ? Promise.resolve(S().vendorRequests.list(o.quoteId, null)).catch(function () { return []; }) : []
+    ]).then(function (r) { return { bookings: r[0] || [], needs: r[1] || [], shortages: r[2] || [], requests: r[3] || [] }; });
   }
   // how many of our own are still free on the event's stock days + does the floor plan say they are all needed
   function readFree(o) {
@@ -245,7 +262,11 @@
       var more = h("p", { cls: "hsv-note", role: "status", "aria-live": "polite", hidden: true });   // R261: more than is missing is said before it is asked
       var moreSay = function () { var q = parseQty(qtyIn.value), x = num(o.qty) > 0 && q ? q - (left || Math.ceil(num(o.qty))) : 0; more.hidden = !(x > 0); more.textContent = x > 0 ? fmt(left || Math.ceil(num(o.qty))) + " missing. You ask for " + fmt(q) + ": " + fmt(x) + " more than needed." : ""; };
       qtyIn.addEventListener("input", function () { okErr(); refreshButton(); moreSay(); });
-      body.appendChild(h("div", { cls: "hsv-f" }, [h("label", { cls: "hsv-lbl", "for": uid + "q", text: "How many from the vendor" }), qtyIn, more]));
+      // R262 (owner: "beside it should show needed these many, I can't go back and check"): the numbers next to the box
+      var nd = o.need || {}, want = Math.ceil(num(nd.needed) || num(o.qty)), facts = [["Needed", want], num(nd.held) > 0 ? ["Reserved from ours", nd.held] : null, nd.free != null ? ["Free in our stock", nd.free] : null, have.length ? ["Already asked", sourcedQty(have)] : null, ["Still to get", left]].filter(Boolean);
+      body.appendChild(h("div", { cls: "hsv-f" }, [h("label", { cls: "hsv-lbl", "for": uid + "q", text: "How many from the vendor" }),
+        h("div", { cls: "hsv-qrow" }, [qtyIn, want > 0 ? h("span", { cls: "hsv-need" }, facts.map(function (f, i) { return h("span", { cls: i === facts.length - 1 ? "is-main" : "" }, [f[0] + " ", h("b", { text: fmt(f[1]) })]); })) : null]), more]));
+      if (typeof o.many === "function") { var mb = h("button", { type: "button", cls: "hsv-link", text: "Several products from one vendor? Choose them together" }); mb.addEventListener("click", function () { if (busy) return; dismiss(); o.many(); }); body.appendChild(mb); }
       resIn = null; freeBox = null;
       if (o.itemId && canInv && freeInfo && freeInfo.free > 0 && !shortOpen(o.itemId, data.shortages)) {
         resIn = h("input", { type: "checkbox", id: uid + "r", checked: freeInfo.needed }); resIn.checked = !!freeInfo.needed;
@@ -396,13 +417,38 @@
     return promise;
   }
 
+  // R262: one vendor, several products, one request. o: { quoteId, lines: [{ label, qty, needed, itemId, layoutType }], returnFocus, onDone }. The Ask dialog opens with all of
+  // them; a product that is not for this vendor is taken off there. The needs are put on the event's plan when Send is pressed (the same need is used again, never twice).
+  function askMany(o) {
+    var things = (o.lines || []).slice(0, 30), used = [];
+    function thingOf(name) { return things.filter(function (t) { return nl(t.label).slice(0, 120) === nl(name); })[0] || null; }
+    return flowLib().then(function (F) {
+      return F.ask({ quoteId: o.quoteId, title: "Ask one vendor for several products", returnFocus: o.returnFocus,
+        lines: things.map(function (t) { return { name: String(sn(t.label)).slice(0, 120), qty: t.qty, needed: t.needed || t.qty }; }),
+        before: function (p) {
+          return Promise.resolve(S().resources.listNeeds(o.quoteId)).then(function (needs) {
+            used = [];
+            return (p.lines || []).reduce(function (c, l) { return c.then(function () {
+              var t = things.filter(function (x) { return nl(String(sn(x.label)).slice(0, 120)) === nl(l.name); })[0] || thingOf(l.name); if (!t) return null;
+              var nd = findNeed({ itemId: t.itemId, label: t.label }, needs);
+              return Promise.resolve(nd || S().resources.addNeed(o.quoteId, Object.assign({ kind: t.itemId ? "inventory" : "other", label: t.label, qty: Math.max(1, Math.round(num(l.qty))), note: t.layoutType ? "From the 2D / 3D layout" : "Missing for the event" }, t.itemId ? { item_id: t.itemId } : {})))
+                .then(function (n) { if (!n || !n.id) throw new Error("the need was not saved"); if (!nd) needs = needs.concat([n]); l.need_id = n.id; used.push({ id: n.id, qty: num(n.qty), got: num(l.qty), status: n.status }); });
+            }); }, Promise.resolve());
+          });
+        } });
+    }).then(function (row) {
+      if (!row) return null;
+      return used.reduce(function (c, u) { return c.then(function () { return u.got >= u.qty && u.status !== "outsourced" ? S().resources.updateNeed(u.id, { status: "outsourced" }) : null; }).catch(function () {}); }, Promise.resolve())
+        .then(function () { try { doc.dispatchEvent(new root.CustomEvent("helm:vendors")); } catch (e) {} if (o.onDone) o.onDone(row); return row; });
+    }, function () { toast("Couldn't open the request. Try again.", "err"); return null; });
+  }
   // R259: the Ask vendor dialog, loaded when it is first needed
   var flowP = null;
   function flowLib() {
     if (root.HelmVendorFlow) return Promise.resolve(root.HelmVendorFlow);
-    if (!flowP) flowP = new Promise(function (ok2, no) { var sc = doc.createElement("script"); sc.src = "/vendor-flow.js?v=2"; sc.onload = function () { ok2(root.HelmVendorFlow); }; sc.onerror = function () { flowP = null; sc.remove(); no(new Error("vendor-flow")); }; doc.head.appendChild(sc); });
+    if (!flowP) flowP = new Promise(function (ok2, no) { var sc = doc.createElement("script"); sc.src = "/vendor-flow.js?v=3"; sc.onload = function () { ok2(root.HelmVendorFlow); }; sc.onerror = function () { flowP = null; sc.remove(); no(new Error("vendor-flow")); }; doc.head.appendChild(sc); });
     return flowP;
   }
-  api.open = open; api.canUse = canUse;
+  api.open = open; api.askMany = askMany; api.canUse = canUse;
   root.HelmStockVendor = api;
 })(typeof window !== "undefined" ? window : this);

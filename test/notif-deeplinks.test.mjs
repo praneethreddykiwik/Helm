@@ -21,8 +21,8 @@ const row = (kind, extra) => Object.assign({}, base, { kind }, extra || {});
 
 // [catalog type, sample raw kind(s), expected URL]
 const CASES = [
-  ['approval_link', ['approval_link'], 'quotes.html?focus=C-101'],
-  ['otp', ['otp'], 'quotes.html?focus=C-101'],
+  ['approval_link', ['approval_link'], `flow.html?quote=${Q}#sec-approve`]   /* R262: the same quotation */,
+  ['otp', ['otp'], `flow.html?quote=${Q}#sec-approve`],
   ['task_assigned', ['task_assigned'], `ops.html?quote=${Q}&task=${T}`],
   ['task_update', ['task_accept', 'task_reject', 'task_start', 'task_complete'], `ops.html?quote=${Q}&task=${T}`],
   ['task_reminder', ['task_reminder'], `ops.html?quote=${Q}&task=${T}`],
@@ -76,7 +76,7 @@ t('whatsapp / other / reapproval fall back to the event (or quote) page', () => 
   assert.equal(ctx.link(row('whatsapp_in', { channel: 'whatsapp' })), `event.html?id=${Q}`);
   assert.equal(ctx.link(row('something_new')), `event.html?id=${Q}`);
   assert.equal(ctx.link(row('reapproval_required')), 'quotes.html?focus=C-101');
-  assert.equal(ctx.link(row('approval_link', { event_code: null })), `quotes.html?focus=${Q}`);
+  assert.equal(ctx.link(row('reapproval_required', { event_code: null })), `quotes.html?focus=${Q}`);
 });
 t('chat + mentions open the conversation at the message', () => {
   assert.equal(ctx.link({ __chat: true, conversation_id: 'g1', msg_id: 'm7', kind: 'group' }), 'chat.html?c=g1&msg=m7');

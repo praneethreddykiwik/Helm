@@ -289,7 +289,7 @@
   var flowP = null;   // R259: vendor-flow.js is loaded when it is first needed
   function flowLib() {
     if (global.HelmVendorFlow && global.HelmVendorFlow.askInvoice) return Promise.resolve(global.HelmVendorFlow);
-    if (!flowP) flowP = new Promise(function (ok, no) { var sc = doc.createElement("script"); sc.src = "/vendor-flow.js?v=2"; sc.onload = function () { ok(global.HelmVendorFlow); }; sc.onerror = function () { flowP = null; doc.head.removeChild(sc); no(new Error("vendor-flow")); }; doc.head.appendChild(sc); });
+    if (!flowP) flowP = new Promise(function (ok, no) { var sc = doc.createElement("script"); sc.src = "/vendor-flow.js?v=3"; sc.onload = function () { ok(global.HelmVendorFlow); }; sc.onerror = function () { flowP = null; doc.head.removeChild(sc); no(new Error("vendor-flow")); }; doc.head.appendChild(sc); });
     return flowP;
   }
   // R261 (0450): what the vendor charges for missing / broken items (people who may see money). The block is kept between redraws: a half-typed form stays.

@@ -25,7 +25,7 @@
     if (f.plan != null) out.push({ key: "plan", label: "Payment plan saved", ok: !!f.plan, href: "#sec-payplan" });
     out.push({ key: "approve", label: "Client approved (or the advance is recorded)", ok: !!f.approved, href: "#sec-approve" });
     out.push({ key: "advance", label: "Advance recorded", ok: !!f.advance, href: "#sec-pay" });
-    [["discovery", "Discovery", "#sec-discovery"], ["reqs", "Requirements", "#sec-reqs"], ["proposal", "Proposal", "#sec-proposal"]].forEach(function (x) {
+    [["booklet", "Booklet shared", "#sec-after"], ["invite", "Invitation site published", "#sec-invite"], ["discovery", "Discovery", "#sec-discovery"], ["reqs", "Requirements", "#sec-reqs"], ["proposal", "Proposal", "#sec-proposal"]].forEach(function (x) {
       if (f[x[0]] != null) out.push({ key: x[0], label: x[1], ok: !!f[x[0]], href: x[2], optional: true });
     });
     return out;
@@ -90,6 +90,8 @@
     else if (f.paidFull) row("Next payment", ["Paid in full"]);
     body.append(name, when, dl);
     if (s.missing.length) { body.append(el("p", "fd-still", "Still to fill in (" + s.missing.length + "):"), missList(s.missing)); }
+    var left = s.optional.filter(function (i) { return i.key === "booklet" || i.key === "invite"; });   // R262
+    if (left.length) { body.append(el("p", "fd-still", "Not shared yet:"), missList(left)); }
     var go = el("div", "fd-acts");
     var main = acts.go ? btn("Go to the event", "primary", function () { close(true); acts.go(); }) : null;
     if (main) go.appendChild(main);

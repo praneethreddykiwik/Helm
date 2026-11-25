@@ -205,7 +205,7 @@
 <link rel="stylesheet" href="/ui-pickers.css?v=4">
 <link rel="stylesheet" href="/trial-sim.css?v=2"><script src="/ui-pickers.js?v=5" defer></script>
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=127" id="shellProto"></script>
+<script src="/shell-proto.js?v=128" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -213,7 +213,7 @@
   <header>
     <a href="dashboard.html" class="mark" title="Home" aria-label="Home"></a>
     <div><h1>Invitation Studio</h1><small>Helm Events</small></div>
-    <nav class="nav"><a href="dashboard.html">Home</a><a href="quotes.html">Quotes</a><a id="evLink" href="#">Event</a></nav>
+    <nav class="nav"><a href="dashboard.html">Home</a><a href="quotes.html">Quotes</a><a id="evLink" href="#">Event</a><a id="flowLink" href="#" hidden>Quotation</a></nav>
     <span class="spacer"></span>
     <span id="account" class="account" hidden></span>
   </header>
@@ -403,7 +403,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=416"></script><script src="/trial-sim.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=418"></script><script src="/trial-sim.js?v=3"></script>
 <script src="invite-site-share.js?v=13"></script>
 <script src="invite-music.js?v=1"></script><script src="invite-placement.js?v=1"></script><script src="invite-extras.js?v=3"></script>
 <script>
@@ -881,6 +881,7 @@
     if(!ev){ $("#notfound").hidden=false; return; }
     $("#evLink").href="event.html?id="+encodeURIComponent(qid);
     $("#backEv").href="event.html?id="+encodeURIComponent(qid);
+    { const fl=$("#flowLink"); fl.href="flow.html?quote="+encodeURIComponent(qid)+"#sec-invite"; fl.hidden=false; if(new URLSearchParams(location.search).get("from")==="flow") fl.textContent="\u2190 Back to the quotation"; }   // R262: the same invitation is step 12 of the quote page
     // gate: confirmed or beyond
     if(CONFIRMED_ORDER.indexOf(ev.status)<0){ $("#notconfirmed").hidden=false; return; }
 

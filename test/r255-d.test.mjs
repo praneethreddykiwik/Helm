@@ -55,12 +55,12 @@ await t('Event Ready: a refused move shows the same list with buttons; other err
 });
 /* ---- 2 + 3 the four steps ---- */
 await t('four steps: links keep the event, steps you may not open are left out, Next goes on', () => {
-  assert.deepEqual(RS.STEPS.map((s) => s.label), ['Reserve our stock', "Get what's missing from vendors", 'Assign our people', 'Check budget & margin']);
-  assert.deepEqual(RS.STEPS.map((s) => RS.href(s.key, 'q 1')), ['inventory.html?quote=q%201', 'resources.html?quote=q%201', 'ops.html?quote=q%201#assign', 'budget.html?quote=q%201']);
-  assert.equal(RS.next('vendors').key, 'people'); assert.equal(RS.next('budget'), null); assert.equal(RS.next('people', { finance: false }), null);
-  assert.equal(RS.firstOpen({}, 'q'), 'inventory.html?quote=q'); assert.equal(RS.firstOpen({ inventory: false }, 'q'), 'resources.html?quote=q'); assert.equal(RS.firstOpen({ inventory: false, staff: false, resources: false, finance: false }, 'q'), '');
+  assert.deepEqual(RS.STEPS.map((s) => s.label), ['Reserve our stock', "Get what's missing from vendors", 'Assign our people', 'Plan the run-sheet', 'Check budget & margin']);
+  assert.deepEqual(RS.STEPS.map((s) => RS.href(s.key, 'q 1')), ['inventory.html?quote=q%201', 'resources.html?quote=q%201', 'ops.html?quote=q%201#assign', 'runsheet.html?quote=q%201', 'budget.html?quote=q%201']);
+  assert.equal(RS.next('vendors').key, 'people'); assert.equal(RS.next('budget'), null); assert.equal(RS.next('people').key, 'runsheet'); assert.equal(RS.next('people', { runsheet: false }).key, 'budget'); assert.equal(RS.next('runsheet', { finance: false }), null);
+  assert.equal(RS.firstOpen({}, 'q'), 'inventory.html?quote=q'); assert.equal(RS.firstOpen({ inventory: false }, 'q'), 'resources.html?quote=q'); assert.equal(RS.firstOpen({ inventory: false, staff: false, resources: false, runsheet: false, finance: false }, 'q'), '');
   assert.equal(RS.href('stock', ''), '');
-  for (const [f, k] of [['inventory', 'stock'], ['ops', 'people'], ['resources', 'vendors'], ['budget', 'budget']]) { const h = read('public/' + f + '.html');
+  for (const [f, k] of [['inventory', 'stock'], ['ops', 'people'], ['resources', 'vendors'], ['runsheet', 'runsheet'], ['budget', 'budget']]) { const h = read('public/' + f + '.html');
     assert.match(h, new RegExp('<nav class="rs"[^>]*data-resource-steps="' + k + '"')); assert.match(h, /\/resource-steps\.js\?v=\d+/); assert.match(h, /\/resource-steps\.css\?v=\d+/); }
   assert.match(EV, /href:resourcePlanHref\(\)/);
   assert.doesNotMatch(read('public/resource-steps.js'), /innerHTML|insertAdjacentHTML|\.style\./);
@@ -95,7 +95,7 @@ await t('link + reserve: link first, the server says what is still to reserve, t
   const u = cut(LJS, '  function lastNote() {', '  // a product of the plan with no stock item: its numbers');
   assert.match(u, /setResStatus\(x\.id, "cancelled"\)/); assert.doesNotMatch(u, /removeRes/); assert.match(u, /x\.status === "reserved"/);
   assert.match(LJS, /if \(S\.qbusy\) return; S\.qbusy = true;/); assert.match(INV, /freeFor:\(i\)=>/);
-  for (const w of ["We don't have this in stock.", 'Get from a vendor', 'Choose a stock item', 'Reserve all suggested (', 'The names do not have to be the same']) assert.ok(LJS.includes(w), w);
+  for (const w of ["We don't have this in stock.", ' from a vendor"', 'Use a stock item', 'Reserve all suggested (', 'Helm remembers the item']) assert.ok(LJS.includes(w), w);
 });
 /* ---- 5 event group ---- */
 await t('event group: a Client login and a switched-off one stay listed, can not be ticked or sent; the header stays above the pictures', () => {

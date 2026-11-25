@@ -91,7 +91,27 @@
       if (nd) return (itemId && nd.item_id === itemId) || (k && nl(nd.label) === k && !(itemId && nd.item_id && nd.item_id !== itemId)) ? x : null;
       if (itemId && (o.shortages || []).some(function (z) { return z.booking_id === b.id && z.item_id === itemId; })) return x;
       return k && (nl(b.label) === k || (m && nl(m[1]) === k)) ? x : null;
-    }).filter(Boolean);
+    }).filter(Boolean).concat(sourcedLines(o, itemId, k));
+  }
+  // R262: one request asks one vendor for several products - the line of this product counts (stock-vendor.js fromRequests is the same rule)
+  function sourcedLines(o, itemId, k) {
+    var out = [], needs = o.needs || [];
+    (o.requests || []).forEach(function (r) {
+      var b = (o.bookings || []).filter(function (x) { return x && x.id === r.booking_id; })[0]; if (b && b.status === "cancelled") return;
+      var bn = b && b.need_id ? needs.filter(function (z) { return z.id === b.need_id; })[0] : null;
+      r.lines.forEach(function (l) {
+        var nd = l.need_id ? needs.filter(function (z) { return z.id === l.need_id; })[0] : null;
+        if (bn && nd && bn.id === nd.id) return;   // the booking itself is for this product
+        if (b && (nl(b.label) === k)) return;
+        if (nd ? !((itemId && nd.item_id === itemId) || (k && nl(nd.label) === k && !(itemId && nd.item_id && nd.item_id !== itemId))) : !(k && nl(l.name) === k)) return;
+        if (l.qty > 0) out.push({ b: { id: r.booking_id, vendor_id: r.vendor_id, status: b && b.status !== "enquiry" ? b.status : r.status === "accepted" ? "booked" : "enquiry" }, qty: l.qty });
+      });
+    });
+    return out;
+  }
+  function cleanRequest(r) {   // no money
+    var of = r.offer && (r.offer_open || r.offer.status === "approved") ? r.offer.lines || [] : [];
+    return { id: r.id, booking_id: r.booking_id || null, vendor_id: r.vendor_id || null, status: r.status, lines: (r.lines || []).map(function (l) { var x = of.filter(function (y) { return y && y.id === l.id; })[0]; return { name: String(l.name || ""), need_id: l.need_id || null, qty: n0(x ? x.qty : l.qty) }; }) };
   }
   function outBy(checkouts) { var r = {}; (checkouts || []).forEach(function (c) { if (c && (c.status === "out" || c.status === "partial")) r[c.item_id] = (r[c.item_id] || 0) + Math.max(n0(c.qty_out) - n0(c.qty_in), 0); }); return r; }
   function resBy(res) { var r = {}; (res || []).forEach(function (x) { if (x && (x.status === "reserved" || x.status === "allocated")) r[x.item_id] = (r[x.item_id] || 0) + n0(x.qty); }); return r; }
@@ -170,8 +190,11 @@
       var B = store(); if (!p.vendors || !B.bookings) return Promise.resolve({ hidden: true });
       return B.bookings.list(q).then(function (list) {
         var bk = (list || []).filter(Boolean).map(cleanBooking); if (!bk.length) return { bookings: [], vendors: [], needs: [] };
-        return Promise.all([B.vendors.listAll(true), bk.some(function (b) { return b.need_id; }) && B.resources ? B.resources.listNeeds(q) : []]).then(function (r) {
-          return { bookings: bk, vendors: (r[0] || []).map(cleanVendor), needs: (r[1] || []).map(function (x) { return { id: x.id, item_id: x.item_id || null, label: String(x.label || "") }; }) };
+        return Promise.all([B.vendors.listAll(true), B.vendorRequests && B.vendorRequests.list ? Promise.resolve(B.vendorRequests.list(q, null)).catch(function () { return []; }) : []]).then(function (r0) {
+          var rq = (r0[1] || []).filter(function (x) { return x && (x.status === "sent" || x.status === "accepted") && (x.lines || []).length > 1; }).map(cleanRequest);
+          return Promise.resolve((rq.length || bk.some(function (b) { return b.need_id; })) && B.resources ? B.resources.listNeeds(q) : []).then(function (nd) { return [r0[0], nd, rq]; });
+        }).then(function (r) {
+          return { bookings: bk, requests: r[2], vendors: (r[0] || []).map(cleanVendor), needs: (r[1] || []).map(function (x) { return { id: x.id, item_id: x.item_id || null, label: String(x.label || "") }; }) };
         });
       });
     },
@@ -582,7 +605,7 @@
   function acts1(f) { return f ? function (top) { return [f(top)]; } : null; }
   function stockModel(s) {
     var d = s.stock.data; if (!d || !d.layout) return null; var v = s.vendors.state === "ok" ? s.vendors.data : null;
-    return stockRows({ layout: d.layout, reservations: d.reservations, checkouts: d.checkouts, shortages: d.shortages, needs: v ? v.needs : [], bookings: v ? v.bookings : [] });
+    return stockRows({ layout: d.layout, reservations: d.reservations, checkouts: d.checkouts, shortages: d.shortages, needs: v ? v.needs : [], bookings: v ? v.bookings : [], requests: v ? v.requests : [] });
   }
   // "Need 120, have 100 - 20 to reserve" (what is not in stock is the "Missing" chip): have = held for this event + what a vendor said yes to; only asked = said apart
   function stockWords(r) {

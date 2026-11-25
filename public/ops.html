@@ -173,14 +173,14 @@
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="task-reminders.css?v=4"><link rel="stylesheet" href="when-picker.css?v=3"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=8">
-<link rel="stylesheet" href="/resource-steps.css?v=1">
+<link rel="stylesheet" href="/resource-steps.css?v=2">
 <link rel="stylesheet" href="ops-board.css?v=12">
 <link rel="stylesheet" href="event-plan.css?v=3">
 <link rel="stylesheet" href="day-before.css?v=2">
 <link rel="stylesheet" href="event-floor.css?v=4">
 <link rel="stylesheet" href="/event-steps.css?v=1">
 <link rel="stylesheet" href="/issue-assign.css?v=1">
-<link rel="stylesheet" href="/stock-vendor.css?v=1">
+<link rel="stylesheet" href="/stock-vendor.css?v=2">
 <link rel="stylesheet" href="/event-delay.css?v=2">
 <link rel="stylesheet" href="stock-flow.css?v=3">
 <link rel="stylesheet" href="/event-wrap.css?v=2">
@@ -188,7 +188,7 @@
 <link rel="stylesheet" href="/pre-check.css?v=1">
 <link rel="stylesheet" href="/event-extras.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=127" id="shellProto"></script>
+<script src="/shell-proto.js?v=128" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -511,20 +511,20 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=416"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=418"></script>
 <script src="task-status.js?v=8"></script>
 <script src="event-plan.js?v=9"></script>
-<script src="day-before.js?v=6"></script>
+<script src="day-before.js?v=7"></script>
 <script src="ops-board.js?v=17"></script>
 <script src="event-floor.js?v=6"></script>
 <script src="stock-flow.js?v=3"></script>
 <script src="stock-checkin.js?v=2"></script>
-<script src="/event-wrap.js?v=7"></script>
+<script src="/event-wrap.js?v=8"></script>
 <script src="/vendor-items.js?v=1"></script>
 <script src="/event-extras.js?v=1"></script>
 <script src="/event-steps.js?v=9"></script>
 <script src="/issue-assign.js?v=4"></script>
-<script src="/stock-vendor.js?v=4"></script>
+<script src="/stock-vendor.js?v=5"></script>
 <script src="/event-delay.js?v=3"></script>
 <script src="/task-clash.js?v=2"></script>
 <script src="/pre-check.js?v=2"></script>
@@ -589,7 +589,7 @@
     if(!quote){ $("#noquoteMsg").innerHTML='Event not found. Open an event from <a href="quotes.html" style="color:var(--accent);text-decoration:underline">Quotes</a> → Operations.'; $("#noquote").hidden=false; return; }
     $("#app").hidden=false;   // R192: the event header (date, venue, Guests arrive, countdown, progress) is drawn by ops-board.js
     // r24: where this page sits in the resources flow (1 stock -> 2 our people -> 3 what's missing -> 4 budget)
-    $("#flowNext").innerHTML=`Step 3 of 4 — assign our people. Stock or vendors not settled yet? <a class="s-a805525" href="resources.html?quote=${encodeURIComponent(quote.id||quoteId)}">2 See what's still missing →</a>`; $("#flowNext").hidden=false;
+    $("#flowNext").innerHTML=`Step 3 of 5 — assign our people. Stock or vendors not settled yet? <a class="s-a805525" href="resources.html?quote=${encodeURIComponent(quote.id||quoteId)}">2 See what's still missing →</a>`; $("#flowNext").hidden=false;
     // sections come from the template catalog (falls back to defaults)
     try{ const cats=await pCats; if(cats && cats.length) CATS=cats; }catch{}
     if(!CATS.includes(activeCat)) activeCat=CATS[0];
@@ -1327,6 +1327,6 @@
 
 <script src="wa-setup-note.js?v=1"></script><script src="studio-time.js?v=1"></script><script src="when-picker.js?v=3"></script><script src="task-reminders-ui.js?v=9"></script>
 <script src="crew-shifts.js?v=8"></script>
-<script src="/resource-steps.js?v=3"></script>
+<script src="/resource-steps.js?v=4"></script>
 </body>
 </html>

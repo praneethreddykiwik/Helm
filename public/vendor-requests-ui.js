@@ -148,7 +148,8 @@
     }
     var nx = nextStep(r, fl); if (nx) c.appendChild(nx);   // R261: what to do now, as the main button
     var cols = h("div", { cls: "vrq-cols" });
-    if (fl && r.offer && r.status !== "cancelled" && r.status !== "reassigned") { var ob = F().offerBox(r, { canAssign: state.canAssign, reload: load }); if (ob) cols.appendChild(ob); }
+    var ob = fl && r.offer && r.status !== "cancelled" && r.status !== "reassigned" ? F().offerBox(r, { canAssign: state.canAssign, reload: load }) : null;
+    if (ob && r.offer_open) cols.appendChild(ob);   // R262: an answer that waits for the studio comes first; an approved one is a closed line under the invoice
     // invoices
     var inv = (r.invoices || []).filter(function (i) { return i.status !== "superseded"; });
     if (inv.length) {
@@ -157,6 +158,7 @@
       cols.appendChild(ul);
     }
     if (cols.firstChild) c.appendChild(cols);
+    if (ob && !r.offer_open) c.appendChild(ob);
     // R261 (0450): what they charge for missing / broken items
     if (r.booking_id && r.status === "accepted" && global.HelmVendorCharges) { var vc = h("div"), viS = global.HelmVendorItems && global.HelmVendorItems.get ? global.HelmVendorItems.get(r.quote_id) : null; vc.hidden = true; c.appendChild(vc);
       global.HelmVendorCharges.paint(vc, { quoteId: r.quote_id, bookingId: r.booking_id, vendor: r.vendor_name, items: viS && viS.vendors && viS.vendors[r.booking_id] ? viS.vendors[r.booking_id].problems : [], onDone: function () { extras(); } }); }

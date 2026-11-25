@@ -42,7 +42,7 @@ export function vendorRequestMessage(row, origin) {
       text: "Hello" + (who ? " " + who : "") + ",\n\n" +
         studio + (row.kind === "reminder" ? " is still waiting for your answer" : " would like to book you") + " for " + evLine + ", needed " + whenAt + (clip(row.where_text, 200) ? " at " + clip(row.where_text, 200) : "") + ".\n\n" +
         (prods.length ? prods.map((p) => "- " + p.name + ": " + qtyText(p)).join("\n") : "- " + item) + "\n\n" +
-        "Are you available? Open the link, choose Available or Not available" + (row.price_open ? " and tell us your price" : " and check the price") + ". You can attach your quotation (PDF or photo). No sign-in." + reply + "\n" + link + "\n\n" +
+        "Is it available? Open the link, choose Available or Not available" + (row.price_open ? " and tell us your price" : " and check the price") + ". You can attach your quotation (PDF or photo). No sign-in." + reply + "\n" + link + "\n\n" +
         "After the event you can send your invoice from the same link.\n\nThank you,\n" + studio,
     };
   }
@@ -126,7 +126,7 @@ export function vendorRequestHtml(row, origin, opts = {}) {
   if (!msg.text || Number(row.flow) !== 447) return "";
   const e = L.escHtml, studio = clip(row.studio, 80) || "your event planner", event = clip(row.event, 120) || "the event", date = clip(row.event_date, 12), by = clip(row.respond_by_text, 30), link = vendorRequestLink(row, origin);
   const prods = products(row.lines), who = clip(row.vendor_name, 120);
-  const inner = L.h1(row.kind === "reminder" ? e(studio) + " is waiting for your answer" : "Are you available?") +
+  const inner = L.h1(row.kind === "reminder" ? e(studio) + " is waiting for your answer" : "Is it available?") +
     L.para("Hello" + (who ? " " + e(who) : "") + ", " + L.strong(e(studio)) + (row.kind === "reminder" ? " asked you for this and has not heard from you yet." : " would like to book you.")) +
     L.facts([["Event", e(event + (DATE.test(date) ? " on " + plainDate(date) : ""))], ["Needed", e(plainDate(clip(row.when_text, 30)))], ["Where", e(clip(row.where_text, 200))], ["Please reply by", WHEN.test(by) ? e(plainDate(by)) : ""]].filter((x) => x[1])) +
     table(prods, "INR") + L.button(e(link), row.price_open ? "Answer and tell your price" : "Answer the request") +

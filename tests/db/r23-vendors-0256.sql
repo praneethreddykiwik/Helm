@@ -4,6 +4,7 @@
 -- reject), payments through record_vendor_payout, reminders + "No reply" notice, the dispatcher claim, free trials,
 -- sample events, expiry, storage gates and tenants. Rolled back. Local disposable PG only. Nothing is ever sent.
 \set ON_ERROR_STOP 0
+alter table public.vendor_invoices disable trigger r452_invoice_price;   -- 0452 has its own suite; these cases test the studio's review of an invoice above the agreed price
 set client_min_messages = warning;
 begin;
 create temp table _dr(name text, result text); grant all on _dr to anon, authenticated, service_role;

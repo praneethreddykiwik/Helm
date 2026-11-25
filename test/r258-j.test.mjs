@@ -106,8 +106,9 @@ t('send-otp: payment codes have their own channels (an older send-otp refuses th
   assert.match(STORE, /channel === "whatsapp" \? "pay_whatsapp" : "pay_email"/); assert.match(STORE, /er\.noCode = true/);
 });
 t('the bell opens the payment card of the event; the same link in the e-mail sender', () => {
-  const line = '(k === "payment_followup" || k === "payment_claimed") return "event.html?id=" + enc(q) + "#paySchedCard"';
-  assert.ok(STORE.includes(line)); assert.ok(read('supabase/functions/comms-dispatch/deeplink.js').includes(line));
+  // R262: "the client says it is paid" opens the quotation page (step 10); a payment that is due still opens the event's card
+  for (const line of ['(k === "payment_claimed") return "flow.html?quote=" + enc(q) + "#sec-pay"', '(k === "payment_followup") return "event.html?id=" + enc(q) + "#paySchedCard"']) {
+    assert.ok(STORE.includes(line)); assert.ok(read('supabase/functions/comms-dispatch/deeplink.js').includes(line)); }
 });
 t('pages load the new files in the right order; hidden until the server answers; no HTML strings, no inline style', () => {
   for (const p of ['event', 'flow', 'budget']) { const h = read('public/' + p + '.html'); assert.ok(h.indexOf('payment-followup.js') > 0 && h.indexOf('payment-followup.js') < h.indexOf('payment-schedule.js?v='), p); }

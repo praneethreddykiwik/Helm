@@ -17,7 +17,7 @@
  * button that says so is pressed. DOM calls only (textContent), no HTML strings, no inline styles. */
 (function (global) {
   "use strict";
-  var doc = global.document, CSS_V = "/vendor-flow.css?v=2";
+  var doc = global.document, CSS_V = "/vendor-flow.css?v=3";
   var STEPS = ["Asked", "Available", "Confirmed", "Invoice asked", "Invoice received", "Approved", "Paid", "Closed"];
 
   /* ---------------------------------------------------------------- pure */
@@ -159,7 +159,7 @@
     d.foot.appendChild(btn("Copy link", function () { copy(url); }, "is-main"));
     return d;
   }
-  function waRequest(row, url) { return "Hello " + row.vendor_name + ", are you available for " + row.what + (num(row.qty) > 0 ? " x" + qn(row.qty) : "") + " on " + String(row.when_text || "") + "? Please answer and tell us your price here (no sign-in): " + url; }
+  function waRequest(row, url) { return "Hello " + row.vendor_name + ", is " + row.what + (num(row.qty) > 0 ? " x" + qn(row.qty) : "") + " available on " + String(row.when_text || "") + "? Please answer and tell us your price here (no sign-in): " + url; }
 
   /* ---------------------------------------------------------------- the product list */
   api.linesEditor = function (o) {
@@ -167,7 +167,7 @@
     var pl = "Price each (" + symbol(cur) + ")";
     box.appendChild(h("div", { cls: "hvf-row is-head", "aria-hidden": "true" }, [h("span", { text: "Product" }), h("span", { text: "Quantity" }), h("span", { text: pl }), h("span", { cls: "hvf-t", text: "Total" }), h("span")]));
     box.appendChild(list); box.appendChild(chips); box.appendChild(tot);
-    function lab(t, i, c) { return h("label", { cls: "hvf-c" + (c || "") }, [h("span", { cls: "hvf-cl", text: t }), i]); }
+    function lab(t, i, c, need) { return h("label", { cls: "hvf-c" + (c || "") }, [h("span", { cls: "hvf-cl", text: t }), i, need > 0 ? h("small", { cls: "hvf-need", text: "Needed " + qn(need) }) : null]); }   // R262
     function sum() {
       var ls = rows.map(function (r) { return { qty: amount(r.q.value), price: amount(r.p.value) }; });
       rows.forEach(function (r, i) { var l = ls[i]; r.t.textContent = l.qty > 0 && l.price != null && !isNaN(l.price) ? money(r2(l.qty * l.price), cur) : ""; if (r.t.textContent) r.t.setAttribute("data-money", ""); else r.t.removeAttribute("data-money"); r.x.disabled = rows.length < 2; });
@@ -179,7 +179,7 @@
       if (rows.length >= 30) return; l = l || {}; var n = ++uid, r = { need_id: l.need_id || null, unit: l.unit || null };
       r.n = inp({ maxlength: "120", value: l.name || "", placeholder: "e.g. Chairs", "aria-label": "Product" }); r.q = inp({ inputmode: "decimal", maxlength: "10", value: l.qty != null ? l.qty : "1", "aria-label": "Quantity" }); r.p = inp({ inputmode: "decimal", maxlength: "13", value: l.price != null ? l.price : "", placeholder: "Optional", "aria-label": pl, "data-money": "" });
       r.t = h("span", { cls: "hvf-t" }); r.x = h("button", { type: "button", cls: "hvf-rm", "aria-label": "Remove this product", text: "×" });
-      r.el = h("div", { cls: "hvf-row", role: "group", "aria-label": "Product " + n }, [lab("Product", r.n, " hvf-c-name"), lab("Quantity", r.q), lab(pl, r.p), r.t, r.x]);
+      r.el = h("div", { cls: "hvf-row", role: "group", "aria-label": "Product " + n }, [lab("Product", r.n, " hvf-c-name"), lab("Quantity", r.q, "", l.needed), lab(pl, r.p), r.t, r.x]);
       [r.n, r.q, r.p].forEach(function (i) { i.addEventListener("input", sum); });
       r.x.addEventListener("click", function () { if (rows.length < 2) return; rows.splice(rows.indexOf(r), 1); list.removeChild(r.el); sum(); if (rows.length) rows[rows.length - 1].n.focus(); });
       rows.push(r); list.appendChild(r.el); if (focus) r.n.focus(); sum();
@@ -235,7 +235,7 @@
           if (!atF.hidden && a !== null) p.agreed_total = a;
           if (rb.value) p.respond_by = zoned(rb.value, "20:00", tz());
           var sg = JSON.stringify(p); if (sg !== sig) { sig = sg; key = uuid(); } p.key = key;
-          d.run(go, "Sending…", function () { return S().vendorRequests.ask(p); }).then(function (row) {
+          d.run(go, "Sending…", function () { return Promise.resolve(o.before ? o.before(p) : null).then(function () { return S().vendorRequests.ask(p); }); }).then(function (row) {
             if (!row) return; row.sent_lines = v.lines; toast("Request sent to " + row.vendor_name + ".");
             d.close(row); sent(row);
           });
@@ -316,6 +316,13 @@
     if (open && !o.canAssign) box.appendChild(h("p", { cls: "hvf-note", text: "Someone who can change Vendors approves the price." }));
     var old = (row.offers || []).filter(function (x) { return x.id !== f.id; });
     if (old.length && o.history !== false) box.appendChild(h("details", {}, [h("summary", { text: "Earlier answers (" + old.length + ")" })].concat(old.map(function (x) { return h("p", { cls: "hvf-note", text: (x.at_text || "") + (x.total != null ? " · " + money(x.total, cur) : "") + " · " + (STATUS[x.status] || x.status) + (x.review_note ? " · you wrote: " + x.review_note : "") }); }))));
+    // R262 (owner: "I already approved it, why is the quotation showing again next to the invoice"): once approved it is one closed line, open it to read it
+    if (!open && f.status === "approved") {
+      var head = box.firstChild; box.removeChild(head);
+      var sum = h("summary", { cls: "hvf-box-h" }, [h("span", { text: "Approved quotation" }), f.total != null ? h("b", { text: money(f.total, cur), "data-money": "" }) : null]), body = h("div", { cls: "hvf-in-box" });
+      while (box.firstChild) body.appendChild(box.firstChild);
+      box.appendChild(h("details", { cls: "hvf-fold" }, [sum, body])); box.classList.add("is-fold");
+    }
     return box;
   };
   function after(o, msg) { return function (r) { if (!r) return; toast(msg + (r.mail && r.mail.queued ? " The vendor gets an e-mail." : "")); if (o.reload) o.reload(r); }; }

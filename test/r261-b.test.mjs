@@ -17,14 +17,14 @@ test('B1: the sum behind the number, and the question when one table takes sever
   const ch = { item_id: 'i', name: 'Chiavari chair' }; assert.equal(L.sumOf(ch, [type(8, 'objects')]).text, '9 tables × 8 each = 72'); assert.deepEqual(J(L.sumOf(ch, [type(8, 'objects')]).odd), [], '8 chairs per table is fine');
   assert.equal(L.sumOf(it, [type(2, 'seats')]).text, '70 seats × 2 each = 140'); assert.equal(L.sumOf(it, [type(9, 'objects', { objects: 1 })]).text.slice(0, 7), '1 table');
   assert.equal(L.sumOf({ item_id: 'x', name: 'Other' }, [type(9, 'objects')]).text, ''); assert.equal(L.sumOf(it, null).text, '');
-  assert.match(read('public/inventory-layout.js'), /"How many of this item for ONE "/); assert.match(read('public/inventory-layout.js'), /setLink\(o\.type, it\.item_id, 1, "objects"\)/);
+  assert.match(read('public/inventory-layout.js'), /"How many of this item for ONE "/); assert.match(read('public/inventory-layout.js'), /setLink\(o\.type, it\.item_id, 1, o\.seats \? "seats" : "objects"\)/);
 });
 test('B2: what was really asked is said, with what is more than needed', () => {
   const r = { short: true, toBorrow: 51 }, l = (q, st) => [{ qty: q, status: st || 'enquiry' }];
   assert.deepEqual(J(L.missText(r, L.coverOf(51, l(81)), l(81))), { text: '81 asked', cls: 'amber', sub: '51 missing · 81 asked (30 more than needed)' });
   assert.deepEqual(J(L.missText(r, L.coverOf(51, l(51)), l(51))), { text: '51 asked', cls: 'amber' }); assert.equal(L.missText(r, L.coverOf(51, l(20)), l(20)).text, '31 missing');
   assert.equal(L.missText(r, L.coverOf(51, l(81, 'confirmed')), l(81, 'confirmed')).text, '81 from vendor'); assert.equal(L.missText({ short: false, covered: true }, {}, []).text, 'Covered');
-  assert.match(read('public/inventory-layout.js'), /qty: Math\.ceil\(r\.toBorrow\) \}, true\)/, 'the request starts at what is missing'); assert.match(read('public/stock-vendor.js'), /more than needed/);
+  assert.match(read('public/inventory-layout.js'), /qty: Math\.ceil\(r\.toBorrow\), left: Math\.ceil\(cov\.left\), needed/, 'the request starts at what is missing'); assert.match(read('public/stock-vendor.js'), /more than needed/);
 });
 test('B3: a vendor notice opens that request; the other vendor links open the vendors of this event', async () => {
   const { notifLink } = await import('data:text/javascript,' + encodeURIComponent(read('supabase/functions/comms-dispatch/deeplink.js'))), q = '11111111-1111-4111-8111-111111111111', rq = '22222222-2222-4222-8222-222222222222';

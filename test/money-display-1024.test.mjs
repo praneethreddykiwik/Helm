@@ -64,7 +64,7 @@ t('5 store: 0 rows with a lock token is a CONFLICT only when the row really move
   assert.equal(sameStamp('2026-10-13T10:00:00.123+00:00', '2026-10-13T10:00:01.000+00:00'), false);
 });
 t('5 flow: own writes (advance recorded / failed quote save) refresh the lock base', () => {
-  assert.match(FH, /await relock\(\);   \/\/ money-1024: recording the advance confirms the booking/);
+  assert.match(FH, /await relock\(true\);   \/\/ money-1024: recording the advance confirms the booking/);
   assert.match(FH, /if\(!rpcMissing\)\{\n        await relock\(\);/);
   assert.match(FH, /\$\("#pay_record"\)\.removeAttribute\("aria-busy"\); relock\(\);/);
 });
