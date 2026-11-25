@@ -122,7 +122,7 @@ await t('Users & invites: short one-line chips, e-mails break only at @ and dots
   const S = require('../public/team-status.js'), NOW = at('12:00'), H = 3600000, iso = (ms) => new Date(ms).toISOString(), m = (ms) => S.member({ full_name: 'x' }, { last_sign_in_at: iso(NOW - ms) }, NOW);
   assert.equal(m(6 * H).chip, 'Active · 6 h ago'); assert.equal(m(5 * 60000).chip, 'Active · 5 min ago'); assert.equal(m(72 * H).chip, '', 'the label (Last signed in 3 days ago) is short enough');
   assert.match(m(60 * 24 * H).chip, /^Last signed in 30 Sept?(ember)?$/); assert.equal(m(6 * H).label, 'Last signed in 6 hours ago', 'View keeps the full words');
-  assert.deepEqual(S.mailParts('a.b@criskasecurity.com'), ['a', '.b@', 'criskasecurity', '.com']); assert.equal(S.mailParts('a.b@c.com').join(''), 'a.b@c.com');
+  assert.deepEqual(S.mailParts('a.b@longstudioname.com'), ['a', '.b@', 'longstudioname', '.com']); assert.equal(S.mailParts('a.b@c.com').join(''), 'a.b@c.com');
   const C = read('public/control.html'), TC = read('public/team-status.css');
   assert.match(C, /HelmTeamStatus\.breakMail\(tb\)/); assert.match(C, /\$\{c\.act\}\$\{c\.next\?`<div class="ucnext">/);
   assert.match(TC, /tr\.ucr>td\.ucact\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\) 34px/); assert.match(TC, /tr\.ucr:hover>td\{background:transparent\}/);
