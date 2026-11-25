@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (392 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (393 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (5253 objects): body 169, bucket 9, col 305, con 430, cron 21, exec 19, fn 2372, idx 606, marker 175, pol 196, polexpr 4, pre 135, pub 6, seq 1, tbl 327, trg 476, view 2.
+-- What is checked (5254 objects): body 169, bucket 9, col 305, con 430, cron 21, exec 19, fn 2372, idx 606, marker 175, pol 196, polexpr 4, pre 136, pub 6, seq 1, tbl 327, trg 476, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -5277,7 +5277,8 @@ with o(m, k, s, n, x) as (values
   ('0451_r261_close_same_day', 'fn', 'public', '_a49_close_blockers__pre0451', 'uuid'),
   ('0451_r261_close_same_day', 'pre', null, '__pre0451', null),
   ('0452_r262_invoice_price_lock', 'fn', 'public', 'tg_r452_invoice_price', ''),
-  ('0452_r262_invoice_price_lock', 'trg', 'public.vendor_invoices', 'r452_invoice_price', null)
+  ('0452_r262_invoice_price_lock', 'trg', 'public.vendor_invoices', 'r452_invoice_price', null),
+  ('0453_r268_checkin_anytime', 'pre', null, '__pre0453', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5671,7 +5672,8 @@ mig(ord, m, ov, note) as (values
   (389, '0448_r260_vendor_items', null, 'R260 vendor items checked in and out: one new table, two functions for the pages, event_wrap_records_get (0444) re-issued with the worked-out answers (if APPLY-0444 was run again later, run APPLY-0448 again)'),
   (390, '0450_r261_vendor_money', null, 'R261 vendor money: one new table, one column, four functions for the pages, _r21_cost_lines wrapped once more with dynamic SQL (old body kept as __pre0450) - checked by the r261-0450 marker (if APPLY-0372, 0373, 0374 or 0387 was run again later, run APPLY-0450 again)'),
   (391, '0451_r261_close_same_day', null, null),
-  (392, '0452_r262_invoice_price_lock', null, null)
+  (392, '0452_r262_invoice_price_lock', null, null),
+  (393, '0453_r268_checkin_anytime', null, null)
 ),
 env as (
   select

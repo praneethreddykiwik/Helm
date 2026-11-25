@@ -746,3 +746,5 @@ forward  supabase/migrations/0450_r261_vendor_money.sql
 forward  supabase/migrations/0451_r261_close_same_day.sql
 # 0452 (R262, owner 26 Nov 2026: "once approved a price the vendor when sending the invoice should not change the price"): a BEFORE INSERT trigger on vendor_invoices - a new invoice of a request with an agreed total keeps the approved products, prices, quantities (or fewer) and charges, and its taxable value together with the other open / approved invoices of that request stays within the approved total; GST on top, a discount and requests without an agreed price are free; rows already stored are untouched. After 0447.
 forward  supabase/migrations/0452_r262_invoice_price_lock.sql
+# 0453 (R268, owner 26 Nov 2026: "disable this check-in time feature now, pause it"): crew_check no longer refuses a check-in more than 3 hours before the person's start (exact text edit; the old body kept as crew_check__pre0453). The event-day rule, the location check, late minutes and one check-in a day are unchanged. After 0265 + 0341; paste again after either.
+forward  supabase/migrations/0453_r268_checkin_anytime.sql
