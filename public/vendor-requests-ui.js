@@ -3,7 +3,9 @@
    link (or a planner records the answer) -> reassign / cancel; the vendor's invoices arrive from the same link and
    Finance approves (-> vendor bill = Actual cost in Budget / Closure / Insights), queries or rejects them; payments
    go through the existing vendor-bill payout (paid / partial / due). Every call is an RPC that checks the studio and
-   the Vendors / Finance areas in the database. DOM built with textContent only (no innerHTML of data). */
+   the Vendors / Finance areas in the database. DOM built with textContent only (no innerHTML of data).
+   R259 (0447): products with prices, the vendor's offer (approve / ask to change / decline), "Ask for the invoice", invoice products - vendor-flow.js.
+   Amounts are in the event's currency. A server without 0447 keeps the older request form and answers. */
 (function (global) {
   "use strict";
   var doc = global.document;
@@ -27,7 +29,11 @@
   function clear(el) { while (el && el.firstChild) el.removeChild(el.firstChild); }
   function toast(msg, type) { try { U().toast(msg, { type: type || "info" }); } catch (e) { /* ignore */ } }
   function friendly(e, action) { try { return U().friendlyError(e, { action: action }); } catch (x) { return (e && e.message) || "Something went wrong."; } }
-  function inr(n) { var v = Number(n); if (!isFinite(v)) return ""; return "₹" + v.toLocaleString("en-IN", { maximumFractionDigits: 2 }); }
+  function inr(n, cur) { var v = Number(n); if (!isFinite(v)) return ""; try { if (F() && F().money) return F().money(v, cur); if (S() && S().moneyIn) return S().moneyIn(v, cur || S().studioCurrency()); } catch (e) { /* older store */ } return "₹" + v.toLocaleString("en-IN", { maximumFractionDigits: 2 }); }
+  function F() { return global.HelmVendorFlow || null; }
+  // the invoice is asked from the event day on (the e-mail thanks them for their work)
+  function eventHere(r) { var m = /^(\d\d)\/(\d\d)\/(\d{4})$/.exec(r.event_date || ""), t = ""; try { t = S().todayLocal(); } catch (e) { t = new Date().toISOString().slice(0, 10); } return !m || m[3] + "-" + m[2] + "-" + m[1] <= t; }
+  function isFlow(r) { return !!(F() && r && Number(r.flow) === 447); }
   function tz() { try { return S().studioTimezone() || "Asia/Kolkata"; } catch (e) { return "Asia/Kolkata"; } }
   function pill(text, kind) { return h("span", { cls: "vrq-pill vrq-" + kind, text: text }); }
   var PILL = { sent: "wait", accepted: "ok", rejected: "bad", cancelled: "off", reassigned: "off",
@@ -56,6 +62,7 @@
     var f = state.filter;
     if (f === "all") return true;
     if (f === "open") return r.status === "sent" || r.status === "accepted";
+    if (f === "offers") return r.offer_open === true;
     if (f === "review") return (r.invoices || []).some(function (i) { return i.status === "submitted"; });
     if (f === "unpaid") return (r.invoices || []).some(function (i) { return i.status === "approved" && i.pay_status !== "paid"; });
     if (f === "closed") return r.status === "rejected" || r.status === "cancelled" || r.status === "reassigned";
@@ -69,7 +76,7 @@
     if (!state.rows.length) {
       box.appendChild(h("div", { cls: "empty" }, [
         h("p", { text: quoteId ? "No vendor requests for this event yet." : "No vendor requests yet." }),
-        h("p", { cls: "meta", text: "Send a vendor what you need, when and where, and the agreed amount. They accept or decline from a link (no sign-in) and send their invoice the same way." }),
+        h("p", { cls: "meta", text: "Ask a vendor for what you need. They say if they are available, give their price from a link (no sign-in), and send their invoice the same way." }),
         state.canAssign ? h("button", { type: "button", cls: "btn primary", text: "＋ New request", on: { click: function () { openForm(); } } }) : null]));
       return;
     }
@@ -79,8 +86,9 @@
 
   /* ---------------------------------------------------------------- one request card */
   function card(r) {
-    var item = r.what + (Number(r.qty) > 0 ? " × " + Number(r.qty).toLocaleString("en-IN") : "");
-    var st = [pill(S().vendorRequests.statusLabel(r.status), PILL[r.status] || "off")];
+    var fl = isFlow(r), item = r.what + (Number(r.qty) > 0 ? " × " + Number(r.qty).toLocaleString("en-IN") : "");
+    var st = [pill(r.invoice_only ? "Invoice only" : r.offer_open ? "Available" : S().vendorRequests.statusLabel(r.status), PILL[r.status] || "off")];
+    if (r.offer_open) st.push(pill("Price to approve", "warn"));
     if (r.overdue_reply) st.push(pill("Reply overdue", "bad"));
     if (r.invoices_open) st.push(pill(r.invoices_open + " invoice" + (r.invoices_open === 1 ? "" : "s") + " to review", "warn"));
     if (r.over_agreed) st.push(pill("Billed above agreed", "bad"));
@@ -93,11 +101,16 @@
         "When " + (r.when_text || "-"), r.where_text ? " · " + r.where_text : ""]),
       r.details ? h("div", { cls: "meta vrq-det", text: r.details }) : null,
       h("div", { cls: "meta" }, [
-        r.agreed_amount != null ? h("b", { text: "Agreed " + inr(r.agreed_amount) }) : null,
-        r.agreed_amount != null ? " · " : null,
-        r.status === "sent" ? "Reply by " + (r.respond_by_text || "-") : (r.responded_text ? (r.status === "accepted" ? "Accepted " : "Answered ") + r.responded_text + (r.responded_via === "studio" ? " (recorded by the studio)" : "") : ""),
+        r.agreed_amount != null && !(r.invoice_only && !Number(r.agreed_amount)) ? h("b", { text: "Agreed " + inr(r.agreed_amount, r.currency) }) : r.price_open && r.status === "sent" && !r.offer_open ? h("b", { text: "The vendor tells the price" }) : null,
+        r.agreed_amount != null || (r.price_open && r.status === "sent" && !r.offer_open) ? " · " : null,
+        r.status === "sent" && !r.offer_open ? "Reply by " + (r.respond_by_text || "-") : (r.responded_text ? (r.status === "accepted" ? "Accepted " : "Answered ") + r.responded_text + (r.responded_via === "studio" ? " (recorded by the studio)" : "") : ""),
         r.emails_sent ? " · " + r.emails_sent + " e-mail" + (r.emails_sent === 1 ? "" : "s") + " sent" : (r.emails_queued ? " · e-mail queued" : "")]),
-      r.response_note ? h("div", { cls: "vrq-note", text: "“" + r.response_note + "”" }) : null]);
+      r.response_note && !(fl && r.offer && r.offer.note === r.response_note) ? h("div", { cls: "vrq-note", text: "“" + r.response_note + "”" }) : null]);
+    if (fl) {
+      if (Array.isArray(r.lines) && r.lines.length > 1 && !r.offer) c.appendChild(h("ul", { cls: "vrq-lines" }, r.lines.map(function (l) { return h("li", { text: l.name + " × " + Number(l.qty).toLocaleString("en-IN") + (l.unit ? " " + l.unit : "") + (l.price != null ? " · " + inr(l.price, r.currency) + " each" : "") }); })));
+      var st2 = F().steps(r); if (st2) c.appendChild(st2);
+      if (r.offer && r.status !== "cancelled" && r.status !== "reassigned") { var ob = F().offerBox(r, { canAssign: state.canAssign, reload: load }); if (ob) c.appendChild(ob); }
+    }
     // invoices
     var inv = (r.invoices || []).filter(function (i) { return i.status !== "superseded"; });
     if (inv.length) {
@@ -111,9 +124,12 @@
       acts.appendChild(h("button", { type: "button", cls: "ic", text: "Share link", on: { click: function () { share(r); } } }));
     }
     if (state.canAssign && r.status === "sent") {
-      acts.appendChild(h("button", { type: "button", cls: "ic", text: "Record answer", on: { click: function () { recordAnswer(r); } } }));
+      acts.appendChild(h("button", { type: "button", cls: "ic", text: "Record answer", on: { click: function () { if (fl && r.can_money) F().record(r, { reload: load }); else recordAnswer(r); } } }));
     }
-    if (state.canAssign && (r.status === "sent" || r.status === "accepted" || (r.status === "rejected" && !r.replaced_by)) && !(r.invoices_open || r.invoices_queried || r.invoices_approved)) {
+    if (state.canAssign && fl && r.status === "accepted" && eventHere(r) && (r.ask_block === null || (r.state === "invoice_query"))) {
+      acts.appendChild(h("button", { type: "button", cls: "ic vrq-ok", text: r.invoice_asked_text ? "Ask for the invoice again" : "Ask for the invoice", on: { click: function () { F().askInvoice({ requestId: r.id, name: r.vendor_name, onDone: function (x) { if (x) load(); } }); } } }));
+    }
+    if (state.canAssign && (r.status === "sent" || r.status === "accepted" || (r.status === "rejected" && !r.replaced_by)) && !r.invoice_only && !(r.invoices_open || r.invoices_queried || r.invoices_approved)) {
       acts.appendChild(h("button", { type: "button", cls: "ic", text: "Reassign", on: { click: function () { openReassign(r); } } }));
     }
     if (state.canAssign && (r.status === "sent" || r.status === "accepted") && !(r.invoices_open || r.invoices_queried || r.invoices_approved)) {
@@ -124,25 +140,28 @@
     return c;
   }
   function invoiceRow(r, i) {
-    var pay = i.status === "approved" && i.pay_status ? (i.pay_status === "paid" ? pill("Paid", "ok") : i.pay_status === "partial" ? pill("Part paid · " + inr(i.balance) + " due", "warn") : pill(inr(i.balance) + " due", "wait")) : null;
-    var gst = Number(i.cgst) > 0 ? "CGST " + inr(i.cgst) + " + SGST " + inr(i.sgst) : Number(i.igst) > 0 ? "IGST " + inr(i.igst) : "no GST";
+    var pay = i.status === "approved" && i.pay_status ? (i.pay_status === "paid" ? pill("Paid", "ok") : i.pay_status === "partial" ? pill("Part paid · " + inr(i.balance, r.currency) + " due", "warn") : pill(inr(i.balance, r.currency) + " due", "wait")) : null;
+    var gst = Number(i.cgst) > 0 ? "CGST " + inr(i.cgst, r.currency) + " + SGST " + inr(i.sgst, r.currency) : Number(i.igst) > 0 ? "IGST " + inr(i.igst, r.currency) : Number(i.tax_amount) > 0 ? "tax " + inr(i.tax_amount, r.currency) : r.gst === false ? "no tax" : "no GST";
     var li = h("li", { cls: "vrq-inv-row" }, [
-      h("div", { cls: "vrq-inv-top" }, [h("b", { text: "Invoice " + i.invoice_no }), h("span", { text: inr(i.total_amount) }),
+      h("div", { cls: "vrq-inv-top" }, [h("b", { text: "Invoice " + i.invoice_no }), h("span", { text: inr(i.total_amount, r.currency) }),
         pill(S().vendorRequests.invoiceLabel(i.status), PILL[i.status] || "off"), pay,
         i.possible_duplicate ? pill("Same number as a typed bill", "bad") : null]),
-      h("div", { cls: "meta", text: (i.invoice_date || "") + " · taxable " + inr(i.taxable_amount) + " · " + gst + (i.vendor_gstin ? " · GSTIN " + i.vendor_gstin : "")
-        + (i.tds_amount ? " · TDS " + inr(i.tds_amount) + " (" + i.tds_section + ")" : "") }),
+      h("div", { cls: "meta", text: (i.invoice_date || "") + (r.gst === false ? " · before tax " : " · taxable ") + inr(i.taxable_amount, r.currency) + " · " + gst + (i.vendor_gstin ? " · GSTIN " + i.vendor_gstin : "")
+        + (i.tds_amount ? " · TDS " + inr(i.tds_amount, r.currency) + " (" + i.tds_section + ")" : "") }),
+      F() && F().invoiceLines ? F().invoiceLines(i, r.currency) : null,
       i.notes ? h("div", { cls: "meta", text: "Vendor: " + i.notes }) : null,
       i.review_note ? h("div", { cls: "vrq-note", text: "Studio: " + i.review_note }) : null]);
+    // R260: what was missing on arrival / broken at return (vendor-items.js; nothing = no line)
+    if (r.booking_id && r.quote_id && global.HelmVendorItems && global.HelmVendorItems.lines) { var vi = h("div"); vi.setAttribute("data-vi", r.booking_id); li.appendChild(vi); global.HelmVendorItems.lines(r.quote_id, li); }
     var acts = h("div", { cls: "acts" });
-    if (i.has_file) acts.appendChild(h("button", { type: "button", cls: "ic", text: "View file", on: { click: function () { viewFile(i); } } }));
+    if (i.has_file) acts.appendChild(h("button", { type: "button", cls: "ic", text: "View invoice", on: { click: function () { viewFile(i); } } }));
     if (state.canReview && i.status === "submitted") {
       acts.appendChild(h("button", { type: "button", cls: "ic vrq-ok", text: "Approve", on: { click: function () { openApprove(r, i); } } }));
       acts.appendChild(h("button", { type: "button", cls: "ic", text: "Query", on: { click: function () { reviewNote(i, "query"); } } }));
       acts.appendChild(h("button", { type: "button", cls: "ic vrq-danger", text: "Reject", on: { click: function () { reviewNote(i, "reject"); } } }));
     }
     if (state.canReview && i.status === "approved" && i.bill_id && Number(i.balance) > 0.004) {
-      acts.appendChild(h("button", { type: "button", cls: "ic vrq-ok", text: "Record payment", on: { click: function () { openPay(i); } } }));
+      acts.appendChild(h("button", { type: "button", cls: "ic vrq-ok", text: "Record payment", on: { click: function () { openPay(i, r); } } }));
     }
     if (acts.firstChild) li.appendChild(acts);
     return li;
@@ -153,8 +172,8 @@
     S().vendorRequests.issueLink(r.id).then(function (l) {
       var url = S().vendorRequests.linkUrl(l && l.token);
       if (!url) throw new Error("No link");
-      var text = "Hello " + r.vendor_name + ", please confirm " + r.what + (Number(r.qty) > 0 ? " x" + r.qty : "") + " for " + (r.event_title || "our event")
-        + " (" + (r.when_text || "") + "). Accept or decline here, and send your invoice the same way: " + url;
+      var text = r.status === "accepted" ? "Hello " + r.vendor_name + ", your booking (" + r.what + ") and the place to send your invoice: " + url
+        : isFlow(r) ? F().waRequest(r, url) : "Hello " + r.vendor_name + ", please confirm " + r.what + (Number(r.qty) > 0 ? " x" + r.qty : "") + " for our event (" + (r.when_text || "") + "). Accept or decline here, and send your invoice the same way: " + url;
       sheet("Share the request link", [
         h("p", { cls: "meta", text: "The link opens only this request, without signing in. It expires " + (l.expires_text || "after the event") + "." }),
         h("input", { cls: "vrq-link", value: url, readonly: true, "aria-label": "Request link", on: { focus: function (e) { e.target.select(); } } }),
@@ -207,25 +226,27 @@
   function openApprove(r, i) {
     var approvedSoFar = (r.invoices || []).filter(function (x) { return x.status === "approved"; }).reduce(function (a, x) { return a + Number(x.total_amount || 0); }, 0);
     var over = approvedSoFar + Number(i.total_amount) > Number(r.agreed_amount || 0) + 0.005;
-    var claim = h("select", { id: "vrqClaim" }, [h("option", { value: "", text: "Default (yes, except food / catering)" }), h("option", { value: "yes", text: "Yes - claim input credit" }), h("option", { value: "no", text: "No - GST is a cost" })]);
+    var claim = h("select", { id: "vrqClaim" }, [h("option", { value: "", text: r.gst === false ? "No - the tax is a cost" : "Default (yes, except food / catering)" }), h("option", { value: "yes", text: r.gst === false ? "Yes" : "Yes - claim input credit" }), r.gst === false ? null : h("option", { value: "no", text: "No - GST is a cost" })]);
     var tdsS = h("select", { id: "vrqTdsS" }, ["", "194C", "194J", "194I", "194H", "194Q"].map(function (x) { return h("option", { value: x, text: x || "No TDS" }); }));
     var tdsA = h("input", { id: "vrqTdsA", type: "number", inputmode: "decimal", min: "0", step: "0.01" });
     var due = h("input", { id: "vrqDue", type: "date" });
     var allow = h("input", { id: "vrqOver", type: "checkbox" });
     var errEl = h("div", { cls: "err", role: "alert", hidden: true });
     var go = h("button", { type: "button", cls: "btn primary", text: "Approve invoice" });
+    var india = r.gst !== false, lines = F() && F().invoiceLines ? F().invoiceLines(i, r.currency) : null;
     var body = [
       h("p", { cls: "meta", text: "Approving adds this invoice as the vendor's actual cost for the event (Budget, Closure and Insights margins update). Payments are recorded against it." }),
       h("div", { cls: "vrq-match" }, [
-        h("div", {}, [h("span", { cls: "meta", text: "Agreed" }), h("b", { text: inr(r.agreed_amount) })]),
-        h("div", {}, [h("span", { cls: "meta", text: "Approved so far" }), h("b", { text: inr(approvedSoFar) })]),
-        h("div", {}, [h("span", { cls: "meta", text: "This invoice" }), h("b", { text: inr(i.total_amount) })])]),
+        h("div", {}, [h("span", { cls: "meta", text: "Agreed" }), h("b", { text: (r.invoice_only && !Number(r.agreed_amount) ? "Not agreed" : inr(r.agreed_amount, r.currency)) })]),
+        h("div", {}, [h("span", { cls: "meta", text: "Approved so far" }), h("b", { text: inr(approvedSoFar, r.currency) })]),
+        h("div", {}, [h("span", { cls: "meta", text: "This invoice" }), h("b", { text: inr(i.total_amount, r.currency) })])]),
+      lines, i.has_file ? h("p", {}, [h("button", { type: "button", cls: "ic", text: "View invoice", on: { click: function () { viewFile(i); } } })]) : null,
       h("div", { cls: "fgrid" }, [
-        h("div", { cls: "fld" }, [h("label", { for: "vrqClaim", text: "GST input credit" }), claim]),
+        h("div", { cls: "fld" }, [h("label", { for: "vrqClaim", text: india ? "GST input credit" : "Tax can be claimed back" }), claim]),
         h("div", { cls: "fld" }, [h("label", { for: "vrqDue", text: "Pay by (optional)" }), due]),
-        h("div", { cls: "fld" }, [h("label", { for: "vrqTdsS", text: "TDS section (optional)" }), tdsS]),
-        h("div", { cls: "fld" }, [h("label", { for: "vrqTdsA", text: "TDS amount (₹)" }), tdsA])]),
-      over ? h("label", { cls: "vrq-over" }, [allow, h("span", { text: "Approve above the agreed amount (" + inr(approvedSoFar + Number(i.total_amount) - Number(r.agreed_amount || 0)) + " more than agreed)" })]) : null,
+        india ? h("div", { cls: "fld" }, [h("label", { for: "vrqTdsS", text: "TDS section (optional)" }), tdsS]) : null,
+        india ? h("div", { cls: "fld" }, [h("label", { for: "vrqTdsA", text: "TDS amount (₹)" }), tdsA]) : null]),
+      over ? h("label", { cls: "vrq-over" }, [allow, h("span", { text: "Approve above the agreed amount (" + inr(approvedSoFar + Number(i.total_amount) - Number(r.agreed_amount || 0), r.currency) + " more than agreed)" })]) : null,
       errEl, h("div", { cls: "foot" }, [go])];
     var close = sheet("Approve invoice " + i.invoice_no + " · " + r.vendor_name, body);
     go.addEventListener("click", function () {
@@ -240,7 +261,8 @@
         function (e) { go.disabled = false; errEl.textContent = friendly(e, "approve the invoice"); errEl.hidden = false; });
     });
   }
-  function openPay(i) {
+  function openPay(i, r) {
+    var cur = r && r.currency, india = !r || r.gst !== false;
     var amt = h("input", { id: "vrqPayAmt", type: "number", inputmode: "decimal", min: "0", step: "0.01", value: String(Number(i.balance).toFixed(2)) });
     var method = h("select", { id: "vrqPayM" }, ["UPI", "Bank transfer", "Cheque", "Cash", "TDS deducted"].map(function (x) { return h("option", { value: x.toLowerCase(), text: x }); }));
     var ref = h("input", { id: "vrqPayRef", maxlength: "120", autocomplete: "off" });
@@ -249,9 +271,9 @@
     var errEl = h("div", { cls: "err", role: "alert", hidden: true });
     var go = h("button", { type: "button", cls: "btn primary", text: "Record payment" });
     var close = sheet("Pay invoice " + i.invoice_no, [
-      h("p", { cls: "meta", text: "Left to pay " + inr(i.balance) + (i.tds_amount ? " (TDS " + inr(i.tds_amount) + " - record it as “TDS deducted”)" : "") + ". Cash above ₹10,000 to one person in a day is not deductible for income tax." }),
+      h("p", { cls: "meta", text: "Left to pay " + inr(i.balance, cur) + (i.tds_amount ? " (TDS " + inr(i.tds_amount, cur) + " - record it as “TDS deducted”)" : "") + "." + (india ? " Cash above ₹10,000 to one person in a day is not deductible for income tax." : "") }),
       h("div", { cls: "fgrid" }, [
-        h("div", { cls: "fld" }, [h("label", { for: "vrqPayAmt", text: "Amount (₹)" }), amt]),
+        h("div", { cls: "fld" }, [h("label", { for: "vrqPayAmt", text: "Amount (" + (cur && cur !== "INR" ? cur : "₹") + ")" }), amt]),
         h("div", { cls: "fld" }, [h("label", { for: "vrqPayDay", text: "Paid on" }), day]),
         h("div", { cls: "fld" }, [h("label", { for: "vrqPayM", text: "Method" }), method]),
         h("div", { cls: "fld" }, [h("label", { for: "vrqPayRef", text: "Reference (UTR / cheque no.)" }), ref])]),
@@ -259,7 +281,7 @@
     var key = "vrq-" + i.id + "-" + Date.now();
     go.addEventListener("click", function () {
       var a = Number(amt.value);
-      if (!(a > 0) || a > Number(i.balance) + 0.004) { errEl.textContent = "Enter an amount above 0 and up to " + inr(i.balance) + "."; errEl.hidden = false; return; }
+      if (!(a > 0) || a > Number(i.balance) + 0.004) { errEl.textContent = "Enter an amount above 0 and up to " + inr(i.balance, cur) + "."; errEl.hidden = false; return; }
       go.disabled = true;
       // R239 (0404, PAY-02): the key is kept in sessionStorage until the server answers (a reload + retry reuses it)
       var MK = S().moneySafety && S().moneySafety.key, ks = "vrq-pay:" + i.id; if (MK) key = MK.get(ks, [a, day.value || "", method.value].join("|"));
@@ -285,6 +307,7 @@
       return h("option", { value: v.id, text: v.name + (v.category ? " · " + v.category : "") + (v.email ? "" : " (no e-mail - share the link)") }); })));
   }
   function openForm() {
+    if (F()) { F().ask({ quoteId: quoteId || null }).then(function (row) { if (row) load(); }); return; }
     Promise.all([vendorsList(), eventsList()]).then(function (res) {
       var vend = res[0], evs = res[1];
       if (!vend.length) { toast("Add the vendor in Partners first.", "info"); return; }
@@ -344,7 +367,7 @@
       h("p", { cls: "meta", text: row.contact_email ? "The request e-mail is queued for " + row.contact_email + " (sent when studio e-mail is switched on). You can also share the link yourself:" : row.vendor_name + " has no e-mail on file - share this link with them:" }),
       h("input", { cls: "vrq-link", value: url, readonly: true, "aria-label": "Request link", on: { focus: function (e) { e.target.select(); } } }),
       h("div", { cls: "foot" }, [
-        h("a", { cls: "btn", href: "https://wa.me/" + String(row.contact_phone || "").replace(/\D/g, "") + "?text=" + encodeURIComponent("Hello " + row.vendor_name + ", please confirm " + row.what + " for " + (row.event_title || "our event") + " (" + (row.when_text || "") + "): " + url), target: "_blank", rel: "noopener noreferrer", text: "Open in WhatsApp" }),
+        h("a", { cls: "btn", href: "https://wa.me/" + String(row.contact_phone || "").replace(/\D/g, "") + "?text=" + encodeURIComponent("Hello " + row.vendor_name + ", please confirm " + row.what + " for our event (" + (row.when_text || "") + "): " + url), target: "_blank", rel: "noopener noreferrer", text: "Open in WhatsApp" }),
         h("button", { type: "button", cls: "btn primary", text: "Copy link", on: { click: function () { try { global.navigator.clipboard.writeText(url).then(function () { toast("Link copied.", "ok"); }); } catch (e) { /* ignore */ } } } })])]);
   }
   function openReassign(r) {
@@ -358,7 +381,7 @@
         h("p", { cls: "meta", text: "The request to " + r.vendor_name + " is closed (kept in the history), the booking moves to the new vendor and a fresh request goes to them." }),
         h("div", { cls: "fgrid" }, [
           h("div", { cls: "fld full" }, [h("label", { for: "vrqRV", text: "New vendor *" }), vs]),
-          r.agreed_amount != null ? h("div", { cls: "fld" }, [h("label", { for: "vrqRA", text: "Agreed amount (₹)" }), amt]) : null,
+          r.agreed_amount != null ? h("div", { cls: "fld" }, [h("label", { for: "vrqRA", text: "Agreed amount (" + (r.currency && r.currency !== "INR" ? r.currency : "₹") + ")" }), amt]) : null,
           h("div", { cls: "fld full" }, [h("label", { for: "vrqRN", text: "Note (optional)" }), note])]),
         errEl, h("div", { cls: "foot" }, [go])]);
       go.addEventListener("click", function () {

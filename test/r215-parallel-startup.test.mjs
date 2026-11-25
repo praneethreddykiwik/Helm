@@ -41,7 +41,13 @@ for (const [p, list] of Object.entries(CALLS)) {
   await t(p + ': the same database calls as before, once each', async () => { assert.deepEqual(names(await runPage(p)), list); });
 }
 await t('quotes: the first page and the shelf are asked once each (the early read is the one the list uses)', async () => {
-  const n = names(await runPage('quotes'));
+  // R258 (0446): the page of 10, its total and the tab numbers are ONE read; the whole shelf and the HEAD counts are not asked
+  const m = names(await runPage('quotes'));
+  for (const c of ['quotes.pageNo', 'config.getPricing', 'org.current', 'quotes.staleApprovals', 'quoteValidity.list', 'budget.approvedChangeTotals'])
+    assert.equal(m.filter((x) => x === c).length, 1, c);
+  for (const c of ['quotes.page', 'quoteShelf.list', 'quotes.countCancelled', 'quotes.counts']) assert.equal(m.filter((x) => x === c).length, 0, c);
+  // an older database: as before
+  const n = names(await runPage('quotes', { oldDb: true }));
   for (const c of ['quotes.page', 'quoteShelf.list', 'config.getPricing', 'org.current', 'quotes.staleApprovals', 'quoteValidity.list', 'budget.approvedChangeTotals'])
     assert.equal(n.filter((x) => x === c).length, 1, c);
 });
@@ -69,7 +75,7 @@ const CASES = [
   ['ops', { 'quotes.get': NET }, ['loadError | this event | Failed to fetch']],
   ['ops', { 'ops.templates': NET }, ['loadError | task templates | Failed to fetch']],
   ['ops', { 'ops.listTasks': NET }, ['loadError | staff and tasks | Failed to fetch']],
-  ['quotes', { 'quotes.page': NET }, ['loadError | quotes | Failed to fetch']],
+  ['quotes', { 'quotes.pageNo': NET }, ['loadError | quotes | Failed to fetch']],
   ['dashboard', { 'quotes.page': NET }, ['loadError | your quotes | Failed to fetch']],
   ['dashboard', { myTasks: NET }, ['loadError | your tasks | Failed to fetch', 'loadError | your workspace | Failed to fetch']],
 ];
@@ -94,7 +100,7 @@ if (process.env.R215_BEFORE_REF) {
   const clean = (r) => JSON.stringify({ log: msgs(r), dom: r.dom, redirected: r.redirected, err: r.error && String(r.error.message) });
   const S = { builder: [{}, { 'quotes.get': NF }, { 'quotes.getVersion': NET }, { 'plan.get': NET }, { viewOnly: true }],
     calendar: [{}, { 'calendar.load': NET }, { 'ops.shifts.unavailableConflicts': NET }, { 'calendar.acks': NET }],
-    ops: [{}, { 'quotes.get': NF }, { 'ops.templates': NET }], quotes: [{}, { 'quotes.page': NET }, { 'quoteShelf.list': NET }],
+    ops: [{}, { 'quotes.get': NF }, { 'ops.templates': NET }], quotes: [{}, { 'quotes.pageNo': NET }],
     dashboard: [{}, { 'quotes.page': NET }, { pending: NET }, { myTasks: NET }] };
   for (const [p, list] of Object.entries(S)) for (const f of list) {
     await t('same result as ' + ref + ': ' + p + ' ' + JSON.stringify(f), async () => { assert.equal(clean(await runPage(p, { fail: f })), clean(await runPage(p, { ref, fail: f }))); });

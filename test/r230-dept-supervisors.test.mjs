@@ -46,11 +46,11 @@ await t('2b each department card: + Add task (opens Add & assign on that section
   assert.match(BRD, /text: "Assign"/);
   assert.match(BRD, /"No tasks yet:"/);
 });
-await t('2d plan lock (0397): + Add task is refused while locked with the lock message; the supervisor picker stays', () => {
-  assert.match(BRD, /function addIn\(cat\) \{[\s\S]{0,200}if \(planLocked\(\)\) \{ toast\(LOCK_ADD, "err", 8000\); openPlanRem\(\); return; \}/);
-  assert.match(BRD, /var LOCK_ADD = "The plan is locked for the event day - unlock it in Plan & reminders to add tasks\."/);
-  assert.doesNotMatch(BRD.slice(BRD.indexOf('async function setSup'), BRD.indexOf('function supTools')), /planLocked/);
-  assert.ok(OPS.indexOf('id="tcPlanRemD"') < OPS.indexOf('id="tcLock"') && /if \(locked\) w\.push\(\["warn", "Plan locked"\]\)/.test(BRD) && OPS.indexOf('id="tcFloor"') > OPS.indexOf('id="tcSteps"'), 'R253: the lock bar in Plan & reminders, its row says Plan locked; floor card in the steps');
+await t('2d R257: no plan lock; a closed event takes no new tasks; the supervisor picker stays', () => {
+  assert.match(BRD, /function addIn\(cat\) \{[\s\S]{0,200}if \(planClosed\(\)\) \{ toast\(LOCK_ADD, "err", 8000\); return; \}/);
+  assert.match(BRD, /var LOCK_ADD = "This event is closed, so no new tasks\."/);
+  assert.doesNotMatch(BRD.slice(BRD.indexOf('async function setSup'), BRD.indexOf('function supTools')), /planClosed/);
+  assert.ok(!/tcLockIn/.test(OPS) && OPS.indexOf('id="tcFloor"') > OPS.indexOf('id="tcSteps"'), 'no Lock plan; floor card in the steps');
 });
 await t('2c the supervisor history shows in Latest ("X set Y as Catering supervisor")', () => {
   assert.match(BRD, /" as " \+ l\.department \+ " supervisor"/); assert.match(BRD, /concat\(supLogActs\(\)\)/);

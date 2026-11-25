@@ -148,3 +148,17 @@ tbody tr.sk-row:hover{background:transparent}
   .ls-acts .ls-act{flex:1 1 auto}
 }
 .ls-tbl .ls-chip,.ls-tbl .ls-ok{font-family:var(--font,inherit)}
+
+/* ---------- R255: the open event - what one tap does for each product ---------- */
+.ls-uh{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 16px;margin:0 0 6px}
+.ls-uh > div{flex:1 1 260px;min-width:0}
+.ls-uhelp{margin:0 0 6px;line-height:1.45}
+.ls-fit{font-size:12.5px;line-height:1.45;color:var(--ink-2,#4b475f);overflow-wrap:anywhere}
+.ls-fit.is-ok{color:#0f7a43;font-weight:600}
+.ls-fit.is-none,.ls-fit.is-full{color:#946200}
+.ls-done{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 12px;padding:10px 14px;border:1px solid #bfe3cf;border-radius:10px;background:#f0faf4}
+.ls-done-t{flex:1 1 240px;min-width:0;font-size:13px}
+.ls-done ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px}
+@media (max-width:640px){ .ls-uh .ls-act{width:100%} }
+html[data-theme="dark"] .ls-done{background:#123524;border-color:#1f5138}
+html[data-theme="dark"] .ls-fit.is-ok{color:#5fd49a}

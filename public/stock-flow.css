@@ -93,3 +93,32 @@
   .sc-sheet{padding:14px}
   .sc-foot .btn{flex:1 1 auto}
 }
+
+/* R258: Give out right in the row of Inventory's "Stock for this event" (+ several rows to one person) */
+.sg-bar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:0 0 10px;padding:8px 12px;border:1px solid var(--line,#e8e3db);border-radius:10px;background:var(--panel-2,#faf8f5)}
+.sg-bar[hidden],.sg-do[hidden],.sg-x[hidden],.sg-msg[hidden]{display:none}
+.sg-all{display:inline-flex;gap:8px;align-items:center;min-height:40px;font-size:13px;font-weight:600;cursor:pointer}
+.sg-all input,.sg-pick input{width:18px;height:18px;margin:0;accent-color:var(--accent,#047857)}
+.sg-do{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+.sg-pick{display:inline-flex;align-items:center;vertical-align:middle;margin-right:8px;cursor:pointer}
+.sg-give{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+.sg-give .sel,.sg-bar .sel{min-width:0;height:36px;box-sizing:border-box}
+.sg-give select.sel{flex:1 1 170px;max-width:260px}.sg-bar select.sel{max-width:260px}
+.sg-give input.sg-q{width:84px}
+.sg-give .btn.sm{height:36px}
+.sg-x{display:flex;flex-wrap:wrap;gap:6px 10px;flex-basis:100%}
+.sg-x label{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:600;color:var(--ink-3,#6b6577)}
+.sg-ok{border-color:var(--accent,#047857);color:var(--accent,#047857)}
+.sg-msg{margin:0 0 10px;padding:8px 12px;border-radius:10px;background:#fdecec;color:#b42318;font-size:13px}
+@media (max-width:640px){
+  .sg-tbl,.sg-tbl tbody{display:block;width:100%;min-width:0}
+  .sg-tbl thead{display:none}
+  .sg-tbl .sg-row{display:block;padding:12px 0;border-bottom:1px solid var(--line,#e8e3db)}
+  .sg-tbl .sg-row td{display:block;border:0;padding:3px 0;text-align:left}
+  .sg-tbl td[data-label]::before{content:attr(data-label) " ";font-weight:600;color:var(--ink-3,#6b6577);font-family:var(--font,inherit)}
+  .sg-give select.sel{flex:1 1 100%;max-width:none}.sg-do,.sg-bar select.sel{flex:1 1 100%;max-width:none}
+  .sg-give .sel,.sg-bar .sel,.sg-give .btn,.sg-bar .btn,.sg-tbl .sf-acts .btn,.sg-tbl .rm{height:auto;min-height:44px}
+  .sg-give .btn.primary{flex:1 1 auto}.sg-all,.sg-pick{min-height:44px;min-width:44px}
+  .sg-tbl .sf-acts{justify-content:flex-start}
+}
+.sc-body>.sc-fld{margin-top:10px}

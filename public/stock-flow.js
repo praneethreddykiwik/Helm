@@ -3,7 +3,7 @@
    on Inventory, Teardown & returns, Event-day command and Closure:
 
      Reserved  held for the event (a reservation)
-     Out       given to a person, with who + when (a check-out, status 'out')
+     Given out (state "out") with a person, who + when (a check-out, status 'out')
      Back      came back OK          Missing  did not come back
      Damaged   came back broken (Missing and Damaged come off what you own)
 
@@ -17,7 +17,7 @@
 (function (root) {
   "use strict";
 
-  var LABEL = { reserved: "Reserved", out: "Out", back: "Back", missing: "Missing", damaged: "Damaged", released: "Released" };
+  var LABEL = { reserved: "Reserved", out: "Given out", back: "Back", missing: "Missing", damaged: "Damaged", released: "Released" };
   var NEVER_OUT = "Reserved — never taken out, nothing to return";
   function n(x) { var v = Number(x); return isFinite(v) ? v : 0; }
 
@@ -46,7 +46,7 @@
   function coSummary(c) {
     var p = coParts(c);
     if (p.cancelled) return "Cancelled (recorded by mistake)";
-    if (p.out > 0) return "Out " + p.out;
+    if (p.out > 0) return "Given out " + p.out;
     var bits = [(p.used ? "Left over " : "Back ") + p.back];
     if (p.used) bits.push("Used " + p.used);
     if (p.damaged) bits.push("Damaged " + p.damaged);
@@ -121,7 +121,7 @@
     if (r.status === "replaced") return { key: "replaced", label: "Swapped", pill: "left" };
     if (r.status === "issued") {
       var c = r.checkout_id && coById ? coById[r.checkout_id] : null;
-      if (c) { var st = coState(c); return { key: st, label: st === "out" ? "Out" : (LABEL[st] || "Back"), pill: st === "out" ? "pending" : (st === "back" ? "done" : "no_show"), checkout: c }; }
+      if (c) { var st = coState(c); return { key: st, label: LABEL[st] || "Back", pill: st === "out" ? "pending" : (st === "back" ? "done" : "no_show"), checkout: c }; }
       if (r.source) return { key: "sourced", label: "Sourced", pill: "done" };
       return { key: "given", label: "Given out", pill: "done" };
     }

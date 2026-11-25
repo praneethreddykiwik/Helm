@@ -97,12 +97,13 @@
 </style>
 <link rel="stylesheet" href="inventory-polish.css?v=4">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
-<link rel="stylesheet" href="stock-flow.css?v=2">
-<link rel="stylesheet" href="inventory-layout.css?v=2">
+<link rel="stylesheet" href="stock-flow.css?v=3">
+<link rel="stylesheet" href="inventory-layout.css?v=3">
 <link rel="stylesheet" href="/stock-vendor.css?v=1">
+<link rel="stylesheet" href="/resource-steps.css?v=1">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -124,6 +125,8 @@
   </div>
   <div id="app" hidden>
     <div id="eventBar" class="crumb" hidden></div>
+    <!-- R255: the four steps of covering the event (only when the page is opened for one) -->
+    <nav class="rs" id="resSteps" data-resource-steps="stock" hidden></nav>
 
     <!-- R248 (0430): numbers only - what you own, what is out, how many upcoming events are short -->
     <div id="invSummary" class="ls-strip" role="group" aria-label="Stock at a glance">
@@ -136,8 +139,8 @@
     <!-- per-event reservation panel -->
     <div id="eventPanel" class="card" hidden>
       <h2>Stock for this event</h2>
-      <p class="sub">Step 1 of 4 — reserve our own stock for this event. <b>Reserve</b> to hold it → <b>Give out</b> to a person when it leaves the store → <b>Mark back</b> when it returns. Stock that was never taken out needs no return. <a id="rvNextStep" class="s-a805525" href="ops.html">Next: 2 Assign our people →</a></p>
-      <div class="sf-legend" aria-hidden="true"><span><span class="sf-pill reserved">Reserved</span>held for the event</span><span><span class="sf-pill out">Out</span>with a person</span><span><span class="sf-pill back">Back</span>returned</span><span><span class="sf-pill missing">Missing</span>did not come back</span><span><span class="sf-pill damaged">Damaged</span>came back broken</span></div>
+      <p class="sub">Step 1 of 4 — reserve our own stock for this event. <b>Reserve</b> to hold it → <b>Give out</b> to a person right in its row → <b>Back OK</b> when it returns, or <b>Problem</b>. Stock that was never taken out needs no return. <a id="rvNextStep" class="s-a805525" href="resources.html">Next: 2 Get what's missing from vendors →</a></p>
+      <div class="sf-legend" aria-hidden="true"><span><span class="sf-pill reserved">Reserved</span>held for the event</span><span><span class="sf-pill out">Given out</span>with a person</span><span><span class="sf-pill back">Back</span>returned</span><span><span class="sf-pill missing">Missing</span>did not come back</span><span><span class="sf-pill damaged">Damaged</span>came back broken</span></div>
       <div class="reserve-row">
         <div class="fld"><label for="rv_item">Item</label><select id="rv_item"></select></div>
         <div class="fld"><label for="rv_qty">Quantity</label><input id="rv_qty" type="number" min="1" value="1"></div>
@@ -145,7 +148,13 @@
         <div class="fld"><span class="s-6cb285c" aria-hidden="true">&nbsp;</span><button type="button" class="btn primary" id="rv_add">Reserve</button></div>
       </div>
       <div id="rvShort" class="rvs" role="region" aria-label="Not enough stock free" hidden></div>
-      <div class="table-scroll"><table class="s-d6f2af6">
+      <!-- R258: several rows to one person -->
+      <div id="sgBar" class="sg-bar" hidden>
+        <label class="sg-all"><input type="checkbox" id="sgAll"><span id="sgCount">Select all</span></label>
+        <span id="sgDo" class="sg-do" hidden><label class="sr-only" for="sgTo">Give all selected to</label><select id="sgTo" class="sel"></select><button type="button" class="btn primary" id="sgGo">Give all out</button></span>
+      </div>
+      <div id="sgMsg" class="sg-msg" role="status" aria-live="polite" hidden></div>
+      <div class="table-scroll sg-wrap"><table class="s-d6f2af6 sg-tbl">
         <thead><tr><th scope="col">Item</th><th scope="col" class="num">Reserved</th><th scope="col">Now</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody id="resRows" aria-busy="true"><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr></tbody>
       </table></div>
@@ -168,7 +177,7 @@
 
     <div class="tabs" role="group" aria-label="Inventory views">
       <button type="button" class="tab active" data-pane="stock" aria-pressed="true" aria-controls="pane-stock">📦 Stock items</button>
-      <button type="button" class="tab" data-pane="loans" aria-pressed="false" aria-controls="pane-loans">🔑 Out &amp; back</button>
+      <button type="button" class="tab" data-pane="loans" aria-pressed="false" aria-controls="pane-loans">🔑 Given out &amp; back</button>
       <button type="button" class="tab" data-pane="layout" aria-pressed="false" aria-controls="pane-layout" id="tabLayout" hidden>🧩 From layouts <span id="lsTabBadge" class="ls-badge" title="Upcoming events short" hidden></span></button>
     </div>
 
@@ -198,7 +207,7 @@
     <div id="pane-loans" hidden>
       <div class="card" id="coCard">
         <h2>Give out stock</h2>
-        <p class="sub">Give stock to a person — it shows as <b>Out</b> with their name and the time. When it comes back, <b>Mark back</b>: how many came back OK and how many are damaged. Anything not counted is <b>Missing</b>. <span id="coEvent" class="onloan" hidden></span></p>
+        <p class="sub">Give stock to a person: it shows as <b>Given out</b> with their name and the time. When it comes back press <b>Back OK</b>, or <b>Problem</b> when something is damaged, missing or still out. <span id="coEvent" class="onloan" hidden></span></p>
         <div class="reserve-row co-row">
           <div class="fld"><label for="co_item">Item</label><select id="co_item"></select></div>
           <div class="fld"><label for="co_qty">How many</label><input id="co_qty" type="number" min="1" value="1"></div>
@@ -210,9 +219,9 @@
       </div>
 
       <div class="card table-scroll s-8d8d59e">
-        <div class="s-57844cb"><h2 class="s-62c1a69">Out now <span id="loanCount" class="onloan"></span></h2><label class="s-af1acab" title="Check-outs cancelled by mistake are kept for the record; tick to see them."><input type="checkbox" id="showCancelled"> Show cancelled</label></div>
+        <div class="s-57844cb"><h2 class="s-62c1a69">Given out now <span id="loanCount" class="onloan"></span></h2><label class="s-af1acab" title="Stock given out by mistake and undone is kept for the record; tick to see it."><input type="checkbox" id="showCancelled"> Show undone</label></div>
         <table>
-          <thead><tr><th scope="col">Item</th><th scope="col">Event</th><th scope="col">Pri</th><th scope="col" class="num">Out</th><th scope="col">Given to</th><th scope="col">When out</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+          <thead><tr><th scope="col">Item</th><th scope="col">Event</th><th scope="col">Pri</th><th scope="col" class="num">Given out</th><th scope="col">Given to</th><th scope="col">When</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="loanRows" aria-busy="true"><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr></tbody>
         </table>
       </div>
@@ -220,7 +229,7 @@
       <div class="card table-scroll s-8d8d59e">
         <div class="s-f145ee8"><h2 class="s-62c1a69">Missing &amp; damaged</h2><span id="lossTotal"></span></div>
         <table>
-          <thead><tr><th scope="col">Item</th><th scope="col">Event</th><th scope="col" class="num">Out</th><th scope="col" class="num">Back</th><th scope="col" class="num">Missing</th><th scope="col" class="num">Damaged</th><th scope="col" class="num" id="thLost">Value lost</th><th scope="col">Signed off</th><th scope="col">When back</th><th scope="col">Follow-up</th></tr></thead>
+          <thead><tr><th scope="col">Item</th><th scope="col">Event</th><th scope="col" class="num">Given out</th><th scope="col" class="num">Back</th><th scope="col" class="num">Missing</th><th scope="col" class="num">Damaged</th><th scope="col" class="num" id="thLost">Value lost</th><th scope="col">Signed off</th><th scope="col">When back</th><th scope="col">Follow-up</th></tr></thead>
           <tbody id="lossRows" aria-busy="true"><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr><tr class="sk-row" aria-hidden="true"><td><span class="sk w60"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td><td><span class="sk w40 skr"></span></td></tr></tbody>
         </table>
       </div>
@@ -296,8 +305,8 @@
 <div id="histModal" class="lmodal" hidden role="dialog" aria-modal="true" aria-labelledby="hi_title">
   <div class="sheet">
     <h3><span id="hi_title">History</span><button type="button" class="close" id="hi_close" aria-label="Close" data-close>×</button></h3>
-    <p class="sub">Every time this item went out: which event, given to whom, when out and when back.</p>
-    <div class="sf-hist-wrap"><table class="sf-hist"><thead><tr><th scope="col">Event</th><th scope="col">Given to</th><th scope="col" class="num">How many</th><th scope="col">Out</th><th scope="col">Back</th></tr></thead>
+    <p class="sub">Every time this item was given out: which event, to whom, when, and when it came back.</p>
+    <div class="sf-hist-wrap"><table class="sf-hist"><thead><tr><th scope="col">Event</th><th scope="col">Given to</th><th scope="col" class="num">How many</th><th scope="col">Given out</th><th scope="col">Back</th></tr></thead>
       <tbody id="hiRows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody></table></div>
   </div>
 </div>
@@ -337,18 +346,19 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=79"></script>
-<script src="tour.js?v=93"></script>
-<script src="checkout-shortage.js?v=6"></script>
-<script src="stock-flow.js?v=2"></script>
-<script src="stock-checkin.js?v=1"></script>
+<script src="page-tours.js?v=84"></script>
+<script src="tour.js?v=98"></script>
+<script src="checkout-shortage.js?v=7"></script>
+<script src="stock-flow.js?v=3"></script>
+<script src="stock-checkin.js?v=2"></script>
 <script src="capacity-shortage.js?v=9"></script>
-<script src="/stock-vendor.js?v=1"></script>
-<script src="inventory-layout.js?v=2"></script>
+<script src="/stock-vendor.js?v=3"></script>
+<script src="inventory-layout.js?v=5"></script>
+<script src="/resource-steps.js?v=2"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -526,17 +536,18 @@
       const it=byId[r.item_id]||{name:"(item)"}, u=it.unit||"";
       const det=SF.detail(r,{ fmt:fmtWhen, unit:u, eventOver:over });
       const notes=reservations.filter(x=>x.item_id===r.item_id&&x.note&&x.status!=="cancelled").map(x=>x.note);
-      let acts="";
+      let acts="", give="";
+      const toGive=giveLeft(r);
       if(canEdit){
-        if(r.state==="reserved" || (r.unused>0)){ acts+=`<button type="button" class="btn sm" data-give="${esc(r.item_id)}" data-qty="${esc(Math.max(r.unused||r.reserved,1))}" aria-label="Give out ${esc(it.name)}">Give out</button>`;
-          acts+=`<button type="button" class="rm" data-rel="${esc(r.liveIds.join(","))}" data-name="${esc(it.name)}" aria-label="Release the reservation for ${esc(it.name)}">Release</button>`; }
-        if(r.state==="out"){ r.outs.forEach(c=>{ acts+=`<button type="button" class="btn sm" data-in="${esc(c.id)}" aria-label="Mark ${esc(it.name)} back from ${esc(c.issued_to||"")}">Mark back${r.outs.length>1?" ("+esc(c.issued_to||"")+")":""}</button>`; });
+        if(toGive>0){ give=giveHtml(r.item_id,it,toGive);
+          if(r.state==="reserved") acts+=`<button type="button" class="rm" data-rel="${esc(r.liveIds.join(","))}" data-name="${esc(it.name)}" aria-label="Release the reservation for ${esc(it.name)}">Release</button>`; }
+        if(r.state==="out"){ r.outs.forEach(c=>{ acts+=backHtml(c,it,r.outs.length>1?c.issued_to:""); });
           r.legacyIds.forEach(rid=>{ acts+=`<button type="button" class="btn sm" data-lin="${esc(rid)}" aria-label="Mark ${esc(it.name)} back">Mark back</button>`; }); }
       }
-      return `<tr data-item="${esc(r.item_id)}">
-        <td><b>${esc(optName(it.name))}</b>${notes.length?`<div class="sub2">${esc(notes.join(" · ").slice(0,300))}</div>`:""}</td>
-        <td class="num">${r.reserved?`${num(r.reserved)} ${esc(u)}`:"—"}</td>
-        <td><span class="sf-pill ${esc(r.state)}">${esc(r.label)}</span>${det?`<span class="sf-detail">${esc(det)}</span>`:""}</td>
+      return `<tr data-item="${esc(r.item_id)}" class="sg-row">
+        <td>${toGive>0&&canEdit?`<label class="sg-pick"><input type="checkbox" data-sgsel="${esc(r.item_id)}" aria-label="Select ${esc(optName(it.name))}"${giveSel.has(r.item_id)?" checked":""}></label>`:""}<b>${esc(optName(it.name))}</b>${notes.length?`<div class="sub2">${esc(notes.join(" · ").slice(0,300))}</div>`:""}</td>
+        <td class="num" data-label="Reserved">${r.reserved?`${num(r.reserved)} ${esc(u)}`:"—"}</td>
+        <td><span class="sf-pill ${esc(r.state)}">${esc(r.label)}</span>${det&&!(give&&r.state==="reserved")?`<span class="sf-detail">${esc(det)}</span>`:""}${give}</td>
         <td>${acts?`<div class="sf-acts">${acts}</div>`:""}</td>
       </tr>`;
     }).join("") : '<tr><td colspan="4" class="empty">Nothing reserved or given out for this event yet.</td></tr>';
@@ -544,10 +555,7 @@
     // 0197: open shortages of this event (rent / buy / unsourced) with a status per row
     if(window.HelmShortage) HelmShortage.renderList($("#rvShortList"), { quoteId, items, canEdit }).catch(()=>{});
     const host=$("#resRows");
-    host.querySelectorAll("[data-give]").forEach(b=>b.addEventListener("click",()=>{
-      activatePane("loans"); $("#co_item").value=b.dataset.give; $("#co_qty").value=b.dataset.qty; hideShort();
-      $("#coCard").scrollIntoView({behavior:"smooth",block:"start"}); setTimeout(()=>$("#co_to").focus(),250); }));
-    host.querySelectorAll("[data-in]").forEach(b=>b.addEventListener("click",()=>checkInFlow(b.dataset.in)));
+    wireGive(host); wireBack(host); paintBar();
     host.querySelectorAll("[data-lin]").forEach(b=>b.addEventListener("click",()=>legacyBackFlow(b.dataset.lin)));
     // Release = the reservation is cancelled (kept for the record, never deleted); stock is free again
     host.querySelectorAll("[data-rel]").forEach(b=>b.addEventListener("click",async()=>{
@@ -561,6 +569,63 @@
       });
     }));
   }
+
+  // ---- R258 (owner: "can we assign people in the inventory page itself ... instead of multiple steps"): Give out right in the row ----
+  // person (this event's people first), how many (all), optional due back + note (kept with it) -> the same checkout_equipment_smart call as before
+  let peopleHtml='<option value="">Choose a person…</option>'; const giveDraft={}, giveSel=new Set(); let giveBusy=false;
+  function giveLeft(r){ if(r.state==="reserved"||r.unused>0) return Math.max(r.unused||r.reserved,0);
+    if(r.state!=="out"||!r.history.length) return 0;   // part given out: the rest of what is held
+    return Math.max(Number(r.live||0)-r.history.reduce((a,c)=>a+Number(c.qty_out||0),0),0); }
+  function giveHtml(itemId,it,max){ const d=giveDraft[itemId]||{}, nm=esc(optName(it.name)), k=esc(itemId);
+    return `<div class="sg-give" data-gv="${k}" data-max="${esc(max)}"><select class="sel" data-g="to" aria-label="Give ${nm} to">${peopleHtml}</select>
+      <input type="number" class="sel sg-q" data-g="qty" min="1" step="1" inputmode="numeric" value="${esc(d.qty||max)}" aria-label="How many ${nm}">
+      <button type="button" class="btn primary sm" data-g="go" aria-label="Give out ${nm}">Give out</button>
+      <button type="button" class="rm" data-g="more" aria-expanded="${d.more?"true":"false"}" aria-label="Due back and note for ${nm}">More</button>
+      <span class="sg-x"${d.more?"":" hidden"}><label>Due back <input type="date" class="sel" data-g="due" value="${esc(d.due||"")}"></label><label>Note <input class="sel" data-g="note" maxlength="300" value="${esc(d.note||"")}"></label></span></div>`; }
+  function backHtml(c,it,who){ const w=who?" ("+esc(who)+")":"", nm=esc(it.name), cons=it.item_kind==="consumable";
+    return (cons?"":`<button type="button" class="btn sm sg-ok" data-ok="${esc(c.id)}" aria-label="All ${nm} back OK from ${esc(c.issued_to||"")}">Back OK${w}</button>`)
+      +`<button type="button" class="btn sm" data-in="${esc(c.id)}" aria-label="${cons?"Count what is left of ":"Problem with "}${nm}">${cons?"Count what is left":"Problem"}${w}</button>`
+      +(c.status==="out"&&!Number(c.qty_in||0)?`<button type="button" class="rm" data-cxl="${esc(c.id)}" data-name="${nm}" aria-label="Undo: ${nm} was not given to ${esc(c.issued_to||"")}">Undo</button>`:""); }
+  function wireBack(host){
+    host.querySelectorAll("[data-ok]").forEach(b=>b.addEventListener("click",()=>BPUI.guard(b,async()=>{
+      const c=checkouts.find(x=>x.id===b.dataset.ok); if(!c) return; const left=Math.max(Number(c.qty_out||0)-Number(c.qty_in||0),0);
+      try{ if(invCtx) await BPStore.inventory.checkouts.backV2(c.id,{ok:left,damaged:0}); else await BPStore.inventory.checkouts.back(c.id,left,0,null); BPUI.toast("Back OK.",{type:"ok"}); }
+      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"mark it back"}),{type:"err"}); } await load(); },{busyLabel:"Saving…"})));
+    host.querySelectorAll("[data-in]").forEach(b=>b.addEventListener("click",()=>checkInFlow(b.dataset.in,true)));
+    host.querySelectorAll("[data-cxl]").forEach(b=>b.addEventListener("click",()=>cancelCheckout(b))); }
+  function pickOf(sel){ const o=sel&&sel.selectedOptions[0]; return o&&sel.value?{ name:sel.value.trim(), crewId:o.dataset.kind==="staff"?o.dataset.id:null }:null; }
+  function setPick(sel,d){ if(!d||!d.to) return; [...sel.options].some((o,i)=>{ if(o.value===d.to&&(o.dataset.id||"")===(d.toId||"")){ sel.selectedIndex=i; return true; } return false; }); }
+  function draftOf(box){ const g=(k)=>box.querySelector(`[data-g="${k}"]`), o=g("to").selectedOptions[0];
+    return { to:g("to").value, toId:o?o.dataset.id||"":"", qty:g("qty").value, due:g("due").value, note:g("note").value, more:!g("due").closest(".sg-x").hidden }; }
+  function lineOf(itemId){ const box=document.querySelector(`#resRows [data-gv="${CSS.escape(itemId)}"]`); if(!box) return null; const d=draftOf(box), v=BPStore.validate.count(d.qty,{allowZero:false,field:"How many"});
+    return { itemId, box, qty:v.ok?v.value:0, error:v.ok?"":v.error, note:[d.due?"Due back "+fmtDate(d.due):"",d.note.trim()].filter(Boolean).join(". ")||null }; }
+  function wireGive(host){ host.querySelectorAll("[data-gv]").forEach(box=>{ const id=box.dataset.gv; setPick(box.querySelector('[data-g="to"]'),giveDraft[id]);
+      const keep=()=>{ giveDraft[id]=draftOf(box); }; box.addEventListener("input",keep); box.addEventListener("change",keep);
+      const mb=box.querySelector('[data-g="more"]'); mb.addEventListener("click",()=>{ const x=box.querySelector(".sg-x"); x.hidden=!x.hidden; mb.setAttribute("aria-expanded",String(!x.hidden)); keep(); });
+      box.querySelector('[data-g="go"]').addEventListener("click",(e)=>{ const to=pickOf(box.querySelector('[data-g="to"]')), l=lineOf(id);
+        if(!to){ BPUI.toast("Choose who gets it.",{type:"err"}); box.querySelector('[data-g="to"]').focus(); return; } if(l.error){ BPUI.toast(l.error,{type:"err"}); box.querySelector('[data-g="qty"]').focus(); return; }
+        giveLines([l],to,e.currentTarget); }); });
+    host.querySelectorAll("[data-sgsel]").forEach(c=>c.addEventListener("change",()=>{ if(c.checked) giveSel.add(c.dataset.sgsel); else giveSel.delete(c.dataset.sgsel); paintBar(); })); }
+  function paintBar(){ const boxes=[...document.querySelectorAll("#resRows [data-sgsel]")], ids=boxes.map(b=>b.dataset.sgsel); [...giveSel].forEach(x=>{ if(!ids.includes(x)) giveSel.delete(x); });
+    $("#sgBar").hidden=!canEdit||boxes.length<2; $("#sgDo").hidden=!giveSel.size; $("#sgAll").checked=!!ids.length&&giveSel.size===ids.length; $("#sgAll").indeterminate=giveSel.size>0&&giveSel.size<ids.length;
+    $("#sgCount").textContent=giveSel.size?giveSel.size+" selected":"Select all"; $("#sgGo").textContent="Give "+giveSel.size+" out"; }
+  $("#sgAll").addEventListener("change",()=>{ const on=$("#sgAll").checked; document.querySelectorAll("#resRows [data-sgsel]").forEach(b=>{ b.checked=on; if(on) giveSel.add(b.dataset.sgsel); else giveSel.delete(b.dataset.sgsel); }); paintBar(); });
+  $("#sgGo").addEventListener("click",()=>{ const to=pickOf($("#sgTo")); if(!to){ BPUI.toast("Choose who gets them.",{type:"err"}); $("#sgTo").focus(); return; }
+    const lines=[...giveSel].map(lineOf).filter(Boolean), bad=lines.find(l=>l.error); if(bad){ BPUI.toast(bad.error,{type:"err"}); bad.box.querySelector('[data-g="qty"]').focus(); return; }
+    giveLines(lines,to,$("#sgGo")); });
+  async function giveOne(itemId,qty,to,note){ try{ const r=await BPStore.inventory.checkouts.outSmart(itemId, quoteId, qty, to.name, to.crewId, note||null, false); return r&&r.ok?{ok:true}:{short:r}; }
+    catch(e){ if(e&&e.code==="23514"){ try{ return {short:await localShortage(itemId)}; }catch(_){} } return {err:BPUI.friendlyError(e,{action:"give it out"})}; } }
+  async function giveLines(lines,to,btn){ if(giveBusy||!lines.length) return; giveBusy=true; const say=$("#sgMsg"), bad=[]; let ok=0, one=null; say.hidden=true;
+    try{ await BPUI.guard(btn,async()=>{
+      for(const l of lines){ const nm=optName((items.find(x=>x.id===l.itemId)||{}).name||"Item"), r=await giveOne(l.itemId,l.qty,to,l.note);
+        if(r.ok){ ok++; delete giveDraft[l.itemId]; giveSel.delete(l.itemId); } else if(r.short){ one={l,info:r.short}; bad.push(nm+": "+CS.headline(r.short,l.qty,fmtD)); } else bad.push(nm+": "+r.err); }
+      if(ok) BPUI.toast(lines.length===1?num(lines[0].qty)+" "+optName((items.find(x=>x.id===lines[0].itemId)||{}).name||"item")+" given out to "+to.name+".":ok+" of "+lines.length+" items given out to "+to.name+".",{type:bad.length?"info":"ok"});
+      if(lines.length===1&&one){ openShort(one.l,to,one.info); if(!ok) return; }
+      else if(bad.length){ say.replaceChildren(...["Not given out:",...bad].map((t,i)=>Object.assign(document.createElement(i?"div":"b"),{textContent:t}))); say.hidden=false; }
+      await load(); },{busyLabel:"Saving…"}); } finally { giveBusy=false; } }
+  // not enough free: the same panel as always (what is free, who has the rest, what can be done)
+  function openShort(l,to,info){ activatePane("loans"); $("#co_item").value=l.itemId; $("#co_qty").value=l.qty; $("#co_note").value=l.note||""; setPick($("#co_to"),{to:to.name,toId:to.crewId||""}); if(!$("#co_to").value) $("#co_to").value=to.name;
+    coPending={ itemId:l.itemId, qty:l.qty, to:to.name, crewId:to.crewId, note:l.note, info:null }; showShort(info,l.qty); $("#coCard").scrollIntoView({block:"start"}); }
 
   // ---- R191 (0374): stock dates (set-up from / teardown until) + other events holding the same items on those days ----
   let sdLoaded=false;
@@ -751,7 +816,7 @@
     // open loans
     const openHtml = open.length ? open.map(c=>{ const it=byId[c.item_id]||{name:"(item)"};
       // still out = "left over" → show the outstanding qty in RED so it's obvious
-      const goEvent = c.quote_id ? `<a class="btn sm" href="event.html?id=${esc(c.quote_id)}" title="Open the event to check this back in">Go to event →</a>` : "";
+      const goEvent = c.quote_id ? `<a class="btn sm" href="event.html?id=${esc(c.quote_id)}" title="Open the event">Go to event →</a>` : "";
       return `<tr>
         <td><b>${esc(optName(it.name))}</b>${c.note?`<div class="sub2">${esc(c.note)}</div>`:""}</td>
         <td>${eventCell(c)}</td>
@@ -759,12 +824,12 @@
         <td class="num" style="color:#b42318;font-weight:700">${num(Math.max(Number(c.qty_out||0)-Number(c.qty_in||0),0))}${Number(c.qty_in||0)>0?`<div class="sub2">${num(c.qty_in)} back already</div>`:""}</td>
         <td>${esc(c.issued_to||"")}</td>
         <td style="font-size:12px;color:var(--ink-3)">${c.checked_out_at?esc(fmtWhen(c.checked_out_at)):""}</td>
-        <td style="display:flex;gap:6px;flex-wrap:wrap">${goEvent}${canEdit?`<button type="button" class="btn sm" data-in="${esc(c.id)}" aria-label="Mark ${esc(it.name)} back">Mark back</button>`:""}${canEdit&&c.status==="out"&&!Number(c.qty_in||0)?`<button type="button" class="rm" data-cxl="${esc(c.id)}" data-name="${esc(it.name)}" aria-label="Cancel check-out of ${esc(it.name)}">Cancel</button>`:""}</td>
-      </tr>`; }).join("") : '<tr><td colspan="7" class="empty">Nothing is out right now.</td></tr>';
+        <td style="display:flex;gap:6px;flex-wrap:wrap">${goEvent}${canEdit?backHtml(c,it,""):""}</td>
+      </tr>`; }).join("") : '<tr><td colspan="7" class="empty">Nothing is given out right now.</td></tr>';
     // cancelled check-outs: kept for the record (never deleted), greyed, behind the toggle
     const cxlHtml = (showCancelled && cancelled.length) ? cancelled.map(c=>{ const it=byId[c.item_id]||{name:"(item)"};
       return `<tr class="co-cancelled">
-        <td><b>${esc(optName(it.name))}</b><span class="cxl">cancelled</span>${c.note?`<div class="sub2">${esc(c.note)}</div>`:""}</td>
+        <td><b>${esc(optName(it.name))}</b><span class="cxl">undone</span>${c.note?`<div class="sub2">${esc(c.note)}</div>`:""}</td>
         <td>${eventCell(c)}</td>
         <td><span class="pri ${esc(it.priority||'C')}">${esc(it.priority||'C')}</span></td>
         <td class="num">${num(c.qty_out)}</td>
@@ -797,17 +862,16 @@
     // R191: follow-up per line - found later, repair, photo proof, who pays (Finance)
     if(SC&&invCtx) $("#lossRows").querySelectorAll("[data-fu]").forEach(td=>{ const c=checkouts.find(x=>x.id===td.dataset.fu); if(!c) return;
       SC.lineActions(td,{ checkout:c, item:byId[c.item_id]||{}, line:story[c.id]||{}, ctx:invCtx, canEdit, quoteId:c.quote_id, onDone:load }); });
-    $("#loanRows").querySelectorAll("[data-in]").forEach(b=>b.addEventListener("click",()=>checkInFlow(b.dataset.in)));
-    $("#loanRows").querySelectorAll("[data-cxl]").forEach(b=>b.addEventListener("click",()=>cancelCheckout(b)));
+    wireBack($("#loanRows"));
   }
 
   // Owner decision #4: a mistaken check-out is CANCELLED (kept for the record), never deleted
   async function cancelCheckout(b){
     const id=b.dataset.cxl, name=b.dataset.name||"this item";
-    if(!(await BPUI.confirm(`Cancel the check-out of ${name}? Use this only if it was recorded by mistake and nothing was handed over. The stock becomes available again; the record is kept (tick “Show cancelled” to see it).`,{title:"Cancel check-out?",okLabel:"Cancel check-out",danger:true}))) return;
+    if(!(await BPUI.confirm(`Undo giving out ${name}? Use this only if it was recorded by mistake and nothing was handed over. The stock becomes available again; the record is kept (tick “Show undone” to see it).`,{title:"Undo: given out by mistake?",okLabel:"Undo",danger:true}))) return;
     await BPUI.guard(b,async()=>{
-      try{ await BPStore.inventory.checkouts.cancel(id); BPUI.toast("Check-out cancelled.",{type:"ok"}); await load(); }
-      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"cancel the check-out"}),{type:"err"}); }
+      try{ await BPStore.inventory.checkouts.cancel(id); BPUI.toast("Undone - the stock is free again.",{type:"ok"}); await load(); }
+      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"undo it"}),{type:"err"}); }
     });
   }
   // r24: Mark back = how many came back OK + how many damaged; the rest is missing (missing + damaged come off your stock)
@@ -830,11 +894,11 @@
     $("#ci_by").value=""; $("#ci_err").hidden=true; refreshCiWarn(); ciDirty.clean();
     $("#ciModal").hidden=false; setTimeout(()=>$("#ci_in").focus(),50);
   }
-  function checkInFlow(id){
+  function checkInFlow(id,problem){
     const c=checkouts.find(x=>x.id===id); if(!c) return;
     const it=items.find(x=>x.id===c.item_id)||{};
     // R191 (0374): the shared dialog (consumables, "some are still out", photo proof, who pays); older database: the r24 dialog
-    if(SC&&invCtx){ SC.open({ checkout:c, item:it, quoteId:c.quote_id, ctx:invCtx, onDone:load }); return; }
+    if(SC&&invCtx){ SC.open({ checkout:c, item:it, quoteId:c.quote_id, ctx:invCtx, problem:!!problem, onDone:load }); return; }
     checkInId=id; legacyResId=null; openCi(it.name, Math.max(Number(c.qty_out||0)-Number(c.qty_in||0),0), it.unit);
   }
   function legacyBackFlow(resId){
@@ -898,7 +962,7 @@
     const od=(info.overdue||[]);
     $("#coShort").innerHTML=`<h3>${esc(CS.headline(info, req, fmtD))}</h3>
       <ul>${lines.map(l=>`<li>${esc(l)}</li>`).join("")}</ul>
-      ${od.length?`<ul class="od">${od.map(b=>`<li>${esc(b.event)}: ${esc(String(b.qty))} due back ${esc(fmtD(b.due_back))} <button type="button" class="btn sm" data-ci="${esc(b.checkout_id)}">Check in</button></li>`).join("")}</ul>`:""}
+      ${od.length?`<ul class="od">${od.map(b=>`<li>${esc(b.event)}: ${esc(String(b.qty))} due back ${esc(fmtD(b.due_back))} <button type="button" class="btn sm" data-ci="${esc(b.checkout_id)}">Mark back</button></li>`).join("")}</ul>`:""}
       <div class="acts">${acts.map(a=>`<button type="button" class="btn${a.key==="partial"?" primary":""}" data-act="${esc(a.key)}" data-sub="${esc(a.item_id||"")}">${esc(a.label)}</button>`).join("")}<button type="button" class="btn" data-act="dismiss">Cancel</button></div>`;
     $("#coShort").hidden=false;
     $("#coShort").querySelectorAll("[data-ci]").forEach(b=>b.addEventListener("click",()=>{
@@ -910,12 +974,12 @@
     const p=coPending; if(!p) return;
     if(key==="dismiss"){ hideShort(); return; }
     if(key==="reduce"){ $("#co_qty").value=Number(p.info.available||0); hideShort(); $("#co_qty").focus(); return; }
-    if(key==="sub"){ $("#co_item").value=itemId; hideShort(); $("#co_qty").focus(); BPUI.toast("Switched to the substitute item - check the quantity and press Check out.",{type:"info"}); return; }
+    if(key==="sub"){ $("#co_item").value=itemId; hideShort(); $("#co_qty").focus(); BPUI.toast("Switched to the substitute item - check the quantity and press Give out.",{type:"info"}); return; }
     if(key==="checkin"){ const od=(p.info.overdue||[])[0]; if(od&&checkouts.find(x=>x.id===od.checkout_id)){ hideShort(); checkInFlow(od.checkout_id); } else location.href="inventory.html?tab=loans"; return; }
     if(key==="subrent"){
       const note=CS.subrentNote(p.info, p.qty, fmtD), short=Math.max(p.qty-Number(p.info.available||0),0);
       if(!quoteId){ try{ await navigator.clipboard.writeText(note); }catch(e){} BPUI.toast("Open this from an event to add a vendor / sub-rent request. The note was copied: "+note,{type:"info"}); return; }
-      await BPUI.guard(btn,async()=>{ try{ await BPStore.stockreq.add(quoteId,{ item_id:p.itemId, label:note.slice(0,200), qty:short, note:"Raised from check-out shortage" });
+      await BPUI.guard(btn,async()=>{ try{ await BPStore.stockreq.add(quoteId,{ item_id:p.itemId, label:note.slice(0,200), qty:short, note:"Raised when giving out stock" });
         BPUI.toast("Vendor / sub-rent request added to this event for "+short+" "+(p.info.item||"")+".",{type:"ok"}); }
         catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"add the sub-rent request"}),{type:"err"}); } });
       return;
@@ -923,9 +987,9 @@
     if(key==="partial"){
       await BPUI.guard(btn,async()=>{ try{
         const r=await BPStore.inventory.checkouts.outSmart(p.itemId, quoteId||null, p.qty, p.to, p.crewId, p.note, true);
-        if(r&&r.ok){ await coDone(`Checked out ${r.qty_out} to ${p.to}. Short by ${r.shortfall} - noted on the check-out.`); }
+        if(r&&r.ok){ await coDone(`Gave out ${r.qty_out} to ${p.to}. Short by ${r.shortfall} - noted.`); }
         else { showShort(r, p.qty); BPUI.toast("Stock changed in the meantime - here are the latest numbers.",{type:"info"}); } }
-      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"check out"}),{type:"err"}); } });
+      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"give it out"}),{type:"err"}); } });
     }
   }
   $("#co_add").addEventListener("click",async()=>{
@@ -933,17 +997,17 @@
     const opt=$("#co_to").selectedOptions[0], to=($("#co_to").value||"").trim();
     const crewId=(opt&&opt.dataset.kind==="staff")?opt.dataset.id:null;   // link to staff record when in-house
     if(!itemId){ BPUI.toast("Add a stock item first.",{type:"info"}); return; }
-    const coV=BPStore.validate.count($("#co_qty").value,{allowZero:false,field:"Qty out"}); if(!coV.ok){ BPUI.toast(coV.error,{type:"err"}); $("#co_qty").focus(); return; } const qty=coV.value;
-    if(!to){ BPUI.toast("Who is it issued to?",{type:"err"}); $("#co_to").focus(); return; }
+    const coV=BPStore.validate.count($("#co_qty").value,{allowZero:false,field:"How many"}); if(!coV.ok){ BPUI.toast(coV.error,{type:"err"}); $("#co_qty").focus(); return; } const qty=coV.value;
+    if(!to){ BPUI.toast("Choose who gets it.",{type:"err"}); $("#co_to").focus(); return; }
     coPending={ itemId, qty, to, crewId, note:$("#co_note").value.trim()||null, info:null };
     await BPUI.guard($("#co_add"),async()=>{
       try{ const r=await BPStore.inventory.checkouts.outSmart(itemId, quoteId||null, qty, to, crewId, coPending.note, false);
-        if(r&&r.ok) await coDone("Checked out to "+to+".");
+        if(r&&r.ok) await coDone("Given out to "+to+".");
         else showShort(r, qty); }
       catch(e){
         // older DB: the 0073 guard refused an over-issue -> show the same panel from client-side numbers
         if(e&&e.code==="23514"){ try{ showShort(await localShortage(itemId), qty); return; }catch(_){} }
-        BPUI.toast(BPUI.friendlyError(e,{action:"check out"}),{type:"err"}); }
+        BPUI.toast(BPUI.friendlyError(e,{action:"give it out"}),{type:"err"}); }
     });
   });
   ["#co_item","#co_qty"].forEach(sel=>$(sel).addEventListener("change",()=>{ if(!$("#coShort").hidden) hideShort(); }));
@@ -1029,7 +1093,7 @@
     if(coR.status==="fulfilled"){ checkouts=coR.value||[];
       if(qlR.status==="fulfilled"&&Array.isArray(qlR.value)) quotesById=Object.fromEntries(qlR.value.map(q=>[q.id,q]));
       renderCheckouts(); }
-    else { checkouts=[]; renderCheckouts(); BPUI.loadError($("#loanRows"), coR.reason, load, {what:"check-outs"}); $("#lossRows").innerHTML='<tr><td colspan="9" class="empty">—</td></tr>'; $("#lossTotal").innerHTML=""; $("#co_add").disabled=true; }
+    else { checkouts=[]; renderCheckouts(); BPUI.loadError($("#loanRows"), coR.reason, load, {what:"what is given out"}); $("#lossRows").innerHTML='<tr><td colspan="9" class="empty">—</td></tr>'; $("#lossTotal").innerHTML=""; $("#co_add").disabled=true; }
   }
   // the Out & back tab opened on the main page: its lists are read now (once; later reloads include them)
   function loadLoans(){
@@ -1043,14 +1107,20 @@
     return loansBusy;
   }
 
-  // Populate the "Issued to" dropdown with staff + vendors (one shared source)
+  // everyone stock can be given to (deactivated people are never in it): this event's staff and booked vendors first, then staff, then vendors
   async function fillPeople(){
     const sel=$("#co_to"); if(!sel) return;
-    let opts=[]; try{ opts=await BPStore.people.options(); }catch{ opts=[]; }
-    const staffOpts=opts.filter(p=>p.kind==="staff"), vendorOpts=opts.filter(p=>p.kind==="vendor");
-    const grp=(label,arr)=>arr.length?`<optgroup label="${label}">`+arr.map(p=>`<option value="${esc(p.name)}" data-id="${esc(p.id)}" data-kind="${p.kind}">${esc(optName(p.name))}${p.role?" · "+esc(p.role):""}</option>`).join("")+`</optgroup>`:"";
-    sel.innerHTML='<option value="">Select person…</option>'+grp("Staff",staffOpts)+grp("Vendors",vendorOpts);
+    const soft=(f)=>Promise.resolve().then(f).then(x=>x||[],()=>[]);
+    const [opts,tasks,bks]=await Promise.all([soft(()=>BPStore.people.options()), soft(()=>quoteId&&BPStore.ops&&BPStore.ops.listTasks?BPStore.ops.listTasks(quoteId):[]), soft(()=>quoteId?BPStore.bookings.list(quoteId):[])]);
+    const here=new Set(); tasks.forEach(t=>{ if(t&&t.crew_id&&t.status!=="cancelled"&&t.status!=="rejected") here.add("staff:"+t.crew_id); }); bks.forEach(b=>{ if(b&&b.vendor_id&&b.status!=="cancelled"&&b.status!=="enquiry") here.add("vendor:"+b.vendor_id); });
+    const on=(p)=>here.has(p.kind+":"+p.id), by=(a,b)=>(a.kind>b.kind)-(a.kind<b.kind)||String(a.name).localeCompare(String(b.name));
+    const grp=(label,arr)=>arr.length?`<optgroup label="${label}">`+arr.map(p=>`<option value="${esc(p.name)}" data-id="${esc(p.id)}" data-kind="${esc(p.kind)}">${esc(optName(p.name))}${p.role?" · "+esc(p.role):p.kind==="vendor"?" · vendor":""}</option>`).join("")+`</optgroup>`:"";
+    peopleHtml='<option value="">Choose a person…</option>'+grp("On this event",opts.filter(on).sort(by))+grp("Staff",opts.filter(p=>p.kind==="staff"&&!on(p)))+grp("Vendors",opts.filter(p=>p.kind==="vendor"&&!on(p)));
+    sel.innerHTML=peopleHtml; $("#sgTo").innerHTML=peopleHtml;
+    document.querySelectorAll('#resRows [data-g="to"]').forEach(x=>{ const id=x.closest("[data-gv]").dataset.gv; x.innerHTML=peopleHtml; setPick(x,giveDraft[id]); });
   }
+  // the floor-plan suggestions ("Reserve and give to...") use the same people and the same call
+  function peopleSelect(){ const s=document.createElement("select"); s.className="sel"; s.innerHTML=peopleHtml; return s; }
 
   BPUI.boot(async ()=>{
     await BPStore.init();
@@ -1065,7 +1135,7 @@
     $("#boot").hidden=true; $("#app").hidden=false; $("#newBtn").hidden=!canEdit;
     if(!canEdit) $("#coCard").querySelectorAll("input,select,button").forEach(el=>el.disabled=true);
     if(quoteId){
-      $("#eventPanel").hidden=false; $("#eventBar").hidden=false; $("#rvNextStep").href="ops.html?quote="+encodeURIComponent(quoteId);
+      $("#eventPanel").hidden=false; $("#eventBar").hidden=false; $("#rvNextStep").href="resources.html?quote="+encodeURIComponent(quoteId); if(window.HelmResourceSteps) HelmResourceSteps.mount($("#resSteps"),{current:"stock",quoteId});
       if(!canEdit) $("#eventPanel").querySelectorAll("input,select,button").forEach(el=>el.disabled=true);
     }
     // R248: every startup read starts NOW, side by side (was one after the other: custom fields -> settings -> the event ->
@@ -1087,7 +1157,8 @@
       })(),
       // R248 (0430): the floor-plan products (From layouts tab, the per-event table, the top strip); hidden on a database without 0430
       window.HelmLayoutStock ? (layoutMounted=true, HelmLayoutStock.mount({ quoteId:quoteId||null, canEdit, fmtDate, items:()=>items, checkouts:()=>checkouts,
-        outNow:()=>Object.values(avail||{}).reduce((t,a)=>t+(Number(a&&a.outNow)||0),0), ready:()=>stockLoaded, reload:load, openTab:activatePane }).catch(()=>{})) : null,
+        freeFor:(i)=>{ const a=stockLoaded&&!availPending?avail[i]:null; return a?Number(a.availableOnEvent!=null?a.availableOnEvent:a.available):null; },
+        outNow:()=>Object.values(avail||{}).reduce((t,a)=>t+(Number(a&&a.outNow)||0),0), ready:()=>stockLoaded, reload:load, openTab:activatePane, peopleSelect, pickOf, give:(itemId,qty,to)=>giveOne(itemId,qty,to,null) }).catch(()=>{})) : null,
     ];
     await Promise.all(jobs);
   });

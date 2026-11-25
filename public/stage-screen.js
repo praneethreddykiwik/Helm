@@ -22,6 +22,8 @@
  *   screenFit    'cover' = Fill (edges may be cropped) | absent = Fit (whole picture, nothing cut - the default)
  *   screenPicW/H the uploaded picture's pixel size (whole numbers) - only to warn when its shape differs
  *   screenAspect standalone screens: '' (as before) | 16:9 | 4:3 | 21:9 | 32:9 | 9:16 | 1:1 | custom (+ screenH ft)
+ *   R255 (posters): banner / hoarding frame, branding wall, plain backdrop, signage / standee, easel sign and flag have a
+ *   WHITE face until a picture is added; the picture uses the R200 keys above (screenMode / screenPic / screenFit).
  *   boardSize    welcome board: 2x3 | 3x4 | 4x6 | custom (+ boardW / boardH ft); absent = the size before R200
  * Every text is length-capped (60) and only ever drawn as TEXT (SVG textContent / canvas fillText),
  * never as HTML. Old layouts carry none of these keys, so they look exactly as before.
@@ -65,6 +67,10 @@
   var BG_SWATCHES = ['#0b2a5b', '#4a0b18', '#0a0614', '#ffffff', '#ffb703', '#14532d', '#1f2937', '#0f766e'];
   // which builder item types carry a screen: 'main' = the stage backdrop, 'side' = portrait side panel
   var SCREEN_TYPES = { stage: 'main', ledscreen: 'screen', videowall: 'screen', led: 'screen', sidescreen: 'side', brandwall: 'screen', backdrop: 'screen', welcomeboard: 'board' };
+  // R255: poster-like items - a white face that takes a picture. brandwall + backdrop are also text screens (above).
+  var POSTER_TYPES = { hoarding: 1, brandwall: 1, backdrop: 1, signage: 1, easel: 1, flagstand: 1 };
+  // the looks of those items that are not a blank face (a material, a light-up screen, a direction post): drawn as before
+  var POSTER_NOT = { backdrop: { sequin: 1, greenery: 1, wood: 1, balloon: 1 }, signage: { digital: 1, direction: 1 } };
   // R200: picture fit, standalone screen shapes, welcome board sizes and the board's template words
   var FITS = [['contain', 'Fit - whole picture, nothing cut'], ['cover', 'Fill - covers it all, edges cropped']];
   var ASPECTS = [['', 'Standard (as before)'], ['16:9', '16:9 widescreen (most screens)'], ['4:3', '4:3 classic'], ['21:9', '21:9 ultra-wide'],
@@ -100,6 +106,17 @@
   function cleanNum(v, lo, hi) { var n = +v; if (typeof v === 'boolean' || v === null || v === '' || !isFinite(n)) return 0; return Math.round(Math.max(lo, Math.min(hi, n)) * 10) / 10; }
   function inList(list, v) { return typeof v === 'string' && !!v && list.some(function (l) { return l[0] === v; }); }
   function isScreenType(type) { return own.call(SCREEN_TYPES, String(type || '')); }
+  function isPosterType(type) { return own.call(POSTER_TYPES, String(type || '')); }
+  // can this item carry a poster picture? (a direction post has no face)
+  function takesPicture(it) { return !!it && isPosterType(it.type) && !(it.type === 'signage' && (it.properties || {}).style === 'direction'); }
+  // is its face plain white right now? A fabric backdrop / flag with a colour somebody picked keeps that colour.
+  function whiteFace(it) {
+    if (!it || !isPosterType(it.type)) return false;
+    var p = it.properties || {}, no = POSTER_NOT[it.type];
+    if (no && own.call(no, String(p.style || ''))) return false;
+    if (it.type === 'flagstand' || (it.type === 'backdrop' && p.style !== 'flex')) return !it.colorCustom && !p.palette;
+    return true;
+  }
   function themeOf(key) { return own.call(THEMES, key) ? THEMES[key] : THEMES['']; }
 
   /* ---- colour: WCAG relative luminance + contrast; custom background -> readable text ---- */
@@ -169,6 +186,9 @@
   }
   // what this item's screen shows (mirror resolved). Returns null for non-screen types.
   function contentOf(it, items) {
+    if (it && !isScreenType(it.type) && takesPicture(it)) {   // R255: a poster shows its picture, or nothing (white)
+      var pc = rawContent(null), q = rawContent(it.properties); pc.pic = q.pic; pc.fit = q.fit; pc.poster = true; return pc;
+    }
     if (!it || !isScreenType(it.type)) return null;
     var p = it.properties || {};
     if (p.screenMirror === true && it.type !== 'stage') {
@@ -177,6 +197,7 @@
     }
     var c = rawContent(p); if (it.type !== 'stage') c.layout = '';
     if (SCREEN_TYPES[it.type] === 'board') c.board = true;
+    if (isPosterType(it.type)) c.poster = true;
     return c;
   }
   /* R137 screen layout of a stage: the screens on its backdrop wall, as fractions of the stage width (x = centre,
@@ -198,7 +219,7 @@
   // stable key: the 3D view redraws a screen texture only when this changes (logo: only whether its picture is ready)
   function keyOf(c, side, w, h) {
     return [c.theme, c.title, c.brand, c.tagline, c.subtitle, c.dateLine, side ? 's' : 'm', w, h, c.bg || '', c.logo ? c.logo + ':' + logoState(c.logo) : '',
-      c.pic ? c.pic + ':' + logoState(c.pic) + ':' + c.fit : '', c.board ? 'b' : ''].join('\u0001');
+      c.pic ? c.pic + ':' + logoState(c.pic) + ':' + c.fit : '', c.board ? 'b' : c.poster ? 'p' : ''].join('\u0001');
   }
 
   /* ---- R200 real screen size (ft) + picture guidance. faceOf mirrors the 3D models exactly (builder-3d.js reads the
@@ -221,8 +242,18 @@
   }
   // { w, h } = the visible screen face in ft, frame = the model's frame height (3D), or null (not a screen / no screen)
   function faceOf(it, items) {
-    if (!it || !isScreenType(it.type)) return null;
+    if (!it || !(isScreenType(it.type) || takesPicture(it))) return null;
     var p = it.properties || {}, w = Math.max(0.5, +it.width || 1), d = Math.max(0.5, +it.height || 1), t = it.type;
+    if (!isScreenType(t)) {   // R255: the printed face of each poster model
+      if (t === 'hoarding') return { w: w, h: 10, frame: 10 };
+      if (t === 'easel') return { w: w, h: 3, frame: 3 };
+      if (t === 'flagstand') { var fl = Math.max(2.4, Math.min(4, w * 1.5)); return { w: fl, h: fl * 0.66, frame: fl * 0.66 }; }
+      var ps = p.style || '';
+      if (ps === 'digital') return { w: w * 0.8, h: 6.6 * 0.85, frame: 6.6 };
+      if (ps === 'wallposter') return { w: w, h: w * 1.4, frame: w * 1.4 };
+      var ph = ps === 'aframe' ? 3.2 : ps === 'cutout' || ps === 'standee' ? 6 : 6.6;
+      return { w: w * 0.9, h: ph, frame: ph };
+    }
     var curved = p.style === 'curvedled' && (t === 'ledscreen' || t === 'videowall'), fw, fh, fr, k, H;
     if (t === 'ledscreen' || t === 'videowall' || t === 'led' || t === 'sidescreen') {
       fr = t === 'ledscreen' ? Math.max(8, w * 0.4) : t === 'videowall' ? Math.max(8, d) : t === 'led' ? Math.max(6, Math.round(w * 9 / 16)) : Math.max(9, Math.min(16, w * 1.8));
@@ -272,7 +303,7 @@
   // the plain-words guidance shown next to the upload: { size, ratio, px, line }
   function guidance(it, items) {
     var f = faceOf(it, items); if (!f) return null;
-    var print = it.type === 'welcomeboard' || it.type === 'brandwall' || it.type === 'backdrop', rp = recommendPx(f.w, f.h, print);
+    var print = it.type === 'welcomeboard' || isPosterType(it.type), rp = recommendPx(f.w, f.h, print);
     return { w: f.w, h: f.h, size: sizeText(f.w, f.h), ratio: rp.ratio, pxW: rp.w, pxH: rp.h, print: print,
       line: 'Make the picture ' + rp.w + ' × ' + rp.h + ' px (' + rp.ratio + ')' + (print ? ' or larger for print.' : ' or larger, same shape.') };
   }
@@ -286,9 +317,9 @@
     if (!s) return { ok: false, reason: 'That is not a picture Helm can use. Please choose a PNG, JPG or WebP image.' };
     return { ok: true, mime: s.mime, ext: s.ext };
   }
-  // canvas: a picture over the whole W x H face - Fit (contain, dark bars) or Fill (cover, centred crop)
-  function drawPicture(ctx, W, H, img, fit) {
-    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, W, H);
+  // canvas: a picture over the whole W x H face - Fit (contain, dark bars; white on a poster) or Fill (cover, centred crop)
+  function drawPicture(ctx, W, H, img, fit, bg) {
+    ctx.fillStyle = bg || '#05070a'; ctx.fillRect(0, 0, W, H);
     if (!img || !(img.naturalWidth > 0 || img.width > 0)) return false;
     var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height || 1;
     var k = fit === 'cover' ? Math.max(W / iw, H / ih) : Math.min(W / iw, H / ih), dw = iw * k, dh = ih * k;
@@ -513,7 +544,7 @@
   // draws a full screen face. opts.side = portrait side panel (brand + tagline only); opts.logo = the loaded logo image
   function draw(ctx, W, H, c, opts) {
     opts = opts || {}; c = c || rawContent({});
-    if (c.pic) { drawPicture(ctx, W, H, opts.pic || null, c.fit); return; }   // R200: picture mode = the picture only
+    if (c.pic) { drawPicture(ctx, W, H, opts.pic || null, c.fit, c.poster ? '#ffffff' : ''); return; }   // R200: picture mode = the picture only
     var T = paletteOf(c), sans = '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif', serif = 'Georgia, "Times New Roman", serif';
     backdrop(ctx, W, H, T);
     motif(ctx, W, H, T);
@@ -592,6 +623,8 @@
     FITS: FITS, ASPECTS: ASPECTS, ASPECT_TYPES: ASPECT_TYPES, BOARD_SIZES: BOARD_SIZES, BOARD_FIELDS: BOARD_FIELDS, BOARD_THEMES: BOARD_THEMES,
     PIC_MAX_BYTES: PIC_MAX_BYTES, PIC_MAX_PX: PIC_MAX_PX, cleanPic: cleanPic, aspectNum: aspectNum, boardOf: boardOf, faceOf: faceOf,
     ratioLabel: ratioLabel, recommendPx: recommendPx, shapeDiff: shapeDiff, sizeText: sizeText, guidance: guidance,
-    validatePicture: validatePicture, drawPicture: drawPicture
+    validatePicture: validatePicture, drawPicture: drawPicture,
+    // R255
+    isPosterType: isPosterType, takesPicture: takesPicture, whiteFace: whiteFace
   });
 });

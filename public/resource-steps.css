@@ -1,0 +1,21 @@
+/* resource-steps.css - R255: the four steps of covering an event (resource-steps.js), one compact line; on a phone the steps scroll
+   inside their own bar and Next stays in reach. */
+.rs{display:flex;align-items:center;gap:10px;margin:0 0 14px;min-height:44px;min-width:0;max-width:100%}
+.rs[hidden]{display:none!important}
+.rs-list{list-style:none;display:flex;gap:8px;margin:0;padding:3px;min-width:0;flex:1 1 auto;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;position:relative}
+.rs-list::-webkit-scrollbar{display:none}
+.rs-list li{flex:none;display:flex}
+.rs .rs-a{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:5px 13px 5px 6px;border:1px solid var(--line,#e3e6ee);border-radius:999px;background:var(--panel,#fff);color:var(--ink-2,#4b475f);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;box-sizing:border-box}
+.rs a.rs-a:hover{border-color:var(--accent,#047857);color:var(--accent,#047857)}
+.rs .rs-a.on{border-color:var(--accent,#047857);background:var(--accent-soft,#e7f3ee);color:var(--accent,#047857)}
+.rs-n{display:inline-grid;place-items:center;width:24px;height:24px;flex:none;border-radius:50%;background:var(--panel-2,#f4f6f5);border:1px solid var(--line,#e3e6ee);font-size:12px;font-weight:700}
+.rs .rs-a.on .rs-n{background:var(--accent,#047857);border-color:var(--accent,#047857);color:#fff}
+.rs .rs-next{flex:none;display:inline-flex;align-items:center;min-height:38px;padding:5px 14px;border-radius:10px;border:1px solid var(--accent,#047857);color:var(--accent,#047857);background:var(--panel,#fff);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;box-sizing:border-box}
+.rs .rs-next:hover{background:var(--accent-soft,#e7f3ee)}
+.rs a:focus-visible{outline:2px solid var(--accent,#047857);outline-offset:2px}
+@media (max-width:760px),(pointer:coarse){ .rs .rs-a,.rs .rs-next{min-height:44px} }
+@media (max-width:760px){
+  .rs{gap:8px}
+  /* the cut edge says there is more to the side */
+  .rs-list{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);padding-right:18px}
+}

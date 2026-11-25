@@ -1,22 +1,24 @@
-/* day-before.js - R252 (owner, 24 Nov 2026): the Day-before card as ONE readiness checklist, pulled from the real data and used by
- * Tasks & Crew (ops.html), the Event-day monitor (monitor.html) and Event Ready (ready.html).
+/* day-before.js - the event-day CHECKLIST (R252 built it as the Day-before card; R257, owner 25 Nov 2026: "Instead of manually locking
+ * everything, add a checklist - like Mark as done, who did it"). One component, used by Tasks & Crew (ops.html), the Event-day monitor
+ * (monitor.html) and Event Ready (ready.html):
  *
- *   HelmDayBefore.render(host, ctx)   the card. Called by HelmEventPlan.renderDayBefore (event-plan.js), the callers stay as they are.
+ *   HelmDayBefore.render(host, ctx)     Day before. Called by HelmEventPlan.renderDayBefore (event-plan.js), the callers stay as they are.
+ *   HelmDayBefore.renderPre(host, ctx)  Pre-event (the set-up on the day, before guests)
+ *   HelmDayBefore.openLines(q, step)    the lines a person still has to tick (null = not known yet) - "Mark pre-event complete" lists them
  *   ctx: { plan (event_day_plan_get), tasks, quoteId, eventDate, eventTime, tz, now, nameOf(t), toast(msg, type), onChanged(),
- *          compact, locked (0397: plan locked), noReady (Event Ready shows part 1 itself) }
+ *          compact, noReady (Event Ready shows its own checks), closed, sheet (who checked in), goCheckin(), goVendors() }
  *
- *   1 Booked and planned      the Readiness checks (HelmEventPlan.readyCheck) - Helm works these out
- *   2 Vendors                 event_resources: who brings what, call, Mark confirmed, Give a job
- *   3 Stock and floor plan    the 2D / 3D plan counted per product against stock (0430): needed, reserved, given out, missing
- *   4 Logistics               event_checklist: permits, transport, who tells whom, guest count
- *   5 People and programme    tasks not given out / not accepted yet, run-sheet, client
- * The 11 Day-before ticks (HelmEventPlan.DAYBEFORE, keys = the server's) sit in these groups, each exactly once, each with
- * "Assign" (optional, in the More menu): a real "Day before" task through assign_tasks / assign_tasks_vendor; never a second one while one is open.
- * On screen: one sentence + a bar, "Do these first" (at most 5), then five sections that open and close; a line = tick, title, one grey
- * line, one chip for trouble, one button, the rest behind the ... (More) button; helper words when the line is opened.
+ * Day before: Vendors (one line per vendor) - Menu and guest count - Plan and floor layout - Inventory and stock - Logistics - People - Final checks -
+ * your own lines. Pre-event: People and vendors - Set-up (the departments of this event's pre-event tasks) - Checks - your own lines.
+ * Every section is always open. Every line: a tick + "Mark done", the fact as it is now, who ticked it and when, Undo, one button named by what it
+ * opens, the rest behind the ... (More) button ("Give to someone" makes a real Day-before task; never a second one while one is open).
+ * A line Helm can work out ticks itself ("Auto"). A person may tick it by hand too: "Marked done by Asha, 9:33 AM, though 1 vendor is not confirmed" -
+ * a stored tick with a name and a time (0442), the vendor / stock / task itself never changes.
+ * Where the ticks are kept: the 11 Day-before lines in event_day_plans.checks (0396, as before), Dry run / Team briefed = the Readiness sign-offs,
+ * Logistics rows = event_checklist, everything else + your own lines = event_check_marks / event_check_lines (0442). Before 0442 those say so.
  *
- * Reads: only while the card is on screen, in parallel, kept 3 minutes per event (the 30 s redraw reads nothing). Each read needs the
- * permission of its page AND of its table (the database answers "no rows", not an error, to a refused read - so an unreadable
+ * Reads: only while the card is on screen, in parallel, kept 3 minutes per event (the ticks 1 minute; the 30 s redraw reads nothing). Each read
+ * needs the permission of its page AND of its table (the database answers "no rows", not an error, to a refused read - so an unreadable
  * group is left out and never counts as fine). A failed read says "Couldn't check". A save is read back before it counts as saved.
  * DOM by createElement / textContent only; money fields are dropped as soon as a row is read. */
 (function (global) {
@@ -24,10 +26,14 @@
   var doc = global.document, KEEP_MS = 180000, CAT = "Day before";
   var BK = { enquiry: "Asked", booked: "Booked", confirmed: "Confirmed", delivered: "Delivered", cancelled: "Cancelled" };
   var CHK = { open: "Open", done: "Done", na: "N/A" }, GST = { open: "Pending", done: "Confirmed", na: "Declined" };
-  var LINE_GROUP = { vendors: "vendors", load_list: "stock", transport: "logistics", permits: "logistics", headcount: "logistics",
-    venue_access: "logistics", power: "logistics", weather: "logistics", crew_call: "people", runsheet: "people", client: "people" };
-  var SECTIONS = [["compliance", "Permits & licences", ["permits"]], ["logistics", "Transport & deliveries", ["transport"]],
-    ["guests", "Guest count", ["headcount"]], ["comms", "Who tells whom", []], ["", "Venue, power and weather", ["venue_access", "power", "weather"]]];
+  var LINE_GROUP = { vendors: "vendors", headcount: "menu", load_list: "stock", transport: "logistics", permits: "logistics",
+    venue_access: "logistics", power: "logistics", weather: "logistics", crew_call: "people", runsheet: "final", client: "final" };
+  // which section a Readiness check (store-api readiness.check) belongs to; what opens it and the words of that button
+  var RD = { layout: "plan", vendors: "vendors", menu: "menu", capacity: "plan", resources: "stock", stock: "stock", staff: "people", date: "final", approval: "final", runsheet: "final", dry_run: "final", briefing: "final" };
+  var RD_GO = { layout: ["builder.html?quote=", "Open 2D / 3D plan"], vendors: ["resources.html?quote=", "Open Resource plan"], menu: ["plan.html?quote=", "Open menu"], capacity: ["event.html?id=", "Open event"], resources: ["resources.html?quote=", "Open Resource plan"],
+    stock: ["resources.html?quote=", "Open Resource plan"], staff: ["ops.html?quote=", "Open Tasks & Crew"], date: ["event.html?id=", "Open event"], approval: ["event.html?id=", "Open event"],
+    runsheet: ["runsheet.html?quote=", "Open run-sheet"], dry_run: ["ready.html?quote=", "Open Readiness"], briefing: ["ready.html?quote=", "Open Readiness"] };
+  var MARK_MS = 60000, ARR_MS = 25000, NEED_SQL = "needs database update 0442";
 
   var MARKS = { exit: 1, parking: 1 };   // floor-plan marks, not products: nothing to link or to get from a vendor
 
@@ -35,6 +41,7 @@
   function nl(v) { return String(v == null ? "" : v).trim().toLowerCase().replace(/\s+/g, " "); }
   function n0(v) { var x = Number(v); return isFinite(x) ? x : 0; }
   function ms(v) { if (v == null || v === "") return NaN; var t = typeof v === "number" ? v : new Date(v).getTime(); return isFinite(t) ? t : NaN; }
+  function isAre(n, one, many, words) { return plural(n, one, many) + (n === 1 ? " is " : " are ") + words; }
   function fmt(v) { var x = Math.round(n0(v) * 100) / 100; return x.toLocaleString("en-IN"); }
   function plural(n, one, many) { return fmt(n) + " " + (n === 1 ? one : many || one + "s"); }
   function TS() { return global.HelmTaskStatus || {}; }
@@ -134,8 +141,8 @@
   function refused(e) { var c = String((e && e.code) || ""), m = String((e && (e.message || e)) || ""); return c === "42501" || c === "PGRST301" || /not authori[sz]ed|permission denied|not allowed/i.test(m); }
 
   /* ---------------- state: one per event ---------------- */
-  var ST = {}, UI = { form: null, folds: {}, busy: {}, sec: {}, open: {}, menu: null };
-  function S(q) { return ST[q] || (ST[q] = { at: 0, loading: false, perms: null, ready: blank(), vendors: blank(), stock: blank(), logistics: blank(), people: null, owners: null }); }
+  var ST = {}, UI = { form: null, folds: {}, busy: {}, open: {}, menu: null, own: {}, flash: null };
+  function S(q) { return ST[q] || (ST[q] = { at: 0, loading: false, perms: null, ready: blank(), vendors: blank(), stock: blank(), logistics: blank(), marks: blank(), arrivals: blank(), markAt: 0, arrAt: 0, left: {}, people: null, owners: null }); }
   function blank() { return { state: "wait", data: null }; }
   function store() { return global.BPStore || {}; }
   function ask(fn, name, area) {   // one permission, never throws, unknown = no
@@ -145,8 +152,8 @@
   function askAll() {
     var A = store().auth || {}, v = function (a) { return ask("canView", "v", a); }, e = function (a) { return ask("canEditArea", "e", a); };
     var can = A.canAssignTasks ? ask("canAssignTasks") : e("staff");
-    return Promise.all([v("vendors"), v("inventory"), v("command"), v("logistics"), v("plan"), v("staff"), e("vendors"), e("resources"), e("logistics"), e("plan"), can, v("resources")]).then(function (r) {
-      return { vendors: r[0], inventory: r[1], command: r[2], logistics: r[3] && r[4], staff: r[5], vendorsEdit: r[0] && r[6] && r[7], logisticsEdit: r[8] && r[9], assign: r[10], resources: r[11] };
+    return Promise.all([v("vendors"), v("inventory"), v("command"), v("logistics"), v("plan"), v("staff"), e("vendors"), e("resources"), e("logistics"), e("plan"), can, v("resources"), e("ready")]).then(function (r) {
+      return { vendors: r[0], inventory: r[1], command: r[2], logistics: r[3] && r[4], staff: r[5], vendorsEdit: r[0] && r[6] && r[7], logisticsEdit: r[8] && r[9], assign: r[10], resources: r[11], readyEdit: r[12] };
     });
   }
   function settle(q, g, p) {
@@ -184,6 +191,18 @@
           shortages: (r[3] || []).map(function (x) { return { id: x.id, item_id: x.item_id, label: x.label, qty: x.qty, source: x.source, booking_id: x.booking_id }; }) };
       });
     },
+    // 0442: who ticked what, your own lines, the history. Before 0442: { old } (the 11 ticks still work)
+    marks: function (q) {
+      var C = store().ops && store().ops.checks; if (!C || !C.get) return Promise.resolve({ hidden: true, data: { old: true } });
+      S(q).markAt = Date.now();
+      return C.get(q).then(function (d) { return d ? { marks: d.marks || {}, lines: d.lines || [], log: d.log || [], can_edit: d.can_edit === true } : { hidden: true, data: { old: true } }; });
+    },
+    // Pre-event only: who has arrived (the same rows as the Vendors card and Event-day command)
+    arrivals: function (q, p) {
+      var D = store().dayops; S(q).arrAt = Date.now(); if (!p.vendors || !p.command || !D || !D.list) return Promise.resolve({ hidden: true });
+      var VI = global.HelmVendorItems;   // R260 (0448): their items, checked in on the Vendors card
+      return Promise.all([D.list(q, "arrival"), VI && VI.load ? VI.load(q, 5000) : null]).then(function (r) { var l = r[0]; return { items: VI && r[1] ? VI._pure.sumOf(r[1]) : null, rows: (l || []).map(function (a) { return { ref: a.ref_id, status: String(a.status || "") }; }) }; });
+    },
     logistics: function (q, p) {
       var B = store(); if (!p.logistics || !B.checklist) return Promise.resolve({ hidden: true });
       return B.checklist.list(q).then(function (list) { return { rows: (list || []).filter(function (c) { return c && c.section !== "teardown"; }).map(cleanCheck) }; });
@@ -194,7 +213,7 @@
     var s = S(q); if (s.loading || !q) return s.p; s.loading = true; repaint(q);
     s.p = askAll().then(function (p) {
       s.perms = p;
-      return Promise.all(Object.keys(READ).filter(function (k) { return !(k === "ready" && ctx.noReady); }).map(function (k) { return loadGroup(q, k, force); }));
+      return Promise.all(Object.keys(READ).filter(function (k) { return !(k === "ready" && ctx.noReady) && !(k === "arrivals" && ctx.step !== "pre"); }).map(function (k) { return loadGroup(q, k, force); }));
     }).then(function () { s.loading = false; s.at = Date.now(); repaint(q); }, function () { s.loading = false; s.at = Date.now(); repaint(q); });
     return s.p;
   }
@@ -223,7 +242,8 @@
   function say(ctx, msg, type) { if (ctx && typeof ctx.toast === "function") ctx.toast(msg, type); }
   function why(e, what) {
     var m = String((e && e.message) || "");
-    if (/plan_locked/.test(m)) return "The plan is locked for the event day. Unlock it first.";
+    if (/plan_locked/.test(m)) return "The database still refuses changes on the event day (" + NEED_SQL + ").";   // R257: before 0442
+    if (/PGRST202/.test(String((e && e.code) || "")) || /function public\.event_check/.test(m)) return "This " + NEED_SQL + ".";
     try { if (global.BPUI && global.BPUI.friendlyError) return global.BPUI.friendlyError(e, { action: what }); } catch (x) {}
     return "Could not " + what + ".";
   }
@@ -248,7 +268,7 @@
   function closeForm(ctx) { var back = UI.form && UI.form.back; UI.form = null; repaint(ctx.quoteId, true); if (back) { var b = doc.getElementById(back); if (b) try { b.focus(); } catch (e) {} } }
   function openForm(ctx, f) {
     if (UI.form && UI.form.key === f.key && UI.form.q === ctx.quoteId) { closeForm(ctx); return; }
-    UI.form = Object.assign({ q: ctx.quoteId, val: "", text: "", err: "" }, f); UI.menu = null; if (f.sec) secOf(ctx.quoteId).user[f.sec] = true; repaint(ctx.quoteId, true);
+    UI.form = Object.assign({ q: ctx.quoteId, val: "", text: "", err: "" }, f); UI.menu = null; repaint(ctx.quoteId, true);
     if (f.need === "owners") loadOwners(ctx.quoteId); else if (f.need === "people") loadPeople(ctx.quoteId);
     var first = doc.getElementById("hdbPick") || doc.getElementById("hdbJob"); if (first) try { first.focus(); } catch (e) {}
   }
@@ -257,7 +277,7 @@
     s.people = { state: "wait", staff: [], vendors: [] };
     var v = B.vendors && B.vendors.listAll && s.perms && s.perms.vendors ? B.vendors.listAll(false).then(function (x) { return x || []; }, function () { return []; }) : Promise.resolve([]);
     Promise.all([B.ops.listCrew(), v]).then(function (r) {
-      s.people = { state: "ok", staff: (r[0] || []).map(function (c) { return { id: c.id, name: String(c.name || ""), phone: String(c.phone || ""), dept: String(c.department || c.role || ""), mail: !!(c.email || c.profile_id) }; }).filter(function (c) { return c.name; }), vendors: r[1].map(cleanVendor) };
+      s.people = { state: "ok", staff: (r[0] || []).filter(function (c) { return !c.login_off; }).map(function (c) { return { id: c.id, name: String(c.name || ""), phone: String(c.phone || ""), dept: String(c.department || c.role || ""), mail: !!(c.email || c.profile_id) }; }).filter(function (c) { return c.name; }), vendors: r[1].map(cleanVendor) };
     }, function () { s.people = { state: "error", staff: [], vendors: [] }; }).then(function () { repaint(q, true); });
   }
   function loadOwners(q) {
@@ -290,7 +310,6 @@
     if (!who) { f.err = "Pick who should do it."; repaint(q, true); return; }
     f.err = "";
     await run(ctx, "hdbGo", "give the task", async function () {
-      if (isLocked(ctx)) throw new Error("plan_locked");
       var iso = startFor(ctx), fresh = await O.listTasks(q), ex = lineTask(fresh, title, line.vendorId);
       if (ex && ex.held) {   // someone gave it out meanwhile: never a second task
         say(ctx, "Already with " + nameOf(ctx, ex.t) + ".", "err"); UI.form = null; if (ctx.onChanged) await ctx.onChanged(); return;
@@ -341,13 +360,12 @@
     }
     return formBox(ctx, kids, "Give the task", function () { give(ctx, line); });
   }
-  function isLocked(ctx) { if (ctx.locked) return true; try { return !!(global.HelmEventFloor && global.HelmEventFloor.isLocked && global.HelmEventFloor.isLocked(ctx.quoteId)); } catch (e) { return false; } }
-  function canGive(ctx) { var p = S(ctx.quoteId).perms; return !!(p && p.assign && p.staff && !isLocked(ctx)); }
+  function canGive(ctx) { var p = S(ctx.quoteId).perms; return !!(p && p.assign && p.staff && !ctx.closed); }
   function isOpenForm(ctx, key) { return !!(UI.form && UI.form.q === ctx.quoteId && UI.form.key === key); }
 
-  /* ---- lines: first as plain objects (so the sentence, "Do these first" and the closed sections can be worked out), then as rows ----
-     { key, sec, done, quiet (not counted), na (not counted), title, sub, chip, lead, main(top) = the ONE button, more [menu items],
-       detail [strings / nodes, shown when the line is opened], form, urg { rank, why, say }, kids [lines] } */
+  /* ---- lines: first as plain objects (so the count and "Do these first" can be worked out), then as rows ----
+     { key, sec, done, quiet (not counted), na (not counted), title, fact (as it is now), who (who ticked it), chip, lead, tick { id, on, can, fn }, acts(top) = the line's own buttons [nodes],
+       go [href or fn, words] = the button named by what it opens, more [menu items], detail [strings / nodes, shown when the line is opened], form, urg { rank, why, rest }, kids [lines] } */
   function icon(t, cls) { return h("span", { cls: "hdb-i " + (cls || ""), "aria-hidden": "true", text: t }); }
   function tickBtn(id, on, title, can, fn) {
     return h("button", { type: "button", id: id, cls: "hdb-tick" + (on ? " on" : ""), "aria-pressed": on ? "true" : "false", disabled: can ? null : true, "aria-disabled": UI.busy[id] ? "true" : null, "aria-label": (on ? "Done: " : "Not done: ") + title, on: can ? { click: fn } : null },
@@ -355,10 +373,55 @@
   }
   function goLink(id, href, text, label) { return h("a", { id: id, cls: "tc-btn sm hdb-btn", href: href, text: text, "aria-label": label }); }
   function dots(list) { return list.filter(Boolean).join(" · "); }
+  function low(t) { t = String(t || ""); return /^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t; }
   function topId(top, id) { return (top ? "hdbTop-" : "") + id; }
-  /* open / closed: per event, kept over redraws */
-  function secOf(q) { return UI.sec[q] || (UI.sec[q] = { auto: "", user: {} }); }
-  function secOpen(q, g) { var x = secOf(q); return x.user[g.key] != null ? x.user[g.key] : x.auto === g.key && !g.full; }
+  function stepOf(ctx) { return ctx.step === "pre" ? "pre" : "daybefore"; }
+  function sfx(ctx) { return stepOf(ctx) === "pre" ? "-pre" : ""; }   // two cards can be on one page (one of them hidden): ids stay apart
+  // "Done by Asha, 9:33 AM" (with the day when it was not today, studio time)
+  function byWords(by, at, ctx, word) {
+    if (!by) return ""; var t = ms(at), T = TS(), today = T.ymdIn ? T.ymdIn(ctx.tz, ctx.now == null ? Date.now() : ctx.now) : "";
+    return (word || "Done") + " by " + by + (isFinite(t) ? ", " + (T.ymdIn && T.ymdIn(ctx.tz, t) === today ? clock(t, ctx.tz) : dayTime(t, ctx.tz)) : "");
+  }
+  /* ---- the stored ticks (0442) ---- */
+  function marksOf(ctx) { var m = S(ctx.quoteId).marks; return m.data && m.data.marks ? m.data : null; }
+  function markKey(ctx, key) { return stepOf(ctx) + ":" + String(key).toLowerCase(); }
+  function markOf(ctx, key) { var d = marksOf(ctx); return (d && d.marks[markKey(ctx, key)]) || null; }
+  function canMark(ctx) { var d = marksOf(ctx); return !!(d && d.can_edit); }
+  function oldDb(ctx) { var m = S(ctx.quoteId).marks; return !!(m.data && m.data.old); }
+  async function saveMark(ctx, key, on, note) {
+    var r = await store().ops.checks.mark(ctx.quoteId, markKey(ctx, key), on, note || null), d = marksOf(ctx);
+    if (d && r && r.key && r.item) d.marks[r.key] = r.item;   // the server's answer: somebody else's earlier tick stays theirs
+    S(ctx.quoteId).markAt = Date.now() - MARK_MS + 1500;   // the history follows in a moment
+  }
+  function markFn(ctx, key, id, on, note) { return function () { run(ctx, id, "save the tick", function () { return saveMark(ctx, key, on, note); }); }; }
+  /* a line only a person can tick */
+  function handLine(ctx, it) {
+    var m = markOf(ctx, it.key), on = !!(m && m.done), id = "hdbMk-" + it.key;
+    it.done = on; it.hand = true; if (on) { it.urg = null; it.chip = null; }
+    it.who = on ? byWords(m.by, m.at, ctx) : "";
+    it.tick = { id: id, on: on, can: canMark(ctx), fn: markFn(ctx, it.key, id, !on) };
+    return it;
+  }
+  /* a line Helm works out: it ticks itself (Auto). Not done yet = a person may say it is (a stored tick; the fact is still shown). */
+  function autoLine(ctx, it) {
+    it.auto = true; if (it.na) return it;
+    var m = markOf(ctx, it.key), id = "hdbMk-" + it.key, fact = it.fact || (it.chip && it.chip[0]) || "";
+    if (it.done) { if (!it.quiet) it.chip = it.chip || ["Auto", "ok"]; return it; }
+    if (m && m.done) {
+      it.who = byWords(m.by, m.at, ctx, "Marked done") + (it.why || fact ? ", though " + low(it.why || fact) : ""); it.done = true; it.byHand = true; it.urg = null; it.chip = null; it.fact = "";
+      it.lead = icon("✓", "ok"); it.tick = { id: id, on: true, can: canMark(ctx), fn: markFn(ctx, it.key, id, false) };
+    } else it.tick = { id: id, on: false, can: canMark(ctx), fn: markFn(ctx, it.key, id, true, it.why || fact) };
+    return it;
+  }
+  function tickNodes(ctx, it, top) {
+    var t = it.tick; if (!t) return { lead: it.lead, btn: null };
+    return { lead: t.can || it.hand || t.box ? tickBtn(t.id, t.on, it.title, t.can, t.fn) : it.lead,
+      btn: t.can ? h("button", { type: "button", id: (top ? "hdbTop-" : "hdbB-") + t.id, cls: "tc-btn sm hdb-btn hdb-tk" + (t.on ? " on" : ""), tabindex: top ? null : "-1", "aria-disabled": UI.busy[t.id] ? "true" : null, "aria-label": (t.on ? "Undo: " : "Mark done: ") + it.title, text: t.on ? "Undo" : "Mark done", on: { click: t.fn } }) : null };
+  }
+  function goNode(ctx, it, top) {
+    var g = it.go; if (!g) return null; var id = topId(top, "hdbGo-" + it.key);
+    return typeof g[0] === "function" ? btn(id, g[1], g[0], { cls: "hdb-goto", label: g[1] + ": " + it.title }) : h("a", { id: id, cls: "tc-btn sm hdb-btn hdb-goto", href: g[0], text: g[1], "aria-label": g[1] + ": " + it.title });
+  }
   function shut(ctx, back) {   // close the More menu, focus back on its button
     var m = UI.menu; if (!m) return; UI.menu = null;
     if (back) { var b = doc.getElementById("hdbMore-" + m.key); if (b) try { b.focus(); } catch (e) {} }
@@ -389,10 +452,13 @@
   }
   function rowNode(ctx, it) {
     var ok = ctx.quoteId + ":" + it.key, det = (it.detail || []).filter(Boolean), open = det.length && !!UI.open[ok], tid = "hdbT-" + it.key, did = "hdbD-" + it.key, cut = it.title.lastIndexOf(" ") + 1;   // the small arrow never stands alone on a new line
-    var words = [h("span", { cls: "hdb-t" }, [it.sr ? h("span", { cls: "tc-sr", text: it.sr }) : null, h("b", {}, det.length ? [it.title.slice(0, cut), h("span", { cls: "nw" }, [it.title.slice(cut), h("span", { cls: "hdb-car", "aria-hidden": "true" })])] : [it.title]), it.chip ? chip(it.chip[0], it.chip[1]) : null]), it.sub ? h("span", { cls: "hdb-sub", text: it.sub }) : null];
+    var words = [h("span", { cls: "hdb-t" }, [it.sr ? h("span", { cls: "tc-sr", text: it.sr }) : null, h("b", {}, det.length ? [it.title.slice(0, cut), h("span", { cls: "nw" }, [it.title.slice(cut), h("span", { cls: "hdb-car", "aria-hidden": "true" })])] : [it.title]), it.chip ? chip(it.chip[0], it.chip[1]) : null]),
+      it.fact ? h("span", { cls: "hdb-sub", text: it.fact }) : null, it.who ? h("span", { cls: "hdb-sub hdb-who", text: it.who }) : null];
     var main = det.length ? h("button", { type: "button", id: tid, cls: "hdb-main", "aria-expanded": open ? "true" : "false", "aria-controls": open ? did : null, on: { click: function () { UI.open[ok] = !open; repaint(ctx.quoteId, true); } } }, words) : h("div", { id: tid, cls: "hdb-main", tabindex: "-1" }, words);
-    var act = it.main ? it.main(false) : null, more = moreBox(ctx, it);
-    return h("li", { cls: "hdb-row" + (it.done ? " on" : "") + (it.kids ? " par" : "") + (act ? "" : " noact") + (more ? "" : " nomore") }, [it.lead, main, act ? h("div", { cls: "hdb-act" }, [act]) : null, more,
+    var tn = tickNodes(ctx, it, false), acts = (it.acts ? it.acts(false) : []).filter(Boolean), go = goNode(ctx, it, false), shown = [tn.btn].concat(acts, acts.length < 2 && !it.done ? [go] : []).filter(Boolean);
+    if (go && shown.indexOf(go) < 0) it.more = (it.more || []).concat(typeof it.go[0] === "function" ? { id: "hdbGo-" + it.key, text: it.go[1], label: it.go[1] + ": " + it.title, fn: it.go[0] } : { id: "hdbGo-" + it.key, text: it.go[1], href: it.go[0], label: it.go[1] + ": " + it.title });
+    var more = moreBox(ctx, it), fl = UI.flash && UI.flash.key === it.key && UI.flash.q === ctx.quoteId && Date.now() < UI.flash.until;
+    return h("li", { cls: "hdb-row" + (it.done ? " on" : "") + (it.kids ? " par" : "") + (shown.length ? "" : " noact") + (more ? "" : " nomore") + (fl ? " is-flash" : "") }, [tn.lead || icon(it.done ? "✓" : "", it.done ? "ok" : ""), main, shown.length ? h("div", { cls: "hdb-act" }, shown) : null, more,
       open ? h("div", { cls: "hdb-det", id: did }, det.map(function (x) { return typeof x === "string" ? h("p", { text: x }) : x; })) : null, it.form || null,
       it.kids && it.kids.length ? h("ul", { cls: "hdb-list hdb-kids", "aria-label": it.title }, it.kids.map(function (k) { return rowNode(ctx, k); })) : null]);
   }
@@ -401,55 +467,77 @@
     var d = h("details", { cls: "ep-more hdb-fold", "data-key": key }, [h("summary", { id: "hdbF-" + key }, hide ? [h("span", { cls: "s", text: text }), h("span", { cls: "h", text: hide })] : [text])].concat(kids));
     d.open = !!UI.folds[key]; d.addEventListener("toggle", function () { UI.folds[key] = d.open; }); return d;
   }
-  // "Do these first" -> the line itself: its section opens, the line is opened and gets the focus
+  // "Do these first" -> the line itself: opened, scrolled to the middle, lit up for a moment, and focused (R257: before, only the focus moved and nothing was seen)
+  function calm() { try { return global.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } }
   function jump(ctx, it) {
-    secOf(ctx.quoteId).user[it.sec] = true; if ((it.detail || []).some(Boolean)) UI.open[ctx.quoteId + ":" + it.key] = true; repaint(ctx.quoteId, true);
-    var n = doc.getElementById("hdbT-" + it.key); if (n) try { n.focus(); } catch (e) {}
+    if ((it.detail || []).some(Boolean)) UI.open[ctx.quoteId + ":" + it.key] = true;
+    UI.folds[it.sec] = UI.folds[it.sec] || !!it.folded; UI.flash = { q: ctx.quoteId, key: it.key, until: Date.now() + 2400 }; repaint(ctx.quoteId, true);
+    var n = doc.getElementById("hdbT-" + it.key), row = n && n.closest ? n.closest(".hdb-row") : null; if (!n) return;
+    try { (row || n).scrollIntoView({ block: "center", behavior: calm() ? "auto" : "smooth" }); } catch (e) {}
+    try { n.focus({ preventScroll: true }); } catch (e) {}
+    if (global.setTimeout) global.setTimeout(function () { UI.flash = null; var m = doc.getElementById("hdbT-" + it.key), r = m && m.closest ? m.closest(".hdb-row") : null; if (r) r.classList.toggle("is-flash", false); }, 2500);
   }
 
   var SHORT = { vendors: "vendor calls", headcount: "guest count", crew_call: "crew call times", load_list: "load list", transport: "trucks", venue_access: "venue access", power: "power and generator", permits: "permits", weather: "rain plan", runsheet: "run-sheet", client: "client timings" };
-  // one of the 11 Day-before ticks; kids = the Logistics rows about the same thing (the tick is never set by them)
-  function lineItem(ctx, key, kids, kidWords) {
+  function lineGo(ctx, key) {
+    var q = enc(ctx.quoteId);
+    return { vendors: ["vendors.html", "Open vendors"], headcount: ["event.html?id=" + q, "Open event"], client: ["event.html?id=" + q, "Open event"], crew_call: onOps() ? null : ["ops.html?quote=" + q, "Open Tasks & Crew"],
+      load_list: ["resources.html?quote=" + q, "Open Resource plan"], runsheet: ["runsheet.html?quote=" + q, "Open run-sheet"], transport: ["logistics.html?quote=" + q, "Open Logistics"], permits: ["logistics.html?quote=" + q, "Open Logistics"],
+      venue_access: ["logistics.html?quote=" + q, "Open Logistics"] }[key] || null;
+  }
+  function onOps() { return /(^|\/)ops(\.html)?$/.test(String((global.location && global.location.pathname) || "")); }
+  // one of the 11 Day-before ticks (0396); kids = the Logistics rows about the same thing (the tick is never set by them); fact = what Helm can see about it
+  function lineItem(ctx, key, kids, kidWords, fact) {
     var d = lines().filter(function (x) { return x[0] === key; })[0]; if (!d) return null;
-    var p = ctx.plan || {}, c = (p.checks || {})[key] || {}, on = !!c.done, q = enc(ctx.quoteId), lt = lineTask(ctx.tasks, d[1]), fk = "line:" + key, aid = "hdbAs-" + key, T = TS();
-    var by = c.by ? (on ? "✓ " : "Unticked by ") + c.by + (c.at ? " · " + dayTime(ms(c.at), ctx.tz) : "") : "";
-    var late = !!(lt && lt.held && T.isLate && T.isLate(lt.t, ctx.now)), who = lt ? nameOf(ctx, lt.t) : "", chp = null, urg = null, sub = "";
-    var counted = (kids || []).filter(function (k) { return !k.na; }), kdone = counted.filter(function (k) { return k.done; }).length, allKids = counted.length && kdone === counted.length;
-    if (on) sub = dots([by, counted.length ? kidWords(kdone, counted.length) : "", lt && lt.held ? "With " + who + " · " + ((T.LABEL && T.LABEL[lt.key]) || lt.key) : lt && lt.key === "done" ? who + " · Done" : ""]);
+    var p = ctx.plan || {}, c = (p.checks || {})[key] || {}, on = !!c.done, lt = lineTask(ctx.tasks, d[1]), fk = "line:" + key, aid = "hdbAs-" + key, T = TS();
+    var late = !!(lt && lt.held && T.isLate && T.isLate(lt.t, ctx.now)), who = lt ? nameOf(ctx, lt.t) : "", chp = null, urg = null, sub = "", undone = !on && c.by ? byWords(c.by, c.at, ctx, "Unticked") : "";
+    var counted = (kids || []).filter(function (k) { return !k.na; }), kdone = counted.filter(function (k) { return k.done; }).length, allKids = counted.length && kdone === counted.length, kw = counted.length ? kidWords(kdone, counted.length) : "";
+    if (on) sub = dots([fact, kw, lt && lt.held ? "With " + who + " · " + ((T.LABEL && T.LABEL[lt.key]) || lt.key) : lt && lt.key === "done" ? who + " · Done" : ""]);
     else {
       var st = !lt ? "" : lt.key === "rejected" ? "By " + who : lt.key === "unassigned" ? "Task made, not given out" : lt.key === "done" ? "Their task is done - tick the line if you agree." : "With " + who + " · " + ((T.LABEL && T.LABEL[lt.key]) || lt.key);
       if (lt && lt.key === "done") st = who + " · " + st;
-      sub = dots([counted.length ? kidWords(kdone, counted.length) + (allKids ? " · Rows are done - tick if you agree" : "") : "", st || (counted.length ? "" : by)]);
+      sub = dots([fact, kw ? kw + (allKids ? " · Rows are done - tick if you agree" : "") : "", st || (counted.length || fact ? "" : undone)]);
       if (lt && lt.free) { chp = lt.key === "rejected" ? ["Turned down", "bad"] : ["Nobody on it", "warn"]; urg = { rank: 4, why: chp[0], rest: lt.key === "rejected" ? "by " + who : "", say: SHORT[key] + (lt.key === "rejected" ? " turned down" : " has nobody on it") }; }
       else if (late) { chp = ["Late", "bad"]; urg = { rank: 1, why: "Late", rest: "with " + who, say: SHORT[key] + " late" }; }
     }
-    var href = key === "headcount" || key === "client" ? "event.html?id=" + q : key === "crew_call" && !/(^|\/)ops(\.html)?$/.test(String((global.location && global.location.pathname) || "")) ? "ops.html?quote=" + q : key === "runsheet" ? "runsheet.html?quote=" + q : "";
-    var can = !on && canGive(ctx) && (!lt || lt.free), giveIt = function (back) { openForm(ctx, { key: fk, sec: groupOf(key), need: "people", back: back }); };
-    var L = key === "permits" || key === "transport" || key === "headcount" ? S(ctx.quoteId) : null;
-    return { key: "line-" + key, sec: groupOf(key), done: on, title: d[1], sub: sub, chip: chp, urg: urg, kids: kids,
-      lead: tickBtn("epChk-" + key, on, d[1], !!p.can_edit, function () {
-        run(ctx, "epChk-" + key, "save the tick", async function () { await store().ops.dayPlan.check(ctx.quoteId, key, !on); if (ctx.onChanged) await ctx.onChanged(); });
-      }),
-      main: can && lt ? function (top) { var id = topId(top, aid); return btn(id, "Give to someone", function () { giveIt(aid); }, { label: "Give to someone: " + d[1], exp: top ? null : isOpenForm(ctx, fk) ? "true" : "false" }); } : null,
-      more: [can && !lt ? { id: aid, text: "Assign", label: "Assign (optional): " + d[1], fn: giveIt } : null, href ? { id: "hdbOp-" + key, text: "Open", href: href, label: "Open for: " + d[1] } : null,
-        L && L.logistics.state === "ok" && L.perms && L.perms.logisticsEdit ? { id: "hdbAd-" + key, text: "Add a line", href: "logistics.html?quote=" + q, label: "Add a line in Logistics: " + d[1] } : null],
-      detail: [d[2].charAt(0).toUpperCase() + d[2].slice(1) + ".", !on && by && sub.indexOf(by) < 0 ? by : null],
+    var can = !on && canGive(ctx) && (!lt || lt.free), giveIt = function (back) { openForm(ctx, { key: fk, need: "people", back: back }); };
+    var L = key === "permits" || key === "transport" || key === "headcount" ? S(ctx.quoteId) : null, cid = "epChk-" + key;
+    return { key: "line-" + key, sec: groupOf(key), done: on, hand: true, title: d[1], fact: sub, who: on ? byWords(c.by, c.at, ctx) : "", chip: chp, urg: urg, kids: kids, go: lineGo(ctx, key),
+      tick: { id: cid, on: on, can: !!p.can_edit, fn: function () { run(ctx, cid, "save the tick", async function () { await store().ops.dayPlan.check(ctx.quoteId, key, !on); if (ctx.onChanged) await ctx.onChanged(); }); } },
+      acts: can && lt ? function (top) { return [btn(topId(top, aid), "Give to someone", function () { giveIt(aid); }, { label: "Give to someone: " + d[1], exp: top ? null : isOpenForm(ctx, fk) ? "true" : "false" })]; } : null,
+      more: [can && !lt ? { id: aid, text: "Give to someone", label: "Give to someone (optional): " + d[1], fn: giveIt } : null,
+        L && L.logistics.state === "ok" && L.perms && L.perms.logisticsEdit ? { id: "hdbAd-" + key, text: "Add a line", href: "logistics.html?quote=" + enc(ctx.quoteId), label: "Add a line in Logistics: " + d[1] } : null],
+      detail: [d[2].charAt(0).toUpperCase() + d[2].slice(1) + ".", undone && sub.indexOf(undone) < 0 ? undone : null],
       form: isOpenForm(ctx, fk) ? assignForm(ctx, { title: d[1] }, lt) : null };
   }
-  function readyItems(ctx, s) {
-    var EP = global.HelmEventPlan, r = s.ready.data && s.ready.data.r; if (!r || !EP || !EP.readySum) return null;
+  // the Readiness checks, one line each, spread over the sections they are about
+  function readyItems(ctx, s, sees) {
+    var EP = global.HelmEventPlan, r = s.ready.data && s.ready.data.r; if (!r || !EP || !EP.readySum) return {};
     // a list that could not be read is never shown as fine
     r = EP.readyMask ? EP.readyMask(r, { vendors: s.vendors.state !== "error", stock: s.stock.state !== "error" }, "Couldn't check") : r;
-    var sum = EP.readySum(r), q = enc(ctx.quoteId), L = EP.READY_LINK || {}, out = [];
+    var sum = EP.readySum(r), q = enc(ctx.quoteId), out = {};
     function one(c, ok) {
-      var href = !ok && L[c.key] ? L[c.key] + q : "", shown = (c.key === "vendors" && s.vendors.state === "ok") || (c.key === "stock" && s.stock.state === "ok");   // these two are listed line by line below
-      return { key: "rd-" + c.key, sec: "ready", done: ok, title: c.label, sr: ok ? "Done: " : c.unchecked ? "Not checked: " : "Not done: ", sub: ok ? "" : c.detail, crit: !ok && c.critical,
-        lead: icon(ok ? "✓" : c.unchecked ? "?" : c.critical ? "✕" : "!", ok ? "ok" : c.critical ? "bad" : "warn"), main: href ? function (top) { return goLink(topId(top, "hdbFix-" + c.key), href, "Fix", "Fix: " + c.label); } : null,
+      var g = RD_GO[c.key], shown = (c.key === "vendors" && s.vendors.state === "ok") || (c.key === "stock" && s.stock.state === "ok"), key = "rd-" + c.key, it;   // these two are listed line by line below
+      it = { key: key, sec: RD[c.key] || "final", done: ok, title: c.label, sr: ok ? "Done: " : c.unchecked ? "Not checked: " : "Not done: ", fact: ok && !/^\d{4}-\d{2}-\d{2}$/.test(c.detail || "") && !/^(yes|done|none|no shortages)$/i.test(c.detail || "") ? c.detail : ok ? "" : c.key === "vendors" && sees.vend ? sees.vend : c.detail, why: c.key === "vendors" && sees.vendWhy ? sees.vendWhy : "", lead: icon(ok ? "✓" : c.unchecked ? "?" : c.critical ? "✕" : "!", ok ? "ok" : c.critical ? "bad" : "warn"), go: g ? [g[0] + q, g[1]] : null,
         urg: !ok && c.critical && !c.hidden && !shown ? { rank: 6, why: "", rest: c.detail || "Not done" } : null };
+      if (c.signoff) return signLine(ctx, s, c, it);
+      return autoLine(ctx, it);
     }
-    sum.open.forEach(function (c) { out.push(one(c, false)); }); sum.ok.forEach(function (c) { out.push(one(c, true)); });
-    (sum.hidden || []).forEach(function (c) { out.push({ key: "rd-" + c.key, sec: "ready", done: false, quiet: true, title: c.label, sub: c.detail, lead: icon("–", "") }); });
-    return { rows: out, done: sum.done, of: sum.of };
+    sum.open.concat(sum.ok).forEach(function (c) { var it = one(c, !!c.ok); (out[it.sec] = out[it.sec] || []).push(it); });
+    (sum.hidden || []).forEach(function (c) { var sec = RD[c.key] || "final"; (out[sec] = out[sec] || []).push({ key: "rd-" + c.key, sec: sec, done: false, quiet: true, title: c.label, fact: c.detail, lead: icon("–", "") }); });
+    return out;
+  }
+  // Dry run done / Team briefed: the Readiness sign-off (the same switch as the Readiness page); who = the stored tick beside it (0442)
+  function signLine(ctx, s, c, it) {
+    var m = markOf(ctx, it.key), real = !!c.ok, on = real || !!(m && m.done), id = "hdbMk-" + it.key, may = !!(s.perms && s.perms.readyEdit);
+    it.hand = true; it.done = on; it.lead = null; it.fact = ""; it.who = on ? (m && m.done && byWords(m.by, m.at, ctx)) || "Done" : ""; if (on) it.urg = null; else it.fact = "Not done yet";
+    if (on && !real) it.who = byWords(m.by, m.at, ctx, "Marked done") + ", not signed off on the Readiness page";
+    it.tick = { id: id, on: on, can: may || canMark(ctx), fn: function () { run(ctx, id, "save the tick", async function () {
+      if (may) await store().readiness.setSignoff(ctx.quoteId, c.signoff, !on);
+      if (canMark(ctx)) { try { await saveMark(ctx, it.key, !on); } catch (e) { if (!may) throw e; } }
+      await loadGroup(ctx.quoteId, "ready", true); if (ctx.onData) ctx.onData();
+    }); } };
+    return it;
   }
   function vendorItems(ctx, s) {
     var d = s.vendors.data, p = s.perms || {}, out = []; if (s.vendors.state === "hidden" || !d) return out;
@@ -465,15 +553,15 @@
         });
       }
       var canCf = v.canConfirm && p.vendorsEdit, canCall = phoneOk(tel), what = v.what.replace(/\s*\(stock shortfall\)\s*$/i, ""), job = mine.length ? plural(mine.length, "job") + (bad ? ", " + (bad > 1 ? bad + " " : "") + "turned down" : wait ? ", not accepted yet" : "") : "";
-      out.push({ key: "vn-" + v.id, sec: "vendors", done: v.done, title: v.name, sub: dots([v.done ? "" : v.label, what, job]), chip: v.done ? (bad ? ["Job turned down", "bad"] : null) : ["Not confirmed", "warn"],
-        urg: v.done ? null : { rank: 3, why: "Not confirmed", rest: what, say: "", nc: v.name }, lead: icon(v.done ? "✓" : "!", v.done ? "ok" : "warn"), sr: v.done ? v.label + ": " : "",
-        main: canCf ? function (top) { return btn(topId(top, cid), "Mark confirmed", confirm, { label: "Mark " + v.name + " confirmed", busy: cid }); }
-          : !v.done && canCall ? function (top) { return goLink(topId(top, "hdbCall-" + v.id), "tel:" + tel, "Call", "Call " + v.name); } : null,
-        more: [canCall && (canCf || v.done) ? { id: "hdbCall-" + v.id, text: "Call", href: "tel:" + tel, label: "Call " + v.name } : null,
-          v.vendorId && canGive(ctx) ? { id: jid, text: "Give a job", label: "Give " + v.name + " a job (optional)", fn: function (back) { openForm(ctx, { key: fk, sec: "vendors", need: "people", back: back, text: nlTitle("Confirm arrival and set-up time" + (v.what ? " - " + v.what : "")) }); } } : null],
-        detail: [dots([v.label, v.what, v.qty ? plural(v.qty, "unit") : ""]), canCall ? "Phone " + v.phone : null].concat(mine.slice(0, 3).map(function (t) {
+      out.push(autoLine(ctx, { key: "vn-" + v.id, sec: "vendors", done: v.done, title: v.name, fact: dots([v.label, what, job]), why: "the booking is not confirmed", chip: v.done ? (bad ? ["Job turned down", "bad"] : null) : ["Not confirmed", "warn"],
+        urg: v.done ? null : { rank: 3, why: "Not confirmed", rest: what, say: "", nc: v.name }, lead: icon(v.done ? "✓" : "!", v.done ? "ok" : "warn"), sr: v.done ? v.label + ": " : "", go: ["vendors.html", "Open vendors"],
+        acts: function (top) {
+          return [canCf && !(markOf(ctx, "vn-" + v.id) || {}).done ? btn(topId(top, cid), "Mark confirmed", confirm, { label: "Mark " + v.name + " confirmed", busy: cid }) : null, canCall ? goLink(topId(top, "hdbCall-" + v.id), "tel:" + tel, "Call", "Call " + v.name + ", " + v.phone) : null];
+        },
+        more: [v.vendorId && canGive(ctx) ? { id: jid, text: "Give a job", label: "Give " + v.name + " a job (optional)", fn: function (back) { openForm(ctx, { key: fk, need: "people", back: back, text: nlTitle("Confirm arrival and set-up time" + (v.what ? " - " + v.what : "")) }); } } : null],
+        detail: [dots([v.label, v.what, v.qty ? plural(v.qty, "unit") : ""]), canCall ? "Phone " + v.phone : "No phone saved."].concat(mine.slice(0, 3).map(function (t) {
           var k = T.baseKey ? T.baseKey(t) : "waiting"; return "Job: " + (t.title || "task") + " · " + ((T.LABEL && T.LABEL[k]) || k); }), mine.length > 3 ? "+ " + (mine.length - 3) + " more jobs" : null),
-        form: isOpenForm(ctx, fk) ? assignForm(ctx, { vendorId: v.vendorId, name: v.name }) : null });
+        form: isOpenForm(ctx, fk) ? assignForm(ctx, { vendorId: v.vendorId, name: v.name }) : null }));
     });
     return out;
   }
@@ -491,6 +579,7 @@
       }, { label: "Get " + fmt(o.qty) + " " + o.label + " from a vendor" });
     };
   }
+  function acts1(f) { return f ? function (top) { return [f(top)]; } : null; }
   function stockModel(s) {
     var d = s.stock.data; if (!d || !d.layout) return null; var v = s.vendors.state === "ok" ? s.vendors.data : null;
     return stockRows({ layout: d.layout, reservations: d.reservations, checkouts: d.checkouts, shortages: d.shortages, needs: v ? v.needs : [], bookings: v ? v.bookings : [] });
@@ -498,7 +587,7 @@
   // "Need 120, have 100 - 20 to reserve" (what is not in stock is the "Missing" chip): have = held for this event + what a vendor said yes to; only asked = said apart
   function stockWords(r) {
     var have = Math.min(r.held + r.firm, r.needed), asked = Math.min(Math.max(r.got - r.firm, 0), Math.max(r.needed - have, 0)), todo = [];
-    if (r.toReserve) todo.push(fmt(r.toReserve) + " to reserve"); 
+    if (r.toReserve) todo.push(fmt(r.toReserve) + " to reserve");
     return "Need " + fmt(r.needed) + ", have " + fmt(have) + (asked ? ", " + fmt(asked) + " asked from a vendor" : "") + (todo.length ? " - " + todo.join(", ") : "");
   }
   function stockItems(ctx, s, m) {
@@ -506,17 +595,18 @@
     m.rows.forEach(function (r) {
       var get = r.toGet ? getMain(ctx, s, { id: "hdbGet-" + r.id, label: r.name, qty: r.toGet, itemId: r.id, layoutType: r.types[0] }) : null, rh = "inventory.html?quote=" + q + "&tab=layout", rt = "Reserve " + fmt(r.toReserve);
       var todo = []; if (r.toReserve) todo.push(fmt(r.toReserve) + " free in stock - reserve them"); if (r.toGet) todo.push(fmt(r.toGet) + " not in stock - get them from a vendor");
-      out.push({ key: "st-" + r.id, sec: "stock", done: r.done, title: r.name, sub: stockWords(r), chip: r.state === "short" ? ["Missing " + fmt(r.toGet), "bad"] : r.state === "asked" ? ["Not confirmed", "warn"] : null, sr: r.done ? "Covered: " : "",
+      var why = r.state === "short" ? fmt(r.toGet) + " missing" : r.state === "reserve" ? fmt(r.toReserve) + " to reserve" : r.state === "asked" ? "the vendor has not confirmed" : "";
+      out.push(autoLine(ctx, { key: "st-" + r.id, sec: "stock", done: r.done, title: r.name, fact: dots([stockWords(r), "reserved " + fmt(r.reserved), "packed " + fmt(r.out)]), why: why, chip: r.state === "short" ? ["Missing " + fmt(r.toGet), "bad"] : r.state === "asked" ? ["Not confirmed", "warn"] : null, sr: r.done ? "Covered: " : "",
         urg: r.state === "short" ? { rank: 2, why: "Missing " + fmt(r.toGet), rest: "need " + fmt(r.needed), short: r.name } : r.state === "reserve" ? { rank: 5, why: fmt(r.toReserve) + " to reserve", rest: "need " + fmt(r.needed), res: r.name } : null,
-        lead: icon(r.done ? "✓" : r.state === "short" ? "✕" : "!", r.done ? "ok" : r.state === "short" ? "bad" : "warn"),
-        main: get || (r.toReserve ? function (top) { return goLink(topId(top, "hdbRes-" + r.id), rh, rt, rt + " " + r.name); } : null),
+        lead: icon(r.done ? "✓" : r.state === "short" ? "✕" : "!", r.done ? "ok" : r.state === "short" ? "bad" : "warn"), go: r.toReserve && !get ? null : [rh, "Open stock"],
+        acts: acts1(get || (r.toReserve ? function (top) { return goLink(topId(top, "hdbRes-" + r.id), rh, rt, rt + " " + r.name); } : null)),
         more: [get && r.toReserve ? { id: "hdbRes-" + r.id, text: rt, href: rh, label: rt + " " + r.name } : null],
         detail: ["Needed " + fmt(r.needed) + " · Reserved " + fmt(r.reserved) + " · Given out " + fmt(r.out) + " · Missing " + fmt(r.missing), todo.length ? todo.join("; ") + "." : null, r.sourced.length ? "From " + sourcedWords(r.sourced, vs) : null,
-          r.shared && !r.done ? "Other events on the same days need " + fmt(r.shared) + " of these too." : null] });
+          r.shared && !r.done ? "Other events on the same days need " + fmt(r.shared) + " of these too." : null] }));
     });
     m.otherShort.forEach(function (x) {
-      out.push({ key: "sh-" + x.id, sec: "stock", done: false, title: x.label, sub: "Not on the floor plan, no vendor yet", chip: ["Missing " + fmt(x.qty), "bad"], urg: { rank: 2, why: "Missing " + fmt(x.qty), rest: "no vendor yet", short: x.label }, lead: icon("✕", "bad"),
-        main: getMain(ctx, s, { id: "hdbGetS-" + x.id, label: x.label, qty: x.qty, itemId: x.itemId }), detail: [x.label + " × " + fmt(x.qty) + ". Short in stock, no vendor yet (not on the floor plan)."] });
+      out.push(autoLine(ctx, { key: "sh-" + x.id, sec: "stock", done: false, title: x.label, fact: "Not on the floor plan, no vendor yet", why: fmt(x.qty) + " missing", chip: ["Missing " + fmt(x.qty), "bad"], urg: { rank: 2, why: "Missing " + fmt(x.qty), rest: "no vendor yet", short: x.label }, lead: icon("✕", "bad"),
+        acts: acts1(getMain(ctx, s, { id: "hdbGetS-" + x.id, label: x.label, qty: x.qty, itemId: x.itemId })), go: ["resources.html?quote=" + q, "Open Resource plan"], detail: [x.label + " × " + fmt(x.qty) + ". Short in stock, no vendor yet (not on the floor plan)."] }));
     });
     return out;
   }
@@ -525,17 +615,19 @@
     return fold("stock-un", plural(m.unlinked.length, "product") + " not linked to stock", [
       h("p", { cls: "hdb-note" }, ["Link them once and Helm counts them against stock. ", link("inventory.html?quote=" + q + "&tab=layout", "Link in Inventory →")]),
       list(ctx, m.unlinked.map(function (u) {
-        return { key: "un-" + u.type, sec: "stock", title: u.label, sub: dots([fmt(u.objects) + " on the plan", u.seats && u.seats !== u.objects ? plural(u.seats, "seat") : "", u.sourced.length ? "From " + sourcedWords(u.sourced, vs) : ""]), lead: icon("?", ""),
-          main: u.sourced.length ? null : getMain(ctx, s, { id: "hdbGetT-" + u.type, label: u.label, qty: u.objects, layoutType: u.type }) };
+        return { key: "un-" + u.type, sec: "stock", title: u.label, fact: dots([fmt(u.objects) + " on the plan", u.seats && u.seats !== u.objects ? plural(u.seats, "seat") : "", u.sourced.length ? "From " + sourcedWords(u.sourced, vs) : ""]), lead: icon("?", ""),
+          acts: acts1(u.sourced.length ? null : getMain(ctx, s, { id: "hdbGetT-" + u.type, label: u.label, qty: u.objects, layoutType: u.type })) };
       }))]);
   }
   function checkItem(ctx, s, c) {
-    var can = !!(s.perms && s.perms.logisticsEdit), done = c.status !== "open", words = c.section === "guests" ? GST : CHK, tid = "hdbCk-" + c.id, nid = "hdbNa-" + c.id, oid = "hdbOw-" + c.id, fk = "owner:" + c.id;
+    var can = !!(s.perms && s.perms.logisticsEdit), done = c.status !== "open", words = c.section === "guests" ? GST : CHK, tid = "hdbCk-" + c.id, nid = "hdbNa-" + c.id, oid = "hdbOw-" + c.id, fk = "owner:" + c.id, key = "ck-" + c.id, mk = markOf(ctx, key);
     function save(id, patch, what) {
       return run(ctx, id, what, async function () {
         await store().checklist.update(c.id, patch); await loadGroup(ctx.quoteId, "logistics");
         var now = S(ctx.quoteId).logistics, x = now.data && now.data.rows.filter(function (y) { return y.id === c.id; })[0], k = Object.keys(patch)[0];
-        if (now.state !== "ok" || !x || String(x[k] || "") !== String(patch[k] || "")) say(ctx, "That was not saved. You may not be allowed to change Logistics.", "err"); else if (patch.owner !== undefined) UI.form = null;
+        if (now.state !== "ok" || !x || String(x[k] || "") !== String(patch[k] || "")) { say(ctx, "That was not saved. You may not be allowed to change Logistics.", "err"); return; }
+        if (patch.owner !== undefined) UI.form = null;
+        if (patch.status && canMark(ctx)) try { await saveMark(ctx, key, patch.status === "done"); } catch (e) {}   // who + when; the row itself is saved
       });
     }
     var today = TS().ymdIn ? TS().ymdIn(ctx.tz, ctx.now) : "", over = c.status === "open" && c.due_date && today && c.due_date < today, form = null;
@@ -548,140 +640,207 @@
     }
     function setDone() { save(tid, { status: c.status === "done" ? "open" : "done" }, "update the line"); }
     var guests = c.section === "guests" && c.qty != null ? plural(c.qty, "guest") : "", due = c.due_date ? dateWords(c.due_date) : "", own2 = c.owner ? "Owner: " + c.owner : "";
-    return { key: "ck-" + c.id, sec: "logistics", done: done, na: c.status === "na", title: c.title, sub: dots([guests, own2, due && !done ? "Due " + due : ""]), chip: over ? ["Overdue", "bad"] : c.status === "na" ? [words.na, ""] : null,
+    return { key: key, sec: "logistics", done: done, na: c.status === "na", hand: true, title: c.title, fact: dots([guests, own2, due && !done ? "Due " + due : ""]), who: c.status === "done" && mk && mk.done ? byWords(mk.by, mk.at, ctx) : "", chip: over ? ["Overdue", "bad"] : c.status === "na" ? [words.na, ""] : null,
       urg: over ? { rank: 1, why: "Overdue", rest: dots(["due " + due, c.owner]), say: c.title.replace(/\s*\/\s*\S+/, "") + " overdue", due: c.due_date } : null,
-      lead: tickBtn(tid, c.status === "done", c.title, can, setDone), topMain: over && can ? function () { return btn("hdbTop-" + tid, "Mark done", setDone, { label: "Mark done: " + c.title, busy: tid }); } : null,
+      tick: c.status === "na" ? null : { id: tid, on: c.status === "done", can: can, fn: setDone, box: true }, lead: c.status === "na" ? icon("–", "") : null,
       more: [can && c.status !== "done" ? { id: nid, text: c.status === "na" ? "Reopen" : "Mark " + (c.section === "guests" ? "declined" : "N/A"), label: (c.status === "na" ? "Reopen: " : "Mark " + words.na + ": ") + c.title, fn: function () { save(nid, { status: c.status === "na" ? "open" : "na" }, "update the line"); } } : null,
-        can && c.status === "open" && c.section !== "guests" ? { id: oid, text: c.owner ? "Change owner" : "Pick an owner", label: (c.owner ? "Change owner of: " : "Pick an owner for: ") + c.title, fn: function (back) { openForm(ctx, { key: fk, sec: "logistics", need: "owners", back: back, val: c.owner }); } } : null],
+        can && c.status === "open" && c.section !== "guests" ? { id: oid, text: c.owner ? "Change owner" : "Pick an owner", label: (c.owner ? "Change owner of: " : "Pick an owner for: ") + c.title, fn: function (back) { openForm(ctx, { key: fk, need: "owners", back: back, val: c.owner }); } } : null],
       detail: [c.detail || null, done && due ? "Due " + due : null], form: form };
+  }
+
+  /* ---- your own lines (0442) ---- */
+  function uuid() { try { if (global.crypto && global.crypto.randomUUID) return global.crypto.randomUUID(); } catch (e) {} return null; }
+  function ownItems(ctx) {
+    var d = marksOf(ctx), st = stepOf(ctx); if (!d) return [];
+    return d.lines.filter(function (l) { return l && l.step === st; }).map(function (l) {
+      var rid = "hdbOwnX-" + l.id;
+      return handLine(ctx, { key: "own:" + l.id, sec: "own", title: String(l.title || ""), own: true, more: [canMark(ctx) ? { id: rid, text: "Take it off the list", label: "Take off the list: " + l.title, fn: function () { run(ctx, rid, "take the line off", async function () {
+        if (global.BPUI && global.BPUI.confirm && !(await global.BPUI.confirm("Take “" + l.title + "” off the checklist? What was ticked stays in the history.", { title: "Take this line off?", okLabel: "Take it off" }))) return;
+        await store().ops.checks.cancelLine(l.id); await loadGroup(ctx.quoteId, "marks"); }); } } : null], detail: [byWords(l.by, l.at, ctx, "Added")] });
+    });
+  }
+  function ownForm(ctx) {
+    if (!canMark(ctx) || ctx.closed) return null; var st = stepOf(ctx), k = ctx.quoteId + ":" + st, iid = "hdbOwn" + sfx(ctx), gid = "hdbOwnGo" + sfx(ctx);
+    var inp = h("input", { id: iid, cls: "ep-inp hdb-inp", type: "text", maxlength: "120", autocomplete: "off", placeholder: st === "pre" ? "e.g. Cake table ready" : "e.g. Return gifts collected", "aria-label": "Add your own line" }); inp.value = UI.own[k] || "";
+    inp.addEventListener("input", function () { UI.own[k] = inp.value; });
+    return h("form", { cls: "hdb-own", novalidate: "", on: { submit: function (e) {
+      e.preventDefault(); var t = nlTitle(inp.value); if (!t) { say(ctx, "Type the line first.", "err"); return; } if (/[<>]/.test(t)) { say(ctx, "Leave out < and >.", "err"); return; }
+      var id = UI.ownId && UI.ownId.k === k && UI.ownId.t === t ? UI.ownId.id : uuid(); UI.ownId = { k: k, t: t, id: id };   // a second try of the same line is the same line
+      run(ctx, gid, "add the line", async function () { var r = await store().ops.checks.addLine(ctx.quoteId, st, t, id); UI.own[k] = ""; UI.ownId = null; if (r && r.same) say(ctx, "That line is on the list already.", "ok"); await loadGroup(ctx.quoteId, "marks"); });
+    } } }, [inp, h("button", { type: "submit", id: gid, cls: "tc-btn sm hdb-btn", text: "+ Add line", "aria-disabled": UI.busy[gid] ? "true" : null })]);
+  }
+  var ACT = { done: "Done", undo: "Undone", add: "Line added", cancel: "Line taken off" };
+  function historyBox(ctx, titles) {
+    var d = marksOf(ctx), pre = stepOf(ctx) + ":"; if (!d) return null; var names = {};
+    d.log.forEach(function (g) { if (g.action === "add" || g.action === "cancel") names[g.key] = g.note; });
+    var l = d.log.filter(function (g) { return String(g.key || "").indexOf(pre) === 0; }); if (!l.length) return null;
+    return fold("hist" + sfx(ctx), "Who ticked what (" + l.length + ")", [h("ul", { cls: "hdb-hist" }, l.slice(0, 40).map(function (g) {
+      var k = String(g.key).slice(pre.length), t = titles[k] || titles["line-" + k] || names[g.key] || "A line";
+      return h("li", {}, [h("b", { text: t }), " - " + byWords(g.by || "someone", g.at, ctx, ACT[g.action] || g.action)]);
+    }))]);
   }
 
   /* ---------------- the card ---------------- */
   function sigOf(ctx, s) {
-    var T = TS(), tk = (ctx.tasks || []).map(function (t) { return t && [t.id, t.title, t.category, t.status, t.crew_id, t.vendor_id, t.assignee_name, T.isLate && T.isLate(t, ctx.now)]; });
-    try { return JSON.stringify([ctx.quoteId, ctx.noReady, ctx.compact, isLocked(ctx), ctx.eventDate, ctx.plan && [ctx.plan.can_edit, ctx.plan.checks], tk, s.loading, s.at, s.perms, s.ready, s.vendors, s.stock, s.logistics, s.people, s.owners, UI.form, UI.busy, UI.sec, UI.open, UI.menu, startFor(ctx), !!global.HelmStockVendor, TS().ymdIn ? TS().ymdIn(ctx.tz, ctx.now) : ""]); } catch (e) { return ""; }
+    var T = TS(), tk = (ctx.tasks || []).map(function (t) { return t && [t.id, t.title, t.category, t.status, t.step, t.planned_start, t.crew_id, t.vendor_id, t.assignee_name, T.isLate && T.isLate(t, ctx.now)]; }), f = floorOf(ctx.quoteId);
+    try { return JSON.stringify([ctx.quoteId, ctx.step, ctx.noReady, ctx.compact, ctx.closed, ctx.eventDate, ctx.plan && [ctx.plan.can_edit, ctx.plan.checks], ctx.sheet, f && [f.version_no, f.guests, (f.items || []).length], tk, s.loading, s.at, s.perms, s.ready, s.vendors, s.stock, s.logistics, s.marks, s.arrivals, s.people, s.owners, UI.form, UI.busy, UI.open, UI.menu, UI.flash && UI.flash.key, startFor(ctx), !!global.HelmStockVendor, TS().ymdIn ? TS().ymdIn(ctx.tz, ctx.now) : ""]); } catch (e) { return ""; }
   }
   function flat(items) { return items.reduce(function (a, x) { return a.concat(x, x.kids || []); }, []); }
-  function cap(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : ""; }
-  function names(list, one, many) { return !list.length ? "" : list.length <= 2 ? list.join(" and ") + " " + one : list.length + " " + many; }
-  // what is wrong in one section, in words; nothing wrong = what is still to do
-  function wrongWords(g) {
-    var all = flat(g.items), u = all.filter(function (x) { return x.urg; }), of = function (k) { return u.filter(function (x) { return x.urg[k]; }).map(function (x) { return x.urg[k]; }); };
-    var out = of("say").concat([names(of("nc"), "not confirmed", "vendors not confirmed"), names(of("short"), "missing", "items missing"), names(of("res"), "to reserve", "items to reserve")]).filter(Boolean).concat(g.words || []);
-    if (out.length) return cap(out.slice(0, 3).join(", ")) + (out.length > 3 ? " + " + (out.length - 3) + " more" : "");
-    var left = all.filter(function (x) { return !x.done && !x.quiet && !x.na; }).map(function (x) { return x.title.replace(/\s*\(.*\)$/, ""); });
-    return left.length ? "To do: " + left.slice(0, 2).join(", ") + (left.length > 2 ? " + " + (left.length - 2) + " more" : "") : "";
-  }
-  function paint(host, force) {
-    var st = host._hdb; if (!st) return; var ctx = st.ctx, q = ctx.quoteId, s = S(q);
-    if (!force && host.firstChild && st.q === q && inUse(host)) return;
-    var sec = secOf(q), sig = sigOf(ctx, s); if (sig && st.sig === sig && host.firstChild) return; st.q = q;
-    var a = doc.activeElement, focusId = a && host.contains(a) ? a.id : "", gKey = "", up = focusId ? a : null, sel = a && focusId && a.tagName === "INPUT" ? [a.selectionStart, a.selectionEnd] : null;
-    while (up && up !== host && !gKey) { gKey = up.getAttribute ? up.getAttribute("data-g") || "" : ""; up = up.parentNode; }
-    var enq = enc(q), G = [], no = ctx.noReady ? 1 : 0;
-
-    function add(key, title, items, o) {
-      var all = flat(items), c = all.filter(function (r) { return !r.quiet && !r.na; });
-      var g = Object.assign({ key: key, title: title, items: items, all: all, no: ++no, done: c.filter(function (r) { return r.done; }).length, of: c.length, tops: [], end: [], links: [] }, o);
-      g.full = g.of > 0 && g.done >= g.of && !all.some(function (r) { return !r.done; }) && !!g.sure; G.push(g);
-    }
-    function fails(g, what, k) { return g.state === "error" ? againBox(q, what, function () { s[k] = blank(); repaint(q, true); loadGroup(q, k, true); }) : null; }
-    function waits(g) { return g.state === "wait" ? h("p", { cls: "hdb-note", text: "Checking…" }) : null; }
-    function ticks(grp) { return lines().filter(function (d) { return groupOf(d[0]) === grp; }).map(function (d) { return lineItem(ctx, d[0]); }).filter(Boolean); }
-
-    // 1 booked and planned
-    if (!ctx.noReady && s.ready.state !== "hidden") {
-      var rr = readyItems(ctx, s), some = rr && rr.rows.some(function (r) { return r.quiet; }), crit = rr ? rr.rows.filter(function (r) { return r.crit; }).map(function (r) { return r.title.replace(/\s*\(.*\)$/, ""); }) : [];
-      add("ready", "Booked and planned", rr ? rr.rows : [], { done: rr ? rr.done : 0, of: rr ? rr.of : 0, sure: s.ready.state === "ok" && !some, allText: some ? "Everything you can see is booked." : "Everything is booked.", g: s.ready,
-        text: crit.length ? "Not yet: " + crit.slice(0, 3).join(", ") + (crit.length > 3 ? " + " + (crit.length - 3) + " more" : "") : "",
-        fail: rr ? null : fails(s.ready, "the plan", "ready"), tops: [rr ? null : waits(s.ready)], end: [rr && !ctx.compact ? h("p", { cls: "hdb-note", text: "Helm checks these from the plan. Dry run and team briefing are marked by hand." }) : null], links: [link("ready.html?quote=" + enq, "Open Readiness →")] });
-    }
-    // 2 vendors
-    var vr = vendorItems(ctx, s), vEmpty = s.vendors.state === "ok" && !vr.length;
-    add("vendors", "Vendors", vr.concat(ticks("vendors")), { sure: s.vendors.state === "ok", g: s.vendors, fail: fails(s.vendors, "the vendors", "vendors"), tops: [waits(s.vendors), vEmpty ? h("p", { cls: "hdb-note", text: "No vendors booked." }) : null],
+  function floorOf(q) { try { var c = global.HelmEventFloor && global.HelmEventFloor._cache && global.HelmEventFloor._cache()[q]; return (c && c.floor) || null; } catch (e) { return null; } }
+  function planHref(q) { try { if (global.HelmUrl && global.HelmUrl.build) return global.HelmUrl.build("floor-plan", { id: q }); } catch (e) {} return "builder.html?quote=" + enc(q); }
+  // { seats, guests } when the saved plan is known here
+  function seatsFact(q) { var f = floorOf(q), EF = global.HelmEventFloor; if (!f || !EF || !EF.measure) return null; try { var m = EF.measure(f); return m.guests && m.items ? { seats: m.seats, guests: m.guests } : null; } catch (e) { return null; } }
+  function waits(g) { return g.state === "wait" ? h("p", { cls: "hdb-note", text: "Checking…" }) : null; }
+  // the steps' sections: add(key, title, items, o)
+  function buildDay(ctx, s, add, fails) {
+    var enq = enc(ctx.quoteId), q = ctx.quoteId, vr = vendorItems(ctx, s), realOk = s.vendors.state === "ok" && s.vendors.data ? vendorRows(s.vendors.data.bookings, s.vendors.data.vendors) : [], vc = realOk.filter(function (v) { return v.done; }).length, no = realOk.length - vc;
+    var sees = { vend: realOk.length ? vc + " of " + realOk.length + " confirmed" : "", vendWhy: no > 0 ? isAre(no, "vendor", "", "not confirmed") : "" };
+    var R = !ctx.noReady && s.ready.state !== "hidden" ? readyItems(ctx, s, sees) : {}, rd = function (k) { return R[k] || []; };
+    function tick(key, fact) { return lineItem(ctx, key, null, null, fact); }
+    var readyFail = !ctx.noReady && s.ready.state === "error" && !s.ready.data ? fails(s.ready, "the plan", "ready") : null;
+    // vendors
+    add("vendors", "Vendors", [].concat(rd("vendors"), vr, tick("vendors", sees.vend)), { g: s.vendors, fail: fails(s.vendors, "the vendors", "vendors"), tops: [waits(s.vendors), s.vendors.state === "ok" && !vr.length ? h("p", { cls: "hdb-note", text: "No vendors booked." }) : null, s.vendors.state === "hidden" ? h("p", { cls: "hdb-note", text: "Vendor bookings are not visible to you." }) : null],
       links: [s.vendors.state === "ok" && s.perms && s.perms.resources ? link("resources.html?quote=" + enq, "Resource plan →") : null] });
-    // 3 stock and floor plan
-    var sm = stockModel(s), types = sm ? sm.types : s.stock.data && s.stock.data.floor, bh = "builder.html?quote=" + enq, seats = (types || []).reduce(function (n, t) { return n + t.seats; }, 0);
-    try { if (global.HelmUrl && global.HelmUrl.build) bh = global.HelmUrl.build("floor-plan", { id: q }); } catch (e) {}
-    add("stock", "Stock and floor plan", stockItems(ctx, s, sm).concat(ticks("stock")), { sure: s.stock.state === "ok" && s.vendors.state !== "error", g: s.stock, fail: s.stock.state === "hidden" && !s.stock.data ? null : fails(s.stock, "the stock", "stock"),
-      links: [link(bh, "2D / 3D plan →"), sm ? link("inventory.html?quote=" + enq, "Stock →", "Stock for this event") : null],
-      tops: [s.stock.state === "hidden" && !s.stock.data ? null : waits(s.stock),
-        s.stock.state === "hidden" && types ? h("p", { cls: "hdb-note" }, s.perms && s.perms.inventory ? ["Not counted against stock here. ", link("inventory.html?quote=" + enq, "Open Inventory →")] : ["Stock numbers are not visible to you."]) : null,
-        sm && sm.short && s.vendors.state !== "ok" && s.vendors.state !== "wait" ? h("p", { cls: "hdb-note", text: "Vendor bookings are not counted here, so a vendor may already be asked for what is missing." }) : null],
-      end: [unlinkedBox(ctx, s, sm), types && types.length ? fold("stock-plan", "On the plan: " + plural(types.length, "kind") + " of items" + (seats ? ", " + plural(seats, "seat") : ""), [h("p", { cls: "hdb-note", text: planWords(types) }),
-        sm && sm.extra ? h("p", { cls: "hdb-note", text: plural(sm.extra, "more item") + " reserved for this event (not on the plan)." }) : null].filter(Boolean)) : types ? h("p", { cls: "hdb-note", text: "Nothing on the floor plan yet." + (sm && sm.extra ? " " + plural(sm.extra, "item") + " reserved for this event." : "") }) : null] });
-    // 4 logistics: a tick and the rows about the same thing are one parent line with its rows under it
+    // menu + guest count (the Logistics guest list sits under its tick)
     var ck = s.logistics.state === "ok" && s.logistics.data ? s.logistics.data.rows : [], canL = s.perms && s.perms.logisticsEdit, seeL = s.logistics.state === "ok";
     var rowsOf = function (x) { return ck.filter(function (c) { return c.section === x; }).map(function (c) { return checkItem(ctx, s, c); }); }, guestRows = ck.filter(function (c) { return c.section === "guests"; });
     var gAll = guestRows.reduce(function (n, c) { return n + (c.status === "na" ? 0 : n0(c.qty)); }, 0), gYes = guestRows.reduce(function (n, c) { return n + (c.status === "done" ? n0(c.qty) : 0); }, 0);
     var LW = { compliance: function (d, n) { return d + " of " + n + " in hand"; }, logistics: function (d, n) { return d + " of " + n + " ready"; }, guests: function (d, n) { return gAll ? fmt(gYes) + " of " + plural(gAll, "guest") + " confirmed" : d + " of " + n + " confirmed"; } };
+    add("menu", "Menu and guest count", rd("menu").concat(lineItem(ctx, "headcount", rowsOf("guests").map(function (x) { x.sec = "menu"; return x; }), LW.guests)), { g: s.logistics });
+    // plan and floor layout
+    var sm = stockModel(s), types = sm ? sm.types : s.stock.data && s.stock.data.floor, bh = planHref(q), seats = (types || []).reduce(function (n, t) { return n + t.seats; }, 0), sf = seatsFact(q), pi = [];
+    if (types) pi.push(autoLine(ctx, { key: "plan-layout", sec: "plan", done: types.length > 0, title: "2D / 3D layout saved", fact: types.length ? planWords(types) : "Nothing on the floor plan yet", lead: icon(types.length ? "✓" : "!", types.length ? "ok" : "warn"), go: [bh, "Open 2D / 3D plan"] }));
+    if (sf) pi.push(autoLine(ctx, { key: "plan-seats", sec: "plan", done: sf.seats >= sf.guests, title: "A seat for every guest", fact: plural(sf.seats, "seat") + " for " + plural(sf.guests, "guest") + (sf.seats < sf.guests ? " - " + fmt(sf.guests - sf.seats) + " short" : ""), why: fmt(Math.max(sf.guests - sf.seats, 0)) + " seats are short", lead: icon(sf.seats >= sf.guests ? "✓" : "!", sf.seats >= sf.guests ? "ok" : "warn"), go: [bh, "Open 2D / 3D plan"] }));
+    add("plan", "Plan and floor layout", pi.concat(rd("plan").filter(function (x) { return !(types && x.key === "rd-layout"); })), { g: s.stock, tops: [!types && s.stock.state === "wait" ? waits(s.stock) : null, !types && s.stock.state === "hidden" ? h("p", { cls: "hdb-note", text: "The floor plan is not visible to you." }) : null], end: [unlinkedBox(ctx, s, sm)], links: [link(bh, "2D / 3D plan →")] });
+    // stock
+    var heldAll = sm ? sm.rows.reduce(function (n, r) { return n + r.reserved; }, 0) : 0, outAll = sm ? sm.rows.reduce(function (n, r) { return n + Math.min(r.out, r.reserved || r.out); }, 0) : 0, st = stockItems(ctx, s, sm), shown = st, cov = st.filter(function (x) { return x.done && !x.byHand; });
+    if (cov.length > 6) shown = st.filter(function (x) { return cov.indexOf(x) < 0; });   // a long list of covered items folds away; what is open never does
+    add("stock", "Inventory and stock", [].concat(rd("stock"), shown, tick("load_list", heldAll ? fmt(outAll) + " of " + fmt(heldAll) + " pieces given out" : "")), { g: s.stock, more: cov.length > 6 ? cov : [], fail: s.stock.state === "hidden" && !s.stock.data ? null : fails(s.stock, "the stock", "stock"),
+      links: [sm ? link("inventory.html?quote=" + enq, "Stock →", "Stock for this event") : null],
+      tops: [s.stock.state === "hidden" && !s.stock.data ? null : waits(s.stock),
+        s.stock.state === "hidden" ? h("p", { cls: "hdb-note" }, s.perms && s.perms.inventory ? ["Not counted against stock here. ", link("inventory.html?quote=" + enq, "Open Inventory →")] : ["Stock numbers are not visible to you."]) : null,
+        sm && sm.short && s.vendors.state !== "ok" && s.vendors.state !== "wait" ? h("p", { cls: "hdb-note", text: "Vendor bookings are not counted here, so a vendor may already be asked for what is missing." }) : null],
+      end: [sm && sm.extra ? h("p", { cls: "hdb-note", text: plural(sm.extra, "more item") + " reserved for this event (not on the plan)." }) : null, cov.length > 6 ? fold("stock", "Show " + cov.length + " covered", [list(ctx, cov)], "Hide " + cov.length + " covered") : null] });
+    // logistics: a tick and the rows about the same thing are one line with its rows under it
     var li = [], comms = rowsOf("comms");
-    SECTIONS.forEach(function (x) {
-      if (x[0] === "comms") { if (comms.length) li.push({ key: "grp-comms", sec: "logistics", quiet: true, head: true, done: comms.every(function (k) { return k.done; }), title: x[1], sub: comms.filter(function (k) { return k.done && !k.na; }).length + " of " + comms.filter(function (k) { return !k.na; }).length + " told", lead: icon("–", ""), kids: comms }); }
-      else x[2].forEach(function (k) { li.push(x[0] ? lineItem(ctx, k, rowsOf(x[0]), LW[x[0]]) : lineItem(ctx, k)); });
-    });
-    li = li.filter(Boolean);
-    add("logistics", "Logistics", li, { sure: seeL, g: s.logistics, fail: fails(s.logistics, "logistics", "logistics"), tops: [waits(s.logistics)],
-      end: [seeL && !comms.length ? h("p", { cls: "hdb-note", text: "Who tells whom: no lines yet." }) : null], links: [seeL ? link("logistics.html?quote=" + enq, canL ? "Open Logistics, add a line →" : "Open Logistics →") : null] });
-    // 5 people and programme
-    var tn = null, T = TS(), pl = ticks("people"), pw = [];
-    if (Array.isArray(ctx.tasks) && T.baseKey && !(s.perms && !s.perms.staff)) { tn = { un: 0, wait: 0, n: 0 }; ctx.tasks.forEach(function (t) { if (!t || t.status === "cancelled") return; tn.n++; var k = T.baseKey(t); if (k === "unassigned" || k === "rejected") tn.un++; else if (k === "waiting") tn.wait++; }); }
+    SECTIONS_L.forEach(function (x) { li.push(x[1] ? lineItem(ctx, x[0], rowsOf(x[1]), LW[x[1]]) : lineItem(ctx, x[0])); });
+    if (comms.length) li.push({ key: "grp-comms", sec: "logistics", quiet: true, done: comms.every(function (k) { return k.done; }), title: "Who tells whom", fact: comms.filter(function (k) { return k.done && !k.na; }).length + " of " + comms.filter(function (k) { return !k.na; }).length + " told", lead: icon("–", ""), kids: comms });
+    add("logistics", "Logistics", li.filter(Boolean), { g: s.logistics, fail: fails(s.logistics, "logistics", "logistics"), tops: [waits(s.logistics)], links: [seeL ? link("logistics.html?quote=" + enq, canL ? "Open Logistics, add a line →" : "Open Logistics →") : null] });
+    // people
+    var T = TS(), tn = null, pe = [];
+    if (Array.isArray(ctx.tasks) && T.baseKey && !(s.perms && !s.perms.staff)) { tn = { n: 0, un: 0, wait: 0 }; ctx.tasks.forEach(function (t) { if (!t || t.status === "cancelled") return; tn.n++; var k = T.baseKey(t); if (k === "unassigned" || k === "rejected") tn.un++; else if (k === "waiting") tn.wait++; }); }
+    var toOps = onOps() ? null : ["ops.html?quote=" + enq, "Open Tasks & Crew"];
     if (tn) {
-      if (tn.un) pw.push(plural(tn.un, "task") + " not given out"); if (tn.wait) pw.push(tn.wait + (tn.un ? "" : tn.wait === 1 ? " task" : " tasks") + " not accepted yet");
-      pl.unshift({ key: "tasks", sec: "people", quiet: true, done: tn.n > 0 && !pw.length, title: tn.n ? pw.length ? "Tasks for the crew" : "All tasks given out and accepted" : "No tasks on this event yet", sub: pw.join(", "), lead: icon(tn.n && !pw.length ? "✓" : "!", tn.n && !pw.length ? "ok" : "warn"),
-        urg: tn.un ? { rank: 4, why: plural(tn.un, "task") + " not given out" } : null, main: !tn.n || pw.length ? function (top) { return goLink(topId(top, "hdbTasks"), "ops.html?quote=" + enq, "Tasks & Crew", "Open Tasks & Crew"); } : null });
+      pe.push(autoLine(ctx, { key: "tasks", sec: "people", done: tn.n > 0 && !tn.un, title: "Tasks given out", fact: tn.n ? tn.n - tn.un + " of " + tn.n + " given out" : "No tasks on this event yet", why: tn.un ? plural(tn.un, "task") + (tn.un === 1 ? " has" : " have") + " nobody on it" : "there are no tasks", lead: icon(tn.n && !tn.un ? "✓" : "!", tn.n && !tn.un ? "ok" : "warn"), urg: tn.un ? { rank: 4, why: plural(tn.un, "task") + " not given out" } : null, go: toOps }));
+      if (tn.n) pe.push(autoLine(ctx, { key: "tasks-yes", sec: "people", done: !tn.un && !tn.wait, title: "Tasks accepted", fact: tn.n - tn.un - tn.wait + " of " + tn.n + " accepted", why: isAre(tn.un + tn.wait, "task", "", "not accepted"), lead: icon(!tn.un && !tn.wait ? "✓" : "!", !tn.un && !tn.wait ? "ok" : "warn"), go: toOps }));
     }
-    add("people", "People and programme", pl, { sure: true, words: tn && !tn.n ? ["no tasks yet"] : pw });
+    add("people", "People", [].concat(pe, rd("people"), tick("crew_call")), { links: [] });
+    add("final", "Final checks", [].concat(rd("final"), tick("runsheet"), tick("client")), { g: ctx.noReady ? null : s.ready, fail: readyFail, tops: [!ctx.noReady && s.ready.state === "wait" ? waits(s.ready) : null] });
+  }
+  var SECTIONS_L = [["transport", "logistics"], ["venue_access", ""], ["power", ""], ["permits", "compliance"], ["weather", ""]];
+  function slug(v) { return nl(v).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50) || "other"; }
+  function buildPre(ctx, s, add, fails) {
+    var enq = enc(ctx.quoteId), T = TS(), ES = global.HelmEventSteps, a = [], set = [], ch = [], o = { eventDate: ctx.eventDate, eventTime: ctx.eventTime, tz: ctx.tz };
+    // who has come
+    var sm = ES && ES._pure && ES._pure.preSummary ? ES._pure.preSummary({ quoteId: ctx.quoteId, quote: { eventDate: ctx.eventDate, eventTime: ctx.eventTime }, tasks: ctx.tasks, tz: ctx.tz, sheet: ctx.sheet, noLines: true }) : null;
+    var goCi = ctx.goCheckin ? [ctx.goCheckin, "Open check-in"] : ["ops.html?quote=" + enq, "Open Tasks & Crew"];
+    if (sm && sm.checkedIn != null && sm.people) a.push(autoLine(ctx, { key: "crew", sec: "who", done: sm.checkedIn >= sm.people, title: "Crew checked in", fact: sm.checkedIn + " of " + sm.people + " checked in", why: isAre(sm.people - sm.checkedIn, "person", "people", "not checked in"), lead: icon(sm.checkedIn >= sm.people ? "✓" : "!", sm.checkedIn >= sm.people ? "ok" : "warn"), go: goCi }));
+    else a.push(handLine(ctx, { key: "crew", sec: "who", title: "Crew checked in", fact: sm && sm.checkedIn != null ? "Nobody has pre-event work yet" : "", go: goCi }));
+    var ar = s.arrivals.state === "ok" && s.arrivals.data ? s.arrivals.data.rows : null, goV = ctx.goVendors ? [ctx.goVendors, "Open vendors"] : ["command.html?quote=" + enq, "Open event-day command"];
+    if (s.vendors.state === "ok" && s.vendors.data && ar) {
+      var at = {}; ar.forEach(function (x) { if (x.ref) at[x.ref] = x.status; });
+      var due = s.vendors.data.bookings.filter(function (b) { return b.status !== "cancelled" && b.status !== "enquiry"; }), here = due.filter(function (b) { return b.status === "delivered" || at[b.id] === "arrived" || at[b.id] === "left"; }).length;
+      var vi = s.arrivals.data.items, viT = vi && global.HelmVendorItems ? global.HelmVendorItems.inLine(vi) : "", viN = vi ? vi.open.length : 0, all = here >= due.length && !viN;   // R260: items count too
+      if (due.length) a.push(autoLine(ctx, { key: "vendors", sec: "who", done: all, title: "Vendors arrived", fact: here + " of " + due.length + " arrived" + (viT ? " · " + viT : ""), why: here < due.length ? isAre(due.length - here, "vendor", "", "not here yet") : isAre(viN, "vendor", "", "not checked in with all items"), lead: icon(all ? "✓" : "!", all ? "ok" : "warn"), go: goV }));
+      else a.push(autoLine(ctx, { key: "vendors", sec: "who", quiet: true, done: true, title: "Vendors arrived", fact: "No vendors booked", chip: null, lead: icon("–", "") }));
+    } else if (s.vendors.state !== "wait") a.push(handLine(ctx, { key: "vendors", sec: "who", title: "Vendors arrived", go: goV }));
+    add("who", "People and vendors", a, { g: s.vendors, fail: fails(s.vendors, "the vendors", "vendors"), tops: [waits(s.vendors)] });
+    // set-up: stock + one line per department with pre-event tasks
+    var d = s.stock.data, goS = ["inventory.html?quote=" + enq, "Open stock"];
+    if (d && d.reservations) {
+      var by = {}; d.reservations.forEach(function (r) { if (r && (r.status === "reserved" || r.status === "allocated")) { var x = by[r.item_id] || (by[r.item_id] = { went: false }); if (r.status === "allocated") x.went = true; } });
+      (d.checkouts || []).forEach(function (c) { if (c && c.status !== "cancelled") (by[c.item_id] || (by[c.item_id] = {})).went = true; });
+      var ids = Object.keys(by), went = ids.filter(function (k) { return by[k].went; }).length;
+      if (ids.length) set.push(autoLine(ctx, { key: "stock", sec: "set", done: went >= ids.length, title: "Stock on site", fact: went + " of " + ids.length + " items given out for this event", why: isAre(ids.length - went, "item", "", "not given out"), lead: icon(went >= ids.length ? "✓" : "!", went >= ids.length ? "ok" : "warn"), go: goS }));
+      else set.push(handLine(ctx, { key: "stock", sec: "set", title: "Stock on site", fact: "Nothing is reserved from stock", go: goS }));
+    } else if (s.stock.state !== "wait") set.push(handLine(ctx, { key: "stock", sec: "set", title: "Stock on site" }));
+    var dep = {}, order = [];
+    (ctx.tasks || []).forEach(function (t) {
+      if (!t || t.status === "cancelled" || nl(t.category) === nl(CAT) || !T.taskStep || T.taskStep(t, o) !== "pre") return;
+      var c = String(t.category || "Other").trim() || "Other", k = slug(c); if (!dep[k]) { dep[k] = { name: c, n: 0, done: 0 }; order.push(k); } dep[k].n++; if (T.baseKey(t) === "done") dep[k].done++;
+    });
+    order.forEach(function (k) {
+      var x = dep[k], ok = x.done >= x.n;
+      set.push(autoLine(ctx, { key: "dep-" + k, sec: "set", done: ok, title: x.name + (/set.?up$/i.test(x.name) ? " done" : " set up"), fact: x.done + " of " + plural(x.n, "task") + " done", why: isAre(x.n - x.done, "task", "", "not done"), lead: icon(ok ? "✓" : "!", ok ? "ok" : "warn"), go: onOps() ? null : ["ops.html?quote=" + enq, "Open Tasks & Crew"] }));
+    });
+    add("set", "Set-up", set, { g: s.stock, tops: [waits(s.stock), order.length ? null : h("p", { cls: "hdb-note", text: "No pre-event tasks yet. Each department with pre-event tasks gets its line here." })] });
+    // checks on site
+    var types = (stockModel(s) || {}).types || (d && d.floor), sf = seatsFact(ctx.quoteId), bf = s.ready.data && s.ready.data.r ? (s.ready.data.r.checks || []).filter(function (c) { return c && c.key === "briefing"; })[0] : null;
+    ch.push(handLine(ctx, { key: "safety", sec: "checks", title: "Safety and power", detail: ["Fire exits clear, extinguishers in place, generator and cables checked, nothing to trip over."] }));
+    ch.push(handLine(ctx, { key: "soundlight", sec: "checks", title: "Sound and light check", detail: ["Mics, music, screens and lights tried with the crew who run them."] }));
+    ch.push(handLine(ctx, { key: "seating", sec: "checks", title: "Seating matches the plan", fact: sf ? plural(sf.seats, "seat") + " on the plan for " + plural(sf.guests, "guest") : types && types.length ? planWords(types) : "", go: [planHref(ctx.quoteId), "Open 2D / 3D plan"] }));
+    ch.push(handLine(ctx, { key: "food", sec: "checks", title: "Food tasting and counters ready", detail: ["Counters, chafing dishes, crockery and labels ready; the food tasted."] }));
+    ch.push(handLine(ctx, { key: "walk", sec: "checks", title: "Walk-through with the client", detail: ["Show the client the hall before guests come, note what they want changed."] }));
+    ch.push(bf && !bf.hidden ? autoLine(ctx, { key: "briefed", sec: "checks", done: !!bf.ok, title: "Team briefed", fact: bf.ok ? "" : "Not marked on the Readiness page", why: "it is not marked on the Readiness page", lead: icon(bf.ok ? "✓" : "!", bf.ok ? "ok" : "warn"), go: ["ready.html?quote=" + enq, "Open Readiness"] }) : handLine(ctx, { key: "briefed", sec: "checks", title: "Team briefed" }));
+    add("checks", "Checks before guests", ch, { links: [] });
+  }
+  function paint(host, force) {
+    var st = host._hdb; if (!st) return; var ctx = st.ctx, q = ctx.quoteId, s = S(q), pre = stepOf(ctx) === "pre";
+    if (!force && host.firstChild && st.q === q && inUse(host)) return;
+    var sig = sigOf(ctx, s); if (sig && st.sig === sig && host.firstChild) return; st.q = q;
+    var a = doc.activeElement, focusId = a && host.contains(a) ? a.id : "", gKey = "", up = focusId ? a : null, sel = a && focusId && a.tagName === "INPUT" ? [a.selectionStart, a.selectionEnd] : null;
+    while (up && up !== host && !gKey) { gKey = up.getAttribute ? up.getAttribute("data-g") || "" : ""; up = up.parentNode; }
+    var G = [];
+    function add(key, title, items, o) {
+      items = items.filter(Boolean); var all = flat(items.concat((o && o.more) || [])), c = all.filter(function (r) { return !r.quiet && !r.na; });
+      G.push(Object.assign({ key: key, title: title, items: items, all: all, done: c.filter(function (r) { return r.done; }).length, of: c.length, tops: [], end: [], links: [] }, o));
+    }
+    function fails(g, what, k) { return g.state === "error" ? againBox(q, what, function () { s[k] = blank(); repaint(q, true); loadGroup(q, k, true); }) : null; }
+    (pre ? buildPre : buildDay)(ctx, s, add, fails);
+    var own = ownItems(ctx), form = ownForm(ctx);
+    if (own.length || form || oldDb(ctx)) add("own", "Your own lines", own, { end: [form, !own.length && !form && !oldDb(ctx) ? h("p", { cls: "hdb-note", text: "None." }) : null, oldDb(ctx) ? h("p", { cls: "hdb-note", text: (pre ? "Ticks on this list and lines of your own need" : "Ticking the lines Helm checks, and lines of your own, need") + " database update 0442." }) : null] });
+    s.left[stepOf(ctx)] = marksOf(ctx) ? G.reduce(function (n, g) { return n.concat(g.all); }, []).filter(function (x) { return !x.done && !x.quiet && !x.na && x.hand; }).map(function (x) { return x.title; }) : null;
 
-    /* ---- the sentence ---- */
-    var total = G.reduce(function (n, g) { return n + g.of; }, 0), doneN = G.reduce(function (n, g) { return n + g.done; }, 0), left = total - doneN, first = !s.at;
-    var failed = G.some(function (g) { return g.fail; }) || (s.ready.state === "ok" && (s.vendors.state === "error" || s.stock.state === "error")), sure = G.every(function (g) { return g.sure; }) && (ctx.noReady || s.ready.state !== "hidden");
-    var firsts = G.reduce(function (a, g) { return a.concat(g.all); }, []).filter(function (x) { return x.urg && !x.done; }).map(function (x, i) { return { x: x, i: i }; })
+    /* ---- the count ---- */
+    var total = G.reduce(function (n, g) { return n + g.of; }, 0), doneN = G.reduce(function (n, g) { return n + g.done; }, 0), left = total - doneN, first = !s.at, bad = G.map(function (g) { return g.fail; }).filter(Boolean);
+    if (s.marks.state === "error") bad.push(againBox(q, "the ticks", function () { s.marks = blank(); repaint(q, true); loadGroup(q, "marks", true); }));
+    var failed = bad.length > 0 || (s.ready.state === "ok" && (s.vendors.state === "error" || s.stock.state === "error"));
+    var sure = (ctx.noReady || pre || s.ready.state === "ok") && ["vendors", "stock"].concat(pre ? [] : ["logistics"]).every(function (k) { return s[k].state === "ok"; });   // what this role cannot see never counts as fine
+    var all = G.reduce(function (n, g) { return n.concat(g.all); }, []), firsts = pre ? [] : all.filter(function (x) { return x.urg && !x.done; }).map(function (x, i) { return { x: x, i: i }; })
       .sort(function (m, n) { return m.x.urg.rank - n.x.urg.rank || String(m.x.urg.due || "9").localeCompare(String(n.x.urg.due || "9")) || m.i - n.i; }).map(function (z) { return z.x; });
-    // only the first section with something urgent opens by itself, once, when everything is read
-    if (!sec.auto && s.at && !s.loading) { var hot = G.filter(function (g) { return !g.full && g.all.some(function (x) { return x.urg && !x.done && x.urg.rank < 6; }); })[0]; sec.auto = hot ? hot.key : "-"; }
     st.sig = sigOf(ctx, s);
 
     clear(host); host.classList.add("hdb"); host.setAttribute("aria-busy", s.loading ? "true" : "false");
     var wrap = h("div", { cls: "hdb-in" }); host.appendChild(wrap);
-    wrap.appendChild(h("div", { cls: "hdb-head" }, [h("h3", { cls: "tc-h2", id: host.id + "H", tabindex: "-1", text: "Day before - are we ready?" }),
+    wrap.appendChild(h("div", { cls: "hdb-head" }, [h("h3", { cls: "tc-h2", id: host.id + "H", tabindex: "-1", text: pre ? "Pre-event checklist" : "Day before checklist" }),
       h("span", { cls: "hdb-at", role: "status", text: s.loading ? "Checking…" : s.at ? "Checked " + clock(s.at, ctx.tz) : "" }),
-      btn("hdbRefresh", "Refresh", function () { if (!s.loading) load(q, ctx, true); }, { label: "Refresh the Day before checklist" })]));
+      btn("hdbRefresh" + sfx(ctx), "Refresh", function () { if (!s.loading) load(q, ctx, true); }, { cls: "hdb-refresh", label: "Refresh the " + (pre ? "Pre-event" : "Day before") + " checklist" })]));
     wrap.appendChild(h("p", { cls: "hdb-sum", id: host.id + "Tot", text: first ? "Checking this event…" : left > 0 ? doneN + " of " + total + " done - " + left + " to go" + (failed ? ". Some parts could not be checked." : "") : failed ? doneN + " of " + total + " done. Some parts could not be checked." : sure ? "All " + total + " done" : "Everything you can see is done (" + doneN + " of " + total + ")" }));
     wrap.appendChild(h("progress", { cls: "hdb-bar" + (left <= 0 && !failed && !first ? " ok" : ""), max: String(total || 1), value: first ? "0" : String(doneN), "aria-labelledby": host.id + "Tot" }));
-    if (ctx.plan && !ctx.plan.can_edit) wrap.appendChild(h("p", { cls: "hdb-note", text: "Someone who can give out work (Assign & send tasks) ticks the Day-before lines." }));
-    else if (isLocked(ctx)) wrap.appendChild(h("p", { cls: "hdb-note", text: "The plan is locked: ticks still work, new tasks cannot be given out until it is unlocked." }));
-    var bad = G.map(function (g) { return g.fail; }).filter(Boolean); if (bad.length) wrap.appendChild(h("div", { cls: "hdb-fails" }, bad));
+    var may = canMark(ctx) || (!pre && ctx.plan && ctx.plan.can_edit); if (!first && !may && !(pre && oldDb(ctx))) wrap.appendChild(h("p", { cls: "hdb-note", text: "Someone who can give out work (Assign & send tasks) ticks the lines." }));
+    if (bad.length) wrap.appendChild(h("div", { cls: "hdb-fails" }, bad));
 
     /* ---- do these first ---- */
     if (!first && firsts.length) {
       wrap.appendChild(h("section", { cls: "hdb-first", "aria-labelledby": host.id + "G-first", "data-g": "first" }, [h("h4", { cls: "hdb-h", id: host.id + "G-first", tabindex: "-1", text: "Do these first" }),
         h("ol", { cls: "hdb-list" }, firsts.slice(0, 5).map(function (x) {
-          var act = x.topMain ? x.topMain() : x.main ? x.main(true) : btn("hdbTop-show-" + x.key, "Show", function () { jump(ctx, x); }, { label: "Show: " + x.title });
+          var tk = x.tick && x.tick.can ? tickNodes(ctx, x, true).btn : null, act = (x.acts ? x.acts(true) : []).filter(Boolean), show = btn("hdbTop-show-" + x.key, "Show", function () { jump(ctx, x); }, { label: "Show the line: " + x.title });
           return h("li", { cls: "hdb-row top" }, [h("button", { type: "button", cls: "hdb-main", id: "hdbTopT-" + x.key, title: "Show the line", on: { click: function () { jump(ctx, x); } } }, [h("span", { cls: "hdb-t" }, [h("b", { text: x.title })]),
-            h("span", { cls: "hdb-sub" }, [x.urg.why ? h("span", { cls: x.urg.rank < 3 || /^Turned/.test(x.urg.why) ? "bad" : "warn", text: x.urg.why }) : null, x.urg.why && x.urg.rest ? " · " : "", x.urg.rest || ""])]), h("div", { cls: "hdb-act" }, [act])]);
-        })), firsts.length > 5 ? h("p", { cls: "hdb-note", text: firsts.length - 5 + " more in the sections below." }) : null]));
+            h("span", { cls: "hdb-sub" }, [x.urg.why ? h("span", { cls: x.urg.rank < 3 || /^Turned/.test(x.urg.why) ? "bad" : "warn", text: x.urg.why }) : null, x.urg.why && x.urg.rest ? " · " : "", x.urg.rest || ""])]), h("div", { cls: "hdb-act" }, [tk, act[0] || goNode(ctx, x, true), show].filter(Boolean))]);
+        })), firsts.length > 5 ? h("p", { cls: "hdb-note", text: firsts.length - 5 + " more below." }) : null]));
     }
 
-    /* ---- the five sections ---- */
+    /* ---- the sections: always open ---- */
     var acc = h("div", { cls: "hdb-acc" }); wrap.appendChild(acc);
     G.forEach(function (g) {
-      var open = secOpen(q, g), bid = host.id + "G-" + g.key, pid = bid + "P", seen = [], fin = [];
-      g.items.forEach(function (x) {
-        var ko = (x.kids || []).filter(function (k) { return !k.done; }), kd = (x.kids || []).filter(function (k) { return k.done; });
-        if (!x.done || ko.length) seen.push(Object.assign({}, x, { kids: x.kids ? ko : null })); else if (!x.head) fin.push(Object.assign({}, x, { kids: null }));
-        fin = fin.concat(kd);
-      });
-      var words = g.full ? "" : first || (g.g && g.g.state === "wait") ? "Checking…" : g.fail ? "Couldn't check" : g.text || wrongWords(g);
-      var btnN = h("button", { type: "button", id: bid, cls: "hdb-sec", "aria-expanded": open ? "true" : "false", "aria-controls": pid, on: { click: function () { sec.user[g.key] = !open; UI.menu = null; repaint(q, true); } } }, [
-        h("span", { cls: "hdb-no" + (g.full ? " ok" : ""), "aria-hidden": g.full ? "true" : null, text: g.full ? "✓" : String(g.no) }), h("span", { cls: "hdb-sec-m" }, [h("span", { cls: "hdb-sec-l" }, [h("b", { text: g.title }), " ", g.of ? h("span", { cls: "hdb-cnt", text: g.done + " of " + g.of + " done" }) : null]),
-          words && !open ? h("span", { cls: "hdb-sub", text: words }) : null]), h("span", { cls: "hdb-car", "aria-hidden": "true" })]);
-      var body = h("div", { cls: "hdb-body", id: pid, role: "region", "aria-labelledby": bid, hidden: !open }, g.tops.filter(Boolean).concat([list(ctx, seen), !seen.length && fin.length && g.of ? h("p", { cls: "hdb-all", text: g.allText || (g.sure ? "All done." : "Everything you can see is done.") }) : null,
-        fin.length ? fold(g.key, "Show " + fin.length + " done", [list(ctx, fin)], "Hide " + fin.length + " done") : null], g.end, [g.links.some(Boolean) ? h("p", { cls: "hdb-links" }, g.links) : null]));
-      acc.appendChild(h("section", { cls: "hdb-grp" + (open ? " open" : ""), "data-g": g.key }, [h("h4", { cls: "hdb-sec-h" }, [btnN]), body]));
+      var full = g.of > 0 && g.done >= g.of && !g.fail && !(g.g && g.g.state !== "ok");
+      acc.appendChild(h("section", { cls: "hdb-grp" + (full ? " ok" : ""), "data-g": g.key, "aria-labelledby": host.id + "G-" + g.key }, [
+        h("h4", { cls: "hdb-sec-h", id: host.id + "G-" + g.key, tabindex: "-1" }, [g.title, g.of ? h("span", { cls: "hdb-cnt" + (full ? " ok" : ""), text: (full ? "✓ " : "") + g.done + " of " + g.of + " done" }) : null, g.fail ? h("span", { cls: "hdb-cnt", text: "Couldn't check" }) : null]),
+        h("div", { cls: "hdb-body" }, g.tops.filter(Boolean).concat([list(ctx, g.items)], g.end, [g.links.some(Boolean) ? h("p", { cls: "hdb-links" }, g.links) : null]))]));
     });
+    var titles = {}; all.forEach(function (x) { titles[String(x.key).toLowerCase()] = x.title; }); var hist = historyBox(ctx, titles); if (hist) wrap.appendChild(hist);
 
-    if (focusId) {   // the same control again; when it went into a closed part, the section's own heading
+    if (focusId) {   // the same control again; when it is gone, the section's own heading
       [focusId, gKey && host.id + "G-" + gKey, host.id + "H"].some(function (i) {
         var b = i && doc.getElementById(i); if (!b) return false;
         try { b.focus({ preventScroll: true }); if (i === focusId && sel && b.setSelectionRange) b.setSelectionRange(sel[0], sel[1]); } catch (e) {}
@@ -694,13 +853,25 @@
     if (!host._hdb) { host._hdb = { ctx: ctx }; }
     if (host._hdb.ctx.quoteId !== q) { UI.menu = null; if (UI.form && UI.form.q !== q) UI.form = null; }   // another event: a half-filled form does not travel
     host._hdb.ctx = ctx; if (HOSTS.indexOf(host) < 0) HOSTS.push(host);
-    var s = S(q); if (q && onScreen(host) && !s.loading && Date.now() - s.at > KEEP_MS) load(q, ctx, false);
+    var s = S(q), now = Date.now();
+    if (q && onScreen(host) && !s.loading) {
+      if (now - s.at > KEEP_MS) load(q, ctx, false);
+      else {
+        if (now - s.markAt > MARK_MS && !oldDb(ctx)) { s.markAt = now; loadGroup(q, "marks"); }   // what a teammate ticked
+        if (ctx.step === "pre" && now - s.arrAt > ARR_MS) { s.arrAt = now; loadGroup(q, "arrivals"); }
+      }
+    }
     paint(host, false);
   }
-  function reset(q) { if (q) { delete ST[q]; delete UI.sec[q]; } else { ST = {}; UI.sec = {}; UI.open = {}; } UI.form = null; UI.menu = null; UI.busy = {}; }
+  function renderPre(host, ctx) { return render(host, Object.assign({}, ctx || {}, { step: "pre" })); }
+  // what a person still has to tick on that step's list (titles); null = not known (not read yet, or before 0442)
+  function openLines(q, step) { var s = ST[q]; return s && s.left[step] ? s.left[step].slice() : null; }
+  function reset(q) { if (q) delete ST[q]; else { ST = {}; UI.open = {}; UI.own = {}; } UI.form = null; UI.menu = null; UI.busy = {}; UI.flash = null; }
+  // R260: a vendor was marked or their items were checked in on this page: the line "Vendors arrived" follows at once
+  if (doc && doc.addEventListener) doc.addEventListener("helm:vendors", function () { Object.keys(ST).forEach(function (q) { if (ST[q].arrAt && ST[q].perms) loadGroup(q, "arrivals"); }); });
   // a press anywhere else closes the More menu
   if (doc && doc.addEventListener) doc.addEventListener("click", function (e) { if (UI.menu && !(e.target && e.target.closest && e.target.closest(".hdb-more"))) shut(null, false); });
 
-  global.HelmDayBefore = { render: render, reset: reset, startFor: startFor, lineTask: lineTask, stockRows: stockRows, stockWords: stockWords, vendorRows: vendorRows, sourcedFor: sourcedFor, floorTypes: floorTypes, planWords: planWords,
-    cleanBooking: cleanBooking, refused: refused, groupOf: groupOf, KEEP_MS: KEEP_MS, CAT: CAT, _ui: UI, _state: S };
+  global.HelmDayBefore = { render: render, renderPre: renderPre, openLines: openLines, reset: reset, startFor: startFor, lineTask: lineTask, stockRows: stockRows, stockWords: stockWords, vendorRows: vendorRows, sourcedFor: sourcedFor, floorTypes: floorTypes, planWords: planWords,
+    cleanBooking: cleanBooking, refused: refused, groupOf: groupOf, byWords: byWords, KEEP_MS: KEEP_MS, CAT: CAT, _ui: UI, _state: S };
 })(typeof window !== "undefined" ? window : globalThis);

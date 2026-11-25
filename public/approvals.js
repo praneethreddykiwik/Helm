@@ -115,7 +115,7 @@
   function rowSig(t) { return JSON.stringify([t, evOf(t).map(function (x) { return [x.id, !!S.urls[x.storage_path]]; }), S.urlAt, S.data.next[t.id], can(t), !!S.sel[t.id], S.busy, ago(t.completed_at, Date.now())]); }
   function focusKey() { var a = doc.activeElement; return a && $("apList").contains(a) ? a.getAttribute("data-key") : null; }
   function render() {
-    renderHead();
+    renderHead(); tellBadge();
     var list = $("apList"), wait = waiting(), done = S.view === "done";
     Object.keys(S.sel).forEach(function (id) { if (!wait.some(function (t) { return t.id === id && can(t); })) delete S.sel[id]; });
     $("apListH").textContent = done ? "Checked lately" : wait.length ? pl(wait.length, "finished task waits", "finished tasks wait") + " for approval" : "Nothing is waiting";
@@ -134,6 +134,9 @@
     }
     renderBulk();
   }
+  // R257: the sidebar badge = what this person can approve now (every event), told at once - it used to wait up to 3 minutes
+  var told = null;
+  function tellBadge() { var n = S.data.pending.filter(can).length; if (n === told) return; told = n; try { global.dispatchEvent(new CustomEvent("helm:approvals", { detail: { count: n } })); } catch (e) {} }
   function picked() { return S.view === "wait" ? waiting().filter(function (t) { return S.sel[t.id] && can(t); }) : []; }
   function renderBulk() {
     var n = picked().length; $("apBulk").hidden = !n; $("apBulkN").textContent = String(n); $("apBulkGo").textContent = "Approve " + n; $("apBulkGo").disabled = S.busy > 0;

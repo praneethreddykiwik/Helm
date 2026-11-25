@@ -58,7 +58,7 @@ function world(o = {}) {
   const by = (id) => DOC.getElementById(id), find = (f) => host.all().filter(f);
   return { W, host, draw, reads, writes, toasts, db, by, find, D: W.HelmDayBefore, EP: W.HelmEventPlan, text: () => host.textContent, B, fails };
 }
-const secs = (w) => w.find((n) => n.className === 'hdb-sec'), sec = (w, k) => w.by('dhG-' + k), isOpen = (w, k) => sec(w, k).attrs['aria-expanded'] === 'true' && !w.by('dhG-' + k + 'P').hidden, words = (w, k) => sec(w, k).textContent;
+const secs = (w) => w.find((n) => n.className === 'hdb-sec-h'), sec = (w, k) => w.by('dhG-' + k), words = (w, k) => sec(w, k).textContent;   // R257: every section is always open
 const tops = (w) => w.find((n) => / top$/.test(n.className)).map((n) => n.textContent), menu = (w, key) => w.by('hdbMenu-' + key).all().filter((n) => n.attrs.role === 'menuitem').map((n) => n.textContent);
 const base = world(), D = base.D, EP = base.EP;
 // the real clock is after the fake one: the card takes "now" from ctx; readyCheck / cache use Date.now
@@ -81,7 +81,7 @@ await t('1b the task of a line: same category + words, an open one wins, cancell
 });
 await t('1c the 11 server keys sit in a group each; nothing invented', () => {
   assert.deepEqual(plain(EP.DAYBEFORE.map((d) => d[0])), ['vendors', 'headcount', 'crew_call', 'load_list', 'transport', 'venue_access', 'power', 'permits', 'weather', 'runsheet', 'client']);
-  assert.deepEqual(plain(EP.DAYBEFORE.map((d) => D.groupOf(d[0]))), ['vendors', 'logistics', 'people', 'stock', 'logistics', 'logistics', 'logistics', 'logistics', 'logistics', 'people', 'people']);
+  assert.deepEqual(plain(EP.DAYBEFORE.map((d) => D.groupOf(d[0]))), ['vendors', 'menu', 'people', 'stock', 'logistics', 'logistics', 'logistics', 'logistics', 'logistics', 'final', 'final']);
 });
 const LAY = { types: [{ layout_type: 'table', label: 'Round Table', objects: 12, seats: 96 }, { layout_type: 'chiavari', label: 'Chiavari chair', objects: 120, seats: 120 }],
   items: [{ item_id: 'i1', name: 'Chiavari chair', needed: 120, held: 80, free: 20, to_borrow: 20, to_borrow_shared: 25, types: ['chiavari'] }, { item_id: 'i2', name: 'Round table', needed: 12, held: 12, free: 3, to_borrow: 0, types: ['table'] }],
@@ -114,10 +114,10 @@ await t('1g readyMask: without Vendors / Inventory view those lines are "Not vis
   assert.equal(EP.readySum(EP.readyMask(r, { vendors: true, stock: true })).of, 3);
 });
 
-await t('2a one card: all 11 ticks exactly once, 5 groups, reads once and in parallel, nothing written', async () => {
+await t('2a one card: all 11 ticks exactly once, the 7 sections in order, reads once and in parallel, nothing written', async () => {
   const w = world({ layout: LAY }); w.draw(); await tick();
   const ids = w.find((n) => /^epChk-/.test(n.id)).map((n) => n.id); assert.equal(ids.length, 11); assert.equal(new Set(ids).size, 11);
-  assert.equal(secs(w).length, 5); assert.match(w.text(), /On the plan: 2 kinds of items, 216 seats/); assert.match(w.text(), /Chiavari chair × 120, Round Table × 12 · 216 seats in all/);
+  assert.deepEqual(secs(w).slice(0, 7).map((n) => n.firstChild.textContent), ['Vendors', 'Menu and guest count', 'Plan and floor layout', 'Inventory and stock', 'Logistics', 'People', 'Final checks']); assert.match(w.text(), /Chiavari chair × 120, Round Table × 12 · 216 seats in all/);
   assert.doesNotMatch(w.text(), /Needed 120/); w.by('hdbT-st-i1').click(); assert.match(w.text(), /Needed 120 · Reserved 0 · Given out 0 · Missing 40/); assert.deepEqual(w.writes, []);
   const r = plain(w.reads); for (let i = 0; i < 10; i++) w.draw(); await tick(); assert.deepEqual(plain(w.reads), r, 'the 30 s redraw reads nothing');
   assert.ok(Object.keys(r).every((k) => r[k] === 1)); w.by('hdbRefresh').click(); await tick(); assert.equal(w.reads.layout, 2); assert.equal(w.reads.ready, 2);
@@ -126,11 +126,11 @@ await t('2a one card: all 11 ticks exactly once, 5 groups, reads once and in par
 await t('2b nothing is read while the card is hidden or the tab is in the background; noReady leaves part 1 out', async () => {
   const w = world(); w.host.hidden = true; w.draw(); await tick(); assert.deepEqual(plain(w.reads), {});
   w.host.hidden = false; DOC.hidden = true; w.draw(); await tick(); assert.deepEqual(plain(w.reads), {});
-  const x = world({ ctx: { noReady: true } }); x.draw(); await tick(); assert.equal(x.reads.ready, undefined); assert.match(secs(x)[0].textContent, /^2Vendors/);
+  const x = world({ ctx: { noReady: true } }); x.draw(); await tick(); assert.equal(x.reads.ready, undefined); assert.match(secs(x)[0].textContent, /^Vendors/); assert.equal(x.by('hdbMk-rd-date'), null);
 });
 await t('2c the redraw keeps the DOM when nothing changed, and never touches an open form', async () => {
   const w = world(); w.draw(); await tick(); const first = w.host.firstChild; w.draw(); assert.equal(w.host.firstChild, first);
-  w.by('hdbAs-vendors').click(); await tick(); const f = w.by('hdbPick'); assert.ok(isOpen(w, 'vendors')); w.db.tasks.push({ id: 'x', category: 'A', title: 'B', status: 'assigned' }); w.draw(); assert.equal(w.by('hdbPick'), f);
+  w.by('hdbAs-vendors').click(); await tick(); const f = w.by('hdbPick'); w.db.tasks.push({ id: 'x', category: 'A', title: 'B', status: 'assigned' }); w.draw(); assert.equal(w.by('hdbPick'), f);
   w.find((n) => n.className === 'hdb-form')[0].fire('keydown', { key: 'Escape', stopPropagation() {} }); assert.equal(w.by('hdbPick'), null); assert.equal(DOC.activeElement.id, 'hdbMore-line-vendors', 'focus back on the More button');
 });
 const give = async (w, id, val) => { w.by(id).click(); await tick(); const p = w.by('hdbPick'); if (val) { p.value = val; p.fire('change'); } w.by('hdbGo').click(); w.by('hdbGo') && w.by('hdbGo').click(); await tick(); };
@@ -155,12 +155,12 @@ await t('2g turned down: the SAME task is passed on (no copy), staff only; done 
   assert.equal(w.by('hdbAs-vendors'), null); w.by('hdbAs-permits').click(); await tick(); assert.deepEqual(w.by('hdbPick').all().filter((n) => n.tagName === 'OPTGROUP').map((n) => n.attrs.label), ['Staff']);
   const p = w.by('hdbPick'); p.value = 'c:c1'; p.fire('change'); w.by('hdbGo').click(); await tick(); assert.deepEqual(w.writes, [['reassign', 'r', 'c1']]);
 });
-await t('2h plan locked or not allowed: no Assign, no Give a job; ticks still work while locked, not without permission', async () => {
-  const w = world({ ctx: { locked: true } }); w.draw(); await tick(); assert.equal(w.find((n) => /^hdb(As|Job)-/.test(n.id)).length, 0); w.by('epChk-power').click(); await tick(); assert.deepEqual(w.writes, [['check', 'power', true]]);
+await t('2h R257: a closed event gives out nothing, ticks still work; a lock answer changes nothing; no permission = no ticks', async () => {
+  const w = world({ ctx: { closed: true } }); w.draw(); await tick(); assert.equal(w.find((n) => /^hdb(As|Job)-/.test(n.id)).length, 0); w.by('epChk-power').click(); await tick(); assert.deepEqual(w.writes, [['check', 'power', true]]);
   assert.equal(w.by('epChk-power').attrs['aria-pressed'], 'true');
   const x = world({ deny: ['tasks'] }); x.draw(); await tick(); assert.equal(x.find((n) => /^hdb(As|Job)-/.test(n.id)).length, 0); assert.ok(x.find((n) => /^epChk-/.test(n.id)).every((n) => n.attrs.disabled === ''));
   const y = world({ deny: ['staff'] }); y.draw(); await tick(); assert.equal(y.find((n) => /^hdbAs-/.test(n.id)).length, 0, 'without Staff view a second task could not be seen'); assert.doesNotMatch(y.text(), /No tasks on this event/);
-  const z = world(); z.W.HelmEventFloor = { isLocked: () => true }; z.draw(); await tick(); assert.equal(z.find((n) => /^hdbAs-/.test(n.id)).length, 0, 'the live lock answer counts too');
+  const z = world({ ctx: { locked: true } }); z.draw(); await tick(); assert.ok(z.find((n) => /^hdbAs-/.test(n.id)).length > 0, 'no event-day lock any more');
 });
 await t('2i vendors: Call, Mark confirmed is read back; a refused save (no row changed) is said, never shown as saved', async () => {
   const w = world(); w.draw(); await tick(); assert.ok(w.find((n) => n.attrs.href === 'tel:9848011111').length); w.by('hdbCf-b1').click(); await tick(); assert.deepEqual(w.writes, [['booking', 'b1', { status: 'confirmed' }]]); assert.match(w.toasts[0][1], /is confirmed/); assert.equal(w.reads.ready, 2, 'Vendors confirmed is worked out again');
@@ -183,11 +183,11 @@ await t('2k logistics: done, N/A and owner go through checklist.update and are r
 await t('2l a refused area is left out quietly and its readiness line is not done; floor counts stay without Inventory', async () => {
   const w = world({ deny: ['vendors', 'inventory', 'logistics'] }); w.draw(); await tick(); const tx = w.text();
   assert.equal(w.reads.bookings, undefined); assert.equal(w.reads.layout, undefined); assert.equal(w.reads.checklist, undefined); assert.match(tx, /Round Table × 2 · 16 seats in all/); assert.match(tx, /Stock numbers are not visible to you/);
-  assert.equal((tx.match(/Not visible to you/g) || []).length, 2); assert.doesNotMatch(tx, /Couldn't check|No vendors booked/); assert.match(tx, /Booked and planned 1 of 1 done/); assert.doesNotMatch(tx, /Everything is booked/);
+  assert.equal((tx.match(/Not visible to you/g) || []).length, 2); assert.doesNotMatch(tx, /Couldn't check|No vendors booked/); assert.doesNotMatch(words(w, 'vendors'), /✓/);
   assert.equal(w.find((n) => /^epChk-/.test(n.id)).length, 11);
 });
 await t('2m a failed read says "Couldn\'t check" + Try again (that group only); the readiness line it stands on is not done', async () => {
-  const w = world({ fails: ['bookings'] }); w.draw(); await tick(); assert.match(w.text(), /Couldn't check the vendors/); assert.match(w.text(), /Vendors confirmedCouldn't check/); assert.match(w.by('dhTot').textContent, /Some parts could not be checked/); assert.match(words(w, 'vendors'), /Couldn't check/);
+  const w = world({ fails: ['bookings'] }); w.draw(); await tick(); assert.match(w.text(), /Couldn't check the vendors/); assert.match(w.text(), /Vendors confirmed.*Couldn't check/); assert.match(w.by('dhTot').textContent, /Some parts could not be checked/); assert.match(words(w, 'vendors'), /Couldn't check/);
   const r = w.reads.layout; w.fails.length = 0; w.by('hdbRetry-thevendors').click(); await tick(); assert.doesNotMatch(w.text(), /Couldn't check/); assert.equal(w.reads.layout, r); assert.match(w.text(), /Annapurna/);
   const x = world({ fails: ['ready'] }); x.draw(); await tick(); assert.match(x.text(), /Couldn't check the plan/);
 });
@@ -199,35 +199,34 @@ await t('2n missing stock: "Get from a vendor" opens HelmStockVendor with the nu
   const y = world({ layout: LAY, deny: ['vendors:e'] }); y.W.HelmStockVendor = { open() {} }; y.draw(); await tick(); assert.equal(y.by('hdbGet-i1'), null);
 });
 
+const LAY0 = { types: [{ layout_type: 'table', label: 'Round Table', objects: 1, seats: 8 }], items: [], unlinked: [] };
 const FULL = (o = {}) => world(Object.assign({ layout: LAY, bk: [{ id: 'b1', vendor_id: 'v1', label: 'Catering', status: 'booked' }, { id: 'b2', vendor_id: 'v2', label: 'DJ', status: 'confirmed' }],
   ck: [{ id: 'k1', section: 'compliance', title: 'Police / loudspeaker permission', detail: 'ref 44', owner: 'Salma', due_date: '2026-11-22', status: 'open' }, { id: 'k2', section: 'compliance', title: 'Fire NOC', status: 'done' }, { id: 'k3', section: 'logistics', title: 'Tempo', status: 'open' }, { id: 'k4', section: 'guests', title: 'Family', qty: 180, status: 'done' }, { id: 'k5', section: 'guests', title: 'Friends', qty: 60, status: 'open' }, { id: 'k6', section: 'logistics', title: 'Valet', status: 'na' }],
   tasks: [{ id: 'r', category: 'Day before', title: 'Venue access confirmed', crew_id: 'c9', assignee_name: 'Meena', status: 'rejected' }] }, o));
-await t('4a the top: one sentence, a bar, "Do these first" = at most 5, most urgent first, each with one button', async () => {
+await t('4a the top: one sentence, a bar, "Do these first" = at most 5, most urgent first, each with Mark done (when it can be ticked) and Show', async () => {
   const w = FULL(); w.draw(); assert.match(w.by('dhTot').textContent, /Checking/); await tick(); const m = /^(\d+) of (\d+) done - (\d+) to go$/.exec(w.by('dhTot').textContent); assert.ok(m); assert.equal(+m[1] + +m[3], +m[2]);
   const bar = w.find((n) => n.tagName === 'PROGRESS')[0]; assert.deepEqual([bar.attrs.value, bar.attrs.max, bar.attrs['aria-labelledby']], [m[1], m[2], 'dhTot']);
-  const tp = tops(w); assert.equal(tp.length, 5); assert.match(tp[0], /^Police.*Overdue.*Mark done$/); assert.match(tp[1], /^Chiavari chairMissing 20/); assert.match(tp[2], /^AnnapurnaNot confirmed.*Mark confirmed$/); assert.match(tp[3], /^Venue accessTurned down|^Venue access confirmedTurned down · by Meena.*Give to someone$/);
-  w.find((n) => / top$/.test(n.className)).forEach((r) => assert.equal(r.childNodes[1].childNodes.length, 1)); assert.deepEqual(w.writes, []);
+  const tp = tops(w); assert.equal(tp.length, 5); assert.match(tp[0], /^Police.*Overdue.*Mark doneShow$/); assert.match(tp[1], /^Chiavari chairMissing 20/); assert.match(tp[2], /^AnnapurnaNot confirmed.*Mark confirmedShow$/); assert.match(tp[3], /^Venue access confirmedTurned down · by Meena.*Mark doneGive to someoneShow$/);
+  assert.deepEqual(w.writes, []);
   w.by('hdbTop-hdbCk-k1').click(); await tick(); assert.deepEqual(w.writes, [['chk', 'k1', { status: 'done' }]]); assert.doesNotMatch(tops(w).join('|'), /Police/); assert.equal(w.db.checks.permits, undefined, 'the tick stays its own thing');
   w.by('hdbTop-hdbCf-b1').click(); await tick(); assert.deepEqual(w.writes[1], ['booking', 'b1', { status: 'confirmed' }]);
-  w.by('hdbTop-hdbAs-venue_access').click(); await tick(); assert.ok(isOpen(w, 'logistics')); assert.equal(DOC.activeElement.id, 'hdbPick'); assert.equal(w.writes.length, 2);
-  const v = FULL({ deny: ['vendors:e', 'plan:e', 'tasks'] }); v.draw(); await tick(); assert.match(tops(v)[0], /Show$/); assert.doesNotMatch(tops(v).join('|'), /Mark|Give/); v.find((n) => n.id === 'hdbTop-show-ck-k1')[0].click(); assert.ok(isOpen(v, 'logistics')); assert.equal(DOC.activeElement.id, 'hdbT-ck-k1'); assert.match(v.text(), /ref 44/); assert.deepEqual(v.writes, []);
+  w.by('hdbTop-hdbAs-venue_access').click(); await tick(); assert.equal(DOC.activeElement.id, 'hdbPick'); assert.equal(w.writes.length, 2);
+  const v = FULL({ deny: ['vendors:e', 'plan:e', 'tasks'] }); v.draw(); await tick(); assert.match(tops(v)[0], /Show$/); assert.doesNotMatch(tops(v).join('|'), /Mark|Give/); v.find((n) => n.id === 'hdbTop-show-ck-k1')[0].click(); assert.equal(DOC.activeElement.id, 'hdbT-ck-k1'); { let n = v.by('hdbT-ck-k1'); while (n.tagName !== 'LI') n = n.parentNode; assert.match(n.className, /is-flash/, 'Show lights the line up'); } assert.match(v.text(), /ref 44/); assert.deepEqual(v.writes, []);
 });
-await t('4b five sections, one column: only the first urgent one opens by itself, the choice is kept, done = green check and closed', async () => {
-  const w = FULL(); w.draw(); assert.ok(secs(w).every((n) => n.attrs['aria-expanded'] === 'false')); await tick(); assert.deepEqual(['ready', 'vendors', 'stock', 'logistics', 'people'].map((k) => isOpen(w, k)), [false, true, false, false, false]);
-  assert.match(words(w, 'stock'), /Chiavari chair missing/); assert.match(words(w, 'logistics'), /^4Logistics \d+ of \d+ donePolice permission overdue, venue access turned down$/); assert.match(words(w, 'people'), /1 task not given out/);
-  sec(w, 'vendors').click(); sec(w, 'people').click(); w.db.tasks.push({ id: 'x', category: 'A', title: 'B', status: 'assigned', crew_id: 'c' }); w.draw(); w.by('hdbRefresh').click(); await tick(); assert.deepEqual(['vendors', 'people'].map((k) => isOpen(w, k)), [false, true]); assert.equal(w.find((n) => /hdb-col/.test(n.className)).length, 0);
-  const all = world({ bk: [{ id: 'b', vendor_id: 'v1', label: 'C', status: 'confirmed' }], ck: [], tasks: [{ id: 't', category: 'A', title: 'B', status: 'accepted', crew_id: 'c' }] }); EP.DAYBEFORE.forEach((d) => { all.db.checks[d[0]] = { done: true, by: 'Asha' }; }); all.draw(); await tick();
-  assert.match(all.by('dhTot').textContent, /^All \d+ done$/); assert.ok(secs(all).every((n) => n.attrs['aria-expanded'] === 'false' && /^✓/.test(n.textContent))); assert.equal(tops(all).length, 0);
-  const deny = world({ deny: ['vendors', 'inventory', 'logistics'] }); EP.DAYBEFORE.forEach((d) => { deny.db.checks[d[0]] = { done: true }; }); deny.draw(); await tick(); assert.match(deny.by('dhTot').textContent, /^Everything you can see is done/); assert.doesNotMatch(words(deny, 'vendors'), /✓/); assert.doesNotMatch(words(deny, 'logistics'), /✓/);
+await t('4b every section is open, done lines stay in sight with who and when; all done / not everything visible / a failed read', async () => {
+  const w = FULL(); w.draw(); await tick(); assert.ok(secs(w).length >= 7); assert.equal(w.find((n) => n.attrs['aria-expanded'] && /^dhG-/.test(n.id)).length, 0);
+  assert.match(words(w, 'logistics'), /^Logistics\d+ of \d+ done$/); assert.match(w.text(), /Fire NOC/);
+  const all = world({ bk: [{ id: 'b', vendor_id: 'v1', label: 'C', status: 'confirmed' }], ck: [], layout: LAY0, tasks: [{ id: 't', category: 'A', title: 'B', status: 'accepted', crew_id: 'c' }] }); EP.DAYBEFORE.forEach((d) => { all.db.checks[d[0]] = { done: true, by: 'Asha', at: '2026-11-24T04:03:00Z' }; }); all.draw(); await tick();
+  assert.match(all.by('dhTot').textContent, /^All \d+ done$/); assert.match(words(all, 'vendors'), /✓ 2 of 2 done|✓ 3 of 3 done/); assert.match(all.text(), /Done by Asha, 9:33 AM/); assert.equal(tops(all).length, 0);
+  const deny = world({ deny: ['vendors', 'inventory', 'logistics'], tasks: [{ id: 't', category: 'A', title: 'B', status: 'accepted', crew_id: 'c' }] }); EP.DAYBEFORE.forEach((d) => { deny.db.checks[d[0]] = { done: true }; }); deny.draw(); await tick(); assert.match(deny.by('dhTot').textContent, /^Everything you can see is done/); assert.doesNotMatch(words(deny, 'vendors'), /✓/); assert.doesNotMatch(words(deny, 'logistics'), /✓/);
   const bad = world({ fails: ['checklist'] }); EP.DAYBEFORE.forEach((d) => { bad.db.checks[d[0]] = { done: true }; }); bad.draw(); await tick(); assert.doesNotMatch(words(bad, 'logistics'), /✓/); assert.doesNotMatch(bad.by('dhTot').textContent, /All|Everything/);
 });
-await t('4c a line: helper words only when opened; everything else in More (keyboard, Escape, focus back); done lines behind "Show"', async () => {
+await t('4c a line: helper words only when opened; everything else in More (keyboard, Escape, focus back)', async () => {
   const w = FULL(); w.draw(); await tick(); assert.doesNotMatch(w.text(), /no loudspeakers|arrival time, set-up/i); w.by('hdbT-line-permits').click(); assert.match(w.text(), /no loudspeakers 10 PM - 6 AM/); assert.equal(w.by('hdbT-line-permits').attrs['aria-expanded'], 'true'); w.draw(); assert.match(w.text(), /no loudspeakers/); w.by('hdbT-line-permits').click(); assert.doesNotMatch(w.text(), /no loudspeakers/);
-  assert.deepEqual(menu(w, 'vn-b1'), ['Call', 'Give a job']); assert.deepEqual(menu(w, 'ck-k1'), ['Mark N/A', 'Change owner']); assert.deepEqual(menu(w, 'line-permits'), ['Assign', 'Add a line']);
-  assert.equal(w.by('hdbMenu-vn-b1').hidden, true); w.by('hdbMore-vn-b1').click(); assert.equal(w.by('hdbMenu-vn-b1').hidden, false); assert.equal(w.by('hdbMore-vn-b1').attrs['aria-expanded'], 'true'); assert.equal(DOC.activeElement.id, 'hdbCall-b1');
+  assert.deepEqual(menu(w, 'vn-b1'), ['Give a job', 'Open vendors']); assert.deepEqual(menu(w, 'ck-k1'), ['Mark N/A', 'Change owner']); assert.deepEqual(menu(w, 'line-permits'), ['Give to someone', 'Add a line']);
+  assert.equal(w.by('hdbMenu-vn-b1').hidden, true); w.by('hdbMore-vn-b1').click(); assert.equal(w.by('hdbMenu-vn-b1').hidden, false); assert.equal(w.by('hdbMore-vn-b1').attrs['aria-expanded'], 'true'); assert.equal(DOC.activeElement.id, 'hdbJob-b1');
   const key = (id, k) => { let n = w.by(id), p = 0; const e = { key: k, preventDefault() { p = 1; }, stopPropagation() {} }; for (; n && n.fire; n = n.parentNode) n.fire('keydown', e); return p; };
-  assert.equal(key('hdbCall-b1', 'ArrowDown'), 1); assert.equal(DOC.activeElement.id, 'hdbJob-b1'); w.draw(); assert.equal(w.by('hdbMenu-vn-b1').hidden, false); key('hdbJob-b1', 'Home'); assert.equal(DOC.activeElement.id, 'hdbCall-b1'); key('hdbCall-b1', 'Escape'); assert.equal(w.by('hdbMenu-vn-b1').hidden, true); assert.equal(DOC.activeElement.id, 'hdbMore-vn-b1');
-  const f = w.find((n) => n.tagName === 'DETAILS' && n.attrs['data-key'] === 'logistics')[0]; assert.equal(f.open, false); assert.match(f.textContent, /Fire NOC/); f.open = true; f.fire('toggle'); w.by('hdbT-line-power').click(); assert.equal(w.find((n) => n.tagName === 'DETAILS' && n.attrs['data-key'] === 'logistics')[0].open, true);
+  assert.equal(key('hdbJob-b1', 'ArrowDown'), 1); assert.equal(DOC.activeElement.id, 'hdbGo-vn-b1'); w.draw(); assert.equal(w.by('hdbMenu-vn-b1').hidden, false); key('hdbGo-vn-b1', 'Home'); assert.equal(DOC.activeElement.id, 'hdbJob-b1'); key('hdbJob-b1', 'Escape'); assert.equal(w.by('hdbMenu-vn-b1').hidden, true); assert.equal(DOC.activeElement.id, 'hdbMore-vn-b1');
   w.by('hdbNa-k3').click(); await tick(); assert.deepEqual(w.writes, [['chk', 'k3', { status: 'na' }]]);
 });
 await t('4d one parent line per thing: permits, trucks and guest count hold their Logistics rows; all rows done never ticks it', async () => {
@@ -235,7 +234,7 @@ await t('4d one parent line per thing: permits, trucks and guest count hold thei
   assert.ok(li('epChk-permits').contains(w.by('hdbCk-k1'))); assert.ok(li('epChk-transport').contains(w.by('hdbCk-k3'))); assert.ok(li('epChk-headcount').contains(w.by('hdbCk-k5'))); assert.match(li('epChk-permits').textContent, /1 of 2 in hand/); assert.match(li('epChk-transport').textContent, /0 of 1 ready/); assert.match(li('epChk-headcount').textContent, /180 of 240 guests confirmed/);
   w.by('hdbCk-k1').click(); await tick(); assert.match(li('epChk-permits').textContent, /Rows are done - tick if you agree/); assert.equal(w.by('epChk-permits').attrs['aria-pressed'], 'false'); assert.deepEqual(w.writes.map((x) => x[0]), ['chk']);
   w.by('epChk-transport').click(); await tick(); assert.deepEqual(w.writes[1], ['check', 'transport', true]); assert.ok(li('epChk-transport').contains(w.by('hdbCk-k3')), 'a ticked line with open rows stays in sight'); assert.equal(w.db.ck.find((x) => x.id === 'k3').status, 'open');
-  const z = FULL({ deny: ['logistics'] }); z.draw(); await tick(); assert.equal(z.by('hdbCk-k1'), null); assert.doesNotMatch(z.text(), /in hand·|1 of 2/); assert.equal(z.by('hdbAd-permits'), null);
+  const z = FULL({ deny: ['logistics'] }); z.draw(); await tick(); assert.equal(z.by('hdbCk-k1'), null); assert.doesNotMatch(z.text(), /of \d+ in hand/); assert.equal(z.by('hdbAd-permits'), null);
 });
 await t('4e stock in one line: need, have, what is only asked, what to reserve', () => {
   const m = (bk) => D.stockWords(D.stockRows({ layout: LAY, reservations: [], checkouts: [], bookings: bk }).rows.filter((r) => r.id === 'i1')[0]);
@@ -247,13 +246,13 @@ await t('4e stock in one line: need, have, what is only asked, what to reserve',
 await t('3a safety: createElement only, no inline style, no delete, only the known writes; CSS = theme tokens', () => {
   assert.doesNotMatch(JS, /innerHTML|insertAdjacentHTML|outerHTML|document\.write|\.style\b|style=/);
   assert.doesNotMatch(JS, /\.(remove|removeRes|removeNeed|removeLink|deactivateCrew|cancel)\(/); assert.doesNotMatch(JS, /\bcost\b|\badvance\b|day_rate|₹|studioMoney|milestones|finance/);
-  const w = [...JS.matchAll(/\.(update|assignTasks|assignTasksVendor|setSchedule|reassign|check|add|reserve\w*)\(/g)].map((m) => m[1]); assert.deepEqual([...new Set(w)].sort(), ['add', 'assignTasks', 'assignTasksVendor', 'check', 'reassign', 'setSchedule', 'update']);
+  const w = [...JS.matchAll(/\.(update|assignTasks|assignTasksVendor|setSchedule|reassign|check|add|reserve\w*)\(/g)].map((m) => m[1]); assert.deepEqual([...new Set(w)].sort(), ['add', 'assignTasks', 'assignTasksVendor', 'check', 'reassign', 'setSchedule', 'update']); assert.deepEqual([...JS.matchAll(/ops\.checks\.(\w+)\(/g)].map((m) => m[1]).sort(), ['addLine', 'cancelLine', 'mark']);
   assert.equal((JS.match(/\.add\(/g) || []).length, (JS.match(/classList\.add\(/g) || []).length, 'add = classList only');
   const rules = CSS.replace(/\/\*[\s\S]*?\*\//g, ''); assert.doesNotMatch(rules, /#[0-9a-f]{3,8}\b/i); assert.match(rules, /--tc-/); assert.match(rules, /min-height:44px/);
 });
 await t('3b the entry point stays HelmEventPlan.renderDayBefore; scripts are loaded on the three pages; the old list is the fallback', () => {
   assert.match(EPJS, /if \(global\.HelmDayBefore && global\.HelmDayBefore\.render\) return global\.HelmDayBefore\.render\(host, ctx\);/);
   for (const p of ['ops', 'monitor', 'ready']) { const h = read('public/' + p + '.html'); assert.ok(h.indexOf('day-before.css') > h.indexOf('event-plan.css')); assert.ok(h.indexOf('src="day-before.js') > h.indexOf('src="event-plan.js')); assert.equal((h.match(/src="day-before\.js/g) || []).length, 1); }
-  const R = read('public/ready.html'); assert.match(R, /readyMask\(x\[0\],x\[1\]\)/); assert.match(R, /noReady:true, plan, tasks, locked:/);
+  const R = read('public/ready.html'); assert.match(R, /readyMask\(x\[0\],x\[1\]\)/); assert.match(R, /noReady:true, plan, tasks, closed:/);
 });
 console.log('\nr252 day before: ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);

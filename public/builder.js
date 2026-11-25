@@ -253,7 +253,7 @@ const PRODUCT_META = {
   podium:['stage','podium speech','political corporate product_launch conference award_night'],
   dais:['stage','dais chairs vip platform guests of honour','political corporate conference award_night religious'],
   flagstand:['political','flag stand pole national party','political corporate conference'],
-  hoarding:['branding','banner hoarding frame flex scaffold','political corporate product_launch exhibition concert festival'],
+  hoarding:['branding','poster banner hoarding frame flex scaffold','political corporate product_launch exhibition concert festival'],
   patower:['av','pa tower speakers sound scaffold public address','political concert festival'],
   lightingtree:['lighting','lighting tree stand t-bar par cans tripod','*'],
   diyastand:['religious','deepam lamp diya brass inauguration','religious wedding corporate conference'],
@@ -263,10 +263,10 @@ const PRODUCT_META = {
   lanterns:['decor','lanterns candles moroccan glow aisle','wedding reception engagement birthday galadinner iftar eid'],
   hangingfloral:['floral','hanging flowers ceiling installation suspended floral','wedding reception engagement galadinner'],
   neonsign:['decor','neon sign wall glow photo backdrop sangeet','wedding reception engagement birthday product_launch'],
-  backdrop:['generic','backdrop wall photo backdrop step and repeat fabric flex sequin greenery generic','*'],
+  backdrop:['generic','poster backdrop wall photo backdrop step and repeat fabric flex sequin greenery generic','*'],
   floralstand:['floral','flower stand vase urn pedestal bouquet floral generic','wedding reception engagement birthday galadinner religious award_night corporate product_launch'],
   decorbox:['generic','decor prop generic item box crate cylinder sphere cutout custom other','*'],
-  signage:['branding','sign signage standee roll-up rollup banner a-frame directional wayfinding cutout digital standee generic','*'],
+  signage:['branding','poster wall poster sign signage standee roll-up rollup banner a-frame directional wayfinding cutout digital standee generic','*'],
   recttable:['seating','rectangular table classroom training trestle 6ft table generic seminar','*'],
   stageroof:['stage','stage roof ground support truss canopy concert festival rigging','concert festival political corporate product_launch award_night exhibition'],
   varmala:['wedding','varmala jaimala garland exchange rotating platform stage couple','wedding engagement'],
@@ -305,7 +305,7 @@ const PRODUCT_META = {
   jyothi:['religious','jyothi jyoti prajwalana jyothi prajwalana lamp lighting lamp stand diya deepam candle candle stand inauguration inaugural ceremony oil lamp brass samai kuthu vilakku','*'],
   barricade:['security','barricade crowd control','political concert festival'],
   led:['av','led wall screen','*'], press:['political','press riser media cameras','political product_launch concert'],
-  brandwall:['branding','branding wall step and repeat backdrop','corporate product_launch political exhibition award_night'],
+  brandwall:['branding','poster branding wall step and repeat backdrop','corporate product_launch political exhibition award_night'],
   chandelier:['decor','chandelier crystal','wedding reception galadinner award_night'],
   fairylights:['lighting','fairy lights canopy','wedding reception birthday engagement'],
 };
@@ -886,7 +886,7 @@ function roLockInspector(){ if(!RO) return; const box=$('#inspector'); if(!box) 
   box.querySelectorAll('input,select,button,textarea').forEach(el=>el.disabled=true);
   box.querySelectorAll('.swatches,.aligngrid').forEach(el=>el.style.pointerEvents='none'); }
 function applyReadonly(role, customMsg){
-  // R227: a second call (view-only link + a locked plan) updates the one bar instead of stacking another
+  // R227: a second call (view-only link + a closed event) updates the one bar instead of stacking another
   { const had=document.querySelector('.robanner'); if(RO && had){ if(customMsg) had.textContent=customMsg; return had; } }
   RO = true;
   // r20-coord: also the name / venue capacity / guests inputs, "Save & back to quote" and "Save as template"
@@ -902,18 +902,8 @@ function applyReadonly(role, customMsg){
   document.querySelector('header').insertAdjacentElement('afterend', bar);
   return bar;
 }
-/* R227 (0397): the event plan is locked for the event day -> the planner opens view only, with the lock bar (Unlock needs an
-   admin / event manager + a reason; the database refuses a save while locked anyway). Before 0397: nothing happens. */
-async function r227PlanLock(q){
-  const A=window.BPStore&&BPStore.ops&&BPStore.ops.planLock, EF=window.HelmEventFloor; if(!A||!EF||!q||!q.id) return;
-  let st=null; try{ st=await A.get(q.id); }catch(e){ return; }
-  if(!st||!st.locked) return;
-  const bar=applyReadonly(null,'🔒 Locked for the event day — the floor plan and the hall size can’t be changed. 2D, 3D and Measure still work.');
-  if(!bar||document.getElementById('bLock')) return;
-  const host=document.createElement('div'); host.id='bLock'; host.className='ef-lock';
-  bar.insertAdjacentElement('afterend', host);
-  EF.lockBar(host,{ quoteId:q.id, state:st, compact:true, onChange:(s)=>{ if(s&&!s.locked){ const u=new URL(location.href); u.searchParams.delete('view'); location.replace(u.pathname+u.search); } } });
-}
+/* R256 (owner, 25 Nov 2026): the event-day lock no longer covers the 2D / 3D layout (0441). A closed event stays view only. */
+function viewOnlyIfClosed(q){ if(!RO && !CAPTURE_HOST && q && q.lifecycleStage==='closed') applyReadonly(null,'🔒 This event is closed, so its layout can’t be changed. 2D, 3D and Measure still work.'); }
 
 /* -------------------------------------------------------------- helpers */
 const $  = s => document.querySelector(s);
@@ -1037,14 +1027,20 @@ function makeItem(type, x, y, overrides={}){
 const NEW_ITEM_FACING = { sofa:180, loveseat:180, armchair:180, lounge:180 };
 // Items most events only want ONE of — adding a second is usually a slip, so we ask first.
 const SINGULAR_ASSETS = new Set(['stage','dancefloor','dj','mandap','caketable','headtable','foh','videowall','piano','redcarpet','fountain']);
-// R106: the first free spot on a short diagonal from (x, y): no other item's top-left corner within 1 ft
+// R255: a click-to-add lands on the free spot nearest to the middle of what the planner sees (x, y = its top-left there),
+// off every other item, inside the hall, on the grid (builder-tools.js freeSpot). It replaced R106's diagonal of 3 ft steps,
+// which only kept the top-left corners apart, so items still lay over one another.
 function newItemSpot(x, y, w, h){
-  const STEP=3, taken=(px,py)=>store.items.some(it=>Math.abs((it.x||0)-px)<1 && Math.abs((it.y||0)-py)<1);
-  let px=x, py=y;
-  for(let i=1;i<=40 && taken(px,py);i++){
-    px=clamp(snapFt(x+(i%10)*STEP), 0, WORLD.w-w); py=clamp(snapFt(y+(i%10)*STEP+Math.floor(i/10)*STEP*0.5), 0, WORLD.h-h);
-  }
-  return {x:px, y:py};
+  const T=window.HelmBuilderTools; if(!T || !T.freeSpot) return {x, y, free:true};
+  return T.freeSpot(store.items, WORLD, w, h, {x:x+w/2, y:y+h/2}, {step:store.grid.snap ? cellFt() : 1});
+}
+const NO_SPOT_MSG='No free space is big enough, so it was put in the middle. Drag it where you want it.';
+// 2D: bring a new item into view when its free spot was outside what is on screen
+function showNewItem(it){
+  if(is3DActive() || !it || !scrollEl.clientWidth) return;
+  const z=PX_PER_FT*store.view.zoom, o=svgOff(), l=o.x+it.x*z, t=o.y+it.y*z, r=l+it.width*z, b=t+it.height*z;
+  if(l>=scrollEl.scrollLeft && t>=scrollEl.scrollTop && r<=scrollEl.scrollLeft+scrollEl.clientWidth && b<=scrollEl.scrollTop+scrollEl.clientHeight) return;
+  scrollEl.scrollLeft=(l+r-scrollEl.clientWidth)/2; scrollEl.scrollTop=(t+b-scrollEl.clientHeight)/2; renderRulers();
 }
 async function addAsset(type, atFt, opts){
   const a = ASSETS[type], lbl = opts && opts.label;
@@ -1057,16 +1053,16 @@ async function addAsset(type, atFt, opts){
   const cy = atFt ? atFt.y : viewCenterFt().y;
   let x = clamp(snapFt(cx - a.w/2), 0, WORLD.w-a.w);
   let y = clamp(snapFt(cy - a.h/2), 0, WORLD.h-a.h);
-  // R106: click-to-add (no drop point) lands at the view centre - step each new item down-right so repeated adds
-  // don't all stack on one spot (a drag-drop keeps its exact spot)
-  if(!atFt){ const p=newItemSpot(x, y, a.w, a.h); x=p.x; y=p.y; }
+  // click-to-add (no drop point): the free spot nearest to the view centre (a drag-drop keeps its exact spot)
+  let full=false;
+  if(!atFt){ const p=newItemSpot(x, y, a.w, a.h); x=p.x; y=p.y; full=!p.free; }
   // the Entrance marker gets its own blue (exits stay green); still editable in the Inspector
   const it = makeItem(type, x, y, lbl ? Object.assign({label:lbl}, type==='exit' && /entr/i.test(lbl) ? {color:'#2563eb', colorCustom:true} : {}) : undefined);
   if(NEW_ITEM_FACING[type]!=null) it.rotation = NEW_ITEM_FACING[type];   // R72: new sofa/lounge faces into the room
   store.items.push(it);
   setSelection([it.id]);
-  commit(); renderAll();
-  toast((lbl || a.label) + ' added');
+  commit(); renderAll(); if(!atFt) showNewItem(it);
+  toast(full ? NO_SPOT_MSG : (lbl || a.label) + ' added');
 }
 
 /* R200 "3 screens (centre + 2 sides)": three separate screens, each with its own text or picture and its own size.
@@ -1124,9 +1120,14 @@ function focusedObjId(){ const a=document.activeElement; return (a && a.classLis
 function restoreObjFocus(id){ if(id==null) return; const n=svg.querySelector('.obj[data-id="'+CSS.escape(String(id))+'"]');
   if(n){ restoringFocus=true; try{ n.focus({preventScroll:true}); }catch(_){ } restoringFocus=false; } }
 let restoringFocus=false;
-// Excel-style draggable margins: shaded out-of-bounds bands, a dashed usable-area
-// outline, and a thin grab strip along each margin line you can drag in/out.
+// Excel-style draggable margins ("usable area"): shaded out-of-bounds bands, a dashed usable-area outline, and a thin
+// grab strip along each margin line you can drag in/out. They are a drawing aid only: nothing is priced, placed or limited
+// by them. R255: hidden unless More > Usable area lines is on, and drawn UNDER the items, because the invisible 14 px grab
+// strips lay on top of everything along the walls and caught the press meant for an item there (which is also how a plan
+// got a margin nobody asked for). The saved values stay in the layout untouched.
+let showMargins=false;
 function renderMargins(){
+  if(!showMargins) return;
   const m = store.margins || (store.margins={left:0,right:0,top:0,bottom:0});
   const P=PX_PER_FT, W=WORLD.w*P, H=WORLD.h*P;
   const L=m.left*P, R=(WORLD.w-m.right)*P, T=m.top*P, B=(WORLD.h-m.bottom)*P;
@@ -1187,10 +1188,8 @@ function renderAll(){
     stroke:'var(--grid-strong)','stroke-width':1.5}));
 
   // --- items --- (r19: floor coverings first, so a full-hall carpet never hides the stage / screens above it)
+  renderMargins();   // R255: the usable-area lines (off by default) go under them, so they never take a press meant for an item
   drawOrder2D(store.items).forEach(it=> svg.appendChild(renderItem(it)));
-
-  // --- draggable margins (guides + shaded out-of-bounds) ---
-  renderMargins();
 
   // --- measurement overlay (2D "Work" mode) ---
   if(showMeasure) svg.appendChild(renderMeasurements());
@@ -1378,7 +1377,7 @@ function screenBand2D(body, it, sc, w, h, c){   // the stage's rear screen band,
 }
 function screenFace2D(body, it, sc, w, h, c){   // a standalone screen item: themed face + its line of text
   const T=HelmScreen.paletteOf ? HelmScreen.paletteOf(sc) : HelmScreen.themeOf(sc.theme);
-  if(sc.pic){ body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:1,fill:'#05070a',stroke:c,'stroke-width':1.2}));   // R200 picture mode
+  if(sc.pic){ body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:1,fill:sc.poster?'#ffffff':'#05070a',stroke:c,'stroke-width':1.2}));   // R200 picture mode (R255: white under a poster)
     screenPic2D(body, sc, -w/2+0.6, -h/2+0.6, Math.max(1,w-1.2), Math.max(1,h-1.2)); return; }
   body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:1,fill:T.bg,stroke:c,'stroke-width':1.2}));
   const line=HelmScreen.shortLine(sc), lg=screenLogo2D(body, sc, -w*0.38, 0, Math.min(h*0.8, w*0.2));
@@ -1408,6 +1407,7 @@ function renderItem(it){
     fill:'transparent', stroke:'transparent','stroke-width':2}));
 
   const body = el('g',{class:'body'});
+  const white = !!(window.HelmScreen && HelmScreen.whiteFace && HelmScreen.whiteFace(it));   // R255: a poster without a picture is plain white
 
   const drawBox = (opts={})=> body.appendChild(el('rect',{
     x:-w/2,y:-h/2,width:w,height:h, rx:opts.rx??3,
@@ -1561,7 +1561,7 @@ function renderItem(it){
       [1,0.68,0.38].forEach(k=>body.appendChild(el('circle',{cx:0,cy:0,r:R*k,fill:'none',stroke:c,'stroke-width':k===1?1.5:.8,'stroke-opacity':k===1?1:.6})));
       for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; body.appendChild(el('circle',{cx:Math.cos(a)*R,cy:Math.sin(a)*R,r:1.6,fill:c})); }
       body.appendChild(el('circle',{cx:0,cy:0,r:2.5,fill:c})); break; }
-    case 'easel': { drawBox({fill:fillSoft}); break; }
+    case 'easel': { drawBox({fill:white?'#ffffff':fillSoft}); break; }
     case 'chiavari': { drawBox({fill:fillSoft,rx:2});
       body.appendChild(el('line',{x1:-w/2+2,y1:-h/2+2,x2:w/2-2,y2:-h/2+2,stroke:c,'stroke-width':2})); break; }
     case 'barstool': { body.appendChild(el('circle',{cx:0,cy:0,r:Math.min(w,h)/2,fill:fillSoft,stroke:c,'stroke-width':1.5}));
@@ -1576,9 +1576,9 @@ function renderItem(it){
     case 'lighting': { drawBox({fill:'transparent',sw:1.2});      // truss span with par cans hanging under it
       { const nz=Math.max(2,Math.floor(w/8)), s=w/nz; body.appendChild(el('path',{d:Array.from({length:nz},(_,i)=>{ const x=-w/2+i*s; return `M ${x} ${-h/2} L ${x+s/2} ${h/2} L ${x+s} ${-h/2}`; }).join(' '),fill:'none',stroke:c,'stroke-width':1,'stroke-opacity':.7})); }   // V3 fix: Array.from's map gets no 3rd arg
       for(let x=-w/2+6;x<w/2-2;x+=Math.max(8,w/6)) body.appendChild(el('circle',{cx:x,cy:0,r:Math.min(3,h/2+1),fill:c})); break; }
-    case 'led': case 'brandwall': { drawBox({fill:it.type==='led'?`color-mix(in srgb, ${c} 45%, var(--canvas))`:fillSoft, rx:1});
+    case 'led': case 'brandwall': { drawBox({fill:it.type==='led'?`color-mix(in srgb, ${c} 45%, var(--canvas))`:white?'#ffffff':fillSoft, rx:1});
       if(it.type==='led') for(let x=-w/2+w/8;x<w/2;x+=w/8) body.appendChild(el('line',{x1:x,y1:-h/2,x2:x,y2:h/2,stroke:c,'stroke-width':.6,'stroke-opacity':.6}));
-      else body.appendChild(el('line',{x1:-w/2+3,y1:0,x2:w/2-3,y2:0,stroke:c,'stroke-width':1,'stroke-dasharray':'4 3'})); break; }
+      else if(!white) body.appendChild(el('line',{x1:-w/2+3,y1:0,x2:w/2-3,y2:0,stroke:c,'stroke-width':1,'stroke-dasharray':'4 3'})); break; }
     case 'chocolatefountain': { body.appendChild(el('circle',{cx:0,cy:0,r:Math.min(w,h)/2,fill:fillSoft,stroke:c,'stroke-width':1.5}));
       [0.34,0.18].forEach(k=>body.appendChild(el('circle',{cx:0,cy:0,r:Math.min(w,h)*k,fill:'none',stroke:c,'stroke-width':1}))); break; }
     case 'chariot': { drawBox({fill:fillSoft, rx:Math.min(w,h)*0.4});
@@ -1663,12 +1663,12 @@ function renderItem(it){
       { const n=Math.max(1,Math.min(16,(it.properties&&it.properties.chairs)|0||8));
         for(let i=0;i<n;i++) body.appendChild(el('rect',{x:-w*0.4+(i+0.5)*(w*0.8/n)-2.5,y:-h*0.32,width:5,height:5,rx:1,fill:c,'fill-opacity':.85})); }
       break; }
-    case 'flagstand': { const R=Math.min(w,h)/2;
+    case 'flagstand': { const R=Math.min(w,h)/2, fs0=screenContent(it);
       body.appendChild(el('circle',{cx:0,cy:0,r:R*0.6,fill:fillSoft,stroke:c,'stroke-width':1.2}));
-      body.appendChild(el('path',{d:`M 0 0 L ${R} ${-R*0.5} L ${R} ${R*0.2} Z`,fill:c,'fill-opacity':.7})); break; }
-    case 'hoarding': { drawBox({fill:fillSoft, rx:0});
-      for(let x=-w/2;x<=w/2+0.1;x+=w/4) body.appendChild(el('line',{x1:x,y1:-h/2,x2:x,y2:h/2,stroke:c,'stroke-width':1}));
-      body.appendChild(el('line',{x1:-w/2,y1:0,x2:w/2,y2:0,stroke:c,'stroke-width':.8,'stroke-dasharray':'4 3'})); break; }
+      body.appendChild(el('path',{d:`M 0 0 L ${R} ${-R*0.5} L ${R} ${R*0.2} Z`,fill:white?'#ffffff':c,'fill-opacity':white?1:.7,stroke:c,'stroke-width':white?.8:0}));
+      if(fs0 && fs0.pic) screenPic2D(body, fs0, 0, -R*0.6, R, R*0.66);
+      break; }
+    case 'hoarding': { drawBox({fill:white?'#ffffff':fillSoft, rx:0, sw:2}); break; }
     case 'patower': { drawBox({fill:'transparent',sw:1.2});
       body.appendChild(el('path',{d:`M ${-w/2} ${-h/2} L ${w/2} ${h/2} M ${w/2} ${-h/2} L ${-w/2} ${h/2}`,stroke:c,'stroke-width':.8,'stroke-opacity':.6}));
       body.appendChild(el('rect',{x:-w*0.3,y:-h*0.3,width:w*0.6,height:h*0.6,rx:1,fill:c,'fill-opacity':.7})); break; }
@@ -1696,9 +1696,9 @@ function renderItem(it){
     case 'neonsign': { drawBox({fill:`color-mix(in srgb, ${c} 14%, var(--canvas))`, rx:1});
       body.appendChild(el('path',{d:`M ${-w*0.35} 0 q ${w*0.12} ${-h*0.6} ${w*0.24} 0 t ${w*0.24} 0 t ${w*0.22} 0`,fill:'none',stroke:'#ff4fd8','stroke-width':2})); break; }
     /* ---- complete-catalogue pack (2026-10d) ---- */
-    case 'backdrop': case 'projector': case 'teleprompter': { drawBox({fill:`color-mix(in srgb, ${c} 20%, var(--canvas))`, rx:1});
+    case 'backdrop': case 'projector': case 'teleprompter': { drawBox({fill:white?'#ffffff':`color-mix(in srgb, ${c} 20%, var(--canvas))`, rx:1});
       if(it.type!=='backdrop') body.appendChild(el('rect',{x:-w*0.42,y:-h*0.25,width:w*0.84,height:h*0.5,fill:'#9fb6ff','fill-opacity':.6}));
-      else for(let i=1;i<4;i++) body.appendChild(el('line',{x1:-w/2+i*w/4,y1:-h/2,x2:-w/2+i*w/4,y2:h/2,stroke:c,'stroke-width':.6,'stroke-opacity':.5}));
+      else if(!white) for(let i=1;i<4;i++) body.appendChild(el('line',{x1:-w/2+i*w/4,y1:-h/2,x2:-w/2+i*w/4,y2:h/2,stroke:c,'stroke-width':.6,'stroke-opacity':.5}));
       break; }
     case 'floralstand': case 'urli': case 'kalash': case 'plinth': case 'micstand': case 'pyro': case 'extinguisher': { const R=Math.min(w,h)/2;
       const ring=it.type==='urli'||it.type==='kalash';
@@ -1710,10 +1710,10 @@ function renderItem(it){
       else if(it.type==='pyro') for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; body.appendChild(el('line',{x1:0,y1:0,x2:Math.cos(a)*R,y2:Math.sin(a)*R,stroke:'#f59e0b','stroke-width':1})); }
       else if(it.type==='micstand') body.appendChild(el('circle',{cx:0,cy:0,r:R*0.3,fill:c}));
       break; }
-    case 'decorbox': case 'signage': case 'counter': case 'kiosk': case 'shoerack': case 'tvstand': { drawBox({fill:fillSoft, rx:it.type==='decorbox'?3:1});
+    case 'decorbox': case 'signage': case 'counter': case 'kiosk': case 'shoerack': case 'tvstand': { drawBox({fill:white?'#ffffff':fillSoft, rx:it.type==='decorbox'?3:1});
       if(it.type==='decorbox') body.appendChild(el('path',{d:`M ${-w/2} ${-h/2} L ${w/2} ${h/2} M ${w/2} ${-h/2} L ${-w/2} ${h/2}`,stroke:c,'stroke-width':.7,'stroke-opacity':.5}));
       else if(it.type==='shoerack') for(let i=1;i<6;i++) body.appendChild(el('line',{x1:-w/2+i*w/6,y1:-h/2,x2:-w/2+i*w/6,y2:h/2,stroke:c,'stroke-width':.6}));
-      else body.appendChild(el('rect',{x:-w*0.35,y:-h*0.3,width:w*0.7,height:h*0.25,fill:c,'fill-opacity':.5}));
+      else if(!white) body.appendChild(el('rect',{x:-w*0.35,y:-h*0.3,width:w*0.7,height:h*0.25,fill:c,'fill-opacity':.5}));
       break; }
     case 'recttable': {
       drawBox({fill:fillSoft, rx:1});
@@ -1786,7 +1786,9 @@ function renderItem(it){
   if(it.type!=='stage' && window.HelmScreen && HelmScreen.isScreenType(it.type)){
     const sc=screenContent(it);
     if(HelmScreen.hasContent(sc)){ screenFace2D(body, it, sc, w, h, c); scrText=!sc.pic && HelmScreen.hasText(sc); }
-    else { screenPlaceholder2D(body, -w/2, -h/2, w, h*0.5); scrText=screenPlaceholderOn(); }
+    else if(!white){ screenPlaceholder2D(body, -w/2, -h/2, w, h*0.5); scrText=screenPlaceholderOn(); }
+  } else if(it.type!=='stage' && it.type!=='flagstand' && window.HelmScreen && HelmScreen.isPosterType && HelmScreen.isPosterType(it.type)){   // R255: posters show their picture
+    const pc=screenContent(it); if(pc && pc.pic) screenFace2D(body, it, pc, w, h, c);
   }
   g.appendChild(body);
 
@@ -1808,17 +1810,21 @@ function renderSelection(it){
   const k=1/Math.max(0.05, (store.view&&store.view.zoom)||1), hs=8*k, hh=hs/2;
   const g = el('g',{transform:`translate(${cx} ${cy}) rotate(${it.rotation})`, 'data-sel':'1'});
   g.appendChild(el('rect',{class:'sel-outline', x:-w/2-2,y:-h/2-2,width:w+4,height:h+4,rx:3}));
+  // R255: on an item that is small on screen the handles covered it, so a drag resized it instead of moving it - there they
+  // sit just OUTSIDE its edges, and the middle-of-the-edge ones are left out when there is no room between the corners
+  const ox=w/k<34 ? hh : 0, oy=h/k<34 ? hh : 0, hx=w/2+ox, hy=h/2+oy;
   // corner resize handles (scale both dimensions)
   const corners=[[-1,-1],[1,-1],[1,1],[-1,1]];
   corners.forEach(([sx,sy])=>{
-    g.appendChild(el('rect',{class:'handle','data-handle':'resize', x:sx*w/2-hh, y:sy*h/2-hh, width:hs,height:hs, rx:1.5*k}));
+    g.appendChild(el('rect',{class:'handle','data-handle':'resize', x:sx*hx-hh, y:sy*hy-hh, width:hs,height:hs, rx:1.5*k}));
   });
   // edge handles → grab a side and stretch ONE dimension (extend carpets, aisles, fences, trusses)
   if(it.type!=='table' && it.type!=='cocktail'){       // round items stay circular, no edge stretch
     const edges=[[0,-1,'y','ns-resize'],[1,0,'x','ew-resize'],[0,1,'y','ns-resize'],[-1,0,'x','ew-resize']];
     edges.forEach(([sx,sy,axis,cur])=>{
+      if((axis==='y' ? w : h)/k<24) return;
       g.appendChild(el('rect',{class:'handle edge','data-handle':'resize','data-axis':axis,
-        x:sx*w/2-hh, y:sy*h/2-hh, width:hs,height:hs, rx:1.5*k, style:'cursor:'+cur}));
+        x:sx*hx-hh, y:sy*hy-hh, width:hs,height:hs, rx:1.5*k, style:'cursor:'+cur}));
     });
   }
   // rotate handle
@@ -2216,11 +2222,17 @@ svg.addEventListener('pointerdown',e=>{
     svg.setPointerCapture(e.pointerId); return;
   }
   if(objEl){
-    const id=objEl.dataset.id;
+    let id=objEl.dataset.id;
     if(additive){ toggleSelection(id); renderAll(); return; }   // shift/⌘-click toggles membership
+    // R255: a pile of items - the SELECTED one is what moves, even when others lie on top of it; a plain click (no drag)
+    // on the pile picks the next one in it, so every item can be reached
+    const pile=pileAt(e, id), sole=store.selectedIds.length===1 ? store.selectedId : null;
+    const under=isSelected(id) ? null : pile.find(isSelected);
+    const next=sole!=null && pile.length>1 && pile.indexOf(sole)>=0 ? pile[(pile.indexOf(sole)+1)%pile.length] : null;
+    if(under!=null) id=under;
     if(!isSelected(id)) setSelection([id]);                     // click a fresh object → select only it
     const p=svgPointFt(e), anchor=store.items.find(i=>i.id===id);
-    drag={mode:'move', start:p, moved:false, anchorId:id, off:{x:p.x-anchor.x, y:p.y-anchor.y},
+    drag={mode:'move', start:p, moved:false, anchorId:id, next, px:e.clientX, py:e.clientY, off:{x:p.x-anchor.x, y:p.y-anchor.y},
       group: selectedItems().map(it=>({id:it.id, ox:it.x, oy:it.y}))};
     svg.setPointerCapture(e.pointerId); renderAll(); return;
   }
@@ -2230,6 +2242,15 @@ svg.addEventListener('pointerdown',e=>{
   svg.setPointerCapture(e.pointerId);
 });
 
+// ids of the items under the pointer, top first: the one that was hit (topId) and any at the same spot of a similar size. A
+// stage or a carpet under a small item is not part of a pile (a press on the DJ desk never moves the stage it stands on).
+function pileAt(e, topId){
+  const area=id=>{ const it=store.items.find(i=>i.id===id); return it ? it.width*it.height : 0; }, ids=[];
+  const els=typeof document.elementsFromPoint==='function' ? document.elementsFromPoint(e.clientX, e.clientY) : [];
+  els.forEach(n=>{ const o=n.closest && n.closest('.obj'); if(o && svg.contains(o) && ids.indexOf(o.dataset.id)<0) ids.push(o.dataset.id); });
+  if(ids.indexOf(topId)<0) ids.unshift(topId);
+  const a=area(topId); return ids.filter(id=>id===topId || area(id)<=a*4);
+}
 let lastPointerDown=0;
 svg.addEventListener('pointerdown',()=>{ lastPointerDown=Date.now(); },true);
 function keyboardSelect(objEl){
@@ -2271,6 +2292,7 @@ svg.addEventListener('pointermove',e=>{
   }
 
   if(drag.mode==='move'){
+    if(!drag.moved && Math.hypot(e.clientX-drag.px, e.clientY-drag.py)<4) return;   // a tap that trembles is not a move
     drag.moved=true;
     const anchor=drag.group.find(g=>g.id===drag.anchorId);
     const tx=snapFt(p.x-drag.off.x), ty=snapFt(p.y-drag.off.y);   // snapped target for the grabbed object
@@ -2292,7 +2314,9 @@ svg.addEventListener('pointermove',e=>{
     const ang=-drag.orig.rotation*Math.PI/180;
     const dx=p.x-cx, dy=p.y-cy;
     const lx=dx*Math.cos(ang)-dy*Math.sin(ang), ly=dx*Math.sin(ang)+dy*Math.cos(ang);
-    let nw=snapFt(Math.abs(lx)*2), nh=snapFt(Math.abs(ly)*2);
+    // R255: from where the handle was grabbed (handles of small items sit outside them), so the size never jumps on the first move
+    const s0={x:drag.start.x-cx, y:drag.start.y-cy}, gx=Math.abs(s0.x*Math.cos(ang)-s0.y*Math.sin(ang))*2-drag.orig.width, gy=Math.abs(s0.x*Math.sin(ang)+s0.y*Math.cos(ang))*2-drag.orig.height;
+    let nw=snapFt(Math.abs(lx)*2-gx), nh=snapFt(Math.abs(ly)*2-gy);
     nw=clamp(nw,0.5,WORLD.w); nh=clamp(nh,0.5,WORLD.h);
     if(drag.axis==='x') nh=drag.orig.height;              // edge handle → lock the other dimension
     else if(drag.axis==='y') nw=drag.orig.width;
@@ -2314,6 +2338,7 @@ function endDrag(e){
   try{ svg.releasePointerCapture(e.pointerId); }catch(_){}
   if(mode==='marquee'){ if(!moved && !additive) clearSelection(); }
   else if(moved){ commit(); }
+  else if(mode==='move' && drag.next!=null && e.type==='pointerup') setSelection([drag.next]);
   drag=null;
   renderAll();
 }
@@ -2321,8 +2346,7 @@ svg.addEventListener('pointerup',endDrag);
 svg.addEventListener('pointercancel',endDrag);
 // Double-click the ruler corner to clear all margins back to the full floor.
 (function wireMarginReset(){ const c=document.getElementById('cornerUnit'); if(!c) return;
-  c.title='Double-click to reset the floor margins'; c.style.cursor='pointer';
-  c.addEventListener('dblclick',()=>{ if(RO) return; const m=store.margins||{};
+  c.addEventListener('dblclick',()=>{ if(RO || !showMargins) return; const m=store.margins||{};
     if(!(m.left||m.right||m.top||m.bottom)) return;
     store.margins={left:0,right:0,top:0,bottom:0}; commit(); renderAll(); toast('Margins reset'); });
 })();
@@ -2344,8 +2368,8 @@ function renderSceneOnly(){
     svg.appendChild(g);
   }
   svg.appendChild(el('rect',{x:0.5,y:0.5,width:W-1,height:H-1,fill:'none',stroke:'var(--grid-strong)','stroke-width':1.5}));
-  drawOrder2D(store.items).forEach(it=>svg.appendChild(renderItem(it)));
   renderMargins();
+  drawOrder2D(store.items).forEach(it=>svg.appendChild(renderItem(it)));
   appendSelectionOverlays();
   // live-sync a couple inspector readouts (single-selection only)
   if(sel && store.selectedIds.length===1){
@@ -3618,21 +3642,29 @@ function applyArrangement(o){
     // one seating block on a uniform grid → chairs equidistant at `pitch` ft
     const pitch=2.4;
     const w=clamp(o.cols*pitch, 2, WORLD.w-4), h=clamp(o.rows*pitch, 2, WORLD.h-4);
-    const x=clamp(WORLD.w/2-w/2,0,WORLD.w-w), y=clamp(WORLD.h/2-h/2,0,WORLD.h-h);
-    const it=makeItem('seatblock', x, y, {width:w,height:h,properties:{rows:o.rows,cols:o.cols,pitch},
+    const v=viewCenterFt(), p=newItemSpot(v.x-w/2, v.y-h/2, w, h);   // R255: the nearest free spot, never on top of other items
+    const it=makeItem('seatblock', p.x, p.y, {width:w,height:h,properties:{rows:o.rows,cols:o.cols,pitch},
       label:`Seating ${o.rows}×${o.cols}`});
-    store.items.push(it); setSelection([it.id]); commit(); renderAll();
-    toast(`Added ${o.rows}×${o.cols} = ${o.total} chairs`);
+    store.items.push(it); setSelection([it.id]); commit(); renderAll(); showNewItem(it);
+    toast(p.free ? `Added ${o.rows}×${o.cols} = ${o.total} chairs` : NO_SPOT_MSG);
   } else {
     const shape=$('#arrShape').querySelector('.on').dataset.s;
     const seatsChk=BPStore.validate.num($('#arrSeats').value,{min:2,max:16,integer:true});
     if(!seatsChk.ok){ BPUI.toast('Seats per table '+seatsChk.error,{type:'err'}); return; }
     const seats=seatsChk.value;
     const cellW=(WORLD.w-16)/o.cols, cellH=(WORLD.h-16)/o.rows;
-    const dia=clamp(Math.min(cellW,cellH)-4, 3, 12);            // table size to fit the grid
+    let dia=clamp(Math.min(cellW,cellH)-4, 3, 12);            // table size to fit the grid
+    // R255: other items are on the floor: the group goes as one block on the nearest free spot (the hall-wide spread
+    // below lay across the stage and everything else). Empty floor, or no room for the block: spread over the hall as before.
+    let at=(x,y)=>({x,y});
+    if(store.items.length){
+      const d2=Math.min(dia, ASSETS.table.w), pitch=d2+4, bw=o.cols*pitch-4, bh=o.rows*pitch-4, v=viewCenterFt();
+      const p=bw<=WORLD.w && bh<=WORLD.h ? newItemSpot(v.x-bw/2, v.y-bh/2, bw, bh) : null;
+      if(p && p.free){ dia=d2; at=(_x,_y,r,c)=>({x:p.x+c*pitch, y:p.y+r*pitch}); }
+    }
     let n=1;
     for(let r=0;r<o.rows;r++)for(let c=0;c<o.cols;c++){
-      const x=8+c*cellW+(cellW-dia)/2, y=8+r*cellH+(cellH-dia)/2;
+      const {x,y}=at(8+c*cellW+(cellW-dia)/2, 8+r*cellH+(cellH-dia)/2, r, c);
       store.items.push(makeItem('table', x, y, {width:dia,height:dia,
         properties:{seats, shape}, label:'T'+(n++)}));
     }
@@ -3893,6 +3925,14 @@ scrollEl.addEventListener('drop',e=>{
   const type=e.dataTransfer.getData('type'); if(!type||!ASSETS[type])return;
   const vl=e.dataTransfer.getData('label'); addAsset(type, svgPointFt(e), vl ? {label:vl} : undefined);
 });
+// R255: dropped on the 3D view (the 2D canvas is hidden then) → the floor point under the pointer
+(function wire3DDrop(){ const st=$('#stage3d'); if(!st) return;
+  st.addEventListener('dragover',e=>{ if(RO) return; e.preventDefault(); e.dataTransfer.dropEffect='copy'; });
+  st.addEventListener('drop',e=>{ e.preventDefault(); if(RO) return;
+    const type=e.dataTransfer.getData('type'); if(!type||!ASSETS[type]) return;
+    const p=typeof window.__floorAt3D==='function' ? window.__floorAt3D(e.clientX, e.clientY) : null, vl=e.dataTransfer.getData('label');
+    addAsset(type, p, vl ? {label:vl} : undefined); });
+})();
 
 /* ===================================================================
    VIEW: zoom / fit / pan-center
@@ -3904,6 +3944,12 @@ function svgOff(){
   catch(_){ return {x:0,y:0}; }
 }
 function viewCenterFt(){
+  // R255: in 3D the 2D canvas is display:none, so its size is 0 x 0 and the "centre" came out as the hall's top-left
+  // corner (0,0) - every tool clicked in 3D landed there. 3D: the floor point in the middle of the 3D view.
+  if(is3DActive() || !scrollEl.clientWidth || !scrollEl.clientHeight){
+    const c=(is3DActive() && typeof window.__viewCenter3D==='function' && window.__viewCenter3D()) || {x:WORLD.w/2, y:WORLD.h/2};
+    return {x:clamp(c.x,0,WORLD.w), y:clamp(c.y,0,WORLD.h)};
+  }
   const o=svgOff();
   const cx=(scrollEl.scrollLeft-o.x+scrollEl.clientWidth/2)/(PX_PER_FT*store.view.zoom);
   const cy=(scrollEl.scrollTop-o.y+scrollEl.clientHeight/2)/(PX_PER_FT*store.view.zoom);
@@ -4123,6 +4169,11 @@ function readGridPref(){ try{ const g=JSON.parse(localStorage.getItem(GRID_PREF_
 (function(){ const g=readGridPref(); if(g){ if(typeof g.snap==='boolean') store.grid.snap=g.snap; if(typeof g.show==='boolean') store.grid.show=g.show; $('#snapBtn').classList.toggle('on',store.grid.snap); $('#gridBtn').classList.toggle('on',store.grid.show); } })();
 $('#snapBtn').addEventListener('click',()=>{ store.grid.snap=!store.grid.snap; $('#snapBtn').classList.toggle('on',store.grid.snap); saveGridPref(); if(window.__on3DSnapChange) window.__on3DSnapChange(); });
 $('#gridBtn').addEventListener('click',()=>{ store.grid.show=!store.grid.show; $('#gridBtn').classList.toggle('on',store.grid.show); saveGridPref(); renderAll(); if(window.__on3DGridChange) window.__on3DGridChange(); });
+// R255: More > Usable area lines (off every time the planner opens)
+(function wireMarginsToggle(){ const b=$('#marginsBtn'); if(!b) return; const c=$('#cornerUnit');
+  b.addEventListener('click',()=>{ showMargins=!showMargins; b.setAttribute('aria-checked', String(showMargins)); b.textContent=(showMargins?'☑':'☐')+' Usable area lines';
+    if(c){ c.title=showMargins && !RO ? 'Double-click to reset the usable area lines' : ''; c.style.cursor=showMargins && !RO ? 'pointer' : ''; }
+    renderAll(); }); })();
 $('#undoBtn').addEventListener('click',undo);
 $('#redoBtn').addEventListener('click',redo);
 $('#clearBtn').addEventListener('click',async()=>{
@@ -4407,7 +4458,9 @@ async function saveLayout(silent, opts){
     // R241: a newer version exists - nothing was written, the canvas is untouched; ask Reload / Save mine as a new version
     if(e && e.code==='NEWER_VERSION'){ saveUi='dirty'; renderSaveState('dirty'); const c=e.conflict||{}; setTimeout(()=>{ onSaveConflict(c); },0); return false; }
     saveUi='error'; renderSaveState('error');
-    if(!silent) BPUI.toast(BPUI.friendlyError(e,{action:'save the layout'}),{type:'err'});
+    const LK=BPStore.ops && BPStore.ops.planLock;   // R256: before 0441 the database still refuses a layout on the event day
+    if(!silent && LK && LK.isLockError && LK.isLockError(e)) BPUI.toast('Not saved: this event is locked for its day. Unlock it on Tasks & Crew, then save again. Your changes are still here.',{type:'err',timeout:10000});
+    else if(!silent) BPUI.toast(BPUI.friendlyError(e,{action:'save the layout'}),{type:'err'});
     else toast('Autosave failed — press Save to retry');
     return false; }
   finally{ saving=false; if(btn) btn.disabled=false; if(saveUi==='saving'){ saveUi='dirty'; renderSaveState(); } }
@@ -4934,7 +4987,7 @@ function captureClientImages(silent){
 // R154: every logo on a screen of this layout has loaded (or failed) - at most 6 s
 function screenLogosReady(){
   const S=window.HelmScreen; if(!S || !S.whenLogos) return Promise.resolve([]);
-  const refs=store.items.filter(it=>S.isScreenType(it.type)).flatMap(it=>{ const c=S.contentOf(it, store.items); return [c.logo, c.pic]; }).filter(Boolean);   // R200: + pictures
+  const refs=store.items.filter(it=>S.isScreenType(it.type)||S.takesPicture(it)).flatMap(it=>{ const c=S.contentOf(it, store.items); return [c.logo, c.pic]; }).filter(Boolean);   // R200: + pictures
   return refs.length ? S.whenLogos(refs, 6000) : Promise.resolve([]);
 }
 async function captureClientImagesRun(silent){
@@ -5326,7 +5379,7 @@ async function init(){
       watchVersions();                       // live: versions saved on another device / tab
       if(q.status==='confirmed'){ const b=$('#quoteBadge'); if(b) b.classList.add('confirmed'); }
       toast('Opened '+q.code+' · V'+currentVersionNo);
-      r227PlanLock(q);   // R227 (0397): locked for the event day -> view only + the lock bar (non-blocking)
+      viewOnlyIfClosed(q);
       // r22 (live QA): "Restore unsaved draft?" opened while "Loading event…" was still on screen (~1s, both at once) -
       // the layout is in by now, so the loading state ends first and the question comes after it
       if(!CAPTURE_HOST && layoutLoading) setLayoutLoading(false);
@@ -5618,7 +5671,7 @@ const VARIANT_STYLES = {
   backdrop: [['','Plain fabric'],['flex','Printed flex on frame'],['sequin','Sequin / shimmer wall'],['greenery','Greenery (boxwood) wall'],['wood','Wooden panel wall'],['balloon','Balloon wall']],
   floralstand: [['','Tall gold stand'],['urn','Urn / vase'],['pedestal','Pedestal bowl'],['hoop','Floral hoop']],
   decorbox: [['','Box / crate'],['cylinder','Cylinder plinth'],['sphere','Sphere / globe'],['cutout','Flat cut-out panel']],
-  signage: [['','Roll-up banner'],['standee','Foam-board standee'],['aframe','A-frame sign'],['direction','Directional post'],['digital','Digital standee screen'],['cutout','Life-size cut-out']],
+  signage: [['','Roll-up banner'],['standee','Foam-board standee'],['aframe','A-frame sign'],['direction','Directional post'],['digital','Digital standee screen'],['cutout','Life-size cut-out'],['wallposter','Wall poster (flat on the wall)']],
   pyro: [['','Cold pyro (sparkular)'],['co2','CO2 jet'],['confetti','Confetti cannon']],
   stall: [['','Canopy stall'],['kiosk','Hard-top kiosk']],
   // R135 visual-asset catalogue: same product, different shape / look (docs/builder/R135-CATALOGUE-MAP.md)
@@ -5723,12 +5776,12 @@ function stageScreenMount(it, box){
     sec.appendChild(mk('div','pitchnote','Snaps to the front edge of the nearest stage. Change the width above for wider steps.'));
     put(sec);
   }
-  if(!window.HelmScreen || !HelmScreen.isScreenType(it.type)) return;
-  const S=HelmScreen, sec=mk('div','isec screen'), board=it.type==='welcomeboard'; sec.setAttribute('aria-label', board ? 'Welcome board' : 'Screen');
-  sec.appendChild(mk('div','seclabel', it.type==='stage' ? 'Screen (backdrop behind the stage)' : board ? 'Welcome board' : 'Screen'));
+  if(!window.HelmScreen || !(HelmScreen.isScreenType(it.type) || HelmScreen.takesPicture(it))) return;
+  const S=HelmScreen, sec=mk('div','isec screen'), board=it.type==='welcomeboard', poster=S.takesPicture(it); sec.setAttribute('aria-label', board ? 'Welcome board' : poster ? 'Poster picture' : 'Screen');
+  sec.appendChild(mk('div','seclabel', it.type==='stage' ? 'Screen (backdrop behind the stage)' : board ? 'Welcome board' : poster ? 'Poster picture' : 'Screen'));
   if(board && P().screenMirror) delete P().screenMirror;   // a board never mirrors the stage screen
   const mirrored=it.type!=='stage' && P().screenMirror===true;
-  if(it.type!=='stage' && !board){
+  if(it.type!=='stage' && !board && S.isScreenType(it.type)){
     const lab=mk('label','scr-mirror'), cb=mk('input'); cb.type='checkbox'; cb.id='scr_mirror'; cb.checked=mirrored; if(RO) cb.disabled=true;
     cb.addEventListener('change',()=>{ if(RO) return; if(cb.checked) P().screenMirror=true; else delete P().screenMirror; commit(); renderAll(); });
     lab.appendChild(cb); lab.appendChild(document.createTextNode(' Same as main screen (the stage)')); sec.appendChild(lab);
@@ -5761,7 +5814,7 @@ function stageScreenMount(it, box){
     r.appendChild(b3); r.appendChild(mk('div','pitchnote','Makes this backdrop the centre screen and adds a left and a right screen, each with its own text or picture.'));
     sec.appendChild(r);
   }
-  put(sec);
+  if(poster && box.children[1]) box.insertBefore(sec, box.children[1]); else put(sec);   // R255: a poster's picture comes first, under its label
 }
 if(typeof window!=='undefined') window.HelmStageTools = Object.freeze({ stepOffsets: stageStepOffsets, STAGE_STEPS, snapStairs: snapStairsToStage, stairSteps: stairStepCount });
 /* ---- R137: screen layout, background colour and logo picture (inspector), all DOM API + textContent ----
@@ -5876,6 +5929,9 @@ function screenPicGate(){
   if(!currentQuoteId) return 'Open this layout from an event to upload a picture.';
   return '';
 }
+// R255: the same gate in poster words ("the text" is a screen's, a poster is simply white)
+function picGate(it){ const g=screenPicGate(), poster=!!(window.HelmScreen && HelmScreen.takesPicture(it)); if(!g || !poster) return g;
+  return g===SCREEN_PIC_TRIAL_MSG ? 'Poster pictures unlock on a paid plan. The poster stays white for now.' : g.replace(' The screen keeps its text for now.',' The poster stays white for now.'); }
 // the picture's pixel size (read locally, nothing is uploaded yet)
 async function picDims(file){
   if(typeof createImageBitmap==='function'){ const b=await createImageBitmap(file); try{ return {w:b.width, h:b.height}; } finally { if(b.close) try{ b.close(); }catch(_){} } }
@@ -5892,7 +5948,7 @@ function screenPicError(e){
   return (window.BPUI && BPUI.friendlyError) ? BPUI.friendlyError(e,{action:'upload the picture'}) : 'The picture could not be uploaded.';
 }
 async function screenPicAdd(it, file, say){
-  const gate=screenPicGate(); if(gate){ say(gate); return false; }
+  const gate=picGate(it); if(gate){ say(gate); return false; }
   const S=HelmScreen, head=new Uint8Array(await file.slice(0,16).arrayBuffer());
   const v=S.validatePicture(file, head); if(!v.ok){ say(v.reason); return false; }
   say('Checking the picture…');
@@ -5908,11 +5964,20 @@ async function screenPicAdd(it, file, say){
     if(RO) return false;
     const P=it.properties=it.properties||{};
     P.screenPic=path; P.screenMode='pic'; P.screenPicW=Math.round(dims.w); P.screenPicH=Math.round(dims.h);
+    screenShapeNote(it, dims);
     commit(); renderAll(); return true;
   }catch(e){ say(screenPicError(e)); return false; }
 }
+// R257: a picture of another shape is fine: say calmly which fit is on and offer the other one (the fields may be scrolled away)
+function screenShapeNote(it, dims){
+  const S=HelmScreen, g=S.guidance && S.guidance(it, store.items); if(!g || !(S.shapeDiff(dims.w, dims.h, g.w, g.h)>5) || !window.BPUI || !BPUI.toast) return;
+  const fill=it.properties.screenFit==='cover', noun=it.type==='welcomeboard'?'board':S.takesPicture(it)?'poster':'screen';
+  BPUI.toast(fill ? 'Picture added. It covers the whole '+noun+', so its edges are cut.' : 'Picture added. All of it shows; it has a different shape from the '+noun+', so there is plain space at the sides.',
+    {type:'info', timeout:9000, action:{label: fill ? 'Fit (show all of it)' : 'Fill the '+noun, onClick:()=>{ const x=RO ? null : store.items.find(i=>i.id===it.id); if(!x || !x.properties || !x.properties.screenPic) return;
+      if(fill) delete x.properties.screenFit; else x.properties.screenFit='cover'; commit(); renderAll(); }}});
+}
 // Fit / Fill previews of the uploaded picture on this screen's shape (drawn locally from the cached picture)
-function screenPicPreview(host, ref, face, mk, onPick, cur){
+function screenPicPreview(host, ref, face, mk, onPick, cur, bg){
   const S=HelmScreen, wrap=mk('div','scr-prev'); wrap.setAttribute('role','group'); wrap.setAttribute('aria-label','Fit or fill preview');
   const W=132, H=Math.max(40, Math.min(150, Math.round(W*face.h/Math.max(0.1,face.w)))), cw=Math.round(H>=150 ? 150*face.w/face.h : W);
   const cells=S.FITS.map(([fit,label])=>{ const b=mk('button','scr-prevbtn'+(fit===cur?' on':'')); b.type='button'; b.setAttribute('aria-pressed',String(fit===cur)); if(RO) b.disabled=true;
@@ -5920,15 +5985,17 @@ function screenPicPreview(host, ref, face, mk, onPick, cur){
     b.appendChild(cv); b.appendChild(mk('span',null, fit==='cover' ? 'Fill (crops edges)' : 'Fit (nothing cut)'));
     b.title=label; b.addEventListener('click',()=>{ if(!RO) onPick(fit); }); wrap.appendChild(b); return [cv,fit]; });
   const paint=()=>{ const img=S.logoImage(ref); if(!img) return false;
-    cells.forEach(([cv,fit])=>{ const x=cv.getContext && cv.getContext('2d'); if(x) S.drawPicture(x, cv.width, cv.height, img, fit); }); return true; };
+    cells.forEach(([cv,fit])=>{ const x=cv.getContext && cv.getContext('2d'); if(x) S.drawPicture(x, cv.width, cv.height, img, fit, bg); }); return true; };
   if(!paint() && S.whenLogos) S.whenLogos([ref], 8000).then(paint).catch(()=>{});
   host.appendChild(wrap);
 }
+let posterTextId=null;   // R255: the blank poster whose "Text & theme" side is open (view only, nothing saved)
 // returns true when the screen is in picture mode (the text / theme fields are then left out)
 function screenPicturePanel(it, sec, mk, select){
   const S=window.HelmScreen; if(!S || !S.guidance) return false;
   const P=()=>{ it.properties=it.properties||{}; return it.properties; };
   const board=it.type==='welcomeboard', btn=(text,cls)=>{ const b=mk('button',cls||'btn scr-btn',text); b.type='button'; if(RO) b.disabled=true; return b; };
+  const poster=S.takesPicture(it), noun=board?'board':poster?'poster':'screen', Noun=noun[0].toUpperCase()+noun.slice(1);
   const numIn=(id,label,val,lo,hi,onSet)=>{ const f=mk('div','ifield'), l=mk('label',null,label), n=mk('input'); n.type='number'; n.id=id; n.min=String(lo); n.max=String(hi); n.step='0.5';
     n.value=String(val); n.inputMode='decimal'; l.htmlFor=id; if(RO) n.disabled=true;
     n.addEventListener('change',()=>{ if(RO) return; const v=Math.round(clamp(+n.value||lo,lo,hi)*10)/10; n.value=String(v); onSet(v); }); f.appendChild(l); f.appendChild(n); return f; };
@@ -5955,23 +6022,25 @@ function screenPicturePanel(it, sec, mk, select){
     if(P().screenAspect==='custom'){ const f=S.faceOf(it, store.items); r.appendChild(numIn('scr_h','Screen height (ft)',f?Math.round(f.h*10)/10:9,1,60,v=>{ P().screenH=v; commit(); renderAll(); })); }
     sec.appendChild(r);
   }
-  const pic=P().screenMode==='pic';
+  // R255: a poster opens on "Add picture" - one that can also show text (branding wall, backdrop) keeps its text when it has some
+  const pure=poster && !S.isScreenType(it.type), bare=poster && !S.hasContent(S.contentOf(it, []));
+  const pic=P().screenMode==='pic' || pure || (bare && posterTextId!==it.id);
   // stage + picture: the screen layout still decides which screen the picture goes on
   if(pic && it.type==='stage'){ const r=mk('div','irow scr-layout');
     r.appendChild(select('scr_layout','Screen layout',S.LAYOUTS,String(P().screenLayout||''),v=>{ if(v) P().screenLayout=v; else delete P().screenLayout; commit(); renderAll(); }));
     sec.appendChild(r); }
   // Text OR Picture
-  const mode=mk('div','scr-mode'); mode.setAttribute('role','group'); mode.setAttribute('aria-label', board ? 'Board content' : 'Screen content');
-  [['', board ? 'Theme template' : 'Text & theme'], ['pic','Upload a picture']].forEach(([v,label],i)=>{
+  const mode=mk('div','scr-mode'); mode.setAttribute('role','group'); mode.setAttribute('aria-label', Noun+' content');
+  (poster ? [['pic','Picture'], ['','Text & theme']] : [['', board ? 'Theme template' : 'Text & theme'], ['pic','Upload a picture']]).forEach(([v,label],i)=>{
     const b=btn(label,'scr-modebtn'+((v==='pic')===pic?' on':'')); b.id='scr_mode_'+(v||'text'); b.setAttribute('aria-pressed',String((v==='pic')===pic));
-    b.addEventListener('click',()=>{ if(RO) return; if(v) P().screenMode='pic'; else delete P().screenMode; commit(); renderAll(); });
+    b.addEventListener('click',()=>{ if(RO) return; posterTextId=poster && !v ? it.id : null; if(v && (!poster || P().screenPic)) P().screenMode='pic'; else delete P().screenMode; commit(); renderAll(); });
     mode.appendChild(b); if(!i) mode.appendChild(mk('span','scr-or','OR')); });
-  sec.appendChild(mode);
+  if(!pure) sec.appendChild(mode);
   // the size guidance (always shown, so a picture can be made to measure before it is uploaded)
-  const g=S.guidance(it, store.items);
-  if(g){ const gd=mk('div','scr-guide'); gd.setAttribute('role','note'); gd.id='scr_guide';
+  const g=S.guidance(it, store.items); let gdEl=null;
+  if(g){ const gd=gdEl=mk('div','scr-guide'); gd.setAttribute('role','note'); gd.id='scr_guide';
     const row=(k,v)=>{ const d=mk('div','scr-grow'); d.appendChild(mk('span','scr-gk',k)); d.appendChild(mk('b',null,v)); gd.appendChild(d); };
-    row(board ? 'Board size' : 'Screen size', g.size); row('Shape', g.ratio); row('Make the picture', g.pxW+' × '+g.pxH+' px'+(g.print?' or larger':' or larger, same shape'));
+    row(Noun+' size', g.size); row('Shape', g.ratio); row('Make the picture', g.pxW+' × '+g.pxH+' px'+(g.print?' or larger':' or larger, same shape'));
     gd.appendChild(mk('div','scr-gnote', g.print
       ? 'For printing, send the printer the original full-size file - this copy is a preview.'
       : 'Tip: ask your AI tool for a '+g.ratio+' picture at '+g.pxW+' × '+g.pxH+' px.'));
@@ -5979,17 +6048,17 @@ function screenPicturePanel(it, sec, mk, select){
   if(!pic) return false;
   // the picture: upload / paste / drop, Fit or Fill, shape check
   const ref=S.cleanPic(P().screenPic);
-  const lw=mk('div','scr-logobox scr-picbox'); lw.setAttribute('role','group'); lw.setAttribute('aria-label','Screen picture'); lw.tabIndex=RO?-1:0;
-  lw.appendChild(mk('div','scr-sublabel', board ? 'Board picture' : 'Screen picture'));
+  const lw=mk('div','scr-logobox scr-picbox'); lw.setAttribute('role','group'); lw.setAttribute('aria-label',Noun+' picture'); lw.tabIndex=RO?-1:0;
+  lw.appendChild(mk('div','scr-sublabel', Noun+' picture'));
   const msg=mk('div','pitchnote scr-picmsg'); msg.setAttribute('role','status'); msg.setAttribute('aria-live','polite');
   const say=t=>{ msg.textContent=String(t||''); };
   const fi=mk('input'); fi.type='file'; fi.accept='image/png,image/jpeg,image/webp'; fi.hidden=true; fi.id='scr_pic_file';
-  const add=btn(ref?'Change picture':'Upload picture'), paste=btn('Paste picture'), rm=btn('Remove picture'); add.id='scr_pic_add'; rm.hidden=!ref;
+  const add=btn(poster ? (ref?'Replace picture':'Add picture') : ref?'Change picture':'Upload picture'), paste=btn('Paste picture'), rm=btn('Remove picture'); add.id='scr_pic_add'; rm.hidden=!ref;
   const busy=f=>Promise.resolve().then(f).catch(e=>say(screenPicError(e)));
   const take=f=>{ if(f) busy(()=>screenPicAdd(it, f, say)); };
-  add.addEventListener('click',()=>{ if(RO) return; const gt=screenPicGate(); if(gt){ say(gt); return; } fi.click(); });
+  add.addEventListener('click',()=>{ if(RO) return; const gt=picGate(it); if(gt){ say(gt); return; } fi.click(); });
   fi.addEventListener('change',()=>{ const f=fi.files&&fi.files[0]; fi.value=''; take(f); });
-  paste.addEventListener('click',()=>{ if(RO) return; const gt=screenPicGate(); if(gt){ say(gt); return; }
+  paste.addEventListener('click',()=>{ if(RO) return; const gt=picGate(it); if(gt){ say(gt); return; }
     const hint='Copy the picture, click this box and press Ctrl+V (⌘V on a Mac).';
     if(!(navigator.clipboard && navigator.clipboard.read)){ say(hint); lw.focus(); return; }
     busy(async()=>{ let items=[]; try{ items=await navigator.clipboard.read(); }catch(_){ say(hint); lw.focus(); return; }
@@ -6002,19 +6071,21 @@ function screenPicturePanel(it, sec, mk, select){
   rm.addEventListener('click',()=>{ if(RO) return; ['screenPic','screenMode','screenPicW','screenPicH','screenFit'].forEach(k=>delete P()[k]); commit(); renderAll(); });
   const row=mk('div','scr-logobtns'); row.appendChild(add); row.appendChild(paste); row.appendChild(rm);
   lw.appendChild(row); lw.appendChild(fi); lw.appendChild(msg);
-  if(ref){ const st=S.logoState(ref); say(st==='fail' ? 'The picture could not be shown right now - the screen stays dark until it loads.' : 'Picture added - it fills this '+(board?'board':'screen')+' in 2D and 3D.'); }
-  else { const g0=RO ? '' : screenPicGate(); say(g0 || 'PNG, JPG or WebP up to 15 MB - upload, paste or drop it here. Big pictures are shrunk and their location data is removed.'); }
-  sec.appendChild(lw);
+  if(poster && gdEl) sec.insertBefore(lw, gdEl);   // R255: the Add picture box first, its size advice under it
+  if(ref){ const st=S.logoState(ref); say(st==='fail' ? 'The picture could not be shown right now - the '+noun+' stays '+(poster?'white':'dark')+' until it loads.' : poster ? 'Picture added. It shows on this poster in 2D and 3D.' : 'Picture added - it fills this '+noun+' in 2D and 3D.'); }
+  else { const g0=RO ? '' : picGate(it); say(g0 || (poster ? 'The face is white until you add a picture. ' : '')+'PNG, JPG or WebP up to 15 MB - upload, paste or drop it here. Big pictures are shrunk and their location data is removed.'); }
+  if(!lw.parentNode) sec.appendChild(lw);
   if(ref){
     const fr=mk('div','irow scr-fit'), cur=P().screenFit==='cover'?'cover':'contain';
     const pickFit=v=>{ if(v==='cover') P().screenFit='cover'; else delete P().screenFit; commit(); renderAll(); };
     fr.appendChild(select('scr_fit','Picture fit',S.FITS,cur,pickFit)); sec.appendChild(fr);
     const pw=+P().screenPicW, ph=+P().screenPicH, diff=g ? S.shapeDiff(pw, ph, g.w, g.h) : 0;
     if(diff>5){
-      const wn=mk('div','scr-warn'); wn.setAttribute('role','alert');
-      wn.textContent='This picture is '+pw+' × '+ph+' px ('+S.ratioLabel(pw,ph)+'), a different shape from the '+(board?'board':'screen')+' ('+g.ratio+'). Pick Fit to show all of it, or Fill to cover the '+(board?'board':'screen')+' and crop the edges:';
+      // R257: advice, not an error (a role=alert that is off screen was copied into a red toast)
+      const wn=mk('div','scr-warn scr-shape'); wn.setAttribute('role','note');
+      wn.textContent='This picture is '+pw+' × '+ph+' px ('+S.ratioLabel(pw,ph)+') and the '+noun+' is '+g.ratio+'. '+(cur==='cover' ? 'Fill is on: the picture covers the '+noun+' and its edges are cut.' : 'Fit is on: all of the picture shows, with plain space at the sides.')+' Choose below:';
       sec.appendChild(wn);
-      screenPicPreview(sec, ref, g, mk, pickFit, cur);
+      screenPicPreview(sec, ref, g, mk, pickFit, cur, poster ? '#ffffff' : '');
     }
   }
   return true;

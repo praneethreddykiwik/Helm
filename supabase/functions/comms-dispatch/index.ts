@@ -115,7 +115,7 @@ import { trialRowAllowed } from "./trial-row.mjs";   // 0212: free trial = link 
 import { bookletMessage } from "./booklet-link.mjs";
 import { quoteExpiryMessage } from "./quote-expiry.mjs";
 import { deliveryMessage } from "./delivery-reminder.mjs";   // 0241: delivery / arrival reminders
-import { vendorRequestMessage, VENDOR_TX_REASON } from "./vendor-request.mjs";   // 0256: vendor requests + reminders
+import { vendorRequestMessage, vendorRequestHtml, vendorFlowMessage, vendorFlowHtml, VENDOR_TX_REASON } from "./vendor-request.mjs";   // 0256: vendor requests + reminders; R259 (0447): product list, change / confirmed / invoice e-mails
 import { vendorBillMessage, vendorBillHtml, VENDOR_BILL_TX_REASON, VENDOR_BILL_VENDOR_TX_REASON } from "./vendor-bill-reminder.mjs";   // R190 (0373): vendor bill due reminders
 import { helmNoticeEmail, NOTICE_TX_REASON } from "./helm-notices.mjs";   // 0244: sales requests + "ask my admin"
 import { runsheetReminderMessage, enquiryReplyMessage, RUNSHEET_TX_REASON, ENQUIRY_TX_REASON } from "./r24-automation.mjs";   // 0269: run-sheet reminders + enquiry replies
@@ -588,9 +588,28 @@ Deno.serve(async (req) => {
       const msg = vendorRequestMessage(r, origin);
       const ident: Identity = await withReply("vendor", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
       const extra: Extra = { footer: txFooter(VENDOR_TX_REASON, { app: origin, address: postalAddress(env) }) };
-      const res: Res = already("vendor_request", id) ? "sent" : msg.text ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra) : "skipped";
+      const vqhtml = msg.text ? vendorRequestHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;   // R259: "" on a database without 0447
+      const res: Res = already("vendor_request", id) ? "sent" : msg.text ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, vqhtml) : "skipped";
       const mErr = await mark("vendor_request", id, res === "sent", "vendor_request_mark", { p_id: id, p_status: markStatus(res) });
       if (mErr) { log.error("vendor request mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
+      counts[res]++;
+    }
+    // R259 (0447): "can you change your offer", "booking confirmed" and "please send your invoice" (by hand + the automatic ones). Same table and
+    // mark as above, its own claim: vendor_request_claim never hands these out, so an older version of this function leaves them waiting. A
+    // database without 0447 has nothing to claim. Every row is re-checked there (invoice in, cancelled, switched off, trial / sample).
+    const { data: vfrows, error: vfErr } = mailOn && !overBudget() ? await admin.rpc("vendor_flow_claim", { p_limit: batch }) : NOCLAIM;
+    if (vfErr && !/PGRST202|42883/.test(String(vfErr.code || ""))) log.error("vendor flow claim skipped", errTag(vfErr));
+    for (const r of (Array.isArray(vfrows) ? vfrows : [])) {
+      if (overBudget()) break;   // R168
+      const id = String(r?.id ?? ""), to = String(r?.to ?? "");
+      if (!UUIDISH.test(id)) { counts.invalid++; continue; }
+      const msg = vendorFlowMessage(r, origin);
+      const ident: Identity = await withReply("vendor", id, (r?.identity && typeof r.identity === "object") ? r.identity as Identity : {});
+      const extra: Extra = { footer: txFooter(VENDOR_TX_REASON, { app: origin, address: postalAddress(env) }) };
+      const vfhtml = msg.text ? vendorFlowHtml(r, origin, { address: postalAddress(env) }) || undefined : undefined;
+      const res: Res = already("vendor_request", id) ? "sent" : msg.text && EMAIL.test(to) ? await sendEmail(id, to, msg.subject, msg.text, String(r?.studio ?? ""), ident, extra, vfhtml) : "skipped";
+      const mErr = await mark("vendor_request", id, res === "sent", "vendor_request_mark", { p_id: id, p_status: markStatus(res) });
+      if (mErr) { log.error("vendor flow mark failed", errTag(mErr)); report.error(mErr); counts.failed++; continue; }
       counts[res]++;
     }
     // R190 (0373): vendor bill due reminders - to the studio's "who pays vendors" people (and, only when the studio turned

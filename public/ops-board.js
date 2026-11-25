@@ -10,9 +10,10 @@
  *                flipped by hand in this tab. Each step shows its own cards, in its own order (ORDER); the header badge is always
  *                the REAL step. Wrap-up is no step: one closed section at the bottom (HelmEventWrap, event-steps.js), and the
  *                last card of Pre-event is "Mark pre-event complete" (HelmEventSteps, event-steps.js).
- *   order        R253 (owner 25 Nov): the SAME on every step - "Needs you now" (one compact card: only what is not zero), tasks by department,
- *                the step's own block, Issues beside Latest, crew, "Plan & reminders" (closed), then Mark pre-event complete / Wrap-up
- *   Day before   "Get set up" shortcuts, "Tasks to sort out" with Fix ->, the Day-before checklist, the plan lock, the floor plan
+ *   order        R257: the step's own thing first (Day before and Pre-event = the checklist, then crew check-in; On the event = the run-sheet), then
+ *                "Needs you now" (one compact card: only what is not zero), tasks by department, the rest of the step, Issues beside
+ *                Extras / Latest, crew, "Reminders" (closed), then Mark pre-event complete / Wrap-up (ORDER)
+ *   Day before   "Get set up" shortcuts, "Tasks to sort out" with Fix ->, the Day-before checklist, the floor plan
  *   Pre-event    Ready by + latest starts, check-in, late set-up jobs, Issues, the floor plan, tasks, "Mark pre-event complete"
  *   On the event run-sheet now / next, late work (with the R186 escalation ladder), check-in, Issues (event_issues, Issues area;
  *                R252: list + "Assign to" = issue-assign.js, the same on the monitor and the Issues page) beside the activity log, tasks, the floor plan. Crew: Free that day / Busy elsewhere / Day off.
@@ -239,7 +240,7 @@
 
   var S = {
     started: false, phase: null, manual: null, view: "list", chip: "", q: "", sel: {}, openId: null, folded: {},
-    acts: null, sheet: {}, hasSheet: false, avail: {}, req: null, escCfg: null, preset: null, sendIds: null,
+    acts: null, sheet: {}, ts: null, pickOpen: true, hasSheet: false, avail: {}, req: null, escCfg: null, preset: null, sendIds: null,
     sigs: {}, rows: {}, groups: {}, viewKey: "", timer: null, lastFocus: null, layer: null, deepDone: false,
     // R222: run-sheet (null = can't read it), issues (null = can't read), what this role may do, the mode and why
     rs: null, rsAt: 0, iss: null, issErr: false, perm: null, mode: null,
@@ -315,6 +316,8 @@
   // R254-B: the tags of this event (other events: one read a minute)
   function sameBoard() { var TC = global.HelmTaskClash; if (!TC || !qid()) return null; if (M.same === undefined) try { M.same = TC.board({ quoteId: qid(), tasks: G().tasks, onChange: function () { update(); } }); } catch (e) { M.same = null; } return M.same; }
   function sameText(t) { var b = sameBoard(); return (b && b.byTask[t.id]) || ""; }
+  // R255: the person on this open task has a deactivated login (they are in no picker any more; the task they hold says so)
+  function offLogin(t) { var c = t && t.crew_id && inHouse(t) && (isOpen(t) || t.status === "unassigned") ? crewById(t.crew_id) : null; return !!(c && c.login_off); }
   function clashOf(t) { return t && t.crew_id && inHouse(t) && !noOne(t) ? offOn(t.crew_id, taskDay(t)) : null; }
   clashOf.same = function (t) { return t.status !== "completed" && !!sameText(t); };
   // first start on the check-in's own day (a set-up task the evening before must not make today's check-in "late")
@@ -355,6 +358,7 @@
   function depOf(t) { return t.depends_on ? taskById(t.depends_on) : null; }
   // R253: { kind, text, bad } of a task's "waits for" link: released / hold / waits + the expected time (event-delay.js)
   function linkOf(t) { var HD = global.HelmDelay, d = depOf(t); return HD && HD.link && d ? HD.link(t, d, delayRes(), atClock) : null; }
+  function afterReady(t) { var EP = global.HelmEventPlan, q = G().quote || {}; return EP && EP.afterReady ? EP.afterReady(t, { plan: S.plan, eventDate: evDate(), eventTime: String(q.eventTime || "").trim(), tz: tz() }) : ""; }
   function tags(t) {
     var a = [];
     if (t.is_special) a.push(h("span", { cls: "tc-tag special" + (TS.isLate(t) ? " pulse" : ""), title: "Special (P1) task: extra reminders and step-by-step escalation", text: "▲ Special" }));
@@ -362,10 +366,12 @@
     var r = remText(t); if (r) a.push(h("span", { cls: "tc-tag", title: "Reminders (e-mail; WhatsApp once connected)", text: "Reminders " + r }));
     var lk = linkOf(t);   // R253: released / hold / waits, and when the earlier task should be done (event-delay.js)
     if (lk) a.push(h("span", { cls: "tc-tag tc-tag-wrap" + (lk.kind === "go" ? " ok" : lk.bad ? " warn" : ""), text: "↳ " + lk.text }));
+    var ar = afterReady(t); if (ar) a.push(h("span", { cls: "tc-tag tc-tag-wrap warn", text: ar }));   // R257
     if (toApprove(t)) a.push(h("span", { cls: "tc-tag warn", text: "To approve" }));
     else if (t.verify_status === "rejected") a.push(h("span", { cls: "tc-tag warn", title: t.verify_note || "", text: "Sent back - rework" }));
     else if (t.verify_status === "passed") a.push(h("span", { cls: "tc-tag ok", text: "Approved" }));
     var sm = sameText(t); if (sm) a.push(h("span", { cls: "tc-tag tc-tag-wrap warn", text: sm }));   // R254-B
+    if (offLogin(t)) a.push(h("span", { cls: "tc-tag warn", title: "This person's Helm login is deactivated (Settings, Users)", text: "! Deactivated - give it to someone else" }));   // R255
     var c = clashOf(t); if (c && t.status !== "completed") a.push(h("span", { cls: "tc-tag warn", title: c.note || "", text: c.pending ? "! asked for this day off" : "! approved day off - needs a new person" }));
     var ev = evidenceOf(t); if (ev.length) a.push(h("span", { cls: "tc-tag", text: "Notes & photos (" + ev.length + ")" }));
     var wa = null; try { wa = P().waChip(t); } catch (e) {}
@@ -499,15 +505,17 @@
   }
   /* R251: each step's cards, top to bottom. The nodes are MOVED (not hidden behind order:), so reading and tabbing follow the eye.
      R253: needs you now, the tasks, then the step's own block; issues beside latest, crew, plan and reminders. */
-  var TAIL = ["tcIssues", "tcActCard", "tcCrewCard", "shiftCard", "tcPlanRem"];
+  // R255 (owner 25 Nov): each step opens with its own thing - Day before = the checklist, Pre-event = crew check-in, On the event = the run-sheet
+  // (with Issues and Extras right after the tasks) - then Needs you now and the tasks.
+  var TAIL = ["tcActCard", "tcCrewCard", "shiftCard", "tcPlanRem"];
   var ORDER = {
-    daybefore: ["attn", "work", "tcPrep", "flowNext", "tcDayBefore", "tcDelay", "tcReady", "tcFloor"].concat(TAIL),
-    pre: ["attn", "work", "tcDelay", "tcReady", "tcFloor", "tcVendors"].concat(TAIL, ["tcPreDone"]),
-    onday: ["attn", "work", "tcRun", "tcDelay", "tcFloor", "tcVendors"].concat(TAIL)
+    daybefore: ["tcDayBefore", "attn", "work", "tcPrep", "flowNext", "tcDelay", "tcReady", "tcFloor", "tcIssues"].concat(TAIL),
+    pre: ["tcPreList", "tcCheckin", "tcVendors", "attn", "work", "tcDelay", "tcReady", "tcFloor", "tcIssues"].concat(TAIL, ["tcPreDone"]),
+    onday: ["tcRun", "attn", "work", "tcIssues", "tcExtras", "tcDelay", "tcFloor", "tcVendors"].concat(TAIL)
   };
   function renderFlow() {
     var f = $("#tcFlow"); if (!f) return; var ids = (ORDER[S.win] || ORDER.daybefore).slice();
-    var fn0 = $("#flowNext"); if (fn0) fn0.hidden = S.win !== "daybefore" || !fn0.firstChild;   // "Step 2 of 4": beside Get set up, while planning
+    var fn0 = $("#flowNext"); if (fn0) fn0.hidden = S.win !== "daybefore" || !fn0.firstChild;   // "Step 3 of 4": beside Get set up, while planning
     f.setAttribute("data-win", S.win);
     var want = ids.map(function (id) { return doc.getElementById(id); }).filter(Boolean);
     var rest = Array.prototype.filter.call(f.children, function (n) { return want.indexOf(n) < 0; });   // the cards of the other steps (hidden) stay last
@@ -581,12 +589,12 @@
     var appr = ts.filter(toApprove).length, redo = ts.filter(function (t) { return chipTest("redo", t, now); }).length; sig.push(appr, redo);
     if (appr) rows.push(needRow("appr", "warn", pl2(appr, "finished task to approve", "finished tasks to approve"), { act: h("a", { cls: "tc-btn sm", "data-key": "need:appr", href: "approvals.html?quote=" + enc(qid()), text: "Approvals" }) }));
     if (redo) rows.push(needRow("redo", "warn", pl2(redo, "task sent back for rework", "tasks sent back for rework"), { act: fixBtn("redo", "Show", "Show the tasks sent back", function () { fix("redo"); }) }));
-    // no person / turned down / no time ...: while planning everything that has to be sorted out, on the day only who is missing
+    // no person / turned down ...: (R255: a start time is optional, so "no time" is a filter, not something to fix) while planning everything that has to be sorted out, on the day only who is missing
     readyChecks(g.tasks, { clash: clashOf, unsent: live ? null : unsentCount() }).forEach(function (i) {
-      sig.push(i[0], i[2]); if (i[0] || i[3] === "qc" || i[3] === "add" || (live && ["none", "down", "clash"].indexOf(i[3]) < 0)) return;
+      sig.push(i[0], i[2]); if (i[0] || i[3] === "qc" || i[3] === "add" || i[3] === "notime" || (live && ["none", "down", "clash"].indexOf(i[3]) < 0)) return;
       rows.push(needRow(i[3], i[3] === "down" || i[3] === "none" ? "bad" : "warn", i[2], { act: fixBtn(i[3], "Fix", "Fix: " + i[2], function () { fix(i[3]); }) }));
     });
-    var quiet = rows.length ? "" : !ts.length ? "No tasks yet - add the first one below." : live ? ["Nothing late", S.hasSheet ? "everyone due has checked in" : "", S.req ? "no requests" : "", "every task has a person"].filter(Boolean).join(" · ") : "Every task has a person and a time · everyone said yes" + (S.req ? " · no requests" : "");
+    var quiet = rows.length ? "" : !ts.length ? "No tasks yet - add the first one below." : live ? ["Nothing late", S.hasSheet ? "everyone due has checked in" : "", S.req ? "no requests" : "", "every task has a person"].filter(Boolean).join(" · ") : "Every task has a person · everyone said yes" + (S.req ? " · no requests" : "");
     sig.push(quiet); var sg = rowSig(sig); if (S.sigs.attn === sg) return; S.sigs.attn = sg;
     var keep = focusKey(host); clear(host); host.classList.toggle("is-ok", !rows.length);
     host.appendChild(h("h2", { cls: "tc-h2 tc-need-h", text: "Needs you now" }));
@@ -659,11 +667,14 @@
 
   /* ---- views ---- */
   function setView(v) { S.view = v; lsSet("helm.tc.view2", v); update(); }
-  function renderViewBtns() { Array.prototype.forEach.call(doc.querySelectorAll("#tcViews [data-view]"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-view") === S.view)); }); }
+  function renderViewBtns() { Array.prototype.forEach.call(doc.querySelectorAll("#tcViews [data-view]"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-view") === S.view)); });
+    var wh = $("#workH"), wt = (VIEW_H[S.view] || VIEW_H.list) + " "; if (wh && wh.firstChild && wh.firstChild.nodeType === 3 && wh.firstChild.nodeValue !== wt) wh.firstChild.nodeValue = wt;   // R257: the heading says what is shown
+  }
+  var VIEW_H = { list: "Tasks by department", order: "Order of work", timeline: "Timeline", people: "Tasks by person" };
   function emptyBox() {
     if (S.q || S.chip) return h("div", { cls: "tc-empty" }, [h("b", { text: "Nothing matches" }), "Try another word, or clear the filter.", h("br"),
       h("button", { type: "button", cls: "tc-btn", text: "Clear filters", on: { click: function () { S.q = ""; S.chip = ""; var i = $("#tcQ"); if (i) i.value = ""; update(); } } })]);
-    return h("div", { cls: "tc-empty is-row" }, [h("b", { text: "No tasks yet for this event." }), h("span", { text: canEdit() ? planLocked() ? "The plan is locked for the event day - unlock it in Plan & reminders below to add tasks." : "Press + Add & assign: pick from your studio’s checklist (stage, flowers, lighting...) and give each task to a person."
+    return h("div", { cls: "tc-empty is-row" }, [h("b", { text: "No tasks yet for this event." }), h("span", { text: canEdit() ? planClosed() ? "This event is closed." : "Press + Add & assign: pick from your studio’s checklist (stage, flowers, lighting...) and give each task to a person."
       : "Your role can view this page only. To give out work, an admin switches on “Assign & send tasks” for your role (Settings → Users & invites → Access control)." })]);
   }
   function narrow() { try { return global.matchMedia("(max-width:760px)").matches; } catch (e) { return false; } }
@@ -673,14 +684,14 @@
     var v = $("#view"); if (!v) return;
     var key = S.view + (S.view === "timeline" ? (narrow() ? ":phone" : ":wide") : "");
     if (S.viewKey !== key) { clear(v); S.rows = {}; S.groups = {}; S.steps = {}; S.sigs.empty = ""; S.sigs.more = ""; S.viewKey = key; }
-    var ot = orderTree(G().tasks), on = $("#tcOrderN"), otxt = ot.linked ? ot.linked + (ot.linked === 1 ? " waits" : " wait") : "";
-    if (on) { if (on.textContent !== otxt) on.textContent = otxt; on.hidden = !otxt; var ob = on.parentNode; ob.setAttribute("aria-label", "Order of work" + (ot.linked ? ", " + ot.linked + " task" + (ot.linked === 1 ? " waits" : "s wait") + " for another" : "")); }
+    var ot = orderTree(G().tasks), on = $("#tcOrderN"), otxt = ot.hold ? ot.hold + (ot.hold === 1 ? " waits" : " wait") : "";   // R257: only what still waits
+    if (on) { if (on.textContent !== otxt) on.textContent = otxt; on.hidden = !otxt; var ob = on.parentNode; ob.setAttribute("aria-label", "Order of work" + (ot.hold ? ", " + ot.hold + " task" + (ot.hold === 1 ? " waits" : "s wait") + " for another" : "")); }
     v.setAttribute("aria-busy", "false");
     if (S.view === "order" && liveTasks().length) { renderOrder(v, ot); return; }
     var ts = filtered();
     if (!ts.length) {
       S.rows = {}; S.groups = {}; S.steps = {};
-      var esig = rowSig([S.q, S.chip, canEdit(), planLocked()]);
+      var esig = rowSig([S.q, S.chip, canEdit(), planClosed()]);
       if (!v.querySelector(".tc-empty") || S.sigs.empty !== esig) { clear(v); v.appendChild(emptyBox()); S.sigs.empty = esig; }
       return;
     }
@@ -728,7 +739,7 @@
       else if (!any && lg) lg.remove();
     }
   }
-  function personSig() { return people().map(function (c) { return [c.id, S.sheet[c.id], dayInfo(c.id)]; }); }
+  function personSig() { return people().map(function (c) { return [c.id, S.sheet[c.id], dayInfo(c.id), !!c.login_off]; }); }
   function stepFolded(w) { if (S.q || S.chip) return false; var k = S.win + ":" + w; return k in S.stepFold ? S.stepFold[k] : S.autoWin === "daybefore" ? false : foldDefault(S.win, w, S.autoWin); }   // planning: everything open, whichever tab
   function stepSec(W) {
     var id = "tcs" + W[0], head = h("button", { type: "button", cls: "tc-stp-h", "data-key": "stp:" + W[0], "aria-controls": id }), hintEl = h("p", { cls: "tc-stp-hint", role: "note", hidden: true }), body = h("div", { cls: "tc-stp-b", id: id });
@@ -739,10 +750,10 @@
   function rowData(t) {
     var c = clashOf(t), ev = evidenceOf(t).length, wa = null; try { wa = P().waChip(t); } catch (e) {}
     return [t.id, t.title, t.category, t.status, t.crew_id, nameOf(t), t.assignee_kind, t.planned_start, t.planned_end, t.is_special, t.verify_status,
-      t.depends_on, (linkOf(t) || {}).text, sameText(t), TS.isLate(t), remText(t), c && [c.pending, c.note], ev, wa && wa.text, presState(t.crew_id), !!S.sel[t.id], t.cancel_reason];
+      t.depends_on, (linkOf(t) || {}).text, sameText(t), offLogin(t), planClosed(), TS.isLate(t), remText(t), c && [c.pending, c.note], ev, wa && wa.text, presState(t.crew_id), !!S.sel[t.id], t.cancel_reason, afterReady(t)];
   }
   /* ---- R230 (0399): one supervisor per department (department = the task section, t.category) ---- */
-  var LOCK_ADD = "The plan is locked for the event day - unlock it in Plan & reminders to add tasks.";
+  var LOCK_ADD = "This event is closed, so no new tasks.";
   var ROLE_WORD = { supervisor: "Supervisor", manager: "Event manager", admin: "Admin" };
   function roleWord(r) { return ROLE_WORD[String(r || "").toLowerCase()] || ""; }
   // R253: may I approve this task? My role may (ops.html canVerify), else 0436's answer: I supervise its department here and it is not my own
@@ -797,8 +808,8 @@
   // "+ Add task" inside a department: the Add & assign sheet opened on that section
   function addIn(cat) {
     if (!canEdit()) return;
-    // R227 (0397): adding tasks changes the task plan - refused while the plan is locked (the supervisor stays changeable)
-    if (planLocked()) { toast(LOCK_ADD, "err", 8000); openPlanRem(); return; }
+    // a closed event takes no new tasks (the supervisor stays changeable)
+    if (planClosed()) { toast(LOCK_ADD, "err", 8000); return; }
     openSheet(null);
     var hit = Array.prototype.filter.call(doc.querySelectorAll("#catTabs [data-c]"), function (b) { return b.getAttribute("data-c") === cat; })[0];
     if (hit && hit.getAttribute("aria-pressed") !== "true") hit.click();
@@ -844,13 +855,13 @@
         g.el.classList.toggle("is-folded", folded);
       }
       // R230: the department's supervisor + "+ Add task" (rebuilt only when they change; never while its picker has focus)
-      var sr = supOf(cat), ts2 = rowSig([cat, !!S.sup, S.sup && S.sup.can_edit, sr && [sr.profile_id, sr.name, sr.role], S.sup && (S.sup.candidates || []).map(function (c) { return c.id + c.name + c.role; }), canEdit(), mine.indexOf(cat) >= 0, planLocked()]);
+      var sr = supOf(cat), ts2 = rowSig([cat, !!S.sup, S.sup && S.sup.can_edit, sr && [sr.profile_id, sr.name, sr.role], S.sup && (S.sup.candidates || []).map(function (c) { return c.id + c.name + c.role; }), canEdit(), mine.indexOf(cat) >= 0, planClosed()]);
       if (g.tsig !== ts2 && !(doc.activeElement && g.tools.contains(doc.activeElement) && doc.activeElement.tagName === "SELECT")) {
         g.tsig = ts2; clear(g.tools);
         if (mine.indexOf(cat) >= 0) g.tools.appendChild(h("span", { cls: "tc-tag box tc-you", text: "You supervise" }));
         g.tools.appendChild(supTools(cat));
-        if (canEdit()) g.tools.appendChild(h("button", { type: "button", cls: "tc-btn sm tc-add-in" + (planLocked() ? " is-locked" : ""), "data-key": "add:" + gk, text: planLocked() ? "\ud83d\udd12 Add task" : "+ Add task",
-          "aria-label": planLocked() ? "Add a task in " + cat + " - locked: unlock the plan first" : "Add a task in " + cat, "aria-disabled": planLocked() ? "true" : null, title: planLocked() ? LOCK_ADD : null, on: { click: function () { S.addStep = step; addIn(cat); S.addStep = null; } } }));
+        if (canEdit() && !planClosed()) g.tools.appendChild(h("button", { type: "button", cls: "tc-btn sm tc-add-in", "data-key": "add:" + gk, text: "+ Add task",
+          "aria-label": "Add a task in " + cat, on: { click: function () { S.addStep = step; addIn(cat); S.addStep = null; } } }));
         g.el.classList.toggle("is-mine", mine.indexOf(cat) >= 0);
       }
       // rows
@@ -874,7 +885,7 @@
   }
   // R230: the departments of the checklist with no task on this event yet - one quiet line, "+ name" adds a task there
   function renderMore(v) {
-    var rest = (S.q || S.chip || !canEdit() || planLocked()) ? [] : (G().CATS || []).filter(function (c) { return !liveTasks().some(function (t) { return (t.category || "Other") === c; }); });
+    var rest = (S.q || S.chip || !canEdit() || planClosed()) ? [] : (G().CATS || []).filter(function (c) { return !liveTasks().some(function (t) { return (t.category || "Other") === c; }); });
     var es = rowSig(rest), strip = v.querySelector(".tc-dept-more");
     if (!rest.length) { if (strip) strip.remove(); S.sigs.more = ""; return; }
     if (!strip || S.sigs.more !== es) {
@@ -884,6 +895,14 @@
       S.sigs.more = es;
     }
     if (strip.parentNode !== v || v.lastChild !== strip) v.appendChild(strip);
+  }
+  var LOCK_TIME = "This event is closed, so its times stay as they are.", DONE_TIME = "This task is done, so its start time stays as it was.";
+  function changeTime(id) {
+    var t = taskById(id); if (!t || !canEdit()) return;
+    if (t.status === "completed") { toast(DONE_TIME, "info", 7000); return; }
+    if (t.status === "cancelled") { toast("This task is cancelled - give it out again to set a time.", "info", 7000); return; }
+    if (planClosed()) { toast(LOCK_TIME, "err", 8000); if (S.layer) layerClose(); return; }
+    P().schedule(t.id);
   }
   function rowEl(t) {
     var cb = canEdit() && t.status !== "cancelled", nm = nameOf(t), k = TS.shown(t);
@@ -908,6 +927,8 @@
         acts.push(h("button", { type: "button", cls: "tc-lnk", "data-key": "mail:" + t.id, text: "Email", title: "E-mail this task to " + (nm || "the person") + " now", "aria-label": "Email " + (t.title || "this task") + " to " + (nm || "the person"), on: { click: function (e) { P().mail(e.currentTarget, t.id, false); } } }));
         acts.push(h("button", { type: "button", cls: "tc-lnk", "data-key": "wa:" + t.id, text: "WhatsApp", title: "Send this task on WhatsApp (the studio number)", "aria-label": "Send " + (t.title || "this task") + " on WhatsApp", on: { click: function (e) { P().wa(e.currentTarget, t.id); } } }));
       } else if (noOne(t)) acts.push(h("button", { type: "button", cls: "tc-lnk strong", "data-key": "give:" + t.id, text: "Assign", "aria-label": "Give " + (t.title || "this task") + " to someone", on: { click: function () { openSheet([String(t.id)]); } } }));
+      // R255 (owner: "I want to change the previous task's timing"): one tap from the list until it is done
+      if (t.status !== "completed") acts.push(h("button", { type: "button", cls: "tc-lnk" + (planClosed() ? " is-off" : ""), "data-key": "time:" + t.id, text: t.planned_start ? "Change time" : "Set time", "aria-label": (t.planned_start ? "Change the start time of " : "Set the start time of ") + (t.title || "this task"), "aria-disabled": planClosed() ? "true" : null, title: planClosed() ? LOCK_TIME : null, on: { click: function () { changeTime(t.id); } } }));
       if (acts.length) { row.classList.add("has-acts"); row.appendChild(h("span", { cls: "tc-r-acts" }, acts)); }
     }
     return row;
@@ -1006,7 +1027,8 @@
       var all = liveTasks().filter(function (t) { return t.crew_id === c.id; }), done = all.filter(function (t) { return t.status === "completed"; }).length;
       var heavy = ppl.length > 2 && loads[i] === max && loads[i] > avg * 1.4;
       var io;
-      if (S.auto === "plan") io = availPill(c.id);
+      if (c.login_off) io = h("span", { cls: "tc-io late", text: "Deactivated" });   // R255
+      else if (S.auto === "plan") io = availPill(c.id);
       else io = ioPill(c.id);
       var card = h("section", { cls: "tc-pc" + (heavy ? " heavy" : ""), "aria-label": c.name || "Staff" }, [
         h("div", { cls: "tc-pc-h" }, [avatar(c.name, c.id, true), h("span", { cls: "grow" }, [h("b", { text: c.name || "Staff" }), h("small", { text: [c.department, c.phone].filter(Boolean).join(" · ") })]), io])]);
@@ -1066,13 +1088,14 @@
     return h("span", { cls: "tc-io none", text: isFinite(fs) ? "Due " + clock(new Date(fs).toISOString()) : "Not in yet" });
   }
 
+  function actsNow() { return TS.withChecks(S.acts || [], G().tasks); }   // R257: with "sent back" / "approved"
   /* ---- right column: Crew today + Latest ---- */
   function renderSide() {
     var crewHost = $("#crewList"), feed = $("#feed"); if (!crewHost || !feed) return;
     var ppl = people(), live = S.auto === "live";
     var rank = function (c) { var p = presState(c.id); return p === "late" ? 0 : (!S.hasSheet || att(c.id).state === "none") ? 1 : att(c.id).state === "in" ? 2 : 3; };
     var sorted = ppl.slice().sort(function (a, b) { return (live ? rank(a) - rank(b) : 0) || String(a.name || "").localeCompare(String(b.name || "")); });
-    var sig = rowSig([live, sorted.map(function (c) { var o = offOn(c.id, evDate()); return [c.id, c.name, presState(c.id), S.sheet[c.id], o, dayInfo(c.id), liveTasks().filter(function (t) { return t.crew_id === c.id && isOpen(t); }).length]; }), (S.acts || []).slice(0, 8).map(function (a) { return [a.at, a.kind, a.task_id]; }), supLogActs()]);
+    var sig = rowSig([live, sorted.map(function (c) { var o = offOn(c.id, evDate()); return [c.id, c.name, !!c.login_off, presState(c.id), S.sheet[c.id], o, dayInfo(c.id), liveTasks().filter(function (t) { return t.crew_id === c.id && isOpen(t); }).length]; }), actsNow().slice(0, 8).map(function (a) { return [a.at, a.kind, a.task_id]; }), supLogActs()]);
     if (S.sigs.side === sig) return; S.sigs.side = sig;
     $("#crewH").firstChild.nodeValue = live ? "Crew today " : "Crew on this event ";
     var inN = ppl.filter(function (c) { return S.hasSheet && att(c.id).state === "in"; }).length;
@@ -1081,17 +1104,18 @@
     if (!sorted.length) crewHost.appendChild(h("li", { cls: "tc-sub", text: "No staff on this event yet. Add staff on the Staff page, then give them tasks here." }));
     sorted.forEach(function (c) {
       var open = liveTasks().filter(function (t) { return t.crew_id === c.id && isOpen(t); }).length, io;
-      if (!live) io = availPill(c.id);
+      if (c.login_off) io = h("span", { cls: "tc-io late", text: "Deactivated" });   // R255
+      else if (!live) io = availPill(c.id);
       else io = ioPill(c.id);
       crewHost.appendChild(h("li", {}, [avatar(c.name, c.id), h("span", { cls: "grow" }, [h("b", { text: c.name || "Staff" }), h("small", { text: open + " open" + (c.department ? " · " + c.department : "") })]), io]));
     });
     paint(crewHost);
     clear(feed);
-    var acts = (S.acts || []).slice(0, 8).concat(supLogActs()).sort(function (a, b) { return ms(b.at) - ms(a.at); }).slice(0, 8);
-    if (!acts.length) feed.appendChild(h("li", { cls: "tc-feed-empty", text: S.acts ? "Nothing yet - starts, replies, check-ins and e-mails show here." : "Updates show here once the latest database update is in." }));
+    var acts = actsNow().slice(0, 8).concat(supLogActs()).sort(function (a, b) { return ms(b.at) - ms(a.at); }).slice(0, 8);
+    if (!acts.length) feed.appendChild(h("li", { cls: "tc-feed-empty", text: "Nothing yet - starts, replies, check-ins and e-mails show here." }));
     acts.forEach(function (a) {
-      var tone = a.kind === "escalated" || a.kind === "rejected" || a.kind === "cancelled" ? "bad" : a.kind === "time_changed" || a.kind === "check_edit" || a.kind === "dayoff_asked" ? "warn" : "";
-      var ic = { completed: "✓", started: "▶", accepted: "✓", rejected: "✕", escalated: "!", check_in: "→", check_out: "←", email_sent: "@", assigned: "+", reassigned: "↻", cancelled: "–", time_changed: "◷", step_changed: "⇄", special_on: "▲", dayoff_asked: "?", dayoff_approved: "✓" }[a.kind] || "•";
+      var tone = a.kind === "escalated" || a.kind === "rejected" || a.kind === "cancelled" ? "bad" : a.kind === "time_changed" || a.kind === "check_edit" || a.kind === "dayoff_asked" || a.kind === "sent_back" ? "warn" : "";
+      var ic = { completed: "✓", started: "▶", accepted: "✓", rejected: "✕", escalated: "!", check_in: "→", check_out: "←", email_sent: "@", assigned: "+", reassigned: "↻", sent_back: "↩", approved: "✓", cancelled: "–", time_changed: "◷", step_changed: "⇄", special_on: "▲", dayoff_asked: "?", dayoff_approved: "✓" }[a.kind] || "•";
       if (a.kind === "supervisor") ic = "★";
       feed.appendChild(h("li", {}, [h("span", { cls: "tc-fi " + tone, "aria-hidden": "true", text: ic }), h("span", {}, [a._t || TS.actText(a, when), h("time", { text: when(a.at) })])]));
     });
@@ -1107,7 +1131,7 @@
   function renderPrep() {
     var host = card("tcPrep", S.win === "daybefore" && G().quote && G().quote.status !== "cancelled"); if (!host) return;
     var rsN = Array.isArray(S.rs) ? S.rs.length : null;
-    var EPx = global.HelmEventPlan, ra = EPx && S.plan && S.plan.ready_by ? EPx.readyAt(S.plan, evDate(), "", tz()) : NaN, rdy = EPx && S.plan ? (isFinite(ra) ? clock(new Date(ra).toISOString()) : "not set") : "";
+    var EPx = global.HelmEventPlan, ra = EPx && S.plan ? EPx.readyAt(S.plan, evDate(), String((G().quote || {}).eventTime || "").trim(), tz()) : NaN, rdy = EPx && S.plan ? (isFinite(ra) ? clock(new Date(ra).toISOString()) : "not set") : "";   // R257: the Ready-by card's own rule (its time, else 1 hour before guests)
     var sig = rowSig([rsN, qid(), rdy]); if (S.sigs.prep === sig) return; S.sigs.prep = sig;
     var links = [
       ["Crew", "staff.html", "Add people, departments and logins"],
@@ -1131,9 +1155,10 @@
   function planCtx() {
     var q = G().quote || {};
     return { plan: S.plan, tasks: G().tasks, quoteId: qid(), eventDate: evDate(), eventTime: String(q.eventTime || "").trim(), tz: tz(), now: Date.now(),
-      nameOf: nameOf, toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); }, onChanged: planChanged, status: String(q.status || ""), locked: planLocked() };
+      nameOf: nameOf, toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); }, onChanged: planChanged, status: String(q.status || ""), closed: planClosed(), sheet: S.hasSheet ? S.sheet : undefined, goCheckin: function () { goCard("#tcCheckin"); }, goVendors: function () { goCard("#tcVendors"); } };
   }
-  async function planChanged() { await loadPlan(true); try { if (P() && P().reload) await P().reload(); } catch (e) {} S.sigs.dayb = S.sigs.ready = ""; update(); }
+  function goCard(sel) { var n = $(sel); if (!n || n.hidden) { toast("That card has nothing to show yet.", "info"); return; } if (!n.hasAttribute("tabindex")) n.setAttribute("tabindex", "-1"); try { n.scrollIntoView({ block: "start", behavior: "smooth" }); n.focus({ preventScroll: true }); } catch (e) {} }
+  async function planChanged() { await loadPlan(true); try { if (P() && P().reload) await P().reload(); } catch (e) {} S.sigs.dayb = S.sigs.ready = S.sigs.prel = ""; update(); }
   async function loadPlan(force) {
     var D = B() && B().ops && B().ops.dayPlan; if (!D || !qid()) { S.plan = null; return; }
     if (!force && Date.now() - S.planAt < 60000) return;
@@ -1145,13 +1170,13 @@
     var rHost = card("tcReady", !!(EP && S.plan) && !cancelled && (S.win === "daybefore" || S.win === "pre"));
     if (ui && (ui.edit || ui.times || ui.settings)) return;   // a form is open: keep what the person is typing
     var tsig = (G().tasks || []).map(function (t) { return [t.id, t.title, t.status, t.duration_min, t.depends_on, t.planned_start, t.started_at, t.completed_at, t.crew_id, t.step]; });
-    var sig = rowSig([TS.autoSteps && TS.autoSteps(), S.plan, tsig, Math.floor(Date.now() / 60000), S.win, planLocked()]);
+    var sig = rowSig([TS.autoSteps && TS.autoSteps(), S.plan, tsig, Math.floor(Date.now() / 60000), S.win, planClosed()]);
     if (dHost && S.sigs.dayb !== sig) { S.sigs.dayb = sig; EP.renderDayBefore(dHost, planCtx()); }
+    var DB = global.HelmDayBefore, pHost = card("tcPreList", !!(DB && DB.renderPre && S.plan) && !cancelled && S.win === "pre");
+    var psig = rowSig([sig, S.hasSheet, S.sheet]); if (pHost && S.sigs.prel !== psig) { S.sigs.prel = psig; DB.renderPre(pHost, planCtx()); }
     if (rHost && S.sigs.ready !== sig) { S.sigs.ready = sig; EP.renderReady(rHost, planCtx()); }
   }
-  // R227 (0397, event-floor.js): the plan lock bar + the saved floor plan (R251: every step - below the work on the event). Hidden before
-  // 0397. While locked the task plan is frozen (the database refuses it): "+ Add & assign" and the Ready-by edits are hidden;
-  // status, reassigning, check-ins, proof, issues and reminders keep working.
+  // R227 (0397, event-floor.js): the saved floor plan (R251: every step - below the work on the event). Hidden before 0397. R257: no lock.
   /* R252 (event-delay.js, the same card on the monitor): what is running late and what that affects. Worked out from what the page already
      has - no extra read; the one-minute clock redraws it. "Move the later tasks" opens the bulk Set time panel (its button is the confirm). */
   function delayRes() {
@@ -1203,25 +1228,24 @@
       phoneOf: function (t) { var c = t.crew_id && crewById(t.crew_id); return String((c && c.phone) || t.assignee_phone || "").replace(/[^\d+]/g, ""); },
       canNudge: function (t) { return canEdit() && !!t.crew_id && inHouse(t) && isOpen(t); }, nudge: function (t, b) { P().mail(b, t.id, false); },
       assign: canEdit() ? function (t) { openSheet([String(t.id)]); } : null, open: function (t) { openTask(t.id); },
-      move: canEdit() ? function (ids, m) { var ts = ids.map(taskById).filter(Boolean); if (ts.length && !planLocked()) openMove(ts, m); } : null, locked: planLocked() });
+      move: canEdit() ? function (ids, m) { var ts = ids.map(taskById).filter(Boolean); if (ts.length && !planClosed()) openMove(ts, m); } : null });
   }
-  /* R253: Plan & reminders - one closed section; its row says when the plan is locked, WhatsApp is not set up or reminders are off */
+  /* R253: Reminders - one closed section; its row says when WhatsApp is not set up or reminders are off */
   function planRem(off) { S.waOff = off === true; renderPlanRem(); }
-  function openPlanRem() { var d = $("#tcPlanRemD"); if (!d) return; d.open = true; try { d.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {} }
   function renderPlanRem() {
-    var host = $("#tcPlanRemS"); if (!host) return; var lk = $("#tcLock"), locked = planLocked(), tr = G().trmSettings, w = [];
-    if (locked) w.push(["warn", "Plan locked"]); else if (lk && !lk.hidden) w.push(["", "Plan open"]);
+    var host = $("#tcPlanRemS"); if (!host) return; var tr = G().trmSettings, w = [];
     if (tr && tr.enabled === false) w.push(["warn", "Reminders off"]);
     if (S.waOff) w.push(["warn", "WhatsApp not set up"]);
     var sg = rowSig(w); if (S.sigs.planrem === sg) return; S.sigs.planrem = sg; clear(host);
     w.forEach(function (x) { host.appendChild(h("span", { cls: "tc-tag box " + x[0], text: x[1] })); });
   }
-  function planLocked() { var EF = global.HelmEventFloor; return !!(EF && qid() && EF.isLocked(qid())); }
+  // R257: no event-day lock - only a closed event takes no plan changes (the database refuses them)
+  function planClosed() { var EF = global.HelmEventFloor; return stageOf() === "closed" || !!(EF && qid() && EF.isClosed && EF.isClosed(qid())); }
   function renderFloor() {
     var EF = global.HelmEventFloor; if (!EF || !qid()) return;
     var cancelled = (G().quote || {}).status === "cancelled";
     EF.panel({ quoteId: qid(), lockHost: cancelled ? null : $("#tcLock"), floorHost: $("#tcFloor"), showFloor: !cancelled,
-      eventType: (G().quote || {}).eventType || "", canEditPlan: canEdit(), onChange: function () { S.sigs.dayb = S.sigs.ready = ""; update(); } });
+      eventType: (G().quote || {}).eventType || "", canEditPlan: canEdit(), onChange: function () { S.sigs.dayb = S.sigs.ready = S.sigs.prel = ""; update(); } });
     if (cancelled) { var lh = $("#tcLock"); if (lh) lh.hidden = true; }
   }
   // On the event: the run-sheet as a now / next timeline (read-only here; editing stays on the Run-sheet page)
@@ -1239,7 +1263,10 @@
     var nowTxt = nm != null && nm >= 0 && nm < 100000 ? " · now " + clock(new Date().toISOString()) : "";
     host.appendChild(h("div", { cls: "tc-side-h" }, [h("h3", { cls: "tc-h2", id: "tcRunH" }, ["Run-sheet", h("span", { cls: "tc-count", text: nowTxt })]),
       h("a", { cls: "tc-mini-link", href: "runsheet.html?quote=" + enc(qid()), text: "Open run-sheet →" })]));
-    if (!rows.length) { host.appendChild(h("p", { cls: "tc-aempty", text: "No run-sheet yet - plan the day minute by minute (arrivals, speeches, cake cutting) on the Run-sheet page." })); return; }
+    if (!rows.length) {
+      host.appendChild(h("div", { cls: "tc-run-empty" }, [h("p", { cls: "tc-aempty", text: "No run-sheet yet. It is the plan of the event itself, minute by minute: arrivals, speeches, cake cutting. Once it is there, this card shows what is on now and what is next." }),
+        h("a", { cls: "tc-btn tc-primary", "data-key": "run:build", href: "runsheet.html?quote=" + enc(qid()), text: "Build the run-sheet" })])); return;
+    }
     var ol = h("ol", { cls: "tc-run", "aria-labelledby": "tcRunH" });
     rows.forEach(function (x) {
       var r = x.r, t = isFinite(x.s) ? hourLabel(x.s) : "—", end = isFinite(x.e) && x.e > x.s ? hourLabel(x.e) : "";
@@ -1270,7 +1297,7 @@
       restoreFocus(host, keep);
     }
     if (!IA) { clear(box); box.appendChild(h("p", { cls: "tc-aempty", text: "Open All issues to see and sort them." })); return; }
-    IA.list(box, { items: S.iss || [], quoteId: qid(), canEdit: !!p.issEdit, err: S.issErr, max: 6, allHref: issHref(), tasks: function () { return G().tasks; }, locked: planLocked,
+    IA.list(box, { items: S.iss || [], quoteId: qid(), canEdit: !!p.issEdit, err: S.issErr, max: 6, allHref: issHref(), tasks: function () { return G().tasks; }, closed: planClosed,
       empty: S.iss ? "Nothing open. Something wrong on site (a late delivery, a broken light)? Log it so someone owns it." : "", toast: function (m, k) { toast(m, k, 8000); },
       reload: async function () { await loadIssues(); renderIssues(); }, onTask: tasksChanged, resolve: function (i, btn) { resolveIssue(btn, i); } });
   }
@@ -1296,7 +1323,7 @@
     function draw() { opts(kindRow, [["issue", "Issue - a problem to fix"], ["incident", "Incident - something happened"]], kind, function (v) { kind = v; draw(); });
       opts(sevRow, [["low", "Low"], ["medium", "Medium"], ["high", "High"]], sev, function (v) { sev = v; draw(); }); }
     draw();
-    var pk = IA ? IA.picker({ quoteId: qid(), tasks: function () { return G().tasks; }, locked: planLocked, ids: "tcIssWho" }) : null;
+    var pk = IA ? IA.picker({ quoteId: qid(), tasks: function () { return G().tasks; }, closed: planClosed, ids: "tcIssWho" }) : null;
     var err = h("p", { cls: "tc-note warn", role: "alert", hidden: true });
     var go = h("button", { type: "button", cls: "tc-btn tc-primary push", text: "Log it" });
     async function submit() {
@@ -1343,6 +1370,9 @@
     if (!S.perm || !qid()) return; var ctx = stepsCtx(), ph = $("#tcPreDone"), wh = $("#tcWrap");
     if (global.HelmEventSteps && ph) try { global.HelmEventSteps.renderPreDone(ph, ctx); } catch (e) { ph.hidden = true; }
     renderPreCheck(ctx);
+    freshStrip(); if (global.HelmWrapDo && global.HelmWrapDo.crewStrip) try { global.HelmWrapDo.crewStrip($("#tcCheckin"), Object.assign({}, ctx, { show: S.win === "pre" && S.hasSheet, ts: S.ts, due: crewDue, offOf: function (id) { var c = crewById(id); return !!(c && c.login_off); },
+      reloadCrew: async function () { await loadSheet(); S.sigs.side = ""; update(); }, startOf: function (id) { var f = firstOpen(id); return isFinite(f) ? clock(new Date(f).toISOString()) : ""; }, dayWords: function (d) { return dayWords(d); } })); } catch (e) { var ci = $("#tcCheckin"); if (ci) ci.hidden = true; }   // R255
+    if (global.HelmEventExtras) try { global.HelmEventExtras.card($("#tcExtras"), Object.assign({}, ctx, { show: S.win === "onday" && (G().quote || {}).status !== "cancelled" })); } catch (e) { var xc = $("#tcExtras"); if (xc) xc.hidden = true; }   // R255 (0440)
     if (global.HelmWrapDo) try { global.HelmWrapDo.vendorCard($("#tcVendors"), Object.assign({}, ctx, { show: S.win !== "daybefore" && S.autoWin !== "wrapup" })); } catch (e) {}   // R253
     if (global.HelmEventWrap && wh) try { global.HelmEventWrap.render(wh, ctx); } catch (e) { wh.hidden = true; }
   }
@@ -1366,7 +1396,7 @@
     var bar = $("#bulk"); if (!bar) return; var ids = selIds();
     Object.keys(S.sel).forEach(function (id) { if (ids.indexOf(id) < 0) delete S.sel[id]; });
     bar.hidden = !ids.length || !canEdit(); $("#bulkN").textContent = String(ids.length);
-    var bs = $("#bulkStep"); if (bs) { bs.hidden = !handSteps(); bs.disabled = planLocked(); bs.title = planLocked() ? STEP_LOCK : ""; }
+    var bs = $("#bulkStep"); if (bs) { bs.hidden = !handSteps(); bs.disabled = planClosed(); bs.title = planClosed() ? STEP_LOCK : ""; }
   }
   async function bulk(kind) {
     var ids = selIds(), ts = ids.map(taskById).filter(Boolean); if (!ts.length) return;
@@ -1433,7 +1463,7 @@
   function renderPanel(force) {
     if (S.openId == null) return; var t = taskById(S.openId);
     if (!t) { layerClose(); return; }
-    var sig = rowSig([rowData(t), t.step, handSteps(), planLocked(), t.responded_at, t.started_at, t.completed_at, t.verify_note, (S.acts || []).filter(function (a) { return a.task_id === t.id; }).length]);
+    var sig = rowSig([rowData(t), t.step, handSteps(), planClosed(), t.responded_at, t.started_at, t.completed_at, t.verify_note, (S.acts || []).filter(function (a) { return a.task_id === t.id; }).length]);
     if (!force && S.sigs.panel === sig) return; S.sigs.panel = sig;
     var keep = focusKey($("#drawer"));
     var g = G(), k = TS.shown(t), base = TS.baseKey(t), nm = nameOf(t), c = t.crew_id ? crewById(t.crew_id) : null, now = Date.now(), edit = canEdit();
@@ -1444,13 +1474,15 @@
     if (k === "late") body.push(h("div", { cls: "tc-note bad" }, [h("b", { text: "Late. " }), "Start time " + clock(t.planned_start) + " has passed and " + (nm || "no one") + " has not started (" + dur(TS.lateMin(t, now)) + ")."]));
     if (base === "rejected") body.push(h("div", { cls: "tc-note bad", text: "Turned down by " + (nm || "the person") + " - give it to someone else." }));
     var cl = clashOf(t); if (cl && t.status !== "completed") body.push(h("div", { cls: "tc-note warn", text: (nm || "This person") + (cl.pending ? " asked for this day off (waiting for an answer)" : " has an approved day off this day - give the task to someone else") + (cl.note ? ": “" + cl.note + "”" : "") + "." }));
+    if (offLogin(t)) body.push(h("div", { cls: "tc-note warn", text: (nm || "This person") + "'s login is deactivated. Give the task to someone else" + (t.status === "assigned" ? " (Reassign)." : " - cancel it and give it out again.") }));   // R255
     if (t.verify_status === "rejected") body.push(h("div", { cls: "tc-note warn", text: "Sent back for rework" + (t.verify_note ? ": " + t.verify_note : "") }));
     if (t.status === "cancelled") body.push(h("div", { cls: "tc-note info", text: "Cancelled" + (t.cancel_reason ? ": " + t.cancel_reason : "") + (t.cancelled_at ? " · " + when(t.cancelled_at) : "") }));
     var kv = h("dl", { cls: "tc-kv" });
     function row(a, b) { kv.appendChild(h("dt", { text: a })); kv.appendChild(h("dd", {}, [b])); }
     row("Person", nm ? nm + (c && c.phone ? " · " + c.phone : t.assignee_phone ? " · " + t.assignee_phone : "") + (!inHouse(t) ? " (vendor)" : "") : "Not assigned");
     if (c && S.hasSheet && inHouse(t)) { var io = ioPill(c.id); if (io) row("Check-in", io); }
-    row("Start", t.planned_start ? when(t.planned_start) + (slot(t, evDate(), wall).where === "before" ? " (before the event day)" : "") : "No start time - no reminders");
+    row("Start", h("span", { cls: "tc-waits" }, [(t.planned_start ? when(t.planned_start) + (slot(t, evDate(), wall).where === "before" ? " (before the event day)" : "") : "No start time - no reminders") + " ",   // R255: the time is changed where it is read
+      !edit || t.status === "cancelled" ? null : t.status === "completed" ? h("small", { cls: "tc-hint", text: DONE_TIME }) : h("button", { type: "button", cls: "tc-lnk strong", "data-key": "a:start", text: t.planned_start ? "Change time" : "Set a time", on: { click: function () { changeTime(t.id); } } })]));
     var stx = sameText(t); if (stx) row("Clash", h("span", { cls: "tc-waits bad", text: stx }));   // R254-B
     if (handSteps() && t.status !== "cancelled") row("Step", canEdit() ? stepSelect(t) : winWord(stepOfTask(t)));   // R254
     var r = remText(t); row("Reminders", r || (!inHouse(t) ? "Vendors get no reminders" : t.planned_start ? "None for this task" : "-"));
@@ -1479,7 +1511,7 @@
     var ev = evidenceOf(t);
     if (ev.length) body.push(h("div", {}, [lbl("Notes & photos from crew"), h("button", { type: "button", cls: "tc-btn sm", "data-key": "a:ev", text: "Open " + ev.length + " note" + (ev.length === 1 ? "" : "s") + " / photo" + (ev.length === 1 ? "" : "s"), on: { click: function () { P().evidence(t.id); } } })]));
     // history: the activity timeline (0368), else the task's own step times
-    var hist = (S.acts || []).filter(function (a) { return a.task_id === t.id; }).slice(0, 12), ol = h("ol", { cls: "tc-feed" });
+    var hist = actsNow().filter(function (a) { return a.task_id === t.id; }).slice(0, 12), ol = h("ol", { cls: "tc-feed" });
     if (!hist.length) [["created_at", "Given to " + (nm || "-")], ["responded_at", base === "rejected" ? "Turned down" : "Accepted"], ["started_at", "Started"], ["completed_at", "Done"]].forEach(function (p) { if (t[p[0]]) hist.push({ at: t[p[0]], _t: p[1] }); });
     hist.forEach(function (a) { ol.appendChild(h("li", {}, [h("span", { cls: "tc-fi", "aria-hidden": "true", text: "•" }), h("span", {}, [a._t || TS.actText(a, when), h("time", { text: when(a.at) })])])); });
     if (hist.length) body.push(h("div", {}, [lbl("History"), ol]));
@@ -1498,8 +1530,8 @@
         foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:wa", text: "WhatsApp", "aria-label": "Send this task on WhatsApp", on: { click: function (e) { P().wa(e.currentTarget, t.id); } } }));
       }
       if (noOne(t) && t.status !== "cancelled") foot.push(h("button", { type: "button", cls: "tc-btn tc-primary", "data-key": "a:give", text: "Give to someone", on: { click: function () { openSheet([String(t.id)]); } } }));
-      if (t.status !== "completed" && t.status !== "cancelled") foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:time", text: t.planned_start ? "Change time" : "Set a time", title: "Start time, the task it waits for, reminders", on: { click: function () { P().schedule(t.id); } } }));
-      if (t.status !== "cancelled" && !planLocked()) foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:after", text: "+ Task after this", title: "Give out work that waits for this task", on: { click: function () { openSheet(null, String(t.id)); } } }));
+      if (t.status !== "completed" && t.status !== "cancelled") foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:time", text: t.planned_start ? "Change time" : "Set a time", title: planClosed() ? LOCK_TIME : "Start time, the task it waits for, reminders", on: { click: function () { changeTime(t.id); } } }));
+      if (t.status !== "cancelled" && !planClosed()) foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:after", text: "+ Task after this", title: "Give out work that waits for this task", on: { click: function () { openSheet(null, String(t.id)); } } }));
       if (t.status === "assigned" && !noOne(t)) foot.push(h("button", { type: "button", cls: "tc-btn", "data-key": "a:re", text: "Reassign", on: { click: function () { openSheet([String(t.id)]); } } }));
       if (CANCELLABLE.indexOf(t.status) >= 0) foot.push(h("button", { type: "button", cls: "tc-btn danger push", "data-key": "a:cancel", text: "Cancel task", on: { click: function () { P().cancel(t.id); } } }));
       if (["accepted", "in_progress"].indexOf(t.status) >= 0) body.push(h("p", { cls: "tc-hint", text: "Accepted tasks stay with their person - to move one, cancel it (a reason is required) and give it out again." }));
@@ -1509,10 +1541,10 @@
   }
 
   /* ---- R254 (0438): the step of a task is what a person picked ---- */
-  var STEP_LOCK = "The plan is locked for the event day - unlock it in Plan & reminders to move tasks to another step.";
-  var STEP_WHY = { not_found: "not found", gone: "not found", cancelled: "cancelled", event_closed: "the event is closed", not_live: "the event is over", locked: "the plan is locked", plan_locked: "the plan is locked", same: "already there", unchanged: "already there", not_allowed: "not allowed" };
+  var STEP_LOCK = "This event is closed, so its tasks stay in their step.", OLD_LOCK = "The database still refuses changes on the event day (needs database update 0442).";
+  var STEP_WHY = { not_found: "not found", gone: "not found", cancelled: "cancelled", event_closed: "the event is closed", not_live: "the event is over", locked: "the event is closed", plan_locked: "needs database update 0442", same: "already there", unchanged: "already there", not_allowed: "not allowed" };
   function stepWhy(r) { var k = String((r && r.reason) || ""); return STEP_WHY[k] || k.replace(/_/g, " "); }
-  function stepErr(e) { var m = String((e && e.message) || ""); if (/plan_locked|plan is locked/i.test(m + String((e && e.hint) || ""))) return STEP_LOCK; if (String((e && e.code) || "") === "PGRST202") return "Needs a database update - the step could not be saved."; return errText(e, "move the task to another step"); }
+  function stepErr(e) { var m = String((e && e.message) || ""); if (/plan_locked|plan is locked/i.test(m + String((e && e.hint) || ""))) return OLD_LOCK; if (String((e && e.hint) || "") === "event_closed") return STEP_LOCK; if (String((e && e.code) || "") === "PGRST202") return "Needs a database update - the step could not be saved."; return errText(e, "move the task to another step"); }
   // the rows are read again first: somebody else's move is never overwritten. was = { id: the step the person saw }
   async function saveStep(ts, step) {
     var fresh = await B().ops.listTasks(qid()), by = {}, ids = [], moved = 0, gone = 0; (fresh || []).forEach(function (t) { by[t.id] = t; });
@@ -1525,7 +1557,7 @@
     return { ok: !moved && !gone && !r.skipped.length, changed: r.changed, msg: bits.join(" ") };
   }
   function openStep(ts) {
-    if (planLocked()) { toast(STEP_LOCK, "err", 8000); openPlanRem(); return; }
+    if (planClosed()) { toast(STEP_LOCK, "err", 8000); return; }
     var pick = "", row = h("div", { cls: "tc-optrow", role: "group", "aria-label": "Move to" }), go = h("button", { type: "button", cls: "tc-btn tc-primary push", text: "Pick a step", disabled: true, "data-key": "st:go" });
     TS.WINDOWS.forEach(function (W) { row.appendChild(h("button", { type: "button", cls: "tc-opt", "aria-pressed": "false", "data-key": "st:" + W[0], text: W[1], on: { click: function () { pick = W[0]; Array.prototype.forEach.call(row.children, function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-key") === "st:" + pick)); }); go.disabled = false; go.textContent = "Move " + ts.length + " to " + W[1]; } } })); });
     go.addEventListener("click", async function () { if (!pick || go.disabled) return; go.disabled = true;
@@ -1534,7 +1566,7 @@
   }
   // the "Step" line of the task panel
   function stepSelect(t) {
-    var cur = stepOfTask(t), sel = h("select", { cls: "tc-inp tc-stepsel", "data-key": "a:step", "aria-label": "Step of this task", disabled: planLocked() ? true : null });
+    var cur = stepOfTask(t), sel = h("select", { cls: "tc-inp tc-stepsel", "data-key": "a:step", "aria-label": "Step of this task", disabled: planClosed() ? true : null });
     if (!TS.validStep(t.step)) sel.appendChild(h("option", { value: "", text: winWord(cur) + " (not picked yet)" }));
     TS.WINDOWS.forEach(function (W) { sel.appendChild(h("option", { value: W[0], text: W[1] })); }); sel.value = TS.validStep(t.step) ? t.step : "";
     sel.addEventListener("change", async function () {
@@ -1542,7 +1574,7 @@
       try { var r = await saveStep([t], to); toast(r.changed ? (t.title || "Task") + " is listed under " + winWord(to) + " now." : r.msg, r.changed ? "ok" : "info", 7000); } catch (e) { toast(stepErr(e), "err", 9000); }
       await reload(false); S.sigs.panel = ""; renderPanel(true);
     });
-    return h("span", { cls: "tc-waits" }, [sel, planLocked() ? h("small", { cls: "tc-hint", text: STEP_LOCK }) : null]);
+    return h("span", { cls: "tc-waits" }, [sel, planClosed() ? h("small", { cls: "tc-hint", text: STEP_LOCK }) : null]);
   }
   /* ---- bulk: Set time = move by minutes ---- */
   // m (R252): how far, when the caller knows it ("Move the later tasks by 40 min"); else the suggestion
@@ -1607,7 +1639,7 @@
     if (!canEdit()) return;
     if (S.layer && S.layer.id === "drawer") { $("#drawer").hidden = true; S.layer = null; S.openId = null; }
     S.preset = ids && ids.length ? ids.map(String) : null;
-    S.order = []; var ch = $("#as_chain"); if (ch) ch.checked = false;
+    S.order = []; S.pickOpen = true; var ch = $("#as_chain"); if (ch) ch.checked = false;
     var sh = $("#sheet"), pre = $("#sPreset");
     $("#sWhat").hidden = !!S.preset; pre.hidden = !S.preset;
     if (S.preset) {
@@ -1619,12 +1651,14 @@
     }
     $("#sTitle").textContent = S.preset ? "Give to someone" : "Give work to someone";
     var stepFs = $("#sStep"); if (stepFs) stepFs.hidden = !!S.preset;   // tasks already on the list keep their own step
-    var no = 0; Array.prototype.forEach.call(sh.querySelectorAll("[data-step]"), function (n) { var fs = n.closest("fieldset"); if (!fs || !fs.hidden || fs.id === "assignTime") no++; n.textContent = no + ". "; });
+    renumber();
     var keepOpt = $("#as_keep"); if (keepOpt) keepOpt.hidden = !S.preset;
     try { P().sheetOpened(S.preset, typeof depId === "string" ? depId : ""); } catch (e) {}
     picks(); sheetLabel();
     if (sh.hidden) { layerOpen(sh); var sb = $("#sBody"), top0 = function () { if (sb) sb.scrollTop = 0; }; top0(); try { global.requestAnimationFrame(top0); } catch (e) {} }   // R254: always opens on step 1
   }
+  // the numbers of the sections that are on screen (R255: Reminders comes and goes with the start time)
+  function renumber() { var sh = $("#sheet"), no = 0; if (sh) Array.prototype.forEach.call(sh.querySelectorAll("[data-step]"), function (n) { var fs = n.closest("fieldset"); if (fs && fs.hidden) return; no++; var t = no + ". "; if (n.textContent !== t) n.textContent = t; }); }
   /* ---- R251: "When is this work?" in the sheet ---- */
   // the step the sheet opens on: the one whose "+ Add task" was pressed, else the step being viewed
   // R254: Pre-event always when people pick the steps
@@ -1662,7 +1696,7 @@
   function presetIds() { return S.preset ? S.preset.slice() : null; }
   // the person list: free / N open tasks / asked off / day off, star when the department matches; sorted free first
   function picks() {
-    var host = $("#assignPick"); if (!host) return; memoReset();
+    var host = $("#assignPick"); if (!host) return; memoReset(); chosen();
     var g = G(), vendor = $("#assignKind") && $("#assignKind").value === "outsourced", q = String(($("#pickQ") || {}).value || "").trim().toLowerCase();
     var sel = vendor ? $("#assignVendor") : $("#assignCrew"), cur = sel ? sel.value : "";
     var keep = focusKey(host), at = host.scrollTop, day = g.workDay === undefined ? true : !!g.workDay; clear(host);
@@ -1673,7 +1707,7 @@
       restoreFocus(host, keep); return;
     }
     samePeople(); var cat = g.activeCat || "", sug = g.suggest || {}, offIds = g.offIds || new Map(), now = Date.now();
-    var list = (g.crew || []).map(function (c) {
+    var list = (g.crew || []).filter(function (c) { return !c.login_off; }).map(function (c) {   // R255: a deactivated login is offered no new work
       var open = (g.tasks || []).filter(function (t) { return t.crew_id === c.id && isOpen(t); }).length;
       var s = sug[c.id] || {}, off = offIds.has ? offIds.has(c.id) : false, dept = String(c.department || "").toLowerCase() === String(cat).toLowerCase() || !!s.match;
       var st = S.samePpl && S.samePpl[c.id] || "", rank = off ? 3 : st ? 2 : (day && (g.booked ? g.booked.has(c.id) : s.available === false) ? 2 : open >= 3 ? 1 : 0);
@@ -1699,10 +1733,33 @@
     if (S.sameKey === key) return; S.sameKey = key; clearTimeout(S.sameT);
     S.sameT = setTimeout(function () { TC.people(crew.map(function (c) { return c.id; }), start, { quoteId: qid(), tasks: G().tasks, exclude: S.preset || [], depends_on: dv }).then(function (m) { if (S.sameKey !== key) return; S.samePpl = m; if (S.layer && S.layer.id === "sheet") picks(); }, function () {}); }, 500);
   }
+  /* R255 (owner: "whenever you select a person, scroll it down"): once somebody is picked the long list folds to that person + Change, and the
+     next section comes into view. The list opens again with Change. */
+  function pickedRow() {
+    var v = $("#assignKind") && $("#assignKind").value === "outsourced", sel = v ? $("#assignVendor") : $("#assignCrew"), id = sel ? sel.value : "", g = G();
+    var x = id ? (v ? g.vendors : g.crew || []).filter(function (c) { return c.id === id; })[0] : null; return x ? { x: x, vendor: v } : null;
+  }
+  function chosen() {
+    var host = $("#pickChosen"); if (!host) return; var r = pickedRow(); if (!r) S.pickOpen = true;
+    var shut = !!r && !S.pickOpen, sg = rowSig([shut, r && [r.x.id, r.x.name, r.x.department || r.x.category, r.vendor]]);
+    [$("#assignPick"), $("#pickSearch"), $("#assignKind"), $("#pickNew")].forEach(function (n) { if (n && n.hidden !== shut) n.hidden = shut; });
+    host.hidden = !shut; if (host._sig === sg) return; host._sig = sg; clear(host); if (!shut) return;
+    host.appendChild(r.vendor ? h("span", { cls: "tc-av", "aria-hidden": "true", text: "V" }) : avatar(r.x.name, r.x.id));
+    host.appendChild(h("span", { cls: "grow" }, [h("b", { text: r.x.name || "" }), h("small", { text: r.vendor ? r.x.category || "Vendor" : r.x.department || "" })]));
+    host.appendChild(h("button", { type: "button", cls: "tc-btn sm", "data-key": "pick:change", text: "Change", "aria-label": "Change the person, now " + (r.x.name || ""), on: { click: function () { S.pickOpen = true; picks(); var b = $('#assignPick [aria-pressed="true"]') || $("#pickQ"); if (b) { try { b.focus({ preventScroll: true }); b.scrollIntoView({ block: "nearest" }); } catch (e) {} } } } }));
+    paint(host);
+  }
+  function calm() { try { return global.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } }
+  // the chosen person at the top of the panel, the next section right under it
+  function nextSection() {
+    var c = $("#pickChosen"), b = c && c.querySelector("button"); if (b) try { b.focus({ preventScroll: true }); } catch (e) {}
+    var fs = $("#sWho"), body = $("#sBody"); if (!fs || !body) return;
+    try { body.scrollTo({ top: Math.max(0, body.scrollTop + fs.getBoundingClientRect().top - body.getBoundingClientRect().top - 8), behavior: calm() ? "auto" : "smooth" }); } catch (e) { body.scrollTop = fs.offsetTop; }
+  }
   function noMail(c) { return !!c && !String(c.email || "").trim() && !c.profile_id; }
   function pickBtn(id, name, sub, right, on, sel, crew) {
     return h("button", { type: "button", cls: "tc-pick", "data-key": "pick:" + id, "aria-pressed": String(!!on), on: { click: function () {
-      if (sel) { sel.value = on ? "" : id; sel.dispatchEvent(new Event("change", { bubbles: true })); } picks(); sheetLabel(); } } },
+      if (sel) { sel.value = id; S.pickOpen = false; sel.dispatchEvent(new Event("change", { bubbles: true })); } picks(); sheetLabel(); nextSection(); } } },
       [crew ? avatar(name, id) : h("span", { cls: "tc-av", "aria-hidden": "true", text: "V" }), h("span", { cls: "grow" }, [h("b", { text: name || "" }), h("small", { text: sub })]), right]);
   }
   /* ---- R253: "One after another, in this order" (two or more tasks in the sheet) ---- */
@@ -1751,8 +1808,15 @@
     if (id) { var x = (vendor ? g.vendors : g.crew || []).filter(function (c) { return c.id === id; })[0]; who = x ? String(x.name || "").split(/\s+/)[0] : ""; }
     var n = S.preset ? S.preset.map(taskById).filter(function (t) { return t && REASSIGNABLE.indexOf(t.status) >= 0; }).length : ($("#taskList") ? $("#taskList").querySelectorAll(".tk:checked").length : 0);
     stepNote(); chainUI();
+    footNote(!!id && !!n, vendor);
     btn.disabled = !canEdit() || !id || !n;
     btn.textContent = !n && !id ? "Tick a task, then pick a " + (vendor ? "vendor" : "person") : !n ? "Tick at least one task" : !id ? "Pick a " + (vendor ? "vendor" : "person") : "Assign " + n + " task" + (n === 1 ? "" : "s") + " to " + who;
+  }
+  // R255: a calm line before saving without a time (never a question)
+  function footNote(ready, vendor) {
+    var n = $("#asFootNote"); if (!n) return; var pk = P() && P().sheetPick ? P().sheetPick() : null, sp = $("#asSpecial");
+    var t = ready && !vendor && pk && pk.day === "none" ? "No start time - no reminders" + (sp && sp.checked ? ", and a special task cannot escalate" : "") + ". You can add a time later." : "";
+    if (n.textContent !== t) n.textContent = t; n.hidden = !t;
   }
   function assigned(text) { var c = $("#as_chain"); if (c) c.checked = false; S.order = []; layerClose(); S.sel = {}; if (text) toast(text, "ok", 9000); }
 
@@ -1772,15 +1836,7 @@
     var sh = B0.ops && B0.ops.shifts, lv = B0.ops && B0.ops.live;
     var jobs = [
       lv && lv.activity ? lv.activity(q, 200).then(function (r) { S.acts = Array.isArray(r) ? r.slice().sort(function (a, b) { return ms(b.at) - ms(a.at); }) : null; }).catch(function () {}) : null,
-      sh && sh.timesheet ? sh.timesheet(q).then(function (r) {
-        S.hasSheet = !!r; S.sheet = {};
-        ((r && r.rows) || []).forEach(function (x) {
-          if (!x || !x.crew_id) return;
-          var es = (x.entries || []).filter(function (k) { return k && k.in; });
-          var e = es.filter(function (k) { return r.today && k.day === r.today; })[0] || es.slice().sort(function (a, b) { return String(b.day).localeCompare(String(a.day)); })[0];
-          if (e) S.sheet[x.crew_id] = { day: e.day, in: e.in, out: e.out || "", inAt: e.in_at || null, outAt: e.out_at || null, late_min: e.late_min || 0, hours: x.hours || null };
-        });
-      }).catch(function () { S.hasSheet = false; }) : null,
+      loadSheet(),
       sh && sh.availability ? sh.availability(from, to, null).then(function (rows) {
         S.avail = {};
         (rows || []).forEach(function (a) { if (!a || !a.crew_id || a.status !== "unavailable") return; (S.avail[a.crew_id] = S.avail[a.crew_id] || {})[String(a.day).slice(0, 10)] = { note: a.note || "", pending: a.approval === "pending" }; });
@@ -1798,6 +1854,27 @@
     ].filter(Boolean);
     await Promise.all(jobs);
   }
+  // the timesheet: who is in / out (S.sheet) + the answer itself for the check-in strip (S.ts)
+  function loadSheet() {
+    var sh = B() && B().ops && B().ops.shifts, q = qid(); if (!sh || !sh.timesheet || !q) return null;
+    return sh.timesheet(q).then(function (r) {
+      S.hasSheet = !!r; S.ts = r || null; S.sheet = {};
+      ((r && r.rows) || []).forEach(function (x) {
+        if (!x || !x.crew_id) return;
+        var es = (x.entries || []).filter(function (k) { return k && k.in; });
+        var e = es.filter(function (k) { return r.today && k.day === r.today; })[0] || es.slice().sort(function (a, b) { return String(b.day).localeCompare(String(a.day)); })[0];
+        if (e) S.sheet[x.crew_id] = { day: e.day, in: e.in, out: e.out || "", inAt: e.in_at || null, outAt: e.out_at || null, late_min: e.late_min || 0, hours: x.hours || null };
+      });
+    }).catch(function () { S.hasSheet = false; });
+  }
+  // R257: work was given to somebody the strip does not know yet -> the timesheet is read again (once per person)
+  function freshStrip() {
+    if (!S.ts || !Array.isArray(S.ts.rows) || S.win !== "pre") return; var have = {}; S.ts.rows.forEach(function (r) { if (r) have[r.crew_id] = 1; });
+    var miss = liveTasks().filter(function (t) { return t.crew_id && inHouse(t) && !have[t.crew_id] && TS.baseKey(t) !== "rejected"; }).map(function (t) { return t.crew_id; }).sort().join(",");
+    if (!miss || S.tsAsk === miss) return; S.tsAsk = miss; var p = loadSheet(); if (p) p.then(function () { update(); });
+  }
+  // does this person work on this event today (the office may check them in)? The event day itself, or a task of theirs that starts today
+  function crewDue(crewId) { var d = today(); return d === evDate() || liveTasks().some(function (t) { return t.crew_id === crewId && t.planned_start && taskDay(t) === d && t.status !== "rejected"; }); }
   // the studio days with open work on this event for an in-house person (+ the event day), at most 7
   function workDays() {
     var ev = evDate(), d = ev ? [ev] : [];
@@ -1833,7 +1910,7 @@
     var cnt = $("#taskCount"); if (cnt) cnt.textContent = String(liveTasks().length);
     var vo = $("#tcViewOnly"); if (vo) vo.hidden = canEdit();
     var add = $("#addBtn"); if (add) add.hidden = !canEdit();
-    if (add && planLocked()) add.hidden = true;   // R227: the task plan is locked for the event day
+    if (add && planClosed()) add.hidden = true;   // a closed event takes no new tasks
     if (S.layer && S.layer.id === "drawer" && S.openId != null) renderPanel(false);
     if (S.layer && S.layer.id === "sheet") { try { P().depRefresh && P().depRefresh(); } catch (e) {} picks(); sheetLabel(); }
     renderApprLink(); renderPlanRem();
@@ -1874,6 +1951,7 @@
     var pq = $("#pickQ"); if (pq) pq.addEventListener("input", picks);
     ["#assignKind", "#assignCrew", "#assignVendor"].forEach(function (s) { var e = $(s); if (e) e.addEventListener("change", function () { picks(); sheetLabel(); }); });
     var tl = $("#taskList"); if (tl) tl.addEventListener("change", sheetLabel);
+    var asp = $("#asSpecial"); if (asp) asp.addEventListener("change", sheetLabel);
     ["#as_dep", "#as_chain", "#as_when"].forEach(function (s) { var e = $(s); if (e) e.addEventListener("change", chainUI); });   // R253
     // the timeline's lanes are stacked for the width on screen: redraw it when that changes
     var rz = null; global.addEventListener("resize", function () { if (S.view !== "timeline") return; clearTimeout(rz); rz = setTimeout(update, 200); });
@@ -1886,6 +1964,6 @@
   }
 
   global.OpsBoard = { init: init, update: update, openTask: openTask, openSheet: openSheet, picks: picks, sheetLabel: sheetLabel, assigned: assigned,
-    presetIds: presetIds, reload: reload, close: layerClose, planRem: planRem, sheetStep: sheetStep, stepTime: stepTime, stepNote: stepNote, chain: chain,
+    presetIds: presetIds, reload: reload, close: layerClose, planRem: planRem, sheetStep: sheetStep, stepTime: stepTime, stepNote: function () { stepNote(); sheetLabel(); }, chain: chain, renumber: renumber,
     _pure: { winWord: winWord, moveBy: moveBy, suggestShift: suggestShift, slot: slot, chipTest: chipTest, readyChecks: readyChecks, notCheckedIn: notCheckedIn, stackRows: stackRows, CHIPS: CHIPS, availWord: availWord, crewDay: crewDay, runRows: runRows, stepStart: stepStart, runEnd: runEnd, foldDefault: foldDefault, badgeOf: badgeOf, chainLinks: chainLinks, orderTree: orderTree }, _S: S };
 })(typeof window !== "undefined" ? window : globalThis);

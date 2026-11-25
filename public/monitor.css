@@ -2,7 +2,7 @@
 .mon-body{--m-bg:#f4f8f6;--m-panel:#fff;--m-panel-2:#f7faf9;--m-ink:#0b2a22;--m-ink-2:#2f4a42;--m-ink-3:#566b64;--m-line:#e0eae5;--m-line-2:#edf3f0;
   --m-acc:var(--accent,#047857);--m-acc-2:#036b4d;--m-acc-soft:#e3f4ed;--m-late:#b42318;--m-late-soft:#fdecea;--m-warn:#8a5a00;--m-warn-soft:#fff4de;
   --m-blue:#24476b;--m-blue-soft:#eef4fb;--m-shadow:0 1px 2px rgba(11,42,34,.06);
-  --m-top:var(--hb-top,0px);
+  --m-top0:var(--hb-top,0px);--m-top:var(--m-top0);
   margin:0;background:var(--m-bg);color:var(--m-ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 .mon-body *{box-sizing:border-box}
 .mon-body [hidden]{display:none!important}
@@ -34,7 +34,16 @@
 .mon-evpick .hp-sel,.mon-evpick .hp-trigger{position:absolute!important;inset:0!important;opacity:0!important}
 .mon-head-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .mon-updated{font-size:12px;color:var(--m-ink-3);font-variant-numeric:tabular-nums}
-.mon-wallbtn{margin-left:auto}
+.mon-head-r{margin-left:auto;display:inline-flex;align-items:center;gap:8px}
+/* R255: the wall screen's bar (never under the app's top bar), its way out is always in sight */
+body.mon-wall{--m-top0:calc(var(--hb-top,0px) + 68px)}
+.mon-wallbar{position:sticky;top:var(--hb-top,0px);z-index:60;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:8px 12px;border:1px solid var(--m-line);border-radius:12px;background:var(--m-panel);box-shadow:0 4px 14px rgba(11,42,34,.10)}
+.mon-wallbar-t{font-size:14px;margin-right:auto}
+.mon-wallbar .tc-btn{min-height:44px;text-decoration:none}
+.mon-wallbar a.tc-btn{color:var(--tc-ink,var(--m-ink));display:inline-flex;align-items:center}
+#monWallX{font-weight:700;gap:8px}
+body.mon-wall .mon-head-acts .mon-wallbtn,body.mon-wall #monBack{display:none}
+.mon-chip.is-same{background:var(--m-warn-soft);color:var(--m-warn);white-space:normal;height:auto;min-height:22px;max-width:100%}
 /* R251 buttons: the app shell's link rule (shell-b-style.css "main a:not(.btn)…", six classes strong) re-coloured every <a class="tc-btn">
    on this page to the theme's link colour - green words on the filled button. The page id outranks it once for every button link, now
    and later: filled = the theme accent with its on-accent ink, outlined = plain ink, in normal / hover / visited / focus. */
@@ -42,9 +51,8 @@
 #monApp .tc-btn.tc-primary,#monDrawer .tc-btn.tc-primary{background:var(--tc-acc);border-color:var(--tc-acc);color:var(--hb-acc-ink,#fff)}
 #monApp .tc-btn.tc-primary:hover,#monDrawer .tc-btn.tc-primary:hover{background:var(--tc-acc-hover);border-color:var(--tc-acc-hover);color:var(--hb-acc-ink,#fff)}
 #monApp .tc-chip[aria-pressed="true"],#monApp .tc-chip[aria-pressed="true"] b{background:var(--tc-acc);border-color:var(--tc-acc);color:var(--hb-acc-ink,#fff)}
-/* the plan lock's black buttons (event-floor.css): outlined at rest, the final "Unlock" filled with the accent */
-#monApp .ef-btn.dark{background:var(--tc-panel);border-color:var(--tc-acc);color:var(--tc-acc-text)} #monApp .ef-btn.dark:hover{background:var(--tc-acc-soft)}
-#monApp #efUnlockGo{background:var(--tc-acc);color:var(--hb-acc-ink,#fff)} #monApp #efUnlockGo:hover{background:var(--tc-acc-hover)}
+/* the floor plan's black buttons (event-floor.css): outlined */
+#monApp .ef-card .ef-btn.dark{background:var(--tc-panel);border-color:var(--tc-acc);color:var(--tc-acc-text)} #monApp .ef-card .ef-btn.dark:hover{background:var(--tc-acc-soft)}
 /* the live pill and the countdown tile follow the theme too */
 .mon-ev .tc-pill:not(.plan){background:var(--tc-acc);color:var(--hb-acc-ink,#fff)}
 .mon-ev .tc-t.count{background:var(--tc-acc);color:var(--hb-acc-ink,#fff)} .mon-ev .tc-t.count dt{color:inherit;opacity:.9}
@@ -54,7 +62,7 @@
    Wrap-up is always last; On the event the floor plan sits below the work */
 .mon-app{display:flex;flex-direction:column}
 .mon-app>*{min-width:0}
-.mon-app[data-win="onday"] .mon-work{order:1}
+.mon-app[data-win="onday"] :is(#monVendors,.mon-work){order:1}
 .mon-app[data-win="onday"] #monFloor{order:2}
 .mon-predone{order:3}.mon-wrapup{order:4}
 .mon-work{margin-bottom:14px}
@@ -145,12 +153,15 @@
 .mon-prep .tc-h2{margin:0}
 .mon-prep .tc-h2{display:flex;align-items:center;gap:8px}
 .mon-prep .mon-rows{margin-top:10px}
-/* R250 / R251: the lock bar only on Day before (event-floor.js fills #monLock; it may answer late, so CSS keeps the rule) */
-.mon-lockwrap{margin-bottom:12px}
-.mon-lockwrap:not(:has(#monLock:not([hidden]))){display:none}
-.mon-lockh{margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--m-ink-3)}
-.mon-app:not([data-win="daybefore"]) .mon-lockwrap{display:none}
-.mon-lockwrap .ef-lock{margin:0}
+/* R257: the checklist card, and what is below it on Day before (closed until opened) */
+.mon-list{margin-bottom:12px}
+.mon-prepd>summary{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;min-height:44px;cursor:pointer;list-style:none;font-size:15px;font-weight:700;color:var(--m-ink)}
+.mon-prepd>summary::-webkit-details-marker{display:none}
+.mon-prepd>summary::before{content:"";flex:none;width:8px;height:8px;border-right:2px solid var(--m-ink-2);border-bottom:2px solid var(--m-ink-2);transform:rotate(-45deg);transition:transform .15s}
+.mon-prepd[open]>summary::before{transform:rotate(45deg)}
+.mon-prepd>summary:focus-visible{outline:2px solid var(--m-acc);outline-offset:2px;border-radius:6px}
+.mon-prepd>summary small{font-size:13px;font-weight:500;color:var(--m-ink-2)}
+.mon-prepd .mon-facts{margin:8px 0}
 
 /* status chips: the filter (with counts); tap again = all */
 .mon-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1 1 100%;min-width:0;padding-bottom:2px}
@@ -259,7 +270,8 @@
 /* R250 breakpoints: up to 767px one column (strip scrolls, menus behind Filters, no rail, only the slim live strip sticks,
    Pre-event / On the event); 768-1279px one column, two-line rows, full-width floor card; from 1280px the list + a ~300px activity rail */
 @media (max-width:767.98px){
-  .mon-wallbtn{display:none}
+  .mon-head-r{display:none}
+  .mon-wallbar #monWallX,.mon-wallbar #monWallBack{flex:1 1 auto;justify-content:center}
   .mon-head-acts .tc-btn{flex:1 1 auto}
   .mon-updated{flex:1 1 100%;order:3}
   /* a phone: the three steps share the row (no scrolling), dot over the word */
@@ -306,7 +318,7 @@
 
 /* R194: wall screen - readable from across the room; the filters step aside */
 body.mon-wall .mon-page{max-width:none}
-body.mon-wall .mon-tools{display:none}
+body.mon-wall .mon-tools{display:none} body.mon-wall .mon-lock .ef-lock-acts{display:none}
 body.mon-wall .mon-ev .tc-ev-title{font-size:34px}
 body.mon-wall .mon-ev .tc-ev-sub{font-size:17px}
 body.mon-wall .mon-ev .tc-t dd{font-size:26px}
@@ -383,3 +395,4 @@ body.mon-wall .mon-tab{font-size:17px;min-height:48px}
 .mon-chip.is-appr{background:var(--m-warn-soft);color:var(--m-warn)}
 .mon-appr a,.mon-dl a{color:var(--m-acc-2);font-weight:600;text-decoration:underline;text-underline-offset:3px}
 .mon-appr a{display:inline-flex;align-items:center;min-height:44px}
+body.mon-wall .mon-app .pc-bar{top:var(--m-top)}

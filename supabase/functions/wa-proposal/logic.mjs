@@ -79,12 +79,14 @@ export function otpEmail(code, studio, opts = {}) {
   const own = String(studio ?? "").trim() ? clip(studio, 60) : "";
   const signoff = opts && opts.brand === "studio" && own && own !== "your planner" ? own : "Helm Events";
   const c = /^[0-9]{4,8}$/.test(String(code)) ? String(code) : escHtml(code);
+  const pay = !!opts && opts.purpose === "payment";   // R258 (0445): the "Pay this payment" step
+  const title = pay ? "Your payment code" : "Your approval code", what = pay ? "confirm your payment to" : "approve your event with";
   return {
-    subject: "Your approval code: " + code,
-    text: `Your one-time code to approve your event with ${s} is ${code}.\nIt expires in 10 minutes. Do not share it with anyone.\n\n${signoff}` + TEXT_FOOTER,
-    html: layout("Your approval code", `${code} is your one-time approval code.`,
-      h1("Your approval code") +
-      para(`Use this one-time code to approve your event with ${strong(escHtml(s))}. It expires in 10 minutes.`, "0 0 16px") +
+    subject: title + ": " + code,
+    text: `Your one-time code to ${what} ${s} is ${code}.\nIt expires in 10 minutes. Do not share it with anyone.\n\n${signoff}` + TEXT_FOOTER,
+    html: layout(title, `${code} is your one-time ${pay ? "payment" : "approval"} code.`,
+      h1(title) +
+      para(`Use this one-time code to ${what} ${strong(escHtml(s))}. It expires in 10 minutes.`, "0 0 16px") +
       codeBox(c) +
       note("Never share this code with anyone &mdash; your planner will never ask for it. If you didn't request it, you can ignore this e-mail.") +
       para(strong(escHtml(signoff)), "18px 0 0"), { sub: "", reason: TX_REASONS.otp, address: (opts && opts.address) || DEFAULT_POSTAL_ADDRESS }),

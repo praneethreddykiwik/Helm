@@ -40,6 +40,11 @@
 // R108 (0318): a quote with no price (total missing or <= 0, public_quote_ready) gets no code -> 409 { not_priced: true }
 // with "This quote isn't ready yet - please contact <Studio>."; the database refuses its approval too (0318 trigger).
 // A database without 0318: the check is skipped (unchanged behaviour). The e-mail / SMS / WhatsApp sends are unchanged.
+//
+// R258 (0445): { token, channel: "pay_email" | "pay_whatsapp", milestone } sends the one-time code of the client's "Pay this payment" step
+// to the e-mail / WhatsApp ON THE QUOTE (payment_code_begin: link, payment open, limits). The code lives in its own table (payment_codes, hash
+// only): it can never approve a quote, and an approval code can never confirm a payment. An older send-otp answers these channels with 400
+// "token and phone are required" (nothing stored, nothing sent) - the page then goes on without a code.
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { errTag, responders } from "../_shared/cors.ts";
 import { BodyTooLarge, clientIp, checkLimits, readJsonCapped, tooMany } from "../_shared/limits.ts";
@@ -146,6 +151,53 @@ async function sendByChannel(req: Request, json: any, admin: any, token: string,
   return json({ sent: true, live, simulated: !live, status: live ? "sent" : "not_configured", channel, masked: dest.masked, resends_left: dest.resends_left });
 }
 
+// R258 (0445): the code of the client's "Pay this payment" step
+// deno-lint-ignore no-explicit-any
+async function sendPaymentCode(json: any, admin: any, token: string, milestone: string, channel: "whatsapp" | "email") {
+  if (await trialSendBlocked(admin, { token })) return json({ error: "Your planner's studio is on a Helm free trial, so nothing is sent.", trial: true }, 403);
+  let sender: WaSender | null = null;
+  if (channel === "whatsapp") {
+    sender = await studioSender(admin, await orgOfApprovalToken(admin, token));
+    if (!sender) return json({ error: "Your planner hasn't connected WhatsApp yet - please use e-mail instead.", not_connected: true, fallback: "email" }, 409);
+  }
+  const { data: dest, error: bErr } = await admin.rpc("payment_code_begin", { p_token: token, p_milestone: milestone, p_channel: channel });
+  if (bErr || !dest || !dest.id) {
+    switch (String(bErr?.code || "")) {
+      case "HL404": return json({ error: "This payment is not open any more. Please reload the page." }, 404);
+      case "HL403": return json({ error: "Your planner has not saved this contact for you - please contact your planner." }, 400);
+      case "HL429": return json({ error: "Too many requests. Please wait a little and try again." }, 429);
+      default: return json({ error: "It could not be sent - please try again in a minute." }, 400);
+    }
+  }
+  const code = newCode();
+  const { error } = await admin.rpc("payment_code_set", { p_id: dest.id, p_code: code });
+  if (error) { L.error("payment_code_set failed", errTag(error)); return json({ error: "It could not be sent - please try again in a minute." }, 400); }
+  let live = false;
+  if (channel === "whatsapp") {
+    const { messaging_product: _mp, ...payload } = otpMessage(String(dest.to), code, STUDIO_LANG);
+    const r = await waPost(admin, sender!, payload);
+    if (!r.ok) return json({ error: "WhatsApp message could not be sent", fallback: "email" }, 502);
+    live = true;
+  } else {
+    const envGet = (k: string) => Deno.env.get(k);
+    let studio = "", replyTo: string | null = null;
+    try {
+      const { data: o } = await admin.from("organizations").select("name, business_email").eq("id", dest.org_id).maybeSingle();
+      studio = (o && o.name) || "";
+      replyTo = (await studioReplyTo(admin, String(dest.org_id), { business: (o && o.business_email) || null, env: envGet })) || null;
+    } catch (_) { /* studio name / reply-to are cosmetic */ }
+    const m = otpEmail(code, studio || "your planner", { address: postalAddress(envGet), brand: brandMode(envGet), purpose: "payment" });
+    const res = await sendMail({ to: String(dest.email), subject: m.subject, html: m.html, text: m.text, studio, replyTo, txReason: "otp" });
+    if (res.status === "failed") { L.error("payment code email failed", undefined, { provider: res.provider || "none" }); return json({ error: "e-mail could not be sent", status: "failed" }, 502); }
+    live = res.status === "sent";
+  }
+  if (live) {   // from the first code that really went out the page asks for a code (before that nobody could get one)
+    const { error: sErr } = await admin.rpc("payment_code_sent", { p_id: dest.id });
+    if (sErr) L.error("payment_code_sent failed", errTag(sErr));
+  }
+  return json({ sent: true, live, simulated: !live, channel, masked: dest.masked, resends_left: dest.resends_left });
+}
+
 // DB error → [http status, generic message] (never error.message)
 function otpFailure(code: string, channel: "sms" | "whatsapp" | "email" = "sms"): [number, string] {
   switch (code) {
@@ -166,7 +218,15 @@ Deno.serve(async (req) => {
   try {
     const ipWait = await checkLimits([["otp:ip:" + clientIp(req), 10, 60_000]]);
     if (ipWait) return tooMany(json, ipWait);
-    const { token, phone, channel } = await readJsonCapped(req) as { token?: unknown; phone?: unknown; channel?: unknown };
+    const { token, phone, channel, milestone } = await readJsonCapped(req) as { token?: unknown; phone?: unknown; channel?: unknown; milestone?: unknown };
+    if ((channel === "pay_email" || channel === "pay_whatsapp") && typeof token === "string") {   // R258 (0445)
+      const pWait = await checkLimits([["otp:tok:" + token.toLowerCase(), 5, 60_000]]);
+      if (pWait) return tooMany(json, pWait);
+      if (!/^[0-9a-f-]{36}$/i.test(token)) return json({ error: "invalid link" }, 404);
+      if (typeof milestone !== "string" || !/^[0-9a-f-]{36}$/i.test(milestone)) return json({ error: "invalid payment" }, 400);
+      const adminP = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+      return await sendPaymentCode(json, adminP, token, milestone, channel === "pay_email" ? "email" : "whatsapp");
+    }
     if ((channel === "whatsapp" || channel === "email") && typeof token === "string") {
       const tWait = await checkLimits([["otp:tok:" + token.toLowerCase(), 5, 60_000]]);
       if (tWait) return tooMany(json, tWait);

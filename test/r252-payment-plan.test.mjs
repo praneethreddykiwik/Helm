@@ -48,10 +48,10 @@ test('without the new options the card is as before: no extra read, no extra wor
   const n = await mount(data({ rows: ROW }), early); assert.deepEqual(n.log, [], 'a plan is set: the automation setting is not asked');
 });
 test('before approval: reminders are paused first, then the plan is added; unticked = plan only', async () => {
-  let m = await mount(data(), early); assert.equal(boxEl(m.box).checked, true); await btn(m.box, 'Add this schedule').fire('click'); await wait();
+  let m = await mount(data(), early); assert.equal(boxEl(m.box).checked, true); await btn(m.box, 'Save payment plan').fire('click'); await wait();
   assert.deepEqual(m.log.filter((x) => x !== 'settings'), ['pause:true', 'apply:builtin:50-50']);
-  m = await mount(data(), early); boxEl(m.box).checked = false; await btn(m.box, 'Add this schedule').fire('click'); await wait(); assert.deepEqual(m.log.filter((x) => x !== 'settings'), ['apply:builtin:50-50']);
-  m = await mount(data(), early, { refuse: true }); await btn(m.box, 'Add this schedule').fire('click'); await wait(); assert.deepEqual(m.log.filter((x) => x !== 'settings'), ['pause:true', 'apply:builtin:50-50', 'pause:false'], 'not added: reminders as they were');
+  m = await mount(data(), early); boxEl(m.box).checked = false; await btn(m.box, 'Save payment plan').fire('click'); await wait(); assert.deepEqual(m.log.filter((x) => x !== 'settings'), ['apply:builtin:50-50']);
+  m = await mount(data(), early, { refuse: true }); await btn(m.box, 'Save payment plan').fire('click'); await wait(); assert.deepEqual(m.log.filter((x) => x !== 'settings'), ['pause:true', 'apply:builtin:50-50', 'pause:false'], 'not added: reminders as they were');
   for (const o of [{ paused: true }, { can_pause: false }, { reminders: { enabled: false } }]) { const x = await mount(data(o), early); assert.equal(boxEl(x.box), undefined); }
   const y = await mount(data(), { early: () => false }); assert.equal(boxEl(y.box), undefined);
 });
@@ -74,16 +74,17 @@ test('event page: after the Next cards until Confirmed, below Money at a glance 
   assert.match(EV, /Set it before you send the quote - the client's advance comes from the first line\./);
   assert.match(EV, /if\(!canFin \|\| !id \|\| !window\.HelmPaySchedule\) return; placePayPlan\(\);/);
 });
-test('quote flow: step 9 says if a plan is set, one press chooses it, sending is never blocked', () => {
+test('quote flow: the plan has one place above step 9 (R255), step 9 says if it is saved; a quote without a plan is never blocked', () => {
+  const ids = ['id="sec-quote"', 'id="sec-payplan"', 'id="sec-approve"', 'id="csApprove"', 'id="sec-share"', 'id="sec-pay"'].map((x) => FL.indexOf(x)); assert.deepEqual(ids, [...ids].sort((x, y) => x - y)); assert.ok(ids[0] > 0);
+  assert.equal(FL.split('id="paySchedule"').length, 2, 'one card'); assert.doesNotMatch(FL, /paySchedHome|paySchedAway|csPlanSlot/, 'it never moves');
   const share = FL.slice(FL.indexOf('id="shareBody"'), FL.indexOf('id="sec-pay"')); assert.ok(share.indexOf('id="csPlan"') < share.indexOf('id="sendApproval"'));
-  assert.equal(FL.split('id="paySchedule"').length, 2, 'one card, moved, never two'); assert.match(FL, /if\(card\.parentNode!==to\) to\.appendChild\(card\);/);
-  const send = FL.slice(FL.indexOf('No quotation total saved yet. Send anyway?') - 700, FL.indexOf('No quotation total saved yet. Send anyway?') + 3500); assert.doesNotMatch(send, /PLAN|csPlan|paySched/);
+  const send = FL.slice(FL.indexOf('No quotation total saved yet. Send anyway?') - 900, FL.indexOf('No quotation total saved yet. Send anyway?') + 3500); assert.doesNotMatch(send, /PLAN\b|csPlan|paySched/);
   const fn = FL.slice(FL.indexOf('function placePlan'), FL.indexOf('function pressPlan')); assert.doesNotMatch(fn, /innerHTML|\.style\b/); assert.match(fn, /M\$\(f\.amount\)/, 'amounts are maskable');
   assert.match(FL, /onNone:\(\)=>\{ planState\(null\); advanceFrom\(null\); \}, onFail:\(\)=>planState\("fail"\)/);
 });
-test('the advance amount changes only when pressed; recording is as it was', () => {
-  assert.match(FL, /const amt=ADV_PLAN \? line1\.rem : Math\.round\(tot\*pct\/100\);/); assert.match(FL, /let ADV_PLAN=false;/);
-  assert.match(FL, /\$\("#pay_plan1b"\)\.addEventListener\("click",usePlanFirst\)/); assert.match(FL, /ADV_PLAN=false; updateAdvance\(\); \}\);/);
-  assert.equal((FL.match(/ADV_PLAN=true/g) || []).length, 1); assert.match(FL, /BPStore\.milestones\.record\(id, amount, method,/);
+test('R257: a saved plan\'s first payment is the suggested amount (no button to press); without a plan the advance %; recording is as it was', () => {
+  assert.match(FL, /const tot=quoteTotal\(\), nx=payNext\(Math\.round\(tot\*pct\/100\)\)/); assert.doesNotMatch(FL, /ADV_PLAN|usePlanFirst|pay_plan1b/);
+  assert.match(FL, /ADV_TYPED=false; updateAdvance\(\); \}\);/);
+  assert.match(FL, /BPStore\.milestones\.record\(id, amount, method,/);
   assert.doesNotMatch(JS, /innerHTML/);
 });

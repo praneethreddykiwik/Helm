@@ -212,16 +212,17 @@ await t('automations: trial wording matches the approval panel (client link e-ma
   assert.doesNotMatch(a, /"Free trial: e-mails and WhatsApp messages are not sent during the trial, even when switched on\."/);
 });
 
-await t('builder: click-to-add steps each new item off the one before (no stacking)', () => {
+await t('builder: click-to-add never stacks (R255: the nearest free spot to the view centre)', () => {
   const b = R('public/builder.js');
-  assert.match(b, /if\(!atFt\)\{ const p=newItemSpot\(x, y, a\.w, a\.h\); x=p\.x; y=p\.y; \}/);
-  const fn = b.slice(b.indexOf('function newItemSpot'), b.indexOf('async function addAsset'));
-  const cx = { store: { items: [] }, WORLD: { w: 200, h: 120 }, clamp: (v, a, z) => Math.min(z, Math.max(a, v)), snapFt: (v) => Math.round(v) };
+  assert.match(b, /if\(!atFt\)\{ const p=newItemSpot\(x, y, a\.w, a\.h\); x=p\.x; y=p\.y; full=!p\.free; \}/);
+  const fn = b.slice(b.indexOf('function newItemSpot'), b.indexOf('const NO_SPOT_MSG'));
+  const bt = { window: {}, document: undefined }; vm.createContext(bt); vm.runInContext(R('public/builder-tools.js'), bt);
+  const cx = { window: { HelmBuilderTools: bt.HelmBuilderTools || bt.window.HelmBuilderTools }, store: { items: [], grid: { snap: true } }, WORLD: { w: 200, h: 120 }, cellFt: () => 1 };
   vm.runInNewContext(fn + '\nglobalThis.f=newItemSpot;', cx);
   const spots = [];
-  for (let i = 0; i < 5; i++) { const p = cx.f(100, 60, 4, 4); spots.push(p.x + ',' + p.y); cx.store.items.push({ x: p.x, y: p.y }); }
+  for (let i = 0; i < 5; i++) { const p = cx.f(98, 58, 4, 4); spots.push(p.x + ',' + p.y); cx.store.items.push({ x: p.x, y: p.y, width: 4, height: 4 }); }
   assert.equal(new Set(spots).size, 5, 'five adds = five different spots: ' + spots.join(' '));
-  assert.equal(spots[0], '100,60', 'the first lands at the centre');
+  assert.equal(spots[0], '98,58', 'the first lands at the centre');
 });
 
 await t('0316: a task from a sample "Demo . " template on a real event drops the prefix (sample events keep it)', () => {

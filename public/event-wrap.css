@@ -36,3 +36,33 @@ html body .sc-modal{z-index:2200}
 .sc-modal .btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border:1px solid var(--line,#e0eae5);border-radius:9px;background:var(--panel,#fff);color:var(--ink,#0b2a22);font:600 14px inherit;cursor:pointer}
 .sc-modal .btn.primary{background:var(--accent,#047857);border-color:var(--accent,#047857);color:var(--hb-acc-ink,#fff)}
 @media (max-width:520px){.hwd{margin-left:0}.hwd-row .hwd-acts{flex:1 1 100%}.hwd-row .hwd-acts .hwd-b{flex:1 1 auto}.hwd-row.is-tick .hwd-acts{flex:0 0 auto}}
+/* R258: one card per vendor, the answer about their items, the link for the invoice, notes of the day */
+.hwd-cards{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.hwd-vc{border:1px solid var(--tc-line-2);border-radius:var(--tc-r-ctl);background:var(--tc-panel);padding:12px;display:grid;gap:10px;min-width:0}
+.hwd-vh{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.hwd-came{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.hwd-dl{display:flex;flex-wrap:wrap;gap:4px 8px;margin:0;font-size:13px}
+.hwd-dl dt{color:var(--tc-ink-3)} .hwd-dl dd{margin:0 14px 0 0;font-weight:600;color:var(--tc-ink)}
+.hwd-ret,.hwd-inv{border-top:1px solid var(--tc-line-2);padding-top:10px;display:grid;gap:8px;min-width:0}
+.hwd-q{margin:0;font-size:13.5px;font-weight:600;color:var(--tc-ink);display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.hwd-ans{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px} .hwd-ans small{font-size:12.5px;color:var(--tc-ink-3)}
+.hwd-note{margin:4px 0 0;font-size:13px;color:var(--tc-ink-2,var(--tc-ink));overflow-wrap:anywhere}
+.hwd-our{margin:0;font-size:13px;overflow-wrap:anywhere}
+.hwd-form label.wide{flex:1 1 100%} .hwd-form label.wide input.tc-inp{width:100%}
+.hwd-link{display:flex;flex-wrap:wrap;gap:8px} .hwd-link input.tc-inp{flex:1 1 200px;min-width:0;height:44px} .hwd-link small{flex-basis:100%;font-size:12.5px;color:var(--tc-ink-3)}
+.hwd-after{flex:1 1 100%;min-width:0} .hwd-fu .sc-chips{margin-top:0}
+.hwd-fu .btn{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid var(--tc-line);border-radius:9px;background:var(--tc-panel);color:var(--tc-ink);font:600 13px inherit;font-family:inherit;cursor:pointer}
+.hwd.is-notes{margin-left:0}
+.hwd-sumline{min-height:44px;display:flex;align-items:center;font-size:14px;font-weight:600;cursor:pointer;list-style:none} .hwd-sumline::-webkit-details-marker{display:none} .hwd-sumline::before{content:"";width:7px;height:7px;margin:0 10px 0 2px;border-right:2px solid var(--tc-ink-3);border-bottom:2px solid var(--tc-ink-3);transform:rotate(-45deg)} details[open]>.hwd-sumline::before{transform:rotate(45deg)}
+.hwd-notes,.hes-more{border-top:1px solid var(--tc-line-2)}
+.hwd-nlist{list-style:none;margin:0;padding:0} .hwd-nlist li{display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--tc-line-2);font-size:13.5px} .hwd-nlist .hwd-main{display:block} .hwd-nlist small{display:block}
+.hwd-nt{flex:0 0 72px;font-size:12.5px;color:var(--tc-ink-3);font-variant-numeric:tabular-nums}
+.hes-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;padding:4px 0 8px}
+.hes-tab{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center;min-height:56px;min-width:0;padding:8px 10px;text-align:left;border:1px solid var(--tc-line);border-radius:10px;background:var(--tc-panel);color:var(--tc-ink);font:inherit;cursor:pointer}
+.hes-tab[aria-selected="true"]{border-color:var(--tc-acc);background:var(--tc-acc-soft);box-shadow:inset 0 -2px 0 var(--tc-acc)}
+.hes-tab:focus-visible{outline:2px solid var(--tc-acc);outline-offset:2px}
+.hes-tab-t{font-size:13.5px;font-weight:600;overflow-wrap:anywhere} .hes-tab-s{grid-column:2;font-size:12px;color:var(--tc-ink-3);overflow-wrap:anywhere}
+.hes-panel>.hes-rows>.hes-row:first-child{border-top:0}
+.hwd-print{display:none}
+@media print{body.hwd-printing>*:not(.hwd-print){display:none!important}body.hwd-printing>.hwd-print{display:block;padding:20px;font-size:13px}body.hwd-printing .hwd-print h1{font-size:20px;margin:0 0 4px}}
+@media (max-width:520px){.hwd-came .hwd-acts .hwd-b,.hwd-ret .hwd-acts .hwd-b{flex:1 1 auto}}

@@ -55,7 +55,7 @@ t('client-api.js is exactly what scripts/gen-client-api.mjs builds from store-ap
 const ALLOWED_RPCS = ['approval_check_shown', 'create_payment', 'public_booklet_choose', 'public_booklet_otp_request', 'public_booklet_packages',
   'public_booklet_pay_terms', 'public_booklet_studio', 'public_event_site', 'public_get_booklet', 'public_get_booklet_image', 'public_get_portal',
   'public_get_proposal', 'public_get_quote', 'public_invite_info', 'public_invite_reveal', 'public_invite_rsvp', 'public_link_opened', 'public_link_studio',
-  'public_link_viewed', 'public_payment_schedule', 'public_portal_extras', 'public_quote_paid_status', 'public_quote_ready', 'public_quote_validity',
+  'public_link_viewed', 'public_payment_claim', 'public_payment_code_verify', 'public_payment_schedule', 'public_payment_steps', 'public_portal_extras', 'public_quote_paid_status', 'public_quote_ready', 'public_quote_validity',
   'public_request_new_quote', 'public_trial_approval_mode', 'public_trial_payment_sim', 'public_trial_sim_payments', 'public_trial_simulation',
   'public_trial_simulation_for_proposal', 'request_otp', 'trial_simulate_payment', 'trial_test_approve', 'trial_test_approve_code',
   'trial_test_mode_for_token', 'verify_and_consent', 'wa_request_otp', 'wa_verify_and_consent'];
@@ -175,7 +175,7 @@ t('client-api.js exposes only the client namespaces (no staff API: quotes, auth.
   for (const staff of ['generateToken', 'markPaid', 'consents', 'payments', 'notifications', 'waSend', 'emailLink', 'trialSimRows', 'trialSimPayments'])
     assert.ok(!(staff in S.approval), 'staff call approval.' + staff + ' must not be in client-api.js');
   // everything else on BPStore comes from store-api.js's own page-helper tail (tax / dates / phone), copied as it is
-  const tail = new Set([...STORE.matchAll(/^\s*BPStore\.([A-Za-z_]+) = /gm)].map((m) => m[1]));
+  const tail = new Set([...STORE.matchAll(/^\s*BPStore\.([A-Za-z_][A-Za-z0-9_]*) = /gm)].map((m) => m[1]));
   for (const k of Object.keys(S)) assert.ok(core.includes(k) || tail.has(k), 'unexpected BPStore.' + k);
   for (const g of ['HelmUrl', 'BPUI', 'HelmSettingsName']) assert.ok(g in clientEnv().win, g);
 });

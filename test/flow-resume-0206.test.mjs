@@ -236,9 +236,9 @@ await t('pages: Quotes "In progress (N)" tab, dashboard block, workspace banner,
   const q = read('public/quotes.html'), d = read('public/shell-b-dash.js'), e = read('public/event.html'), f = read('public/flow.html'), s = read('public/store-api.js');
   assert.match(q, /<button type="button" data-f="inprogress" aria-pressed="false" id="tab_inprogress" hidden[^>]*>In progress<span class="tcount" id="cnt_inprogress"><\/span><\/button>/);
   assert.match(q, /<div id="ipWrap" class="ip-wrap" hidden aria-live="polite"><\/div>/);
-  assert.match(q, /if\(view==="inprogress"\)\{ if\(!offset\) await renderInProgress\(\); return \{ rows:\[\], hasMore:false, offset:0 \}; \}/);
+  assert.match(q, /if\(filter==="inprogress"\) return oldInProgress\(n\);/); assert.match(q, /ip:HelmFlowResume\.pageOf\(d\)/);   // R258: one page of 10 (0446), or the first 100 cut into pages
   assert.match(q, /HelmFlowResume\.load\(BPStore, ipUid\(\), \{ scope:"studio", limit:100 \}\)/);
-  assert.match(q, /get\("view"\)==="inprogress"/);
+  assert.match(q, /v=qs\.get\("view"\)\|\|""/); assert.match(q, /const Q_TABS=\["all","inprogress",/);   // R258: ?view=<any tab>
   assert.match(q, /loadInProgressCount\(\);/);
   assert.match(d, /var cResume = card\("hdResume", "Continue quotes", IC\.doc, \{ skel: 1, span: "hd-s-full", block: "resume" \}\); cResume\.hidden = true;/);
   assert.match(d, /\[cResume, cShift, cCal,/); assert.match(d, /resume: "Continue quotes"/);

@@ -239,6 +239,8 @@ update public.quotes set status = 'confirmed' where id = :Q;
 
 -- ---- 9) plan lock on + the real ways a task is finished (office, worker link) --------------------------------------------------------------
 select pg_temp.mk('0091', 'Locked one', null, '2'); select pg_temp.mk('0092', 'Locked two', '0091', '1');
+-- 0442 (R257) removed the event-day lock: this check runs with its one-line switch on (rolled back with the suite)
+create or replace function public._r442_lock_on() returns boolean language sql stable set search_path = '' as 'select true';
 insert into public.event_plan_locks (quote_id, org_id, state) values (:Q, :A, 'locked') on conflict (quote_id) do update set state = 'locked';
 select set_config('helm.r397_plan_lock', 'on', true);
 select pg_temp.t('9 the plan is locked here', public._r397_locked(:Q) and pg_temp.as_val('a_admin@a.test', $q$update public.event_tasks set title = 'x' where id = 'a0000000-0000-4000-8000-00000f250092' returning title$q$) like '%plan_locked%');

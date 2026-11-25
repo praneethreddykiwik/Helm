@@ -163,10 +163,10 @@ await t('Inventory page: costs only when allowed (never sent otherwise), item ty
   assert.match(INV, /if\(canCost\) rec\.unit_cost=cr\.value; else if\(!editingId\) rec\.unit_cost=0;/);
   assert.match(INV, /\$\("#i_cost_fld"\)\.hidden=!canCost;/);
   assert.match(INV, /id="i_kind"[\s\S]{0,200}value="consumable"/); assert.ok(INV.includes('id="i_reorder"'));
-  assert.match(INV, /SC\.lineActions\(td,\{/); assert.match(INV, /SC\.open\(\{ checkout:c, item:it, quoteId:c\.quote_id, ctx:invCtx, onDone:load \}\)/);
+  assert.match(INV, /SC\.lineActions\(td,\{/); assert.match(INV, /SC\.open\(\{ checkout:c, item:it, quoteId:c\.quote_id, ctx:invCtx, problem:!!problem, onDone:load \}\)/);
   for (const id of ['stockDates', 'sd_from', 'sd_to', 'sd_save', 'stockSettings', 'ss_photo', 'ss_portal', 'ss_costs', 'ss_buffer']) assert.ok(INV.includes('id="' + id + '"'), id);
-  assert.ok(INV.includes('<script src="stock-checkin.js?v=1"></script>') && TD.includes('<script src="stock-checkin.js?v=1"></script>'));
-  assert.match(TD, /HelmStockCheckin\.open\(\{ checkout:c, item:itemsById\[c\.item_id\]\|\|\{\}, quoteId:id, ctx:tdCtx, onDone:re \}\)/);
+  assert.ok(INV.includes('<script src="stock-checkin.js?v=2"></script>') && TD.includes('<script src="stock-checkin.js?v=2"></script>'));
+  assert.match(TD, /HelmStockCheckin\.open\(\{ checkout:c, item:itemsById\[c\.item_id\]\|\|\{\}, quoteId:id, ctx:tdCtx, problem:true, onDone:re \}\)/);
 });
 
 await t('stock-checkin.js builds its dialog with DOM calls only (no HTML strings)', () => {

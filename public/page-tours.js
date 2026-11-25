@@ -76,7 +76,7 @@
       { sel: [".bp-priv-slot .hbp-btn", ".bp-priv-slot"], title: "Hide amounts", desc: "The eye hides every price on the screen - handy when a client is looking over your shoulder. Showing them again asks for your PIN." },
       // R154i: on a phone (upright or sideways) the toolbox and the price / inspector panel are drawers that are off screen until
       // opened, so these two steps fall back to their Tools / Inspector buttons there
-      { sel: ["#toolbox", "#toolsToggle", "#bimTools"], side: "right", title: "Drag any asset", desc: "Drag stages, chairs, tables, bars, exits - anything - onto the floor. Every object can be moved, resized and rotated. On a phone, tap Tools to slide the toolbox in." },
+      { sel: ["#toolbox", "#toolsToggle", "#bimTools"], side: "right", title: "Drag any asset", desc: "Drag any item onto the floor, or click it: it lands on the nearest free spot in view. Move, resize, rotate. Posters and banners are white: select one, Add picture. Usable area lines are under More. On a phone, tap Tools." },
       { sel: "#fabStack", title: "Zoom & move around", get desc() { return phoneView()
         ? "Zoom in (+), zoom out (−) and FIT the whole floor, full screen (⛶) and this tour. One finger moves the floor, two fingers zoom it. In full screen everything keeps working; ✕ Exit (top left) leaves it."
         : "Zoom out / in, FIT the whole floor, the arrows to pan and fullscreen. These sit under the floor so they never cover it. To hide them, press the down arrow (⌄); the small “⊕ View” button brings them back."; } },
@@ -85,7 +85,7 @@
       { sel: ["#inspector .isec.screen", "#rightPanel"], side: "left", title: "Stage screen, steps & stairs", desc: "Select the stage or a screen: layout, theme or colour, logo and words - OR Upload a picture (Helm shows its real size and the pixels to make, e.g. 1920 x 1080). Toolbox: 3 screens (centre + 2 sides) and Welcome Board." },
     ],
     "quotes.html": [
-      { sel: "#tabs", title: "Find confirmed fast", desc: "Active · Quotes · Confirmed · Archive · Deleted. Confirmed events rise to the top and are highlighted so you never scroll to find them." },
+      { sel: "#tabs", title: "Find confirmed fast", desc: "Active · Quotes · Confirmed · Archive · Deleted, 10 a page with page numbers below. Confirmed events rise to the top and are highlighted so you never scroll to find them." },
       { sel: "#tab_inprogress", title: "In progress", desc: "Every quote that is not confirmed yet - still being prepared, or shared and waiting for the client - with the step it reached and who worked on it last. Continue picks it up right there." },
       { sel: "#search", title: "Search", desc: "Jump to any quote by client name or quote code." },
       { sel: "#typeFilter", title: "Filter", desc: "Show only one event type, or quotes from a date range." },
@@ -101,7 +101,7 @@
       { sel: "#sec-layout", title: "4 · Floor layout", desc: "Open the builder. The chairs you place here feed straight back into the quotation." },
       { sel: "#sec-quote", title: "5 · Quote", desc: "Final pricing and confirmation. Confirming sets the event live." },
       { sel: "#sec-approve", title: "Share & approval", desc: "Send the client one private link to approve. Change the \"Valid until\" date (dd/mm/yyyy); Undo fixes a mis-click. Client 2D / 3D images need a paid plan. Trial: (Preview) buttons show it all, no link is made." },
-      { sel: "#sec-pay", need: "finance", title: "6 · Payment", desc: "Record the advance (amount, method, receipt no.) to confirm the booking, and pick a payment schedule - you see the split (e.g. 30% / 50% / 20%) before you add it." },
+      { sel: "#sec-pay", need: "finance", title: "6 · Payment", desc: "Record the advance (amount, method, receipt no.) to confirm the booking. Payment plan, above: pick the split (e.g. 30% / 50% / 20%) and press Save payment plan. Not saved yet = the client cannot see it." },
     ],
     "logistics.html": [
       { sel: "#tabs", title: "Event logistics", desc: "Everything that has to happen for this event, organised by section (stage, lighting, catering…)." },
@@ -128,8 +128,8 @@
       { sel: '[data-act="tlink"]', title: "Permanent task link", desc: "Task link copies one link per person that always shows their current tasks on every event - it is also in every task e-mail. New task link stops the old one at once." },
     ],
     "inventory.html": [
-      { sel: "#eventPanel", title: "Reserve for an event", desc: "Book items to a specific event — this is what the close-out later checks is returned." },
-      { sel: "#layoutNeeds", title: "From the floor plan", desc: "What the latest 2D / 3D floor plan needs: in the layout, reserved, free that day, to borrow. Reserve from layout reserves what is free and records the rest as a shortfall." },
+      { sel: "#eventPanel", title: "Reserve for an event", desc: "Step 1 of 4: reserve stock and give it to a person right in its row, or tick several and give them all. Back OK when it returns, Problem when something is damaged, missing or still out." },
+      { sel: "#layoutNeeds", title: "From the floor plan", desc: "Helm matches each floor-plan product to your stock by name. Press Reserve to link and hold it, Reserve all suggested for every match, or Get from a vendor for what you don't have. Undo is right there." },
       { sel: "#stockDates", title: "Stock dates", desc: "A multi-day event or a set-up the day before: set the set-up and teardown days and the stock stays held for the whole range. Other events holding the same items on those days are listed." },
       { sel: "#search", title: "Find stock", desc: "Search items, or filter by category and value grade (A / B / C)." },
       { sel: "#newBtn", title: "Add stock", desc: "Add equipment, graded A / B / C by value so losses are easy to price - or start from the ready-made list of common event items." },
@@ -138,7 +138,7 @@
       { sel: ["#pane-layout", '[aria-controls="pane-layout"]'], title: "From layouts", desc: "Upcoming events with a floor plan and what each is short of; Same day as ... = another event uses the same units that day. Link layout products below to a stock item." },
     ],
     "vendors.html": [
-      { sel: "#viewTabs", title: "Partners and requests", desc: "Your vendor list, or the requests and invoices you sent them." },
+      { sel: "#viewTabs", title: "Partners and requests", desc: "Your vendor list, or Requests & invoices: ask a vendor, they say if they are available and their price from a link. Approve, ask to change or decline. After the event Helm asks for the invoice." },
       { sel: "#kindTabs", title: "Vendor categories", desc: "Outside partners grouped by what they provide — catering, sound, décor, transport and more." },
       { sel: "#search", title: "Search", desc: "Find a vendor by name or what they provide." },
       { sel: "#newBtn", title: "Add a vendor", desc: "Record a partner once (contact + rates) and reuse them across events." },
@@ -317,7 +317,6 @@
     ],
     "runsheet.html": [
       { sel: "#rsIntro", title: "The event day, minute by minute", desc: "What happens when, who owns it and where." },
-      { sel: "#planLock", title: "Locked for the event day", desc: "Once the plan is locked (by itself on the day, or Lock plan) the lines can't change here. An admin or the event manager can Unlock with a reason; it is kept in the history. Reminders still go." },
       { sel: "#r_add", title: "Add a run-sheet item", desc: "Build a timed schedule of the day — each moment, who owns it and when." },
       { sel: "#r_remWrap", title: "Reminders", desc: "Remind the owner before their item starts, and post it in the event group." },
       { sel: "#rows", title: "The schedule", desc: "Every item in time order. Click one to edit it." },
@@ -344,7 +343,7 @@
     "event.html": [
       { sel: "#evHead", title: "This event", desc: "Code, status, approval and total at a glance. Not confirmed yet? The note above says what is next - Continue where you left off goes there. Free trial: the approval link is a preview, nothing is sent." },
       { sel: "#nextStepBar", title: "What to do next", desc: "Helm tells you the next step and why. Tap it to go straight there." },
-      { sel: "#steps", title: "The event lifecycle", desc: "Every stage of this event, from proposal to settlement. Click a step to jump straight to it." },
+      { sel: "#steps", title: "The event lifecycle", desc: "Every stage of this event. Click a step to see it. A blocked stage lists what it still needs, each with the button that does it. Override as admin skips the check with a reason." },
       { sel: "#advBtn", title: "Advance the stage", desc: "Move the event forward — discovery → proposal → quote → confirmed → planning, and on." },
       { sel: "#inviteBtn", title: "Invitation website", desc: "Once confirmed, build a public invitation site for the client to share with guests." },
       { sel: ["#moneyHeader", "#paySchedCard"], need: "finance", title: "Money at a glance", desc: "Quoted, received, costs and profit against your target with a traffic light, and what needs attention. The client's payment plan is just below." },
@@ -405,12 +404,12 @@
     "monitor.html": [
       { sel: ".mon-evpick", title: "Pick the event", desc: "Tap the event name to switch: today and the next 3 days first, then the rest of the month (or All events today). On the right: guests arrive, and the countdown or, on the day, a live clock." },
       { sel: "#monWins", title: "Where the event is", desc: "Day before, Pre-event, On the event. The green dot and Now mark where it is by your studio's clock. Tap a step to look ahead or back; tap the one marked Now to return. Wrap-up is the closed section at the bottom." },
-      { sel: "#monSummary", title: "At a glance", desc: "Day before: readiness, vendors, stock and floor plan, logistics, people - with optional assign. Pre-event: set-up work, then Mark pre-event complete. On the event: late work, issues, the run-sheet, and Running late - what it affects." },
+      { sel: ["#monDayBefore", "#monPreList", "#monSummary"], title: "The checklist", desc: "Day before: vendors, menu, stock, logistics, people. Mark done shows who and when; Auto lines tick themselves. Pre-event: its own list, check in vendor items, then Mark pre-event complete. Also Running late - what it affects." },
       { sel: "#monAlerts", title: "Late tasks", desc: "On the event: every task whose start time has passed and is not started. A special task shows how far it has been escalated, for example Escalated to manager 3:10 PM." },
-      { sel: ["#monLock", "#monFloor"], title: "Floor plan and the plan lock", desc: "Day before: tick the checklist, check the floor plan, and lock the plan for tomorrow. Ready by shows each set-up job's latest start. Only an admin or the event manager can unlock, with a reason." },
+      { sel: "#monFloor", title: "Floor plan and Ready by", desc: "The saved floor plan: 2D plan, 3D view, Measure, Print event-day pack. Ready by shows each set-up job's latest start. Nothing locks on the event day: tasks, times and the run-sheet can change until the event is closed." },
       { sel: "#monTabs", title: "People, Work, Activity", desc: "People: each person's tasks and, on the day, their check-in. Work: by section. Activity: every update. Tap a status chip (Not assigned, Late, Still open...) to show just those; on a phone more sit behind the Filters button." },
       { sel: "#monOpenOps", title: "Change something", desc: "Open shows a task right here: who, times, latest start, the proof photo and its updates. Remind sends a bell, an e-mail or a WhatsApp. To reassign, schedule or cancel, use Edit in Tasks & Crew." },
-      { sel: ["#monWall", ".mon-head-acts"], title: "Wall screen", desc: "Big text for a TV or a wall screen, full screen when the browser allows it. Press it again (or Exit wall screen) to go back." },
+      { sel: ["#monWall", ".mon-head-acts"], title: "Wall screen", desc: "Big text for a TV, full screen when the browser allows it. Exit full screen and Back to event stay on top; Esc also leaves." },
     ],
     "integrations.html": [
       { sel: "#itgEmail", title: "E-mail invites", desc: "The sender name and reply-to address on e-mails Helm sends for you. Changing the reply-to address needs two-step sign-in; the sender name does not." },
@@ -471,19 +470,19 @@
     ],
     "ready.html": [
       { sel: "#hero", title: "Is the event ready?", desc: "A score from the checks below. Green means good to go." },
-      { sel: "#checks", title: "The checks", desc: "Two parts: 1 Is everything booked? (Helm checks; Fix opens the page) and 2 the day-before list: vendors, stock and floor plan, logistics, people. Each line can be given to someone (optional)." },
+      { sel: "#checks", title: "The checks", desc: "Helm checks what is booked (Fix opens the page). Below is the day-before checklist: vendors, stock and floor plan, logistics, people. Mark done keeps who and when; a line can be given to someone (optional)." },
       { sel: "#rsLink", title: "The run-sheet", desc: "Open the minute-by-minute plan for the day." },
-      { sel: "#markBtn", title: "Mark ready", desc: "When every check passes, mark the event ready." },
+      { sel: "#markBtn", title: "Mark ready", desc: "Mark the event ready. If it can't be yet, the page lists what is missing, each with a button to do it." },
     ],
     "ops.html": [
-      { sel: "#evhead", title: "The event at a glance", desc: "Date, venue, guests, countdown, You supervise: Catering. Plan & reminders: the plan lock bar (locked on the day; unlock = admin or event manager + a reason). In the steps: the Floor plan with 2D, 3D, Measure (view only) and Print pack." },
-      { sel: "#tcPhase", title: "Event steps", desc: "Day before / Pre-event / On the event, picked from your studio's clock. Day before: tick the checklist. Ready by: each set-up job's latest start. Then Mark pre-event complete. On the event: the run-sheet and issues. Wrap-up is last." },
+      { sel: "#evhead", title: "The event at a glance", desc: "Date, venue, guests, countdown, You supervise: Catering. In the steps: the Floor plan with 2D, 3D, Measure (view only) and Print pack. Tasks and times can be changed until the event is closed." },
+      { sel: "#tcPhase", title: "Event steps", desc: "Day before / Pre-event / On the event, picked from your studio's clock. Day before: tick the checklist. Ready by: each set-up job's latest start. Then Mark pre-event complete. On the event: the run-sheet and issues. Check vendor items in." },
       { sel: "#attn", title: "What needs you", desc: "One card with only what is not zero: late tasks, people not checked in, can't-work requests, work to approve, nobody on it, sent back, one person with two works at the same time - each with its button. Nothing to do = one quiet line." },
       { sel: ["#view", "#work"], title: "Tasks by department", desc: "One card per department: each task with its person, time, status and Email / WhatsApp. Pick a Supervisor per department - they get a bell and its late alerts. + Add task adds work there. Order of work: who waits for whom." },
       { sel: ["#chips", "#tcQ"], title: "Find a task", desc: "Tap a chip (Late, Special, Not assigned, Not accepted yet, No time, To approve...) - each shows its count. Search finds tasks and people; press / to jump to it." },
-      { sel: "#addBtn", title: "Add & assign", desc: "First the part of the job: Day before, Pre-event, On the event, Wrap-up. Then what, who (Free that day / Busy elsewhere / Day off), start time, reminders, Special, the task it waits for. Once accepted, use Cancel (a reason is required)." },
+      { sel: "#addBtn", title: "Add & assign", desc: "First the part of the job: Day before, Pre-event, On the event, Wrap-up. Then what, who (Free that day / Busy elsewhere / Day off), waits for. Optional: start time, reminders, Special. Once accepted, use Cancel (a reason is required)." },
       { sel: "#assignEmailWrap", title: "Send by email or WhatsApp", desc: "Ticked: the person gets their tasks by email. Tick Send on WhatsApp to send from your studio number too - if it isn't connected, Helm says so and nothing is sent." },
-      { sel: ["#trmLine", "#tcPlanRem"], title: "Plan and reminders", desc: "The plan lock and how reminders work. Reminders go by email to each staff record address and on WhatsApp once connected. Change time in a task's panel sets its start time and reminders; tick tasks to move many at once." },
+      { sel: ["#trmLine", "#tcPlanRem"], title: "Reminders", desc: "How reminders work. Reminders go by email to each staff record address and on WhatsApp once connected. Change time in a task's panel sets its start time and reminders; tick tasks to move many at once." },
     ],
     "approvals.html": [
       { sel: "#apListH", title: "Work to approve", desc: "Finished work waiting for a check, newest first." },

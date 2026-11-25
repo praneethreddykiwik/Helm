@@ -19,6 +19,14 @@
   function ini(n) { var w = String(n || "?").trim().split(/\s+/); return (((w[0] || "")[0] || "?") + ((w[1] || "")[0] || "")).toUpperCase(); }
   function q(sel) { return modal ? modal.querySelector(sel) : null; }
   function val(r) { return r.kind + ":" + (r.id || ""); }
+  // R255 (owner: "Who is this client? We don't add them in the group"): a sign-in with the Client role, or one that was switched off,
+  // stays in the list but can't be ticked or sent. The server refuses a Client login too (_r58_may_join_event, 0299).
+  function offWhy(p) {
+    if (String((p && p.role) || "").toLowerCase() === "client") return "Clients can't join the team group";
+    if (p && (p.active === false || p.deactivated === true || /\(deactivated\)\s*$/i.test(String(p.full_name || nm(p) || "")))) return "Sign-in is switched off";
+    return "";
+  }
+  function offMap() { var m = {}; rows.forEach(function (r) { if (r.off) m[val(r)] = 1; }); return m; }
   function build() {
     if (modal) return modal;
     modal = el("div", "egp-layer"); modal.id = "egpModal"; modal.hidden = true;
@@ -47,7 +55,7 @@
   }
   function draw(filterText, pre) {
     var list = q("#egp_list"); var f = String(filterText || "").toLowerCase().trim();
-    var checked = pre ? new Set(pre) : new Set(Array.prototype.map.call(list.querySelectorAll("input:checked"), function (i) { return i.value; }));
+    var offs = offMap(); var checked = pre ? new Set(pre) : new Set(Array.prototype.map.call(list.querySelectorAll("input:checked"), function (i) { return i.value; }));
     var shown = rows.filter(function (r) { return !f || r.name.toLowerCase().indexOf(f) >= 0 || KIND_LABEL[r.kind].toLowerCase().indexOf(f) >= 0; });
     list.textContent = "";
     if (!shown.length) list.appendChild(el("div", "egp-empty", rows.length ? "Nobody matches." : (mode === "add" ? "Everyone is already in this group." : "Nobody to add yet - you can create the group and add people later.")));
@@ -55,21 +63,22 @@
       var part = shown.filter(function (r) { return r.kind === k; }); if (!part.length) return;
       var hd = el("div", "egp-sec", KIND_LABEL[k] + (k === "user" ? " (signs in to Helm)" : "")); hd.setAttribute("role", "presentation"); list.appendChild(hd);
       part.forEach(function (r) {
-        var l = el("label", "egp-row"); var i = el("input"); i.type = "checkbox"; i.value = val(r); i.checked = checked.has(val(r));
+        var l = el("label", "egp-row" + (r.off ? " off" : "")); var i = el("input"); i.type = "checkbox"; i.value = val(r); i.checked = !r.off && checked.has(val(r)); if (r.off) i.disabled = true;
         var av = el("span", "egav", ini(r.name)); av.setAttribute("aria-hidden", "true"); if (r.avatar_path) av.setAttribute("data-avatar-path", r.avatar_path);
-        l.appendChild(i); l.appendChild(av); l.appendChild(el("span", "egp-nm", r.name)); l.appendChild(el("span", "egp-rl", r.sub || ""));
+        var who = el("span", "egp-nm", r.name); if (r.off) who.appendChild(el("small", "egp-why", r.off));
+        l.appendChild(i); l.appendChild(av); l.appendChild(who); l.appendChild(el("span", "egp-rl", r.sub || ""));
         list.appendChild(l);
       });
     });
     // keep hidden (filtered-out) selections
-    checked.forEach(function (v) { if (!shown.some(function (r) { return val(r) === v; })) { var i = el("input"); i.type = "checkbox"; i.value = v; i.checked = true; i.hidden = true; list.appendChild(i); } });
+    checked.forEach(function (v) { if (!offs[v] && !shown.some(function (r) { return val(r) === v; })) { var i = el("input"); i.type = "checkbox"; i.value = v; i.checked = true; i.hidden = true; list.appendChild(i); } });
     try { BPStore.chat.paintAvatars(list); } catch (_) {}
   }
   function close() { if (modal) modal.hidden = true; quote = null; }
   function picked() {
-    var seen = {}; var out = [];
+    var seen = {}; var out = []; var offs = offMap();
     Array.prototype.forEach.call(q("#egp_list").querySelectorAll("input:checked"), function (i) {
-      if (seen[i.value]) return; seen[i.value] = 1;
+      if (seen[i.value] || i.disabled || offs[i.value]) return; seen[i.value] = 1;
       var p = i.value.indexOf(":"), kind = i.value.slice(0, p), id = i.value.slice(p + 1);
       out.push(kind === "client" ? { kind: "client" } : { kind: kind, id: id });
     });
@@ -129,14 +138,15 @@
     var full = res[5] || qt, teamIds = new Set();
     var out = [];
     (team || []).forEach(function (p) { if (!p || !p.id || p.id === me) return; teamIds.add(p.id);
-      out.push({ kind: "user", id: p.id, name: nm(p), sub: p.job_title || rl(p.role), avatar_path: p.avatar_path, role: p.role }); });
+      out.push({ kind: "user", id: p.id, name: nm(p), sub: p.job_title || rl(p.role), avatar_path: p.avatar_path, role: p.role, off: offWhy(p) }); });
+    out.sort(function (a, b) { return (a.off ? 1 : 0) - (b.off ? 1 : 0); });   // people who can join first (the rest keeps its order)
     (crew || []).forEach(function (s) { if (!s || !s.id || s.active === false) return;
       if (s.profile_id && (teamIds.has(s.profile_id) || s.profile_id === me)) return;   // already listed as a teammate
       out.push({ kind: "staff", id: s.id, name: String(s.name || "Staff"), sub: (assigned.has(s.id) ? "on this event · " : "") + (s.role || s.department || "staff"), assigned: assigned.has(s.id) }); });
     (vend || []).forEach(function (v) { if (!v || !v.id || v.active === false) return;
       out.push({ kind: "vendor", id: v.id, name: String(v.name || "Vendor"), sub: (booked.has(v.id) ? "booked · " : "") + (v.category || v.kind || "vendor"), booked: booked.has(v.id) }); });
     var cn = full && full.client && String(full.client.name || "").trim();
-    out.push({ kind: "client", id: "", name: cn || "Client", sub: "the event's client" });
+    out.push({ kind: "client", id: "", name: cn || "Client", sub: "the event's client", off: "Clients can't join the team group" });   // R257: shown, never added
     exclude = exclude || {};
     return out.filter(function (r) { return !exclude[val(r)]; });
   }
@@ -154,17 +164,17 @@
       (await soft(function () { return BPStore.chat.eventGroups.contacts(convId); }, [])).forEach(function (k) { exclude[k.kind + ":" + (k.kind === "client" ? "" : (k.ref_id || ""))] = 1; });
     }
     rows = await people(qt, me, exclude);
-    var pre = mode === "add" ? [] : rows.filter(function (r) { return (r.kind === "user" && (r.role === "owner" || r.role === "admin")) || (r.kind === "staff" && r.assigned); }).map(val);
+    var pre = mode === "add" ? [] : rows.filter(function (r) { return !r.off && ((r.kind === "user" && (r.role === "owner" || r.role === "admin")) || (r.kind === "staff" && r.assigned)); }).map(val);
     build(); quote = qt;
     q("#egp_err").hidden = true; q("#egp_search").value = "";
     q("#egp_title").textContent = (mode === "add" ? "👥 Add people · " : "💬 Event group · ") + (qt.code || "");
     q("#egp_sub").textContent = mode === "add"
-      ? "Pick teammates, staff, vendors or the client. Teammates who sign in join the chat; the others are listed in the group."
+      ? "Pick teammates, staff or vendors. Teammates who sign in join the chat; the others are listed in the group."
       : "A team chat for this event. Helm posts the event details - client contact, date, venue, guests, layout, menu and notes. Never prices or payments. You can add more people later.";
-    q("#egp_note").textContent = "Staff, vendors and the client who don't sign in to Helm are listed in the group (no phone or e-mail is shared). Helm sends them nothing - no WhatsApp, SMS or e-mail.";
+    q("#egp_note").textContent = "Staff and vendors who don't sign in to Helm are listed in the group (no phone or e-mail is shared). Helm sends them nothing - no WhatsApp, SMS or e-mail.";
     q("#egp_create").textContent = mode === "add" ? "Add people" : "Create group";
     draw("", pre); modal.hidden = false;
     setTimeout(function () { var s = q("#egp_search"); if (s) s.focus(); }, 50);
   }
-  global.HelmEventGroupPicker = { open: open, close: close, summary: summary };
+  global.HelmEventGroupPicker = { open: open, close: close, summary: summary, offWhy: offWhy, _picked: picked };
 })(window);

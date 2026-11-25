@@ -2,7 +2,7 @@
 <html lang="en" data-theme="light" class="auth-pending">
 <head>
 <style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}</style>
-<link rel="stylesheet" href="/event-polish.css?v=9">
+<link rel="stylesheet" href="/event-polish.css?v=10">
 <meta charset="utf-8">
 <base href="/">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -92,14 +92,14 @@
 <link rel="stylesheet" href="booklet-share.css?v=8">
 <link rel="stylesheet" href="pkg-review.css?v=4">
 <link rel="stylesheet" href="share-checklist.css?v=5">
-<link rel="stylesheet" href="event-group-picker.css?v=2"><link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
+<link rel="stylesheet" href="event-group-picker.css?v=3"><link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="event-reminders.css?v=2">
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="event-ui.css?v=5">
-<link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=6">
+<link rel="stylesheet" href="event-ui.css?v=6">
+<link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=8">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -156,6 +156,8 @@
           <!-- r21: the client-facing pair + a ••• menu; r22: Invitation site / Cancel event are back on the card (footer) too -->
           <div class="ev-tools">
             <a class="client-link" id="clientLink" href="#" hidden>Client page →</a>
+            <!-- R255: the event-day monitor, from Confirmed until the event is complete -->
+            <a class="client-link mon-link" id="monBtn" href="#" hidden>Monitor →</a>
             <button type="button" class="bk-share" id="bkShare" data-approval data-booklet-share data-quote-from-url hidden>📖 Share booklet</button>
             <div class="evmenu" id="evMenu" hidden>
               <button type="button" class="evmenu-btn" id="evMenuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="evMenuPop" aria-label="More event actions" title="More actions">•••</button>
@@ -193,6 +195,8 @@
       </div>
     </div>
 
+    <!-- R258 (0445): the next payment in one line (payment-followup.js); Finance view only -->
+    <div class="pay-line" id="payLine" hidden></div>
     <div id="capIssues" aria-live="polite"></div>
     <div id="conflictBanner"></div>
     <div class="grid" id="mods"></div>
@@ -245,18 +249,18 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script><script src="money-header-ui.js?v=3"></script><script src="/trial-sim.js?v=3"></script>
-<script src="flow-resume.js?v=10"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script><script src="money-header-ui.js?v=4"></script><script src="/trial-sim.js?v=3"></script>
+<script src="flow-resume.js?v=12"></script>
 <script src="event-reminders.js?v=6"></script>
-<script src="page-tours.js?v=79"></script>
-<script src="tour.js?v=93"></script>
-<script src="payment-schedule.js?v=7"></script>
-<script src="/studio-time.js?v=1"></script><script src="/task-clash.js?v=1"></script><script src="/event-date-move.js?v=3"></script>
-<script src="booklet.js?v=38"></script>
+<script src="page-tours.js?v=84"></script>
+<script src="tour.js?v=98"></script>
+<script src="payment-followup.js?v=1"></script><script src="payment-schedule.js?v=9"></script>
+<script src="/studio-time.js?v=1"></script><script src="/task-clash.js?v=2"></script><script src="/event-date-move.js?v=4"></script>
+<script src="booklet.js?v=40"></script>
 <script src="email-send.js?v=9"></script><script src="share-checklist.js?v=16"></script>
 <script src="invite-site-share.js?v=13"></script><script src="booklet-share.js?v=19"></script>
 <script src="pkg-review.js?v=10"></script><script src="quote-validity.js?v=6"></script>
-<script src="event-group-picker.js?v=5"></script><script src="capacity-shortage.js?v=9"></script><script src="approval-watch.js?v=2"></script><script src="stage-history.js?v=3"></script><script src="link-views.js?v=5"></script>
+<script src="/resource-steps.js?v=2"></script><script src="/stage-needs.js?v=1"></script><script src="event-group-picker.js?v=7"></script><script src="capacity-shortage.js?v=9"></script><script src="approval-watch.js?v=2"></script><script src="stage-history.js?v=3"></script><script src="link-views.js?v=6"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -287,8 +291,8 @@
     {k:"quote",label:"Quote",hint:"Lock the menu first, design the floor, then price the event.",mods:["plandetails","layout","quote"]},
     {k:"confirmed",label:"Confirmed",hint:"Lock the details and get the client's approval.",mods:["quote","plandetails"]},
     {k:"planning",label:"Planning",hint:"Assign tasks, plan resources and build the run-sheet.",mods:["resourceplan","runsheet","budget"]},
-    // r24: the resources work in the order it is done - our stock, our people, what is still missing (vendors), then money
-    {k:"resources",label:"Resources",hint:"1 Reserve our stock → 2 assign our people → 3 get what's missing from vendors → 4 check budget & margin.",mods:["inventory","tasks","resourceplan","budget"],steps:true},
+    // r24 / R257: the resources work in the order it is done - our stock, what is still missing (vendors), our people, then money
+    {k:"resources",label:"Resources",hint:"1 Reserve our stock → 2 get what's missing from vendors → 3 assign our people → 4 check budget & margin.",mods:["inventory","resourceplan","tasks","budget"],steps:true},
     {k:"ready",label:"Ready",hint:"Pass the readiness gate, then brief the team.",mods:["readycheck","runsheet","logistics"]},
     {k:"event_day",label:"Event Day",hint:"Run the day and handle issues live.",mods:["tasks","command","issues"]},
     {k:"settlement",label:"Settlement",hint:"Tear down, then invoice, settle vendors and collect.",mods:["teardown","settle","budget"]},
@@ -321,6 +325,7 @@
   const effStage=()=>{ const k=(ev&&ev.lifecycleStage)||"quote";
     if(ev && k!=="cancelled" && (k==="closed" || !!ev.closedAt || !!(closureSummary&&closureSummary.closed))) return "closed";   // r22: closed = every step done
     return (ev && stageIndex(k)<stageIndex("confirmed") && BPStore.quoteStatus(ev,{advance:advanceIn()}).confirmed) ? "confirmed" : k; };
+  const showMonitor=()=> !!ev && !evLocked() && !cardDenied.has("tasks") && isConfirmed() && stageIndex(effStage())<=stageIndex("event_day");
   const isConfirmed=()=> !!ev && (ev.status==="confirmed" || stageIndex(effStage())>=stageIndex("confirmed"));
   // qa-quote-flow B28: stage 5 is "Confirmed" on every screen (lists, header, strip); the advance shows in the
   // status label ("Confirmed · advance paid"), not as a second name for the same stage
@@ -508,6 +513,9 @@
       const inv = BPStore.invoiceTotal(ev, chg);
       $("#total").textContent = canFin ? (inv? inr(inv):"—") : "—";
       $("#total").title = canFin && chg==null && inv ? "Quote total - approved change orders are still loading" : ""; }
+    // R255: Monitor is one tap away from Confirmed until the event is complete (not for cancelled / settlement / closed)
+    { const mb=$("#monBtn"); if(mb){ const on=showMonitor(); mb.hidden=!on;
+        if(on){ const mh="monitor.html?quote="+encodeURIComponent(ev.id||id); mb.href=mh; mb.title="Open the event-day monitor for this event"; } } }
     const totWrap=$("#total").closest(".tot"); if(totWrap) totWrap.hidden=!canFin;
     renderDateRow();
 
@@ -777,6 +785,11 @@
   // no costs entered yet → a margin would read 100%, so say it plainly instead
   const noCosts=()=> !!budgetSummary && !Number(budgetSummary.estCost) && !Number(budgetSummary.actCost) && !Number(budgetSummary.finalCost);
   const NOCOST='<span class="stat q">Estimated</span> — no costs added yet';
+  // something to lock: a package (picked on Venue & menu or applied in the quote flow / builder), menu notes or dishes
+  const menuIsChosen=()=> !!(planSummary && (planSummary.package || planSummary.menu_template || planSummary.menu)) || menuCount>0;
+  // R255: the resource plan is four steps (resource-steps.js) - it opens at the first one: our stock, then vendors, people, budget
+  const resourcePlanHref=()=>{ const no=(k)=>!cardDenied.has(k), R=window.HelmResourceSteps;
+    return (R&&R.firstOpen({inventory:no("inventory"),staff:no("tasks"),resources:no("resourceplan"),finance:canFin},id)) || "resources.html?quote="+encodeURIComponent(id); };
   function renderMods(recommended){
     const cl=ev.client||{};
     // menu-before-quote: pricing depends on the veg/non-veg plate mix, so warn until the menu is locked
@@ -788,7 +801,7 @@
     // Make the next step obvious: a direct "Lock menu" on the card (plan editors, something chosen to lock,
     // not while the client must re-approve a changed price - the server refuses that lock). Nothing chosen yet
     // -> "Open details" jumps straight to the menu section (#menu) instead.
-    const menuChosen = !!(planSummary && (planSummary.package || planSummary.menu)) || menuCount>0;
+    const menuChosen = !!(planSummary && (planSummary.package || planSummary.menu_template || planSummary.menu)) || menuCount>0;
     const canLockMenu = canEditPlan && !menuLocked && menuChosen && !staleInfo && ev.status!=="cancelled";
     const planHref = "plan.html?quote="+encodeURIComponent(id)+(menuLocked?"":"#menu");
     const menuNext = menuLocked ? ""
@@ -802,6 +815,7 @@
     // 0256 (r23): status pills for the vendor requests of this event (counts only, no money)
     const vendorReqPills = () => { const r=vendorReqSummary; if(!r) return "";
       const p=[]; const n=(k)=>Number(r[k])||0;
+      if(n("offers_to_review")) p.push(`<span class="stat st">${n("offers_to_review")} price${n("offers_to_review")===1?"":"s"} to approve</span>`);
       if(n("awaiting")) p.push(`<span class="stat q">${n("awaiting")} awaiting reply</span>`);
       if(n("late")) p.push(`<span class="stat no">${n("late")} reply overdue</span>`);
       if(n("accepted")) p.push(`<span class="stat ok">${n("accepted")} accepted</span>`);
@@ -813,7 +827,7 @@
       { key:"discovery", ic:"🔎", title:"Discovery & requirements", sum:discSum,
         acts:[{t: canEdit?"Open discovery":"View discovery", href:"discovery.html?quote="+encodeURIComponent(id), primary:true}] },
       { key:"plandetails", ic:"🏛", title:"Venue & menu",
-        sum: planSummary && (planSummary.venue_name||planSummary.package||planSummary.menu) ? `${planSummary.venue_name?esc(planSummary.venue_name):"Venue set"}${planSummary.package?` · ${esc(planSummary.package)}`:""} ${menuLocked?'<span class="stat ok">🔒 Locked</span>':'<span class="stat q">Draft</span>'}${menuGate}${menuNext}` : `${menuGate}Set the venue, access and lock the menu/package — decided before pricing.${menuNext}`,
+        sum: planSummary && (planSummary.venue_name||planSummary.package||planSummary.menu) ? `${planSummary.venue_name?esc(planSummary.venue_name):"Venue set"}${planSummary.package?` · ${esc(planSummary.package)}`:""} ${menuLocked?'<span class="stat ok">🔒 Locked</span>':'<span class="stat q">Menu not locked</span>'}${menuGate}${menuNext}` : `${menuGate}Set the venue, access and lock the menu/package — decided before pricing.${menuNext}`,
         acts: canLockMenu
           ? [{t:"🔒 Lock menu", act:"lockmenu", primary:true}, {t:"Open details", href:planHref}]
           : [{t: canEdit?"Open details":"View details", href:planHref, primary:true}] },
@@ -863,8 +877,8 @@
         sum: budgetSummary && noCosts() && budgetSummary.revenue ? `${mh(budgetSummary.revenueExTax!=null?budgetSummary.revenueExTax:budgetSummary.revenue)} rev (ex-tax) · margin ${NOCOST}` : budgetSummary && (budgetSummary.estCost || budgetSummary.revenue) ? `${mh(budgetSummary.revenueExTax!=null?budgetSummary.revenueExTax:budgetSummary.revenue)} rev (ex-tax) · ${mh(budgetSummary.estCost)} cost · <b class="${budgetSummary.estMargin>=0?'t-ok':'t-bad'}">${mh(budgetSummary.estMargin)} margin${budgetSummary.estMarginPct!=null?` (${budgetSummary.estMarginPct}%)`:""}</b>${budgetSummary.pendingChanges?` · ${budgetSummary.pendingChanges} change${budgetSummary.pendingChanges===1?"":"s"} pending`:""}` : "Track costs vs the quote and see your margin.",
         acts:[{t: canEdit?"Open budget":"View budget", href:"budget.html?quote="+encodeURIComponent(id), primary:true}] },
       { key:"resourceplan", ic:"🧩", title:"Resource plan",
-        sum: resSummary && resSummary.total ? `${resSummary.total} need${resSummary.total===1?"":"s"} · ${resSummary.gaps?`<b class="t-bad">${resSummary.gaps} missing</b>`:(resSummary.outsourced?`<span class="stat ok">all covered</span> · ${resSummary.outsourced} by vendors / client`:'<span class="stat ok">all covered by us</span>')}` : "List what the event needs and see what's still missing.",
-        acts:[{t: canEdit?"Open resource plan":"View plan", href:"resources.html?quote="+encodeURIComponent(id), primary:true}] },
+        sum: resSummary && resSummary.total ? `${resSummary.total} need${resSummary.total===1?"":"s"} · ${resSummary.gaps?`<b class="t-bad">${resSummary.gaps} missing</b>`:(resSummary.outsourced?`<span class="stat ok">all covered</span> · ${resSummary.outsourced} by vendors / client`:'<span class="stat ok">all covered by us</span>')}` : "Reserve our stock, get the rest from vendors, then assign our people.",
+        acts:[{t: canEdit?"Open resource plan":"View plan", href:resourcePlanHref(), primary:true}] },
       { key:"inventory", ic:"📦", title:"Inventory",
         sum: invSummary && invSummary.total ? `${invSummary.active} item${invSummary.active===1?"":"s"} reserved${invSummary.total>invSummary.active?` · ${invSummary.total-invSummary.active} back or released`:""}` : "Reserve our own stock for this event first.",
         acts:[{t: canEdit?"Reserve stock":"View inventory", href:"inventory.html?quote="+encodeURIComponent(id), primary:true}] },
@@ -879,9 +893,11 @@
       logistics:canFin?"Logistics — guests, permits and the payment schedule":"Logistics — guests, permits and comms",closure:"Closure — profit, feedback and archive",
       media:"Media — photos and videos for the client",settle:"Settlement — final bill, payments in and vendors paid",
       teardown:"Teardown — pack up, return stock, hand back the venue",budget:"Budget — costs against the quote, and your margin",
-      resourceplan:"Resource plan — what's still missing, and which vendor brings it",inventory:"Inventory — reserve our own stock for this event"};
-    // r24: the resources tools in the order the work is done (inventory -> tasks & staff -> resource plan -> vendors)
-    const GROUPS=[{t:"Plan",keys:["discovery","plandetails","proposal","layout","quote","inventory","tasks","staff","resourceplan","vendors","runsheet","readycheck","logistics"]},
+      resourceplan:"Resource plan — 4 steps: our stock, vendors, our people, budget",inventory:"Inventory — reserve our own stock for this event"};
+    // r24 / R257: all resources in one place, in the order the work is done (inventory -> resource plan + vendors -> tasks & staff)
+    const GROUPS=[{t:"Plan",keys:["discovery","plandetails","proposal","layout","quote"]},
+      {t:"Resources",keys:["inventory","resourceplan","vendors","tasks","staff"]},
+      {t:"Get ready",keys:["runsheet","readycheck","logistics"]},
       {t:"Event day",keys:["command","issues","teardown","media"]},
       {t:"Money",keys:["budget","settle","closure"]}];
     const hide=new Set([...(canFin?[]:["budget","settle","closure"]), ...(canPipe?[]:["discovery","proposal"]), ...cardDenied]);
@@ -938,6 +954,7 @@
         const row=await BPStore.plan.setLock(id, true);
         try{ planSummary=await BPStore.plan.get(id); }catch(_){ planSummary=Object.assign({}, planSummary||{}, row&&typeof row==="object"?row:{}, {menu_locked:true}); }
         BPUI.toast("Menu locked.",{type:"ok"});
+        clearStageInfo();   // R255: the stage panel asks the server again - "Move event to Planning" turns on by itself
         render();
         try{ readySummary=await BPStore.readiness.check(id); render(); }catch(_){}
       }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"lock the menu"}),{type:"err"}); }
@@ -1030,7 +1047,7 @@
       quote:[["Open this quote","quotes.html?focus="+fq],["Venue & menu","plan.html?quote="+q]],
       confirmed:[["Quote & approval","quotes.html?focus="+fq],[advanceIn()?advanceDoneParts():"Record advance","flow.html?quote="+q+"#sec-pay"]],
       planning:[["Open run-sheet","runsheet.html?quote="+q],["Open Tasks & Crew","ops.html?quote="+q],["Venue & menu","plan.html?quote="+q]],
-      resources:[["1 Reserve our stock","inventory.html?quote="+q],["2 Assign our people","ops.html?quote="+q],["3 What's missing","resources.html?quote="+q]],
+      resources:[["1 Reserve our stock","inventory.html?quote="+q],["2 What's missing","resources.html?quote="+q],["3 Assign our people","ops.html?quote="+q]].concat(canFin?[["4 Budget & margin","budget.html?quote="+q]]:[]),
       ready:[["Open readiness","ready.html?quote="+q],["Open logistics","logistics.html?quote="+q]],
       event_day:[...(cardDenied.has("tasks")?[]:[["Event-day monitor","monitor.html?quote="+q],["Tasks & Crew","ops.html?quote="+q]]),["Open event-day command","command.html?quote="+q],["Open issues","issues.html?quote="+q],["Open run-sheet","runsheet.html?quote="+q]],
       settlement:[["Open settlement",settleHref()],["Open teardown","teardown.html?quote="+q],["Open closure","closure.html?quote="+q]],
@@ -1143,7 +1160,31 @@
     else if(from<D && to>=D && notYet) out.push({gate:"event_day",message:hasD?"Event Day opens on "+niceDay(d)+" (the event date)":"the event has no date yet"});
     return out;
   }
+  // R255: what a blocked stage still needs, each with its own way to do it (stage-needs.js words it, the same on Event Ready)
+  function stageNeeds(g,label){
+    const d=String(ev.eventDate||(ev.client&&ev.client.eventDate)||"").slice(0,10);
+    const DO={lock:(b)=>lockMenuFromCard(b),recheck:()=>{ clearStageInfo(); render(); },date:()=>focusDate(),
+      price:()=>{ const b=$("#reapprBanner"); if(b) b.scrollIntoView({block:"center",behavior:"smooth"}); }};
+    return (window.HelmStageNeeds?HelmStageNeeds.list(g,{id,code:ev.code,date:d,dateText:niceDay(d),plan:planSummary,chosen:menuIsChosen(),stale:!!staleInfo,canEditPlan,label}):[]).map(n=>({text:n.text,
+      act:!n.label?null:n.href?()=>el("a",{class:"btn sm"+(n.quiet?"":" primary"),href:(window.HelmUrl&&HelmUrl.upgrade)?HelmUrl.upgrade(n.href):n.href,text:n.label})
+        :()=>el("button",{type:"button",class:"btn sm primary",text:n.label,onclick:(e)=>{ if(e.detail>1) return; DO[n.act](e.currentTarget); }})}));
+  }
+  // nothing stops the move: say that a person makes it (the stage never changes by itself), and for Ready what the checks say
+  function stageFree(k){
+    if(k==="ready"){ const r=readySummary; return (r&&r.criticalTotal?(r.ready?"All "+r.criticalTotal+" readiness checks are done. ":r.criticalPassed+" of "+r.criticalTotal+" readiness checks are done - see what is open under Open readiness. "):"")
+      +"The stage does not change by itself: press Move event to Ready."; }
+    return "Nothing is stopping this. The stage does not change by itself: press Move event to "+STAGES[stageIndex(k)].label+".";
+  }
+  const clearStageInfo=()=>{ Object.keys(stageInfo).forEach(x=>delete stageInfo[x]); };
   const infoKey=(k)=> k+"|"+(ev.lifecycleStage||"quote")+"|"+ev.status;
+  // came back from Venue & menu / the floor plan in another tab: what the open stage needs is asked again (reads only)
+  let stageBackAt=0;
+  document.addEventListener("visibilitychange",async()=>{
+    if(document.hidden||!ev||viewK==null||stageBusy||Date.now()-stageBackAt<5000) return; stageBackAt=Date.now();
+    try{ planSummary=await BPStore.plan.get(id); }catch(_){}
+    try{ menuCount=((await BPStore.eventMenu.list(id))||[]).length; }catch(_){}
+    if(!ev||viewK==null||stageBusy) return; clearStageInfo(); render();
+  });
   async function loadStageInfo(k){
     const key=infoKey(k); if(key in stageInfo) return;
     stageInfo[key]="loading";
@@ -1160,7 +1201,7 @@
     const rel=vis<cur?"Done":vis===cur+1?"Up next":"Later";
     const info=stageInfo[infoKey(s.k)];
     if(info===undefined) loadStageInfo(s.k);
-    const why=el("div",{class:"sp-why"}), acts=el("div",{class:"sp-act"});
+    const why=el("div",{class:"sp-why"}), acts=el("div",{class:"sp-act"}); let over=null;
     stagePages(s.k).forEach(([t,href],i)=>{ const a=el("a",{class:"btn sm"+(i?"":" primary"),href:(window.HelmUrl&&HelmUrl.upgrade)?HelmUrl.upgrade(href):href,text:Array.isArray(t)?"":t}); if(Array.isArray(t)) putMoney(a,t); acts.appendChild(a); });
     if(ev.status==="cancelled") why.textContent="This event is cancelled - its stages are view-only.";
     else if(evClosedNow()) why.textContent="This event is closed - its stages are view-only. An admin can re-open it from Closure.";
@@ -1186,18 +1227,23 @@
       const msg=(arr)=>arr.map(x=>{ const m=String(x.message||""); return /^[A-Z]/.test(m)?m.replace(/\.$/,""):(s.label+" can't start yet - "+m); }).join(". ");
       const whyId="spWhy";
       why.id=whyId;
+      const needs=floor||loading?[]:gates.flatMap(g=>stageNeeds(g,s.label));
       if(loading && !floor) why.textContent="Checking what "+s.label+" needs…";
+      else if(blocked && needs.length){ acts.querySelectorAll(".primary").forEach(b=>b.classList.remove("primary"));   // one filled button: the one that does what is missing
+        if(needs.some(n=>n.act)) why.appendChild(el("b",{text:s.label+" needs "+(needs.length===1?"one thing":needs.length+" things")+" first:"}));
+        why.appendChild(el("ul",{class:"sp-needs"},needs.map(n=>el("li",{},[el("span",{class:"sp-need",text:n.text}), n.act?n.act():null])))); }
       else if(blocked){ why.textContent=msg(hard.length?hard:soft)+"."+(hard.some(x=>x.gate==="confirmed_floor")?" Use Cancel event if it will not happen.":"");
         why.classList.add(hard.length?"t-bad":"t-warn"); }
+      else if(vis>cur) why.textContent=stageFree(s.k);
       const admin=myRole==="admin";
       acts.appendChild(el("button",{type:"button",class:"btn sm"+(blocked||loading?"":" go"),text:(vis<cur?"Move event back to ":"Move event to ")+s.label,
         disabled:blocked||loading||stageBusy, "aria-describedby":(blocked||loading)?whyId:null,
-        title:blocked?why.textContent:null, onclick:(e)=>{ if(e.detail>1) return; setStage(s.k,e.currentTarget); }}));
+        title:blocked?msg(hard.length?hard:soft):null, onclick:(e)=>{ if(e.detail>1) return; setStage(s.k,e.currentTarget); }}));
       if(blocked && !hard.length){
-        // admins can still override the HL409 gates on the server (reason recorded in the audit log)
-        if(admin) acts.appendChild(el("button",{type:"button",class:"btn sm ghost",text:"Override as admin…",disabled:stageBusy,
+        // admins can still skip the HL409 gates on the server (reason recorded in the audit log) - a small link, after the real way
+        if(admin) over=el("p",{class:"sp-over"},[el("button",{type:"button",class:"sp-link",text:"Override as admin…",disabled:stageBusy,
           title:"Move the event anyway - you will be asked for a reason, saved in the audit log",
-          onclick:(e)=>{ if(e.detail>1) return; setStage(s.k,e.currentTarget); }}));
+          onclick:(e)=>{ if(e.detail>1) return; setStage(s.k,e.currentTarget); }}), " Skip this check and move the event anyway, with a reason. Nothing above gets done by this."]);
         else acts.appendChild(el("span",{class:"muted",text:"Finish the items above, or ask an admin to move it anyway."}));
       }
     }
@@ -1205,7 +1251,7 @@
     p.replaceChildren(
       el("div",{class:"sp-h"},[el("span",{class:"sp-eye",text:"Viewing"}), el("b",{text:"Stage: "+stageLabel(s)}), " ", el("span",{class:"stat "+(rel==="Done"?"ok":"q"),text:rel}),
         el("span",{class:"muted sp-cur",text:"The event is at "+stageLabel(STAGES[cur])})]),
-      el("div",{class:"sp-hint",text:s.hint}), why, acts);
+      el("div",{class:"sp-hint",text:s.hint}), why, acts, ...(over?[over]:[]));
     p.hidden=false;
   }
   // guarded: one stage change at a time (no double-advance on a double-click); the strip re-reads the
@@ -1225,7 +1271,7 @@
         catch(e){ if(await BPStore.auth.handleAuthError(e)) return;  // stale token → refresh silently instead of a scary popup
           BPUI.toast(BPUI.friendlyError(e,{action:"move the event to "+STAGES[stageIndex(k)].label}),{type:"err"}); }
       });
-    } finally { stageBusy=false; Object.keys(stageInfo).forEach(x=>delete stageInfo[x]); render(); }
+    } finally { stageBusy=false; clearStageInfo(); render(); }
   }
   // e.detail>1 = the 2nd click of a double-click: ignore it so a fast save can't advance two stages
   $("#advBtn").addEventListener("click",(e)=>{ if(e.detail>1) return; const k=$("#advBtn").dataset.k; if(k) setStage(k,$("#advBtn")); });

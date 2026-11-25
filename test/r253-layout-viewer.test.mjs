@@ -42,7 +42,8 @@ await t('1a floor-draw.js and floor-3d.js are fresh (node scripts/gen-floor-view
 });
 await t('1b the planner\'s drawing is inside word for word; the planner itself does not know the viewer', () => {
   const fnSrc = (s, n) => { const i = s.indexOf('function ' + n + '('); const j = s.indexOf('\n}', i); return s.slice(i, j + 2); };
-  for (const n of ['renderItem', 'renderMargins', 'screenBand2D', 'screenFace2D', 'sanitizeItem', 'clampItem', 'sanitizeMargins']) assert.ok(fnSrc(BJS, n).length > 100 && FD.includes(fnSrc(BJS, n)), n);
+  assert.ok(!FD.includes('renderMargins'), 'R255: the viewer never draws the usable-area guide lines');
+  for (const n of ['renderItem', 'screenBand2D', 'screenFace2D', 'sanitizeItem', 'clampItem', 'sanitizeMargins']) assert.ok(fnSrc(BJS, n).length > 100 && FD.includes(fnSrc(BJS, n)), n);
   assert.ok(FD.includes(BJS.slice(BJS.indexOf('  // --- grid ---\n'), BJS.indexOf('  // --- items ---'))), 'grid + floor border');
   assert.ok(!/floor-view|HelmFloorView|HelmFloorDraw|HelmFloor3D|floor-draw|floor-3d/.test(BJS + B3), 'builder.js / builder-3d.js untouched by the viewer');
   // 3D: every line of builder-3d.js is there except the named hand-overs
@@ -161,7 +162,7 @@ await t('4a2 an empty layout: one clear line, no version next to "nothing saved"
   assert.equal(E.emptyWords({ version_no: 1, saved_at: '2026-10-16T17:51:00Z', items: [] }), 'The saved layout (V1, 16 Oct) is empty - nothing is placed on it yet.');
   assert.equal(E.emptyWords({ version_no: null, items: [] }), 'No layout yet.'); assert.equal(E.emptyWords(null), 'No layout yet.');
   const src = EF.slice(EF.indexOf('function renderFloor('), EF.indexOf('// R253: only the plan')), empty = src.slice(src.indexOf('if (!mz.items) {'));
-  assert.ok(!/viewUrl|menuButton|version_no|Opens view only/.test(empty)); assert.match(empty, /mayEdit\(\)\.then/); assert.match(empty, /if \(!lk\.locked\)/); assert.match(src, /mz\.items \? h\("span", \{ cls: "ef-meta"/);
+  assert.ok(!/viewUrl|menuButton|version_no|Opens view only/.test(empty)); assert.match(empty, /mayEdit\(\)\.then/); assert.match(empty, /if \(!closed\)/); assert.match(src, /mz\.items \? h\("span", \{ cls: "ef-meta"/);
   assert.match(EF, /canEditArea\("layouts"\)/); assert.ok(!/No floor plan saved yet|Opens view only/.test(EF));
 });
 await t('4b the viewer: plan only, dialog, focus kept inside and given back, Escape, page behind is inert, full screen with a fallback', () => {

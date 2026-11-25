@@ -62,10 +62,11 @@ export const fallback = (href) =>
 export const codeBox = (code) =>
   `<tr><td style="padding:4px 0 24px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="codebox" bgcolor="${C.brandSoft}" style="background:${C.brandSoft};border:1px solid ${C.bandRule};border-radius:12px;padding:16px 28px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:30px;line-height:36px;font-weight:700;letter-spacing:8px;color:${C.ink};">${code}</td></tr></table></td></tr>`;
 
-/** label / value rows (values already escaped) */
+/** label / value rows (values already escaped). R255 (owner): "Label:" always - a label that ends with its own sign keeps it */
+const factLabel = (k) => { const t = String(k == null ? "" : k).trim(); return !t || /[:?!.]$/.test(t) ? t : t + ":"; };
 export const facts = (rows) =>
   `<tr><td style="padding:0 0 22px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="rule" style="border:1px solid ${C.rule};border-radius:12px;">${rows.map(([k, v], i) =>
-    `<tr><td class="muted${i ? " rule" : ""}" style="padding:12px 16px;${i ? `border-top:1px solid ${C.rule};` : ""}font-family:${FONT};font-size:14px;line-height:20px;color:${C.muted};">${k}</td><td align="right" class="ink${i ? " rule" : ""}" style="padding:12px 16px;${i ? `border-top:1px solid ${C.rule};` : ""}font-family:${FONT};font-size:14px;line-height:20px;font-weight:600;color:${C.ink};">${v}</td></tr>`).join("")}</table></td></tr>`;
+    `<tr><td class="muted${i ? " rule" : ""}" style="padding:12px 16px;${i ? `border-top:1px solid ${C.rule};` : ""}font-family:${FONT};font-size:14px;line-height:20px;color:${C.muted};">${factLabel(k)}</td><td align="right" class="ink${i ? " rule" : ""}" style="padding:12px 16px;${i ? `border-top:1px solid ${C.rule};` : ""}font-family:${FONT};font-size:14px;line-height:20px;font-weight:600;color:${C.ink};">${v}</td></tr>`).join("")}</table></td></tr>`;
 
 /**
  * Full document. title + preheader are plain text (escaped here); inner is a set of <tr> rows.

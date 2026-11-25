@@ -113,7 +113,7 @@
   /* ---- R184 activity wording (0368 timeline rows), shared so the monitor feed and the "Latest" column read the same ---- */
   function actGroup(k) {
     return k === "assigned" || k === "reassigned" || k === "unassigned" ? "work" : k === "accepted" || k === "rejected" ? "reply"
-      : k === "started" || k === "completed" || k === "reopened" ? "progress" : k === "time_changed" || k === "step_changed" ? "time"
+      : k === "started" || k === "completed" || k === "reopened" ? "progress" : k === "time_changed" || k === "step_changed" ? "time" : k === "sent_back" || k === "approved" ? "check"
       : k === "check_in" || k === "check_out" || k === "check_edit" ? "checkin" : k === "email_sent" ? "email" : k === "escalated" ? "escalation"
       : k === "dayoff_asked" || k === "dayoff_approved" ? "dayoff" : "special";
   }
@@ -130,6 +130,9 @@
       case "unassigned": return task + " no longer has anyone on it";
       case "step_changed": return task + ": moved to " + stepWord(d.to) + (d.from ? " (was " + stepWord(d.from) + ")" : "");   // R254 (0438)
       case "time_changed": return task + ": start time " + (d.from ? when(d.from) : "not set") + " → " + (d.to ? when(d.to) : "not set");
+      // R257 (0442): a check sent the work back / approved it - who and why
+      case "sent_back": return task + " sent back by " + (d.by || "the office") + (d.note ? ": " + d.note : "") + (a.name ? " (" + a.name + ")" : "");
+      case "approved": return task + " approved by " + (d.by || "the office") + (a.name ? " (" + a.name + ")" : "");
       case "special_on": return task + " marked special (extra reminders)";
       case "special_off": return task + " is no longer special";
       case "accepted": return who + " accepted " + task;
@@ -148,6 +151,21 @@
       case "dayoff_approved": return "Day off approved for " + who + (d.by ? " by " + d.by : "");
       default: return who + ": " + String(a.kind || "update");
     }
+  }
+
+  /* R257: the activity with its checks. Before 0442 the database writes no line when work is sent back or approved: the latest check is taken
+     from the task itself. The "started" / "reopened" line the database writes in the same moment as a "sent back" says nothing new and is left out. */
+  function withChecks(acts, tasks) {
+    var base = Array.isArray(acts) ? acts : [], has = {}, back = [], add = [];
+    base.forEach(function (a) { if (a && (a.kind === "sent_back" || a.kind === "approved")) has[a.task_id] = 1; });
+    (tasks || []).forEach(function (t) {
+      if (!t || has[t.id] || !t.verified_at || (t.verify_status !== "rejected" && t.verify_status !== "passed")) return;
+      add.push({ at: t.verified_at, kind: t.verify_status === "rejected" ? "sent_back" : "approved", task_id: t.id, title: t.title, crew_id: t.crew_id, name: t.assignee_name || "", detail: t.verify_note ? { note: t.verify_note } : {}, source: "task", _code: t._code });
+    });
+    base.concat(add).forEach(function (a) { if (a && a.kind === "sent_back") back.push([a.task_id, ms(a.at)]); });
+    if (!add.length && !back.length) return acts;
+    return base.filter(function (a) { return !(a && (a.kind === "started" || a.kind === "reopened") && back.some(function (b) { return b[0] === a.task_id && Math.abs(b[1] - ms(a.at)) < 3000; })); })
+      .concat(add).sort(function (x, y) { return ms(y.at) - ms(x.at); });
   }
 
   /* ---- R184 attendance (check-in / check-out) ---- */
@@ -340,5 +358,5 @@
   global.HelmTaskStatus = { readAuto: readAuto, setAuto: setAuto, autoSteps: autoSteps, picks: picks, loadAuto: loadAuto, validStep: validStep, timeStep: timeStep, LABEL: LABEL, RANK: RANK, stateOf: stateOf, shown: shown, isLate: isLate, lateMin: lateMin, baseKey: baseKey,
     personKey: personKey, summarize: summarize, leftover: leftover, ladder: ladder, escSteps: steps, escLevel: escLevel,
     lastEscalation: lastEscalation, escBadge: escBadge, escStep: escStep, attendance: attendance, ymdIn: ymdIn, dayDiff: dayDiff,
-    phase: phase, opsMode: opsMode, opsWindow: opsWindow, WINDOWS: WINDOWS, STEPS: STEPS, WIN_PHASE: WIN_PHASE, winOk: winOk, normWin: normWin, stepOf: stepOf, taskStep: taskStep, bySteps: bySteps, hmMin: hmMin, wallMs: wallMs, refresher: refresher, actGroup: actGroup, actText: actText, emailWhat: emailWhat, REFRESH_MS: 30000 };
+    phase: phase, opsMode: opsMode, opsWindow: opsWindow, WINDOWS: WINDOWS, STEPS: STEPS, WIN_PHASE: WIN_PHASE, winOk: winOk, normWin: normWin, stepOf: stepOf, taskStep: taskStep, bySteps: bySteps, hmMin: hmMin, wallMs: wallMs, refresher: refresher, actGroup: actGroup, actText: actText, withChecks: withChecks, emailWhat: emailWhat, REFRESH_MS: 30000 };
 })(typeof window !== "undefined" ? window : globalThis);

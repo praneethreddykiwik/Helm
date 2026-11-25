@@ -193,12 +193,12 @@ t('resource plan speed: data starts with the role checks, one parallel round, pa
 });
 
 /* ---------------------------------------------------------------- event workspace + wording across pages */
-t('event workspace: Resources stage = 1 Inventory, 2 Tasks & staff, 3 Resource plan, 4 Budget & margin (numbered, in that order)', () => {
-  assert.match(EV, /\{k:"resources",label:"Resources",hint:"1 Reserve our stock → 2 assign our people → 3 get what's missing from vendors → 4 check budget & margin\.",mods:\["inventory","tasks","resourceplan","budget"\],steps:true\}/);
+t('event workspace: Resources stage = 1 Inventory, 2 Resource plan (vendors), 3 Tasks & staff, 4 Budget & margin (numbered, in that order)', () => {
+  assert.match(EV, /\{k:"resources",label:"Resources",hint:"1 Reserve our stock → 2 get what's missing from vendors → 3 assign our people → 4 check budget & margin\.",mods:\["inventory","resourceplan","tasks","budget"\],steps:true\}/);
   assert.match(EV, /const focused=visible\.filter\(c=>recommended\.includes\(c\.key\)\)\.sort\(\(a,b\)=>recommended\.indexOf\(a\.key\)-recommended\.indexOf\(b\.key\)\);/);
   assert.match(EV, /<span class="mod-step" aria-label="Step \$\{i\+1\}">\$\{i\+1\}<\/span>/);
-  assert.match(EV, /resources:\[\["1 Reserve our stock","inventory\.html\?quote="\+q\],\["2 Assign our people","ops\.html\?quote="\+q\],\["3 What's missing","resources\.html\?quote="\+q\]\]/);
-  assert.match(EV, /\{t:"Plan",keys:\["discovery","plandetails","proposal","layout","quote","inventory","tasks","staff","resourceplan","vendors","runsheet","readycheck","logistics"\]\}/);
+  assert.match(EV, /resources:\[\["1 Reserve our stock","inventory\.html\?quote="\+q\],\["2 What's missing","resources\.html\?quote="\+q\],\["3 Assign our people","ops\.html\?quote="\+q\]\]/);
+  assert.match(EV, /\{t:"Resources",keys:\["inventory","resourceplan","vendors","tasks","staff"\]\}/);
   assert.match(EV, /key:"tasks", ic:"🛠️", title:"Tasks & staff"/); assert.match(EV, /key:"vendors", ic:"🤝", title:"Vendors",/);
   assert.match(EV, /<b class="t-bad">\$\{resSummary\.gaps\} missing<\/b>/);
   for (const old of ['Vendors & partners', 'book partners for the gaps', 'Map needs and flag what to outsource', 'Open operations', 'Map needs, cover in-house, flag the gaps']) assert.ok(!EV.includes(old), old);
@@ -206,10 +206,10 @@ t('event workspace: Resources stage = 1 Inventory, 2 Tasks & staff, 3 Resource p
 });
 t('Tasks & staff / Inventory / Budget say where they sit in the flow, in the same words', () => {
   assert.match(OPS, /<h1 id="pageTitle">Tasks &amp; Crew<\/h1>/);   // R192 (approved mockup name on this page)
-  assert.match(OPS, /Step 2 of 4 — assign our people\. Done\? <a class="s-a805525" href="resources\.html\?quote=\$\{encodeURIComponent\(quote\.id\|\|quoteId\)\}">3 See what's still missing →<\/a>/);
+  assert.match(OPS, /Step 3 of 4 — assign our people\. Stock or vendors not settled yet\? <a class="s-a805525" href="resources\.html\?quote=\$\{encodeURIComponent\(quote\.id\|\|quoteId\)\}">2 See what's still missing →<\/a>/);
   assert.match(OPS, /<option value="in_house">Our staff<\/option>/); assert.match(OPS, /<option value="outsourced">A vendor<\/option>/);   // R192: no emoji icons
-  assert.match(INV, /Step 1 of 4 — reserve our own stock for this event\./); assert.match(INV, /\$\("#rvNextStep"\)\.href="ops\.html\?quote="\+encodeURIComponent\(quoteId\);/);
-  assert.match(BUD, /Step 4 of 4 \(after stock, people and vendors\)/); assert.match(BUD, /\$\("#flowBack"\)\.href = id\?\("resources\.html\?quote="\+encodeURIComponent\(id\)\):"resources\.html";/);
+  assert.match(INV, /Step 1 of 4 — reserve our own stock for this event\./); assert.match(INV, /\$\("#rvNextStep"\)\.href="resources\.html\?quote="\+encodeURIComponent\(quoteId\);/);
+  assert.match(BUD, /Step 4 of 4 \(after stock, vendors and people\)/); assert.match(BUD, /\$\("#flowBack"\)\.href = id\?\("ops\.html\?quote="\+encodeURIComponent\(id\)\):"ops\.html";/);
   assert.match(SRC, /label: "Resources covered \(nothing missing\)"/);
 });
 t('no new SQL: the flow reuses event_resource_needs (open / outsourced), event_tasks via assign_tasks, reserve_inventory, 0256 vendor_request_save', () => {

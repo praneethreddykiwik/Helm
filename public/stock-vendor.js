@@ -13,6 +13,7 @@
  *   - anything else: ONE resource need + ONE vendor booking in status enquiry ("Asked") tied to it.
  *   The same thing + vendor + event is never written twice: the event's bookings and needs are read again right before saving.
  * No price is asked for or shown. Nothing is sent to the vendor unless "Also send them this as a job" is ticked (off by default).
+ * R259: "Ask them now" opens the Ask vendor dialog (vendor-flow.js) for the booking that was just made - availability and price; sent only there.
  * Permission: the one of the resource plan (Resources - can change), plus Vendors - can change, which the database asks for.
  * DOM calls only (textContent), no HTML strings, no inline styles. Unit-tested in test/r252-stock-vendor.test.mjs. */
 (function (root) {
@@ -193,7 +194,7 @@
     }
 
     /* the form */
-    var qtyIn, noteIn, jobIn, jobLine, resIn, listBox, doneBox, freeBox, vmsg;
+    var qtyIn, noteIn, jobIn, jobLine, askIn, resIn, listBox, doneBox, freeBox, vmsg;
     function existing() { return picked ? sourcing({ itemId: o.itemId, label: o.label }, withNames()).filter(function (s) { return s.vendorId === picked; })[0] || null : null; }
     function withNames() { return Object.assign({ vendors: vendors }, data); }
     function vendorOf(id) { return vendors.filter(function (v) { return v.id === id; })[0] || null; }
@@ -266,7 +267,12 @@
         jobIn = h("input", { type: "checkbox", id: uid + "j", "aria-describedby": uid + "jd" }); jobLine = h("small", { id: uid + "jd" });
         body.appendChild(h("label", { cls: "hsv-chk", "for": uid + "j" }, [jobIn, h("span", {}, [h("b", { text: "Also send them this as a job" }), jobLine])]));
       }
-      body.appendChild(h("p", { cls: "hsv-note" }, ["The vendor is noted on the event as Asked. Agree the price and send the request from the ", planLink("resource plan"), "."]));
+      askIn = null;
+      if (S().vendorRequests && S().vendorRequests.ask) {
+        askIn = h("input", { type: "checkbox", id: uid + "a" });
+        body.appendChild(h("label", { cls: "hsv-chk", "for": uid + "a" }, [askIn, h("span", {}, [h("b", { text: "Ask them now for availability and price" }), h("small", { text: "Next you check the request. Nothing is sent before that." })])]));
+      }
+      body.appendChild(h("p", { cls: "hsv-note" }, ["The vendor is noted on the event as Asked. You can also send the request later from the ", planLink("resource plan"), "."]));
       if (picked && !vendorOf(picked)) picked = null;
       renderVendors(); refreshButton();
       if (!wrap.contains(doc.activeElement)) { try { qtyIn.focus(); } catch (e) {} }
@@ -361,7 +367,7 @@
           });
         });
       }).then(function () {
-        return sendJob(vendor, res.qty).then(function (j) { res.job = j; }, function (e) { res.job = "failed"; res.jobError = lockError(e) ? "the task plan is locked" : friendly(e, "send the job"); });
+        return sendJob(vendor, res.qty).then(function (j) { res.job = j; }, function (e) { res.job = "failed"; res.jobError = lockError(e) ? "the database still refuses changes on the event day (needs database update 0442)" : friendly(e, "send the job"); });
       }).then(function () {
         var msg = res.how === "exists" ? vname + " is already asked for " + fmt(res.qty) + " x " + label + "."
           : res.how === "updated" ? vname + " is now asked for " + fmt(res.qty) + " x " + label + "."
@@ -369,7 +375,9 @@
           : "Our own stock covered it: " + fmt(res.reserved) + " reserved, no vendor needed.";
         if (res.job === "sent") msg += " The job is sent."; else if (res.job === "exists") msg += " They already have this job."; else if (res.job === "failed") msg += " The job was not sent: " + res.jobError;
         toast(msg, res.job === "failed" ? "info" : "ok");
-        busy = false; close(res);
+        busy = false; var now = !!(askIn && askIn.checked) && res.bookingId && res.qty > 0; close(res);
+        if (now) flowLib().then(function (F) { return F.ask({ quoteId: o.quoteId, vendorId: res.vendorId, lockVendor: true, bookingId: res.bookingId, lines: [{ name: String(o.label || "").slice(0, 120), qty: res.qty, need_id: res.needId || null }], returnFocus: o.returnFocus }); })
+          .then(function (row) { if (row) try { doc.dispatchEvent(new root.CustomEvent("helm:vendors")); } catch (e) {} }, function () { toast("Couldn't open the request. Send it from the resource plan.", "info"); });
       }).catch(function (e) {
         busy = false; ok.removeAttribute("aria-busy"); ok.textContent = was; ok.disabled = false; cancel.disabled = false; x.disabled = false;
         var keep = { q: qtyIn.value, n: noteIn.value, j: !!(jobIn && jobIn.checked) };
@@ -386,6 +394,13 @@
     return promise;
   }
 
+  // R259: the Ask vendor dialog, loaded when it is first needed
+  var flowP = null;
+  function flowLib() {
+    if (root.HelmVendorFlow) return Promise.resolve(root.HelmVendorFlow);
+    if (!flowP) flowP = new Promise(function (ok2, no) { var sc = doc.createElement("script"); sc.src = "/vendor-flow.js?v=1"; sc.onload = function () { ok2(root.HelmVendorFlow); }; sc.onerror = function () { flowP = null; sc.remove(); no(new Error("vendor-flow")); }; doc.head.appendChild(sc); });
+    return flowP;
+  }
   api.open = open; api.canUse = canUse;
   root.HelmStockVendor = api;
 })(typeof window !== "undefined" ? window : this);

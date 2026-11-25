@@ -1,0 +1,26 @@
+/* approve-plan.css - R255: the payment plan on the client's approval page (approve-plan.js) */
+.pp-hero{display:flex;flex-direction:column;gap:2px;align-items:center;text-align:center;margin:0 0 14px;padding:16px;border-radius:14px;background:var(--accent-soft,#e3f4ed);border:1px solid color-mix(in srgb,var(--accent,#047857) 30%,transparent)}
+.pp-hero-l{font-size:14px;font-weight:600;color:var(--ink-2,#4b475f)}
+.pp-hero-a{font-size:28px;line-height:1.15;color:var(--accent,#047857);font-variant-numeric:tabular-nums}
+.pp-hero-d{font-size:13px;color:var(--ink-2,#4b475f)}
+.pp-tot{display:flex;justify-content:space-between;gap:12px;align-items:baseline;font-size:15px;margin:0 0 8px;color:var(--ink,#1b1930)}
+.pp-tot b{font-variant-numeric:tabular-nums}
+.pp-sub{font-size:13px;color:var(--ink-2,#4b475f)}
+.pp-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pp-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:11px 13px;border:1px solid var(--line,#e8e3db);border-radius:12px;min-width:0}
+.pp-row.is-next{border-color:var(--accent,#047857);background:color-mix(in srgb,var(--accent,#047857) 6%,var(--panel,#fff))}
+.pp-row.is-paid{opacity:.75}
+.pp-g{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pp-g b{font-size:14px;color:var(--ink,#1b1930);overflow-wrap:anywhere}
+.pp-pct{font-weight:600;color:var(--ink-3,#6b6577)}
+.pp-due{font-size:12.5px;color:var(--ink-3,#6b6577)}
+.pp-a{display:flex;flex-direction:column;align-items:flex-end;gap:4px;white-space:nowrap}
+.pp-a b{font-size:14px;color:var(--ink,#1b1930);font-variant-numeric:tabular-nums}
+.pp-tag{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--accent,#047857);color:#fff}
+.pp-how{margin-top:14px;padding:13px 15px;border:1px solid var(--line,#e8e3db);border-radius:12px;background:var(--panel-2,#faf8f5);font-size:14px;color:var(--ink-2,#4b475f)}
+.pp-how p{margin:4px 0 0;overflow-wrap:anywhere;white-space:pre-line}
+.pp-next{text-align:left;margin-top:18px}
+.pp-next[hidden],#planCard[hidden]{display:none}
+.pp-next h3{font-size:16px;margin:0 0 10px;color:var(--ink,#1b1930)}
+.req{color:var(--danger,#c0392b);font-weight:700}
+.fld input[aria-invalid="true"]{border-color:var(--danger,#c0392b)}

@@ -21,7 +21,7 @@ await t('3 Guests arrive is shown like every other time, on both pages', () => {
     assert.match(g('18:00'), /^6:00\s?pm$/i); assert.match(g('18:00:00'), /^6:00\s?pm$/i); assert.equal(g('evening'), 'evening'); assert.equal(g(''), ''); assert.equal(g('25:00'), '25:00'); }
 });
 await t('4 Open shifts sits under the crew, above Plan & reminders, on every step', () => {
-  assert.match(R('ops-board.js'), /var TAIL = \["tcIssues", "tcActCard", "tcCrewCard", "shiftCard", "tcPlanRem"\];/);
+  assert.match(R('ops-board.js'), /var TAIL = \["tcActCard", "tcCrewCard", "shiftCard", "tcPlanRem"\];/);
 });
 await t('5 Mark event complete says so when the guests have not arrived', () => {
   const w = { console, Intl, Date, Math, String, isFinite, isNaN, Object, Array, JSON, Promise, setTimeout, clearTimeout }; w.window = w; w.globalThis = w; w.document = { addEventListener() {}, createElement: () => ({}) };

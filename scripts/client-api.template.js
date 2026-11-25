@@ -193,7 +193,7 @@ if (!__HELM_CLIENT_FULL__) {
   };
   /*@@decl portal@@*/
   const paySchedule = {
-    /*@@members paySchedule: publicGet@@*/
+    /*@@members paySchedule: publicGet, publicSteps, payCodeSend, payCodeVerify, payClaim@@*/
   };
   const pricing = {
     /*@@members pricing: _canon, quoteTotal@@*/

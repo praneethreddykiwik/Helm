@@ -25,7 +25,7 @@ q "create table if not exists public.helm_schema_migrations(filename text primar
 n=0; bad=""
 while read -r scope path _; do
   [ -z "${scope:-}" ] && continue; case "$scope" in \#*) continue;; esac
-  case "$path" in *0401_r235_db_load.sql|*0438_r254_*) continue;; esac   # 0438 needs 0401 (later in real life)
+  case "$path" in *0401_r235_db_load.sql|*0438_r254_*|*0445_r258_*) continue;; esac   # 0438 + 0445 need 0401 (later in real life)
   PGDATABASE=$DB psql -X -q -v ON_ERROR_STOP=1 -1 -f "$path" >/dev/null 2>&1 || { bad="$path"; break; }
   n=$((n+1))
 done < supabase/migrations/MANIFEST

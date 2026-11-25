@@ -128,6 +128,8 @@ select pg_temp.t('4j vendor with a step, plain and keyed', pg_temp.as_val('a_adm
   and pg_temp.as_val('a_admin@a.test', $q$select (public.assign_tasks_vendor_step_once('a0000000-0000-4000-8000-00000000da01', 'S438', array['V-step2'], 'a0000000-0000-4000-8000-0000000d2531', 'wrapup', 'a0000000-0000-4000-8000-00000438aa02')) ->> 'tasks_created'$q$) = 'ok:1'
   and pg_temp.as_val('a_admin@a.test', $q$select (public.assign_tasks_vendor_step('a0000000-0000-4000-8000-00000000da01', 'S438', array['V-no'], 'a0000000-0000-4000-8000-0000000d2531', 'x'))::text$q$) like '22023 invalid_step%');
 select pg_temp.t('4j2', pg_temp.st('V-step') = 'daybefore' and pg_temp.st('V-step2') = 'wrapup');
+-- 0442 (R257) removed the event-day lock: this check runs with its one-line switch on (rolled back with the suite)
+create or replace function public._r442_lock_on() returns boolean language sql stable set search_path = '' as 'select true';
 insert into public.event_plan_locks (quote_id, org_id, state) values (:Q, :A, 'locked') on conflict (quote_id) do update set state = 'locked'; select set_config('helm.r397_plan_lock', 'on', true);
 select pg_temp.t('4k2 locked plan', pg_temp.sc('a_admin@a.test', 'S-lock', 'pre') like 'P0001 plan_locked%' and not exists (select 1 from public.event_tasks where title = 'S-lock'));
 select set_config('helm.r397_plan_lock', 'off', true);

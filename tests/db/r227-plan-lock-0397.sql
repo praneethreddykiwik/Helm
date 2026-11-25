@@ -10,6 +10,7 @@ set client_min_messages = error;
 begin;
 \i supabase/migrations/0397_r227_event_plan_lock.sql
 \i supabase/migrations/0397_r227_event_plan_lock.sql
+-- 0441 (R256) took the floor plan out of the lock: this suite runs the 0397 bodies; r256-layout-lock-0441.sql tests the new rule
 set client_min_messages = warning;
 -- run-all.sh turns the guard off for the older suites; this suite tests it ON
 select set_config('helm.r397_plan_lock', 'on', false);

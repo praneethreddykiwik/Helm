@@ -213,6 +213,8 @@ select pg_temp.res('24 free-trial retention purges the new rows with the studio'
 -- ---- 8) R227 plan lock (0397): choosing a supervisor is execution, allowed while locked; adding a task stays refused ----------
 -- run-all starts the older suites with helm.r397_plan_lock=off; this check needs the lock enforced (like r227-plan-lock-0397.sql)
 select pg_temp.su();
+-- 0442 (R257) removed the event-day lock: this check runs with its one-line switch on (rolled back with the suite)
+create or replace function public._r442_lock_on() returns boolean language sql stable set search_path = '' as 'select true';
 select set_config('helm.r397_plan_lock', 'on', false);
 select pg_temp.login('a_admin@a.test');
 select pg_temp.put('lk', coalesce((select pg_temp.j($q$select public.event_plan_lock_set('a0000000-0000-4000-8000-00000000da01', true, 'final plan')$q$)::text

@@ -154,7 +154,7 @@ await t('5c the old setup-form page is gone: no Add staff form, no tick box hidi
   assert.doesNotMatch(OPS, /id="cr_name"|id="cr_phone"|id="cr_add"|addCrew\(/);
   assert.match(OPS, /href="staff\.html">Add them on the Staff page<\/a>/);
   assert.doesNotMatch(OPS, /id="asTimeOn"/); assert.doesNotMatch(OPS, /Add a start time &amp; reminders to these tasks/);
-  assert.match(OPS, /<div id="asTimeBox">/, 'the picker is shown, not hidden behind a tick box');
+  assert.match(OPS, /<div id="asTimeBox" hidden>/, "R255: no time unless a day is picked");
   assert.doesNotMatch(OPS, /id="opsLegend"/); assert.doesNotMatch(OPS + BRD, /every 5 min until it is started \(up to 6\)/);
   assert.doesNotMatch(OPS, /🔔 Mark special|⏱ Schedule|💬 WhatsApp tasks/);
   assert.match(OPS, /Marked special - extra reminders before the start; if it isn't started, the event lead, then the manager, then the admin \/ owner are told\./);
@@ -163,9 +163,9 @@ await t('5d Smart schedule switch still ON HOLD (phase 7); R226 owns the Ready-b
   assert.doesNotMatch(OPS + BRD + CSS, /[Ss]mart schedule|critical path|crit-on|backward/);
 });
 await t('5e the sheet: when is this work / what / who / start time / tell them, the person list with free / busy / asked off / day off, the button says what happens', () => {
-  assert.match(OPS, /<legend><span data-step>2\. <\/span>What<\/legend>/); assert.match(OPS, /<legend><span data-step>3\. <\/span>Who<\/legend>/);
-  assert.match(OPS, /<legend><span data-step>1\. <\/span>When is this work\?<\/legend>/);   // R251: the step comes first
-  assert.match(OPS, /<legend><span data-step>4\. <\/span>Start time <small>/); assert.match(OPS, /<legend><span data-step>5\. <\/span>Waits for another task <small>/); assert.match(OPS, /<legend><span data-step>6\. <\/span>Tell them<\/legend>/);
+  assert.match(OPS, /<legend><span data-step>1\. <\/span>What<\/legend>/); assert.match(OPS, /<legend><span data-step>3\. <\/span>Who<\/legend>/);
+  assert.match(OPS, /<legend><span data-step>2\. <\/span>When is this work\?<\/legend>/);   // R255: task, step, person, waits for, start time, reminders, tell them
+  assert.match(OPS, /<legend><span data-step>5\. <\/span>Start time <small>/); assert.match(OPS, /<legend><span data-step>4\. <\/span>Waits for another task <small>/); assert.match(OPS, /<legend><span data-step>7\. <\/span>Tell them<\/legend>/);
   // R251: the same depends_on link and checks as Change time -> Depends on; the task panel starts follow-on work and shows both directions
   assert.match(OPS, /<select class="tc-inp" id="as_dep"/); assert.match(OPS, /setSchedule\(x\.id, when\?when\.start:\(x\.planned_start\|\|null\), null, depFor\(x,mine\)\)/);
   assert.match(OPS, /wouldCycle\(id,depId\)\)\)\{ setMsg\("err","That would go round in a circle/); assert.match(OPS, /sheetOpened:\(preset, depId\)=>/);
@@ -216,12 +216,12 @@ await t('7a R251: the header badge is the REAL step; old hand picks go through n
 await t('7b R251: the steps are under the header, each step has its own card order, Wrap-up is the last thing on the page and lives in event-steps.js', () => {
   const at = (id) => OPS.indexOf('id="' + id + '"');
   assert.ok(at('evhead') < at('tcSteps') && at('tcSteps') < at('tcPhase') && at('tcPhase') < at('tcFlow') && at('tcFlow') < at('work') && at('work') < at('tcWrap') && at('shiftCard') < at('tcWrap') && at('flowNext') < at('tcWrap'));
-  for (const [w, first, last] of [['daybefore', 'tcPrep', 'tcFloor'], ['pre', 'tcDelay', 'tcVendors'], ['onday', 'tcRun', 'tcVendors']]) {
+  for (const [w, first, last] of [['daybefore', 'tcDayBefore', 'tcIssues'], ['pre', 'tcPreList', 'tcIssues'], ['onday', 'tcRun', 'tcVendors']]) {
     const list = JSON.parse('[' + BRD.match(new RegExp(w + ': \\[([^\\]]+)\\]'))[1] + ']');
-    assert.deepEqual(list.slice(0, 3), ['attn', 'work', first], 'R253: needs you now, then the tasks, on every step'); assert.equal(list[list.length - 1], last); for (const id of list) assert.ok(at(id) > 0, w + ' ' + id);
+    assert.deepEqual(list.filter((x) => x !== 'tcCheckin' && !(w === 'pre' && x === 'tcVendors')).slice(0, 3), [first, 'attn', 'work'], 'R255: the step own card, then needs you now, then the tasks'); assert.equal(list[list.length - 1], last); for (const id of list) assert.ok(at(id) > 0, w + ' ' + id);
     for (const id of ['work', 'tcFloor']) assert.ok(list.includes(id), w + ' keeps ' + id);
   }
-  const pre = BRD.match(/pre: \[([^\]]+)\]/)[1]; assert.ok(pre.indexOf('"work"') >= 0 && /concat\(TAIL, \["tcPreDone"\]\)/.test(BRD) && /TAIL = \["tcIssues", "tcActCard", "tcCrewCard", "shiftCard", "tcPlanRem"\]/.test(BRD), 'Mark pre-event complete ends the step');
+  const pre = BRD.match(/pre: \[([^\]]+)\]/)[1]; assert.ok(pre.indexOf('"work"') >= 0 && /concat\(TAIL, \["tcPreDone"\]\)/.test(BRD) && /TAIL = \["tcActCard", "tcCrewCard", "shiftCard", "tcPlanRem"\]/.test(BRD), 'Mark pre-event complete ends the step');
   assert.match(BRD, /HelmEventSteps\.renderPreDone\(ph, ctx\)/); assert.match(BRD, /HelmEventWrap\.render\(wh, ctx\)/);
   assert.match(OPS, /<link rel="stylesheet" href="\/event-steps\.css\?v=\d+">/); assert.match(OPS, /<script src="\/event-steps\.js\?v=\d+"><\/script>/);
   assert.doesNotMatch(BRD, /setStageGuided\(|stageBlockers\(|setStage\(/, 'one place moves the stage: event-steps.js');

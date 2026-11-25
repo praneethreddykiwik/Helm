@@ -68,11 +68,11 @@
 <link rel="stylesheet" href="budget-polish.css?v=5">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="vendor-bills.css?v=3">
+<link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="/vendor-flow.css?v=1">
 <link rel="stylesheet" href="money-ledger.css?v=2"><link rel="stylesheet" href="money-header.css?v=2">
-<link rel="stylesheet" href="payment-schedule.css?v=6">
+<link rel="stylesheet" href="payment-schedule.css?v=8"><link rel="stylesheet" href="/resource-steps.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -91,7 +91,8 @@
   <div id="notfound" class="card" hidden><p class="s-1a1aca0">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span> · <span class="muted">Step 4 of 4 (after stock, people and vendors)</span> · <a id="flowBack" href="resources.html">3 What's missing</a></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span> · <span class="muted">Step 4 of 4 (after stock, vendors and people)</span> · <a id="flowBack" href="ops.html">3 Assign our people</a></div>
+    <nav class="rs" data-resource-steps="budget"></nav>
     <p class="page-purpose" id="pagePurpose"><b>Plan:</b> what this event should cost and earn.</p>
 
     <!-- R197 (0376): the one-glance money header + Needs attention + Plan vs actual (money-header-ui.js); Finance view only.
@@ -107,6 +108,8 @@
 
     <div data-ml-mount="margin" data-ml-replaces="netProfit" data-ml-tiles="off" id="moneyLedger" hidden></div>
     <div data-vb-mount="pnl" data-vb-title="📊 How the planned profit adds up" id="netProfit"></div>
+
+    <div class="card" id="vendorFlowCard" hidden></div>
 
     <div class="card">
       <div class="rowh"><h2 class="s-1169661">Cost lines</h2><span class="sub s-1169661">Built from the client's requirements — estimated cost, vendor, quoted price, actual and margin per line.</span>
@@ -166,7 +169,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=3"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-ledger-ui.js?v=4"></script><script src="budget-plan.js?v=4"></script><script src="payment-schedule.js?v=7"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script><script src="extras-bill.js?v=1"></script><script src="money-cash-ui.js?v=2"></script><script src="money-header-ui.js?v=4"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-ledger-ui.js?v=4"></script><script src="budget-plan.js?v=4"></script><script src="payment-followup.js?v=1"></script><script src="payment-schedule.js?v=9"></script><script src="/resource-steps.js?v=2"></script><script src="/vendor-flow.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -263,6 +266,13 @@
   $("#chgBtn").addEventListener("click",openChg);
   $("#ch_cancel").addEventListener("click",requestCloseChg);
   $("#ch_save").addEventListener("click",saveChg);
+  // R257: "Add to the bill" on an extra of the day opens this form filled in - nothing is saved until the person checks the price and presses Add
+  async function chgFromExtra(){
+    if(!canEdit || !window.HelmExtrasBill) return; const p=await HelmExtrasBill.prefill(id).catch(()=>null); if(!p) return;
+    try{ history.replaceState(history.state,"",location.pathname+location.search); }catch(_){}
+    if(p.already){ BPUI.toast(p.already==="billed"?"This extra is already on the bill.":"This extra already has a change request - approve it below.",{type:"info"}); return; }
+    openChg(); $("#ch_title").value=p.title; $("#ch_detail").value=p.detail; if(p.cost!=null){ $("#ch_cost").value=p.cost; $("#ch_price").value=p.cost; } chHint(); setTimeout(()=>$("#ch_price").focus(),80);
+  }
   $("#chgModal").addEventListener("click",e=>{ if(e.target.id==="chgModal") requestCloseChg(); });
 
   async function load(){
@@ -279,6 +289,7 @@
     catch(e){ BPUI.loadError($("#planMount"),e,load,{what:"the cost lines"}); }
     pnlTiles(pnl);
     try{ document.dispatchEvent(new CustomEvent("helm:pnl-refresh")); }catch(_){}
+    if(window.HelmVendorFlow) HelmVendorFlow.budget($("#vendorFlowCard"),id);   // R259: where each vendor stands (asked ... paid)
   }
   // dev pass 3: ONE profit number per event - the top tiles show the same Net profit P&L
   // (bills, staff claims, change orders) as the Net profit panel, Settlement and Closure.
@@ -292,7 +303,7 @@
   BPUI.boot(async ()=>{
     await BPStore.init(); await renderAccount();
     $("#backLink").href = id?("event.html?id="+encodeURIComponent(id)):"quotes.html";
-    $("#flowBack").href = id?("resources.html?quote="+encodeURIComponent(id)):"resources.html";
+    $("#flowBack").href = id?("ops.html?quote="+encodeURIComponent(id)):"ops.html";
     if(!id){ if(window.HelmPickEvent) HelmPickEvent.show($("#notfound"),"budget","budget"); else $("#notfound").hidden=false; return; }   // QA1026 #10
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("finance"))) return;
@@ -305,6 +316,7 @@
     $("#app").hidden=false; $("#addCost").hidden=!canEdit; $("#importBtn").hidden=!canEdit; $("#chgBtn").hidden=!canEdit;
     await load();
     if(window.HelmPaySchedule) HelmPaySchedule.mount($("#paySchedCard"), id, { heading:"h2" });   // r23 (0264)
+    chgFromExtra().catch(()=>{});   // R257
   });
 </script>
 </body>

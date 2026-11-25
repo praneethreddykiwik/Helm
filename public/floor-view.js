@@ -303,10 +303,10 @@
     return loaded[src];
   }
   function load2D() {
-    return Promise.all([load("/builder-tools.js?v=6", function () { return !!global.HelmBuilderTools; }), load("/stage-screen.js?v=5", function () { return !!global.HelmScreen; }), load("/floor-draw.js?v=1", function () { return !!global.HelmFloorDraw; })]).then(wireScreens);
+    return Promise.all([load("/builder-tools.js?v=7", function () { return !!global.HelmBuilderTools; }), load("/stage-screen.js?v=6", function () { return !!global.HelmScreen; }), load("/floor-draw.js?v=2", function () { return !!global.HelmFloorDraw; })]).then(wireScreens);
   }
   function load3D() {
-    return Promise.all([load2D(), load("/capture-frame.js?v=15", function () { return !!global.HelmCaptureFrame; }), load("/dancers-3d.js?v=1", function () { return !!global.HelmDancers; }), load("/floor-3d.js?v=1", function () { return !!global.HelmFloor3D; })]);
+    return Promise.all([load2D(), load("/capture-frame.js?v=15", function () { return !!global.HelmCaptureFrame; }), load("/dancers-3d.js?v=1", function () { return !!global.HelmDancers; }), load("/floor-3d.js?v=3", function () { return !!global.HelmFloor3D; })]);
   }
   // logo / picture references on stage screens -> short-lived signed links (the planner's rule); without one the brand letter shows
   var wired = false, redraw = [];

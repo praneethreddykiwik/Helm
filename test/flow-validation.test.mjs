@@ -230,6 +230,6 @@ t('new quotes elsewhere: lead Convert + quote modal refuse a past event date (st
 });
 t('pins', () => {
   assert.match(flow, /flow-validate\.js\?v=5/); assert.match(flow, /flow-resume\.js\?v=([7-9]|\d{2,})/);
-  assert.match(flow, /flow-autosave\.js\?v=5/); assert.match(flow, /flow-polish\.css\?v=9/);
+  assert.match(flow, /flow-autosave\.js\?v=5/); assert.match(flow, /flow-polish\.css\?v=11/);
 });
 console.log(`flow-validation: ${n} passed`);

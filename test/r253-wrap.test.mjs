@@ -31,13 +31,13 @@ test('progress + what the confirm says; a part that could not be read is named a
   const ctx = { tasks: [{ id: 1, title: 'Pack up the hall', status: 'completed', planned_start: null }, { id: 2, title: 'Lights', status: 'accepted', crew_id: 'x' }], quote: { eventDate: '2026-11-29', eventTime: '19:00' }, tz: 'Asia/Kolkata' };
   const d = { vendors: [{ id: 'a', label: 'Cook', status: 'confirmed' }, { id: 'b', status: 'delivered' }], arrivals: [], stock: { res: [], cos: [{ item_id: 'i', qty_out: 5, qty_in: 0, status: 'out' }, { item_id: 'j', qty_out: 1, qty_in: 1, status: 'returned' }] }, checklist: [{ status: 'open' }, { status: 'na' }], sheet: { c: { in: '9', out: '' } }, issues: [{ status: 'open' }, { status: 'resolved' }] };
   const p = PW.progress(ctx, d); assert.deepEqual([p.done, p.total, p.skipped], [5, 11, []]);
-  assert.equal(PW.openWords(ctx, d), 'Still open: 1 task, 1 vendor not left, 5 pieces of stock out, 1 teardown item, 1 person not checked out, 1 open issue. ');
-  const q = PW.progress(ctx, { ...d, vendors: 'err', stock: 'err', issues: 'err', checklist: 'err', sheet: 'err' }); assert.deepEqual(q.skipped, ['vendors', 'stock', 'teardown list', 'crew', 'issues']); assert.equal(q.total, 2);
+  assert.equal(PW.openWords(ctx, d), 'Still open: 1 task, 1 vendor not left, 5 pieces of stock out, 1 pack-up note, 1 person not checked out, 1 open issue. ');
+  const q = PW.progress(ctx, { ...d, vendors: 'err', stock: 'err', issues: 'err', checklist: 'err', sheet: 'err' }); assert.deepEqual(q.skipped, ['vendors', 'stock', 'pack-up notes', 'crew', 'issues']); assert.equal(q.total, 2);
   assert.match(PW.openWords(ctx, { ...d, stock: 'err' }), /Not checked: stock\. $/);
 });
 test('only calls the other pages already use; read again before, read back after; one press at a time; nothing deleted, no money', () => {
   const calls = [...new Set([...JS.matchAll(/B\(\)\.([a-zA-Z0-9.]+)\(/g)].map((m) => m[1]))].sort();
-  assert.deepEqual(calls, ['auth.handleAuthError', 'bookings.list', 'bookings.update', 'checklist.add', 'checklist.list', 'checklist.update', 'dayops.add', 'dayops.list', 'dayops.setStatus', 'inventory.checkouts.back', 'inventory.checkouts.backV2', 'inventory.checkouts.list', 'inventory.reservations', 'inventory.returnReservation', 'issues.list', 'issues.setStatus', 'ops.shifts.officeCheck', 'ops.shifts.timesheet', 'studioLocale']);
+  assert.deepEqual(calls, ['auth.handleAuthError', 'bookings.list', 'bookings.update', 'checklist.add', 'checklist.list', 'checklist.update', 'dayops.add', 'dayops.list', 'dayops.setStatus', 'inventory.checkouts.back', 'inventory.checkouts.backV2', 'inventory.checkouts.list', 'inventory.reservations', 'inventory.returnReservation', 'issues.list', 'issues.setStatus', 'moneyIn', 'ops.shifts.officeCheck', 'ops.shifts.timesheet', 'studioLocale', 'vendorRequests.issueLink', 'vendorRequests.linkUrl', 'wrapRecords.newKey', 'wrapRecords.vendor']);
   for (const c of ['bookings.update', 'checklist.add', 'checklist.update', 'returnReservation', 'checkouts.back']) assert.ok(TD.includes(c), 'teardown uses ' + c);
   for (const c of ['dayops.setStatus', 'dayops.add']) assert.ok(CMD.includes(c), 'command uses ' + c);
   assert.doesNotMatch(JS, /innerHTML|insertAdjacentHTML|\.style\b|\.remove\(|rpc\(|supa\b|₹/); assert.equal((JS.match(/return CHANGED/g) || []).length >= 4, true); assert.equal((JS.match(/NOSAVE/g) || []).length >= 5, true);
@@ -54,7 +54,7 @@ test('page order: needs you now, tasks, the step, issues + latest, crew, plan & 
   const at = (id) => OPS.indexOf('id="' + id + '"');
   const order = ['tcPhase', 'attn', 'work', 'tcPrep', 'flowNext', 'tcDayBefore', 'tcReady', 'tcRun', 'tcFloor', 'tcVendors', 'tcIssues', 'tcActCard', 'tcCrewCard', 'tcPlanRem', 'tcPreDone', 'tcWrap'].map(at); assert.ok(order.every((x) => x > 0)); assert.deepEqual(order, order.slice().sort((a, b) => a - b));
   for (const id of ['evhead', 'tcPhase', 'chips', 'tcQ', 'addBtn', 'view', 'work', 'attn', 'trmLine', 'tcLock', 'trmCardOps', 'remH', 'waSetupNote', 'feed', 'crewList', 'taskCount']) assert.equal(OPS.split('id="' + id + '"').length, 2, id + ' once');
-  assert.match(BRD, /if \(locked\) w\.push\(\["warn", "Plan locked"\]\)/); assert.match(BRD, /"WhatsApp not set up"/); assert.match(OPS, /OpsBoard\.planRem\(ok===false\)/);
+  assert.doesNotMatch(BRD, /Plan locked|Plan open/); assert.match(BRD, /"WhatsApp not set up"/); assert.match(OPS, /OpsBoard\.planRem\(ok===false\)/);
   for (const k of ['late', 'delay', 'in', 'req', 'appr', 'redo']) assert.match(BRD, new RegExp('needRow\\("' + k + '"'));
   assert.match(BRD, /states\.forEach\(function \(x\) \{ g\.head\.appendChild/); assert.match(BRD, /cls: "tc-empty is-row"/);
 });

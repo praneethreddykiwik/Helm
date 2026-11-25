@@ -62,7 +62,7 @@ t('store-api: trialMode + trialTestApproveCode (falls back to the 0176 confirm o
 t('send-otp: a free trial gets NO code on any channel (no trial_email_otp_begin), store refusal mapped; paid path intact', () => {
   assert.ok(!/admin\.rpc\("trial_email_otp_begin"/.test(OTP), '0212 trial e-mail code path removed');
   assert.match(OTP, /if \(await trialSendBlocked\(admin, \{ token \}\)\) return json\(\{ error: TRIAL_OTP_MSG, trial: true, test_mode: true \}, 403\);/);
-  assert.equal((OTP.match(/trialSendBlocked\(admin, \{ token \}\)/g) || []).length, 2, 'channel + SMS paths');
+  assert.equal((OTP.match(/trialSendBlocked\(admin, \{ token \}\)/g) || []).length, 3, 'channel + SMS + payment code (R258) paths');
   assert.equal((OTP.match(/if \(isTrialNoSend\(error\)\) return json\(\{ error: TRIAL_OTP_MSG/g) || []).length, 2, 'store refusal (0322 trigger) -> 403 trial');
   assert.match(OTP, /Use the test code 000000 on this page/);
   assert.match(OTP, /admin\.rpc\("wa_otp_begin", \{ p_token: token, p_channel: channel, p_user_agent: ua \}\)/);

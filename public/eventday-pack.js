@@ -2,7 +2,7 @@
  *   the 2D floor plan with the hall's sizes + legend + measurements (seats vs guests, stage / dance floor, aisles),
  *   the run-sheet (times, who, where), the crew call sheet (name, role, call time; the phone only when the viewer's role can
  *   see the crew list), the set-up jobs with their latest start (0396), the Day-before checklist, the venue address and
- *   access time, Ready by, and whether the plan is locked (0397).
+ *   access time and Ready by.
  * NO MONEY: no price, total or payment is read for this page (the floor plan comes from event_floor_get, which strips prices;
  * the fallback before 0397 reads only the layout version's shapes). Print = window.print() with the page's print stylesheet
  * (eventday-pack.css): no app chrome, A4 margins, sections kept whole where they fit. DOM only (textContent), no HTML strings. */
@@ -107,8 +107,7 @@
     var vn = D.venue || {}; fact("Venue", vn.name); fact("Address", vn.address); fact("Venue contact", vn.contact); fact("Access", vn.access_notes);
     if (fl && fl.guests) fact("Guests", String(fl.guests));
     var head = h("header", { cls: "pk-head" }, [h("p", { cls: "pk-kicker", text: "Event-day pack" }), h("h1", { text: title }), facts,
-      h("p", { cls: "pk-lock " + (lock && lock.locked ? "on" : "off"), text: lock ? (lock.locked ? "🔒 Plan locked for the event day" + (lock.state === "locked" && lock.changed_by ? " by " + lock.changed_by : "") + " - this is the final plan."
-        : "Plan not locked - it may still change. Lock it on Tasks & Crew when it is final.") : "" })]);
+      lock && lock.stage === "closed" ? null : h("p", { cls: "pk-lock off", text: "Tasks and times may still change after this was printed." })]);
     root.appendChild(head);
 
     // ---- 1 floor plan ----

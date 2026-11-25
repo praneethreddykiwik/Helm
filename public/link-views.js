@@ -192,6 +192,8 @@
       var s = m[id];
       while (el.firstChild) el.removeChild(el.firstChild);
       if (!s || !(Number(s.views) > 0)) {
+        // R257: a confirmed booking has nothing to wait for (the page marks it) - "Not opened yet" would be stale
+        if (panel && el.getAttribute("data-lv-done") === "1") { el.hidden = true; return; }
         if (panel) { el.appendChild(h("p", { cls: "lv-none", text: "👁 Not opened yet - you'll see here (and in the bell) when your client opens their link." })); el.hidden = false; }
         else el.hidden = true;
         return;
@@ -209,6 +211,13 @@
     }).catch(function () {});
     global.addEventListener("helm:link-views", function (e) { if (!e.detail || e.detail.quoteId === id) paint(true).catch(function () {}); });
     global.addEventListener("helm:approval-link", function () { invalidate(id); paint(true).catch(function () {}); });
+    // R257: the client may have opened the link while this page stayed open: ask again when the person comes back to it (at most every 15 s)
+    var askedAt = Date.now();
+    doc.addEventListener("visibilitychange", function () {
+      if (doc.visibilityState !== "visible" || !el.isConnected || Date.now() - askedAt < 15000) return;
+      askedAt = Date.now(); paint(true).catch(function () {});
+    });
+    el.addEventListener("lv:done", function () { paint(false).catch(function () {}); });
   }
 
   /* the timeline dialog */

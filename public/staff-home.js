@@ -90,6 +90,7 @@
     show("#content", true);
     var title = $("#title"), sub = $("#sub"), host = $("#tasks");
     if (title) title.textContent = "Your tasks" + (v.studio ? " - " + String(v.studio) : "");
+    if (global.BPStore && global.BPStore.paintStudio) global.BPStore.paintStudio(v.studio);   // R257: the studio's name in the header
     if (sub) {
       clear(sub);
       sub.appendChild(doc.createTextNode("Hi "));

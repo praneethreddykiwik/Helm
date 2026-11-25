@@ -63,9 +63,9 @@
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="/event-flow-line.css?v=1">
-<link rel="stylesheet" href="stock-flow.css?v=2">
+<link rel="stylesheet" href="stock-flow.css?v=3">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -88,16 +88,16 @@
 
     <div class="card">
       <h2>📦 Stock for this event <span class="prog" id="invProg"></span></h2>
-      <p class="sub">Everything that went <b>Out</b> must come <b>Back</b>. Mark it back here — say how many came back OK and how many are damaged; anything not counted is <b>Missing</b>. Missing and damaged come off what you own.</p>
-      <div class="sf-legend" aria-hidden="true"><span><span class="sf-pill reserved">Reserved</span>held, never taken out — nothing to return</span><span><span class="sf-pill out">Out</span>with a person</span><span><span class="sf-pill back">Back</span>returned</span></div>
+      <p class="sub">Everything that was <b>given out</b> must come <b>back</b>: press <b>Back OK</b>, or <b>Problem</b> when something is damaged, missing or still out. Missing and damaged come off what you own.</p>
+      <div class="sf-legend" aria-hidden="true"><span><span class="sf-pill reserved">Reserved</span>held, never taken out — nothing to return</span><span><span class="sf-pill out">Given out</span>with a person</span><span><span class="sf-pill back">Back</span>returned</span></div>
       <div class="table-scroll"><table><thead><tr><th scope="col">Item</th><th scope="col" class="num">Reserved</th><th scope="col">Now</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody id="invRows"><tr><td colspan="4" class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></td></tr></tbody></table></div>
       <div class="s-56f4356"><a class="btn go" id="ciLink" href="#">Open Inventory for this event →</a></div>
     </div>
 
     <div class="card">
-      <h2>🤝 Vendor &amp; rental exit</h2>
-      <p class="sub">Mark each partner off-site / rentals returned. Wrap-up counts a vendor as gone when it is marked here or as Left on Event-day command.<span id="rpWrap" hidden> Marked the wrong one? Change its status on the <a id="rpLink" href="#">Resource plan</a>.</span></p>
+      <h2>🤝 Vendors: left and items handed back</h2>
+      <p class="sub"><b>All returned</b> = the vendor has left with all their items. Not returned or a problem, with a note: the Vendors tab of Wrap-up on Tasks &amp; Crew. Wrap-up counts a vendor as gone when it is marked here or as Left.<span id="rpWrap" hidden> Marked the wrong one? Change its status on the <a id="rpLink" href="#">Resource plan</a>.</span></p>
       <div id="bkRows"><div class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></div></div>
     </div>
 
@@ -126,15 +126,15 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
-<script src="stock-flow.js?v=2"></script>
-<script src="stock-checkin.js?v=1"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script>
+<script src="stock-flow.js?v=3"></script>
+<script src="stock-checkin.js?v=2"></script>
 <script src="/event-flow-line.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
-  const BK={enquiry:"Enquiry",booked:"Booked",confirmed:"Confirmed",delivered:"Returned/Exited",cancelled:"Cancelled"};
+  const BK={enquiry:"Enquiry",booked:"Booked",confirmed:"Confirmed",delivered:"All returned",cancelled:"Cancelled"};
   const CHK={open:"Open",done:"Done",na:"N/A"};
   let canEdit=false, canDelete=false, ev=null, itemsById={};
   // R252: the vendor rows are saved under Vendors and the teardown list under Event plan - the database refuses the rest without a
@@ -177,7 +177,8 @@
       if(canEdit && r.state==="out"){
         r.outs.forEach(c=>{ const k="co:"+c.id, left=Math.max(Number(c.qty_out||0)-Number(c.qty_in||0),0);
           if(backOpen&&backOpen.key===k){ forms+=formHtml(k,left); return; }
-          acts+=`<button type="button" class="btn go" data-bk-open="${esc(k)}" aria-label="Mark ${esc(it.name)} back from ${esc(c.issued_to||"")}">Mark back${r.outs.length>1?" ("+esc(c.issued_to||"")+")":""}</button>`; });
+          const w=r.outs.length>1?" ("+esc(c.issued_to||"")+")":"", cons=it.item_kind==="consumable";
+          acts+=(cons?"":`<button type="button" class="btn go" data-bok="${esc(c.id)}" aria-label="All ${esc(it.name)} back OK from ${esc(c.issued_to||"")}">Back OK${w}</button>`)+`<button type="button" class="btn${cons?" go":""}" data-bk-open="${esc(k)}" aria-label="${cons?"Count what is left of ":"Problem with "}${esc(it.name)} from ${esc(c.issued_to||"")}">${cons?"Count what is left":"Problem"}${w}</button>`; });
         if(r.legacyOut) r.legacyIds.forEach(rid=>{ const rr=res.find(x=>x.id===rid)||{}; const k="res:"+rid;
           if(backOpen&&backOpen.key===k){ forms+=formHtml(k,Number(rr.qty||0)); return; }
           acts+=`<button type="button" class="btn go" data-bk-open="${esc(k)}" aria-label="Mark ${esc(it.name)} back">Mark back</button>`; });
@@ -187,10 +188,12 @@
         <td>${acts?`<div class="sf-acts">${acts}</div>`:""}</td></tr>`;
     }).join("") : '<tr><td colspan="4" class="empty">No stock was reserved or given out for this event.</td></tr>';
     const host=$("#invRows"), re=()=>section(renderInventory,host,"stock");
+    host.querySelectorAll("[data-bok]").forEach(b=>b.addEventListener("click",()=>act(b,async()=>{ const c=cos.find(x=>x.id===b.dataset.bok), left=Math.max(Number(c.qty_out||0)-Number(c.qty_in||0),0);
+      try{ if(tdCtx) await BPStore.inventory.checkouts.backV2(c.id,{ok:left,damaged:0}); else await BPStore.inventory.checkouts.back(c.id,left,0,null); BPUI.toast("Back OK.",{type:"ok"}); } finally { await re(); } },"mark it back")));
     host.querySelectorAll("[data-bk-open]").forEach(b=>b.addEventListener("click",()=>{
       // R191 (0374): a check-out opens the shared Mark back dialog (consumables, "some are still out", photo proof, who pays)
       const k=b.dataset.bkOpen, c=k.indexOf("co:")===0?cos.find(x=>x.id===k.slice(3)):null;
-      if(c&&window.HelmStockCheckin&&tdCtx){ HelmStockCheckin.open({ checkout:c, item:itemsById[c.item_id]||{}, quoteId:id, ctx:tdCtx, onDone:re }); return; }
+      if(c&&window.HelmStockCheckin&&tdCtx){ HelmStockCheckin.open({ checkout:c, item:itemsById[c.item_id]||{}, quoteId:id, ctx:tdCtx, problem:true, onDone:re }); return; }
       backOpen={key:k}; re().then(()=>{ const f=host.querySelector('[data-bk] [data-f="ok"]'); if(f) f.focus(); }); }));
     host.querySelectorAll("[data-bk]").forEach(f=>f.querySelectorAll("[data-bgo]").forEach(b=>b.addEventListener("click",async()=>{
       if(b.dataset.bgo==="close"){ backOpen=null; return re(); }
@@ -209,13 +212,15 @@
 
   async function renderBookings(){
     if(!seeBk){ $("#bkRows").innerHTML='<div class="empty">Your role can\'t see vendors. Ask someone who can.</div>'; return; }
-    const [bk, arr]=await Promise.all([BPStore.bookings.list(id), seeArr?BPStore.dayops.list(id,"arrival").catch(()=>[]):[]]);
+    const [bk, arr, rec]=await Promise.all([BPStore.bookings.list(id), seeArr?BPStore.dayops.list(id,"arrival").catch(()=>[]):[], BPStore.wrapRecords?BPStore.wrapRecords.get(id).catch(()=>null):null]);
+    const RET={returned:"All items returned",not_returned:"Items not returned",problem:"Returned with a problem"};   // R258 (0444): the answer given in Wrap-up
+    const ret=(b)=>{ const x=rec&&rec.vendor&&rec.vendor[b.id]; return x&&RET[x.state]?RET[x.state]+(x.qty_total!=null&&x.qty_back!=null&&x.state!=="returned"?" ("+Number(x.qty_back)+" of "+Number(x.qty_total)+")":"")+(x.note?": "+x.note:"")+(x.by?" - "+x.by:""):""; };
     const here={}; (arr||[]).forEach(a=>{ if(a&&a.ref_id) here[a.ref_id]=a.status; });   // Event-day command: Arrived / Left / No-show
     const said=(b)=>b.status==="delivered"||b.status==="cancelled"?"":here[b.id]==="left"?"Marked Left on Event-day command.":here[b.id]==="no_show"?"Marked No-show on Event-day command.":here[b.id]==="arrived"?"On site (Event-day command).":b.status==="enquiry"?"Only asked - never booked.":"";
     $("#bkRows").innerHTML = bk.length ? bk.map(b=>`<div class="rowline">
-      <div><div class="nm">${esc(b.label||"Partner")}</div>${said(b)?`<div class="efl-note">${esc(said(b))}</div>`:""}</div>
+      <div><div class="nm">${esc(b.label||"Partner")}</div>${said(b)?`<div class="efl-note">${esc(said(b))}</div>`:""}${ret(b)?`<div class="efl-note">${esc(ret(b))}</div>`:""}</div>
       <span class="st ${esc(b.status)}">${esc(BK[b.status]||b.status)}</span>
-      ${canExit&&(b.status==="booked"||b.status==="confirmed")?`<div class="acts"><button type="button" class="btn go" data-exit="${esc(b.id)}" aria-label="Mark ${esc(b.label||"partner")} returned or exited">Mark returned/exited</button></div>`:""}
+      ${canExit&&(b.status==="booked"||b.status==="confirmed")?`<div class="acts"><button type="button" class="btn go" data-exit="${esc(b.id)}" aria-label="${esc(b.label||"partner")}: ${ret(b)&&rec.vendor[b.id].state!=="returned"?"mark as left":"left, all items returned"}">${ret(b)&&rec.vendor[b.id].state!=="returned"?"Mark as left":"All returned"}</button></div>`:""}
     </div>`).join("") : '<div class="empty">No vendors or rentals booked.</div>';
     $("#bkRows").querySelectorAll("[data-exit]").forEach(b=>b.addEventListener("click",()=>act(b,async()=>{
       const now=(await BPStore.bookings.list(id)).find(x=>x.id===b.dataset.exit);   // cancelled or changed meanwhile: never overwritten

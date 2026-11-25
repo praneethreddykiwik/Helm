@@ -135,6 +135,21 @@
   // several tasks in one go, one start, one person: a quiet line, no question
   function sameStartLine(n, start, who, chain) { return n > 1 && !chain && isFinite(ms(start)) && who ? "All " + n + " start at " + hm(ms(start)) + " for " + who + " - tick One after another, or change the times later." : ""; }
 
-  var A = { find: find, ask: ask, give: give, people: people, board: board, sameStartLine: sameStartLine, _pure: { interval: interval, counts: counts, overlap: overlap, waitsFor: waitsFor, local: local, perItem: perItem, span: span, text: text, remote: remote }, _reset: function () { BD = {}; } };
+  /* R257: the same task given to the same person (or vendor) twice on one event -> the words that are there already ([] = none). who = { crew } | { vendor };
+     skip = task ids that do not count (the ones being given now). Cancelled and turned down ones do not count. */
+  function already(tasks, who, titles, skip) {
+    function k(v) { return String(v == null ? "" : v).trim().toLowerCase().replace(/\s+/g, " "); }
+    var sk = {}, out = []; (skip || []).forEach(function (i) { sk[String(i)] = 1; });
+    (titles || []).forEach(function (t) {
+      if (k(t) && out.indexOf(t) < 0 && (tasks || []).some(function (x) { return x && !sk[String(x.id)] && x.status !== "cancelled" && x.status !== "rejected" && k(x.title) === k(t) && (who && who.vendor ? String(x.vendor_id || "") === String(who.vendor) : !x.vendor_id && who && who.crew && String(x.crew_id || "") === String(who.crew)); })) out.push(t);
+    });
+    return out;
+  }
+  // asks, never blocks: "Suresh already has Build stage and dance floor here - give it again?"
+  function askSame(tasks, who, name, titles, skip) {
+    var l = already(tasks, who, titles, skip); if (!l.length || !global.BPUI || !global.BPUI.confirm) return Promise.resolve(true);
+    return Promise.resolve(global.BPUI.confirm(String(name || "They").split(/\s+/)[0] + " already has " + (l.length < 3 ? l.join(" and ") : l.slice(0, 2).join(", ") + " and " + (l.length - 2) + " more") + " here - give " + (l.length === 1 ? "it" : "them") + " again?", { title: "Already given", okLabel: "Give again", cancelLabel: "Not now" })).then(Boolean, function () { return true; });
+  }
+  var A = { already: already, askSame: askSame, find: find, ask: ask, give: give, people: people, board: board, sameStartLine: sameStartLine, _pure: { interval: interval, counts: counts, overlap: overlap, waitsFor: waitsFor, local: local, perItem: perItem, span: span, text: text, remote: remote }, _reset: function () { BD = {}; } };
   global.HelmTaskClash = A; if (typeof module !== "undefined" && module.exports) module.exports = A;
 })(typeof window !== "undefined" ? window : globalThis);

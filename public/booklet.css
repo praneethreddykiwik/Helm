@@ -3,7 +3,7 @@
    --accent is replaced at runtime by the studio's brand accent (CSSOM, validated hex). */
 :root{
   --bg:#f7f3ec;--paper:#fffdf9;--ink:#1f1a17;--ink-2:#4a423b;--ink-3:#7a6f64;--line:#e6ddd0;--line-2:#f0e9de;
-  --accent:#8a5a2b;--accent-ink:#fff;--accent-soft:rgba(138,90,43,.10);--ok:#1f7a4a;--due:#a5512a;
+  --accent:#047857;--accent-ink:#fff;--accent-soft:rgba(4,120,87,.10);--ok:#1f7a4a;--due:#a5512a;
   --serif:"Cormorant Garamond",Georgia,"Times New Roman",serif;
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --shadow:0 1px 2px rgba(31,26,23,.05),0 18px 40px rgba(31,26,23,.08);
@@ -40,7 +40,7 @@ a{color:var(--accent)}
 .cover-inner{max-width:880px;margin:0 auto;padding:28px 16px 40px}
 .studio{display:flex;align-items:center;gap:12px;margin-bottom:44px}
 .logo{width:52px;height:52px;object-fit:contain;border-radius:12px;background:var(--paper);border:1px solid var(--line)}
-.studio-mark{width:44px;height:44px;border-radius:12px;background:var(--accent);flex:0 0 auto}
+.studio-mark{width:44px;height:44px;border-radius:12px;background:var(--accent);color:var(--accent-ink);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font:700 17px/1 var(--sans);letter-spacing:.02em}
 .studio-mark.has-logo{display:none}
 .studio-name{font-family:var(--serif);font-size:24px;font-weight:700;line-height:1.1}
 .studio-contact{font-size:13px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:4px 14px}

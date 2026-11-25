@@ -41,6 +41,7 @@
   .fld input,.fld select{height:38px;border:1px solid var(--line);background:var(--panel-2);border-radius:9px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--ink)}
 
   .rs{position:relative}
+  .addrow:not(#_)>.rs-t:has(>input[type=time]){flex:1 0 148px;min-width:148px}   /* R257: "09:00 PM" + the clock icon never cut */
   .row{display:grid;grid-template-columns:150px 1fr auto;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--line-2)}
   .row .time{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--accent)}
   .row .time .dur{display:block;font-weight:400;font-size:12px;color:var(--ink-3);margin-top:2px}
@@ -68,10 +69,10 @@
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="/event-flow-line.css?v=1">
-<link rel="stylesheet" href="event-floor.css?v=2">
+<link rel="stylesheet" href="event-floor.css?v=4">
 <link rel="stylesheet" href="/task-waits.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -99,11 +100,11 @@
     </div>
     <p class="rs-intro" id="rsIntro">Run-sheet = the programme of the event, minute by minute (e.g. 7:00 guests arrive, 8:30 cake cutting). Share it with the client, the venue and vendors. Each line can have an owner who gets a reminder.<span id="rsOpsWrap" hidden> Who does which job is on <a id="rsOps" href="#">Tasks &amp; Crew</a>.</span></p>
 
-    <!-- R227 (0397): "Locked for the event day - Unlock to edit"; while locked the lines are view only (the database refuses changes; reminders still go) -->
+    <!-- R257: there is no event-day lock any more; only a database without 0442 shows its one line here -->
     <div class="ef-lock" id="planLock" hidden></div>
     <div class="card" id="addCard" hidden>
       <div class="addrow">
-        <div class="fld"><label for="r_time">Start time</label><input type="time" id="r_time"></div>
+        <div class="fld rs-t"><label for="r_time">Start time</label><input type="time" id="r_time"></div>
         <div class="fld"><label for="r_dur">Mins</label><input type="number" min="1" id="r_dur" aria-describedby="addErr" placeholder="e.g. 30"></div>
         <div class="fld"><label for="r_title">Activity *</label><input id="r_title" maxlength="200" required placeholder="e.g. Guests arrive / Cake cutting"></div>
         <div class="fld"><label for="r_owner">Owner</label><select id="r_owner"><option value="">Select person…</option></select><input id="r_owner_other" maxlength="120" placeholder="Type a name" aria-label="Owner name" hidden></div>
@@ -167,11 +168,11 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
-<script src="page-tours.js?v=79"></script>
-<script src="tour.js?v=93"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script>
+<script src="page-tours.js?v=84"></script>
+<script src="tour.js?v=98"></script>
 <script src="runsheet-remind.js?v=3"></script>
-<script src="event-floor.js?v=3"></script>
+<script src="event-floor.js?v=6"></script>
 <script src="/event-flow-line.js?v=1"></script>
 <script src="/task-waits.js?v=1"></script>
 <script>
@@ -200,16 +201,17 @@
       $("#logoutBtn").addEventListener("click",async()=>{await BPStore.auth.signOut();location.href="dashboard.html";});
     } else { el.innerHTML=`<button id="loginBtn">Sign in</button>`; $("#loginBtn").addEventListener("click",()=>location.replace("login.html?next="+encodeURIComponent(HelmUrl.here()))); } }
 
+  const t12=(t)=>t?(BPStore.clock12?BPStore.clock12(hhmm(t)):hhmm(t)):"";   // R257: 9:00 pm, as everywhere else
   function render(){
     if(!items.length){ $("#rows").innerHTML='<div class="empty">No run-sheet items yet.'+(canEdit?' Add the first one above.':'')+'</div>'; hEmpty($("#rows"),{icon:"🕒",title:"No run-sheet items yet",text:"Plan the day minute by minute — arrivals, speeches, cake cutting.",actionLabel:canEdit?"Add the first item":"",onAction:()=>{ const i=$("#r_title"); if(i){ i.scrollIntoView({block:"center"}); i.focus(); } }}); $("#win").hidden=true; return; }
     // day window
     const withTime=items.filter(i=>i.start_time);
-    if(withTime.length){ const first=hhmm(withTime[0].start_time); const last=withTime[withTime.length-1];
-      const end=addMin(last.start_time,last.duration_min)||hhmm(last.start_time);
+    if(withTime.length){ const first=t12(withTime[0].start_time); const last=withTime[withTime.length-1];
+      const end=t12(addMin(last.start_time,last.duration_min)||last.start_time);
       $("#win").hidden=false; $("#win").textContent="🕒 "+first+" – "+end+" · "+items.length+(items.length===1?" item":" items"); }
     else { $("#win").hidden=false; $("#win").textContent=items.length+(items.length===1?" item":" items"); }
     $("#rows").innerHTML=items.map(i=>{
-      const start=hhmm(i.start_time)||"—"; const end=addMin(i.start_time,i.duration_min);
+      const start=t12(i.start_time)||"—"; const end=t12(addMin(i.start_time,i.duration_min));
       return `<div class="row">
         <div class="time">${esc(start)}${end?`<span class="dur">to ${esc(end)}${i.duration_min?` · ${esc(i.duration_min)} min`:""}</span>`:(i.duration_min?`<span class="dur">${esc(i.duration_min)} min</span>`:"")}</div>
         <div class="what"><b>${esc(i.title)}</b>
@@ -307,9 +309,9 @@
     if(!BRIEF && location.hash==="#my-tasks"){ try{ BRIEF=await BPStore.ops.crew.eventBrief(id); }catch(e){ BRIEF=null; }
       if(BRIEF){ MINE=true; renderMyTasks(); } }
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"")+(ev.eventDate?(" · "+ev.eventDate):"");
-    // R227 (0397): a plan locked for the event day = the run-sheet is view only here (no bar / no change before 0397)
-    if((!BRIEF||MINE) && window.HelmEventFloor){ const st=await HelmEventFloor.lockBar($("#planLock"),{ quoteId:id, onChange:()=>location.reload() });
-      if(st && st.locked){ canEdit=false; canDelete=false; } }
+    // a closed event keeps its run-sheet (the database refuses changes)
+    if((!BRIEF||MINE) && window.HelmEventFloor){ const st=await HelmEventFloor.planState($("#planLock"),{ quoteId:id });
+      if(st.closed){ canEdit=false; canDelete=false; } }
     if((!BRIEF||MINE) && window.HelmFlowLine) HelmFlowLine.mount($("#flowLine"),ev,{id,dayBefore:true});
     $("#app").hidden=false; $("#addCard").hidden=!canEdit;
     await RR.init(BPStore,{ canPick:canEdit });   // R231: view-only -> no team list asked (Run sheet - Can change only)

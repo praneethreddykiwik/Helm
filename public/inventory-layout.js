@@ -95,42 +95,96 @@
       return t && has(TABLES, t.layout_type) && n(t.seats) > 0 && !((t.links || []).some(function (l) { return l && l.count_mode === "seats"; }));
     }).map(function (t) { return { layout_type: t.layout_type, name: typeLabel(t.layout_type, t.label), objects: n(t.objects), seats: n(t.seats), label: "Chairs for " + typeLabel(t.layout_type, t.label) }; });
   }
-  // the words of a name that say what it is ("Round table 5ft" -> round, table)
+  // the other half: the chairs around a table are linked but the table itself is not - the server calls that table "linked"
+  function tableGaps(block) {
+    return ((block && block.types) || []).filter(function (t) { var l = (t && t.links) || []; return t && has(TABLES, t.layout_type) && l.length > 0 && !l.some(function (x) { return x && x.count_mode !== "seats"; }); });
+  }
+  // the words of a name that say what it is ("Round table 5ft" -> round, table); spelling and everyday names are folded
+  var SAME = { microphone: "mic", mike: "mic", centrepiece: "centerpiece", centre: "center", couch: "sofa", settee: "sofa", colour: "color", genset: "generator", television: "tv",
+    chivari: "chiavari", chavari: "chiavari", mandapam: "mandap", jyoti: "jyothi", prajwalan: "prajwalana", kalasham: "kalash", diya: "deepam", registration: "reg", barricading: "barricade" };
   function words(s) {
-    return String(s || "").toLowerCase().replace(/\u00b7|demo|\(.*?\)/g, " ").replace(/[^a-z0-9]+/g, " ").split(" ")
+    return String(s || "").toLowerCase().replace(/·|demo|sample|\(.*?\)/g, " ").replace(/[^a-z0-9]+/g, " ").split(" ")
       .filter(function (w) { return w && !/^\d/.test(w) && ["ft", "m", "x", "the", "a", "of", "for", "and", "with", "set", "generic", "pcs", "single"].indexOf(w) < 0; })
-      .map(function (w) { return w.length > 3 ? w.replace(/(ches|shes|sses|xes)$/, function (e) { return e.slice(0, -2); }).replace(/([^s])s$/, "$1") : w; });
+      .map(function (w) { w = w.length > 3 ? w.replace(/(ches|shes|sses|xes)$/, function (e) { return e.slice(0, -2); }).replace(/([^s])s$/, "$1") : w; return has(SAME, w) ? SAME[w] : w; });
   }
   function subset(a, b) { return a.length > 0 && a.every(function (w) { return b.indexOf(w) >= 0; }); }
-  // the one stock item that fits a product by name (null = none, or several fit equally well: the person picks). Never links by itself.
-  function matchItem(words0, items, not) {
+  // the thing itself is the last word that is not just a look or a size: "Sofa 3 seater white" = sofa, "Bar stool" = stool (not a bar),
+  // "Chair cover" = cover (not a chair)
+  var LOOKS = {}; "white black gold golden silver red blue green ivory pink brown cream large small big medium mini tall short seater wooden wood metal steel plastic acrylic outdoor indoor premium standard heavy duty new old type piece unit".split(" ").forEach(function (w) { LOOKS[w] = 1; });
+  function head(w) { var l = (w || []).slice(); while (l.length > 1 && LOOKS[l[l.length - 1]]) l.pop(); return l[l.length - 1] || ""; }
+  // the names a floor-plan type goes by: "Dessert / Candy Table" = dessert table, candy table; plus the safe everyday ones
+  var ALSO = { dj: ["DJ console", "DJ table"], foh: ["Mixing console", "Sound console", "Sound mixer", "Audio mixer"], speaker: ["PA speaker", "Speaker"], subwoofer: ["Sub woofer"], monitor: ["Monitor speaker", "Floor monitor"],
+    linearray: ["Linear array"], led: ["LED wall"], videowall: ["LED wall"], movinghead: ["Moving head"], stanchion: ["Rope barrier", "Queue barrier"], heater: ["Gas heater", "Outdoor heater"], smoke: ["Fog machine"],
+    generator: ["DG set generator"], redcarpet: ["Red carpet"], tvstand: ["TV stand"], extinguisher: ["Fire extinguisher"], restroom: ["Portable toilet"], towerlight: ["Light tower"], truss: ["Truss"], diyastand: ["Deepam stand"], desk: ["Registration table"] };
+  function namesOf(type, label) {
+    var out = [], raw = String(typeLabel(type, label) || "").replace(/\(.*?\)/g, " "), alts = raw.split("/").map(function (x) { return x.trim(); }).filter(Boolean);
+    out.push(words(raw));
+    if (alts.length > 1) { var last = words(alts[alts.length - 1]); alts.forEach(function (x) { var w = words(x); if (!w.length) return;
+      if (w.length === 1 && last.length > 1 && x !== alts[alts.length - 1]) w = w.concat(last.slice(-1)); out.push(w); }); }
+    (has(ALSO, type) ? ALSO[type] : []).forEach(function (x) { out.push(words(x)); });
+    return out.filter(function (w, i) { return w.length && out.findIndex(function (z) { return z.join(" ") === w.join(" "); }) === i; });
+  }
+  // how well a stock item fits a name: 4 = the same words, 3 = the name plus more words, 2 = a shorter name for it; 0 = not the same thing
+  function fitScore(words0, itemWords) {
+    if (!words0.length || !itemWords.length) return 0;
+    if (subset(words0, itemWords) && subset(itemWords, words0)) return 4;
+    if (head(words0) !== head(itemWords)) return 0;
+    if (subset(words0, itemWords)) return 3;
+    return itemWords.length > 1 && subset(itemWords, words0) ? 2 : 0;
+  }
+  // the catalogue product a name belongs to word for word: "Chocolate fountain" is that product, never the plain Fountain
+  var EXACT = null;
+  function ownType(w) {
+    if (!EXACT) { EXACT = {}; Object.keys(LABELS).forEach(function (t) { namesOf(t).forEach(function (x) { var k = x.slice().sort().join(" "); if (!has(EXACT, k)) EXACT[k] = t; }); }); }
+    var k = w.slice().sort().join(" "); return has(EXACT, k) ? EXACT[k] : "";
+  }
+  // every stock item that fits a product by name, the best fits only
+  function fits(names, items, not, type) {
     var best = [], bestScore = 0;
     (items || []).forEach(function (i) {
       if (!i || i.active === false || (not && not[i.id])) return;
-      var w = words(i.name), sc = 0;
-      if (!w.length) return;
-      if (subset(words0, w) && subset(w, words0)) sc = 4; else if (subset(words0, w)) sc = 3; else if (w.length > 1 && subset(w, words0)) sc = 2;
-      if (!sc) return;
+      var w = words(i.name), sc = names.reduce(function (a, nm) { return Math.max(a, fitScore(nm, w)); }, 0);
+      if (!sc || (sc < 4 && type && ownType(w) && ownType(w) !== type)) return;
       if (sc > bestScore) { best = [i]; bestScore = sc; } else if (sc === bestScore) best.push(i);
     });
-    return best.length === 1 ? best[0] : null;
+    return best;
   }
-  function suggestLink(t, items, links, part) {
+  // { hit: the one stock item that fits (null = none, or several fit equally well: the person picks), list: what could fit }. Never links by itself.
+  function findFits(t, items, links, part) {
     var type = String((t && t.layout_type) || ""), not = {}, all = links || [];
-    if (has(PLACES, type)) return null;
+    if (has(PLACES, type)) return { hit: null, list: [], seats: false };
     all.forEach(function (l) { if (l && l.layout_type === type) not[l.item_id] = 1; });
     var byId = {}; (items || []).forEach(function (i) { if (i && i.active !== false) byId[i.id] = i; });
-    var seatPart = part === "seats" || has(ROWS, type), hit = null;
+    var seatPart = part === "seats" || has(ROWS, type), list = [];
     if (seatPart) {
       // the chair the studio already counts per seat for another product, else the only chair in stock
       var used = {}; all.forEach(function (l) { if (l && l.count_mode === "seats" && byId[l.item_id] && !not[l.item_id]) used[l.item_id] = 1; });
       var ids = Object.keys(used);
-      if (ids.length === 1) hit = byId[ids[0]];
-      else { var ch = Object.keys(byId).map(function (k) { return byId[k]; }).filter(function (i) { return !not[i.id] && words(i.name).indexOf(type === "cocktail" ? "stool" : "chair") >= 0; }); hit = ch.length === 1 ? ch[0] : null; }
+      list = ids.length === 1 ? [byId[ids[0]]] : Object.keys(byId).map(function (k) { return byId[k]; }).filter(function (i) { return !not[i.id] && head(words(i.name)) === (type === "cocktail" ? "stool" : "chair"); });
     } else if (type === "chiavari") {
-      hit = matchItem(["chiavari", "chair"], items, not) || matchItem(["chair"], items, not);
-    } else hit = matchItem(words(typeLabel(type, t.label)), items, not) || (words(type)[0] && words(type)[0].length > 3 && !has(TABLES, type) && !has(ROWS, type) ? matchItem([words(type)[0]], items, not) : null);
-    return hit ? { item_id: hit.id, name: hit.name, total: hit.total_qty, mode: seatPart ? "seats" : "objects", per: 1 } : null;
+      list = fits([["chiavari", "chair"]], items, not); if (list.length !== 1) { var ch = fits([["chair"]], items, not); if (!list.length) list = ch; }
+    } else {
+      list = fits(namesOf(type, t && t.label), items, not, type);
+      // the short name of the type ("Stage" for Main Stage) only when the item is called exactly that
+      var short = words(type)[0];
+      if (!list.length && short && short.length > 3 && !has(TABLES, type) && !has(ROWS, type)) list = fits([[short]], items, not, type).filter(function (i) { return words(i.name).join(" ") === short; });
+    }
+    return { hit: list.length === 1 ? list[0] : null, list: list, seats: seatPart };
+  }
+  function suggestLink(t, items, links, part) {
+    var f = findFits(t, items, links, part), hit = f.hit;
+    return hit ? { item_id: hit.id, name: hit.name, total: hit.total_qty, mode: f.seats ? "seats" : "objects", per: 1 } : null;
+  }
+  // what one tap can do for each suggestion, in the order shown: two products that use the same item share what is free.
+  // rows [{ item_id, want }], freeOf(id) -> number | null (not known yet), pending { id: already needed by linked products } -> [{ free, take, short }]
+  function planTake(rows, freeOf, pending) {
+    var left = {};
+    return (rows || []).map(function (r) {
+      var f = freeOf ? freeOf(r.item_id) : null; if (f == null || !isFinite(Number(f))) return { free: null, take: 0, short: 0 };
+      if (!has(left, r.item_id)) left[r.item_id] = Math.max(Math.floor(n(f)) - n(pending && pending[r.item_id]), 0);
+      var free = left[r.item_id], want = Math.max(Math.ceil(n(r.want)), 0), take = Math.min(free, want); left[r.item_id] = free - take;
+      return { free: free, take: take, short: want - take };
+    });
   }
   // "Gold chiavari 100, Folding chair 20" - the looks of the single chairs on the saved plan ("" when there is only the default one)
   function styleSplit(items, type) {
@@ -231,8 +285,8 @@
   }
   function shortOnly(events) { return (events || []).filter(function (e) { return n(e.short_items) > 0 || n(e.shared_items) > 0; }); }
 
-  var api = { LABELS: LABELS, FLOOR_SEATS: FLOOR_SEATS, STYLES: STYLES, seatsShown: seatsShown, countText: countText, linkMode: linkMode, thingOf: thingOf, seatGaps: seatGaps,
-    words: words, suggestLink: suggestLink, styleSplit: styleSplit, outQty: outQty, coverOf: coverOf, CATS: CATS, RANGES: RANGES, catName: catName, typeLabel: typeLabel, addDays: addDays, rowNums: rowNums, groupItems: groupItems,
+  var api = { LABELS: LABELS, FLOOR_SEATS: FLOOR_SEATS, STYLES: STYLES, seatsShown: seatsShown, countText: countText, linkMode: linkMode, thingOf: thingOf, seatGaps: seatGaps, tableGaps: tableGaps,
+    words: words, head: head, namesOf: namesOf, findFits: findFits, planTake: planTake, suggestLink: suggestLink, styleSplit: styleSplit, outQty: outQty, coverOf: coverOf, CATS: CATS, RANGES: RANGES, catName: catName, typeLabel: typeLabel, addDays: addDays, rowNums: rowNums, groupItems: groupItems,
     reservePlan: reservePlan, sameDayText: sameDayText, unlinkedAll: unlinkedAll, strip: strip, shortOnly: shortOnly, fmt: fmt };
   if (typeof module !== "undefined" && module.exports) { module.exports = api; return; }
 
@@ -256,7 +310,7 @@
   function writeHidden(o) { try { root.localStorage.setItem(HIDE_KEY, JSON.stringify(o || {})); } catch (e) {} }
   function today() { try { var t = root.BPStore.todayLocal(); if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t; } catch (e) {} return new Date().toISOString().slice(0, 10); }
 
-  var S = { o: null, quoteId: null, canEdit: false, overview: null, links: [], days: 30, shortOnly: false, hidden: readHidden(), available: null, busy: false,
+  var S = { last: null, qbusy: false, o: null, quoteId: null, canEdit: false, overview: null, links: [], days: 30, shortOnly: false, hidden: readHidden(), available: null, busy: false,
     vend: null, canVendor: false, vendors: [], shorts: [], evs: {}, floor: null };   // R252: who may ask a vendor, the vendors, open shortages, per event its bookings / needs / check-outs, the open event's saved plan
 
   function fmtDate(d) { try { return S.o && S.o.fmtDate ? S.o.fmtDate(d) : String(d || ""); } catch (e) { return String(d || ""); } }
@@ -367,39 +421,215 @@
         h("th", { scope: "col", cls: "ls-actcell" }, [h("span", { cls: "sr-only", text: "Actions" })])])]),
       tb])]);
   }
-  // a product of the plan with no stock item: its numbers, a suggestion, the ways to get it
-  function freeRow(block, u, thing, sub, part) {
-    var list = asked(block.quote_id, { label: thing.label }), left = coverOf(thing.qty, list).left;
-    var row = h("li", { cls: "ls-prow" }), acts = h("div", { cls: "ls-pacts" });
-    row.appendChild(h("div", { cls: "ls-pname" }, [h("b", { text: u.label + " x " + fmt(u.count) }), sub ? h("span", { cls: "ls-sub", text: sub }) : null, askedLine(list)]));
-    if (S.canEdit) {
-      var items = (S.o && S.o.items && S.o.items()) || [], sug = suggestLink(u.raw, items, S.links, part);
-      if (sug) acts.appendChild(linkBtn(u, sug));
-      acts.appendChild(pickBtn({ layout_type: u.layout_type, label: u.label, category: u.category, seats: u.seats, mode: part === "seats" ? "seats" : linkMode(u.layout_type, u.seats) }, row, sug ? "Other item" : "Link to stock"));
+  /* ---- R255: one tap = link the product to the stock item that fits AND reserve it for this event (owner: "make it intelligent") ---- */
+  function freeOf(itemId) { try { var v = S.o && S.o.freeFor ? S.o.freeFor(itemId) : null; return v == null || !isFinite(Number(v)) ? null : Math.max(Math.floor(Number(v)), 0); } catch (e) { return null; } }
+  function dayWord(block) { return !block || !block.from ? "free" : block.to && block.to !== block.from ? "free on those days" : "free that day"; }
+  function uKey(u, part) { return u.layout_type + "|" + (part || ""); }
+  // link first (the same link again is the same row), then ask the server what is still to reserve: a second tap, or another tab, finds 0
+  function linkAndReserve(block, q) {
+    var B = root.BPStore.inventory, had = (S.links || []).some(function (l) { return l && l.layout_type === q.type && l.item_id === q.item_id; }), done = { label: q.label, item: q.name, reserved: 0, short: q.want, link: null, res: null, newLink: !had };
+    return B.layout.setLink(q.type, q.item_id, 1, q.mode).then(function (l) {
+      if (!l) throw userErr("This needs the latest database update.");
+      done.link = l.link_id || null;
+      return B.layout.needs(block.quote_id);
+    }).then(function (nd) {
+      var it = ((nd && nd.items) || []).filter(function (x) { return x.item_id === q.item_id; })[0], r = rowNums(it || {});
+      var take = it ? Math.min(q.want, Math.ceil(r.toReserve), Math.floor(r.free)) : 0;
+      if (!(take > 0)) return done;
+      return B.reserve(q.item_id, block.quote_id, take, "From the floor plan: " + q.label).then(function (row) { done.reserved = take; done.short = Math.max(q.want - take, 0); done.res = row && row.id ? row.id : null; return done; },
+        function (e) { done.err = friendly(e, "reserve"); return done; });   // the server said no (someone was faster): the link stays, nothing is reserved
+    });
+  }
+  function doneText(d) {
+    var what = d.reserved ? fmt(d.reserved) + " reserved" + (d.short ? ", " + fmt(d.short) + " still missing" : "") : d.err ? "nothing reserved: " + String(d.err).replace(/\.$/, "") : "nothing more to reserve";
+    return d.label + " is linked to " + optName(d.item) + " - " + what + ".";
+  }
+  function afterReserve(block, list, failed) {
+    S.last = { quoteId: block.quote_id, lines: list.map(doneText), res: list.filter(function (d) { return d.res; }).map(function (d) { return { id: d.res }; }), links: list.filter(function (d) { return d.newLink && d.link; }).map(function (d) { return d.link; }),
+      note: list.some(function (d) { return d.newLink; }) ? "Helm remembers the link for your other events." : "" };
+    failed = (failed || []).concat(list.filter(function (d) { return d.err; }).map(function (d) { return d.label + ": " + d.err; }));
+    if (failed.length) toast("Not done: " + failed.join("; "), "err");
+    var ok = list.filter(function (d) { return d.reserved; }).length; if (ok) toast(ok === 1 && list.length === 1 ? doneText(list[0]) : "Reserved " + ok + " of " + list.length + " items.", "ok");
+    return Promise.resolve(S.o && S.o.reload && S.o.reload()).then(refresh);
+  }
+  function reserveBtn(block, q) {
+    var b = h("button", { type: "button", cls: "btn sm ls-act primary", text: q.take < q.want ? "Reserve " + fmt(q.take) : "Reserve " + fmt(q.take) + " - " + fmt(q.free) + " " + dayWord(block), "aria-label": "Reserve " + fmt(q.take) + " " + optName(q.name) + " for " + q.label + ", " + fmt(q.free) + " " + dayWord(block) });
+    b.addEventListener("click", function () {
+      if (S.qbusy) return; S.qbusy = true; b.disabled = true; b.textContent = "Reserving...";
+      linkAndReserve(block, q).then(function (d) { return afterReserve(block, [d]); }).catch(function (e) { toast((e && e.userText) || friendly(e, "reserve from stock"), "err"); return refresh(); })
+        .then(idle, idle);
+    });
+    return b;
+  }
+  // R258 (owner: "assigning there would be good instead of multiple steps"): reserve and give it out in one go - the same two saves, one after the other
+  function giveBtn(block, q) {
+    if (!S.o || !S.o.give || !S.o.peopleSelect) return null;
+    var b = h("button", { type: "button", cls: "btn sm ls-act", text: "Reserve and give to...", "aria-label": "Reserve " + fmt(q.take) + " " + optName(q.name) + " and give them to a person" });
+    b.addEventListener("click", function () {
+      if (S.qbusy) return; var sel = S.o.peopleSelect(); sel.setAttribute("aria-label", "Give to");
+      modal("Reserve and give out", h("div", {}, [h("p", { cls: "sub", text: fmt(q.take) + " " + optName(q.name) + " for " + q.label + " are reserved and given to this person." }), sel]), "Reserve and give out", function () {
+        var to = S.o.pickOf(sel); if (!to) return Promise.reject(userErr("Choose who gets it."));
+        if (S.qbusy) return Promise.reject(userErr("Wait a moment - something is being saved.")); S.qbusy = true;
+        return linkAndReserve(block, q).then(function (d) {
+          if (!d.reserved) return afterReserve(block, [d]);
+          return S.o.give(q.item_id, d.reserved, to).then(function (r) {
+            return afterReserve(block, [d]).then(function () { toast(r.ok ? fmt(d.reserved) + " " + optName(q.name) + " given out to " + to.name + "." : fmt(d.reserved) + " reserved, but not given out: " + (r.err || "not enough is free in the store right now") + " Press Give out in its row to try again.", r.ok ? "ok" : "err"); }); });
+        }).then(function (x) { idle(); return x; }, function (e) { idle(); throw e; });
+      });
+      setTimeout(function () { try { sel.focus(); } catch (e) {} }, 40);
+    });
+    return b;
+  }
+  // R257: free again = an Undo drawn while the save was still finishing becomes pressable (it was drawn enabled and did nothing for a moment)
+  function idle() { S.qbusy = false; Array.prototype.forEach.call(doc.querySelectorAll(".ls-undo[data-wait]"), function (u) { u.removeAttribute("data-wait"); u.disabled = false; u.textContent = "Undo"; }); }
+  // R257: "Reserve all" - the products that share a stock item or a product type one after the other, up to 3 such lanes side by side (the server
+  // still checks every single reservation); a lost answer stops nothing
+  function lanesOf(qs) {
+    var lanes = [];
+    qs.forEach(function (q) {
+      var hit = lanes.filter(function (l) { return l.some(function (x) { return x.item_id === q.item_id || x.type === q.type; }); }), one = [];
+      hit.forEach(function (l) { one = one.concat(l); lanes.splice(lanes.indexOf(l), 1); }); one.push(q); lanes.push(one);
+    });
+    return lanes;
+  }
+  function runLanes(lanes, n, work) {
+    var i = 0;
+    function next() { if (i >= lanes.length) return Promise.resolve(); var l = lanes[i++]; return l.reduce(function (p, q) { return p.then(function () { return work(q); }); }, Promise.resolve()).then(next); }
+    var w = []; for (var k = 0; k < Math.min(n, lanes.length); k++) w.push(next());
+    return Promise.all(w);
+  }
+  // while it runs: leaving the page asks first, and what was done is remembered in this tab (shown when the person comes back)
+  var RUN_KEY = "helm.ls.run";
+  function runMark(v) { try { if (v) sessionStorage.setItem(RUN_KEY, JSON.stringify(v)); else sessionStorage.removeItem(RUN_KEY); } catch (e) {} }
+  function runRead() { try { var v = JSON.parse(sessionStorage.getItem(RUN_KEY) || "null"); return v && v.quoteId ? v : null; } catch (e) { return null; } }
+  function leaveAsk(e) { e.preventDefault(); e.returnValue = ""; }
+  function resumeNote() {
+    var v = S.qbusy ? null : runRead(); if (!v || v.quoteId !== S.quoteId || !(v.done < v.total)) return null;
+    var box = h("div", { cls: "ls-done", role: "status" }, [h("div", { cls: "ls-done-t" }, [h("b", { text: "Reserve all was stopped: " + fmt(v.done) + " of " + fmt(v.total) + " products were done." }),
+      h("span", { cls: "ls-sub", text: "What was done stays. Press Reserve all suggested (or Reserve on a product) below for the rest - nothing is reserved twice." })])]);
+    var x = h("button", { type: "button", cls: "btn sm ls-act", text: "OK", "aria-label": "Close this message" }); x.addEventListener("click", function () { runMark(null); box.remove(); }); box.appendChild(x);
+    return box;
+  }
+  function reserveAllBtn(block, qs) {
+    var b = h("button", { type: "button", cls: "btn primary sm ls-act", text: "Reserve all suggested (" + fmt(qs.length) + ")" });
+    b.addEventListener("click", function () {
+      if (S.qbusy) return;
+      var ul = h("ul", { cls: "ls-plan" }, qs.map(function (q) { return h("li", {}, [h("b", { text: q.label }), ": reserve " + fmt(q.take) + (q.take < q.want ? " of " + fmt(q.want) : "") + " " + optName(q.name) + " (" + fmt(q.free) + " " + dayWord(block) + ")" + (q.take < q.want ? " - " + fmt(q.want - q.take) + " still missing" : "")]); }));
+      var prog = h("p", { cls: "ls-prog", role: "status", hidden: true });
+      modal("Reserve all suggested", h("div", {}, [prog, h("p", { cls: "sub", text: (block.title || "This event") + " · " + dateText(block) }), ul,
+        h("p", { cls: "ls-sub", text: "Each product is linked to the stock item named here, so Helm knows it for your other events too. Nothing is taken out of the store yet." })]), "Reserve all (" + fmt(qs.length) + ")", function () {
+        if (S.qbusy) return false; S.qbusy = true;
+        var list = [], failed = [], done = 0, was = b.textContent;
+        function tell() { var t = "Reserving " + fmt(done) + " of " + fmt(qs.length) + "..."; prog.hidden = false; prog.textContent = t + " Please stay on this page."; b.textContent = t; b.disabled = true; runMark({ quoteId: block.quote_id, done: done, total: qs.length }); }
+        tell(); if (root.addEventListener) root.addEventListener("beforeunload", leaveAsk);
+        function over() { if (root.removeEventListener) root.removeEventListener("beforeunload", leaveAsk); runMark(null); b.textContent = was; b.disabled = false; idle(); }
+        return runLanes(lanesOf(qs), 3, function (q) { return linkAndReserve(block, q).then(function (d) { list.push(d); }, function (e) { failed.push(q.label + ": " + ((e && e.userText) || friendly(e, "reserve"))); }).then(function () { done++; tell(); }); })
+          .then(function () { list.sort(function (x, y) { return qs.findIndex(function (q) { return q.label === x.label; }) - qs.findIndex(function (q) { return q.label === y.label; }); }); prog.textContent = "Saved. Reading the stock again..."; return afterReserve(block, list, failed); })
+          .then(over, function (e) { over(); throw e; });
+      });
+    });
+    return b;
+  }
+  // "Done: ..." with Undo: the reservations made just now are released (status only) and the links made just now are taken off; what was
+  // given out meanwhile stays as it is
+  function lastNote() {
+    var L = S.last; if (!L || L.quoteId !== S.quoteId || !L.lines.length) return null;
+    var box = h("div", { cls: "ls-done", role: "status" }, [h("div", { cls: "ls-done-t" }, [h("ul", {}, L.lines.map(function (t) { return h("li", { text: t }); })), L.note ? h("span", { cls: "ls-sub", text: L.note }) : null])]);
+    if (S.canEdit && (L.res.length || L.links.length)) {
+      // R257: the save is still finishing (the stock is being read again): Undo waits for it
+      var u = h("button", { type: "button", cls: "btn sm ls-act ls-undo", text: S.qbusy ? "Saving..." : "Undo" }); if (S.qbusy) { u.disabled = true; u.setAttribute("data-wait", "1"); }
+      u.addEventListener("click", function () {
+        if (u.disabled || S.qbusy) return; u.disabled = true; S.qbusy = true; var B = root.BPStore.inventory;
+        Promise.all([B.reservations(L.quoteId), B.checkouts.list(L.quoteId)]).then(function (r) {
+          var out = {}; (r[1] || []).forEach(function (c) { if (c && (c.status === "out" || c.status === "partial")) out[c.item_id] = 1; });
+          var ids = {}; L.res.forEach(function (x) { ids[x.id] = 1; });
+          var mine = (r[0] || []).filter(function (x) { return ids[x.id] && x.status === "reserved"; }), kept = mine.filter(function (x) { return out[x.item_id]; }).length;
+          return mine.filter(function (x) { return !out[x.item_id]; }).reduce(function (p, x) { return p.then(function () { return B.setResStatus(x.id, "cancelled"); }); }, Promise.resolve())
+            .then(function () { return L.links.reduce(function (p, id) { return p.then(function () { return B.layout.removeLink(id); }); }, Promise.resolve()); }).then(function () { S.last = null; toast(kept ? "Undone, except what was already given out." : "Undone: nothing is reserved for it and the link is off.", "ok"); });
+        }).catch(function (e) { toast(friendly(e, "undo"), "err"); }).then(function () { idle(); return Promise.resolve(S.o && S.o.reload && S.o.reload()).then(refresh); });
+      });
+      box.appendChild(u);
     }
-    var vb = left > 0 ? vendorBtn(block, { label: thing.label, qty: thing.qty, layoutType: u.layout_type }, false) : null;
-    if (vb) acts.appendChild(vb);
+    var x = h("button", { type: "button", cls: "btn sm ls-act", text: "OK", "aria-label": "Close this message" }); x.addEventListener("click", function () { S.last = null; box.remove(); }); box.appendChild(x);
+    return box;
+  }
+  // a product of the plan with no stock item: its numbers, a suggestion, the ways to get it (q = what one tap can do, on the event's own page)
+  function freeRow(block, u, thing, sub, part, q) {
+    var list = asked(block.quote_id, { label: thing.label }), left = coverOf(thing.qty, list).left;
+    var row = h("li", { cls: "ls-prow" + (q && q.state === "ok" ? " has-fit" : "") }), acts = h("div", { cls: "ls-pacts" });
+    row.appendChild(h("div", { cls: "ls-pname" }, [h("b", { text: u.label + " x " + fmt(u.count) }), sub ? h("span", { cls: "ls-sub", text: sub }) : null, q && q.text ? h("span", { cls: "ls-fit is-" + q.state, text: q.text }) : null, askedLine(list)]));
+    var pickU = { layout_type: u.layout_type, label: u.label, category: u.category, seats: u.seats, mode: part === "seats" ? "seats" : linkMode(u.layout_type, u.seats) };
+    var vb = null;
+    if (q) {
+      var short = q.state === "ok" ? Math.max(left - q.take, 0) : left;
+      if (q.state === "ok" && S.canEdit) { acts.appendChild(reserveBtn(block, q)); var gb = giveBtn(block, q); if (gb) acts.appendChild(gb); }
+      vb = short > 0 ? vendorBtn(block, { label: thing.label, qty: short, layoutType: u.layout_type }, q.state === "none" || q.state === "full") : null;
+      if (vb && q.state === "ok") { vb.textContent = "Get " + fmt(short) + " from a vendor"; }
+      if (vb) acts.appendChild(vb);
+      if (S.canEdit && q.state === "full" && q.sug) acts.appendChild(linkBtn(u, q.sug));
+      if (S.canEdit) { var pb = pickBtn(pickU, row, q.state === "ok" || q.state === "full" || q.state === "wait" ? "Other item" : "Choose a stock item");
+        if (q.state === "many") { pb.classList.add("primary"); acts.insertBefore(pb, acts.firstChild); } else acts.appendChild(pb); }
+    } else {
+      if (S.canEdit) {
+        var items = (S.o && S.o.items && S.o.items()) || [], sug = suggestLink(u.raw, items, S.links, part);
+        if (sug) acts.appendChild(linkBtn(u, sug));
+        acts.appendChild(pickBtn(pickU, row, sug ? "Other item" : "Link to stock"));
+      }
+      vb = left > 0 ? vendorBtn(block, { label: thing.label, qty: thing.qty, layoutType: u.layout_type }, false) : null;
+      if (vb) acts.appendChild(vb);
+    }
     if (acts.firstChild) row.appendChild(acts);
     return row;
   }
+  // what one tap can do for each unlinked line of the open event
+  function quickPlan(block, lines) {
+    var items = (S.o && S.o.items && S.o.items()) || [], pending = {};
+    ((block && block.items) || []).forEach(function (it) { pending[it.item_id] = rowNums(it).toReserve; });
+    var rows = lines.map(function (l) {
+      var f = findFits(l.u.raw, items, S.links, l.part), list = asked(block.quote_id, { label: l.thing.label }), want = coverOf(l.thing.qty, list).left;
+      return { f: f, want: want, item_id: f.hit ? f.hit.id : null, l: l };
+    });
+    var takes = planTake(rows.filter(function (r) { return r.item_id && r.want > 0; }), freeOf, pending), k = 0;
+    return rows.map(function (r) {
+      var l = r.l, hit = r.f.hit, day = dayWord(block);
+      if (!(r.want > 0)) return { state: "asked", text: "" };
+      if (hit) {
+        var t = takes[k++], base = { type: l.u.layout_type, label: l.u.label, item_id: hit.id, name: hit.name, mode: r.f.seats ? "seats" : "objects", want: r.want, take: t.take, free: t.free, sug: { item_id: hit.id, name: hit.name, mode: r.f.seats ? "seats" : "objects", per: 1 } };
+        if (t.free == null) return Object.assign(base, { state: "wait", text: "Matches your stock item " + optName(hit.name) + ". Checking what is free..." });
+        if (t.take <= 0) return Object.assign(base, { state: "full", text: "Matches your stock item " + optName(hit.name) + ", but none is " + day + "." });
+        return Object.assign(base, { state: "ok", text: t.short > 0 ? "Only " + fmt(t.take) + " of " + fmt(r.want) + " " + optName(hit.name) + " " + day + " - reserve " + fmt(t.take) + ", get " + fmt(t.short) + " from a vendor." : "Matches your stock item " + optName(hit.name) + "." });
+      }
+      if (r.f.list.length) return { state: "many", text: fmt(r.f.list.length) + " of your stock items could fit: " + r.f.list.slice(0, 4).map(function (i) { return optName(i.name); }).join(", ") + (r.f.list.length > 4 ? "..." : "") + ". Choose one." };
+      return { state: "none", text: "We don't have this in stock." };
+    });
+  }
   function unlinkedPart(block, inPanel) {
-    var un = ((block && block.unlinked) || []), rows = [], quiet = [];
-    un.forEach(function (x) {
+    var un = ((block && block.unlinked) || []), lines = [], quiet = [];
+    un.concat(inPanel ? tableGaps(block) : []).forEach(function (x) {
       if (S.hidden[x.layout_type] || has(PLACES, x.layout_type)) { quiet.push(countText(x)); return; }
       var t = thingOf(x), seats = seatsShown(x), sp = S.floor ? styleSplit(S.floor.items, x.layout_type) : "";
-      rows.push(freeRow(block, { raw: x, layout_type: x.layout_type, label: typeLabel(x.layout_type, x.label), category: x.category, seats: x.seats, count: n(x.objects) }, t,
-        [catName(x.category), seats > 0 && !has(SINGLES, x.layout_type) ? fmt(seats) + " seats" : "", sp].filter(Boolean).join(" · "), null));
+      lines.push({ u: { raw: x, layout_type: x.layout_type, label: typeLabel(x.layout_type, x.label), category: x.category, seats: x.seats, count: n(x.objects) }, thing: t,
+        sub: [catName(x.category), seats > 0 && !has(SINGLES, x.layout_type) ? fmt(seats) + " seats" : "", sp].filter(Boolean).join(" · "), part: null });
     });
     seatGaps(block).forEach(function (g) {
       if (S.hidden[g.layout_type]) return;
-      rows.push(freeRow(block, { raw: { layout_type: g.layout_type, label: g.name }, layout_type: g.layout_type, label: g.label, category: "seating", seats: g.seats, count: g.seats }, { label: g.label, qty: g.seats },
-        "The seats around " + fmt(g.objects) + " x " + g.name, "seats"));
+      lines.push({ u: { raw: { layout_type: g.layout_type, label: g.name }, layout_type: g.layout_type, label: g.label, category: "seating", seats: g.seats, count: g.seats }, thing: { label: g.label, qty: g.seats },
+        sub: "The seats around " + fmt(g.objects) + " x " + g.name, part: "seats" });
     });
+    // R255: the event's own page says what one tap does, the ready ones first; the overview (many events) only links, as before
+    var plan = inPanel && S.o && S.o.freeFor ? quickPlan(block, lines) : null, RANK = { ok: 0, wait: 1, many: 2, full: 3, none: 4, asked: 5 };
+    var order = lines.map(function (l, i) { return { l: l, q: plan ? plan[i] : null, i: i }; });
+    if (plan) order.sort(function (a, b) { return RANK[a.q.state] - RANK[b.q.state] || a.i - b.i; });
+    var rows = order.map(function (o) { return freeRow(block, o.l.u, o.l.thing, o.l.sub, o.l.part, o.q); });
     var out = [];
     if (rows.length) {
-      var ul = h("ul", { cls: "ls-plist" }, rows), head = "Not linked to stock yet (" + rows.length + ")";
-      if (inPanel) out.push(h("h4", { cls: "ls-h4", text: head }), ul);
-      else out.push(h("details", { cls: "ls-det" }, [h("summary", {}, [h("b", { text: head }), h("span", { cls: "ls-sub", text: un.filter(function (x) { return !S.hidden[x.layout_type] && !has(PLACES, x.layout_type); }).map(countText)
+      var ul = h("ul", { cls: "ls-plist" }, rows), head0 = "Not linked to stock yet (" + rows.length + ")";
+      if (inPanel) {
+        var ready = order.filter(function (o) { return o.q && o.q.state === "ok"; }).map(function (o) { return o.q; });
+        out.push(h("div", { cls: "ls-uh" }, [h("div", {}, [h("h4", { cls: "ls-h4", text: head0 }),
+          plan ? h("p", { cls: "ls-sub ls-uhelp", text: "Helm looks for a stock item with a name like the product's. The names do not have to be the same: pick any item once and Helm remembers it." }) : null]),
+          S.canEdit && ready.length > 1 ? reserveAllBtn(block, ready) : null]), ul);
+      } else out.push(h("details", { cls: "ls-det" }, [h("summary", {}, [h("b", { text: head0 }), h("span", { cls: "ls-sub", text: un.filter(function (x) { return !S.hidden[x.layout_type] && !has(PLACES, x.layout_type); }).map(countText)
         .concat(seatGaps(block).filter(function (g) { return !S.hidden[g.layout_type]; }).map(function (g) { return g.label + " x " + fmt(g.seats); })).join(", ") })]), ul]));
     }
     if (quiet.length) out.push(h("p", { cls: "ls-sub ls-quiet", text: "Not stock: " + quiet.join(", ") }));
@@ -409,7 +639,7 @@
     var kids = [], tbl = needsTable(block);
     if (tbl) kids.push(tbl);
     else if (n(block.objects) === 0) kids.push(h("p", { cls: "ls-empty", text: "The floor plan of this event is empty." }));
-    else kids.push(h("p", { cls: "ls-empty", text: "None of the products in this floor plan is linked to a stock item yet." }));
+    else if (!(inPanel && S.o && S.o.freeFor)) kids.push(h("p", { cls: "ls-empty", text: "None of the products in this floor plan is linked to a stock item yet." }));   // the event's own page says it per product below
     unlinkedPart(block, inPanel).forEach(function (k) { kids.push(k); });
     if (ev(block.quote_id).err) {
       var tr = h("button", { type: "button", cls: "ls-linkbtn", text: "Try again" });
@@ -661,6 +891,8 @@
     host.appendChild(h("p", { cls: "sub", text: block.version_no ? "What the latest 2D / 3D floor plan needs, against what is free on this event's stock days." : "No floor plan saved for this event yet." }));
     if (block.version_no && S.floor && S.floor.version_no && n(S.floor.version_no) !== n(block.version_no))
       host.appendChild(h("p", { cls: "ls-warn", role: "note", text: "These numbers are from V" + block.version_no + ", the last one saved. The event-day screens show V" + S.floor.version_no + "." }));
+    var rn = resumeNote(); if (rn) host.appendChild(rn);
+    var ln = lastNote(); if (ln) host.appendChild(ln);
     if (block.version_no) blockBody(block, true).forEach(function (k) { host.appendChild(k); });
   }
 
@@ -755,7 +987,11 @@
     return refresh();
   }
   // the page reloaded its stock (items / check-outs): only the strip changes
-  function stockChanged() { if (S.o) renderStrip(); }
+  function stockChanged() {
+    if (!S.o) return; renderStrip();
+    // R255: what is free is known now - the open event's suggestions show it (not while someone is picking an item in the panel)
+    var host = $("layoutNeeds"); if (S.quoteId && S.block && host && !host.querySelector(".ls-ctl") && !host.contains(doc.activeElement)) renderPanel(S.block);
+  }
 
   api.mount = mount; api.refresh = refresh; api.stockChanged = stockChanged;
   root.HelmLayoutStock = api;

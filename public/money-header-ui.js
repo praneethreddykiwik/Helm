@@ -37,6 +37,8 @@
     if (light === "bad") return loss ? "Loss" : "Well below target";
     return "No price yet";
   }
+  // R257: an event with a price and no cost at all (no refund either) keeps 100% only on paper: neutral, never "On target"
+  function noCosts(h) { return !!h && h.light !== "none" && num(h.revenue) > 0 && !(num(h.costs) > 0) && !(num(h.refunds) > 0); }
   // "today" / "tomorrow" / "in 4 days" / "yesterday" / "3 days ago"
   function whenWords(days) {
     if (!has(days)) return "";
@@ -64,6 +66,7 @@
     var out = [], add = function (t, b, m) { out.push({ t: t, b: !!b, m: !!m }); };
     var signed = function (n) { return (num(n) >= 0 ? "+" : "−") + fmt(Math.abs(num(n))); };
     if (h.light === "none" || !(num(h.revenue) > 0)) { add("This event has no price yet, so there is no profit to show. Price the quote first."); return out; }
+    if (noCosts(h)) { add(h.closed ? "No costs were recorded on this event, so there is no real profit to compare with your " + pnum(h.target_pct) + "% target." : "No costs added yet. Add the budget lines, vendors and crew to see what you will keep."); return out; }
     var profit = num(h.profit), m = pnum(h.margin_pct), target = pnum(h.target_pct), gap = num(h.gap_points);
     var reasons = (h.reasons || []).filter(function (r) { return r && num(r.amount) > 0; }).slice(0, 2);
     function why(lead, alt) {
@@ -200,7 +203,8 @@
     grid.appendChild(kpi(actual ? "Actual costs" : "Expected costs", fmt(h.costs), cs));
     var ps = el("span", "mh-ps"), loss = num(h.profit) < 0;
     var lt = el("span", "mh-light " + (h.light === "good" || h.light === "warn" || h.light === "bad" ? h.light : "none"));
-    lt.textContent = (has(h.margin_pct) ? pnum(h.margin_pct) + "% · " : "") + lightLabel(h.light, loss);
+    if (noCosts(h)) { lt.className = "mh-light none"; lt.textContent = h.closed ? "No costs recorded" : "No costs added yet"; }
+    else lt.textContent = (has(h.margin_pct) ? pnum(h.margin_pct) + "% · " : "") + lightLabel(h.light, loss);
     ps.appendChild(lt); ps.appendChild(el("span", "mh-tg", "target " + pnum(h.target_pct) + "%"));
     grid.appendChild(kpi(actual ? "Profit" : "Expected profit", (loss ? "−" : "") + fmt(Math.abs(num(h.profit))), ps, { cls: "profit", neg: loss }));
     sec.appendChild(grid);
@@ -429,7 +433,7 @@
       whenShown(gate, function () { Promise.resolve().then(function () { return mount(n); }).catch(function (e) { try { console.warn("money header:", e && e.message); } catch (_) {} n.hidden = true; }); });
     });
   }
-  global.HelmMoneyHeader = { mount: mount, renderTabs: renderTabs, sentence: sentence, attention: attention, chip: chip, statusChip: statusChip, lightLabel: lightLabel,
+  global.HelmMoneyHeader = { mount: mount, renderTabs: renderTabs, sentence: sentence, attention: attention, chip: chip, statusChip: statusChip, lightLabel: lightLabel, noCosts: noCosts,
     whenWords: whenWords, points: points, pnum: pnum, renderHeader: renderHeader, renderAttention: renderAttention, renderPva: renderPva };
   if (typeof document === "undefined") return;
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();

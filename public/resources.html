@@ -63,11 +63,11 @@
   th{position:relative} .table-scroll{position:relative}
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
 </style>
-<link rel="stylesheet" href="resources-polish.css?v=5">
-<link rel="stylesheet" href="/event-flow-line.css?v=1">
+<link rel="stylesheet" href="resources-polish.css?v=7">
+<link rel="stylesheet" href="/event-flow-line.css?v=1"><link rel="stylesheet" href="/resource-steps.css?v=1"><link rel="stylesheet" href="/vendor-flow.css?v=1">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -88,13 +88,9 @@
   <div id="app" hidden>
     <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="flowLine"></span></div>
 
-    <!-- r24: the order of the work, in plain words: our stock -> our people -> what is still missing -> money -->
-    <ol class="rp-steps" aria-label="How to cover this event">
-      <li><a id="stepInv" href="inventory.html"><span class="n">1</span>Reserve our stock</a></li>
-      <li><a id="stepOps" href="ops.html"><span class="n">2</span>Assign our people</a></li>
-      <li class="on" aria-current="step"><span class="n">3</span>Get what's missing from vendors</li>
-      <li><a id="stepBudget" href="budget.html"><span class="n">4</span>Check budget &amp; margin</a></li>
-    </ol>
+    <!-- r24: the order of the work, in plain words: our stock -> what is still missing (vendors) -> our people -> money. R255: the same strip
+         on all four pages (resource-steps.js) -->
+    <nav class="rs" id="resSteps" data-resource-steps="vendors"></nav>
 
     <section class="card rp-card" aria-labelledby="needsTitle">
       <div class="rp-head">
@@ -143,24 +139,25 @@
 <div id="bookModal" class="lmodal" hidden role="dialog" aria-modal="true" aria-labelledby="bm_title">
   <div class="sheet rp-sheet">
     <h3 class="s-015a5e7"><span id="bm_title">Assign vendor</span><button type="button" class="close s-af04dd5" id="bm_close" aria-label="Close" data-close>×</button></h3>
-    <div class="fld"><label for="bk_label">For</label><input id="bk_label" placeholder="e.g. Sound &amp; lighting"></div>
+    <div class="fld" id="bk_labelF"><label for="bk_label">For</label><input id="bk_label" placeholder="e.g. Sound &amp; lighting"></div>
     <div class="rp-row2 rp-vq">
       <div class="fld"><label for="bk_vendor">Vendor</label><select id="bk_vendor"></select></div>
-      <div class="fld"><label for="vr_qty">Qty</label><input id="vr_qty" type="number" min="0" step="1" inputmode="numeric" placeholder="Optional"></div>
+      <div class="fld" id="vr_qtyF"><label for="vr_qty">Qty</label><input id="vr_qty" type="number" min="0" step="1" inputmode="numeric" placeholder="Optional"></div>
     </div>
     <fieldset class="rp-mode" id="bk_modeWrap">
       <legend class="sr-only">How to assign</legend>
-      <label><input type="radio" name="bk_mode" id="bk_modeSend" value="send" checked> <span><b>Send request to vendor</b><small>They get a link to accept or decline. No sign-in needed.</small></span></label>
+      <label><input type="radio" name="bk_mode" id="bk_modeSend" value="send" checked> <span><b>Send request to vendor</b><small>They say if they are available and give their price. No sign-in needed.</small></span></label>
       <label><input type="radio" name="bk_mode" id="bk_modeNote" value="note"> <span><b>Already agreed</b><small>Just note the vendor and cost (agreed by phone or in person).</small></span></label>
     </fieldset>
     <div id="bk_send">
+      <div class="fld s-fe7b497" id="vr_linesF" hidden><span class="rp-lbl" id="vr_linesL">What you need (price optional)</span><div id="vr_lines" role="group" aria-labelledby="vr_linesL"></div></div>
       <div class="rp-row2">
         <div class="fld"><label for="vr_date">When - date</label><input id="vr_date" type="date"></div>
         <div class="fld"><label for="vr_time">Time</label><input id="vr_time" type="time" value="10:00"></div>
       </div>
       <div class="fld s-fe7b497"><label for="vr_where">Where</label><input id="vr_where" maxlength="300" placeholder="e.g. Lawn gate 2"></div>
       <div class="rp-row2">
-        <div class="fld"><label for="vr_amt">Agreed amount (₹)</label><input id="vr_amt" type="number" min="0" step="1" inputmode="numeric" placeholder="e.g. 25000"></div>
+        <div class="fld" id="vr_amtF"><label for="vr_amt" id="vr_amtL">Agreed amount (₹)</label><input id="vr_amt" type="number" min="0" step="1" inputmode="numeric" placeholder="e.g. 25000"></div>
         <div class="fld rp-mail"><label class="rp-chk" for="vr_mail"><input type="checkbox" id="vr_mail" checked aria-describedby="vr_mailHint"> E-mail it too</label><small class="rp-help" id="vr_mailHint">only when email is switched on</small></div>
       </div>
       <p class="rp-privnote" role="note">Amounts are hidden right now - tap a box to see or type the amount.</p>
@@ -215,8 +212,15 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script><script src="pick-event.js?v=1"></script><script src="delivery-tracker.js?v=3"></script>
-<script src="/event-flow-line.js?v=1"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script><script src="pick-event.js?v=1"></script><script src="delivery-tracker.js?v=3"></script>
+<div id="offerModal" class="lmodal" hidden role="dialog" aria-modal="true" aria-labelledby="om_title">
+  <div class="sheet rp-sheet">
+    <h3 class="s-015a5e7"><span id="om_title">Offer</span><button type="button" class="close s-af04dd5" id="om_close" aria-label="Close" data-close>×</button></h3>
+    <div id="offerBody"></div>
+  </div>
+</div>
+
+<script src="/event-flow-line.js?v=1"></script><script src="/resource-steps.js?v=2"></script><script src="/vendor-flow.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -247,12 +251,16 @@
   const rpItemOpts=(sel)=>`<option value="">Pick our item…</option>`+items.map(i=>`<option value="${esc(i.id)}"${i.id===sel?" selected":""}>${esc(sn(i.name))}</option>`).join("");
   const rpTypeSel=(c,label)=>`<select class="rp-type" data-type="${esc(c.id)}" aria-label="Type for ${label}"${canEdit?"":" disabled"}>${Object.keys(KIND).map(k=>`<option value="${k}"${k===c.kind?" selected":""}>${KIND[k]}</option>`).join("")}</select>`;
   function needLabel(c){ return c.label || c.detail || ""; }
-  function vendorFor(c){ const b=bookings.find(x=>x.need_id===c.id && x.status!=="cancelled"); if(!b) return null; const v=vendors.find(x=>x.id===b.vendor_id); return v?sn(v.name):(b.label||"Vendor"); }
+  function vendorFor(c){ const b=bookings.find(x=>x.need_id===c.id && x.status!=="cancelled"); if(!b){ const lq=lineQty(c); return lq?sn(lq.row.vendor_name):null; } const v=vendors.find(x=>x.id===b.vendor_id); return v?sn(v.name):(b.label||"Vendor"); }
   // R252: a vendor on a need marks it covered whatever number they bring - say so when it is less than what is needed
   // (only when every live vendor row of the need has a number; nothing is worked out from a guess)
   function shortOf(c){ const l=bookings.filter(x=>x.need_id===c.id && x.status!=="cancelled");
-    if(!l.length||l.some(x=>!(Number(x.qty)>0))) return 0;
-    return Math.max(0, Number(c.qty||0)-Number(c.have||0)-l.reduce((a,x)=>a+Number(x.qty),0)); }
+    const lq=lineQty(c); if((!l.length&&!lq)||l.some(x=>!(Number(x.qty)>0))) return 0;
+    return Math.max(0, Number(c.qty||0)-Number(c.have||0)-l.reduce((a,x)=>a+Number(x.qty),0)-(lq?lq.qty:0)); }
+  // R259 (0447): one request can ask for several needs - the products of a live request count for their need too (what they really bring when it is known)
+  function lineQty(c){ let n=0, hit=null; vreqs.forEach(r=>{ if(r.status!=="sent"&&r.status!=="accepted") return; const b=bookings.find(x=>x.id===r.booking_id); if(b&&(b.status==="cancelled"||b.need_id===c.id)) return;
+      (r.lines||[]).forEach(l=>{ if(!l.need_id||l.need_id!==c.id) return; const o=r.offer&&(r.offer_open||r.offer.status==="approved")?(r.offer.lines||[]).find(x=>x.id===l.id):null; hit=hit||r; n+=Number(o?o.qty:l.qty)||0; }); });
+    return hit?{qty:n,row:hit}:null; }
   function rpStatusPill(c){
     if(c.outsourced){ const v=vendorFor(c), sh=shortOf(c); if(v&&sh>0) return `<span class="cov out">Vendor: ${esc(v)}</span> <span class="cov gap" title="What the vendors bring plus what we have is less than what is needed">${num(sh)}${c.unit?" "+esc(c.unit):""} short</span>`;
       return v?`<span class="cov out">Vendor: ${esc(v)}</span>`:`<span class="cov out" title="${esc(OUTSIDE_TIP)}">Client/venue arranges it</span>`; }
@@ -374,7 +382,9 @@
       const v=byV[b.vendor_id]; const need=b.need_id?byN[b.need_id]:null; const vn=esc(v?sn(v.name):(b.label||"Vendor"));
       const opts=["enquiry","booked","confirmed","delivered","cancelled"].map(s=>`<option value="${s}" ${s===b.status?"selected":""}>${BK[s]}</option>`).join("");
       const rq=reqFor(b);
-      const rqTxt=rq?`<div class="rp-req"><span class="cov ${esc(rq.status==="accepted"?"ok":rq.status==="sent"?"out":"gap")}">${esc(BPStore.vendorRequests.statusLabel(rq.status))}</span></div>`:"";
+      const VF=window.HelmVendorFlow, vi=rq&&VF&&Number(rq.flow)===447?VF.info(rq):null;   // R259: where it stands + the vendor's price waiting
+      const rqTxt=rq?`<div class="rp-req"><span class="cov ${esc(vi?(vi.tone==="warn"?"out":vi.tone==="off"?"gap":"ok"):rq.status==="accepted"?"ok":rq.status==="sent"?"out":"gap")}">${esc(vi?vi.text:BPStore.vendorRequests.statusLabel(rq.status))}</span></div>`:"";
+      const offer=!!(vi&&rq.offer&&(rq.offer_open||rq.offer.status==="change_asked"));
       const canSend=canVend && BPStore.vendorRequests && b.vendor_id && b.status!=="cancelled" && !(rq&&(rq.status==="sent"||rq.status==="accepted"));
       return `<tr>
         <td><b>${vn}</b>${v?`<div class="muted">${esc(VKIND[v.kind]||v.kind||"")}</div>`:""}</td>
@@ -382,22 +392,35 @@
         <td class="num" data-l="Cost">${b.cost!=null?esc(BPStore.studioMoney(b.cost)):(b.status==="cancelled"?"":'<span class="muted" title="Counts as 0 in the budget and the profit until a cost or a bill is added">No cost yet</span>')}</td>
         <td class="num" data-l="Advance">${b.advance!=null?esc(BPStore.studioMoney(b.advance)):""}</td>
         <td>${canEdit?`<select class="rm" data-bkstatus="${esc(b.id)}" aria-label="Status for ${vn}">${opts}</select>`:esc(BK[b.status]||b.status)}${b.contract?' <span class="cov ok">✓ Contract</span>':""}${rqTxt}</td>
-        <td class="rp-act">${canSend?`<button type="button" class="btn sm" data-bksend="${esc(b.id)}" aria-label="Send request to ${vn}">Send request</button> `:""}${canEdit?`<button type="button" class="rm" data-bkedit="${esc(b.id)}" aria-label="Edit cost and advance for ${vn}">Edit</button> `:""}${canDelete?`<button type="button" class="rm" data-bkdel="${esc(b.id)}" aria-label="Remove ${vn} from this event">Remove</button>`:""}</td>
+        <td class="rp-act">${offer?`<button type="button" class="btn sm primary" data-bkoffer="${esc(rq.id)}" aria-label="See the offer from ${esc(rq.vendor_name)}">See offer${rq.offer.total!=null?": "+esc(BPStore.moneyIn(rq.offer.total,rq.currency)):""}</button> `:""}${canSend?`<button type="button" class="btn sm" data-bksend="${esc(b.id)}" aria-label="Send request to ${vn}">Send request</button> `:""}${canEdit?`<button type="button" class="rm" data-bkedit="${esc(b.id)}" aria-label="Edit cost and advance for ${vn}">Edit</button> `:""}${canDelete?`<button type="button" class="rm" data-bkdel="${esc(b.id)}" aria-label="Remove ${vn} from this event">Remove</button>`:""}</td>
       </tr>`;
     }).join("");
     const B=$("#bookRows");
     B.querySelectorAll("select[data-bkstatus]").forEach(s=>s.addEventListener("change",()=>BPUI.guard(s,async()=>{ try{ await BPStore.bookings.update(s.dataset.bkstatus,{status:s.value}); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the vendor"}),{type:"err"}); } await load(); })));
     B.querySelectorAll("[data-bkedit]").forEach(b=>b.addEventListener("click",()=>openBooking(null,bookings.find(x=>x.id===b.dataset.bkedit))));
     B.querySelectorAll("[data-bksend]").forEach(b=>b.addEventListener("click",()=>{ const bk=bookings.find(x=>x.id===b.dataset.bksend); openBooking(bk&&bk.need_id?checked.find(c=>c.id===bk.need_id):null,null,bk); }));
+    B.querySelectorAll("[data-bkoffer]").forEach(b=>b.addEventListener("click",()=>showOffer(vreqs.find(r=>r.id===b.dataset.bkoffer),b)));
     B.querySelectorAll("[data-bkdel]").forEach(b=>b.addEventListener("click",async()=>{
       if(!(await BPUI.confirm("Remove this vendor from the event? Their cost and advance will no longer count toward the event.",{title:"Remove vendor?",danger:true}))) return;
       await BPUI.guard(b,async()=>{ try{ await BPStore.bookings.remove(b.dataset.bkdel); BPUI.toast("Vendor removed from this event.",{type:"ok"}); await load(); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"remove the vendor"}),{type:"err"}); } }); }));
   }
 
-  // ---- Assign vendor: send them a request (0256 accept / decline link) or just note an agreed vendor ----
+  // R259: the vendor's offer - approve the price, ask to change, decline (vendor-flow.js; the database checks the rights again)
+  function showOffer(rq,from){ if(!rq||!window.HelmVendorFlow) return;
+    const box=$("#offerBody"); box.textContent=""; const el=HelmVendorFlow.offerBox(rq,{ canAssign:canVend, reload:()=>{ closeOffer(); load(); } }); if(!el) return;
+    $("#om_title").textContent=rq.vendor_name+" - "+rq.what; box.appendChild(el); $("#offerModal").hidden=false; offerFrom=from||null; setTimeout(()=>$("#om_close").focus(),40); }
+  let offerFrom=null;
+  function closeOffer(){ $("#offerModal").hidden=true; try{ if(offerFrom&&offerFrom.isConnected) offerFrom.focus(); }catch(_){} offerFrom=null; }
+  $("#om_close").addEventListener("click",closeOffer);
+  $("#offerModal").addEventListener("click",e=>{ if(e.target.id==="offerModal") closeOffer(); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("#offerModal").hidden&&!document.querySelector(".hvf")) closeOffer(); });
+
+  // ---- Assign vendor: send them a request (0256 link, R259 products + prices) or just note an agreed vendor ----
   let editBk=null, sendBk=null;
   const canRequest=()=> !!(canVend && BPStore.vendorRequests && BPStore.mode()==="supabase");
-  function setMode(m){ const send=m==="send";
+  let vrEd=null, vrKey=null, vrSig="";
+  function setMode(m){ const send=m==="send", many=send&&!!vrEd;
+    $("#vr_linesF").hidden=!many; $("#bk_labelF").hidden=many; $("#vr_qtyF").hidden=many; $("#vr_amtF").hidden=many&&vrEd.total!=null;
     $("#bk_modeSend").checked=send; $("#bk_modeNote").checked=!send;
     $("#bk_send").hidden=!send; $("#bk_noteBox").hidden=send;
     $("#bm_save").textContent = editBk ? "Save" : send ? "Send request" : "Save vendor"; }
@@ -417,6 +440,16 @@
     }
     if(forBooking){ if(!vendors.some(v=>v.id===forBooking.vendor_id)) $("#bk_vendor").innerHTML+=`<option value="${esc(forBooking.vendor_id||"")}">(current vendor)</option>`; $("#bk_vendor").value=forBooking.vendor_id||""; }
     $("#bk_vendor").disabled=!!(existing||forBooking); $("#bk_status").disabled=!!existing;   // vendor & status are not edited here (status has its own control)
+    // R259: what is asked for, one line per product (this need first; the other missing ones are one tap away)
+    vrEd=null; $("#vr_lines").textContent="";
+    const vcur=(()=>{ try{ return BPStore.quoteCurrency(ev); }catch(_){ return null; } })(), vsym=!vcur||vcur==="INR"?"₹":vcur;
+    $("#vr_amtL").textContent=window.HelmVendorFlow?"Agreed total ("+vsym+", optional)":"Agreed amount ("+vsym+")"; $("#vr_amt").placeholder=window.HelmVendorFlow?"Empty: the vendor tells you":"e.g. 25000";
+    if(window.HelmVendorFlow && !existing){
+      const q0=need?(need.gap||need.qty||1):(forBooking&&forBooking.qty>0?forBooking.qty:1), c0=forBooking&&forBooking.cost>0&&q0>0&&Math.round(Math.round(forBooking.cost/q0*100)/100*q0*100)===Math.round(forBooking.cost*100)?Math.round(forBooking.cost/q0*100)/100:null;
+      vrEd=HelmVendorFlow.linesEditor({ currency:vcur, lines:[{ name:(need?needLabel(need):(forBooking?(forBooking.label||""):"")).slice(0,120), qty:q0, price:c0, unit:need&&need.unit||null, need_id:need?need.id:(forBooking&&forBooking.need_id)||null }],
+        suggest: forBooking?[]:checked.filter(c=>!c.covered&&!c.outsourced&&c.kind!=="staff"&&(!need||c.id!==need.id)).slice(0,8).map(c=>({ name:needLabel(c).slice(0,120), qty:c.gap||c.qty||1, unit:c.unit||null, need_id:c.id })) });
+      vrEd.onchange=t=>{ $("#vr_amtF").hidden=!$("#vr_linesF").hidden&&t!=null; }; $("#vr_lines").appendChild(vrEd.el);
+    }
     // the two ways to assign: only a new assignment offers both; an edit is "already agreed", a re-send is a request
     $("#bk_modeWrap").hidden = !!(existing||forBooking) || !canRequest();
     setMode(existing ? "note" : forBooking ? "send" : (canRequest() ? "send" : "note"));
@@ -428,24 +461,30 @@
   const bmErr=(m,el)=>{ $("#bm_err").textContent=m; $("#bm_err").hidden=false; try{ if(el) el.focus(); }catch(_){} };
   async function sendRequest(){
     const vendor_id=$("#bk_vendor").value||null; if(!vendor_id) return bmErr("Choose the vendor.",$("#bk_vendor"));
-    const what=$("#bk_label").value.trim(); if(!what||/[<>]/.test(what)) return bmErr("Say what the vendor brings (no < or >).",$("#bk_label"));
-    const qv=$("#vr_qty").value; const qty=qv===""?null:Number(qv); if(qty!==null && !(qty>0)) return bmErr("Quantity must be above 0.",$("#vr_qty"));
+    const many=vrEd?vrEd.read():null; if(many&&many.error) return bmErr(many.error,many.el);
+    const what=many?many.lines.map(l=>l.name).join(", "):$("#bk_label").value.trim(); if(!what||/[<>]/.test(what)) return bmErr("Say what the vendor brings (no < or >).",$("#bk_label"));
+    const qv=$("#vr_qty").value; const qty=many?null:qv===""?null:Number(qv); if(qty!==null && !(qty>0)) return bmErr("Quantity must be above 0.",$("#vr_qty"));
     const d=$("#vr_date").value, t=$("#vr_time").value; if(!d||!t) return bmErr("Pick the date and time.",d?$("#vr_time"):$("#vr_date"));
     let tz="Asia/Kolkata"; try{ tz=BPStore.studioTimezone()||tz; }catch(_){}
     const iso=window.HelmDelivery&&HelmDelivery.zonedToIso?HelmDelivery.zonedToIso(d,t,tz):new Date(d+"T"+t).toISOString(); if(!iso) return bmErr("Pick the date and time.",$("#vr_date"));
-    const av=$("#vr_amt").value; const amt=Number(av); if(av===""||!(amt>=0)) return bmErr("Enter the agreed amount (0 or more).",$("#vr_amt"));
+    const av=$("#vr_amt").value; const amt=many&&(vrEd.total!=null||av==="")?null:Number(av); if(amt!==null&&((!many&&av==="")||!(amt>=0))) return bmErr("Enter the agreed amount (0 or more).",$("#vr_amt"));
     const where=$("#vr_where").value.trim(), det=$("#vr_det").value.trim(); if(/[<>]/.test(where+det)) return bmErr("Where / notes may not contain < or >.",$("#vr_where"));
     if(!sendBk && bookNeed){ const dup=bookings.find(b=>b.status!=="cancelled" && b.vendor_id===vendor_id && b.need_id===bookNeed.id);
       if(dup) return bmErr("This vendor is already on this event for it. Use Send request on their row below."); }
     await BPUI.guard($("#bm_save"),async()=>{
       try{
-        const row=await BPStore.vendorRequests.save({ quote_id:id, vendor_id, booking_id: sendBk?sendBk.id:undefined, what:what.slice(0,200), qty, when_at:iso,
+        const reqKey=many?JSON.stringify([vendor_id,many.lines,iso,amt]):""; if(reqKey!==vrSig||!vrKey){ vrSig=reqKey; try{ vrKey=crypto.randomUUID(); }catch(_){ vrKey=null; } }   // the same press twice = one request
+        const row=many?await BPStore.vendorRequests.ask(Object.assign({ quote_id:id, vendor_id, booking_id: sendBk?sendBk.id:null, lines:many.lines, when_at:iso, where_text:where||null, details:det||null, send:!!$("#vr_mail").checked }, amt!==null?{agreed_total:Math.round(amt*100)/100}:{}, vrKey?{key:vrKey}:{}))
+         :await BPStore.vendorRequests.save({ quote_id:id, vendor_id, booking_id: sendBk?sendBk.id:undefined, what:what.slice(0,200), qty, when_at:iso,
           where_text:where||null, details:det||null, agreed_amount:Math.round(amt*100)/100, send:!!$("#vr_mail").checked });
         // one place, no double entry: the request made the event's vendor row - link it to this need so the need is covered
         if(!sendBk && bookNeed && row && row.booking_id){
           try{ await BPStore.bookings.update(row.booking_id,{need_id:bookNeed.id}); await BPStore.resources.updateNeed(bookNeed.id,{status:"outsourced"}); }
           catch(e){ console.warn("request sent, but couldn't link it to the need:",(e&&e.message)||e); }
         }
+        // the other needs on the same request are with this vendor too
+        if(many && Number(row&&row.flow)===447) for(const l of many.lines){ if(!l.need_id||(bookNeed&&l.need_id===bookNeed.id)) continue; try{ await BPStore.resources.updateNeed(l.need_id,{status:"outsourced"}); }catch(e){ console.warn("request sent, but a need is still shown as missing:",(e&&e.message)||e); } }
+        vrKey=null; vrSig="";
         closeBooking(); BPUI.toast("Request sent to "+((row&&row.vendor_name)||"the vendor")+".",{type:"ok"}); await load();
         if(row&&row.link&&row.link.token) showSent(row);
         else if(row&&row.id&&window.HelmTrialPreview) HelmTrialPreview.open("vendor",{quoteId:id,requestId:row.id});   // R125: a trial has no link - the preview instead
@@ -456,7 +495,7 @@
     const url=BPStore.vendorRequests.linkUrl(row.link.token); if(!url) return;
     $("#sm_text").textContent = row.contact_email ? "The e-mail to "+row.contact_email+" is queued (it goes out when studio e-mail is on). You can also send the link yourself:" : (row.vendor_name||"This vendor")+" has no e-mail saved - send them this link:";
     $("#sm_link").value=url;
-    $("#sm_wa").href="https://wa.me/"+String(row.contact_phone||"").replace(/\D/g,"")+"?text="+encodeURIComponent("Hello "+(row.vendor_name||"")+", please confirm "+(row.what||"")+" for "+(row.event_title||"our event")+" ("+(row.when_text||"")+"): "+url);
+    $("#sm_wa").href="https://wa.me/"+String(row.contact_phone||"").replace(/\D/g,"")+"?text="+encodeURIComponent((window.HelmVendorFlow?HelmVendorFlow.waRequest(row,url):"Hello "+(row.vendor_name||"")+", please confirm "+(row.what||"")+" for our event ("+(row.when_text||"")+"): "+url));
     $("#sentModal").hidden=false; setTimeout(()=>$("#sm_copy").focus(),50);
   }
   $("#sm_close").addEventListener("click",()=>{ $("#sentModal").hidden=true; });
@@ -613,7 +652,6 @@
     // R252: needs and vendors are both saved under Vendors in the database; without it a change is dropped without a word
     seeVend=!!sv; if(!cv || !sv){ canEdit=false; canDelete=false; canInv=false; canStaff=false; }
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"");
-    const q="?quote="+encodeURIComponent(id); $("#stepInv").href="inventory.html"+q; $("#stepOps").href="ops.html"+q; $("#stepBudget").href="budget.html"+q;
     if(window.HelmFlowLine) HelmFlowLine.mount($("#flowLine"),ev,{id,dayBefore:true});
     $("#app").hidden=false; $("#addCard").hidden=!canEdit; $("#bookBtn").hidden=!canEdit; onKind();
     // r20 (live QA): "Pull from discovery requirements" reads the discovery area - hidden for a role that

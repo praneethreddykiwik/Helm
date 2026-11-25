@@ -4,17 +4,17 @@
  *   HelmIssueAssign.picker(o)    "Assign to (optional)": Nobody yet / Staff (working this event first) / Vendors (this event's
  *                                first) / Someone else (a typed name), + "Also give them this as a task" (off by default)
  *                                -> { el, value(): { name, kind, id, task, error }, focus() }
- *                                o: { quoteId, tasks?, locked? (true/false, else asked), owner?, ids (id prefix), noTask? }
+ *                                o: { quoteId, tasks?, closed? (true/false, else asked), owner?, ids (id prefix), noTask? }
  *   HelmIssueAssign.list(host, o) the organised list: open first, High - Medium - Low, newest first, who has it, how long open,
  *                                Assign / Change, Resolve; resolved ones folded. Skips the redraw when nothing changed and while
  *                                someone is choosing a person in it.
- *                                o: { items, quoteId, canEdit, reload(), toast(msg, type), tasks?, locked?, max?, allHref?,
+ *                                o: { items, quoteId, canEdit, reload(), toast(msg, type), tasks?, closed?, max?, allHref?,
  *                                empty?, filter?, onTask?(), resolve?/start?/reopen?/remove?(issue, btn), when?(iso), words? }
  *   HelmIssueAssign.giveTask(quoteId, title, pick)   one task (category "Issue", starts now) for that person or vendor
  *
  * The person is saved as a NAME in event_issues.owner (text - BPStore.issues.setOwner / add; the server checks Issues - Can change).
  * The task uses the normal assign calls (BPStore.ops.assignTasks / assignTasksVendor + setSchedule), needs "Add & assign" (Assign &
- * send tasks) and an unlocked plan (0397), and is never given without the tick and a press. Nothing is deleted here. A read this
+ * send tasks) and an event that is not closed, and is never given without the tick and a press. Nothing is deleted here. A read this
  * person may not make only leaves that group out; the name can always be typed. DOM calls only (textContent), no HTML strings. */
 (function (global) {
   "use strict";
@@ -104,11 +104,11 @@
     c.p.catch(function () { c.at = 0; });
     return c.p;
   }
-  // the plan lock (0397): what the page already knows, else asked; unknown = not locked (the server refuses a new task while locked)
-  function lockedNow(o) {
-    var v = val(o.locked); if (v === true || v === false) return Promise.resolve(v);
+  // a closed event takes no new task: what the page already knows, else asked; unknown = not closed (the server refuses it then)
+  function closedNow(o) {
+    var v = val(o.closed); if (v === true || v === false) return Promise.resolve(v);
     var L = B().ops && B().ops.planLock; if (!L || !L.get) return Promise.resolve(false);
-    return quiet(function () { return L.get(o.quoteId); }, null).then(function (r) { return !!(r && r.locked); });
+    return quiet(function () { return L.get(o.quoteId); }, null).then(function (r) { return !!(r && r.locked && r.stage === "closed"); });
   }
 
   /* ---------------- the picker ---------------- */
@@ -122,13 +122,13 @@
     var taskBox = h("div", { cls: "hia-task", hidden: true }, [h("label", { cls: "hia-chk", for: id + "T" }, [chk, h("span", { text: "Also give them this as a task" })]), hint]);
     var msg = h("p", { cls: "hia-hint", id: id + "M", role: "status" });
     var el = h("div", { cls: "hia hia-pick" }, [h("div", { cls: "hia-f" }, [h("label", { cls: "hia-l", for: id + "S", text: "Assign to (optional)" }), h("div", { cls: "hia-selw" }, [sel])]), nameBox, taskBox, msg]);
-    var locked = false;
+    var shut = false;
     function person() { var k = sel.value, p = null; ((data && data.groups) || []).forEach(function (g) { g.list.forEach(function (x) { if (x.key === k) p = x; }); }); return p; }
     function paint() {
       var p = person(); nameBox.hidden = sel.value !== "other"; name.required = !nameBox.hidden;
       var may = !!(p && data && data.canTask && !o.noTask); taskBox.hidden = !may;
-      if (!may || locked) chk.checked = false; chk.disabled = locked;
-      if (may) hint.textContent = locked ? "The plan is locked for the event day, so no new tasks. Unlock it first (admin or event manager)."
+      if (!may || shut) chk.checked = false; chk.disabled = shut;
+      if (may) hint.textContent = shut ? "This event is closed, so no new tasks."
         : p.kind === "vendor" ? "It starts now, under Issue. Vendors get no e-mail from Helm - send them the task link from Tasks & Crew."
         : "It starts now, under Issue." + (global.HelmTrialPreview ? "" : " They get it by e-mail in about a minute.");
     }
@@ -154,7 +154,7 @@
     sel.addEventListener("change", function () { touched = true; paint(); if (sel.value === "other") try { name.focus(); } catch (e) {} });
     name.addEventListener("input", function () { touched = true; });
     fill(); go(false);
-    lockedNow(o).then(function (v) { locked = v; paint(); });
+    closedNow(o).then(function (v) { shut = v; paint(); });
     return { el: el, focus: function () { try { (nameBox.hidden ? sel : name).focus(); } catch (e) {} },
       reset: function () { owner = ""; touched = false; chk.checked = false; name.value = ""; fill(); },
       value: function () {
@@ -179,6 +179,7 @@
     if (!vendor) {
       c = ((await O.listCrew()) || []).filter(function (x) { return x && String(x.id) === String(pick.id); })[0];
       if (!c) return { ok: false, msg: pick.name + " is not on the active staff list." };
+      if (c.login_off) return { ok: false, msg: pick.name + " has a deactivated login - pick someone else." };   // R255
       if (digits(c.phone) < 8) return { ok: false, msg: pick.name + " has no phone number on their staff record (a task needs one)." };
     }
     var before = {}, had = null, others = [], all = (await O.listTasks(quoteId)) || [];
@@ -272,7 +273,7 @@
     var old = host.querySelector(".hia-form"); if (old) old.parentNode.removeChild(old);
     if (s.openId === i.id) { s.openId = null; return; }
     s.openId = i.id;
-    var pk = picker({ quoteId: o.quoteId, tasks: o.tasks, locked: o.locked, owner: i.owner, ids: "hiaR" });
+    var pk = picker({ quoteId: o.quoteId, tasks: o.tasks, closed: o.closed, owner: i.owner, ids: "hiaR" });
     var err = h("p", { cls: "hia-err", role: "alert", hidden: true });
     var go = h("button", { type: "submit", cls: "hia-btn is-main", "data-key": "ia:save", text: "Save" }), no = h("button", { type: "button", cls: "hia-btn", text: "Cancel" });
     var f = h("form", { cls: "hia-form", "aria-label": "Who handles: " + (i.title || "issue"), novalidate: true }, [pk.el, err, h("div", { cls: "hia-foot" }, [go, no])]);

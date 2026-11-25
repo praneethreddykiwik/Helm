@@ -16,7 +16,7 @@
    the free-trial flag gets the full store-api.js exactly as before ("full mode"): its calls then go through
    supabase-js with that member's session, so nothing changes for studio members either.
    ========================================================================= */
-var STORE_API_V = "410";   // the store-api.js ?v= of the staff pages (filled in by the generator)
+var STORE_API_V = "415";   // the store-api.js ?v= of the staff pages (filled in by the generator)
 var __HELM_CLIENT_FULL__ = (function () {
   try {
     // a sign-in / auth-link return (?code=, #access_token=...) is store-api.js's job
@@ -532,6 +532,11 @@ if (!__HELM_CLIENT_FULL__) {
     extras: (token) => (mode === "supabase" ? rpc("public_portal_extras", { p_token: token }).catch(() => null) : Promise.resolve(null)) };
   const paySchedule = {
     publicGet: (token) => (supa ? rpc("public_payment_schedule", { p_token: token }).catch(() => null) : Promise.resolve(null)),
+    publicSteps: (token) => (supa ? rpc("public_payment_steps", { p_token: token }).catch(() => null) : Promise.resolve(null)),
+    payCodeSend: (token, milestone, channel) => !(channel === "whatsapp" ? LIVE.whatsapp : LIVE.email) ? Promise.reject(Object.assign(new Error("codes are off"), { noCode: true })) : callFn("send-otp", { token, milestone, channel: channel === "whatsapp" ? "pay_whatsapp" : "pay_email" })
+      .catch((e) => { const er = e || new Error("not sent"); if (/token and phone are required/i.test(String(er.message || ""))) er.noCode = true; throw er; }),
+    payCodeVerify: (token, milestone, code) => rpc("public_payment_code_verify", { p_token: token, p_milestone: milestone, p_code: String(code || "") }),
+    payClaim: (token, milestone, o) => rpc("public_payment_claim", { p_token: token, p_milestone: milestone, p_amount: Number(o && o.amount) || 0, p_method: String((o && o.method) || ""), p_reference: (o && o.reference) || null, p_proof: (o && o.proof) || null }),
   };
   const pricing = {
     _canon(a){
@@ -874,8 +879,9 @@ if (!__HELM_CLIENT_FULL__) {
     if (isNetworkError(e)) return pre + "Couldn’t reach the server — check your connection and try again.";
     // 0046 D6: a locked (approved / paid / closed-event) money record — the DB message says why
     if (e && e.hint === "money_frozen" && e.message && !TECHNICAL.test(e.message)) return pre + endDot(clip(String(e.message), 240));
-    // R227 (0397): the event plan is locked for the event day - the database guard refused a plan change
-    if (e && /plan_locked:/.test(String(e.message || ""))) return pre + "The event plan is locked for the event day. Unlock it first (admin or event manager, with a reason), then try again.";
+    // R257: the event-day lock is gone (0442); a database without it still refuses plan changes on the event day
+    if (e && /plan_locked:/.test(String(e.message || ""))) return pre + "The database still refuses changes on the event day (needs database update 0442). An admin or event manager can press Unlock on Tasks & Crew.";
+    if (e && (e.hint === "event_closed" || /^r442_/.test(String(e.hint || ""))) && e.message) return pre + endDot(clip(String(e.message), 240));
     // 0159: a directly created studio is read-only until its plan is paid (or it switches to the trial)
     if (e && e.hint === "payment_pending") return pre + "Choose a plan and complete payment to start using Helm — or start a free trial instead.";
     // r35 (0285): payment details / sensitive settings need a fresh two-step code (or two-step set up / a flag cleared)
@@ -1114,8 +1120,18 @@ if (!__HELM_CLIENT_FULL__) {
     var k = host && host.id ? host.id : "";
     if (k && bannerOpen[k]) { try { bannerOpen[k].close(); } catch (e) {} }
     var hnd = toast(spec.text, { type: spec.type, timeout: spec.timeout, place: "top", quiet: true });
-    if (k) bannerOpen[k] = hnd;
+    if (k) bannerOpen[k] = { close: function () { hnd.close(); }, el: el, err: spec.type === "err" };
   }
+  // R257: the page took its error message away (fixed, or cleared for the next try): the copy goes too - it stayed until it was closed by hand
+  function sweepBanners() {
+    Object.keys(bannerOpen).forEach(function (k) {
+      var o = bannerOpen[k]; if (!o || !o.err) return;
+      if (o.el.isConnected && bannerText(o.el)) return;
+      delete bannerOpen[k]; if (bannerSeen) bannerSeen.delete(o.el);   // the same error again is news again
+      try { o.close(); } catch (e) {}
+    });
+  }
+  function bannerText(el) { return !el.hidden && !(el.closest && el.closest("[hidden]")) && String(el.textContent || "").trim() !== ""; }
   function scanBanners(node) {
     if (!node || node.nodeType !== 1) { if (node && node.parentElement) node = node.parentElement; else return; }
     if (node.closest && node.closest(".bpui-toasts")) return;
@@ -1130,7 +1146,7 @@ if (!__HELM_CLIENT_FULL__) {
       var s = bannerToastSpec(bannerInfo(el)); if (s) bannerSeen.set(el, s.type + "|" + s.text); });
     var queue = [], sched = false;
     var flush = function () { sched = false; var q = queue; queue = []; var done = [];
-      q.forEach(function (n) { if (done.indexOf(n) < 0) { done.push(n); try { scanBanners(n); } catch (e) {} } }); };
+      q.forEach(function (n) { if (done.indexOf(n) < 0) { done.push(n); try { scanBanners(n); } catch (e) {} } }); try { sweepBanners(); } catch (e) {} };
     new MutationObserver(function (muts) {
       muts.forEach(function (m) {
         if (m.type === "childList") { queue.push(m.target); Array.prototype.forEach.call(m.addedNodes, function (n) { if (n.nodeType === 1) queue.push(n); }); }
@@ -2313,6 +2329,61 @@ if (!__HELM_CLIENT_FULL__) {
     }
     return { advancePct: adv, balanceDueDays: days, note: note, balanceDue: due };
   };
+  // R257: a client / crew page is the STUDIO's page: its name (and its logo, when it has one this page may load) in the header.
+  // s = {name, accent, logo} from the page's own checked link; nothing known = the header stays as it is. Text + an <img> only.
+  BPStore.paintStudio = function (s, d) {
+    d = d || (typeof document !== "undefined" ? document : null); s = s && typeof s === "object" ? s : typeof s === "string" ? { name: s } : null;
+    var name = s && typeof s.name === "string" ? s.name.replace(/[<>\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) : ""; if (!d || !name) return false;
+    var b = d.querySelector("header b"), mk = d.querySelector("header .mark"); if (b) b.textContent = name;
+    var logo = typeof s.logo === "string" && s.logo.length <= 500 && /^https:\/\/[^\s"'<>]+$/i.test(s.logo) ? s.logo : "";
+    // the approval and task pages may only load pictures of this app / its own storage (their CSP); the portal, proposal and booklet any https one
+    try { if (logo && !/\/(portal|proposal)/.test(location.pathname)) { var lh = new URL(logo).host; if (lh !== location.host && !/\.supabase\.co$/.test(lh)) logo = ""; } } catch (e) { logo = ""; }
+    if (!logo || !mk || d.getElementById("studioLogo")) return true;
+    var im = d.createElement("img"); im.id = "studioLogo"; im.alt = ""; im.width = 34; im.height = 34; im.setAttribute("referrerpolicy", "no-referrer"); im.style.objectFit = "contain";
+    im.addEventListener("load", function () { mk.hidden = true; mk.style.display = "none"; }); im.addEventListener("error", function () { if (im.parentNode) im.parentNode.removeChild(im); });
+    mk.parentNode.insertBefore(im, mk); im.src = logo; return true;
+  };
+  // R257: "21:00" / "21:00:00" -> "9:00 pm" (the style of every other time in the app); anything else as it is
+  BPStore.clock12 = function (t) {
+    var m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(t == null ? "" : t).trim()); if (!m || +m[1] > 23 || +m[2] > 59) return String(t == null ? "" : t);
+    return ((+m[1] % 12) || 12) + ":" + m[2] + (+m[1] < 12 ? " am" : " pm");
+  };
+  // R257: the SAVED payment plan in words, the one source for every page (quote flow, portal, approval page, booklet, invoice). rows = the server's
+  // payment_schedule_for_quote / public_payment_schedule rows (or a booklet's milestones). -> null when there is no plan.
+  // { rows, open, next:{label, left, due, when:"now"|"date"|"approval"|"open"}, left, last:"YYYY-MM-DD"|"" (only in the future) }
+  BPStore.payPlan = function (rows, o) {
+    o = o || {};
+    var list = (Array.isArray(rows) ? rows : []).filter(function (r) { return r && r.state !== "waived" && r.status !== "waived" && Number(r.amount) > 0; });
+    if (!list.length) return null;
+    var today = /^\d{4}-\d{2}-\d{2}$/.test(String(o.today || "")) ? o.today : "";
+    if (!today) { try { today = BPStore.todayLocal(); } catch (e) { today = ""; } }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) today = new Date().toISOString().slice(0, 10);
+    var out = list.map(function (r) {
+      var st = String(r.state || r.status || "due"), amt = Number(r.amount) || 0, rem = r.remaining != null && isFinite(Number(r.remaining)) ? Number(r.remaining) : st === "paid" ? 0 : Math.max(0, amt - (Number(r.paid) || 0));
+      var due = /^\d{4}-\d{2}-\d{2}/.test(String(r.due_date || "")) ? String(r.due_date).slice(0, 10) : "", onAp = r.on_approval === true || !!(r.rule && r.rule.anchor === "approval");
+      return { label: String(r.label || "Payment"), amount: amt, left: Math.round(rem * 100) / 100, due: due, paid: st === "paid" || rem <= 0.5,
+        when: o.held === true && onAp ? "approval" : !due ? "open" : due <= today ? "now" : "date" };
+    });
+    var open = out.filter(function (r) { return !r.paid; }), left = 0, last = "";
+    open.forEach(function (r) { left += r.left; if (r.due > last) last = r.due; });
+    return { rows: out, open: open, next: open[0] || null, left: Math.round(left * 100) / 100, last: last > today ? last : "", today: today };
+  };
+  // "Next payment: Advance (30%) ₹1,03,793, due now. The rest by 25/11/2026." (never a day that has passed; "" = no plan)
+  BPStore.payPlanLine = function (plan, money, date, client) {
+    if (!plan) return ""; if (!plan.next) return "Every payment of the plan is received.";
+    var n = plan.next, d = date || BPStore.fmtDateIN, more = plan.open.length > 1;
+    var s = (more ? "Next payment: " : "Last payment: ") + n.label + " " + money(n.left) + (n.when === "approval" ? (client ? ", due when you approve" : ", due when the client approves") : n.when === "now" ? ", due now" : n.due ? ", due " + d(n.due) : "") + ".";
+    if (more) s += plan.last ? " The rest by " + d(plan.last) + "." : plan.open.every(function (r) { return r.when === "now"; }) ? " The rest is due now too." : "";
+    return s;
+  };
+  // the studio's own payment note next to a saved plan: the sentences about the advance / balance timing are left out (the plan says that), terms
+  // such as cancellation, refunds and the rest stay. No plan = the note as it is.
+  BPStore.payNote = function (note, hasPlan) {
+    note = String(note || "").trim(); if (!hasPlan || !note) return note;
+    return note.replace(/([.!?;])\s+/g, "$1\n").split(/[\r\n]+/).filter(function (x) {
+      return x.trim() && (/cancel|refund|forfeit|penalt|late fee|interest|postpone/i.test(x) || !/\b(advance|balance|deposit|instal?lments?)\b|\bdue\b|\bpayable\b/i.test(x));
+    }).join(" ").trim();
+  };
   // ---- supplier block for printed quotes / invoices (UAE Art. 59: name, address, TRN) ----
   // 0098: client-facing payment state from the LEDGER (never milestones / approval_status alone).
   // st = public_quote_paid_status row; total falls back to the quote's own pricing.total.
@@ -2452,7 +2523,8 @@ if (!__HELM_CLIENT_FULL__) {
     var due = null, ev = String(st.event_date || "");
     if (/^\d{4}-\d{2}-\d{2}$/.test(ev)) due = st.balance_due_days != null ? BPStore.paymentTerms({ balanceDueDays: st.balance_due_days }, ev).balanceDue || ev : ev;
     var bal = Math.max(0, Math.round((total - paid) * 100) / 100);
-    return { full: paid >= total - 0.5, paid: paid, total: total, balance: bal,
+    var now = ""; try { now = BPStore.todayLocal(); } catch (e) { now = ""; }
+    return { full: paid >= total - 0.5, paid: paid, total: total, balance: bal, dueNow: !!(due && now && due < now),   // R257: never "due by" a day that has passed
       receipt: typeof st.last_receipt === "string" ? st.last_receipt.replace(/[<>\u0000-\u001f]/g, "").slice(0, 60) : "", balanceDue: due };
   };
   BPStore.studioHeader = function (org) {

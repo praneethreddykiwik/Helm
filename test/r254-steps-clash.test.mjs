@@ -43,7 +43,7 @@ test('the store: the step goes with the insert, once; a database without 0438 = 
 });
 test('the pages: opens on Pre-event, sheet default, panel + bulk with a fresh read first, settings box, one read a minute', () => {
   assert.match(BRD, /S\.openStep = S\.autoStep === "daybefore" \? "pre" : S\.autoStep/); assert.match(BRD, /S\.addStep \|\| \(handSteps\(\) \? "pre"/); assert.equal((BRD.match(/function picks\(/g) || []).length, 1, 'the person list keeps its name');
-  assert.match(BRD, /String\(n\.step \|\| ""\) !== String\(t\.step \|\| ""\)/); assert.match(BRD, /ids\.slice\(i, i \+ 200\)/); assert.match(BRD, /disabled: planLocked\(\) \? true : null/); assert.match(OPS, /id="bulkStep" hidden/); assert.match(OPS, /titles, c\.id, c\.name, c\.phone, stepOpt\(\)\)/); assert.match(OPS, /titles, vId, stepOpt\(\)\)/);
+  assert.match(BRD, /String\(n\.step \|\| ""\) !== String\(t\.step \|\| ""\)/); assert.match(BRD, /ids\.slice\(i, i \+ 200\)/); assert.match(BRD, /disabled: planClosed\(\) \? true : null/); assert.match(OPS, /id="bulkStep" hidden/); assert.match(OPS, /titles, c\.id, c\.name, c\.phone, stepOpt\(\)\)/); assert.match(OPS, /titles, vId, stepOpt\(\)\)/);
   assert.match(UI, /"auto_steps" in s \? checkbox\("trs_steps", "Sort tasks into steps automatically"/); assert.match(UI, /if \(steps\) patch\.auto_steps = steps\.input\.checked/); assert.match(UI, /Off: a task stays in the step you pick\. On: Helm decides from its start time and its name\./); assert.match(MON, /TS\.loadAuto\(\)/);
   assert.match(read('public/day-before.js'), /\{ step: "daybefore" \}/); assert.match(read('public/search-catalog.js'), /Sort tasks into steps automatically/);
 });

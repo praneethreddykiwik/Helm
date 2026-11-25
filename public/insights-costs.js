@@ -119,6 +119,8 @@
       var out = { id: r.id, margin: margin, target: target, badge: badgeFor(margin, target), peer: peer,
         costPerGuest: perGuest(costOf(r), r), revPerGuest: perGuest(num(r.revenue), r), mix: mixOf(r), why: "" };
       if (out.badge === "na") { out.why = "No revenue recorded yet - margin cannot be measured."; return out; }
+      // R257: revenue without a single cost is not "on target" - the costs are just not in yet
+      if (!(costOf(r) > 0)) { out.badge = "nc"; out.why = "No costs added yet - add them to see the real margin."; return out; }
       var where = peer ? (peer.basis === "type" ? " typical for " + peer.label + " events" : " studio typical") : "";
       // biggest cost category above the typical share of revenue (5+ points)
       var worst = null;
@@ -345,7 +347,7 @@
     }
 
     function badge(parent, b) {
-      var t = { good: "On target", watch: "Watch", poor: "Below target", na: "No revenue" }[b] || b;
+      var t = { good: "On target", watch: "Watch", poor: "Below target", na: "No revenue", nc: "No costs yet" }[b] || b;
       return H("span", "ic-badge ic-b-" + b, t, parent);
     }
 
@@ -479,15 +481,15 @@
       nt.appendChild(document.createTextNode("Typical = your own median for the same event type over the last 12 months."));
       if (st.tm.offer != null) renderOffer(host);
       if (!period.length) { H("div", "ic-empty", "No confirmed events in this period.", host); return; }
-      var counts = { good: 0, watch: 0, poor: 0, na: 0 };
+      var counts = { good: 0, watch: 0, poor: 0, na: 0, nc: 0 };
       period.forEach(function (r) { var b = bmBy[r.id]; if (b) counts[b.badge]++; });
       var sm = H("div", "ic-bsum", null, host);
-      [["good", "on target"], ["watch", "to watch"], ["poor", "below target"], ["na", "without revenue"]].forEach(function (x) { if (!counts[x[0]] && x[0] === "na") return;
+      [["good", "on target"], ["watch", "to watch"], ["poor", "below target"], ["na", "without revenue"], ["nc", "without costs"]].forEach(function (x) { if (!counts[x[0]] && (x[0] === "na" || x[0] === "nc")) return;
         var s = H("span", "ic-bs", null, sm); badge(s, x[0]).textContent = String(counts[x[0]]); s.appendChild(document.createTextNode(" " + x[1])); });
       var sc = H("div", "tscroll", null, host), t = H("table", "ic-btab", null, sc), hr = H("tr", null, null, H("thead", null, null, t));
       [["Event", ""], ["Status", ""], ["Margin", "n"], ["Typical", "n"], ["Cost / guest", "n"], ["Revenue / guest", "n"], ["Why", "ic-whycol"]].forEach(function (x) { var th = H("th", x[1], x[0], hr); th.scope = "col"; });
       var tb = H("tbody", null, null, t);
-      var order = { poor: 0, watch: 1, na: 2, good: 3 };
+      var order = { poor: 0, watch: 1, na: 2, nc: 2, good: 3 };
       period.slice().sort(function (a, b) { var x = bmBy[a.id], y = bmBy[b.id]; return (order[x.badge] - order[y.badge]) || ((x.margin == null ? 999 : x.margin) - (y.margin == null ? 999 : y.margin)); }).forEach(function (r) {
         var b = bmBy[r.id], tr = H("tr", null, null, tb); tr.tabIndex = 0;
         var td0 = H("td", "ic-evc", null, tr), a = H("a", null, r.code || "Event", td0); a.href = ctx.href(r.id);

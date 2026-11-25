@@ -285,7 +285,7 @@
       ghost: 'in clear acrylic ghost style', crossback: 'in wooden cross-back style', folding: 'as a folding chair', banquet: 'with a white cover and sash',
       plastic: 'in moulded plastic', flex: 'as a printed flex panel on a frame (no readable text)', sequin: 'as a shimmering sequin wall', greenery: 'as a boxwood greenery wall',
       wood: 'as a wooden panel wall', balloon: 'covered in balloons', urn: 'in a tall urn', pedestal: 'on a pedestal bowl', hoop: 'on a floral hoop',
-      cylinder: 'as a cylinder plinth', sphere: 'as a sphere', cutout: 'as a flat cut-out panel (no readable text)', standee: 'as a foam-board standee (no readable text)',
+      cylinder: 'as a cylinder plinth', sphere: 'as a sphere', cutout: 'as a flat cut-out panel (no readable text)', wallposter: 'as a flat poster on the wall (no readable text)', standee: 'as a foam-board standee (no readable text)',
       aframe: 'as an A-frame sign (no readable text)', direction: 'as a directional signpost (no readable text)', digital: 'as a digital screen standee',
       co2: 'as a CO2 jet', confetti: 'as a confetti cannon', kiosk: 'as a hard-top kiosk',
       // R135 visual-asset-catalogue looks

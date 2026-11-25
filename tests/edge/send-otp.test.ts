@@ -138,3 +138,40 @@ Deno.test("send-otp: simulated (no MSG91 key) -> no provider call, logged as sim
     assertEquals(fetchLog().length, 0);
   } finally { rF(); rEnv(); }
 });
+
+// R258 (0445): the code of the client's "Pay this payment" step - its own table, never an approval code
+const MS = "a0000000-0000-4000-8000-000000445201";
+const payCalls = (begin: unknown, beginErr: unknown = null) => { g.__supaRpc = (name: string) =>
+  name === "payment_code_begin" ? ({ data: begin, error: beginErr }) : name === "trial_send_blocked" ? ({ data: false, error: null }) : ({ data: null, error: null }); g.__supaResolver = () => ({ data: null, error: null }); };
+Deno.test("send-otp R258: payment code e-mailed to the address on the quote, kept in payment_codes, never admin_store_otp", async () => {
+  resetSupaMock(); payCalls({ id: "c1", quote_id: QUOTE, org_id: "o1", email: "rohan@example.com", masked: "r***@example.com", resends_left: 3 });
+  const rEnv = setEnv({ ...BASE_ENV, RESEND_API_KEY: "re_x", RESEND_FROM: "Helm <no-reply@helm.events>" });
+  let body = "";
+  const rF = installFetch((_u: unknown, init: any) => { body = String(init?.body || ""); return jsonResponse({ id: "m1" }); });
+  try {
+    const h = await loadHandler(FN), res = await h(post({ token: TOKEN, channel: "pay_email", milestone: MS, email: "evil@example.com" })), j = await res.json();
+    assertEquals(res.status, 200); assertEquals(j.live, true); assertEquals(j.masked, "r***@example.com"); assert(!("code" in j));
+    const names = supaLog().filter((x: any) => x.rpc || x.name).map((x: any) => x.rpc || x.name);
+    const all = JSON.stringify(supaLog());
+    assert(all.includes("payment_code_begin") && all.includes("payment_code_set") && all.includes("payment_code_sent")); assert(!all.includes("admin_store_otp"), names.join());
+    assert(body.includes("rohan@example.com") && body.includes("Your payment code") && !body.includes("evil@example.com") && !body.includes("approve your event"));
+  } finally { rF(); rEnv(); }
+});
+Deno.test("send-otp R258: no mail sender = not live and not marked as sent; refusals are plain; bad payment id refused", async () => {
+  resetSupaMock(); payCalls({ id: "c1", quote_id: QUOTE, org_id: "o1", email: "rohan@example.com", masked: "r***@example.com", resends_left: 3 });
+  const rEnv = setEnv(BASE_ENV), rF = installFetch(() => { throw new Error("no fetch expected"); });
+  try {
+    const h = await loadHandler(FN), j = await (await h(post({ token: TOKEN, channel: "pay_email", milestone: MS }))).json();
+    assertEquals(j.live, false); assert(!JSON.stringify(supaLog()).includes("payment_code_sent"));
+    // (a link of its own per try: 5 a minute per link)
+    for (const [code, status] of [["HL404", 404], ["HL403", 400], ["HL429", 429], ["XX000", 400]] as const) {
+      resetSupaMock(); payCalls(null, { code, message: "secret detail" });
+      const r = await h(post({ token: TOKEN.slice(0, -1) + String(status % 7) + "", channel: "pay_email", milestone: MS })); assertEquals(r.status, status); assert(!(await r.text()).includes("secret"));
+    }
+    resetSupaMock(); payCalls(null);
+    assertEquals((await h(post({ token: TOKEN.replace(/aa$/, "ab"), channel: "pay_email" }))).status, 400);
+    assertEquals((await h(post({ token: "t", channel: "pay_email", milestone: MS }))).status, 404);
+    resetSupaMock(); g.__supaRpc = (n: string) => n === "trial_send_blocked" ? ({ data: true, error: null }) : ({ data: null, error: null });
+    assertEquals((await h(post({ token: TOKEN.replace(/aa$/, "ac"), channel: "pay_email", milestone: MS }))).status, 403); assert(!JSON.stringify(supaLog()).includes("payment_code_begin"));
+  } finally { rF(); rEnv(); }
+});

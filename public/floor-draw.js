@@ -215,34 +215,6 @@ function el(tag, attrs={}, kids=[]){
   kids.forEach(c=>n.appendChild(c));
   return n;
 }
-function renderMargins(){
-  const m = store.margins || (store.margins={left:0,right:0,top:0,bottom:0});
-  const P=PX_PER_FT, W=WORLD.w*P, H=WORLD.h*P;
-  const L=m.left*P, R=(WORLD.w-m.right)*P, T=m.top*P, B=(WORLD.h-m.bottom)*P;
-  const z=(store.view&&store.view.zoom)||1;
-  const g=el('g',{class:'margins'});
-  const band=(x,y,w,h)=> el('rect',{x:x,y:y,width:Math.max(0,w),height:Math.max(0,h),fill:'var(--grid-strong)','fill-opacity':0.10,'pointer-events':'none'});
-  if(m.left>0)   g.appendChild(band(0,0,L,H));
-  if(m.right>0)  g.appendChild(band(R,0,W-R,H));
-  if(m.top>0)    g.appendChild(band(0,0,W,T));
-  if(m.bottom>0) g.appendChild(band(0,B,W,H-B));
-  // usable-area outline
-  g.appendChild(el('rect',{x:L,y:T,width:Math.max(0,R-L),height:Math.max(0,B-T),fill:'none',stroke:'var(--c-logistics,#2f74d0)','stroke-width':1.5/z,'stroke-dasharray':(7/z)+' '+(5/z),'pointer-events':'none'}));
-  const grab=Math.max(6,14/z);   // grab-strip thickness (≈14 screen px)
-  const sw=1.5/z;
-  const line=(attrs)=> g.appendChild(el('line',Object.assign({stroke:'var(--c-logistics,#2f74d0)','stroke-width':sw,'pointer-events':'none'},attrs)));
-  const strip=(edge,attrs,cursor)=> g.appendChild(el('rect',Object.assign({'data-margin':edge,fill:'transparent',style:'cursor:'+cursor},attrs)));
-  if(!RO){
-    line({x1:L,y1:0,x2:L,y2:H}); strip('left', {x:L-grab/2,y:0,width:grab,height:H},'ew-resize');
-    line({x1:R,y1:0,x2:R,y2:H}); strip('right',{x:R-grab/2,y:0,width:grab,height:H},'ew-resize');
-    line({x1:0,y1:T,x2:W,y2:T}); strip('top',  {x:0,y:T-grab/2,width:W,height:grab},'ns-resize');
-    line({x1:0,y1:B,x2:W,y2:B}); strip('bottom',{x:0,y:B-grab/2,width:W,height:grab},'ns-resize');
-    // visible pips near the ruler edge so the guides are discoverable
-    const ps=Math.max(7,9/z); const pip=(x,y,w,h)=> g.appendChild(el('rect',{x:x-w/2,y:y-h/2,width:w,height:h,rx:2/z,fill:'var(--c-logistics,#2f74d0)','pointer-events':'none'}));
-    pip(L,ps*1.2,ps,ps*1.7); pip(R,ps*1.2,ps,ps*1.7); pip(ps*1.2,T,ps*1.7,ps); pip(ps*1.2,B,ps*1.7,ps);
-  }
-  svg.appendChild(g);
-}
 function drawOrder2D(items, world){ const T=window.HelmBuilderTools; return (T && T.drawOrder) ? T.drawOrder(items, world||WORLD) : items.slice(); }
 function screenContent(it){ return window.HelmScreen ? HelmScreen.contentOf(it, store.items) : null; }
 function screenPlaceholderOn(){ return !RO && !document.querySelector('meta[name="helm-capture"]'); }
@@ -303,7 +275,7 @@ function screenBand2D(body, it, sc, w, h, c){   // the stage's rear screen band,
 }
 function screenFace2D(body, it, sc, w, h, c){   // a standalone screen item: themed face + its line of text
   const T=HelmScreen.paletteOf ? HelmScreen.paletteOf(sc) : HelmScreen.themeOf(sc.theme);
-  if(sc.pic){ body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:1,fill:'#05070a',stroke:c,'stroke-width':1.2}));   // R200 picture mode
+  if(sc.pic){ body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:1,fill:sc.poster?'#ffffff':'#05070a',stroke:c,'stroke-width':1.2}));   // R200 picture mode (R255: white under a poster)
     screenPic2D(body, sc, -w/2+0.6, -h/2+0.6, Math.max(1,w-1.2), Math.max(1,h-1.2)); return; }
   body.appendChild(el('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:1,fill:T.bg,stroke:c,'stroke-width':1.2}));
   const line=HelmScreen.shortLine(sc), lg=screenLogo2D(body, sc, -w*0.38, 0, Math.min(h*0.8, w*0.2));
@@ -332,6 +304,7 @@ function renderItem(it){
     fill:'transparent', stroke:'transparent','stroke-width':2}));
 
   const body = el('g',{class:'body'});
+  const white = !!(window.HelmScreen && HelmScreen.whiteFace && HelmScreen.whiteFace(it));   // R255: a poster without a picture is plain white
 
   const drawBox = (opts={})=> body.appendChild(el('rect',{
     x:-w/2,y:-h/2,width:w,height:h, rx:opts.rx??3,
@@ -485,7 +458,7 @@ function renderItem(it){
       [1,0.68,0.38].forEach(k=>body.appendChild(el('circle',{cx:0,cy:0,r:R*k,fill:'none',stroke:c,'stroke-width':k===1?1.5:.8,'stroke-opacity':k===1?1:.6})));
       for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; body.appendChild(el('circle',{cx:Math.cos(a)*R,cy:Math.sin(a)*R,r:1.6,fill:c})); }
       body.appendChild(el('circle',{cx:0,cy:0,r:2.5,fill:c})); break; }
-    case 'easel': { drawBox({fill:fillSoft}); break; }
+    case 'easel': { drawBox({fill:white?'#ffffff':fillSoft}); break; }
     case 'chiavari': { drawBox({fill:fillSoft,rx:2});
       body.appendChild(el('line',{x1:-w/2+2,y1:-h/2+2,x2:w/2-2,y2:-h/2+2,stroke:c,'stroke-width':2})); break; }
     case 'barstool': { body.appendChild(el('circle',{cx:0,cy:0,r:Math.min(w,h)/2,fill:fillSoft,stroke:c,'stroke-width':1.5}));
@@ -500,9 +473,9 @@ function renderItem(it){
     case 'lighting': { drawBox({fill:'transparent',sw:1.2});      // truss span with par cans hanging under it
       { const nz=Math.max(2,Math.floor(w/8)), s=w/nz; body.appendChild(el('path',{d:Array.from({length:nz},(_,i)=>{ const x=-w/2+i*s; return `M ${x} ${-h/2} L ${x+s/2} ${h/2} L ${x+s} ${-h/2}`; }).join(' '),fill:'none',stroke:c,'stroke-width':1,'stroke-opacity':.7})); }   // V3 fix: Array.from's map gets no 3rd arg
       for(let x=-w/2+6;x<w/2-2;x+=Math.max(8,w/6)) body.appendChild(el('circle',{cx:x,cy:0,r:Math.min(3,h/2+1),fill:c})); break; }
-    case 'led': case 'brandwall': { drawBox({fill:it.type==='led'?`color-mix(in srgb, ${c} 45%, var(--canvas))`:fillSoft, rx:1});
+    case 'led': case 'brandwall': { drawBox({fill:it.type==='led'?`color-mix(in srgb, ${c} 45%, var(--canvas))`:white?'#ffffff':fillSoft, rx:1});
       if(it.type==='led') for(let x=-w/2+w/8;x<w/2;x+=w/8) body.appendChild(el('line',{x1:x,y1:-h/2,x2:x,y2:h/2,stroke:c,'stroke-width':.6,'stroke-opacity':.6}));
-      else body.appendChild(el('line',{x1:-w/2+3,y1:0,x2:w/2-3,y2:0,stroke:c,'stroke-width':1,'stroke-dasharray':'4 3'})); break; }
+      else if(!white) body.appendChild(el('line',{x1:-w/2+3,y1:0,x2:w/2-3,y2:0,stroke:c,'stroke-width':1,'stroke-dasharray':'4 3'})); break; }
     case 'chocolatefountain': { body.appendChild(el('circle',{cx:0,cy:0,r:Math.min(w,h)/2,fill:fillSoft,stroke:c,'stroke-width':1.5}));
       [0.34,0.18].forEach(k=>body.appendChild(el('circle',{cx:0,cy:0,r:Math.min(w,h)*k,fill:'none',stroke:c,'stroke-width':1}))); break; }
     case 'chariot': { drawBox({fill:fillSoft, rx:Math.min(w,h)*0.4});
@@ -587,12 +560,12 @@ function renderItem(it){
       { const n=Math.max(1,Math.min(16,(it.properties&&it.properties.chairs)|0||8));
         for(let i=0;i<n;i++) body.appendChild(el('rect',{x:-w*0.4+(i+0.5)*(w*0.8/n)-2.5,y:-h*0.32,width:5,height:5,rx:1,fill:c,'fill-opacity':.85})); }
       break; }
-    case 'flagstand': { const R=Math.min(w,h)/2;
+    case 'flagstand': { const R=Math.min(w,h)/2, fs0=screenContent(it);
       body.appendChild(el('circle',{cx:0,cy:0,r:R*0.6,fill:fillSoft,stroke:c,'stroke-width':1.2}));
-      body.appendChild(el('path',{d:`M 0 0 L ${R} ${-R*0.5} L ${R} ${R*0.2} Z`,fill:c,'fill-opacity':.7})); break; }
-    case 'hoarding': { drawBox({fill:fillSoft, rx:0});
-      for(let x=-w/2;x<=w/2+0.1;x+=w/4) body.appendChild(el('line',{x1:x,y1:-h/2,x2:x,y2:h/2,stroke:c,'stroke-width':1}));
-      body.appendChild(el('line',{x1:-w/2,y1:0,x2:w/2,y2:0,stroke:c,'stroke-width':.8,'stroke-dasharray':'4 3'})); break; }
+      body.appendChild(el('path',{d:`M 0 0 L ${R} ${-R*0.5} L ${R} ${R*0.2} Z`,fill:white?'#ffffff':c,'fill-opacity':white?1:.7,stroke:c,'stroke-width':white?.8:0}));
+      if(fs0 && fs0.pic) screenPic2D(body, fs0, 0, -R*0.6, R, R*0.66);
+      break; }
+    case 'hoarding': { drawBox({fill:white?'#ffffff':fillSoft, rx:0, sw:2}); break; }
     case 'patower': { drawBox({fill:'transparent',sw:1.2});
       body.appendChild(el('path',{d:`M ${-w/2} ${-h/2} L ${w/2} ${h/2} M ${w/2} ${-h/2} L ${-w/2} ${h/2}`,stroke:c,'stroke-width':.8,'stroke-opacity':.6}));
       body.appendChild(el('rect',{x:-w*0.3,y:-h*0.3,width:w*0.6,height:h*0.6,rx:1,fill:c,'fill-opacity':.7})); break; }
@@ -620,9 +593,9 @@ function renderItem(it){
     case 'neonsign': { drawBox({fill:`color-mix(in srgb, ${c} 14%, var(--canvas))`, rx:1});
       body.appendChild(el('path',{d:`M ${-w*0.35} 0 q ${w*0.12} ${-h*0.6} ${w*0.24} 0 t ${w*0.24} 0 t ${w*0.22} 0`,fill:'none',stroke:'#ff4fd8','stroke-width':2})); break; }
     /* ---- complete-catalogue pack (2026-10d) ---- */
-    case 'backdrop': case 'projector': case 'teleprompter': { drawBox({fill:`color-mix(in srgb, ${c} 20%, var(--canvas))`, rx:1});
+    case 'backdrop': case 'projector': case 'teleprompter': { drawBox({fill:white?'#ffffff':`color-mix(in srgb, ${c} 20%, var(--canvas))`, rx:1});
       if(it.type!=='backdrop') body.appendChild(el('rect',{x:-w*0.42,y:-h*0.25,width:w*0.84,height:h*0.5,fill:'#9fb6ff','fill-opacity':.6}));
-      else for(let i=1;i<4;i++) body.appendChild(el('line',{x1:-w/2+i*w/4,y1:-h/2,x2:-w/2+i*w/4,y2:h/2,stroke:c,'stroke-width':.6,'stroke-opacity':.5}));
+      else if(!white) for(let i=1;i<4;i++) body.appendChild(el('line',{x1:-w/2+i*w/4,y1:-h/2,x2:-w/2+i*w/4,y2:h/2,stroke:c,'stroke-width':.6,'stroke-opacity':.5}));
       break; }
     case 'floralstand': case 'urli': case 'kalash': case 'plinth': case 'micstand': case 'pyro': case 'extinguisher': { const R=Math.min(w,h)/2;
       const ring=it.type==='urli'||it.type==='kalash';
@@ -634,10 +607,10 @@ function renderItem(it){
       else if(it.type==='pyro') for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; body.appendChild(el('line',{x1:0,y1:0,x2:Math.cos(a)*R,y2:Math.sin(a)*R,stroke:'#f59e0b','stroke-width':1})); }
       else if(it.type==='micstand') body.appendChild(el('circle',{cx:0,cy:0,r:R*0.3,fill:c}));
       break; }
-    case 'decorbox': case 'signage': case 'counter': case 'kiosk': case 'shoerack': case 'tvstand': { drawBox({fill:fillSoft, rx:it.type==='decorbox'?3:1});
+    case 'decorbox': case 'signage': case 'counter': case 'kiosk': case 'shoerack': case 'tvstand': { drawBox({fill:white?'#ffffff':fillSoft, rx:it.type==='decorbox'?3:1});
       if(it.type==='decorbox') body.appendChild(el('path',{d:`M ${-w/2} ${-h/2} L ${w/2} ${h/2} M ${w/2} ${-h/2} L ${-w/2} ${h/2}`,stroke:c,'stroke-width':.7,'stroke-opacity':.5}));
       else if(it.type==='shoerack') for(let i=1;i<6;i++) body.appendChild(el('line',{x1:-w/2+i*w/6,y1:-h/2,x2:-w/2+i*w/6,y2:h/2,stroke:c,'stroke-width':.6}));
-      else body.appendChild(el('rect',{x:-w*0.35,y:-h*0.3,width:w*0.7,height:h*0.25,fill:c,'fill-opacity':.5}));
+      else if(!white) body.appendChild(el('rect',{x:-w*0.35,y:-h*0.3,width:w*0.7,height:h*0.25,fill:c,'fill-opacity':.5}));
       break; }
     case 'recttable': {
       drawBox({fill:fillSoft, rx:1});
@@ -710,7 +683,9 @@ function renderItem(it){
   if(it.type!=='stage' && window.HelmScreen && HelmScreen.isScreenType(it.type)){
     const sc=screenContent(it);
     if(HelmScreen.hasContent(sc)){ screenFace2D(body, it, sc, w, h, c); scrText=!sc.pic && HelmScreen.hasText(sc); }
-    else { screenPlaceholder2D(body, -w/2, -h/2, w, h*0.5); scrText=screenPlaceholderOn(); }
+    else if(!white){ screenPlaceholder2D(body, -w/2, -h/2, w, h*0.5); scrText=screenPlaceholderOn(); }
+  } else if(it.type!=='stage' && it.type!=='flagstand' && window.HelmScreen && HelmScreen.isPosterType && HelmScreen.isPosterType(it.type)){   // R255: posters show their picture
+    const pc=screenContent(it); if(pc && pc.pic) screenFace2D(body, it, pc, w, h, c);
   }
   g.appendChild(body);
 
@@ -737,6 +712,7 @@ function renderItem(it){
     fill:'transparent', stroke:'transparent','stroke-width':2}));
 
   const body = el('g',{class:'body'});
+  const white = !!(window.HelmScreen && HelmScreen.whiteFace && HelmScreen.whiteFace(it));   // R255: a poster without a picture is plain white
 
   const drawBox = (opts={})=> body.appendChild(el('rect',{
     x:-w/2,y:-h/2,width:w,height:h, rx:opts.rx??3,
@@ -890,7 +866,7 @@ function renderItem(it){
       [1,0.68,0.38].forEach(k=>body.appendChild(el('circle',{cx:0,cy:0,r:R*k,fill:'none',stroke:c,'stroke-width':k===1?1.5:.8,'stroke-opacity':k===1?1:.6})));
       for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; body.appendChild(el('circle',{cx:Math.cos(a)*R,cy:Math.sin(a)*R,r:1.6,fill:c})); }
       body.appendChild(el('circle',{cx:0,cy:0,r:2.5,fill:c})); break; }
-    case 'easel': { drawBox({fill:fillSoft}); break; }
+    case 'easel': { drawBox({fill:white?'#ffffff':fillSoft}); break; }
     case 'chiavari': { drawBox({fill:fillSoft,rx:2});
       body.appendChild(el('line',{x1:-w/2+2,y1:-h/2+2,x2:w/2-2,y2:-h/2+2,stroke:c,'stroke-width':2})); break; }
     case 'barstool': { body.appendChild(el('circle',{cx:0,cy:0,r:Math.min(w,h)/2,fill:fillSoft,stroke:c,'stroke-width':1.5}));
@@ -905,9 +881,9 @@ function renderItem(it){
     case 'lighting': { drawBox({fill:'transparent',sw:1.2});      // truss span with par cans hanging under it
       { const nz=Math.max(2,Math.floor(w/8)), s=w/nz; body.appendChild(el('path',{d:Array.from({length:nz},(_,i)=>{ const x=-w/2+i*s; return `M ${x} ${-h/2} L ${x+s/2} ${h/2} L ${x+s} ${-h/2}`; }).join(' '),fill:'none',stroke:c,'stroke-width':1,'stroke-opacity':.7})); }   // V3 fix: Array.from's map gets no 3rd arg
       for(let x=-w/2+6;x<w/2-2;x+=Math.max(8,w/6)) body.appendChild(el('circle',{cx:x,cy:0,r:Math.min(3,h/2+1),fill:c})); break; }
-    case 'led': case 'brandwall': { drawBox({fill:it.type==='led'?`color-mix(in srgb, ${c} 45%, var(--canvas))`:fillSoft, rx:1});
+    case 'led': case 'brandwall': { drawBox({fill:it.type==='led'?`color-mix(in srgb, ${c} 45%, var(--canvas))`:white?'#ffffff':fillSoft, rx:1});
       if(it.type==='led') for(let x=-w/2+w/8;x<w/2;x+=w/8) body.appendChild(el('line',{x1:x,y1:-h/2,x2:x,y2:h/2,stroke:c,'stroke-width':.6,'stroke-opacity':.6}));
-      else body.appendChild(el('line',{x1:-w/2+3,y1:0,x2:w/2-3,y2:0,stroke:c,'stroke-width':1,'stroke-dasharray':'4 3'})); break; }
+      else if(!white) body.appendChild(el('line',{x1:-w/2+3,y1:0,x2:w/2-3,y2:0,stroke:c,'stroke-width':1,'stroke-dasharray':'4 3'})); break; }
     case 'chocolatefountain': { body.appendChild(el('circle',{cx:0,cy:0,r:Math.min(w,h)/2,fill:fillSoft,stroke:c,'stroke-width':1.5}));
       [0.34,0.18].forEach(k=>body.appendChild(el('circle',{cx:0,cy:0,r:Math.min(w,h)*k,fill:'none',stroke:c,'stroke-width':1}))); break; }
     case 'chariot': { drawBox({fill:fillSoft, rx:Math.min(w,h)*0.4});
@@ -992,12 +968,12 @@ function renderItem(it){
       { const n=Math.max(1,Math.min(16,(it.properties&&it.properties.chairs)|0||8));
         for(let i=0;i<n;i++) body.appendChild(el('rect',{x:-w*0.4+(i+0.5)*(w*0.8/n)-2.5,y:-h*0.32,width:5,height:5,rx:1,fill:c,'fill-opacity':.85})); }
       break; }
-    case 'flagstand': { const R=Math.min(w,h)/2;
+    case 'flagstand': { const R=Math.min(w,h)/2, fs0=screenContent(it);
       body.appendChild(el('circle',{cx:0,cy:0,r:R*0.6,fill:fillSoft,stroke:c,'stroke-width':1.2}));
-      body.appendChild(el('path',{d:`M 0 0 L ${R} ${-R*0.5} L ${R} ${R*0.2} Z`,fill:c,'fill-opacity':.7})); break; }
-    case 'hoarding': { drawBox({fill:fillSoft, rx:0});
-      for(let x=-w/2;x<=w/2+0.1;x+=w/4) body.appendChild(el('line',{x1:x,y1:-h/2,x2:x,y2:h/2,stroke:c,'stroke-width':1}));
-      body.appendChild(el('line',{x1:-w/2,y1:0,x2:w/2,y2:0,stroke:c,'stroke-width':.8,'stroke-dasharray':'4 3'})); break; }
+      body.appendChild(el('path',{d:`M 0 0 L ${R} ${-R*0.5} L ${R} ${R*0.2} Z`,fill:white?'#ffffff':c,'fill-opacity':white?1:.7,stroke:c,'stroke-width':white?.8:0}));
+      if(fs0 && fs0.pic) screenPic2D(body, fs0, 0, -R*0.6, R, R*0.66);
+      break; }
+    case 'hoarding': { drawBox({fill:white?'#ffffff':fillSoft, rx:0, sw:2}); break; }
     case 'patower': { drawBox({fill:'transparent',sw:1.2});
       body.appendChild(el('path',{d:`M ${-w/2} ${-h/2} L ${w/2} ${h/2} M ${w/2} ${-h/2} L ${-w/2} ${h/2}`,stroke:c,'stroke-width':.8,'stroke-opacity':.6}));
       body.appendChild(el('rect',{x:-w*0.3,y:-h*0.3,width:w*0.6,height:h*0.6,rx:1,fill:c,'fill-opacity':.7})); break; }
@@ -1025,9 +1001,9 @@ function renderItem(it){
     case 'neonsign': { drawBox({fill:`color-mix(in srgb, ${c} 14%, var(--canvas))`, rx:1});
       body.appendChild(el('path',{d:`M ${-w*0.35} 0 q ${w*0.12} ${-h*0.6} ${w*0.24} 0 t ${w*0.24} 0 t ${w*0.22} 0`,fill:'none',stroke:'#ff4fd8','stroke-width':2})); break; }
     /* ---- complete-catalogue pack (2026-10d) ---- */
-    case 'backdrop': case 'projector': case 'teleprompter': { drawBox({fill:`color-mix(in srgb, ${c} 20%, var(--canvas))`, rx:1});
+    case 'backdrop': case 'projector': case 'teleprompter': { drawBox({fill:white?'#ffffff':`color-mix(in srgb, ${c} 20%, var(--canvas))`, rx:1});
       if(it.type!=='backdrop') body.appendChild(el('rect',{x:-w*0.42,y:-h*0.25,width:w*0.84,height:h*0.5,fill:'#9fb6ff','fill-opacity':.6}));
-      else for(let i=1;i<4;i++) body.appendChild(el('line',{x1:-w/2+i*w/4,y1:-h/2,x2:-w/2+i*w/4,y2:h/2,stroke:c,'stroke-width':.6,'stroke-opacity':.5}));
+      else if(!white) for(let i=1;i<4;i++) body.appendChild(el('line',{x1:-w/2+i*w/4,y1:-h/2,x2:-w/2+i*w/4,y2:h/2,stroke:c,'stroke-width':.6,'stroke-opacity':.5}));
       break; }
     case 'floralstand': case 'urli': case 'kalash': case 'plinth': case 'micstand': case 'pyro': case 'extinguisher': { const R=Math.min(w,h)/2;
       const ring=it.type==='urli'||it.type==='kalash';
@@ -1039,10 +1015,10 @@ function renderItem(it){
       else if(it.type==='pyro') for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; body.appendChild(el('line',{x1:0,y1:0,x2:Math.cos(a)*R,y2:Math.sin(a)*R,stroke:'#f59e0b','stroke-width':1})); }
       else if(it.type==='micstand') body.appendChild(el('circle',{cx:0,cy:0,r:R*0.3,fill:c}));
       break; }
-    case 'decorbox': case 'signage': case 'counter': case 'kiosk': case 'shoerack': case 'tvstand': { drawBox({fill:fillSoft, rx:it.type==='decorbox'?3:1});
+    case 'decorbox': case 'signage': case 'counter': case 'kiosk': case 'shoerack': case 'tvstand': { drawBox({fill:white?'#ffffff':fillSoft, rx:it.type==='decorbox'?3:1});
       if(it.type==='decorbox') body.appendChild(el('path',{d:`M ${-w/2} ${-h/2} L ${w/2} ${h/2} M ${w/2} ${-h/2} L ${-w/2} ${h/2}`,stroke:c,'stroke-width':.7,'stroke-opacity':.5}));
       else if(it.type==='shoerack') for(let i=1;i<6;i++) body.appendChild(el('line',{x1:-w/2+i*w/6,y1:-h/2,x2:-w/2+i*w/6,y2:h/2,stroke:c,'stroke-width':.6}));
-      else body.appendChild(el('rect',{x:-w*0.35,y:-h*0.3,width:w*0.7,height:h*0.25,fill:c,'fill-opacity':.5}));
+      else if(!white) body.appendChild(el('rect',{x:-w*0.35,y:-h*0.3,width:w*0.7,height:h*0.25,fill:c,'fill-opacity':.5}));
       break; }
     case 'recttable': {
       drawBox({fill:fillSoft, rx:1});
@@ -1115,7 +1091,9 @@ function renderItem(it){
   if(it.type!=='stage' && window.HelmScreen && HelmScreen.isScreenType(it.type)){
     const sc=screenContent(it);
     if(HelmScreen.hasContent(sc)){ screenFace2D(body, it, sc, w, h, c); scrText=!sc.pic && HelmScreen.hasText(sc); }
-    else { screenPlaceholder2D(body, -w/2, -h/2, w, h*0.5); scrText=screenPlaceholderOn(); }
+    else if(!white){ screenPlaceholder2D(body, -w/2, -h/2, w, h*0.5); scrText=screenPlaceholderOn(); }
+  } else if(it.type!=='stage' && it.type!=='flagstand' && window.HelmScreen && HelmScreen.isPosterType && HelmScreen.isPosterType(it.type)){   // R255: posters show their picture
+    const pc=screenContent(it); if(pc && pc.pic) screenFace2D(body, it, pc, w, h, c);
   }
   g.appendChild(body);
 
@@ -1225,7 +1203,6 @@ function svgOf(plan, o) {
   svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'fv-plan', preserveAspectRatio: 'xMidYMid meet' });
   drawGrid();
   drawOrder2D(store.items).forEach(it=> svg.appendChild(renderItem(it)));
-  renderMargins();
   const out = svg; svg = null;
   // self-contained colours + label type, so no page rule (svg text, a theme) can change the plan
   Object.keys(PALETTE).forEach((k) => out.style.setProperty(k, PALETTE[k])); out.style.setProperty('--c-logistics', C_LIGHT.logistics);

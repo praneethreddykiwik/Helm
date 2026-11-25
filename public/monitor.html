@@ -8,20 +8,22 @@
 <link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
-<link rel="stylesheet" href="ops-board.css?v=9">
-<link rel="stylesheet" href="monitor.css?v=11">
+<link rel="stylesheet" href="ops-board.css?v=11">
+<link rel="stylesheet" href="monitor.css?v=16">
 <link rel="stylesheet" href="event-plan.css?v=3">
-<link rel="stylesheet" href="day-before.css?v=1">
-<link rel="stylesheet" href="event-floor.css?v=2">
+<link rel="stylesheet" href="day-before.css?v=2">
+<link rel="stylesheet" href="event-floor.css?v=4">
 <link rel="stylesheet" href="/event-steps.css?v=1">
 <link rel="stylesheet" href="/issue-assign.css?v=1">
 <link rel="stylesheet" href="/stock-vendor.css?v=1">
-<link rel="stylesheet" href="/event-delay.css?v=1">
-<link rel="stylesheet" href="stock-flow.css?v=2">
-<link rel="stylesheet" href="/event-wrap.css?v=1">
+<link rel="stylesheet" href="/event-delay.css?v=2">
+<link rel="stylesheet" href="stock-flow.css?v=3">
+<link rel="stylesheet" href="/event-wrap.css?v=2">
+<link rel="stylesheet" href="/vendor-items.css?v=1">
+<link rel="stylesheet" href="/event-extras.css?v=1">
 <link rel="stylesheet" href="/pre-check.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body class="mon-body">
 <a class="skip-link" href="#main">Skip to content</a>
@@ -35,6 +37,12 @@
     <span id="account" class="account" hidden></span>
   </header>
   <main id="main" class="mon">
+    <!-- R255: the wall screen's own bar, always on top: the way out, the event -->
+    <div class="tc mon-wallbar" id="monWallBar" role="region" aria-label="Wall screen" hidden>
+      <b class="mon-wallbar-t">Wall screen</b>
+      <a class="tc-btn" id="monWallBack" href="dashboard.html" hidden>Back to event</a>
+      <button type="button" class="tc-btn tc-primary" id="monWallX"><span aria-hidden="true">✕</span> Exit full screen</button>
+    </div>
     <div id="monBoot" class="mon-card mon-loading" aria-busy="true">Loading the event day…</div>
     <div id="monErr" class="mon-card mon-err" role="alert" hidden></div>
 
@@ -58,9 +66,12 @@
         <dl class="tc-times mon-times" id="monTimes" aria-label="Times"></dl>
         <div class="tc-ev-foot mon-head-acts">
           <a id="monOpenOps" class="tc-btn tc-primary" href="ops.html">Open Tasks &amp; Crew</a>
+          <a id="monBack" class="tc-btn" href="dashboard.html" hidden>Back to event</a>
           <button type="button" id="monRefresh" class="tc-btn" aria-describedby="monUpdated">Refresh</button>
           <span id="monUpdated" class="mon-updated" aria-live="polite"></span>
-          <button type="button" id="monWall" class="tc-btn ghost mon-wallbtn" aria-pressed="false">Wall screen</button>
+          <span class="mon-head-r">
+            <button type="button" id="monWall" class="tc-btn mon-wallbtn" aria-pressed="false">Wall screen</button>
+          </span>
         </div>
       </section>
 
@@ -76,27 +87,29 @@
         <!-- R252 (pre-check.js): "How the steps work", closed -->
         <div class="pc-how" id="monHow"></div>
       </nav>
+      <!-- R257: there is no event-day lock; only a database without 0442 shows its one line here (event-floor.js) -->
+      <section class="ef-lock mon-lock" id="monLock" hidden></section>
       <!-- R252 (pre-check.js, the same as Tasks & Crew): the pre-event check, on Pre-event from 1 hour before Ready by until it is marked complete -->
       <section class="pc" id="monPreCheck" hidden></section>
+      <!-- R257 (day-before.js, the same as Tasks & Crew): the checklist is the first thing of Day before and Pre-event -->
+      <section class="tc-card ep-card mon-list" id="monDayBefore" aria-labelledby="monDayBeforeH" hidden></section>
+      <section class="tc-card ep-card mon-list" id="monPreList" aria-labelledby="monPreListH" hidden></section>
+      <!-- R253 (event-wrap.js): who has arrived and left, on Pre-event and On the event. R260 (vendor-items.js): their items are checked in here, right under
+           the Pre-event checklist; On the event it sits with the issues (monitor.css) -->
+      <section class="tc-card mon-mini hwd-card" id="monVendors" hidden></section>
 
-      <!-- R251: what each step shows, top to bottom. Day before = get set up, needs action, checklist, lock, floor plan.
-           Pre-event = the live strip, late set-up jobs, Ready by, floor plan, the work, "Mark pre-event complete".
+      <!-- R251 / R257: what each step shows, top to bottom. Day before = the checklist, needs action + set-up numbers (closed), Ready by, floor plan.
+           Pre-event = the checklist, the live strip, late set-up jobs, Ready by, floor plan, the work, "Mark pre-event complete".
            On the event = the live strip, run-sheet now / next, Late panel, issues, the work + activity, floor plan. -->
       <section id="monSummary" class="mon-summary" aria-label="At a glance"></section>
       <section class="tc-card mon-mini" id="monRun" aria-labelledby="monRunH" hidden></section>
       <!-- R252 (event-delay.js, the same card as Tasks & Crew): "Running late - what it affects" -->
       <section class="dly" id="monDelay" hidden></section>
       <section id="monAlerts" class="mon-alerts" aria-label="Late tasks" role="region" hidden></section>
-      <!-- R253 (event-wrap.js): who has arrived and left, on Pre-event and On the event -->
-      <section class="tc-card mon-mini hwd-card" id="monVendors" hidden></section>
       <section class="tc-card mon-mini" id="monIssues" aria-labelledby="monIssuesH" hidden></section>
+      <!-- R255 (0440, event-extras.js): extra food and anything added that day, on On the event; the same card as Tasks & Crew -->
+      <section class="tc-card mon-mini tc-xtra hwd-card" id="monExtras" hidden></section>
       <section class="tc-card mon-prep" id="monPrep" aria-labelledby="monPrepH" hidden></section>
-      <section class="tc-card ep-card" id="monDayBefore" aria-labelledby="monDayBeforeH" hidden></section>
-      <!-- R227 (0397, event-floor.js): the plan lock bar (Day before only) + the floor plan; hidden before 0397 -->
-      <div class="mon-lockwrap" id="monLockWrap">
-        <p class="mon-lockh">Lock the plan</p>
-        <section class="ef-lock" id="monLock" hidden></section>
-      </div>
       <section class="tc-card ep-card" id="monReady" aria-labelledby="monReadyH" hidden></section>
       <section class="tc-card ef-card" id="monFloor" aria-labelledby="monFloorH" hidden></section>
 
@@ -151,21 +164,23 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script>
 <script src="live-board.js?v=3"></script>
-<script src="task-status.js?v=7"></script>
-<script src="event-plan.js?v=7"></script>
-<script src="day-before.js?v=2"></script>
-<script src="monitor.js?v=16"></script>
-<script src="event-floor.js?v=3"></script>
-<script src="stock-flow.js?v=2"></script>
-<script src="stock-checkin.js?v=1"></script>
-<script src="/event-wrap.js?v=2"></script>
-<script src="/event-steps.js?v=4"></script>
-<script src="/issue-assign.js?v=2"></script>
-<script src="/stock-vendor.js?v=1"></script>
-<script src="/event-delay.js?v=2"></script>
-<script src="/task-clash.js?v=1"></script>
+<script src="task-status.js?v=8"></script>
+<script src="event-plan.js?v=8"></script>
+<script src="day-before.js?v=5"></script>
+<script src="monitor.js?v=20"></script>
+<script src="event-floor.js?v=6"></script>
+<script src="stock-flow.js?v=3"></script>
+<script src="stock-checkin.js?v=2"></script>
+<script src="/event-wrap.js?v=6"></script>
+<script src="/vendor-items.js?v=1"></script>
+<script src="/event-extras.js?v=1"></script>
+<script src="/event-steps.js?v=8"></script>
+<script src="/issue-assign.js?v=4"></script>
+<script src="/stock-vendor.js?v=3"></script>
+<script src="/event-delay.js?v=3"></script>
+<script src="/task-clash.js?v=2"></script>
 <script src="/pre-check.js?v=2"></script>
 </body>
 </html>

@@ -18,7 +18,6 @@
 .dly-eff[hidden]{display:none}
 .dly-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
 .dly .dly-acts :is(.tc-btn,button){min-height:44px}
-.dly-lock{font-size:12.5px}
 .dly .dly-more{min-height:44px;margin-top:8px}
 .dly-more[hidden]{display:none}
 .dly-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}

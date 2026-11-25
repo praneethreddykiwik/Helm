@@ -65,7 +65,7 @@ await t('rows: time first (as on Tasks & Crew) - "No time" sits quietly in that 
 // R250 / R251: the summary follows the step: readiness + get set up the day before, one slim live strip Pre-event / On the event (the
 // only sticky block), still open + hours once the event is over; the "Latest:" line is gone (the rail / Activity tab have it) and the rail no longer sticks
 await t('summary: readiness the day before, a slim sticky live strip on the event day, still open + hours when it is over; no "Latest:" line', () => {
-  assert.match(JS, /fact\("Assigned", r\.assigned \+ " of " \+ r\.total/); assert.match(JS, /fact\("Accepted", r\.accepted \+ " of " \+ r\.total/);
+  assert.match(JS, /rr\.assigned \+ " of " \+ rr\.total \+ " assigned", rr\.accepted \+ " of " \+ rr\.total \+ " accepted"/); assert.match(JS, /cls: "mon-prepd"/);
   assert.match(JS, /fact\("Late", String\(sm\.late\)/); assert.match(JS, /fact\("Checked in", ac\.checkedIn \+ " of " \+ ac\.people/); assert.match(JS, /fact\("Next", /);
   assert.match(JS, /fact\("Still open", String\(left\)/); assert.match(JS, /fact\("Hours checked in", /);
   assert.doesNotMatch(JS, /"Latest: "|--mon-sum-h|stickyOffset/);
@@ -103,11 +103,11 @@ await t('tabs keep role=tab / aria-selected and look like the Tasks & Crew segme
   assert.match(CSS, /\.mon-tab\[aria-selected="true"\]\{background:var\(--m-panel\)/);
 });
 
-await t('wall screen: toggle (aria-pressed), bigger text, filters out of the way, full screen when allowed, remembered on this device', () => {
-  assert.match(HTML, /id="monWall" class="tc-btn ghost mon-wallbtn" aria-pressed="false"/);
+await t('wall screen: toggle (aria-pressed), bigger text, filters out of the way, full screen when allowed, remembered in this tab only (R255), its own bar with the way out', () => {
+  assert.match(HTML, /id="monWall" class="tc-btn mon-wallbtn" aria-pressed="false"/);
   assert.match(JS, /doc\.body\.classList\.toggle\("mon-wall", !!on\)/);
   assert.match(JS, /requestFullscreen\(\)\.catch\(function \(\) \{\}\)/);
-  assert.match(JS, /LS_WALL = "helm\.monitor\.wall"/);
+  assert.match(JS, /LS_WALL = "helm\.monitor\.wall"/); assert.match(JS, /sessionStorage\.getItem\(LS_WALL\)/); assert.match(HTML, /id="monWallX"[^>]*>[^\n]*Exit full screen/);
   assert.match(CSS, /body\.mon-wall \.mon-tools\{display:none\}/); assert.match(CSS, /body\.mon-wall \.mon-pct b\{font-size:52px\}/);
 });
 
@@ -121,7 +121,7 @@ await t('still DOM-only and the same 30 s shared refresh; the tour names the swi
 // ---- R251: Day before / Pre-event / On the event, Wrap-up closed at the bottom ----
 await t('R251 page order: the strip under the header; pre-event card then Wrap-up last, after the work', () => {
   const at = (x) => { const i = HTML.indexOf(x); assert.ok(i > 0, x); return i; };
-  const o = ['id="monTitle"', 'id="monWins"', 'id="monSummary"', 'id="monRun"', 'id="monAlerts"', 'id="monIssues"', 'id="monPrep"', 'id="monDayBefore"', 'id="monLock"', 'id="monReady"', 'id="monFloor"', 'id="monWork"', 'id="monPreDone"', 'id="monWrapUp"'].map(at);
+  const o = ['id="monTitle"', 'id="monWins"', 'id="monLock"', 'id="monDayBefore"', 'id="monPreList"', 'id="monSummary"', 'id="monRun"', 'id="monAlerts"', 'id="monIssues"', 'id="monPrep"', 'id="monReady"', 'id="monFloor"', 'id="monWork"', 'id="monPreDone"', 'id="monWrapUp"'].map(at);
   assert.deepEqual(o, o.slice().sort((a, b) => a - b));
   assert.match(CSS, /\.mon-predone\{order:3\}\.mon-wrapup\{order:4\}/);
   assert.match(HTML, /event-steps\.css\?v=\d+/); assert.match(HTML, /event-steps\.js\?v=\d+/);

@@ -275,6 +275,27 @@
     } catch (e) { say(errText(e), "err"); }
     finally { b.disabled = false; }
   }
+  // R258 (0445): remind the team to collect a payment (on / off + the time), under the default schedule. Saved by itself. Hidden before 0445.
+  async function teamBox() {
+    var P = global.BPStore.paySchedule, host = $("pst_rem"), T = null; if (!host || !P.teamGet || $("pst_team")) return;
+    try { T = await P.teamGet(); } catch (e) { T = null; }
+    if (!T || $("pst_team")) return;
+    var box = el("div", "pst-team"); box.id = "pst_team";
+    var lab = el("label", "pst-chk"), cb = el("input"); cb.type = "checkbox"; cb.id = "pst_team_on"; cb.checked = T.on !== false; lab.appendChild(cb);
+    lab.appendChild(el("span", "", "Remind my team when a client payment is due")); box.appendChild(lab);
+    var g = el("div", "pst-grid"), f = el("div", "fld"), l = el("label", "", "At what time"), s = el("select"); s.id = "pst_team_at"; l.htmlFor = s.id;
+    for (var h = 8; h < 20; h++) ["00", "30"].forEach(function (m) { var v = (h < 10 ? "0" : "") + h + ":" + m, o = el("option", "", (h % 12 || 12) + ":" + m + (h < 12 ? " am" : " pm")); o.value = v; if (v === T.at) o.selected = true; s.appendChild(o); });
+    f.appendChild(l); f.appendChild(s); g.appendChild(f); box.appendChild(g);
+    box.appendChild(el("p", "mnote", "People with Finance - Can change get a bell the working day before, on the due day and every 3 days while it is late, with what is left to pay. It stops when the payment is recorded. People who chose inbox e-mails get it by e-mail too. The client is contacted by you, not by Helm."));
+    var ok = T.can_edit === true && !!(S && S.can_edit); cb.disabled = s.disabled = !ok;
+    async function keep() {
+      cb.disabled = s.disabled = true; say("Saving\u2026", "info");
+      try { var r = await P.teamSet(cb.checked, s.value); cb.checked = r.on !== false; s.value = r.at; say("Saved.", "ok"); } catch (e) { cb.checked = T.on !== false; s.value = T.at; say(errText(e), "err"); }
+      finally { cb.disabled = s.disabled = !ok; }
+    }
+    cb.addEventListener("change", keep); s.addEventListener("change", keep);
+    host.parentNode.insertBefore(box, host);
+  }
   async function init() {
     if (started) return;
     var card = $("pstCard"); if (!card) return;
@@ -283,7 +304,7 @@
     started = true;
     try { S = await B.paySchedule.settings(); } catch (e) { S = null; }
     if (!S) return;
-    paint(); card.hidden = false;
+    paint(); card.hidden = false; teamBox();
     // the advance % comes from the pricing settings before 0435: painted again when they are here
     if (S.advance_pct === undefined) (function wait(n) { if (advNow() !== undefined || n > 40) { paintAdvance(); return; } setTimeout(function () { wait(n + 1); }, 500); })(0);
     $("pst_save").addEventListener("click", save);

@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=121"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=126"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1499,7 +1499,7 @@ window.HelmUrl = HelmUrl;
   // la-fetch (audit 25): the list below also names the STABLE (read-only) RPCs every page asks while it
   // boots (trial / upgrade status, seat use, prefs, shelf list, mentions, PIN status). Before, each one was
   // treated as a write and dropped every shared read of the page, so the page's own reads ran again.
-  const READ_RPCS = /\/rest\/v1\/rpc\/(page_bootstrap|current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_test_studio|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes|audit_actor_names|crew_unavailable_conflicts|dashboard_money_for|event_group_index|event_reminder_settings_get|link_views_summary|live_events_today|presence_list|quote_validity_list|recent_list)(\?|$)/;
+  const READ_RPCS = /\/rest\/v1\/rpc\/(page_bootstrap|current_org_id|my_profile|my_profile_status|get_pricing_config|get_item_rate_cards|my_demo_status|my_trial_status|my_subscription|my_auth_info|my_dashboard_prefs|my_getting_started|is_platform_admin|is_platform_operator|chat_directory|dashboard_money|dashboard_due_today|bell_feed|my_pending|admin_get_role_access|my_trial_welcome_pending|my_trial_terms_status|my_trial_org|my_upgrade_status|my_trial_limits|my_trial_access|my_seat_usage|my_test_studio|my_notification_prefs|my_notification_mutes|my_studio_route|my_tasks|list_quote_shelf|chat_my_mentions|inbox_feed|inbox_my_settings|admin_get_inbox_settings|privacy_pin_status|my_unfinished_quotes|my_open_quotes|audit_actor_names|crew_unavailable_conflicts|dashboard_money_for|event_group_index|event_reminder_settings_get|link_views_summary|live_events_today|presence_list|quote_validity_list|recent_list|quotes_page)(\?|$)/;
   /* R219: the last ten names above are STABLE (read-only) functions the dashboard / quotes / calendar / event pages ask while
      they boot. They were missing here, so each one counted as a WRITE: it dropped every shared read, the per-page memo and the
      per-tab trial / pricing caches, and the page's widgets read quotes, chat, trial status etc. a second and third time.
@@ -1613,7 +1613,7 @@ window.HelmUrl = HelmUrl;
      function sent with the bare anon key is refused by the database every time, so it is answered here with the same
      401 / 42501 and never reaches the log. public_* and submit_* always go out. tests/db/r233-anon-rpcs.sh fails when a
      migration lets anon run a function that is not in this list (so a new public link can never be blocked by it). */
-  const ANON_RPCS = /^(?:public_[a-z0-9_]+|submit_[a-z0-9_]+|_a153_money_key|_r23_enforcing|_r55_purge_allowed|approval_check_shown|booklet_snapshot_upload_ok|client_link_window_days|create_payment|crew_cantwork_ack|crew_check|crew_claim_shift|crew_link_home|crew_set_availability|crew_withdraw_claim|delivery_link_get|delivery_link_update|helm_norm_phone|invitation_preview|invite_media_guest_read_ok|invite_media_on_published_site|mfa_ok|referral_click|referral_lookup|request_otp|request_site_slug|signup_email_preauthorised|staff_google_only_for|staff_link_cantwork|staff_link_cantwork_ack|staff_link_view|storage_object_name_ok|storage_op_is_listing|storage_quota_ok|studio_slug_reserved|studio_slug_valid|studio_slugify|task_proof_upload_ok|trial_simulate_payment|trial_storage_write_ok|trial_test_approve|trial_test_approve_code|trial_test_mode_for_token|try_date|upload_scan_bucket|upload_scan_enforced|upload_scan_org|upload_scan_read_ok|vendor_invoice_submit|vendor_invoice_upload|vendor_invoice_upload_ok|vendor_link_get|vendor_link_respond|verify_and_consent|wa_request_otp|wa_verify_and_consent|worker_assignment_updates|worker_checkin_equipment|worker_evidence_upload|worker_get_equipment|worker_get_tasks|worker_respond|worker_respond_evidence)$/;
+  const ANON_RPCS = /^(?:public_[a-z0-9_]+|submit_[a-z0-9_]+|_a153_money_key|_r23_enforcing|_r55_purge_allowed|approval_check_shown|booklet_snapshot_upload_ok|client_link_window_days|create_payment|crew_cantwork_ack|crew_check|crew_claim_shift|crew_link_home|crew_set_availability|crew_withdraw_claim|delivery_link_get|delivery_link_update|helm_norm_phone|invitation_preview|invite_media_guest_read_ok|invite_media_on_published_site|mfa_ok|referral_click|referral_lookup|request_otp|request_site_slug|signup_email_preauthorised|staff_google_only_for|staff_link_cantwork|staff_link_cantwork_ack|staff_link_view|storage_object_name_ok|storage_op_is_listing|storage_quota_ok|studio_slug_reserved|studio_slug_valid|studio_slugify|task_proof_upload_ok|trial_simulate_payment|trial_storage_write_ok|trial_test_approve|trial_test_approve_code|trial_test_mode_for_token|try_date|upload_scan_bucket|upload_scan_enforced|upload_scan_org|upload_scan_read_ok|vendor_invoice_submit|vendor_invoice_upload|vendor_invoice_upload_ok|vendor_link_get|vendor_link_offer|vendor_link_respond|vendor_offer_upload|verify_and_consent|wa_request_otp|wa_verify_and_consent|worker_assignment_updates|worker_checkin_equipment|worker_evidence_upload|worker_get_equipment|worker_get_tasks|worker_respond|worker_respond_evidence)$/;
   /* R249 (prod log 22-23 Nov 2026: 4x 42501 "permission denied for function current_org_id", 401 from anon): about 100 tables fill
      org_id from DEFAULT public.current_org_id(), which anon may not run. A save (insert / update / upsert / delete on a table, not
      an rpc) sent with the bare anon key - a tab whose sign-in lapsed - always fails there. No table accepts a write from anon (no
@@ -4159,6 +4159,14 @@ window.HelmUrl = HelmUrl;
       obj[k] = function () { Object.keys(_inflight).forEach((x) => { if (x.indexOf(prefix) === 0) delete _inflight[x]; }); memoClear(); return fn.apply(this, arguments); };
     });
   }
+  // R258: quotes_page answered "no such function" in this tab: not asked again for 10 minutes (one refused call, not one per page)
+  const QPAGE_KEY = "bp_q_page_off";
+  function quotesPageOff(set) {
+    try {
+      if (set) { sessionStorage.setItem(QPAGE_KEY, String(Date.now())); return true; }
+      const at = Number(sessionStorage.getItem(QPAGE_KEY) || 0); return at > 0 && Date.now() - at >= 0 && Date.now() - at < 600000;
+    } catch (e) { if (set) quotesPageOff.mem = true; return quotesPageOff.mem === true; }
+  }
   const quotes = {
     list: () => memoRead("quotes.list", MEMO_LIST_MS, () => shareInflight("quotes.list", () => qt().list())),
     // paged list view + counters (perf): see sbq.page / sbq.counts
@@ -4166,6 +4174,27 @@ window.HelmUrl = HelmUrl;
     VIEWS: QUOTE_VIEWS.slice(),
     isArchived: quoteIsArchived,
     page: (o) => qt().page(o),
+    // R258 (0446): ONE numbered page of a Quotes tab from quotes_page - only its rows (10), the exact total for the same filters,
+    // and (o.counts) the numbers on the tabs. null = this database has no 0446 (or offline): the page uses page() as before.
+    //   o: { tab, page, size, search, eventType, dateFrom, dateTo, kind (Deleted switch), sort, counts }
+    //   -> { rows, total, page, size, counts: {all, cancelled, archived, deleted, deleted_empty} | null, canEdit, readOnly, open }
+    //   tab "inprogress": rows are the my_open_quotes rows as they are (HelmFlowResume.pageOf maps them)
+    async pageNo(o) {
+      if (mode !== "supabase" || !supa || quotesPageOff()) return null;
+      o = o || {}; const tab = o.tab === "active" || !o.tab ? "all" : String(o.tab);
+      const ids = tab === "attention" ? (await Promise.all([linkViews.attentionIds(), quoteValidity.expiringSoon().catch(() => [])])) : null;
+      const n = (v, d) => { v = Math.floor(Number(v)); return isFinite(v) && v > 0 ? Math.min(v, 1000000) : d; };
+      let d = null;
+      try {
+        d = await rpc("quotes_page", { p_tab: tab, p_search: String(o.search || "").trim().slice(0, 100) || null, p_type: o.eventType ? String(o.eventType).slice(0, 200) : null,
+          p_from: quoteDay(o.dateFrom) || null, p_to: quoteDay(o.dateTo) || null, p_kind: tab === "deleted" ? (o.kind || "all") : "all",
+          p_sort: o.sort === "updated" ? "updated" : "confirmed", p_page: n(o.page, 1), p_size: Math.min(50, n(o.size, 10)),
+          p_ids: ids ? [...new Set([...(ids[0] || []), ...(ids[1] || [])])].slice(0, 300) : null, p_today: localISODate(), p_counts: o.counts !== false });
+      } catch (e) { if (!rpcMissing(e)) throw e; quotesPageOff(true); return null; }
+      if (!d || typeof d !== "object" || !Array.isArray(d.rows) || d.missing) return null;
+      return { rows: tab === "inprogress" ? d.rows : d.rows.map(mapQuoteSummary), total: Number(d.total) || 0, page: Number(d.page) || 1, size: Number(d.size) || 10,
+        counts: d.counts && typeof d.counts === "object" ? d.counts : null, canEdit: d.can_edit !== false, readOnly: d.read_only === true, open: d.open === true };
+    },
     counts: () => qt().counts(),
     // r23: the "Cancelled (N)" tab count - status cancelled, not on the Deleted shelf (HEAD count, no rows)
     async countCancelled() {
@@ -4474,6 +4503,29 @@ window.HelmUrl = HelmUrl;
     apply: (r, d) => { r.day_rate = d && d.day_rate != null ? d.day_rate : null;
       r.attributes = d && d.attributes && typeof d.attributes === "object" && !Array.isArray(d.attributes) ? d.attributes : {};
       if (d && d.pay_hidden === true) r.pay_hidden = true; else delete r.pay_hidden; } });
+  // R255 (0440): staff whose Helm login is deactivated (Settings -> Users) keep their record and their tasks (names still show) but get
+  // `login_off: true` - every picker leaves them out. One read a minute; a database without 0440: the studio directory says "(deactivated)"
+  // for linked logins; a role that may not ask: nobody is marked (the database refuses new work for them).
+  let crewOffRead = null;
+  function crewLoginOff() {
+    if (!supa) return Promise.resolve({ ids: {}, logins: {} });
+    if (crewOffRead && Date.now() - crewOffRead.at < 60000) return crewOffRead.p;
+    const p = (async () => {
+      const out = { ids: {}, logins: {} };
+      const r = await supa.rpc("crew_login_off");
+      if (!r.error) { (Array.isArray(r.data) ? r.data : []).forEach((id) => { out.ids[id] = 1; }); return out; }
+      if (!rpcMissing(r.error)) return out;
+      const d = await memberDirectory().catch(() => ({}));
+      Object.keys(d || {}).forEach((id) => { if (/ \(deactivated\)$/.test(String((d[id] && d[id].full_name) || ""))) out.logins[id] = 1; });
+      return out;
+    })().catch(() => ({ ids: {}, logins: {} }));
+    crewOffRead = { at: Date.now(), p };
+    return p;
+  }
+  function markLoginOff(rows, off) {
+    (Array.isArray(rows) ? rows : []).forEach((c) => { if (c && (off.ids[c.id] || (c.profile_id && off.logins[c.profile_id]))) c.login_off = true; });
+    return rows;
+  }
   const invWithCost = (rows) => r58Fill(rows, { key: "cost", rpc: "inventory_costs", table: "inventory_items", cols: "id,unit_cost",
     apply: (r, d) => { r.unit_cost = d && d.unit_cost != null ? d.unit_cost : null; } });
   // 0078: fire-and-forget "the client opened the link" (follow-up timing); never throws, never blocks
@@ -4748,8 +4800,8 @@ window.HelmUrl = HelmUrl;
       if (error) throw error; return data; },
     async categories() { const t = await this.templates(); return [...new Set(t.map((x) => x.category))]; },
     async listCrew() { if (!supa) throw new Error("Supabase not configured");
-      const { data, error } = await supa.from("crew_members").select(CREW_COLS).eq("active", true).order("name");
-      if (error) throw error; return crewWithPay(data || []); },
+      const [{ data, error }, off] = await Promise.all([supa.from("crew_members").select(CREW_COLS).eq("active", true).order("name"), crewLoginOff()]);
+      if (error) throw error; return markLoginOff(await crewWithPay(data || []), off); },
     async addCrew(name, phone, department) { if (!supa) throw new Error("Supabase not configured");
       phone = phoneOrThrow(phone, true);
       const { data, error } = await supa.from("crew_members").insert({ name, phone, department }).select(CREW_COLS).single();
@@ -4777,7 +4829,7 @@ window.HelmUrl = HelmUrl;
     },
     // R254-B (0438): what each { crew_id, start, end, depends_on } overlaps, at most 60 items -> the server's answer; null = a database without it
     timeClashes(items, exclude) { return rpc("crew_time_clashes", { p_items: items, p_exclude: exclude && exclude.length ? exclude : null }).catch((e) => { if (rpcMissing(e)) return null; throw e; }); },
-    // move tasks to another step -> { changed, skipped: [{ id, reason }] }. No message to anybody; refused while the plan is locked.
+    // move tasks to another step -> { changed, skipped: [{ id, reason }] }. No message to anybody; refused when the event is closed.
     setTaskStep(ids, step) { return rpc(this.STEP_RPC.set, { p_tasks: ids, p_step: step }); },
     // Phase 40 — outsource a set of tasks to a vendor (sends them the checklist via the worker link)
     assignTasksVendor(quoteId, category, titles, vendorId, opts) {
@@ -4801,9 +4853,10 @@ window.HelmUrl = HelmUrl;
     // r96 (0312): the office cancels an assigned / accepted / in-progress task; a reason (3-300 chars) is required
     cancel: (taskId, reason) => rpc("cancel_task", { p_task: taskId, p_reason: String(reason || "").trim() }),
     // ---- Phase 35: quality-engineer verification ----
-    // R254: sending work back always needs a reason (every role; the person reads it)
+    // R254: sending work back always needs a reason (every role; the person reads it). R257: the Approvals badge counts again after a check
     verify: (taskId, pass, note) => { const n = String(note == null ? "" : note).trim();
-      return !pass && !n ? Promise.reject(new Error("Please write what has to be done again.")) : rpc("verify_task", { p_id: taskId, p_pass: !!pass, p_note: n || null }); },
+      return !pass && !n ? Promise.reject(new Error("Please write what has to be done again.")) : rpc("verify_task", { p_id: taskId, p_pass: !!pass, p_note: n || null })
+        .then((r) => { try { window.dispatchEvent(new Event("helm:approvals-changed")); } catch (e) {} return r; }); },
     // R253: the Approvals page + its nav count. Reads only, through the tables' own row rules (Staff view, own studio); verify() above
     // decides who may approve. A supervisor gets the departments they supervise (0399), everyone else every event. No money, no contact columns.
     approvals: {
@@ -4845,10 +4898,12 @@ window.HelmUrl = HelmUrl;
         }
         return out;
       },
+      // R257: one rule for the badge and the page (a supervisor never checks their own task; before 0436 they can check nothing)
+      _may: (sc, t) => !!sc && !!t && (sc.all || (!sc.old && !(t.crew_id && (sc.own || []).includes(t.crew_id)))),
       _waiting: (q) => q.eq("status", "completed").eq("verify_status", "pending"),
       async count() {
         const sc = await this.scope(); if (!sc) return null;
-        const rows = await this._rows(sc, "id,quote_id,category", (q) => this._waiting(q).order("completed_at", { ascending: false }).limit(500)); if (!rows.length) return 0;
+        const rows = (await this._rows(sc, "id,quote_id,category,crew_id", (q) => this._waiting(q).order("completed_at", { ascending: false }).limit(500))).filter((t) => this._may(sc, t)); if (!rows.length) return 0;   // R257: only what this person can approve
         const ev = await this._events(rows.map((t) => t.quote_id)); return rows.filter((t) => !(ev[t.quote_id] || {}).hidden).length;
       },
       // -> null (nothing for this role) | { scope, pending, history, next: { taskId: [task] }, events, evidence }
@@ -4966,9 +5021,18 @@ window.HelmUrl = HelmUrl;
       // Remind -> Bell: { ok, name?, reason? } (reason: no_login | just_sent | closed)
       bell: (taskId) => rpcKeyed("event_task_remind_bell", "event_task_remind_bell_once", { p_task: taskId }),   // R235: sent twice = one ping
     },
-    // R227 (0397): the event-day plan lock + the saved floor plan for the event-day screens and the printed pack (no money).
+    // R257 (0442): the event-day checklist - who ticked what and when (Day before, Pre-event), lines of your own, the history. get = null before 0442.
+    // key = "daybefore:<line>" | "pre:<line>"; mark answers { key, item: { done, by, at, note } } (the same tick twice keeps the first person)
+    checks: {
+      async get(quoteId) { if (!supa || !quoteId) return null; try { return await rpc("event_checks_get", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+      mark: (quoteId, key, done, note) => rpc("event_check_mark", { p_quote: quoteId, p_key: String(key || ""), p_done: !!done, p_note: note == null ? null : String(note).slice(0, 160) }),
+      addLine: (quoteId, step, title, id) => rpc("event_check_line_add", { p_quote: quoteId, p_step: step, p_title: String(title || ""), p_id: id || null }),
+      cancelLine: (id) => rpc("event_check_line_cancel", { p_id: id }),
+    },
+    // R227 (0397): the event-day plan lock (R257: removed - 0442 answers removed: true; only a closed event refuses changes; set = the Unlock
+    // left for a database without 0442) + the saved floor plan for the event-day screens and the printed pack (no money).
     // get / floor answer null before 0397 is applied (the pages then show no lock bar and no floor card - nothing breaks).
-    // set(quote, true, reason?) locks; set(quote, false, reason) unlocks (Quotes edit + 3-300 characters). Answer = get().
+    // set(quote, false, reason) unlocks (Quotes edit + 3-300 characters). Answer = get().
     planLock: {
       async get(quoteId) { if (!supa || !quoteId) return null; try { return await rpc("event_plan_lock_get", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
       set: (quoteId, locked, reason) => rpc("event_plan_lock_set", { p_quote: quoteId, p_lock: !!locked, p_reason: reason == null ? null : String(reason).slice(0, 300) }),
@@ -5970,12 +6034,13 @@ window.HelmUrl = HelmUrl;
   // person shows up the same way whether they're in-house Staff or a Vendor.
   const people = {
     async options() {
-      const [s, v] = await Promise.all([
+      const [s, v, off] = await Promise.all([
         staff.list(false).catch(() => []),
         vendors.listAll(false).catch(() => []),
+        mode === "supabase" ? crewLoginOff() : { ids: {}, logins: {} },
       ]);
       return [
-        ...s.map((p) => ({ id: p.id, name: p.name, kind: "staff", role: p.role || p.department || "" })),
+        ...markLoginOff(s, off).filter((p) => !p.login_off).map((p) => ({ id: p.id, name: p.name, kind: "staff", role: p.role || p.department || "" })),
         ...v.map((p) => ({ id: p.id, name: p.name, kind: "vendor", role: p.category || "" })),
       ].filter((p) => p.name);
     },
@@ -9508,6 +9573,8 @@ window.HelmUrl = HelmUrl;
       const vendWhy = liveBk.length ? ([enquiry ? enquiry + " still enquiry" : "", bookedOnly ? bookedOnly + " booked, not confirmed" : ""].filter(Boolean).join(", ") || "all confirmed")
         : bk.length ? "every vendor booking was cancelled" : "";
       const crew = new Set(tasks.map((t) => t.crew_id)).size;
+      const vers = ev && Array.isArray(ev.versions) ? ev.versions : null, layoutOk = !!vers && vers.some((v) => Number(v && (v.objectCount != null ? v.objectCount : v.object_count)) > 0);
+      const layoutSeen = layoutOk || (!!vers && await Promise.resolve().then(() => auth.canView("layouts")).then((v) => v === true, () => false));
       // ledger receipts only when the milestones don't already show it (a role without finance gets [])
       const pays = (canFin && ev && String(ev.approvalStatus || "") !== "paid" && !ms.some((m) => m && m.status === "paid"))
         ? await milestones.payments(quoteId).catch(() => []) : [];
@@ -9517,6 +9584,8 @@ window.HelmUrl = HelmUrl;
         { key: "approval", ...approvalWords(ev.approvalStatus, basis && basis[0]), critical: true, ok: ["approved", "paid"].includes(ev.approvalStatus) },
         { key: "menu", label: "Menu & package locked", critical: true, ok: menuLocked && menuHas,
           detail: menuLocked ? (menuHas ? "locked" + (pkgName ? " - " + pkgName : "") : "locked, but no package or dishes yet") : "not locked" },
+        // R257: the server needs it too (0198: a saved floor plan with items on it). Not visible to this role = the line is left out
+        ...(layoutSeen ? [{ key: "layout", label: "Floor plan saved", critical: true, ok: layoutOk, detail: layoutOk ? "saved" : "no floor plan with items on it is saved" }] : []),
         { key: "resources", label: "Resources covered (nothing missing)", critical: true, ok: resCheck.length > 0 && gaps === 0, detail: resCheck.length === 0 ? "no needs listed yet" : (gaps ? (gaps + " missing") : "all covered") },
         { key: "vendors", label: "Vendors confirmed", critical: true, ok: vendOk, detail: vendWhy || (resCheck.length ? "in-house — none needed" : "nothing planned") },
         { key: "staff", label: "Staff assigned", critical: true, ok: crew > 0, detail: crew ? (crew + " assigned") : "none" },
@@ -9706,6 +9775,34 @@ window.HelmUrl = HelmUrl;
     },
   };
 
+  /* ---------------- extras on the day (R255, 0440) ---------------- */
+  // What was added on the event day (extra food, an extra table). A list only: it never changes the bill, the budget or a payment.
+  // Rows are cancelled with a reason, never deleted. list -> null = a database without 0440 (the pages hide the card).
+  const extras = {
+    async list(quoteId) { if (!supa || !quoteId) return null; try { return await rpc("event_extras_list", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+    // requestId = once per press (a lost answer pressed again adds nothing twice)
+    add: (quoteId, item, requestId) => rpc("event_extra_add", { p_quote: quoteId, p_item: item || {}, p_request: requestId || null }),
+    cancel: (id, reason) => rpc("event_extra_cancel", { p_id: id, p_reason: String(reason || "").trim() }),
+    // "bill" | "our_cost" | null: a mark for the people who do the money, nothing else
+    decide: (id, decision) => rpc("event_extra_decide", { p_id: id, p_decision: decision || null }),
+    newKey: () => onceUuid(),
+  };
+
+  /* ---------------- Wrap-up records (R258, 0444): were a vendor's items handed back + the notes of a stock problem ----------------
+     Null on a database without 0444. Insert-only on the server: an Undo is one more row. */
+  const wrapRecords = {
+    async get(quoteId) { if (!supa || !quoteId) return null; try { return await rpc("event_wrap_records_get", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+    // o: { state "returned" | "not_returned" | "problem" | "undo", note, qtyBack, seen (the answer the page showed), key (one per press) }
+    vendor: (quoteId, bookingId, o) => rpc("event_vendor_return_set", { p_quote: quoteId, p_booking: bookingId, p_state: o.state, p_note: String(o.note || "").trim() || null,
+      p_qty_back: o.qtyBack == null || o.qtyBack === "" ? null : Number(o.qtyBack), p_seen: o.seen || null, p_id: o.key || null }),
+    // R260 (0448): the items of the booked vendors, checked in on Pre-event and out on Wrap-up. Null on a database without 0448.
+    async items(quoteId) { if (!supa || !quoteId) return null; try { return await rpc("event_vendor_items_get", { p_quote: quoteId }); } catch (e) { if (rpcMissing(e)) return null; throw e; } },
+    // phase "in" | "out"; items [{ booking, key, seen, ok, damaged, note } | { .., undo: true } | { booking, key: "*", answer, note } | { booking, label, qty }]
+    itemsSet: (quoteId, phase, items, key) => rpc("event_vendor_items_set", { p_quote: quoteId, p_phase: phase, p_items: items || [], p_request: key || null }),
+    stockNote: (checkoutId, note, key) => rpc("stock_return_note", { p_checkout: checkoutId, p_note: String(note || "").trim(), p_id: key || null }),
+    newKey: () => onceUuid(),
+  };
+
   /* ---------------- event media / gallery (Phase 25, spec step 86) ---------------- */
   const MEDIA_LS = "bp_media";
   const media = {
@@ -9840,6 +9937,16 @@ window.HelmUrl = HelmUrl;
       const delta = vendorPnlCalc(Object.assign({ bills: [] }, base)).vendors - vendorPnlCalc(Object.assign({ bills }, base)).vendors;
       sum.finalMargin = Math.round((Number(sum.finalMargin || 0) + delta) * 100) / 100;
       return delta;
+    },
+    // R257: agreed vendors (booked, not settled, with a price) that have no bill yet -> { n, sum }; a note beside "You owe vendors", no figure changes
+    pickNoBill(bk) {
+      const l = (bk || []).filter((b) => b && b.status !== "cancelled" && b.status !== "enquiry" && !b.settled && !b._billed && Number(b.cost) > 0.5);
+      return { n: l.length, sum: Math.round(l.reduce((a, b) => a + Number(b.cost), 0) * 100) / 100 };
+    },
+    async agreedNoBill(quoteId) {
+      const [bk, bills] = await Promise.all([bookings.list(quoteId), vendorBills.list(quoteId)]); if (!Array.isArray(bills)) return { n: 0, sum: 0 };
+      const st = vendorSettle(bk || [], bills).byBooking;
+      return this.pickNoBill((bk || []).map((b) => Object.assign({}, b, { _billed: !!(st[b.id] && st[b.id].billed) })));
     },
     // Shift a budget summary's estimated cost/margin by the vendor-bills delta so the Budget
     // page + workspace Budget card show the same margin as Settlement / Closure once a bill
@@ -10512,6 +10619,7 @@ window.HelmUrl = HelmUrl;
     if (k === "quote_expiring" || k === "quote_expired" || k === "quote_renew_request") return "event.html?id=" + enc(q) + "#quote-validity";
     if (k === "task_escalated" && (d.via === "start_now" || d.via === "hold")) return "runsheet.html?quote=" + enc(q) + "#my-tasks";   // R253 (0436): the person's own tasks on that event
     if (k === "task_escalated") return "monitor.html?quote=" + enc(q);   // R186 (0369): the Event day monitor (Late panel)
+    if (k === "payment_followup" || k === "payment_claimed") return "event.html?id=" + enc(q) + "#paySchedCard";   // R258 (0445): the event's payments card
     if (k === "vendor_bill_due") return "settlement.html?quote=" + enc(q) + "#vendorBills";   // R190 (0373): the event's Vendor bills card
     if (k.indexOf("task_") === 0) return "ops.html?quote=" + enc(q) + (has(d.task_id) ? "&task=" + enc(d.task_id) : "");
     if (/^(payment_link|payment_reminder|payment_receipt|payment|payment_received|advance_paid|payment_reconcile|pkg_payment)$/.test(k))
@@ -10871,6 +10979,9 @@ window.HelmUrl = HelmUrl;
       // R247 (0429): the studio's file storage is 80 % full or more (one bell a week at most)
       storage_usage_high: ["🗄️", String(d.label || ("Studio file storage is " + (Number(d.pct) || 80) + "% full"))],
       vendor_bill_due: ["🧾", String(d.label || ("Vendor bill " + (Number(d.days) < 0 ? "overdue" : Number(d.days) === 0 ? "due today" : "due soon") + (d.vendor ? ": " + d.vendor : "")))],
+      // R258 (0445): collect a payment / the client says it is paid (the words come from the database; only Finance - Can change sees them)
+      payment_followup: ["💰", String(d.label || "A client payment is due")],
+      payment_claimed: ["💬", String(d.label || "A client says a payment is paid")],
       otp: ["🔐", "Approval OTP sent"],
       approval_link: ["✉️", trialPreview ? "Approval link ready (trial preview — not sent)" : "Approval link sent"],
       payment: ["💳", "Payment update"],
@@ -10878,7 +10989,8 @@ window.HelmUrl = HelmUrl;
       payment_received: ["💰", "Payment received"],
       task_due: ["⏰", "Task due" + (d.task ? ": " + d.task : "")],
       payment_reminder: ["💳", "Payment reminder sent"],
-      payment_receipt: ["🧾", "Payment receipt sent"],
+      // R257: nothing e-mails a receipt when a payment is recorded by hand (the row says "simulated") - only a row that says "sent" was sent (payment webhook)
+      payment_receipt: ["🧾", n.status === "sent" ? "Payment receipt sent" : "Receipt recorded"],
       advance_paid: ["💰", "Payment received"],
       payment_reconcile: ["⚠️", "Payment needs attention"],
       // 0054: names only (who / whom) — never e-mails, links or tokens
@@ -11965,8 +12077,9 @@ window.HelmUrl = HelmUrl;
     // R120 (0328): a free-trial PREVIEW (nothing reached the client) reads like the bell: "Approval link ready (trial preview — not sent)"
     if (a.trial_preview === true && /^(approval_link|booklet_link|invite_site_link)$/.test(kind) && typeof bellLabel === "function")
       return bellLabel({ kind: kind, status: "simulated", detail: { suppressed_by: "trial_simulation" } }).text;
-    const what = ({ advance_paid: "Payment received — receipt sent", payment_received: "Payment received — receipt sent", pkg_payment: "Package payment received",
-      payment_receipt: "Payment receipt sent", payment_link: "Payment link sent", payment_reminder: "Payment reminder sent", payment_reconcile: "Payment flagged for checking",
+    const sent = a.status === "sent";   // R257: "sent" only when the row says so
+    const what = ({ advance_paid: "Payment received", payment_received: "Payment received", pkg_payment: "Package payment received",
+      payment_receipt: sent ? "Payment receipt sent" : "Receipt recorded", payment_link: "Payment link sent", payment_reminder: "Payment reminder sent", payment_reconcile: "Payment flagged for checking",
       approval_link: "Approval link sent", otp: "Approval code sent", pkg_selected: "Client chose a package", pkg_accepted: "Package choice accepted",
       pkg_declined: "Package choice declined", task_assigned: "Tasks assigned", task_complete: "Task completed", booklet_shared: "Booklet shared",
       client_follow_up: "Follow-up sent" }[kind])
@@ -11976,6 +12089,7 @@ window.HelmUrl = HelmUrl;
       : /@/.test(to) ? "by e-mail" : /^\+?[0-9 ()-]{7,}$/.test(to) ? "on WhatsApp/SMS" : "";
     const who = ctx.clientName ? String(ctx.clientName).trim() : "";
     const addr = (/@/.test(to) || /^\+?[0-9 ()-]{7,}$/.test(to)) ? to : "";
+    if (/^(payment_receipt|advance_paid|payment_received)$/.test(kind) && !sent) return kind === "payment_receipt" && who ? what + " for " + who : what;   // nothing was sent to anyone
     return what + (who || addr ? " to " + (who || addr) : "") + (who && addr ? " (" + addr + ")" : "") + (via ? " " + via : (!addr && to ? " · " + to : ""));
   }
 
@@ -12393,6 +12507,20 @@ window.HelmUrl = HelmUrl;
     advanceSet: (quoteId, pct, reason) => (supa ? rpc("advance_override_set", { p_quote: quoteId, p_pct: pct, p_reason: String(reason || "") }) : Promise.reject(new Error("Needs a signed-in studio."))),
     advanceClear: (quoteId) => (supa ? rpc("advance_override_clear", { p_quote: quoteId }) : Promise.reject(new Error("Needs a signed-in studio."))),
     pause: (quoteId, paused) => (supa ? rpc("payment_schedule_pause", { p_quote: quoteId, p_paused: !!paused }) : Promise.reject(new Error("Needs a signed-in studio."))),
+    // R258 (0445): the follow-up of the open payments { rows: { <payment id>: {left, reminder, claim} }, team, ... }; the exact words of a reminder (nothing
+    // is queued); answer "Client says paid"; remind the team on / off + time. null = older than 0445
+    followUp: (quoteId) => (supa ? rpc("payment_followup_get", { p_quote: quoteId }).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+    reminderPreview: (milestoneId) => (supa ? rpc("payment_reminder_preview", { p_milestone: milestoneId }) : Promise.reject(new Error("Needs a signed-in studio."))),
+    claimClose: (claimId, status) => (supa ? rpc("payment_claim_close", { p_claim: claimId, p_status: String(status || "") }) : Promise.reject(new Error("Needs a signed-in studio."))),
+    teamGet: () => (supa ? rpc("payment_team_settings_get", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+    teamSet: (on, at) => (supa ? rpc("payment_team_settings_set", { p_on: !!on, p_at: String(at || "") }) : Promise.reject(new Error("Needs a signed-in studio."))),
+    // R258: the client's "Pay this payment" step (link token, signed out). steps: null = older than 0445. sendCode answers { sent, live } or throws;
+    // an error with noCode = true: this server cannot send payment codes (an older send-otp) - nothing was stored or sent
+    publicSteps: (token) => (supa ? rpc("public_payment_steps", { p_token: token }).catch(() => null) : Promise.resolve(null)),
+    payCodeSend: (token, milestone, channel) => !(channel === "whatsapp" ? LIVE.whatsapp : LIVE.email) ? Promise.reject(Object.assign(new Error("codes are off"), { noCode: true })) : callFn("send-otp", { token, milestone, channel: channel === "whatsapp" ? "pay_whatsapp" : "pay_email" })
+      .catch((e) => { const er = e || new Error("not sent"); if (/token and phone are required/i.test(String(er.message || ""))) er.noCode = true; throw er; }),
+    payCodeVerify: (token, milestone, code) => rpc("public_payment_code_verify", { p_token: token, p_milestone: milestone, p_code: String(code || "") }),
+    payClaim: (token, milestone, o) => rpc("public_payment_claim", { p_token: token, p_milestone: milestone, p_amount: Number(o && o.amount) || 0, p_method: String((o && o.method) || ""), p_reference: (o && o.reference) || null, p_proof: (o && o.proof) || null }),
     // client page (approval token, signed out) - null when unavailable
     publicGet: (token) => (supa ? rpc("public_payment_schedule", { p_token: token }).catch(() => null) : Promise.resolve(null)),
     // r35 (0285): a payment-details change waits 24 hours. "This wasn't us" (any admin; optionally signs that account out
@@ -12464,6 +12592,27 @@ window.HelmUrl = HelmUrl;
     history: (id) => (supa ? rpc("vendor_request_history", { p_id: id }) : Promise.resolve({ log: [], sends: [] })),
     // action: approve | query | reject; opts: { gst_claimable, tds_section, tds_amount, allow_over, due_date }
     review: (invoiceId, action, note, opts) => (supa ? rpc("vendor_invoice_review", { p_id: invoiceId, p_action: action, p_note: note || null, p_opts: opts || {} }) : vrNeed()),
+    // R259 (0447): products + prices, the vendor's offer, the invoice request. A server without 0447: ask() falls back to the older request (one agreed
+    // total needed), the others answer null / a plain error. row: { quote_id, vendor_id, booking_id?, lines: [{ name, qty, unit, price, need_id }],
+    // agreed_total, when_at, where_text, details, respond_by, send, key }
+    async ask(row) {
+      if (!supa) return vrNeed();
+      try { return await rpc("vendor_request_ask", { p: row || {} }); }
+      catch (e) {
+        if (!rpcMissing(e)) throw e;
+        const ls = row.lines || [], all = ls.length && ls.every((l) => l.price != null);
+        const tot = all ? ls.reduce((a, l) => a + Math.round(Number(l.qty) * Number(l.price) * 100) / 100, 0) : row.agreed_total;
+        if (tot == null) throw new Error("Enter the agreed total. Letting the vendor tell the price needs the latest database update.");
+        return rpc("vendor_request_save", { p: { quote_id: row.quote_id, vendor_id: row.vendor_id, booking_id: row.booking_id || undefined, what: ls.map((l) => l.name + (ls.length > 1 ? " x" + l.qty : "")).join(", ").slice(0, 200),
+          qty: ls.length === 1 ? ls[0].qty : null, when_at: row.when_at, where_text: row.where_text || null, details: row.details || null, agreed_amount: Math.round(tot * 100) / 100, respond_by: row.respond_by || undefined, send: row.send !== false } });
+      }
+    },
+    // action: approve | change | decline
+    offerReview: (offerId, action, note, send) => (supa ? rpc("vendor_offer_review", { p_offer: offerId, p_action: action, p_note: note || null, p_send: send !== false }) : vrNeed()),
+    recordOffer: (id, offer) => (supa ? rpc("vendor_request_record_offer", { p_id: id, p: offer || {} }) : vrNeed()),
+    // p: { request_id | booking_id }. null = this database has no 0447
+    askInvoicePreview: (p) => (supa ? rpc("vendor_invoice_ask_preview", { p: p || {} }).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : vrNeed()),
+    askInvoice: (p) => (supa ? rpc("vendor_invoice_ask", { p: p || {} }) : vrNeed()),
     // a short-lived signed URL for the invoice file (private bucket; the storage policy checks studio + Finance)
     async fileUrl(path) {
       if (!supa || !/^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|jpg|png|webp)$/.test(String(path || ""))) return null;
@@ -12846,7 +12995,7 @@ window.HelmUrl = HelmUrl;
     moneyOnce, // R249 (0431): want(quote, parts) - the money parts a page will show go out in one call
     signinNotice,    // R205 (0383)
     taskReminders,   // R130 (0338)
-    activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
+    activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, wrapRecords, extras, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
     // User manual (migration 0031): lives in the PRIVATE storage bucket "helm-manual",
     // readable only by signed-in users. Returns { html, files: { "screenshots/x.webp": signedUrl } }
     // or throws { code: "manual_missing" } when the owner hasn't uploaded it yet.
@@ -13649,6 +13798,19 @@ window.HelmUrl = HelmUrl;
         document.body.replaceChildren(main);
       } catch (e) {}
     }
+    // the studio check did not answer: say so, with Try again (never "another studio")
+    function studioUnchecked() {
+      try {
+        revealPage();
+        const main = document.createElement("main"); main.className = "bp-not-your-studio"; main.id = "main";
+        const h1 = document.createElement("h1"); h1.textContent = "Couldn't open your studio just now";
+        const p = document.createElement("p"); p.setAttribute("role", "status"); p.textContent = "The connection was slow or dropped, so Helm could not check your studio. Nothing is lost. Please try again.";
+        const b = document.createElement("button"); b.type = "button"; b.className = "btn primary"; b.textContent = "Try again"; b.addEventListener("click", () => location.reload());
+        main.appendChild(h1); main.appendChild(p); main.appendChild(b);
+        document.title = "Try again · Helm";
+        document.body.replaceChildren(main); b.focus();
+      } catch (e) {}
+    }
     async function refToId(kind, ref) {
       try {
         if (kind === "client") {
@@ -13671,8 +13833,12 @@ window.HelmUrl = HelmUrl;
         }
         if (R.kind === "booklet") return;                        // public page: booklet.js checks the token's studio
         let j = null;
-        try { j = await rpc("my_studio_route", { p_slug: R.studio }); }
-        catch (e) { if (rpcMissing(e)) return; j = null; }
+        // R258 (owner, live: a slow check said "another studio"): only an ANSWER may say that. No answer (timeout, network, 5xx) is
+        // tried twice more, then the page says it could not check - it still shows no data (fails closed).
+        for (let k = 0; ; k++) {
+          try { j = await rpc("my_studio_route", { p_slug: R.studio }); break; }
+          catch (e) { if (rpcMissing(e)) return; if (k >= 2) { studioUnchecked(); return HANG(); } await new Promise((r) => setTimeout(r, 800 * (k + 1))); }
+        }
         if (!j || j.own !== true) { notYourStudio(j && j.slug); return HANG(); }
         HelmUrl.setStudio(j.slug);
         if (R.key) {
@@ -14014,8 +14180,9 @@ window.HelmUrl = HelmUrl;
     if (isNetworkError(e)) return pre + "Couldn’t reach the server — check your connection and try again.";
     // 0046 D6: a locked (approved / paid / closed-event) money record — the DB message says why
     if (e && e.hint === "money_frozen" && e.message && !TECHNICAL.test(e.message)) return pre + endDot(clip(String(e.message), 240));
-    // R227 (0397): the event plan is locked for the event day - the database guard refused a plan change
-    if (e && /plan_locked:/.test(String(e.message || ""))) return pre + "The event plan is locked for the event day. Unlock it first (admin or event manager, with a reason), then try again.";
+    // R257: the event-day lock is gone (0442); a database without it still refuses plan changes on the event day
+    if (e && /plan_locked:/.test(String(e.message || ""))) return pre + "The database still refuses changes on the event day (needs database update 0442). An admin or event manager can press Unlock on Tasks & Crew.";
+    if (e && (e.hint === "event_closed" || /^r442_/.test(String(e.hint || ""))) && e.message) return pre + endDot(clip(String(e.message), 240));
     // 0159: a directly created studio is read-only until its plan is paid (or it switches to the trial)
     if (e && e.hint === "payment_pending") return pre + "Choose a plan and complete payment to start using Helm — or start a free trial instead.";
     // r35 (0285): payment details / sensitive settings need a fresh two-step code (or two-step set up / a flag cleared)
@@ -14254,8 +14421,18 @@ window.HelmUrl = HelmUrl;
     var k = host && host.id ? host.id : "";
     if (k && bannerOpen[k]) { try { bannerOpen[k].close(); } catch (e) {} }
     var hnd = toast(spec.text, { type: spec.type, timeout: spec.timeout, place: "top", quiet: true });
-    if (k) bannerOpen[k] = hnd;
+    if (k) bannerOpen[k] = { close: function () { hnd.close(); }, el: el, err: spec.type === "err" };
   }
+  // R257: the page took its error message away (fixed, or cleared for the next try): the copy goes too - it stayed until it was closed by hand
+  function sweepBanners() {
+    Object.keys(bannerOpen).forEach(function (k) {
+      var o = bannerOpen[k]; if (!o || !o.err) return;
+      if (o.el.isConnected && bannerText(o.el)) return;
+      delete bannerOpen[k]; if (bannerSeen) bannerSeen.delete(o.el);   // the same error again is news again
+      try { o.close(); } catch (e) {}
+    });
+  }
+  function bannerText(el) { return !el.hidden && !(el.closest && el.closest("[hidden]")) && String(el.textContent || "").trim() !== ""; }
   function scanBanners(node) {
     if (!node || node.nodeType !== 1) { if (node && node.parentElement) node = node.parentElement; else return; }
     if (node.closest && node.closest(".bpui-toasts")) return;
@@ -14270,7 +14447,7 @@ window.HelmUrl = HelmUrl;
       var s = bannerToastSpec(bannerInfo(el)); if (s) bannerSeen.set(el, s.type + "|" + s.text); });
     var queue = [], sched = false;
     var flush = function () { sched = false; var q = queue; queue = []; var done = [];
-      q.forEach(function (n) { if (done.indexOf(n) < 0) { done.push(n); try { scanBanners(n); } catch (e) {} } }); };
+      q.forEach(function (n) { if (done.indexOf(n) < 0) { done.push(n); try { scanBanners(n); } catch (e) {} } }); try { sweepBanners(); } catch (e) {} };
     new MutationObserver(function (muts) {
       muts.forEach(function (m) {
         if (m.type === "childList") { queue.push(m.target); Array.prototype.forEach.call(m.addedNodes, function (n) { if (n.nodeType === 1) queue.push(n); }); }
@@ -15465,6 +15642,61 @@ window.HelmUrl = HelmUrl;
     }
     return { advancePct: adv, balanceDueDays: days, note: note, balanceDue: due };
   };
+  // R257: a client / crew page is the STUDIO's page: its name (and its logo, when it has one this page may load) in the header.
+  // s = {name, accent, logo} from the page's own checked link; nothing known = the header stays as it is. Text + an <img> only.
+  BPStore.paintStudio = function (s, d) {
+    d = d || (typeof document !== "undefined" ? document : null); s = s && typeof s === "object" ? s : typeof s === "string" ? { name: s } : null;
+    var name = s && typeof s.name === "string" ? s.name.replace(/[<>\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) : ""; if (!d || !name) return false;
+    var b = d.querySelector("header b"), mk = d.querySelector("header .mark"); if (b) b.textContent = name;
+    var logo = typeof s.logo === "string" && s.logo.length <= 500 && /^https:\/\/[^\s"'<>]+$/i.test(s.logo) ? s.logo : "";
+    // the approval and task pages may only load pictures of this app / its own storage (their CSP); the portal, proposal and booklet any https one
+    try { if (logo && !/\/(portal|proposal)/.test(location.pathname)) { var lh = new URL(logo).host; if (lh !== location.host && !/\.supabase\.co$/.test(lh)) logo = ""; } } catch (e) { logo = ""; }
+    if (!logo || !mk || d.getElementById("studioLogo")) return true;
+    var im = d.createElement("img"); im.id = "studioLogo"; im.alt = ""; im.width = 34; im.height = 34; im.setAttribute("referrerpolicy", "no-referrer"); im.style.objectFit = "contain";
+    im.addEventListener("load", function () { mk.hidden = true; mk.style.display = "none"; }); im.addEventListener("error", function () { if (im.parentNode) im.parentNode.removeChild(im); });
+    mk.parentNode.insertBefore(im, mk); im.src = logo; return true;
+  };
+  // R257: "21:00" / "21:00:00" -> "9:00 pm" (the style of every other time in the app); anything else as it is
+  BPStore.clock12 = function (t) {
+    var m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(t == null ? "" : t).trim()); if (!m || +m[1] > 23 || +m[2] > 59) return String(t == null ? "" : t);
+    return ((+m[1] % 12) || 12) + ":" + m[2] + (+m[1] < 12 ? " am" : " pm");
+  };
+  // R257: the SAVED payment plan in words, the one source for every page (quote flow, portal, approval page, booklet, invoice). rows = the server's
+  // payment_schedule_for_quote / public_payment_schedule rows (or a booklet's milestones). -> null when there is no plan.
+  // { rows, open, next:{label, left, due, when:"now"|"date"|"approval"|"open"}, left, last:"YYYY-MM-DD"|"" (only in the future) }
+  BPStore.payPlan = function (rows, o) {
+    o = o || {};
+    var list = (Array.isArray(rows) ? rows : []).filter(function (r) { return r && r.state !== "waived" && r.status !== "waived" && Number(r.amount) > 0; });
+    if (!list.length) return null;
+    var today = /^\d{4}-\d{2}-\d{2}$/.test(String(o.today || "")) ? o.today : "";
+    if (!today) { try { today = BPStore.todayLocal(); } catch (e) { today = ""; } }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) today = new Date().toISOString().slice(0, 10);
+    var out = list.map(function (r) {
+      var st = String(r.state || r.status || "due"), amt = Number(r.amount) || 0, rem = r.remaining != null && isFinite(Number(r.remaining)) ? Number(r.remaining) : st === "paid" ? 0 : Math.max(0, amt - (Number(r.paid) || 0));
+      var due = /^\d{4}-\d{2}-\d{2}/.test(String(r.due_date || "")) ? String(r.due_date).slice(0, 10) : "", onAp = r.on_approval === true || !!(r.rule && r.rule.anchor === "approval");
+      return { label: String(r.label || "Payment"), amount: amt, left: Math.round(rem * 100) / 100, due: due, paid: st === "paid" || rem <= 0.5,
+        when: o.held === true && onAp ? "approval" : !due ? "open" : due <= today ? "now" : "date" };
+    });
+    var open = out.filter(function (r) { return !r.paid; }), left = 0, last = "";
+    open.forEach(function (r) { left += r.left; if (r.due > last) last = r.due; });
+    return { rows: out, open: open, next: open[0] || null, left: Math.round(left * 100) / 100, last: last > today ? last : "", today: today };
+  };
+  // "Next payment: Advance (30%) ₹1,03,793, due now. The rest by 25/11/2026." (never a day that has passed; "" = no plan)
+  BPStore.payPlanLine = function (plan, money, date, client) {
+    if (!plan) return ""; if (!plan.next) return "Every payment of the plan is received.";
+    var n = plan.next, d = date || BPStore.fmtDateIN, more = plan.open.length > 1;
+    var s = (more ? "Next payment: " : "Last payment: ") + n.label + " " + money(n.left) + (n.when === "approval" ? (client ? ", due when you approve" : ", due when the client approves") : n.when === "now" ? ", due now" : n.due ? ", due " + d(n.due) : "") + ".";
+    if (more) s += plan.last ? " The rest by " + d(plan.last) + "." : plan.open.every(function (r) { return r.when === "now"; }) ? " The rest is due now too." : "";
+    return s;
+  };
+  // the studio's own payment note next to a saved plan: the sentences about the advance / balance timing are left out (the plan says that), terms
+  // such as cancellation, refunds and the rest stay. No plan = the note as it is.
+  BPStore.payNote = function (note, hasPlan) {
+    note = String(note || "").trim(); if (!hasPlan || !note) return note;
+    return note.replace(/([.!?;])\s+/g, "$1\n").split(/[\r\n]+/).filter(function (x) {
+      return x.trim() && (/cancel|refund|forfeit|penalt|late fee|interest|postpone/i.test(x) || !/\b(advance|balance|deposit|instal?lments?)\b|\bdue\b|\bpayable\b/i.test(x));
+    }).join(" ").trim();
+  };
   // ---- supplier block for printed quotes / invoices (UAE Art. 59: name, address, TRN) ----
   // 0098: client-facing payment state from the LEDGER (never milestones / approval_status alone).
   // st = public_quote_paid_status row; total falls back to the quote's own pricing.total.
@@ -15604,7 +15836,8 @@ window.HelmUrl = HelmUrl;
     var due = null, ev = String(st.event_date || "");
     if (/^\d{4}-\d{2}-\d{2}$/.test(ev)) due = st.balance_due_days != null ? BPStore.paymentTerms({ balanceDueDays: st.balance_due_days }, ev).balanceDue || ev : ev;
     var bal = Math.max(0, Math.round((total - paid) * 100) / 100);
-    return { full: paid >= total - 0.5, paid: paid, total: total, balance: bal,
+    var now = ""; try { now = BPStore.todayLocal(); } catch (e) { now = ""; }
+    return { full: paid >= total - 0.5, paid: paid, total: total, balance: bal, dueNow: !!(due && now && due < now),   // R257: never "due by" a day that has passed
       receipt: typeof st.last_receipt === "string" ? st.last_receipt.replace(/[<>\u0000-\u001f]/g, "").slice(0, 60) : "", balanceDue: due };
   };
   BPStore.studioHeader = function (org) {

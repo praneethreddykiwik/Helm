@@ -326,10 +326,21 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
     if(hit && hit.tex) hit.tex.dispose();
     let t=null;
     try{ const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const x=cv.getContext('2d');
-      if(x){ HS.draw(x, W, H, c, { side, logo, pic }); t=new THREE.CanvasTexture(cv); t.anisotropy=4; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; } }catch(_){ t=null; }
-    if(t) SCREEN_TEX.set(cacheId, { key, tex:t }); else SCREEN_TEX.delete(cacheId);
+      if(x){ HS.draw(x, W, H, c, { side, logo, pic }); t=new THREE.CanvasTexture(cv); t.anisotropy=4; if(THREE.SRGBColorSpace) t.colorSpace=c.pic ? posterSpace() : THREE.SRGBColorSpace; } }catch(_){ t=null; }
+    if(t) SCREEN_TEX.set(cacheId, { key, tex:t, pic:!!c.pic }); else SCREEN_TEX.delete(cacheId);
     return t;
   }
+  // R255: the live 3D view (and the client capture) writes colours as they are, only Render mode encodes to sRGB: an uploaded
+  // picture follows, so its colours are the file's in every view (R257: on LED / stage / side screens too, not only on posters; Evening only
+  // changes the lights, the picture is unlit)
+  function posterSpace(){ return renderMode ? THREE.SRGBColorSpace : (THREE.NoColorSpace || ''); }
+  function syncPosterTex(){ SCREEN_TEX.forEach(v=>{ const cs=posterSpace(); if(v.pic && v.tex && v.tex.colorSpace!==cs){ v.tex.colorSpace=cs; v.tex.needsUpdate=true; } }); }
+  // R255: poster-like items - white without a picture, else the picture on the face (same texture rules as a screen)
+  const HSC=()=> (typeof window!=='undefined' && window.HelmScreen) || null;
+  const posterWhite=it=>{ const HS=HSC(); return !!(HS && HS.whiteFace && HS.whiteFace(it)); };
+  // a printed white face: a little light of its own, so it reads white (not grey) on the side away from the sun
+  const WHITE=o=>Object.assign({roughness:.85, emissive:col('#ffffff'), emissiveIntensity:.24}, o||{});
+  const posterPic=it=>{ const c=scrContent(it); return c && c.pic ? c : null; };
   // R200: the frame height of a standalone screen (Standard = the model's own height; a chosen shape sets it)
   function scrFrame(it, fallback){ try{ const HS=typeof window!=='undefined' && window.HelmScreen; const f=HS && HS.faceOf ? HS.faceOf(it, []) : null;
       return f && f.frame>0 ? f.frame : fallback; }catch(_){ return fallback; } }
@@ -1101,7 +1112,8 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
         const base=cyl(Math.min(w,d)*0.4,Math.min(w,d)*0.45,0.25,'#2b2b2b',{metalness:.5,roughness:.4},24); base.position.y=0.12; g.add(base);
         const pole=cyl(0.06,0.07,H,'#c9ccd6',CHROME,12); pole.position.y=H/2+0.2; g.add(pole);
         const fin=new THREE.Mesh(new THREE.SphereGeometry(0.16,12,8),mat('#d9b45a',GOLD)); fin.position.y=H+0.35; g.add(fin);
-        const flag=new THREE.Mesh(drapeGeo(fw,fh,2,0.18),mat(c,tx('fabric',{side:THREE.DoubleSide,roughness:.85}))); flag.position.set(fw/2+0.07,H-fh/2-0.05,0); flag.castShadow=true; g.add(flag);
+        const fp=posterPic(it), ftx=fp && screenTexture(String(it.id||it.type), fp, false, fw, fh);   // R255: the picture on the cloth, else white (or the picked colour)
+        const flag=new THREE.Mesh(drapeGeo(fw,fh,2,0.18),ftx ? new THREE.MeshBasicMaterial({map:ftx,toneMapped:false,side:THREE.DoubleSide}) : mat(posterWhite(it)?'#ffffff':c,tx('fabric',Object.assign({side:THREE.DoubleSide,roughness:.85}, posterWhite(it)?WHITE():null)))); flag.position.set(fw/2+0.07,H-fh/2-0.05,0); flag.castShadow=true; g.add(flag);
         return true; }
       case 'hoarding': {         // banner hoarding on a steel scaffold: 10 ft printed face from 2 ft up, raked back props + ballast
         const bh=10, y0=2, bays=Math.max(1,Math.round(w/5)), steel=Object.assign({},CHROME,{roughness:.45});
@@ -1110,9 +1122,8 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
           rodAB(g,[x,y0+bh*0.8,-0.3],[x,0.1,-0.3-Math.max(3,d*2)],0.07,'#8d939c',steel);   // raked back prop
           const bag=boxMesh(1.2,0.5,0.8,'#8b7a5a',{roughness:1}); bag.position.set(x,0.25,-0.3-Math.max(3,d*2)); g.add(bag); }
         for(const y of [y0, y0+bh/2, y0+bh]){ const rail=cyl(0.07,0.07,w,'#8d939c',steel,8); rail.rotation.z=Math.PI/2; rail.position.set(0,y,-0.3); g.add(rail); }
-        const face=boxMesh(w,bh,0.08,'#f4f1ea',tx('fabric',{roughness:.8})); face.position.set(0,y0+bh/2,0); g.add(face);
-        const band=boxMesh(w,bh*0.28,0.04,c,{roughness:.7}); band.position.set(0,y0+bh*0.2,0.07); g.add(band);
-        const blk=boxMesh(w*0.5,bh*0.32,0.04,c,{roughness:.7,transparent:true,opacity:.55}); blk.position.set(-w*0.18,y0+bh*0.66,0.07); g.add(blk);
+        const face=boxMesh(w,bh,0.08,'#ffffff',WHITE()); face.position.set(0,y0+bh/2,0); g.add(face);   // R255: white until a picture is added
+        { const pc=posterPic(it); if(pc) screenFace(g, it, pc, w, bh, 0, y0+bh/2, 0.06); }
         return true; }
       case 'patower': {          // PA tower: 4-leg scaffold (14 ft) with deck, braced, line-array boxes on top + subs at the base
         const H=14, lx=w/2-0.2, lz=d/2-0.2, steel=Object.assign({},CHROME,{roughness:.45});
@@ -1218,8 +1229,7 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
         for(const s of [-1,1]){ const up=cyl(0.06,0.06,H,'#9aa0aa',CHROME,8); up.position.set(s*w/2,H/2,z-0.15); g.add(up);
           const ft=boxMesh(0.25,0.08,Math.max(1.6,d*1.5),'#555555'); ft.position.set(s*w/2,0.04,z-0.15); g.add(ft); }
         const bar=cyl(0.06,0.06,w,'#9aa0aa',CHROME,8); bar.rotation.z=Math.PI/2; bar.position.set(0,H,z-0.15); g.add(bar);
-        if(st==='flex'){ const f=boxMesh(w,H*0.95,0.06,'#f4f1ea',tx('fabric',{})); f.position.set(0,H*0.5,z); g.add(f);
-          const band=boxMesh(w,H*0.25,0.04,c,{roughness:.7}); band.position.set(0,H*0.3,z+0.05); g.add(band); }
+        if(st==='flex'){ const f=boxMesh(w,H*0.95,0.06,'#ffffff',WHITE()); f.position.set(0,H*0.5,z); g.add(f); }   // R255: white until a picture is added
         else if(st==='sequin'){ const P=pal(c,'goldchrome'), L=[]; for(let x=-w/2+0.2;x<w/2;x+=0.4) for(let y=0.3;y<H;y+=0.4) L.push({x,y,z:z+0.05,sx:0.18,sy:0.18,sz:0.02,rz:(rand()-0.5)*0.6,c:P[(rand()*P.length)|0]});
           const back=boxMesh(w,H,0.05,'#8a8a8a',{metalness:.3,roughness:.5}); back.position.set(0,H/2,z-0.04); g.add(back);
           const im=instanced(new THREE.CircleGeometry(1,10), new THREE.MeshStandardMaterial({color:0xffffff,metalness:.35,roughness:.25,emissive:col('#222222'),side:THREE.DoubleSide}), L); if(im) g.add(im); }
@@ -1229,7 +1239,7 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
         else if(st==='wood'){ const n=Math.max(4,Math.round(w/0.6)); for(let i=0;i<n;i++){ const p=boxMesh(w/n*0.94,H,0.12,i%2?'#8b5a2b':'#9c6b3a',tx('wood',{roughness:.7})); p.position.set(-w/2+(i+0.5)*w/n,H/2,z); g.add(p); } }
         else if(st==='balloon'){ const P=balloonPal(c), L=[]; for(let x=-w/2+0.4;x<w/2;x+=0.7) for(let y=0.4;y<H;y+=0.7) L.push({x:x+(rand()-0.5)*0.2,y:y+(rand()-0.5)*0.2,z:z+0.2,s:0.38+rand()*0.12,c:P[(rand()*P.length)|0]});
           const im=instanced(new THREE.SphereGeometry(1,12,8), new THREE.MeshStandardMaterial({color:0xffffff,roughness:.25}), L); if(im) g.add(im); }
-        else { const f=drape(w,H*0.97,c,{depth:.15,pitch:1.0}); f.position.set(0,H*0.5,z); g.add(f); }
+        else { const f=drape(w,H*0.97,posterWhite(it)?'#ffffff':c,{depth:.15,pitch:1.0,m:posterWhite(it)?WHITE():null}); f.position.set(0,H*0.5,z); g.add(f); }
         { const sc=scrContent(it); if(sc) screenFace(g, it, sc, w*0.96, H*0.9, 0, H*0.5, z+0.35); }   // R135: printed / screen content
         return true; }
       case 'floralstand': {      // generic floral stand: tall gold stand / urn / pedestal bowl / hoop, topped with blooms
@@ -1254,18 +1264,19 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
           const lid=boxMesh(w+0.1,0.1,d+0.1,'#3a2a1a'); lid.position.y=h; g.add(lid); }
         return true; }
       case 'signage': {          // generic sign: roll-up / standee / A-frame / directional post / digital standee / cut-out (no readable text)
-        const st=VAR.style||'';
-        if(st==='aframe'){ const H=3.2; for(const s of [-1,1]){ const p=boxMesh(w*0.9,H,0.06,'#f4f1ea',tx('fabric',{})); p.position.set(0,H/2,s*0.45); p.rotation.x=s*0.18; g.add(p);
-            const b=boxMesh(w*0.7,H*0.3,0.02,c); b.position.set(0,H*0.6,s*0.49); b.rotation.x=s*0.18; g.add(b); } return true; }
+        const st=VAR.style||'', pc=posterPic(it);   // R255: a white face until a picture is added
+        if(st==='aframe'){ const H=3.2; for(const s of [-1,1]){ const p=new THREE.Group(); p.position.set(0,H/2,s*0.45); p.rotation.x=s*0.18; g.add(p);
+            p.add(boxMesh(w*0.9,H,0.06,'#ffffff',WHITE())); if(pc){ const q=new THREE.Group(); if(s<0) q.rotation.y=Math.PI; p.add(q); screenFace(q, it, pc, w*0.9, H, 0, 0, 0.05); } } return true; }
+        if(st==='wallposter'){ const fh=w*1.4, cy=Math.max(5,fh/2+0.5), b=boxMesh(w,fh,0.06,'#ffffff',WHITE()); b.position.set(0,cy,0); g.add(b);   // flat on the wall, centred at eye height
+          const tr=boxMesh(w+0.12,fh+0.12,0.04,'#8d939c'); tr.position.set(0,cy,-0.03); g.add(tr); if(pc) screenFace(g, it, pc, w, fh, 0, cy, 0.05); return true; }
         if(st==='direction'){ const pole=cyl(0.08,0.08,7,'#444444',CHROME,8); pole.position.y=3.5; g.add(pole);
           [[6,1],[5,-1],[4,1]].forEach(([y,s])=>{ const a=boxMesh(2.2,0.55,0.08,c,{roughness:.6}); a.position.set(s*1.1,y,0); g.add(a);
             const tip=new THREE.Mesh(new THREE.ConeGeometry(0.3,0.5,3),mat(c)); tip.rotation.z=-s*Math.PI/2; tip.position.set(s*2.45,y,0); g.add(tip); }); return true; }
-        const H=st==='cutout'?6:st==='standee'?6:6.6, face=st==='digital'?'#111418':'#f4f1ea';
+        const H=st==='cutout'?6:st==='standee'?6:6.6, face=st==='digital'?'#111418':'#ffffff';
         const base=boxMesh(w*0.95,0.2,Math.max(0.8,d*0.6),'#2b2b2b',{metalness:.5,roughness:.4}); base.position.y=0.1; g.add(base);
-        const p=boxMesh(w*0.9,H,st==='digital'?0.3:0.05,face,st==='digital'?{roughness:.3}:tx('fabric',{})); p.position.y=H/2+0.2; g.add(p);
-        if(st==='digital'){ const scr=boxMesh(w*0.8,H*0.85,0.02,'#3b82f6',{emissive:col('#5b8cff'),emissiveIntensity:.7}); scr.position.set(0,H/2+0.2,0.17); g.add(scr); }
-        else { const band=boxMesh(w*0.9,H*0.3,0.02,c,{roughness:.7}); band.position.set(0,H*0.65,0.04); g.add(band);
-          const lb=boxMesh(w*0.6,H*0.08,0.02,'#2b2b2b'); lb.position.set(0,H*0.3,0.04); g.add(lb); }
+        const p=boxMesh(w*0.9,H,st==='digital'?0.3:0.05,face,st==='digital'?{roughness:.3}:WHITE()); p.position.y=H/2+0.2; g.add(p);
+        if(st==='digital'){ const scr=boxMesh(w*0.8,H*0.85,0.02,'#3b82f6',{emissive:col('#5b8cff'),emissiveIntensity:.7}); scr.position.set(0,H/2+0.2,0.17); g.add(scr); if(pc) screenFace(g, it, pc, w*0.8, H*0.85, 0, H/2+0.2, 0.19); }
+        else if(pc) screenFace(g, it, pc, w*0.9, H, 0, H/2+0.2, 0.04);
         return true; }
       case 'stageroof': {        // ground-support roof: 4 truss towers (~24 ft), a pitched truss grid and a fabric roof skin
         const H=24, steel={metalness:.35,roughness:.5}, T=1.2;
@@ -1710,7 +1721,8 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
         const base=new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.1,0.4,16),mat('#6b7280')); base.position.y=0.2; g.add(base);
         const top=new THREE.Mesh(new THREE.CylinderGeometry(1.4,0.6,1,16),mat(c,{emissive:col('#ff8a3a'),emissiveIntensity:.4})); top.position.y=7.3; g.add(top); break; }
       case 'easel': {
-        const board=boxMesh(w,3,0.2,'#e9edf6'); board.position.set(0,3,0); board.rotation.x=-0.12; g.add(board);
+        const board=boxMesh(w,3,0.2,'#ffffff',{emissive:col('#ffffff'),emissiveIntensity:.24}); board.position.set(0,3,0); board.rotation.x=-0.12; g.add(board);
+        { const pc=SCR ? posterPic(it) : null; if(pc){ const pg=new THREE.Group(); pg.position.copy(board.position); pg.rotation.x=-0.12; g.add(pg); screenFace(pg, it, pc, w, 3, 0, 0, 0.12); } }   // R255
         for(const sxx of [-1,1]){ const leg=boxMesh(0.15,4.5,0.15,'#8a6a44'); leg.position.set(sxx*(w/2-0.3),2.2,0.3); leg.rotation.x=0.12; g.add(leg); }
         const backleg=boxMesh(0.15,4.5,0.15,'#8a6a44'); backleg.position.set(0,2.2,-0.6); backleg.rotation.x=-0.2; g.add(backleg); break; }
       case 'barstool': {
@@ -1789,10 +1801,8 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
           const foot=boxMesh(0.6,0.2,d+1,'#3a4048'); foot.position.set(sxx*(w/2-0.6),0.1,-0.3); g.add(foot); }
         break; }
       case 'brandwall': {   // printed step-and-repeat backdrop on feet
-        const bh=8; const wall=boxMesh(w,bh,0.4,'#f4f1ea'); wall.position.y=bh/2+0.3; g.add(wall);
-        { const sc=SCR ? scrContent(it) : null; if(sc) screenFace(g, it, sc, w*0.96, bh*0.92, 0, bh/2+0.3, 0.22);   // R135: printed brand / event text
-        else { const band=boxMesh(w*0.8,1.4,0.1,c); band.position.set(0,bh*0.6,0.25); g.add(band);
-        for(let x=-w/2+2;x<w/2-1;x+=4){ const logo=boxMesh(1.4,0.8,0.08,c,{transparent:true,opacity:.6}); logo.position.set(x,bh*0.3,0.25); g.add(logo); } } }
+        const bh=8; const wall=boxMesh(w,bh,0.4,'#ffffff',{emissive:col('#ffffff'),emissiveIntensity:.24}); wall.position.y=bh/2+0.3; g.add(wall);
+        { const sc=SCR ? scrContent(it) : null; if(sc) screenFace(g, it, sc, w*0.96, bh*0.92, 0, bh/2+0.3, 0.22); }   // R135: printed brand / event text (R255: plain white without)
         for(const sxx of [-1,1]){ const foot=boxMesh(0.4,0.3,d,'#6b7280'); foot.position.set(sxx*(w/2-0.5),0.15,0); g.add(foot); }
         break; }
       case 'chocolatefountain': {   // 3 stacked tiers on a skirted table
@@ -1953,6 +1963,11 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
     let down=null;
     cv.addEventListener('pointerdown',e=>{ down={x:e.clientX,y:e.clientY}; });
     cv.addEventListener('pointerup',e=>{ if(down && !transform.dragging && Math.hypot(e.clientX-down.x,e.clientY-down.y)<5) doPick(e); down=null; });
+    // R255: the selected item can be dragged by its body too (Move mode), not only by the small arrows
+    cv.addEventListener('pointerdown',e=>{ bodyDrag=startBodyDrag(e); if(bodyDrag) controls.enabled=false; });   // after OrbitControls / the gizmo: they saw the press first
+    cv.addEventListener('pointermove',e=>{ if(bodyDrag && e.pointerId===bodyDrag.pid) moveBodyDrag(e); });
+    const endBody=e=>{ if(!bodyDrag || e.pointerId!==bodyDrag.pid) return; const m=bodyDrag.moved; bodyDrag=null; controls.enabled=true; if(m){ commit(); renderAll(); } };
+    cv.addEventListener('pointerup',endBody); cv.addEventListener('pointercancel',endBody);
     cv.addEventListener('webglcontextlost',e=>{ e.preventDefault(); });          // allow the browser to restore it
     cv.addEventListener('webglcontextrestored',()=>{ try{ needsBuild=true; if(active) build(); }catch(_){} });
     built=true;
@@ -2027,6 +2042,24 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
     requestBuild(); if(typeof syncInspectorLive==='function') syncInspectorLive(it);
   }
 
+  /* R255: drag the selected item by its body over the floor. Only in Move mode, never on a gizmo handle, never for view-only
+     roles or during the walkaround; a press on anything else still orbits. In a pile the selected one moves (a much bigger
+     item, like the stage under a desk, does not take the press). */
+  let bodyDrag=null;
+  function startBodyDrag(e){
+    const it=curItem(); if(!it || !active || walkKeep || tmode!=='translate' || transform.dragging || transform.axis || (typeof RO!=='undefined' && RO) || (e.button!=null && e.button>0) || e.isPrimary===false) return null;
+    const ids=itemsAt(e.clientX, e.clientY); if(!ids.length || ids.indexOf(it.id)<0) return null;
+    const top=store.items.find(i=>i.id===ids[0]); if(ids[0]!==it.id && top && it.width*it.height>top.width*top.height*4) return null;
+    const p=floorPoint(e.clientX, e.clientY); if(!p) return null;
+    return { pid:e.pointerId, id:it.id, px:p.x, pz:p.z, ox:it.x, oy:it.y, cx:e.clientX, cy:e.clientY, moved:false };
+  }
+  function moveBodyDrag(e){
+    const it=store.items.find(i=>i.id===bodyDrag.id), p=floorPoint(e.clientX, e.clientY); if(!it || !p) return;
+    if(!bodyDrag.moved && Math.hypot(e.clientX-bodyDrag.cx, e.clientY-bodyDrag.cy)<5) return;
+    bodyDrag.moved=true; markShadows();
+    it.x=clamp(snapFt(bodyDrag.ox+p.x-bodyDrag.px),0,WORLD.w-it.width); it.y=clamp(snapFt(bodyDrag.oy+p.z-bodyDrag.pz),0,WORLD.h-it.height);
+    requestBuild(); if(typeof syncInspectorLive==='function') syncInspectorLive(it);
+  }
   function clearRoot(){ if(!root) return; while(root.children.length){ const c=root.children.pop();
     c.traverse&&c.traverse(o=>{
       if(o.isSprite) return;                       // labels share cached geometry+material — never dispose
@@ -2084,15 +2117,20 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
   let ray, ndc;   // created lazily once THREE is loaded (module parses before the 3D libs)
   function doPick(e){
     if(walkKeep) return;                           // R49: the walkaround is look-only: no click-select / move handles
+    const id=itemsAt(e.clientX, e.clientY)[0]; if(id!=null) selectId(id);
+  }
+  // the ids of the items under a screen point, nearest first
+  function itemsAt(cx, cy){
     if(!ray){ ray=new THREE.Raycaster(); ndc=new THREE.Vector2(); }
-    const r=cv.getBoundingClientRect(); ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+    const r=cv.getBoundingClientRect(), out=[]; ndc.x=((cx-r.left)/r.width)*2-1; ndc.y=-((cy-r.top)/r.height)*2+1;
     ray.setFromCamera(ndc,camera);
-    const hits=ray.intersectObjects(root.children,true);
-    for(const h of hits){
-      if(h.object===chairMesh && h.instanceId!=null){ selectId(chairMap[h.instanceId]); return; }
-      let o=h.object; while(o&&o.userData.itemId==null) o=o.parent;
-      if(o&&o.userData.itemId!=null){ selectId(o.userData.itemId); return; }
+    for(const h of ray.intersectObjects(root.children,true)){
+      let id=null;
+      if(h.object===chairMesh && h.instanceId!=null) id=chairMap[h.instanceId];
+      else { let o=h.object; while(o&&o.userData.itemId==null) o=o.parent; if(o) id=o.userData.itemId; }
+      if(id!=null && out.indexOf(id)<0) out.push(id);
     }
+    return out;
   }
   function selectId(id){ if(store.selectedId===id && store.selectedIds.length===1) return; setSelection([id]); renderAll(); /* refreshes inspector + 3D */ }
 
@@ -2145,6 +2183,7 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
   function applyProfile(){
     markShadows();
     if(!R||!scene) return;
+    syncPosterTex();
     if(renderMode){
       try{ if(!envTex) envTex=buildEnvTexture(); scene.environment=envTex; }catch(e){ scene.environment=null; }
       R.toneMapping=THREE.ACESFilmicToneMapping; R.toneMappingExposure=1.05; R.outputColorSpace=THREE.SRGBColorSpace;
@@ -2359,7 +2398,12 @@ const snapFt = (v) => v, commit = H.noop, renderAll = H.noop, setSelection = H.s
     const w=window.HelmWalkthrough && window.HelmWalkthrough._ui; if(w && w.layoutChanged) w.layoutChanged(); };   // R49: the walkaround re-plans
   H.out.__on3DSnapChange=function(){ syncGizmoSnap(); if(scene) syncFloor(); };
   H.out.__on3DGridChange=function(){ if(grid) grid.visible=store.grid.show!==false; };
-  H.out.__is3DDragging=function(){ return !!(transform && transform.dragging); };
+  H.out.__is3DDragging=function(){ return !!(transform && transform.dragging) || !!(bodyDrag && bodyDrag.moved); };
+  // R255: the floor point (plan ft) in the middle of the 3D view, and under a screen point - where a clicked / dropped tool goes
+  const planPt=p=>({ x:p.x+WORLD.w/2, y:p.z+WORLD.h/2 }), inHall=p=>Math.abs(p.x)<=WORLD.w/2 && Math.abs(p.z)<=WORLD.h/2;
+  H.out.__viewCenter3D=function(){ if(!active || !camera || !controls) return null;
+    const r=cv.getBoundingClientRect(), p=floorPoint(r.left+r.width/2, r.top+r.height/2); return planPt(p && inHall(p) ? p : controls.target); };
+  H.out.__floorAt3D=function(cx,cy){ if(!active || !camera) return null; const p=floorPoint(cx,cy); return p ? planPt(p) : null; };
   /* camera pan pad: move OrbitControls target AND camera together along the ground plane,
      relative to the current heading ("up" = away from the viewer). `frac` is a fraction of the
      current viewing distance (so the step scales with zoom), capped by the venue size. */

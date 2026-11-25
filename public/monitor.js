@@ -22,7 +22,7 @@
  * phone), then the views with the activity rail beside them. "Wall screen" = big text for a TV, full screen when allowed.
  * R250 (owner: "can't tell before / during / after the event"): a step strip (Before the event / Day before / On the day /
  * Wrap-up) with a green "Now" dot; the step you look at decides what shows (readiness + what needs action before; checklist,
- * floor plan and the lock the day before; a slim live strip, Late panel and the work on the day; still open, hours and next
+ * floor plan the day before; a slim live strip, Late panel and the work on the day; still open, hours and next
  * steps at wrap-up). Three tabs (People / Work / Activity); status is a row of filter chips; no hover tooltips.
  * R251 (owner, 24 Nov: "the day before first, then pre event, then on the event and then wrap up"): the same steps as Tasks & Crew
  * (task-status.js WINDOWS / STEPS): Day before / Pre-event / On the event. Wrap-up is no step but a closed section at the very bottom
@@ -34,7 +34,7 @@
  * (event_tasks is not in a realtime publication, so polling is the cheap, safe choice). */
 (function () {
   "use strict";
-  var doc = document, REFRESH_MS = 30000, LS_KEY = "helm.monitor.quote", LS_TAB = "helm.monitor.tab", LS_WALL = "helm.monitor.wall";
+  var doc = document, REFRESH_MS = 30000, LS_KEY = "helm.monitor.quote", LS_TAB = "helm.monitor.tab", LS_WALL = "helm.monitor.wall", LS_SIZE = "helm.monitor.size";
   var $ = function (s) { return doc.querySelector(s); };
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -157,7 +157,7 @@
   function offReason(crewId) { var v = crewId && S.off[crewId]; return v == null ? null : v; }
 
   /* ---- R184: the activity timeline ---- */
-  var ACT_TYPES = [["", "All updates"], ["work", "Work given out / moved"], ["reply", "Accepted / turned down"], ["progress", "Started / done"],
+  var ACT_TYPES = [["", "All updates"], ["work", "Work given out / moved"], ["reply", "Accepted / turned down"], ["progress", "Started / done"], ["check", "Sent back / approved"],
                    ["time", "Start time changes"], ["checkin", "Check-in / check-out"], ["email", "E-mails sent"], ["escalation", "Escalations"], ["special", "Special / cancelled"],
                    ["dayoff", "Days off asked / approved"]];   // R187 (0370)
   var actGroup = TS.actGroup;   // R192: shared wording (task-status.js)
@@ -193,7 +193,7 @@
     return out;
   }
   function allActs() {
-    var base = S.acts || fallbackActs(), extra = dayoffActs();
+    var base = TS.withChecks(S.acts || fallbackActs(), S.tasks), extra = dayoffActs();
     return extra.length ? base.concat(extra).sort(function (a, b) { return new Date(b.at) - new Date(a.at); }) : base;
   }
 
@@ -423,6 +423,15 @@
   }
   function toast(msg, type) { try { if (window.BPUI && BPUI.toast) return BPUI.toast(msg, { type: type || "info" }); } catch (e) {} var el = $("#monUpdated"); if (el) el.textContent = msg; }
   function empty(text) { return h("div", { cls: "mon-empty", text: text }); }
+  // R255: one person, two works at the same time - the same tag as Tasks & Crew (task-clash.js; other events: one small read a minute)
+  function sameText(t) {
+    var TC = window.HelmTaskClash; if (!TC || !TC.board || !single() || t.status === "completed") return "";
+    if (S.same === undefined) { try { S.same = TC.board({ quoteId: S.quote, tasks: S.tasks, onChange: function () { S.same = undefined; if (S.lastLoad) render(); } }); } catch (e) { S.same = null; } }
+    return (S.same && S.same.byTask[t.id]) || "";
+  }
+  function afterReady(t) { var EP = window.HelmEventPlan, e = S.evInfo[S.quote] || {}; return single() && EP && EP.afterReady && S.plan ? EP.afterReady(t, { plan: S.plan, eventDate: e.event_date ? String(e.event_date).slice(0, 10) : "", eventTime: String(e.event_time || "").trim(), tz: tz() }) : ""; }
+  // R257: a check sent the work back and it is not done again yet (the same rule as Tasks & Crew)
+  function sentBack(t) { return !!t && t.verify_status === "rejected" && t.status !== "completed" && t.status !== "cancelled"; }
   function taskRow(t, opts) {
     opts = opts || {};
     var s = stateOf(t);
@@ -436,10 +445,14 @@
     if (opts.showWho !== false) { var nm = nameOf(t); meta.appendChild(h("span", { cls: nm ? "" : "mon-warn", text: nm || TS.LABEL.unassigned })); }
     if (opts.showSec !== false) meta.appendChild(h("span", { cls: "mon-muted", text: t.category || "Other" }));
     var lk = linkOf(t); if (lk) meta.appendChild(h("span", { cls: "mon-waits" + (lk.bad ? " is-bad" : ""), text: "↳ " + lk.text }));   // R252
+    var sm = sameText(t); if (sm) meta.appendChild(h("span", { cls: "mon-chip is-same", text: sm, title: "This person has two works at the same time" }));
+    var arx = afterReady(t); if (arx) meta.appendChild(h("span", { cls: "mon-chip is-same", text: arx }));   // R257
+    if (sentBack(t)) meta.appendChild(h("span", { cls: "mon-waits is-bad", text: "Sent back" + (t.verify_note ? ": " + String(t.verify_note).slice(0, 160) : "") }));
     if (t._code) meta.appendChild(h("span", { cls: "mon-code", text: t._code }));
     main.appendChild(meta);
     row.appendChild(main);
     var st = h("div", { cls: "mon-row-st" }); st.appendChild(steps(t)); st.appendChild(chip(lateOn() ? s : { key: s.key, label: s.label, late: false }));
+    if (sentBack(t)) st.appendChild(h("span", { cls: "mon-chip is-rejected", text: "Sent back" }));   // R257
     if (s.key === "done" && t.verify_status === "pending") st.appendChild(h("span", { cls: "mon-chip is-appr", text: "To approve" }));   // R253
     if (s.key === "done") { var pt = proofThumb(t, false); if (pt) st.appendChild(pt); }   // R226: the proof photo beside Done
     row.appendChild(st);
@@ -596,7 +609,7 @@
     acts.forEach(function (a) {
       var p = parts(a.at), d = p ? p.day : "";
       if (d !== day) { day = d; list.appendChild(h("li", { cls: "mon-tl-day", text: d === today ? "Today" : d === addDays(today, -1) ? "Yesterday" : fmtDayIso(d, true) })); }
-      var li = h("li", { cls: "mon-tl-i is-" + actGroup(a.kind) + (a.kind === "rejected" || a.kind === "cancelled" ? " is-warn" : "") });
+      var li = h("li", { cls: "mon-tl-i is-" + actGroup(a.kind) + (a.kind === "rejected" || a.kind === "cancelled" || a.kind === "sent_back" ? " is-warn" : "") });
       li.appendChild(h("span", { cls: "mon-tl-ic", text: ACT_ICON[a.kind] || "•" }));
       var body = h("div", { cls: "mon-tl-b" }, [h("span", { text: actText(a) })]);
       var meta = [fmtClock(a.at)];
@@ -655,22 +668,9 @@
     var box = $("#monSummary"); clear(box);
     var sm = summarize(S.tasks), now = Date.now();
     box.className = "mon-summary is-" + S.win;
-    box.hidden = !S.tasks.length && S.win !== "daybefore";
+    box.hidden = !S.tasks.length || S.win === "daybefore";   // R257: Day before starts with the checklist; its numbers are in the closed card (renderPrep)
     if (box.hidden) { renderAlerts(now); renderPrep(); return; }
-    if (S.win === "daybefore") {
-      var r = readiness(S.tasks), row = h("div", { cls: "mon-facts" }), e = S.evInfo[S.quote] || {};
-      var tomorrow = e.event_date && TS.dayDiff(todayIso(), String(e.event_date).slice(0, 10)) === 1;
-      box.appendChild(h("h3", { cls: "mon-h3", text: tomorrow ? "Ready for tomorrow?" : "Get set up" }));
-      if (r.total) {
-        row.appendChild(fact("Assigned", r.assigned + " of " + r.total, r.assigned < r.total ? "is-warn" : "is-ok"));
-        row.appendChild(fact("Accepted", r.accepted + " of " + r.total, r.accepted < r.total ? "is-warn" : "is-ok"));
-        if (r.noTime) row.appendChild(fact("No start time", String(r.noTime), "is-warn"));
-        if (r.hasDur && r.noDur) row.appendChild(fact("No duration", String(r.noDur), "is-warn"));
-        box.appendChild(row);
-        if (r.hasDur && r.noDur) box.appendChild(h("p", { cls: "mon-hint", text: "A task with a duration gets a latest start time in Ready by (Pre-event). Add durations in Tasks & Crew." }));
-      }
-      box.appendChild(setupLinks());
-    } else if (S.autoWin === "wrapup" && S.win === "onday") {
+    if (S.autoWin === "wrapup" && S.win === "onday") {
       // the event is over: what is still open + the hours (the rest is in Wrap-up, closed, at the bottom)
       var left = leftover(S.tasks).length, hi = hoursIn(), row2 = h("div", { cls: "mon-facts" });
       row2.appendChild(fact("Done", sm.done + " of " + sm.total, "is-ok"));
@@ -719,19 +719,29 @@
     var D = window.HelmDayBefore, card = $("#monDayBefore"), cat = D && D.CAT ? String(D.CAT).toLowerCase() : "";
     return !!(cat && card && !card.hidden && String((t && t.category) || "").trim().toLowerCase() === cat);
   }
+  // R257 (owner: "the day before: why do these actions come there?"): below the checklist, in one closed card - the numbers, the set-up links, tasks that need someone
+  var PREP = { open: false };
   function renderPrep() {
-    var box = $("#monPrep"); if (!box) return; clear(box);
-    if (S.win !== "daybefore" || !S.tasks.length) { box.hidden = true; return; }
-    var r = { need: readiness(S.tasks).need.filter(function (t) { return !inDayCard(t); }) };
+    var box = $("#monPrep"); if (!box) return;
+    var had = doc.activeElement && box.contains(doc.activeElement) && doc.activeElement.tagName === "SUMMARY"; clear(box);
+    if (S.win !== "daybefore" || !single()) { box.hidden = true; return; }
+    var rr = readiness(S.tasks), need = rr.need.filter(function (t) { return !inDayCard(t); }), an = apprN(), n = need.length;
     box.hidden = false;
-    box.appendChild(h("h3", { cls: "tc-h2", id: "monPrepH" }, ["Needs action before the day ", h("span", { cls: "mon-n", text: String(r.need.length) })]));
-    var an = apprN(); if (an) box.appendChild(h("p", { cls: "mon-hint mon-appr" }, [an + " finished task" + (an === 1 ? " waits" : "s wait") + " for approval. ", h("a", { href: "approvals.html?quote=" + encodeURIComponent(S.quote), text: "Open Approvals" })]));   // R253
-    if (!r.need.length) { box.appendChild(h("p", { cls: "mon-hint", text: "Nothing - no other task is waiting for a person or a yes." })); return; }
-    box.appendChild(h("p", { cls: "mon-hint", text: "Tasks without a person, not accepted yet or turned down. Open shows the task; reassign in Tasks & Crew." }));
-    var rows = h("div", { cls: "mon-rows", role: "list" }), MAX = 12;
-    r.need.slice(0, MAX).forEach(function (t) { rows.appendChild(taskRow(t)); });
-    box.appendChild(rows);
-    if (r.need.length > MAX) box.appendChild(h("p", { cls: "mon-hint", text: "And " + (r.need.length - MAX) + " more - use the Not assigned / Not accepted yet chips below." }));
+    var bits = []; if (rr.total) { bits.push(rr.assigned + " of " + rr.total + " assigned", rr.accepted + " of " + rr.total + " accepted"); if (rr.noTime) bits.push(rr.noTime + " without a start time"); }
+    var d = h("details", { cls: "mon-prepd" }), sm = h("summary", { id: "monPrepH" }, ["Tasks that need action ", h("span", { cls: "mon-n" + (n ? " is-warn" : ""), text: String(n) }), h("small", { text: bits.join(" · ") })]);
+    d.open = PREP.open; d.addEventListener("toggle", function () { PREP.open = d.open; }); d.appendChild(sm); box.appendChild(d);
+    if (rr.hasDur && rr.noDur) d.appendChild(h("p", { cls: "mon-hint", text: rr.noDur + (rr.noDur === 1 ? " task has" : " tasks have") + " no duration. A task with a duration gets a latest start time in Ready by (Pre-event). Add durations in Tasks & Crew." }));
+    if (an) d.appendChild(h("p", { cls: "mon-hint mon-appr" }, [an + " finished task" + (an === 1 ? " waits" : "s wait") + " for approval. ", h("a", { href: "approvals.html?quote=" + encodeURIComponent(S.quote), text: "Open Approvals" })]));   // R253
+    if (!n) d.appendChild(h("p", { cls: "mon-hint", text: rr.total ? "Nothing - no task is waiting for a person or a yes." : "No tasks on this event yet." }));
+    else {
+      d.appendChild(h("p", { cls: "mon-hint", text: "Tasks without a person, not accepted yet or turned down. Open shows the task; reassign in Tasks & Crew." }));
+      var rows = h("div", { cls: "mon-rows", role: "list" }), MAX = 12;
+      need.slice(0, MAX).forEach(function (t) { rows.appendChild(taskRow(t)); });
+      d.appendChild(rows);
+      if (n > MAX) d.appendChild(h("p", { cls: "mon-hint", text: "And " + (n - MAX) + " more - use the Not assigned / Not accepted yet chips below." }));
+    }
+    d.appendChild(setupLinks());
+    if (had) try { sm.focus({ preventScroll: true }); } catch (e) {}
   }
   /* R184: red LATE panel - every task whose start time has passed and is not started (task, person, was due, how long ago, Nudge) */
   function lateTasks(now) {
@@ -865,23 +875,25 @@
   function planCtx() {
     var e = S.evInfo[S.quote] || {};
     return { plan: S.plan, tasks: S.tasks, quoteId: S.quote, eventDate: e.event_date ? String(e.event_date).slice(0, 10) : "", eventTime: String(e.event_time || "").trim(), tz: tz(), now: Date.now(),
-      nameOf: nameOf, compact: true, status: String(e.status || ""), locked: !!(window.HelmEventFloor && S.quote && S.quote !== "all" && window.HelmEventFloor.isLocked(S.quote)), toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); },
+      nameOf: nameOf, compact: true, status: String(e.status || ""), closed: planClosed(), sheet: S.hasSheet ? S.sheet : undefined, goCheckin: function () { setTab("checkin"); render(); goCard("#monWork"); }, goVendors: function () { goCard("#monVendors"); }, toast: function (m, t) { toast(m, t === "err" ? "err" : "ok"); },
       onChanged: async function () { await loadPlan(true); await loadTasks(true); } };
   }
   function renderCards() {
     var EP = window.HelmEventPlan, ui = EP && EP._ui, one = single(), e = S.evInfo[S.quote] || {}, cancelled = e.status === "cancelled";
     var dh = $("#monDayBefore"), rh = $("#monReady");
-    var app = $("#monApp"); if (app) app.setAttribute("data-win", S.win);   // CSS: what shows per step (lock bar = Day before) and in what order
+    var app = $("#monApp"); if (app) app.setAttribute("data-win", S.win);   // CSS: what shows per step and in what order
     dh.hidden = !(EP && S.plan && one && S.win === "daybefore");
     rh.hidden = !(EP && S.plan && one && (S.win === "daybefore" || S.win === "pre"));   // R251: Ready by + latest starts: planned before, used on Pre-event
-    // R227 (0397, event-floor.js): the plan lock bar + the saved floor plan (every step; On the event it sits below the work)
+    var ph = $("#monPreList"), DB = window.HelmDayBefore; if (ph) ph.hidden = !(DB && DB.renderPre && S.plan && one && S.win === "pre" && !cancelled);
+    // R227 (0397, event-floor.js): the saved floor plan (every step; On the event it sits below the work). R257: no lock.
     var EF = window.HelmEventFloor, lh = $("#monLock"), fh = $("#monFloor");
     if (EF && one && !cancelled) EF.panel({ quoteId: S.quote, lockHost: lh, floorHost: fh, showFloor: true, compact: true, eventType: e.event_type || "",
-      onChange: function () { if (EP && S.plan && !(ui && (ui.edit || ui.times || ui.settings)) && !rh.hidden) EP.renderReady(rh, planCtx()); } });
-    else { if (lh) lh.hidden = true; if (fh) fh.hidden = true; }
+      onChange: function () { renderCards(); } });
+    else [lh, fh].forEach(function (n) { if (n) n.hidden = true; });
     renderRun(); renderDelay(); renderIssues(); renderSteps();
     if (!EP || !S.plan || (ui && (ui.edit || ui.times || ui.settings))) return;   // a form is open: keep what is being typed
     if (!dh.hidden) EP.renderDayBefore(dh, planCtx());
+    if (ph && !ph.hidden) DB.renderPre(ph, planCtx());
     if (!rh.hidden) EP.renderReady(rh, planCtx());
   }
   /* R251 (event-steps.js, shared with Tasks & Crew): "Mark pre-event complete" at the end of Pre-event, Wrap-up closed at the bottom */
@@ -901,6 +913,7 @@
     if (pre) ES.renderPreDone($("#monPreDone"), stepsCtx());
     renderPreCheck();
     if (window.HelmWrapDo) window.HelmWrapDo.vendorCard($("#monVendors"), Object.assign(stepsCtx(), { show: single() && !!e._read && issStep() && S.autoWin !== "wrapup" }));   // R253
+    if (window.HelmEventExtras && window.HelmEventExtras.card) window.HelmEventExtras.card($("#monExtras"), Object.assign(stepsCtx(), { show: single() && !!e._read && S.win === "onday" }));   // R255 (0440)
     if (EW && (e._read || e._tried || !single())) EW.render($("#monWrapUp"), stepsCtx()); else $("#monWrapUp").hidden = true;
     var btn = $("#monOpenOps");   // one filled button per screen: Pre-event has "Mark pre-event complete", a finished event has Wrap-up
     if (btn) btn.classList.toggle("tc-primary", S.win !== "pre" && S.autoWin !== "wrapup");
@@ -962,7 +975,9 @@
     try { var r = await I.list(q); if (S.quote === q) { S.iss = Array.isArray(r) ? r : []; S.issErr = false; S.issQ = q; } }
     catch (e) { if (S.quote === q) { S.issErr = !(IA && IA.refused(e)); if (!S.issErr) S.iss = null; S.issQ = q; } }   // refused = hidden; no answer = "Couldn't check"
   }
-  function issLocked() { return !!(window.HelmEventFloor && single() && window.HelmEventFloor.isLocked(S.quote)); }
+  // R257: no event-day lock - only a closed event takes no plan changes
+  function planClosed() { return (S.evInfo[S.quote] || {}).stage === "closed"; }
+  function goCard(sel) { var n = $(sel); if (!n || n.hidden) { toast("That card has nothing to show yet.", "ok"); return; } if (!n.hasAttribute("tabindex")) n.setAttribute("tabindex", "-1"); try { n.scrollIntoView({ block: "start", behavior: "smooth" }); n.focus({ preventScroll: true }); } catch (e) {} }
   function issHref() { return "issues.html?quote=" + encodeURIComponent(S.quote) + "&from=monitor"; }
   function renderIssues() {
     var box = $("#monIssues"), IA = window.HelmIssueAssign; if (!box) return;
@@ -981,7 +996,7 @@
       head.appendChild(acts); box.insertBefore(head, box.firstChild); if (lst.parentNode !== box) box.appendChild(lst);
       if (had) { var f = doc.getElementById(had); if (f) try { f.focus(); } catch (e) {} }
     }
-    IA.list(lst, { items: S.iss || [], quoteId: S.quote, canEdit: S.issEdit, err: S.issErr, max: 5, allHref: issHref(), tasks: function () { return S.tasks; }, locked: issLocked,
+    IA.list(lst, { items: S.iss || [], quoteId: S.quote, canEdit: S.issEdit, err: S.issErr, max: 5, allHref: issHref(), tasks: function () { return S.tasks; }, closed: planClosed,
       empty: S.iss ? "Nothing open. Something wrong on site? Log it so someone owns it." : "", toast: function (m, k) { toast(m, k); },
       reload: async function () { await loadIssues(); renderIssues(); }, onTask: function () { loadTasks(true); }, resolve: resolveIssue });
   }
@@ -994,7 +1009,7 @@
     if (S.issOpen) return; S.issOpen = true; btn.disabled = true; var q = S.quote, IA = window.HelmIssueAssign;
     var title = h("input", { cls: "tc-inp", id: "monIssTitle", maxlength: "500", placeholder: "e.g. Generator not delivered", autocomplete: "off" });
     var sev = h("select", { cls: "mon-select", id: "monIssSev" }); ["low", "medium", "high"].forEach(function (k) { sev.appendChild(opt(k, SEV[k], k === "medium")); });
-    var pk = IA.picker({ quoteId: q, tasks: function () { return S.tasks; }, locked: issLocked, ids: "monIssWho" });
+    var pk = IA.picker({ quoteId: q, tasks: function () { return S.tasks; }, closed: planClosed, ids: "monIssWho" });
     var err = h("p", { cls: "mon-hint mon-warn", role: "alert", hidden: true });
     var go = h("button", { type: "submit", cls: "tc-btn", text: "Log it" }), no = h("button", { type: "button", cls: "tc-btn ghost", text: "Cancel" });
     var form = h("form", { cls: "mon-issform", "aria-label": "Log an issue", novalidate: "" }, [
@@ -1048,6 +1063,22 @@
   /* ---- data ---- */
   function todayIso() { var p = parts(new Date().toISOString()); return p ? p.day : new Date().toISOString().slice(0, 10); }
   function addDays(iso, n) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso); return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + n, 12)).toISOString().slice(0, 10); }
+  /* R255: which event comes first. The server lists them by their first task, so yesterday's event (with a late task) came before
+     today's. Today, then tomorrow and on by date, then what is over (the newest first). Before 6 am yesterday's event is still the
+     night that is running, so it stays first. pure: list [{ event_date }], today YYYY-MM-DD, hour 0-23 */
+  function orderEvents(list, today, hour) {
+    var y = prevDay(today);
+    function rank(e) { var d = String((e && e.event_date) || "").slice(0, 10); if (!d) return 3; if (Number(hour) < 6 && d === y) return -1; return d === today ? 0 : d > today ? 1 : 2; }
+    return (list || []).map(function (e, i) { return { e: e, i: i, r: rank(e), d: String((e && e.event_date) || "").slice(0, 10) }; }).sort(function (a, b) {
+      return a.r - b.r || (a.r === 2 ? b.d.localeCompare(a.d) : a.d.localeCompare(b.d)) || a.i - b.i; }).map(function (x) { return x.e; });
+  }
+  // the event to open with no event in the address: the one opened last only while it is today's (or the next day's with nothing today)
+  function firstEvent(list, saved, today, hour) {
+    var l = orderEvents(list, today, hour), first = l[0]; if (!first) return "";
+    var d = String(first.event_date || "").slice(0, 10), keep = saved === "all" ? (d === today && l.filter(function (e) { return e.is_today; }).length > 1) : l.some(function (e) { return e.quote_id === saved && String(e.event_date || "").slice(0, 10) === d; });
+    return keep ? saved : first.quote_id;
+  }
+  function nowHour() { return (parts(new Date().toISOString()) || {}).hour; }
   async function loadEvents() {
     var soon = [], later = {}, seen = {};
     try { var r = await BPStore.ops.live.today(72); ((r && r.events) || []).forEach(function (e) { if (e && e.quote_id && !seen[e.quote_id]) { seen[e.quote_id] = 1; soon.push(e); } }); } catch (e) {}
@@ -1056,14 +1087,17 @@
       (rows || []).forEach(function (x) { if (x && x.quote_id && !seen[x.quote_id] && !later[x.quote_id]) later[x.quote_id] = { quote_id: x.quote_id, code: x.event_code, title: x.event_title, event_date: x.event_date || x.sched_date }; });
     } catch (e) {}
     var rest = Object.keys(later).map(function (k) { return later[k]; }).sort(function (a, b) { return String(a.event_date).localeCompare(String(b.event_date)); });
-    S.events = soon.concat(rest);
+    soon = orderEvents(soon, todayIso(), nowHour());
+    S.events = orderEvents(soon.concat(rest), todayIso(), nowHour());
     S.evInfo = {}; S.events.forEach(function (e) { S.evInfo[e.quote_id] = e; });
     var sel = $("#monEvent"); clear(sel);
     var todays = soon.filter(function (e) { return e.is_today; });
     if (todays.length > 1) sel.appendChild(opt("all", "All events today (" + todays.length + ")"));
     function label(e) { return [e.code, e.title].filter(Boolean).join(" · ") + " - " + fmtDayIso(e.event_date) + (e.is_today ? " (today)" : ""); }
-    if (soon.length) { var g1 = h("optgroup"); g1.label = "Today and the next 3 days"; soon.forEach(function (e) { g1.appendChild(opt(e.quote_id, label(e))); }); sel.appendChild(g1); }
+    var isOver = function (e) { var d = String(e.event_date || "").slice(0, 10); return !!d && d < t1 && !(nowHour() < 6 && d === prevDay(t1)); }, t1 = todayIso(), past = soon.filter(isOver), next = soon.filter(function (e) { return !isOver(e); });
+    if (next.length) { var g1 = h("optgroup"); g1.label = "Today and the next 3 days"; next.forEach(function (e) { g1.appendChild(opt(e.quote_id, label(e))); }); sel.appendChild(g1); }
     if (rest.length) { var g2 = h("optgroup"); g2.label = "Later this month"; rest.forEach(function (e) { g2.appendChild(opt(e.quote_id, label(e))); }); sel.appendChild(g2); }
+    if (past.length) { var g3 = h("optgroup"); g3.label = "Earlier, with open work"; past.forEach(function (e) { g3.appendChild(opt(e.quote_id, label(e))); }); sel.appendChild(g3); }
   }
   async function loadCrew() {
     try { var list = await BPStore.ops.listCrew(); S.crew = {}; (list || []).forEach(function (c) { if (c && c.id) S.crew[c.id] = c; }); } catch (e) { S.crew = {}; }
@@ -1156,7 +1190,7 @@
         var code = S.quote === "all" ? ((S.evInfo[q] && S.evInfo[q].code) || "") : "";
         return (ts || []).map(function (t) { t.quote_id = t.quote_id || q; if (code) t._code = code; return t; }); }); }));
       if (S.quote !== q0) return;   // another event was picked meanwhile: never show (or hand on) the old event's tasks under its name
-      S.tasks = [].concat.apply([], lists);
+      S.tasks = [].concat.apply([], lists); S.same = undefined;
       await Promise.all([loadSheet(ids), loadOff(ids), loadActivity(ids), loadPlan(false), loadRs(), loadProof(ids), loadMine(ids), readQuote(S.quote, false)]);
       if (S.quote !== q0) return;
       setWin(); await loadIssues(); if (S.quote !== q0) return;
@@ -1178,6 +1212,7 @@
       $("#monOpenOps").hidden = true; renderTimes(null); return;
     }
     $("#monOpenOps").hidden = false; $("#monOpenOps").setAttribute("href", "ops.html?quote=" + encodeURIComponent(S.quote));
+    backTo(S.quote);
     if (!e) { $("#monCode").textContent = ""; $("#monTitle").textContent = "Event"; $("#monSub").textContent = ""; renderTimes(null); return; }
     $("#monCode").textContent = e.code || "";
     $("#monTitle").textContent = e.title || e.code || "Event";
@@ -1268,7 +1303,11 @@
     $("#monDrawerX").addEventListener("click", closeDrawer);
     $("#monScrim").addEventListener("click", closeDrawer);
     doc.addEventListener("keydown", drawerKeys);
-    $("#monWall").addEventListener("click", function () { setWall(!doc.body.classList.contains("mon-wall"), true); });
+    $("#monWall").addEventListener("click", function () { var on = !doc.body.classList.contains("mon-wall"); setWall(on, true); var x = on && $("#monWallX"); if (x) try { x.focus(); } catch (e) {} });
+    $("#monWallX").addEventListener("click", function () { setWall(false, true); try { $("#monWall").focus(); } catch (e) {} });
+    doc.addEventListener("keydown", wallKeys);
+    // the browser's own way out of full screen (Esc) takes the big text off too - it used to stay, and to come back next time
+    doc.addEventListener("fullscreenchange", function () { if (doc.fullscreenElement) S.wallFull = doc.body.classList.contains("mon-wall"); else if (S.wallFull) { S.wallFull = false; if (doc.body.classList.contains("mon-wall")) setWall(false, false); } });
     var tabs = $("#monTabs");
     tabs.addEventListener("click", function (e) { var b = e.target.closest(".mon-tab"); if (!b) return; setTab(b.getAttribute("data-tab")); render(); });
     tabs.addEventListener("keydown", function (e) {
@@ -1280,12 +1319,27 @@
     TS.refresher(function () { if (signedIn()) return loadTasks(true); }, REFRESH_MS);
     setInterval(tick, 5000);
   }
+  // R255: "Back to event" in the header and on the wall bar (the event workspace; "all events" goes to the calendar of today)
+  function backTo(q) {
+    var href = q && q !== "all" ? "event.html?id=" + encodeURIComponent(q) : "calendar.html?cv=live"; try { if (window.HelmUrl && HelmUrl.upgrade) href = HelmUrl.upgrade(href); } catch (e) {}
+    ["#monBack", "#monWallBack"].forEach(function (s) { var a = $(s); if (!a) return; a.setAttribute("href", href); a.hidden = false; a.textContent = q === "all" ? "Back to calendar" : "Back to event"; });
+  }
+  // Esc leaves the wall screen when nothing else is open (the task drawer, a dialog or a list closes first)
+  function wallKeys(e) {
+    if (e.key !== "Escape" || e.defaultPrevented || !doc.body.classList.contains("mon-wall") || S.drawer || doc.fullscreenElement) return;
+    if (doc.querySelector(".bpui-overlay,[role=dialog]:not([hidden]):not(#monDrawer)")) return;
+    var t = e.target || {}; if (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName || "")) return;
+    setWall(false, true);
+  }
   /* R194: wall-screen mode - bigger text, filters out of the way; full screen when the browser allows it (the button press
-     is the user gesture). Remembered on this device only. Esc / leaving full screen keeps the big text until switched off. */
+     is the user gesture). R255 (owner: "I feel this page is too zoomed in", "took time to figure out" how to leave): its own bar is
+     always on top with "Exit full screen" and "Back to event"; Esc / leaving full screen also leaves it, and it is remembered only
+     in this tab (a TV that reloads) - opening the page again starts at the normal size. */
   function setWall(on, ask) {
     doc.body.classList.toggle("mon-wall", !!on); if (S.lastLoad) renderPreCheck();
-    var b = $("#monWall"); if (b) { b.setAttribute("aria-pressed", on ? "true" : "false"); b.textContent = on ? "Exit wall screen" : "Wall screen"; }
-    try { localStorage.setItem(LS_WALL, on ? "1" : ""); } catch (e) {}
+    var b = $("#monWall"); if (b) { b.setAttribute("aria-pressed", on ? "true" : "false"); b.textContent = on ? "Exit full screen" : "Wall screen"; }
+    var bar = $("#monWallBar"); if (bar) bar.hidden = !on;
+    try { if (on) sessionStorage.setItem(LS_WALL, "1"); else sessionStorage.removeItem(LS_WALL); localStorage.removeItem(LS_WALL); } catch (e) {}
     if (ask) {
       try {
         if (on && doc.documentElement.requestFullscreen && !doc.fullscreenElement) doc.documentElement.requestFullscreen().catch(function () {});
@@ -1311,10 +1365,11 @@
     var saved = null; try { saved = localStorage.getItem(LS_KEY); } catch (e) {}
     var tabSaved = null; try { tabSaved = localStorage.getItem(LS_TAB); } catch (e) {}
     setTab(tabSaved || "staff");
-    var wallSaved = null; try { wallSaved = localStorage.getItem(LS_WALL); } catch (e) {}
+    try { localStorage.removeItem(LS_SIZE); } catch (e) {}   // R258 (owner: no A- / A+): a size saved by the old buttons is forgotten
+    var wallSaved = null; try { wallSaved = sessionStorage.getItem(LS_WALL); localStorage.removeItem(LS_WALL); } catch (e) {}
     if (wallSaved === "1") setWall(true, false);
     var sel = $("#monEvent");
-    var pick = (want && (want === "all" || UUID.test(want))) ? want : (saved && (saved === "all" || S.evInfo[saved])) ? saved : (S.events[0] && S.events[0].quote_id);
+    var pick = (want && (want === "all" || UUID.test(want))) ? want : firstEvent(S.events, saved, todayIso(), nowHour());
     if (want && UUID.test(want) && !S.evInfo[want]) { sel.insertBefore(opt(want, "This event"), sel.firstChild); S.evInfo[want] = { quote_id: want }; }
     if (!pick) { $("#monView").appendChild(empty("No events with work today or this month. Give out tasks in an event's Tasks & staff page.")); $("#monSummary").hidden = true; $("#monWins").hidden = true; return; }
     sel.value = pick; wire();
@@ -1327,5 +1382,5 @@
   }
   window.HelmMonitor = { stateOf: stateOf, summarize: summarize, leftover: leftover, fmtWhen: fmtWhen, _personKey: personKey,
     actText: actText, actGroup: actGroup, _S: S, _attendance: attendance, lastEscalation: lastEscalation, escBadge: escBadge,
-    _countdown: countdown, _stepO: stepO, _setWin: setWin, _lateWords: lateWords, _todayIso: todayIso, _openDrawer: openDrawer, _closeDrawer: closeDrawer };
+    _orderEvents: orderEvents, _firstEvent: firstEvent, _setWall: setWall, _countdown: countdown, _stepO: stepO, _setWin: setWin, _lateWords: lateWords, _todayIso: todayIso, _openDrawer: openDrawer, _closeDrawer: closeDrawer };
 })();

@@ -43,13 +43,6 @@
   html[data-theme="dark"]:not([data-shell]) .stt.gap .n{color:#fca5a5} html[data-theme="dark"]:not([data-shell]) .stt.ok .n{color:#5fd49a}
 
 /* ---- r24 resource plan: one clear table (Need · Qty · We have · Missing · Action), fewer boxes ---- */
-.rp-steps{list-style:none;display:flex;flex-wrap:wrap;gap:6px 8px;margin:0 0 14px;padding:0;font-size:13px}
-.rp-steps li{display:flex}
-.rp-steps li>a,.rp-steps li.on{display:inline-flex;align-items:center;gap:7px;padding:6px 12px 6px 6px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink-2);font-weight:600;text-decoration:none}
-.rp-steps li>a:hover{border-color:var(--accent);color:var(--accent)}
-.rp-steps li.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
-.rp-steps .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--panel-2);border:1px solid var(--line);font-size:12px;font-weight:700}
-.rp-steps li.on .n{background:var(--accent);border-color:var(--accent);color:#fff}
 .rp-card{padding:18px 0 6px}
 .rp-card>.rp-head,.rp-card>.sub,.rp-card>.rp-hint,.rp-card>.rp-add{padding:0 18px}
 .rp-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin-bottom:10px}
@@ -107,7 +100,6 @@
   .rp-act{white-space:normal;display:flex!important;flex-wrap:wrap;gap:6px;padding-top:8px!important}
   .rp-meta select{max-width:100%}
   .rp-card>.rp-head,.rp-card>.sub,.rp-card>.rp-hint,.rp-card>.rp-add{padding:0 16px}
-  .rp-steps li>a,.rp-steps li.on{padding:5px 10px 5px 5px;font-size:12px}
 }
 .rp-table .cov{white-space:nowrap}
 #rows .rp-meta select{height:32px;min-height:32px;padding:0 26px 0 8px;font-size:12px}
@@ -129,3 +121,10 @@ html.hb-priv-on .rp-privnote{display:block}
 /* needs table: the small "from requirements" note never gets clipped */
 .rp-meta .rp-note{white-space:nowrap}
 @media(max-width:420px){ .rp-row2.rp-vq{grid-template-columns:minmax(0,1fr) 84px} }
+
+/* R259: the product list of a request needs room; stacked rows on a phone */
+#bookModal .rp-sheet,#offerModal .rp-sheet{width:min(660px,96vw)}
+.rp-lbl{font-size:12px;font-weight:600;color:var(--ink-2)}
+#offerBody{display:flex;flex-direction:column;gap:10px}
+#bookModal .rp-vq:has(#vr_qtyF[hidden]){grid-template-columns:1fr}
+#vr_lines .hvf-in{height:auto;min-height:44px}

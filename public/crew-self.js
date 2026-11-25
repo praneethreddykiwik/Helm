@@ -67,6 +67,7 @@
       setTimeout(function () { fin(null); }, 14000);
     });
   }
+  function t12(t) { var B = S(); return B && B.clock12 ? B.clock12(t) : String(t || ""); }   // R257: 9:00 pm, as everywhere else
   function renderCheck() {
     var box = doc.getElementById("crewCheck"); if (!box) return;
     var ci = home && home.checkin;
@@ -108,13 +109,22 @@
     }
     card.appendChild(h("div", { cls: "tt", text: "Reached the venue? Check in" }));
     var bits = [];
-    if (ci.expected_start) bits.push("Start time " + ci.expected_start);
-    if (ci.opens_at) bits.push("opens " + ci.opens_at);
+    if (ci.expected_start) bits.push("Start time " + t12(ci.expected_start));
+    if (ci.opens_at) bits.push("opens " + t12(ci.opens_at));
     if (ci.needs_location) bits.push("your phone's location is checked against the venue (only the distance is saved)");
     if (bits.length) card.appendChild(h("p", { cls: "rsl", text: bits.join(" · ") }));
-    var go = h("button", { type: "button", cls: "btn primary cs-big", text: "Check in now" });
+    // R257 (0443): before check-in opens the button waits for it and says when (the server refuses an earlier press anyway); the server's clock
+    // decides, not the phone's. A database without 0443 = the button as before.
+    var wait = opensIn(ci), go = h("button", { type: "button", cls: "btn primary cs-big", text: wait > 0 ? "Check-in opens at " + (t12(ci.opens_at) || "a later time") : "Check in now" });
+    if (wait > 0) { go.disabled = true; clearTimeout(openTimer); openTimer = setTimeout(renderCheck, Math.min(wait + 500, 3600000)); }
     go.addEventListener("click", function () { doCheck("in", go, card); });
     card.appendChild(h("div", { cls: "acts" }, [go]));
+  }
+  // ms until check-in opens (0 = open, or not known). homeAt = when the answer came in: the server's now + the time since then
+  var openTimer = null, homeAt = 0;
+  function opensIn(ci) {
+    var o = Date.parse((ci && ci.opens_ts) || ""), n = Date.parse((ci && ci.now_ts) || ""); if (isNaN(o) || isNaN(n)) return 0;
+    return Math.max(0, o - (n + Math.max(0, Date.now() - (homeAt || Date.now()))));
   }
   async function doCheck(action, btn, card) {
     if (busy) return; busy = true; btn.disabled = true; var label = btn.textContent;
@@ -365,7 +375,7 @@
     if (busy && !force) return;
     try {
       await B.init();
-      home = await B.ops.shifts.home(token);
+      home = await B.ops.shifts.home(token); homeAt = Date.now();
       if (!home || !home.crew) { hideAll(); return; }
       renderCheck(); renderShifts(); renderAvail();
     } catch (e) {
