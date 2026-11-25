@@ -475,7 +475,6 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
   .tc-r-acts{grid-column:1/-1;justify-content:flex-end;margin-top:-6px;padding-bottom:6px}
 }
 @media (pointer:coarse){ .tc-lnk,.tc-sup-sel,.tc-add-in{min-height:44px} }
-.tc-add-in.is-locked{color:var(--tc-ink-3);border-style:dashed;cursor:not-allowed}
 
 /* R251: the step strip under the header, the step groups of the task lists, buttons in the theme's own colour */
 .tc-stepbar{margin:0 0 14px}
@@ -516,9 +515,10 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
   .tc .flow-next a,.tc-seg.sm,.tc-toplink,.tc .ef-btn,.tc .ef-link{min-height:44px} .tc .ef-link{display:inline-flex;align-items:center} }
 .tc-flow > .tc-attn.is-half{grid-template-columns:minmax(0,1fr);align-content:start}
 @media (min-width:861px){
-  #view .tc-row:not(.nocheck){grid-template-columns:28px minmax(0,1fr) 140px}
-  #view .tc-r-acts{justify-content:flex-end}
+  #view .tc-row:not(.nocheck){grid-template-columns:28px minmax(0,1fr) 148px}
+  #view .tc-r-acts{justify-content:flex-end;flex-wrap:wrap}   /* R255: three links (Email, WhatsApp, Change time) */
 }
+@media (min-width:1100px){ #view .tc-row:not(.nocheck){grid-template-columns:28px minmax(0,1fr) 238px} }
 /* card headings read the same whether they are an h2 or an h3 (the page's plain h3 is small capitals) */
 .tc h3.tc-h2,.tc h3.tc-prep-h{font-size:16px;text-transform:none;letter-spacing:-.01em;color:var(--tc-ink);margin:0}
 .tc h3.tc-prep-h{margin-bottom:8px}

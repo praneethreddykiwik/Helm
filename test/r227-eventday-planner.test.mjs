@@ -4,7 +4,7 @@
 //     tables, seats vs guests, aisle, walkway between seating blocks, stage to the first seats), legend, view-only links, lock words
 //   2 the 2D plan SVG (room outline, hall width + length marked, no HTML strings) + the printed pack's crew call sheet
 //   3 the pages: Floor plan card + lock bar on Tasks & Crew AND the monitor (hidden before 0397), the planner opens view only
-//     (?view=1, 3D / Measure), a locked plan = planner / run-sheet / Ready-by edits read-only, the pack page (A4 print CSS, no
+//     (?view=1, 3D / Measure), a locked plan = run-sheet / Ready-by edits read-only (R256: not the planner), the pack page (A4 print CSS, no
 //     money, no app chrome), friendly "plan_locked" error, theme tokens only (no hard-coded green), tours <= 8 steps
 //   4 safety: 0397 additive (no drop / delete / truncate of data), guards only refuse, APPLY check rows, MANIFEST + run-all wiring
 import assert from 'node:assert/strict';
@@ -63,9 +63,9 @@ await t('1b measurements: venue + usable area, stage / dance floor sizes, tables
   assert.equal(m.warnings.length, 0, m.warnings.join());
 });
 await t('1c short of seats + a tight walkway are flagged; metres shown in metres; a turned table counts its real footprint', () => {
-  const f = JSON.parse(JSON.stringify(FLOOR)); f.guests = 400; f.items[3].x = 58; f.unit = 'm';
+  const f = JSON.parse(JSON.stringify(FLOOR)); f.guests = 500; f.items[3].x = 58; f.unit = 'm';
   const m = EF.measure(f);
-  assert.ok(m.warnings.some((w) => /98 seats short/.test(w)), m.warnings.join());
+  assert.ok(m.warnings.some((w) => /48 seats short \(70% of 500 guests = 350\)/.test(w)), m.warnings.join());
   assert.ok(m.warnings.some((w) => /walkway between seating blocks under 4 ft/.test(w)));
   assert.equal((m.rows.find((r) => r[0] === 'Stage') || [])[1], '12.2 × 4.9 m');
   const n = EF.normalize(FLOOR), head = n.items.find((i) => i.label === 'Head');
@@ -78,12 +78,10 @@ await t('1d legend per category with counts; view-only planner links (2D / 3D / 
   assert.equal(EF.viewUrl('q-1', '3d'), 'builder.html?quote=q-1&view=1&mode=3d');
   assert.equal(EF.viewUrl('q 1', 'measure'), 'builder.html?quote=q%201&view=1&measure=1');
 });
-await t('1e lock words: locked by hand / by itself, unlocked with a reason, open', () => {
-  assert.equal(EF.lockWords({ locked: true, state: 'locked', changed_by: 'Sunil' }).title, 'Locked for the event day - Unlock to edit');
-  assert.match(EF.lockWords({ locked: true, state: 'locked', changed_by: 'Sunil', reason: 'Final' }).sub, /^Locked by Sunil.*Final$/);
-  assert.match(EF.lockWords({ locked: true, state: null, stage: 'event_day' }).sub, /Locked by itself.*Event Day stage/);
-  assert.match(EF.lockWords({ locked: false, state: 'unlocked', changed_by: 'Asha', reason: 'Photo booth' }).sub, /Unlocked by Asha.*Photo booth/);
-  assert.match(EF.lockWords({ locked: false, confirmed: true }).sub, /Locks by itself on the event day/);
+await t('1e R257: no event-day lock; a closed event and a database without 0442 are told apart', () => {
+  assert.equal(EF.closedPlan({ locked: true, stage: 'closed' }), true); assert.equal(EF.closedPlan({ locked: true, stage: 'event_day' }), false);
+  assert.equal(EF.oldLock({ locked: true, stage: 'event_day' }), true); assert.equal(EF.oldLock({ locked: false, removed: true }), false); assert.equal(EF.oldLock({ locked: true, removed: true, stage: 'closed' }), false);
+  assert.equal(EF.lockWords, undefined); assert.equal(EF.lockBar, undefined); assert.equal(EF.isLocked, undefined);
 });
 
 // ---- 2 the SVG + the call sheet (a tiny DOM) ----
@@ -119,9 +117,9 @@ await t('2b crew call sheet: one line per person, earliest start first, vendors 
 });
 
 // ---- 3 the pages ----
-await t('3a Tasks & Crew + monitor: lock bar + Floor plan card, loaded through event-floor.js (hidden until 0397 answers)', () => {
+await t('3a Tasks & Crew + monitor: Floor plan card, loaded through event-floor.js (hidden until 0397 answers)', () => {
   for (const [html, lock, floor] of [[OPS, 'tcLock', 'tcFloor'], [MONH, 'monLock', 'monFloor']]) {
-    assert.match(html, new RegExp('<section class="ef-lock" id="' + lock + '" hidden></section>'));
+    assert.match(html, new RegExp('<section class="ef-lock[^"]*" id="' + lock + '" hidden></section>')); assert.ok(!html.includes(lock + 'In'));
     assert.match(html, new RegExp('<section class="tc-card ef-card" id="' + floor + '" aria-labelledby="' + floor + 'H" hidden></section>'));
     assert.match(html, /<script src="event-floor\.js\?v=\d+"><\/script>/); assert.match(html, /<link rel="stylesheet" href="event-floor\.css\?v=\d+">/);
   }
@@ -129,15 +127,15 @@ await t('3a Tasks & Crew + monitor: lock bar + Floor plan card, loaded through e
   assert.match(MON, /EF\.panel\(\{ quoteId: S\.quote, lockHost: lh, floorHost: fh, showFloor: true/);   // R251: every step (On the event: below the work)
   assert.match(STORE, /async floor\(quoteId\) \{ if \(!supa \|\| !quoteId\) return null; try \{ return await rpc\("event_floor_get", \{ p_quote: quoteId \}\); \} catch \(e\) \{ if \(rpcMissing\(e\)\) return null; throw e; \} \}/);
   assert.match(STORE, /async get\(quoteId\) \{ if \(!supa \|\| !quoteId\) return null; try \{ return await rpc\("event_plan_lock_get"/);
-  assert.match(EFJS, /if \(!f \|\| !c\.lock\) \{ o\.lockHost\.hidden = true; \}/, 'no answer (before 0397) = no bar');
+  assert.match(EFJS, /oldBar\(o\.lockHost, f \? c\.lock : null, o\)/, 'no answer (before 0397) = nothing');
 });
-await t('3b locked = the plan editors are read-only (Ready-by times, + Add & assign, planner, run-sheet); execution untouched', () => {
-  assert.match(EPJS, /var canEdit = !!p\.can_edit && !ctx\.locked/);
-  assert.match(BRD, /if \(add && planLocked\(\)\) add\.hidden = true;/);
-  assert.match(BRD, /locked: planLocked\(\) \};/);
-  assert.match(MON, /locked: !!\(window\.HelmEventFloor && S\.quote && S\.quote !== "all" && window\.HelmEventFloor\.isLocked\(S\.quote\)\)/);
-  assert.match(BJS, /r227PlanLock\(q\);/); assert.match(BJS, /const bar=applyReadonly\(null,'🔒 Locked for the event day/);
-  assert.match(RSH, /if\(st && st\.locked\)\{ canEdit=false; canDelete=false; \}/);
+await t('3b R257: only a closed event is read-only (Ready-by times, + Add & assign, run-sheet)', () => {
+  assert.match(EPJS, /var canEdit = !!p\.can_edit && !ctx\.closed/);
+  assert.match(BRD, /if \(add && planClosed\(\)\) add\.hidden = true;/);
+  assert.match(BRD, /closed: planClosed\(\), sheet:/);
+  assert.match(MON, /closed: planClosed\(\), sheet:/);
+  assert.ok(!/r227PlanLock|lockBar|HelmEventFloor/.test(BJS)); assert.match(BJS, /viewOnlyIfClosed\(q\);/);
+  assert.match(RSH, /if\(st\.closed\)\{ canEdit=false; canDelete=false; \}/);
   // Day-before ticks stay open while locked (renderDayBefore does not look at ctx.locked)
   const dayb = EPJS.slice(EPJS.indexOf('function renderDayBefore'));
   assert.ok(!/ctx\.locked/.test(dayb.slice(0, dayb.indexOf('global.HelmEventPlan'))));
@@ -147,7 +145,7 @@ await t('3c the planner opens VIEW ONLY from the event day (?view=1), straight i
   assert.match(BJS, /if\(params\.get\('mode'\)==='3d'\)\{ const b3=document\.querySelector\('#viewSeg \[data-v="3d"\]'\)/);
   assert.match(BJS, /else if\(params\.get\('measure'\)==='1'\)\{ const mb=\$\('#measureBtn'\); if\(mb && !showMeasure\) mb\.click\(\); \}/);
   assert.match(BJS, /if\(RO && had\)\{ if\(customMsg\) had\.textContent=customMsg; return had; \}/, 'one bar, never two');
-  assert.match(BH, /<script src="builder\.js\?v=\d+"><\/script>\n<script src="event-floor\.js\?v=\d+"><\/script>/);
+  assert.match(BH, /<script src="builder\.js\?v=\d+"><\/script>/); assert.ok(!/event-floor/.test(BH));
   // saveLayout refuses in view-only mode (existing guard)
   assert.match(BJS, /if\(RO\)\{ if\(!silent\) toast\('View only — you can’t save'\); return false; \}/);
 });
@@ -162,7 +160,7 @@ await t('3d the Event-day pack: A4 print CSS, no toolbar in print, no money, the
   assert.match(STORE, /"event", "eventday-pack", "flow"/, 'login ?next= may return to the pack');
 });
 await t('3e a database refusal reads in plain words everywhere (friendlyError knows plan_locked)', () => {
-  assert.match(STORE, /if \(e && \/plan_locked:\/\.test\(String\(e\.message \|\| ""\)\)\) return pre \+ "The event plan is locked for the event day\. Unlock it first \(admin or event manager, with a reason\), then try again\.";/);
+  assert.match(STORE, /if \(e && \/plan_locked:\/\.test\(String\(e\.message \|\| ""\)\)\) return pre \+ "The database still refuses changes on the event day \(needs database update 0442\)\. An admin or event manager can press Unlock on Tasks & Crew\.";/);
 });
 await t('3f theme: event-floor.css / eventday-pack.css use tokens (no green hex), the dark button stays black', () => {
   const greens = /#(047857|10a37a|065f46|036b4d|0f7a43|18a558|e3f4ed|e7f6ee)\b/i;
@@ -170,12 +168,12 @@ await t('3f theme: event-floor.css / eventday-pack.css use tokens (no green hex)
   assert.match(EFCSS, /\.ef-btn\.dark\{background:var\(--ef-black\);border-color:var\(--ef-black\);color:#fff\}/);
   assert.match(EFCSS, /--ef-black:var\(--tc-black,#111\)/);
 });
-await t('3g tours: ops / monitor / run-sheet explain the floor plan + the lock, each tour 8 steps or fewer', () => {
+await t('3g tours: ops / monitor / run-sheet explain the floor plan, no lock (R257), each tour 8 steps or fewer', () => {
   const steps = (k) => { const i = TOURS.indexOf('"' + k + '": ['), j = TOURS.indexOf('\n    ],', i); return (TOURS.slice(i, j).match(/\{ sel:/g) || []).length; };
   for (const k of ['ops.html', 'monitor.html', 'runsheet.html']) assert.ok(steps(k) <= 8 && steps(k) >= 4, k + ' ' + steps(k));
-  assert.match(TOURS, /\{ sel: "#evhead", [^\n]*the plan lock bar \(locked on the day; unlock = admin or event manager \+ a reason\)[^\n]*the Floor plan with 2D, 3D, Measure \(view only\) and Print pack/);
-  assert.match(TOURS, /\{ sel: \["#monLock", "#monFloor"\], title: "Floor plan and the plan lock"/);
-  assert.match(TOURS, /\{ sel: "#planLock", title: "Locked for the event day"/);
+  assert.match(TOURS, /\{ sel: "#evhead", [^\n]*the Floor plan with 2D, 3D, Measure \(view only\) and Print pack/);
+  assert.match(TOURS, /\{ sel: "#monFloor", title: "Floor plan and Ready by"/);
+  assert.doesNotMatch(TOURS, /Locked for the event day|plan lock|Lock plan/i);
 });
 
 // ---- 4 safety ----

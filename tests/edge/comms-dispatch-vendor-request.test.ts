@@ -133,3 +133,40 @@ Deno.test("vendor requests over Resend: idempotency key = row id; no secrets -> 
     assertEquals(out.failed, 1); assertEquals(w.marks[D1], "retry");
   } finally { f(); smtp.restore(); }
 });
+
+// ---- R259 (0447): its own claim (vendor_flow_claim): change asked / booking confirmed / please send your invoice ----
+const FROW = { ...VROW, flow: 447, currency: "INR", event: "Wedding", confirmed: { lines: [{ name: "Chairs", qty: 120, price: 50 }], charges: 0, discount: 0, total: 6000 }, to: "orders@deccan.test", token: TOK };
+const F1 = "e0000000-0000-4000-8000-0000000000f1", F2 = "e0000000-0000-4000-8000-0000000000f2", F3 = "e0000000-0000-4000-8000-0000000000f3";
+Deno.test("R259 vendor flow lane: invoice + confirmed e-mails with the product table; a change without words is skipped; marked like a vendor request", async () => {
+  resetSupaMock(); const marks: Record<string, string> = {}; let asked = 0;
+  g.__supaRpc = (name: string, args: any) => {
+    if (name === "vendor_flow_claim") { asked++; return { data: [{ ...FROW, id: F1, kind: "invoice_auto" }, { ...FROW, id: F2, kind: "change" }, { ...FROW, id: F3, kind: "confirmed" }], error: null }; }
+    if (name === "vendor_request_mark") { marks[args.p_id] = args.p_status; return { data: null, error: null }; }
+    return { data: [], error: null };
+  };
+  const smtp = installFakeSmtp(), f = installFetch((url) => { throw new Error("unexpected fetch " + url); });
+  try {
+    const { out, logs } = await run({ ...SMTP });
+    assertEquals(asked, 1); assertEquals(out.sent, 2); assertEquals(out.skipped, 1);
+    assertEquals(marks, { [F1]: "sent", [F2]: "skipped", [F3]: "sent" });
+    const a = partsOf(smtp.sent[0].data);
+    assert(a.text.includes("Please send your invoice to Sparkle Events") && a.text.includes("Chairs: 120 x Rs 50 = Rs 6,000") && a.text.includes("/vendor-request?t=" + TOK));
+    assert(a.html.includes("Send your invoice") && a.html.includes("Agreed total") && /Reply-To: <ops@sparkle\.in>/.test(a.headers));
+    assert(!logs.join(" ").includes(TOK));
+  } finally { f(); smtp.restore(); }
+});
+Deno.test("R259 a database without 0447 (no vendor_flow_claim): nothing to claim, the run is fine; request rows with products get the designed e-mail", async () => {
+  resetSupaMock(); const marks: Record<string, string> = {};
+  g.__supaRpc = (name: string, args: any) => {
+    if (name === "vendor_flow_claim") return { data: null, error: { code: "PGRST202", message: "Could not find the function" } };
+    if (name === "vendor_request_claim") return { data: [{ ...VROW, flow: 447, price_open: true, lines: [{ name: "Chairs", qty: 120 }, { name: "Tables", qty: 4 }], id: D1, kind: "request", to: "orders@deccan.test", token: TOK }], error: null };
+    if (name === "vendor_request_mark") { marks[args.p_id] = args.p_status; return { data: null, error: null }; }
+    return { data: [], error: null };
+  };
+  const smtp = installFakeSmtp(), f = installFetch((url) => { throw new Error("unexpected fetch " + url); });
+  try {
+    const { out, logs } = await run({ ...SMTP });
+    assertEquals(out.sent, 1); assertEquals(marks[D1], "sent"); assert(!/vendor flow claim/.test(logs.join(" ")));
+    const a = partsOf(smtp.sent[0].data); assert(a.text.includes("- Tables: 4") && a.html.includes("Answer and tell your price") && !/Rs /.test(a.text));
+  } finally { f(); smtp.restore(); }
+});

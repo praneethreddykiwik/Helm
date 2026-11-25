@@ -290,7 +290,7 @@ await t('asset pins: store-api v371 (R205) on every page, team-status.js / .css 
     const m = read('public/' + f).match(/store-api\.js\?v=(\d+)/); if (m) assert.ok(Number(m[1]) >= 370, f);   // R204: later rounds bump it again
   }
   for (const f of ['public/control.html', 'public/staff.html']) { assert.match(read(f), /<script src="team-status\.js\?v=\d+"><\/script>/, f); assert.match(read(f), /<link rel="stylesheet" href="team-status\.css\?v=\d+">/, f); }
-  assert.match(read('public/flow.html'), /flow-resume\.js\?v=10/);
+  assert.match(read('public/flow.html'), /flow-resume\.js\?v=12/);
 });
 
 console.log(`r199-team-invites: ${n} passed`);

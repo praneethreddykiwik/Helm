@@ -132,7 +132,7 @@ rect.ic-bar { stroke: none; }
 /* badges */
 .ic-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
 .ic-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: currentColor; }
-.ic-b-good { background: #e3f4ea; color: #0f7a43; } .ic-b-watch { background: #fff1d9; color: #a15c07; } .ic-b-poor { background: #fde4e4; color: #b42318; } .ic-b-na { background: #eef0f3; color: #5b6170; }
+.ic-b-good { background: #e3f4ea; color: #0f7a43; } .ic-b-watch { background: #fff1d9; color: #a15c07; } .ic-b-poor { background: #fde4e4; color: #b42318; } .ic-b-na, .ic-b-nc { background: #eef0f3; color: #5b6170; }
 .ic-bsum { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 10px; font-size: 13px; color: var(--ink-2); }
 .ic-bs { display: inline-flex; align-items: center; gap: 4px; }
 .ic-btab { width: 100%; border-collapse: collapse; font-size: 13px; }

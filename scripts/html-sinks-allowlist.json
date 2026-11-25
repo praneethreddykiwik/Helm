@@ -1213,6 +1213,23 @@
    "file": "public/events-calendar.js",
    "expr": "kinds.map(function (k) { return '<button type=\"button\" class=\"evc-lg evc-k-' + k + '\" data-k=\"' + k + '\" aria-pressed=\"true\" title=\"' + esc(KLABEL[k] + \": \" + KHINT[k] + \" (click to show / hide)\") + '\"><i aria-hidden=\"true\"></i>' + KLABEL[k] + ' <span class=\"evc-cnt\" data-cnt=\"' + k + '\"></span></button>'; }).join(\"\")",
    "why": "R32 CLI-01 review: k iterates the calendar's fixed kind keys (KLABEL / KHINT tables); the title text is esc()'d; no data value reaches the markup"
+  },
+  {
+   "file": "public/inventory.html",
+   "expr": "give",
+   "why": "R258 review: giveHtml() - item name / id / max / draft values are esc()'d, peopleHtml is built from esc()'d options"
+  },
+  {
+   "file": "public/inventory.html",
+   "expr": "peopleHtml",
+   "why": "R258 review: option list built in fillPeople() - every name, id, kind and role is esc()'d, group labels are literals",
+   "max": 4
+  },
+  {
+   "file": "public/teardown.html",
+   "expr": "w",
+   "why": "R258 review: ' (' + esc(person) + ')' or empty, defined just above the sink",
+   "max": 2
   }
  ]
 }

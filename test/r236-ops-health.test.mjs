@@ -70,9 +70,9 @@ t('grants: ops_health / hq_ops_health signed-in (HQ gate inside); sender calls s
     assert.ok(SQL.includes(`grant execute on function public.${f} to service_role`), f);
 });
 t('comms-dispatch: every lane marks through the retried mark + ledger; ledger read once per run; heartbeat each run', () => {
-  assert.equal((CD.match(/await mark\("[a-z_]+", id, (res|st) === "sent", "[a-z_]+_mark"/g) || []).length, 14);
+  assert.equal((CD.match(/await mark\("[a-z_]+", id, (res|st) === "sent", "[a-z_]+_mark"/g) || []).length, 15);   // R259: + the vendor flow lane
   assert.ok(!/admin\.rpc\("[a-z_]+_mark"/.test(CD), 'no direct mark left');
-  assert.equal((CD.match(/already\("[a-z_]+", id\)/g) || []).length, 14);
+  assert.equal((CD.match(/already\("[a-z_]+", id\)/g) || []).length, 15);
   assert.equal((CD.match(/ledgerOpen\(admin\)/g) || []).length, 1);
   assert.match(CD, /await beat\(admin, mailOn \? "ok" : "no_provider"/);
   assert.match(CD, /if \(err && sent && !await ledgerNote\(admin, lane, id, ref, waits\)\)/);

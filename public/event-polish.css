@@ -77,6 +77,14 @@ html[data-theme] .steps .step.viewing .n{background:var(--accent-soft);color:var
 .stagepanel .sp-hint{font-size:13px;color:var(--ink-2);margin-top:4px}
 .stagepanel .sp-why{font-size:13px;margin-top:6px;color:var(--ink)}
 .stagepanel .sp-why:empty{display:none}
+/* R255: what a blocked stage needs, one line each with the button that does it; the admin override is a small link below */
+.stagepanel .sp-needs{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.stagepanel .sp-needs li{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.stagepanel .sp-need{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+.stagepanel .sp-over{margin:10px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink-3)}
+.stagepanel .sp-link{appearance:none;border:0;background:none;padding:6px 0;font:inherit;font-weight:600;color:var(--ink-2);text-decoration:underline;cursor:pointer}
+.stagepanel .sp-link:disabled{opacity:.5;cursor:default}
+@media (max-width:640px){ .stagepanel .sp-needs .btn,.stagepanel .sp-link{min-height:44px} .stagepanel .sp-needs .btn{width:100%;justify-content:center} }
 .stagepanel .sp-act{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
 .btn.go{background:var(--safe,#18a558);border-color:transparent;color:#fff}
 .btn.ghost{background:transparent;border-color:transparent;color:var(--ink-3)}

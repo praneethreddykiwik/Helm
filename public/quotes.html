@@ -126,11 +126,11 @@
   .eglist .rl{margin-left:auto;color:var(--ink-3);font-size:12px;text-transform:capitalize}
   .eglist .egav{width:28px;height:28px;border-radius:50%;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700;position:relative;overflow:hidden}
 </style>
-<link rel="stylesheet" href="quotes-polish.css?v=9"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="event-group-picker.css?v=2">
+<link rel="stylesheet" href="quotes-polish.css?v=10"><link rel="stylesheet" href="pager.css?v=1"><link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="event-group-picker.css?v=3">
 <link rel="stylesheet" href="link-views.css?v=2">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -156,7 +156,7 @@
       <button type="button" data-f="archived" aria-pressed="false">Archive<span class="tcount" id="cnt_archived" hidden></span></button>
       <button type="button" data-f="deleted" aria-pressed="false" id="tab_deleted" hidden>Deleted<span class="tcount" id="cnt_deleted"></span></button>
     </div>
-    <label class="discard-toggle" id="discardWrap" hidden title="Empty drafts (no client, date, guests, price or layout, untouched for 24h) are moved to Deleted automatically - restorable"><input type="checkbox" id="showDiscarded"> Show discarded drafts <span class="tcount" id="cnt_discarded"></span></label>
+    <div class="discard-seg" id="discardWrap" role="group" aria-label="Which deleted quotes" hidden><button type="button" data-dk="all" class="on" aria-pressed="true">All<span class="tcount" id="cnt_dkall"></span></button><button type="button" data-dk="hand" aria-pressed="false" title="Deleted by somebody, or the client link expired">Deleted quotes<span class="tcount" id="cnt_dkhand"></span></button><button type="button" data-dk="empty" aria-pressed="false" title="Empty drafts (no client, date, guests, price or layout, untouched for 24 hours) Helm tidied away by itself. Restore brings one back.">Empty drafts<span class="tcount" id="cnt_dkempty"></span></button></div>
     <input id="search" class="search" type="search" aria-label="Search quotes" autocomplete="off" autocorrect="off" autocapitalize="off" name="helmSearch" placeholder="Search code, client, title…" title="Search code, client or title. Or type a filter and press Enter, e.g. “cancelled weddings this month”, “today”, “confirmed next month”.">
     <select id="typeFilter" class="typefilter" title="Filter by event type" aria-label="Filter by event type"><option value="">All types</option></select>
     <select id="dateFilter" class="typefilter" title="Filter by event date" aria-label="Filter by event date"><option value="">Any date</option><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="week">This week</option><option value="month">This month</option><option value="nextmonth">Next month</option><option value="next30">Next 30 days</option><option value="past">Past dates</option></select>
@@ -174,6 +174,7 @@
     </table>
   </div>
   <div id="ipWrap" class="ip-wrap" hidden aria-live="polite"></div>
+  <div id="qPager"></div>
   </main>
 
   <footer id="taxFoot">Every save is a version · confirm to price &amp; lock</footer>
@@ -282,10 +283,10 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script><script src="flow-resume.js?v=10" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=6"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=4"></script>
-<script src="event-sizing.js?v=5"></script><script src="quote-smart-filter.js?v=2"></script><script src="approval-watch.js?v=2"></script><script src="event-group-picker.js?v=5"></script><script src="link-views.js?v=5"></script>
-<script src="page-tours.js?v=79"></script>
-<script src="tour.js?v=93"></script>
+<script src="new-quote-dialog.js?v=7"></script><script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script><script src="flow-resume.js?v=12" data-mount></script><script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=6"></script><script src="quote-rates.js?v=4"></script><script src="venue-suggest.js?v=4"></script>
+<script src="event-sizing.js?v=5"></script><script src="quote-smart-filter.js?v=2"></script><script src="pager.js?v=1"></script><script src="approval-watch.js?v=2"></script><script src="event-group-picker.js?v=7"></script><script src="link-views.js?v=6"></script>
+<script src="page-tours.js?v=84"></script>
+<script src="tour.js?v=98"></script>
 <script>
   const $ = (s)=>document.querySelector(s);
   const esc = (s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -301,9 +302,9 @@
 
   let focusPending=true;
   let quotes=[], filter="all", typeFilter="", dateFilter="", canEdit=false, canDelete=false, canCreate=false, canMarkPaid=false, canEditLayouts=false, canUncancel=false;
-  // Perf (Oct 2026): the list is server-paged — each tab / type / search asks the server for
-  // the first page (light columns, no pricing JSON) and Load more / infinite scroll fetches
-  // the next. `quotes` = the rows loaded so far for the current view.
+  // Perf (Oct 2026): the list is server-paged (light columns, no pricing JSON). R258 (owner): 10 rows a page in every tab
+  // with a numbered pager (pager.js) - each page asks the server for its 10 rows and the exact total (quotes_page, 0446);
+  // an older database keeps the old reads (shelfPage), shown 10 at a time. `quotes` = the rows of the page on screen.
   /* HelmUI empty state (guarded: falls back to the plain message if the kit isn't loaded) */
   const hEmpty=(host,o,cols)=>{ const H=window.HelmUI; if(!(H&&H.emptyState)||!host) return false; const n=H.emptyState(o); if(cols){ const tr=document.createElement("tr"),td=document.createElement("td"); td.colSpan=cols; td.className="hs-empty-cell"; td.appendChild(n); tr.appendChild(td); host.replaceChildren(tr); } else host.replaceChildren(n); return true; };
   let pager=null, anyQuotes=null;   // anyQuotes: does the studio have ANY quote (first-run empty state)
@@ -317,7 +318,7 @@
   // them, the Archive tab lists the flagged-archived above the finished events the server
   // pages, and the Deleted tab lists only the flagged-deleted. Without 0040 (or offline)
   // shelf.ready stays false and the page works exactly as before.
-  const shelf={ready:false, rows:[], byId:{}, archived:0, deleted:0};
+  const shelf={ready:false, rows:[], byId:{}, archived:0, deleted:0, server:false, deletedEmpty:0};
   const shelfFmt=(iso)=>{ try{ const d=new Date(iso); return isNaN(d)?"":d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",timeZone:(function () { try { var B = (typeof window !== "undefined" && window.BPStore) || null, z = B && B.studioTimezone ? B.studioTimezone() : ""; if (z) return z; } catch (e) {} return "Asia/Kolkata"; })()}); }catch(e){ return ""; } };   // r37: studio zone
   // the quote NAME (custom, or the TYPE_CITY_GUESTS_DATE auto name); the code is only the Ref
   // R102: the quote's own page as a real link (Cmd/Ctrl/middle-click → new tab), already in the pretty /<studio>/… form
@@ -336,24 +337,36 @@
   function paintShelfTabs(){
     $("#cnt_archived").hidden=!shelf.ready; $("#cnt_archived").textContent=shelf.ready?String(shelf.archived):"";
     $("#tab_deleted").hidden=!shelf.ready; $("#cnt_deleted").textContent=shelf.ready?String(shelf.deleted):"";
-    // 0141: auto-discarded empty drafts sit on the Deleted shelf, hidden until asked for
-    const nd=shelf.ready?shelf.rows.filter(isDiscarded).length:0;
-    $("#discardWrap").hidden=!nd; $("#cnt_discarded").textContent=nd?String(nd):"";
+    // R258 (owner: "Deleted 75 but the list is empty"): the Deleted tab shows everything it counts; on that tab a small switch
+    // splits the quotes somebody deleted from the empty drafts Helm tidied away (0141). One kind only = no switch.
+    const del=shelf.ready&&!shelf.server?shelf.rows.filter(r=>r.shelf==="deleted"):[], nAll=shelf.server?shelf.deleted:del.length, nd=shelf.server?shelf.deletedEmpty:del.filter(isDiscarded).length, nh=nAll-nd;
+    $("#discardWrap").hidden=filter!=="deleted"||!nd||!nh;
+    if($("#discardWrap").hidden&&shelf.ready) delKind="all";
+    $("#cnt_dkall").textContent=String(nAll); $("#cnt_dkhand").textContent=String(nh); $("#cnt_dkempty").textContent=String(nd);
+    const dkw=$("#discardWrap"); if(dkw.querySelectorAll) dkw.querySelectorAll("button").forEach(b=>{ const on=b.dataset.dk===delKind; b.classList.toggle("on",on); b.setAttribute("aria-pressed",String(on)); });
   }
   const isDiscarded=(r)=>!!r&&r.shelf==="deleted"&&r.reason==="auto_empty_draft";
   // r23: the "When" (event date) window - { from, to } yyyy-mm-dd or null (any date); shelf rows use it too
   const dateWin=()=>{ const S=typeof window!=="undefined"?window.HelmQuoteSmart:null; return (S&&S.range&&typeof dateFilter==="string"&&dateFilter)?S.range(dateFilter):null; };
   const inWin=(x,w)=>{ if(!w) return true; const d=String(x.eventDate||"").slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false; return (!w.from||d>=w.from)&&(!w.to||d<=w.to); };
-  const showDiscarded=()=>!!($("#showDiscarded")&&$("#showDiscarded").checked);
-  // R215: the shelf asked early by load() (prefetchList), used once by the first list page
-  let preShelf=null;
-  function takeShelf(){ const pre=preShelf; preShelf=null; return pre; }
-  async function loadShelf(pre){
+  let delKind="all";   // Deleted tab: all | hand (deleted by somebody / link expired) | empty (tidied away drafts)
+  const delShown=(r)=>r.shelf!=="deleted" || delKind==="all" || (delKind==="empty")===isDiscarded(r);
+  async function loadShelf(){
+    shelf.server=false;
     if(BPStore.mode()!=="supabase" || !BPStore.quoteShelf){ shelf.ready=false; paintShelfTabs(); return; }
-    try{ const r=(await (pre||BPStore.quoteShelf.list()))||{}; const rows=Array.isArray(r.rows)?r.rows:[];
+    try{ const r=(await BPStore.quoteShelf.list())||{}; const rows=Array.isArray(r.rows)?r.rows:[];
       shelf.rows=rows; shelf.byId={}; rows.forEach(x=>{ shelf.byId[x.id]=x; });
       shelf.archived=Number(r.archived_count)||0; shelf.deleted=Number(r.deleted_count)||0; shelf.ready=true;
     }catch(e){ shelf.ready=false; shelf.rows=[]; shelf.byId={}; }   // 0040 not installed / no access → classic tabs
+    paintShelfTabs();
+  }
+  // R258 (0446): the rows of a server page say themselves whether they are archived / deleted - the whole shelf is not read
+  function shelfFromPage(rows, counts){
+    shelf.server=true; shelf.ready=true; shelf.rows=[]; shelf.byId={};
+    (rows||[]).forEach(x=>{ if(x&&(x.deletedAt||x.archivedAt)) shelf.byId[x.id]={ id:x.id, shelf:x.deletedAt?"deleted":"archived", shelved_at:x.deletedAt||x.archivedAt,
+      reason:x.deletedAt?x.deletedReason:x.archivedReason, link_expired_at:x.linkExpiredAt }; });
+    if(counts){ shelf.archived=Number(counts.archived)||0; shelf.deleted=Number(counts.deleted)||0; shelf.deletedEmpty=Number(counts.deleted_empty)||0;
+      const c=$("#cnt_cancelled"); if(c){ c.textContent=String(Number(counts.cancelled)||0); c.hidden=false; } }
     paintShelfTabs();
   }
   /* ---------- In progress (0206): every unfinished quote of the studio ---------- */
@@ -390,19 +403,24 @@
 
   function paintIpVisibility(){ const on=filter==="inprogress", r=$("#rows"), card=r&&r.closest?r.closest(".card"):null, w=$("#ipWrap");
     if(w) w.hidden=!on; if(card) card.hidden=on; }
-  async function renderInProgress(){
+  // draws one page of the tab. r = pageResult (server: the rows of the page; older database: all rows, cut to the page here)
+  function renderInProgress(r){
     paintIpVisibility(); if(filter!=="inprogress") return;
-    const host=$("#ipWrap"); host.setAttribute("aria-busy","true");
-    if(!host.firstChild){ const p=document.createElement("p"); p.className="muted"; p.textContent="Loading quotes in progress…"; host.appendChild(p); }
-    let d=null; try{ d=await HelmFlowResume.load(BPStore, ipUid(), { scope:"studio", limit:100 }); }catch(_){ d=null; }
-    host.removeAttribute("aria-busy");
-    if(filter!=="inprogress") return;
+    const host=$("#ipWrap"), d=r&&r.ip; host.removeAttribute("aria-busy");
     if(!d || d.source==="none" || d.source==="error"){ HelmFlowResume.renderList(host, { rows:[] }, { empty: d&&d.source==="error" ? "Couldn't load the quotes in progress. Check your connection and press Refresh." : "The In progress list needs the latest database update (0206)." }); return; }
+    const filtered=!!(($("#search").value||"").trim()||typeFilter||dateFilter);
+    if(d.source==="server"){ ip.ready=true; if(!filtered) ip.total=r.total; paintIpTab(); }
+    HelmFlowResume.renderList(host, { rows:d.rows, total:r.total, canEdit:d.canEdit, open:d.open }, filtered ? { empty:"No quotes in progress match this search or filter." } : {});
+  }
+  // a database before 0446: the list (first 100) read once, filtered here, 10 shown at a time
+  async function oldInProgress(n){
+    let d=null; try{ d=await HelmFlowResume.load(BPStore, ipUid(), { scope:"studio", limit:100 }); }catch(_){ d=null; }
+    if(!d || d.source==="none" || d.source==="error") return { rows:[], total:0, page:1, ip:d||{ source:"none" } };
     const term=($("#search").value||"").trim().toLowerCase(), type=(typeFilter||"").toLowerCase();
-    const rows=d.rows.filter(v=>(!type || String(v.eventType||"").toLowerCase()===type)
+    const all=d.rows.filter(v=>(!type || String(v.eventType||"").toLowerCase()===type)
       && (!term || [v.name,v.code,v.client].some(x=>String(x||"").toLowerCase().includes(term))));
-    ip.ready=true; ip.total=Number(d.total)||0; paintIpTab();
-    HelmFlowResume.renderList(host, { rows, total:rows.length, canEdit:d.canEdit, open:d.open }, (term||type) ? { empty:"No quotes in progress match this search or filter." } : {});
+    const p=Math.min(n, Math.max(1, Math.ceil(all.length/Q_SIZE)));
+    return { rows:[], total:all.length, page:p, ip:Object.assign({}, d, { rows:all.slice((p-1)*Q_SIZE, p*Q_SIZE) }) };
   }
   /* ---------- end In progress ---------- */
   // one page of the current tab (wraps BPStore.quotes.page): the first page also refreshes the
@@ -410,13 +428,13 @@
   async function shelfPage(offset, base){
     const view=filter, term=($("#search").value||"").trim().toLowerCase(), type=(typeFilter||"").toLowerCase();
     paintIpVisibility();
-    if(view==="inprogress"){ if(!offset) await renderInProgress(); return { rows:[], hasMore:false, offset:0 }; }
+    if(view==="inprogress") return { rows:[], hasMore:false, offset:0 };   // R258: oldInProgress / quotes_page
     const win=dateWin();
-    const mine=()=>shelf.rows.filter(r=>r.shelf===(view==="deleted"?"deleted":"archived") && (!isDiscarded(r) || showDiscarded())).map(shelfItem)
+    const mine=()=>shelf.rows.filter(r=>r.shelf===(view==="deleted"?"deleted":"archived") && delShown(r)).sort((a,b)=>(isDiscarded(a)?1:0)-(isDiscarded(b)?1:0)).map(shelfItem)
       .filter(x=>(!type || (x.eventType||"").toLowerCase()===type) && inWin(x,win)
                && (!term || [x.code,x.title,x.client.name].some(v=>String(v||"").toLowerCase().includes(term))));
-    if(view==="deleted"){ if(!offset) await loadShelf(); return { rows: shelf.ready?mine():[], hasMore:false, offset:0 }; }
-    const [, r]=await Promise.all([offset?null:loadShelf(takeShelf()), base()]);
+    if(view==="deleted"){ if(!offset) await loadShelf(); else return { rows:[], hasMore:false, offset:0 }; return { rows: shelf.ready?mine():[], hasMore:false, offset:0 }; }
+    const [, r]=await Promise.all([offset?null:loadShelf(), base()]);
     // r23: Cancelled = a slice of the Archive - keeps a cancelled event that was also archived by hand
     const rows=((r&&r.rows)||[]).filter(x=>view==="cancelled" ? !(shelf.byId[x.id]&&shelf.byId[x.id].shelf==="deleted") : !shelf.byId[x.id]);
     return { rows: view==="archived"&&!offset ? mine().concat(rows) : rows, hasMore:!!(r&&r.hasMore), offset:r?r.offset:offset };
@@ -437,7 +455,7 @@
     try{ const last=Number(sessionStorage.getItem("bp_q_discard")||0); if(Date.now()-last<6*3600e3) return; sessionStorage.setItem("bp_q_discard",String(Date.now())); }catch(e){}
     let r=null; try{ r=await BPStore.quotes.discardEmptyDrafts(); }catch(e){ return; }
     const n=(r&&Number(r.discarded))||0;
-    if(n>0){ BPUI.toast(`${n} empty draft${n===1?"":"s"} tidied away — find ${n===1?"it":"them"} under Deleted › Show discarded drafts.`,{type:"info"}); reloadQuiet(); }
+    if(n>0){ BPUI.toast(`${n} empty draft${n===1?"":"s"} tidied away — find ${n===1?"it":"them"} under Deleted › Empty drafts.`,{type:"info"}); reloadQuiet(); }
   }
   async function shelfMove(id, kind, btn){
     const q=quotes.find(x=>x.id===id), name=q&&q.code?q.code:"this quote", del=kind==="delete";
@@ -447,20 +465,25 @@
         {title:del?"Delete quote?":"Archive quote?",okLabel:del?"Move to Deleted":"Archive",danger:del}))) return;
     await BPUI.guard(btn,async()=>{
       try{ await BPStore.quoteShelf.move(id, del?"delete":"archive");
-        if(pager) pager.remove(id); quotes=quotes.filter(x=>x.id!==id); delete detailCache[id];
-        await loadShelf(); render();
+        await rowGone(id);
         const msg=del?`${name} moved to Deleted quotes.`:`${name} moved to the Archive.`;
         // the shelf move is restorable server-side, so offer Undo (calls the existing restore) when the kit is loaded
-        if(window.HelmUI&&HelmUI.undoable) HelmUI.undoable({mode:"immediate",message:msg,ms:6000,run:()=>{},undo:async()=>{ await restoreQuote(id,null); reloadQuiet(); }});  /* restoreQuote is built for the shelf view; redraw the active list so the row comes back */
+        if(window.HelmUI&&HelmUI.undoable) HelmUI.undoable({mode:"immediate",message:msg,ms:6000,run:()=>{},undo:async()=>{ await restoreQuote(id,null); }});  /* restoreQuote reads the page again, so the row comes back */
         else BPUI.toast(del?"Moved to Deleted quotes.":"Moved to the Archive.",{type:"ok"}); }
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:del?"delete the quote":"archive the quote"}),{type:"err"}); }
     });
   }
+  // R258: the row left this list - take it off at once, then read the page again (the next row moves up; an emptied last
+  // page becomes the one before it; the numbers on the tabs follow)
+  async function rowGone(id){
+    if(pager) pager.remove(id); quotes=quotes.filter(x=>x.id!==id); delete detailCache[id];
+    if(quotes.length) render();
+    await reloadQuiet();
+  }
   async function restoreQuote(id, btn){
     await BPUI.guard(btn,async()=>{
       try{ await BPStore.quoteShelf.restore(id);
-        if(pager) pager.remove(id); quotes=quotes.filter(x=>x.id!==id);
-        await loadShelf(); render(); BPUI.toast("Restored — it's back in your quotes.",{type:"ok"}); }
+        await rowGone(id); BPUI.toast("Restored — it's back in your quotes.",{type:"ok"}); }
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"restore the quote"}),{type:"err"}); }
     });
   }
@@ -511,7 +534,7 @@
     BPStore.auth.role().then(r=>{ canUncancel=["admin","manager"].includes(String(r||"")); if(quotes.length) render(); }).catch(()=>{});
     // opened from an event workspace? focus that quote by pre-filling the search
     // (R215: filled in before the first page is asked for below, so that page already carries it)
-    const focus=focusPending ? new URLSearchParams(location.search).get("focus") : null;
+    const focus=focusPending&&!cameBack ? new URLSearchParams(location.search).get("focus") : null;
     focusPending=false;   // apply the ?focus= prefill once, never overwrite what the user typed on later load()s
     if(focus){ $("#search").value=focus; }
     prefetchList();   // R215: the first page is asked now, alongside the access checks below
@@ -521,14 +544,13 @@
       // create needs can_create() server-side (0147 quote_create switch) AND quotes edit - same as dashboard
       Promise.all([BPStore.auth.can("create"), BPStore.auth.canEditArea("quotes")]).then(([c,e])=>!!(c&&e)),
       // mark_paid is admin/manager only server-side (SEC-05 F11); offline mode has no roles — server: mark_paid needs has_area(finance,edit)
-      BPStore.auth.enabled() ? BPStore.auth.canEditArea("finance") : true]).catch((e)=>{ prePage=null; preShelf=null; throw e; });   // R215: same error, early reads dropped
+      BPStore.auth.enabled() ? BPStore.auth.canEditArea("finance") : true]).catch((e)=>{ if(pager) pager.unprime(); throw e; });   // R215: same error, early read dropped
     // r20-coord: layouts view-only (e.g. Supervisor) -> the row says "View layout", not "Edit layout"
     canEditLayouts = BPStore.auth.enabled() ? await BPStore.auth.canEditArea("layouts").catch(()=>false) : true;
     $("#newBtn").hidden = !canCreate;
     gateQuoteCap();   // r20 (0238): free trial "1 of 2 new quotes used" next to New quote; off at 2 of 2 (paid: nothing)
     runShelfTick();   // 0040: client link expired → Archive / Deleted (rate-limited server-side; never awaited)
     loadInProgressCount();   // 0206: "In progress (N)" tab (never awaited)
-    loadCancelledCount();    // r23: "Cancelled (N)" tab (never awaited)
     // non-critical: event-group buttons + the type filter fill in after the rows
     loadEventGroups().then(()=>{ if(egReady) render();
       // opened from the event workspace's "Create event group" button → ?egroup=<quote id>
@@ -536,7 +558,7 @@
       if(egReady&&egq) openEventGroup(egq).catch(()=>{}); });
     fillTypeFilter().catch(()=>{});
     const [listR]=await Promise.allSettled([reloadList(), taxP]);
-    prePage=null; preShelf=null;   // R215: an early read is only ever used by this first list
+    if(!shelf.server) loadCancelledCount();    // r23: "Cancelled (N)" tab (never awaited; 0446 answers it with the page)
     if(listR.status==="rejected"){ BPUI.loadError($("#rows"), listR.reason, load, {what:"quotes"}); return; }
     render();
     try{ performance.mark("quotes:first-rows"); performance.measure("quotes:time-to-first-rows","quotes:load-start","quotes:first-rows"); }catch(_){}
@@ -554,6 +576,7 @@
       onChange:(d)=>{ d.changed.forEach(r=>{ const q=quotes.find(x=>x.id===r.id);
           if(q){ q.status=r.status; q.approvalStatus=r.approvalStatus; if(r.updatedAt) q.updatedAt=r.updatedAt; }
           if(!(cmId===r.id && !$("#confirmModal").hidden)) delete detailCache[r.id]; });
+        if(pager) pager.drop();   // R258: kept pages may hold the old status
         render(); }
     });
   }
@@ -564,42 +587,112 @@
     const c=$("#cnt_cancelled"); if(!c||!BPStore.quotes.countCancelled) return;
     try{ const n=await BPStore.quotes.countCancelled(); c.textContent=String(Number(n)||0); c.hidden=false; }catch(_){ c.hidden=true; }
   }
-  // first page of the current tab / type / search (resolves after it painted)
-  // R215: one page of the list (the first page is also asked early by load(), see prefetchList)
+  // R215 / before 0446: 25 raw rows of the list
   function pageReq(offset){ return BPStore.quotes.page({ offset, view:viewOf(filter), eventType:typeFilter, search:($("#search").value||"").trim(), sort:"confirmedFirst", ...quoteDateArgs() }); }
-  // what decides the first page's arguments (tab / type / search / dates)
-  const listKey=()=>JSON.stringify([filter, typeFilter, ($("#search").value||"").trim(), dateFilter]);
-  // R215: load() asks for the first page (and the archive / deleted shelf it is filtered with) while the access checks
-  // are still on their way - the list never needed their answers. The rows are still drawn only after the checks
-  // (render() reads them), and only a page asked for exactly the same tab / type / search / dates is used; anything
-  // else (another tab clicked meanwhile, a later reload) asks again as before.
-  let prePage=null;
-  function prefetchList(){
-    prePage=null; preShelf=null;
-    if(filter==="inprogress" || filter==="deleted") return;   // these tabs never ask for a page (shelfPage)
-    prePage={ key:listKey(), p:Promise.resolve().then(()=>pageReq(0)) }; prePage.p.catch(()=>{});
-    if(BPStore.mode()==="supabase" && BPStore.quoteShelf){ preShelf=Promise.resolve().then(()=>BPStore.quoteShelf.list()); preShelf.catch(()=>{}); }
+  // what decides the list (tab / type / search / dates / Deleted switch) - another answer is another list, starting at page 1
+  const listKey=()=>JSON.stringify([filter, typeFilter, ($("#search").value||"").trim(), dateFilter, filter==="deleted"?delKind:""]);
+  // ---- R258: one page of 10 ----
+  const Q_SIZE=10, COUNTS_MS=30000;
+  let countsAt=0, oldBuf=null;
+  // 0446: the rows of the page + the exact total in one read. An older database / offline: the old reads, kept and cut into pages of 10
+  async function fetchPage(n, hard){
+    const key=listKey(), now=Date.now();
+    if(BPStore.quotes.pageNo){
+      const counts=!!hard || now-countsAt>COUNTS_MS;
+      const d=await BPStore.quotes.pageNo({ tab:filter, page:n, size:Q_SIZE, search:($("#search").value||"").trim(), eventType:typeFilter, kind:delKind, sort:"confirmedFirst", counts, ...quoteDateArgs() });
+      if(d){ if(d.counts) countsAt=Date.now(); oldBuf=null;
+        return key.indexOf('["inprogress"')===0 ? { rows:[], total:d.total, page:d.page, ip:HelmFlowResume.pageOf(d), counts:d.counts, server:true } : { rows:d.rows, total:d.total, page:d.page, counts:d.counts, server:true }; }
+    }
+    if(filter==="inprogress") return oldInProgress(n);
+    return oldPage(n, key, hard);
   }
-  function takePage(){ const pre=prePage; prePage=null; return (pre && pre.key===listKey()) ? pre.p : null; }
+  // rows read so far for this list; reads on (25 at a time) until the page asked for, and one row more, is there
+  async function oldPage(n, key, hard){
+    if(hard || !oldBuf || oldBuf.key!==key) oldBuf={ key, rows:[], seen:{}, offset:0, done:false };
+    const b=oldBuf;
+    for(let i=0; i<400 && !b.done && b.rows.length<=n*Q_SIZE; i++){
+      const r=await shelfPage(b.offset, ()=>pageReq(b.offset))||{};
+      if(listKey()!==key){ if(filter==="deleted"&&key.indexOf('["deleted"')===0) return oldPage(1, listKey(), true); break; }   // the Deleted switch went away / another tab meanwhile (dropped)
+      (r.rows||[]).forEach(x=>{ if(x&&!b.seen[x.id]){ b.seen[x.id]=1; b.rows.push(x); } });
+      b.done=!r.hasMore || !(r.offset>b.offset); b.offset=r.offset||b.offset;
+    }
+    const p=Math.min(n, Math.max(1, Math.ceil(b.rows.length/Q_SIZE)));
+    return { rows:b.rows.slice((p-1)*Q_SIZE, p*Q_SIZE), total:b.rows.length, page:p, more:!b.done };
+  }
+  function showPage(res){
+    const r=res.raw; paintIpVisibility();
+    if(r.counts) anyQuotes=Number(r.counts.all)>0;
+    const k0=listKey();
+    if(r.server) shelfFromPage(r.rows, r.counts);
+    if(filter==="inprogress"){ quotes=[]; renderInProgress(r); return; }
+    quotes=res.rows; render();
+    if(listKey()!==k0){ pager.go(1).catch(listErr); return; }   // the Deleted switch is gone (one kind left): all of them
+    refreshStale(); refreshChanges(); refreshValidity();
+  }
+  function busyList(on){
+    [$("#rows"), $("#ipWrap")].forEach(h=>{ if(!h||!h.setAttribute) return; if(on){ h.setAttribute("aria-busy","true"); if(quotes.length||filter==="inprogress") h.setAttribute("data-busy",""); } else { h.removeAttribute("aria-busy"); h.removeAttribute("data-busy"); } });
+    if(on&&filter==="inprogress"){ paintIpVisibility(); const host=$("#ipWrap"); if(!host.firstChild){ const p=document.createElement("p"); p.className="muted"; p.textContent="Loading quotes in progress…"; host.appendChild(p); } }
+  }
+  function makeList(){
+    if(pager) return pager;
+    const ui=HelmPager.mount($("#qPager"), { label:"Quotes", onGo:(n)=>pager.go(n, { click:true }) });
+    pager=HelmPager.list({ ui, size:Q_SIZE, ttl:30000, key:listKey, fetch:fetchPage, render:showPage, busy:busyList,
+      failed:(e)=>BPUI.toast(BPUI.friendlyError(e,{action:"open that page"}),{type:"err"}),
+      moved:(p,o)=>{ saveView();
+        // another page is read from its top (only when the top has scrolled away)
+        if(o&&o.click){ try{ const t=filter==="inprogress"?$("#ipWrap"):$("#rows").closest(".card"), y=t.getBoundingClientRect().top; if(y<70) window.scrollBy(0, y-86); }catch(_){} } } });
+    pager.start(startPage);
+    return pager;
+  }
+  // R215: load() asks for the page while the access checks are still on their way - the list never needed their answers. The rows
+  // are drawn only after the checks (render() reads them), and only a page asked for exactly the same list is used.
+  function prefetchList(){ makeList().prime(); }
+  // something changed / Refresh: forget the kept pages, read the page on screen and the tab numbers again
   function reloadList(){
-    if(!pager) pager=BPUI.pager({ after: $("#rows").closest(".card"), what:"quotes",
-      fetch:(offset)=>shelfPage(offset, ()=>(!offset && takePage()) || pageReq(offset)),
-      render:(rows,info)=>{ quotes=info.all; render(); refreshStale(); refreshChanges(); refreshValidity(); } });
     anyQuotes=null; chgKey=""; staleKey=""; qvKey="";   // qts-1018: a reload re-reads change orders + stale approvals too
-    return pager.reset();
+    return makeList().reset();
+  }
+  // tab / type / search / date changed: page 1 (the same list again = nothing to ask, unless a press asks for it)
+  const listErr=(e)=>{ BPUI.loadError($("#rows"), e, reloadQuiet, {what:"quotes"}); };
+  function applyList(force){ if(!pager) return Promise.resolve(); if(!shelf.server) anyQuotes=null; chgKey=""; staleKey=""; qvKey=""; return pager.apply(force).catch(listErr); }
+  // ---- R258: the page number (and tab) in the address, the rest in the history entry - Back from a quote lands on the same page ----
+  let startPage=1, cameBack=false;
+  const Q_TABS=["all","inprogress","quote","confirmed","attention","cancelled","archived","deleted"];
+  function saveView(own){
+    try{ const u=new URL(location.href), p=pager?pager.page():1, v=u.searchParams.get("view")||"";
+      if(p>1) u.searchParams.set("page", String(p)); else u.searchParams.delete("page");
+      // a saved view keeps its own ?view= until somebody changes the tab or a filter by hand
+      if((own||!v||Q_TABS.includes(v)) && (v||filter!=="all")) u.searchParams.set("view", filter);
+      const st=Object.assign({}, history.state, { hq:{ f:filter, q:($("#search").value||"").trim(), t:typeFilter, d:dateFilter, k:delKind, p } });
+      history.replaceState(st, "", u.pathname+u.search+u.hash); }catch(_){}
+  }
+  function restoreView(){
+    try{ const qs=new URLSearchParams(location.search), st=(history.state&&history.state.hq)||null, v=qs.get("view")||"";
+      const f=st&&Q_TABS.includes(st.f) ? st.f : (Q_TABS.includes(v) ? v : "");
+      if(f&&f!==filter){ filter=f; $("#tabs").querySelectorAll("button").forEach(x=>{ const on=x.dataset.f===f; x.classList.toggle("on",on); x.setAttribute("aria-pressed",String(on)); if(on) x.hidden=false; }); }
+      const p=Math.floor(Number(st ? st.p : qs.get("page"))); if(p>=1 && p<1e6) startPage=p;
+      if(st){ cameBack=true; if(typeof st.q==="string") $("#search").value=st.q.slice(0,200);
+        if(typeof st.t==="string") typeFilter=st.t.slice(0,200);
+        if(typeof st.d==="string"){ $("#dateFilter").value=st.d; dateFilter=$("#dateFilter").value||""; }
+        if(["all","hand","empty"].includes(st.k)) delKind=st.k; }
+    }catch(_){}
   }
   // 0052: quotes whose client approval went stale after a price change (fail-soft)
+  // R258: the small extra reads (stale approvals, valid-until, approved changes) ask only for rows not asked yet, so going
+  // back to a page already seen asks nothing; a reload / another tab ("" key) asks again
+  const newIds=(known, key)=>{ if(!key) known.clear(); const a=quotes.map(x=>x.id).filter(i=>!known.has(i)); a.forEach(i=>known.add(i)); return a; };
+  const staleIds=new Set(), qvIds=new Set(), chgIds=new Set();
   let staleSet=new Set(), staleKey="";
   async function refreshStale(){
-    const ids=quotes.map(x=>x.id), key=ids.join(","); if(key===staleKey) return; staleKey=key;
-    try{ const s=await BPStore.quotes.staleApprovals(ids); const changed=s.size||staleSet.size; staleSet=s; if(changed) render(); }catch(_){}
+    const ids=newIds(staleIds, staleKey); staleKey="1"; if(!ids.length) return;
+    try{ const s=await BPStore.quotes.staleApprovals(ids); const changed=ids.some(i=>s.has(i)!==staleSet.has(i)); ids.forEach(i=>{ if(s.has(i)) staleSet.add(i); else staleSet.delete(i); }); if(changed) render(); }catch(_){}
   }
   // r23 (0262): "Expires in N days" pill for open quotes with a valid-until date (fail-soft: no pill before 0262)
   let qvMap={}, qvKey="";
   async function refreshValidity(){
-    const ids=quotes.map(x=>x.id), key=ids.join(","); if(key===qvKey) return; qvKey=key;
+    const ids=newIds(qvIds, qvKey); qvKey="1"; if(!ids.length) return;
     try{ if(!(BPStore.quoteValidity&&BPStore.quoteValidity.list)) return; const m=await BPStore.quoteValidity.list(ids)||{};
-      qvMap=m; paintValidity(); }catch(_){}
+      ids.forEach(i=>{ delete qvMap[i]; }); Object.assign(qvMap, m); paintValidity(); }catch(_){}
   }
   // painted with DOM text nodes after every render (a MutationObserver on the rows), never into the row template
   function paintValidity(){
@@ -617,13 +710,13 @@
   // event workspace and settlement show (BPStore.budget.summary). Fail-soft: base total if unreadable.
   let chgTotals={}, chgKey="";
   async function refreshChanges(){
-    const ids=quotes.map(x=>x.id), key=ids.join(","); if(key===chgKey) return; chgKey=key;
+    const ids=newIds(chgIds, chgKey); chgKey="1"; if(!ids.length) return;
     try{ if(!(BPStore.budget&&BPStore.budget.approvedChangeTotals)) return; const m=await BPStore.budget.approvedChangeTotals(ids)||{};
-      const changed=Object.keys(m).length||Object.keys(chgTotals).length; chgTotals=m; if(changed) render(); }catch(_){}
+      const changed=ids.some(i=>m[i]!==chgTotals[i]); ids.forEach(i=>{ delete chgTotals[i]; }); Object.assign(chgTotals, m); if(changed) render(); }catch(_){}
   }
   // qts-1018: the ONE invoice-total rule (server-stamped total + approved change orders) the workspace header uses
   const listTotal=(x)=>BPStore.invoiceTotal(x, chgTotals[x.id]);
-  const reloadQuiet=()=>reloadList().catch(e=>{ BPUI.loadError($("#rows"), e, reloadQuiet, {what:"quotes"}); });
+  const reloadQuiet=()=>reloadList().catch(listErr);
   // r20: the "⋯" row menu floats on <body> while open (position:fixed next to its button), so the
   // table's scroll box (.card.table-scroll) can't clip it — with one row only a sliver used to show.
   // It flips upward when there's no room below, and closes on outside click, scroll, resize or Esc.
@@ -677,7 +770,7 @@
     const tb=$("#rows");
     if(!list.length){
       // first run (no quotes at all) vs. nothing in this tab / filter — one HEAD count, only when empty
-      if(anyQuotes===null){ anyQuotes="?"; BPStore.quotes.counts().then(c=>{ anyQuotes=c.total>0; if(!quotes.length) render(); }).catch(()=>{ anyQuotes=true; }); }
+      if(anyQuotes===null && filter!=="inprogress"){ anyQuotes="?"; BPStore.quotes.counts().then(c=>{ anyQuotes=c.total>0; if(!quotes.length) render(); }).catch(()=>{ anyQuotes=true; }); }
       tb.innerHTML = anyQuotes===false
         ? `<tr><td colspan="8" class="empty"><b>No quotes yet.</b><br>${canCreate?'Design a layout and save it to create your first quote.<div style="margin-top:12px"><button type="button" class="btn primary" data-newquote>✨ Create your first quote</button></div>':"Quotes will appear here once they're created."}</td></tr>`
         : `<tr><td colspan="8" class="empty">${esc((q||typeFilter||dateFilter)?"No quotes match this search or filter.":filter==="cancelled"?"No cancelled events. An event cancelled with Cancel event on its page shows here.":"No quotes in this view.")}</td></tr>`;
@@ -718,7 +811,7 @@
                ${shelf.ready&&canEdit?`<button type="button" class="ic" data-act="archive" title="Move to the Archive (restorable)" aria-label="Archive ${esc(x.code)}">🗄 Archive</button>`:""}
                ${canDelete&&canOfferDelete(x)?`<button type="button" class="ic del" data-act="del" title="${shelf.ready?"Move to Deleted quotes (restorable)":"Delete permanently"}" aria-label="Delete ${esc(x.code)}">✕</button>`:""}`}
         </div></td></tr>`;
-    }).join("");   // Load more / infinite scroll lives in the pager footer under the table
+    }).join("");   // R258: the numbered pager (#qPager) is under the table
     // lazy-load versions into each dropdown + wire actions
     tb.querySelectorAll("tr[data-id]").forEach(tr=>{
       const id=tr.dataset.id;
@@ -768,7 +861,7 @@
     await BPUI.guard(b,async()=>{
       try{ await BPStore.quotes.restoreEvent(id, reason.trim()); delete detailCache[id];
         BPUI.toast(code+" restored. Open it and click Re-share links when the client should get the links again.",{type:"ok",timeout:8000});
-        loadCancelledCount(); reloadQuiet(); }
+        if(!shelf.server) loadCancelledCount(); reloadQuiet(); }
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"restore the event"}),{type:"err"}); }
     },{busyLabel:"Restoring…"});
   }
@@ -1114,6 +1207,8 @@
     const p=full.pricing||{}, cl=(p.client)||full.client||{};
     // r221: name the quote by its saved quotation (Q1, Q2 ... - the quote flow's numbering), not the floor-plan layout version
     let qLabel=""; try{ const qv=BPStore.quotationVersions?await BPStore.quotationVersions.list(id):[]; qLabel=(Array.isArray(qv)&&qv[0]&&qv[0].label)?String(qv[0].label):""; }catch(_){ qLabel=""; }
+    // R257: a saved payment plan says how the client pays (names, amounts, days) - the studio's general advance % / "balance due by" only without one
+    let plan=null; try{ const ps=BPStore.paySchedule&&BPStore.payPlan?await BPStore.paySchedule.forQuote(id):null; if(ps&&!ps.mismatch) plan=BPStore.payPlan(ps.rows,{today:ps.today, held:ps.held===true}); }catch(_){ plan=null; }
     // The stored client-side `computed` breakdown is NOT trusted (same rule as approve.html):
     // the grand total is the server-stamped pricing.total; the line breakdown is re-derived
     // from the raw inputs and shown ONLY when it adds up to that total.
@@ -1132,7 +1227,10 @@
     const tax = !t ? "" : BPStore.tax.rows(Object.assign({}, t, { total:grand }), p, qTax).map(r=>r.text?`<tr><td>${esc(r.label)+(r.pct?" ("+Number(r.pct)+"%)":"")}</td><td style="text-align:right">${esc(r.text)}</td></tr>`:line(esc(r.label)+(r.pct?" ("+Number(r.pct)+"%)":""), r.amount||0)).join("");   // R246 Q-07: India parts at 2 decimals + Round-off to the stored grand total
     let sup={}; try{ sup=BPStore.quoteSupplier(full, studioOrg); }catch(_){ sup={}; }   // B15
     const terms=BPStore.paymentTerms(studioCfg, cl.eventDate);
-    const termsHtml=(terms.advancePct!=null||terms.balanceDue||terms.note)?`<h3 style="font-size:13px;margin:18px 0 4px">Payment terms</h3><p class=muted style="margin:0">${terms.advancePct!=null?"Advance "+esc(String(terms.advancePct))+"% ("+inr(Math.round(grand*terms.advancePct/100))+") to confirm the booking. ":""}${terms.balanceDue?"Balance due by "+esc(qTax.country==="US"?terms.balanceDue:BPStore.fmtDateIN(terms.balanceDue))+(terms.balanceDueDays?" ("+terms.balanceDueDays+" days before the event)":" (event day)")+". ":""}${terms.note?esc(terms.note):""}</p>`:"";
+    const pDate=(d)=>qTax.country==="US"?d:BPStore.fmtDateIN(d), note=BPStore.payNote?BPStore.payNote(terms.note, !!plan):terms.note, overdue=!!terms.balanceDue&&terms.balanceDue<BPStore.todayLocal();
+    const planHtml=!plan?"":`<table style="margin-top:6px"><tr><th>Payment</th><th>Due</th><th style="text-align:right">Amount</th></tr>${plan.rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.paid?"Paid":r.when==="approval"?"On approval":r.when==="now"?"Due now":r.due?esc(pDate(r.due)):"To be agreed"}</td><td style="text-align:right">${inr(r.amount)}${!r.paid&&r.left<r.amount-0.5?` <span class=muted>(${inr(r.left)} left)</span>`:""}</td></tr>`).join("")}</table>`;
+    const balTxt=plan||!terms.balanceDue?"":overdue?"Balance due now. ":"Balance due by "+esc(qTax.country==="US"?terms.balanceDue:BPStore.fmtDateIN(terms.balanceDue))+(terms.balanceDueDays?" ("+terms.balanceDueDays+" days before the event)":" (event day)")+". ";
+    const termsHtml=(plan||terms.advancePct!=null||terms.balanceDue||terms.note)?`<h3 style="font-size:13px;margin:18px 0 4px">${plan?"Payment plan":"Payment terms"}</h3>${planHtml}<p class=muted style="margin:${plan?"6px 0 0":"0"}">${!plan&&terms.advancePct!=null?"Advance "+esc(String(terms.advancePct))+"% ("+inr(Math.round(grand*terms.advancePct/100))+") to confirm the booking. ":""}${balTxt}${note?esc(note):""}</p>`:"";
     const html=`<!doctype html><meta charset=utf8><title>${isInv?"Invoice":"Quotation"} ${esc(full.code)}</title>
     <style>body{font-family:system-ui,sans-serif;max-width:720px;margin:32px auto;color:#141b2e;padding:0 20px}
     h1{font-size:20px;margin:0} .muted{color:#5b6475;font-size:12px} table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}
@@ -1183,7 +1281,7 @@
     const q=quotes.find(x=>x.id===id);
     if(!(await BPUI.confirm(`Delete ${q&&q.code?q.code:"this quote"} and all its versions? This can't be undone.`,{title:"Delete quote?",danger:true}))) return;
     await BPUI.guard(btn,async()=>{
-      try{ await BPStore.quotes.remove(id); if(pager) pager.remove(id); quotes=quotes.filter(x=>x.id!==id); delete detailCache[id]; render(); BPUI.toast("Quote deleted.",{type:"ok"}); }
+      try{ await BPStore.quotes.remove(id); await rowGone(id); BPUI.toast("Quote deleted.",{type:"ok"}); }
       catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"delete the quote"}),{type:"err"}); }
     });
   }
@@ -1267,8 +1365,9 @@
     }catch(e){ const el=$("#eg_err"); el.textContent=BPUI.friendlyError(e,{action:"create the event group"}); el.hidden=false; }
   }
   // after "Confirm & lock": offer the group (manual — nothing is created until they click)
-  function showEventGroupPrompt(id){
-    const q=quotes.find(x=>x.id===id); if(!egReady||!q||q.status!=="confirmed"||egIndex[id]) return;
+  async function showEventGroupPrompt(id){
+    let q=quotes.find(x=>x.id===id); if(!q&&egReady&&!egIndex[id]){ try{ q=await BPStore.quotes.get(id); }catch(_){ q=null; } }   // R258: it may be on another page now
+    if(!egReady||!q||q.status!=="confirmed"||egIndex[id]) return;
     $("#egBarTitle").textContent="Create an event group for "+(q.code||"this event")+"?";
     $("#egBar").dataset.qid=id; $("#egBar").hidden=false;
   }
@@ -1282,12 +1381,12 @@
 
   /* ---------- wire up ---------- */
   $("#tabs").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return;
-    $("#tabs").querySelectorAll("button").forEach(x=>{ x.classList.toggle("on",x===b); x.setAttribute("aria-pressed",String(x===b)); }); filter=b.dataset.f; reloadQuiet(); });
-  $("#showDiscarded").addEventListener("change",()=>{ if($("#showDiscarded").checked && filter!=="deleted"){ $("#tab_deleted").click(); return; } reloadQuiet(); });
+    $("#tabs").querySelectorAll("button").forEach(x=>{ x.classList.toggle("on",x===b); x.setAttribute("aria-pressed",String(x===b)); }); filter=b.dataset.f; delKind="all"; paintShelfTabs(); applyList(true); if(e.isTrusted) saveView(true); });
+  $("#discardWrap").addEventListener("click",e=>{ const b=e.target.closest("button[data-dk]"); if(!b||b.dataset.dk===delKind) return; delKind=b.dataset.dk; paintShelfTabs(); applyList(); if(e.isTrusted) saveView(true); });
   // search asks the server (code / title / client name), after a 300 ms pause in typing
-  $("#search").addEventListener("input",BPUI.debounce(reloadQuiet,300));
-  $("#typeFilter").addEventListener("change",e=>{ typeFilter=e.target.value; reloadQuiet(); });
-  $("#dateFilter").addEventListener("change",e=>{ dateFilter=e.target.value||""; reloadQuiet(); });
+  $("#search").addEventListener("input",BPUI.debounce((e)=>{ applyList(); if(e&&e.isTrusted) saveView(true); },300));
+  $("#typeFilter").addEventListener("change",e=>{ typeFilter=e.target.value; applyList(); if(e.isTrusted) saveView(true); });
+  $("#dateFilter").addEventListener("change",e=>{ dateFilter=e.target.value||""; applyList(); if(e.isTrusted) saveView(true); });
   // r23 smart search (rule-based, no AI): Enter on a phrase made only of known words - a tab
   // ("cancelled", "confirmed", "overdue"), an event type from the type list ("weddings") and / or a date
   // ("today", "this month", "next 30 days") - sets those filters and clears the box. Anything else
@@ -1300,7 +1399,7 @@
     if(p.tab){ const b=[].find.call($("#tabs").querySelectorAll("button"),x=>x.dataset.f===p.tab&&!x.hidden); if(b&&!b.classList.contains("on")) b.click(); }
     if(p.type&&$("#typeFilter").value!==p.type){ $("#typeFilter").value=p.type; $("#typeFilter").dispatchEvent(new Event("change",{bubbles:true})); }
     if(p.date&&$("#dateFilter").value!==p.date){ $("#dateFilter").value=p.date; $("#dateFilter").dispatchEvent(new Event("change",{bubbles:true})); }
-    $("#search").value=""; $("#search").dispatchEvent(new Event("input",{bubbles:true}));
+    $("#search").value=""; $("#search").dispatchEvent(new Event("input",{bubbles:true})); saveView(true);
     BPUI.toast("Showing: "+p.labels.join(" · "),{type:"info",timeout:2500});
   });
   $("#refresh").addEventListener("click",()=>BPUI.guard($("#refresh"),load));
@@ -1368,7 +1467,10 @@
   function gateQuoteCap(){ if(canCreate && window.BPUI && BPUI.capGate) BPUI.capGate([$("#newBtn")],"quotes","new quotes",{ soft: true, offTitle: "Free trial limit reached \u2014 choose a plan to add more quotes" }).catch(()=>{}); }
   async function startNewQuote(btn, open){
     if(open==="builder"){
-      const cur = (quotes||[]).find(x => x && x.id && x.status==="quote" && !x.archivedAt && !x.deletedAt);
+      // R258: the page on screen is only 10 rows - my latest open quote is asked for (one light row)
+      const open1 = (x) => x && x.id && x.status==="quote" && !x.archivedAt && !x.deletedAt;
+      let cur=null; try{ cur=((await BPStore.quotes.page({ view:"quote", limit:1 })).rows||[]).find(open1); }catch(_){ }
+      cur = cur || (quotes||[]).find(open1);
       if(cur){ location.href = "builder.html?quote=" + encodeURIComponent(cur.id) + "&from=flow"; return; }
     }
     if(btn && (btn.disabled || btn.getAttribute("data-cap-off")==="1")){
@@ -1399,8 +1501,8 @@
   // sessionStorage nonce, HelmNewQuote.arm) - the same as pressing "New quote". A link from
   // anywhere else just shows the list. The parameters are always dropped from the address bar.
   // 0206: the dashboard's "N more in progress" link opens the In progress tab (?view=inprogress)
-  if(new URLSearchParams(location.search).get("view")==="inprogress"){ filter="inprogress";
-    $("#tabs").querySelectorAll("button").forEach(x=>{ const on=x.dataset.f==="inprogress"; x.classList.toggle("on",on); x.setAttribute("aria-pressed",String(on)); if(on) x.hidden=false; }); }
+  // R258: any tab (?view=deleted&page=3), and after Back the search / filters of this history entry
+  restoreView();
   const newQs = new URLSearchParams(location.search);
   if(newQs.has("new") || newQs.has("nq")){
     const armed = !!(window.HelmNewQuote && HelmNewQuote.consume(location.search));

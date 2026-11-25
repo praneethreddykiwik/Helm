@@ -89,7 +89,7 @@ t('shape check: > 5% different warns (Fit / Fill offered); a matching picture do
   assert.ok(HS.shapeDiff(1024, 1024, 16, 9) > 5); assert.ok(HS.shapeDiff(1080, 1920, 16, 9) > 5, 'portrait on a wide screen');
   assert.equal(HS.shapeDiff(0, 0, 16, 9), 0, 'unknown size -> no warning');
   const ui = fnSrc(b, 'screenPicturePanel');
-  assert.match(ui, /if\(diff>5\)\{/); assert.match(ui, /screenPicPreview\(sec, ref, g, mk, pickFit, cur\)/); assert.match(ui, /select\('scr_fit','Picture fit',S\.FITS,cur,pickFit\)/);
+  assert.match(ui, /if\(diff>5\)\{/); assert.match(ui, /screenPicPreview\(sec, ref, g, mk, pickFit, cur, poster \? '#ffffff' : ''\)/); assert.match(ui, /select\('scr_fit','Picture fit',S\.FITS,cur,pickFit\)/);
   assert.deepEqual(HS.FITS.map((f) => f[0]), ['contain', 'cover']);
 });
 
@@ -106,7 +106,7 @@ t('validation: bytes decide (PNG / JPG / WebP); SVG, GIF, not-a-picture and > 15
 
 t('upload reuses the secure invite-media pipeline (re-encode = EXIF/GPS stripped, <= 2560 px); only the path is kept', () => {
   const add = fnSrc(b, 'screenPicAdd');
-  assert.match(add, /const gate=screenPicGate\(\); if\(gate\)\{ say\(gate\); return false; \}/);
+  assert.match(add, /const gate=picGate\(it\); if\(gate\)\{ say\(gate\); return false; \}/);
   assert.match(add, /S\.validatePicture\(file, head\)/);
   assert.match(add, /new File\(\[file\], 'screen\.'\+v\.ext, \{type:v\.mime\}\)/, 'named + typed from its own bytes');
   assert.match(add, /logoPathFromUrl\(await BPStore\.sites\.uploadPhoto\(currentQuoteId, named\)\)/);
@@ -191,8 +191,8 @@ t('Welcome Board: sizes 2x3 / 3x4 / 4x6 / custom, easel or standee, picture OR a
 });
 
 t('cache-busters + tour + styles', () => {
-  for (const v of ['stage-screen.js?v=5', 'builder.js?v=97', 'builder-3d.js?v=35', 'builder.css?v=43', 'photo-render-ui.js?v=14', 'page-tours.js?v=79']) assert.ok(html.includes(v), v);
-  for (const f of ['public/capture.html', 'public/try.html']) assert.match(read(f), /stage-screen\.js\?v=5/, f);
+  for (const v of ['stage-screen.js?v=6', 'builder.js?v=100', 'builder-3d.js?v=37', 'builder.css?v=45', 'photo-render-ui.js?v=14', 'page-tours.js?v=84']) assert.ok(html.includes(v), v);
+  for (const f of ['public/capture.html', 'public/try.html']) assert.match(read(f), /stage-screen\.js\?v=6/, f);
   const pt = read('public/page-tours.js'); assert.match(pt, /Toolbox: 3 screens \(centre \+ 2 sides\) and Welcome Board/); assert.match(pt, /Upload a picture/);
   for (const c of ['.scr-mode', '.scr-guide', '.scr-warn', '.scr-prev', '.isec.screen select{max-width:100%}']) assert.ok(css.includes(c), c);
 });

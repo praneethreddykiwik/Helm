@@ -64,7 +64,7 @@ t('audit: who = name, else e-mail, else Client (link actions) / System', () => {
   assert.equal(X.auditWho({ actor: 'u9', actor_email: 'x@y.z' }, {}).text, 'x@y.z');
 });
 t('activity trail: raw kinds become plain words with names', () => {
-  assert.equal(X.activityText({ kind: 'notify', text: 'advance_paid → email' }, { clientName: 'Priya' }), 'Payment received — receipt sent to Priya by e-mail');
+  assert.equal(X.activityText({ kind: 'notify', text: 'advance_paid → email' }, { clientName: 'Priya' }), 'Payment received');
   assert.equal(X.activityText({ kind: 'notify', text: 'pkg_payment → ' }, {}), 'Package payment received');
   assert.equal(X.activityText({ kind: 'notify', text: 'payment_link → p@x.in' }, { clientName: 'Priya' }), 'Payment link sent to Priya (p@x.in) by e-mail');
   assert.equal(X.activityText({ kind: 'notify', text: 'some_new_kind → whatsapp' }, {}), 'Some new kind on WhatsApp');

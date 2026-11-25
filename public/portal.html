@@ -55,14 +55,14 @@
 </style>
 <link rel="stylesheet" href="/theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="/public-pages-v2.css?v=6">
-<link rel="stylesheet" href="/trial-sim.css?v=2">
+<link rel="stylesheet" href="/trial-sim.css?v=2"><link rel="stylesheet" href="/portal-pay.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
 <script src="/public-theme.js?v=4"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="wrap">
-  <header><div class="mark" id="brandMark"></div><div><b id="brandName">Helm Events</b><small>Your event portal</small></div></header>
+  <header><div class="mark" id="brandMark"></div><div><b id="brandName">Your event planner</b><small>Your event portal</small></div></header>
 
   <main id="main">
   <div id="loading" class="card loading" role="status">Loading your event…</div>
@@ -98,6 +98,8 @@
       <div id="milestones"></div>
       <div class="muted s-d2c171b" id="outstanding"></div>
       <div class="payhow" id="payHow" hidden></div>
+      <!-- R258 (0445): "Pay this payment" - one-time code, how to pay, "I have paid" (portal-pay.js) -->
+      <div id="payStep" hidden></div>
     </div>
 
     <div class="card" id="receiptsCard" hidden>
@@ -122,7 +124,7 @@
   <div id="loadErr" hidden></div>
   </main>
 
-  <footer>Helm Events · this page shows only your event.</footer>
+  <footer>This page shows only your event.<br>Powered by Helm Events</footer>
 </div>
 
 <script src="/trial-preview-frame.js?v=1"></script>
@@ -130,7 +132,7 @@
 <script src="/telemetry.js?v=14"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=32"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script>
+<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=37"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/portal-pay.js?v=1" defer></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -177,7 +179,7 @@
     try{ const t=d.tax&&typeof d.tax==="object"?d.tax:null;
       qTax=t&&t.country?BPStore.tax.resolve({ taxCountry:t.country, taxName:t.taxName, currency:t.currency||d.currency, taxRegion:t.region, gstPct:t.rate, taxExempt:t.exempt, taxInclusive:t.inclusive }):null; }catch(_){ qTax=null; }
     // studio branding (multi-tenant): show the studio's name/accent to the client
-    if(d.studio){ if(d.studio.name) $("#brandName").textContent=d.studio.name;
+    if(d.studio){ if(d.studio.name) $("#brandName").textContent=d.studio.name; if(BPStore.paintStudio) BPStore.paintStudio(d.studio);
       const ac=d.studio.brand&&d.studio.brand.accent; if(typeof ac==="string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(ac.trim())){ try{ document.documentElement.style.setProperty("--accent",ac.trim()); }catch{} } }
     // E3/E4: friendly title + proper event-type label; the auto code is only the reference
     const HEN=window.HelmEventName;
@@ -206,7 +208,7 @@
     const ms=(d.payment&&d.payment.milestones)||[]; MS_N=ms.length; MS_ROWS=ms.map(m=>({label:m.label,amount:m.amount}));
     $("#milestones").innerHTML = ms.length ? ms.map(m=>`<div class="prow"><span class="g">${esc(m.label)}${m.due_date?`<div class="due">due ${esc(BPStore.fmtDateIN(m.due_date))}</div>`:""}</span>
       <span class="amt">${inr(m.amount)}</span><span class="paybadge ${esc(m.status)}">${esc(m.status)}</span></div>`).join("")
-      : (d.approval_status==="paid" ? "" : '<div class="empty" id="noSchedule">No payment schedule yet — your planner will share one.</div>');
+      : (d.approval_status==="paid" ? "" : '<div class="empty" id="noSchedule">Your planner will add the payment plan here.</div>');
     const out=(d.payment&&d.payment.outstanding)||0;
     $("#outstanding").innerHTML = out>0 ? `Outstanding balance: <b style="color:var(--warn-text,#8f5f00)">${inr(out)}</b>` : (ms.length?'<b style="color:var(--safe-text,#0f7a43)">All payments settled ✓</b>':"");
     // gallery
@@ -226,22 +228,38 @@
     const b=$("#paidBadge"); if(b) b.textContent=ps.full?"Paid in full":"Advance received";
     // the ledger is the authority: once it says paid in full, no schedule row may still read "due"
     if(ps.full) document.querySelectorAll("#milestones .paybadge").forEach(el=>{ if(!/^(paid|settled|waived)$/i.test(el.textContent.trim())){ el.className="paybadge paid"; el.textContent="paid"; } });
-    // live E2E: no schedule + money in -> never "No payment schedule yet"; show the balance line instead
-    if(!MS_N){ const box=$("#milestones"); box.textContent="";
-      if(!ps.full){ const due=ps.balanceDue?" due by "+BPStore.fmtDateIN(ps.balanceDue):" due"; const el=document.createElement("div"); el.className="empty"; el.textContent="Balance "+inr(ps.balance)+due; box.appendChild(el); } }
+    // live E2E: no schedule + money in -> never "No payment schedule yet". R255: the balance is said ONCE (the line below), not twice
+    if(!MS_N && (ps.full || ps.paid>0)) $("#milestones").textContent="";
+    LEDGER=ps; paintBalance();
+  }
+  let PLAN=null, LEDGER=null, ASKED=false;   // ASKED: the plan was asked for (until then no date is said)
+  function paintBalance(){
+    const ps=LEDGER; if(!ps) return;
+    const gotLine = ps.paid>0 ? "Received "+inr(ps.paid)+(ps.receipt?" (receipt "+ps.receipt+")":"")+" · " : "";
+    // R257: with a saved payment plan the dates come from the plan (planLine below), never from the studio's general terms; no day in the past
+    const by=PLAN||!ASKED?"":ps.dueNow?" now":ps.balanceDue?" by "+BPStore.fmtDateIN(ps.balanceDue):"";
     $("#outstanding").innerHTML = ps.full ? '<b style="color:var(--safe-text,#0f7a43)">Paid in full ✓</b>'
-      : `Received ${inr(ps.paid)}${ps.receipt?" (receipt "+esc(ps.receipt)+")":""} · Balance due: <b style="color:var(--warn-text,#8f5f00)">${inr(ps.balance)}</b>${ps.balanceDue?" by "+esc(BPStore.fmtDateIN(ps.balanceDue)):""}`;
+      : `${esc(gotLine)}Balance due: <b style="color:var(--warn-text,#8f5f00)">${inr(ps.balance)}</b>${esc(by)}`;
+    planLine();
+  }
+  // R257: the saved plan in one sentence under the balance ("Next payment: Advance (30%) ₹1,03,793, due when you approve. The rest by ...")
+  function planLine(){
+    if(!PLAN || (LEDGER && LEDGER.full)) return; const host=$("#outstanding"); let n=$("#planLine");
+    if(!n){ n=document.createElement("div"); n.id="planLine"; n.className="due"; }
+    n.textContent=BPStore.payPlanLine(PLAN, inr, null, true); host.appendChild(n);
   }
   // r23 (0264): the server's schedule - every payment as paid / part paid / due / overdue (studio day) + how to pay
   // (UPI ID, payment note, the live online link). Older servers / no schedule: the rows above stay as they are.
   const PS_LBL={paid:"paid",part_paid:"part paid",due:"due",overdue:"overdue",invoiced:"invoiced"};
   async function paySchedule(){
     let s=null; try{ s=await (takePre("sched")||BPStore.paySchedule.publicGet(token)); }catch(_){ s=null; }
+    ASKED=true; if(s && Array.isArray(s.rows) && BPStore.payPlan) PLAN=BPStore.payPlan(s.rows,{today:s.today, held:s.held===true});
+    if(LEDGER) paintBalance(); else planLine();
     if(!s||!Array.isArray(s.rows)) return;
     if(s.rows.length){ const box=$("#milestones"); box.textContent=""; MS_N=s.rows.length; MS_ROWS=s.rows.map(m=>({label:m.label,amount:m.amount}));
       s.rows.forEach(m=>{ const row=document.createElement("div"); row.className="prow";
         const g=document.createElement("span"); g.className="g"; g.textContent=String(m.label||"Payment");
-        if(m.due_date){ const due=document.createElement("div"); due.className="due"; due.textContent="due "+BPStore.fmtDateIN(m.due_date)
+        if(m.due_date){ const due=document.createElement("div"); due.className="due"; due.textContent=(s.held===true && m.on_approval===true && m.state!=="paid")?"due when you approve":"due "+BPStore.fmtDateIN(m.due_date)
           +(m.state==="part_paid"||(m.state==="overdue"&&Number(m.paid)>0)?" · "+inr(m.remaining)+" left":""); g.appendChild(due); }
         const a=document.createElement("span"); a.className="amt"; a.textContent=inr(m.amount);
         const b=document.createElement("span"); const st=PS_LBL[m.state]?m.state:"due"; b.className="paybadge "+st; b.textContent=PS_LBL[st];
@@ -308,10 +326,10 @@
       const c=x.contact&&typeof x.contact==="object"?x.contact:{}, cl=$("#contactLinks"); cl.textContent="";
       const ph=typeof c.phone==="string"?c.phone.replace(/[^\d+]/g,"").slice(0,16):"";
       const em=typeof c.email==="string"&&/^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(c.email)&&c.email.length<=200?c.email:"";
-      if(ph.replace(/\D/g,"").length>=7){ cl.appendChild(lnk("tel:"+ph,"Call "+String(c.phone).slice(0,24)));
+      if(ph.replace(/\D/g,"").length>=7){ cl.appendChild(lnk("tel:"+ph,"Phone: "+String(c.phone).slice(0,24)));
         const wa=BPStore.waNumber?BPStore.waNumber(ph,(qTax&&qTax.country)||"IN"):ph.replace(/\D/g,"");
         if(wa) cl.appendChild(lnk("https://wa.me/"+wa,"WhatsApp",true)); }
-      if(em) cl.appendChild(lnk("mailto:"+em,"Email "+em));
+      if(em) cl.appendChild(lnk("mailto:"+em,"Email: "+em));
       if(cl.children.length){ $("#contactCard").hidden=false; $("#contactName").textContent=typeof c.name==="string"?c.name.slice(0,80):""; }
     }
     $("#docsCard").hidden=!docs.children.length;

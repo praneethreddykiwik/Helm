@@ -52,7 +52,7 @@ t('actions: partial / check-in (only when overdue) / sub-rent / reduce / substit
   const i = { ...C.compute({ ...base, today: '2026-12-29' }), substitutes: [{ item_id: 't', name: 'Tiffany chairs', available: 150 }] };
   const a = C.actions(i, 200).map((x) => x.key);
   assert.deepEqual(a, ['partial', 'checkin', 'subrent', 'reduce', 'sub']);
-  assert.equal(C.actions(i, 200)[0].label, 'Check out the 120 available');
+  assert.equal(C.actions(i, 200)[0].label, 'Give out the 120 available');
   assert.deepEqual(C.actions({ ...i, available: 0, overdue: [], substitutes: [] }, 10).map((x) => x.key), ['subrent']);
   assert.match(C.subrentNote(i, 200, (d) => d), /^Sub-rent \/ vendor: 80 Chiavari chairs for 2026-12-28 \(have 120 of 200\)$/);
 });
@@ -73,7 +73,7 @@ t('server: 0105 functions are definer, empty search_path, row-locked, shortage i
 t('client: inventory uses outSmart + shortage panel, partial re-call, sub-rent via stock request, no raw error', () => {
   const inv = read('public/inventory.html'), api = read('public/store-api.js');
   assert.match(api, /rpc\("checkout_equipment_smart"/); assert.match(api, /rpc\("checkout_availability"/);
-  assert.match(inv, /<script src="checkout-shortage\.js\?v=6"><\/script>/);
+  assert.match(inv, /<script src="checkout-shortage\.js\?v=7"><\/script>/);
   assert.match(inv, /outSmart\(itemId, quoteId\|\|null, qty, to, crewId, coPending\.note, false\)/);
   assert.match(inv, /outSmart\(p\.itemId, quoteId\|\|null, p\.qty, p\.to, p\.crewId, p\.note, true\)/);
   assert.match(inv, /BPStore\.stockreq\.add\(quoteId,/);

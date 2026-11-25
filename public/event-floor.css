@@ -1,7 +1,7 @@
-/* event-floor.css - R227: the event-day "Floor plan" card and the plan lock bar (event-floor.js), shared by Tasks & Crew, the
-   Event-day monitor, the planner, the Run-sheet and the printed Event-day pack. Colours come from the --tc-* tokens of
+/* event-floor.css - R227: the event-day "Floor plan" card (event-floor.js), shared by Tasks & Crew, the
+   Event-day monitor, the Run-sheet and the printed Event-day pack. Colours come from the --tc-* tokens of
    ops-board.css (they follow the studio theme); on pages without them the app's own theme tokens, then neutral greys.
-   The dark buttons stay black in every theme (owner). Status colours keep their meaning (amber = locked). */
+   The dark buttons stay black in every theme (owner). Status colours keep their meaning. */
 .ef-lock,.ef-card{--ef-ink:var(--tc-ink,var(--ink,#1f1d2b));--ef-ink-2:var(--tc-ink-2,var(--ink-2,#4b475f));--ef-ink-3:var(--tc-ink-3,var(--ink-3,#6b6577));
   --ef-panel:var(--tc-panel,var(--panel,#fff));--ef-panel-2:var(--tc-panel-2,var(--panel-2,#f8f8f8));--ef-line:var(--tc-line,var(--line,#e3e3e3));
   --ef-line-strong:var(--tc-line-strong,#86808f);--ef-acc:var(--tc-acc,var(--accent,#333));--ef-acc-text:var(--tc-acc-text,var(--accent,#333));
@@ -10,18 +10,16 @@
 .ef-lock *,.ef-card *{box-sizing:border-box}
 .ef-lock[hidden],.ef-card[hidden],.ef-err[hidden]{display:none!important}
 
-/* lock bar */
+/* the one line of a database without 0442 (changes still refused on the event day) */
 .ef-lock{border:1px solid var(--ef-line);border-radius:var(--tc-r-card,12px);background:var(--ef-panel);padding:10px 14px;margin:0 0 12px;font-size:14px}
 .ef-lock.is-locked{background:var(--ef-warn-bg);border-color:color-mix(in srgb,var(--ef-warn) 35%,transparent);color:var(--ef-ink)}
 .ef-lock-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
-.ef-lock-ico{font-size:20px;line-height:1;flex:0 0 auto}
 .ef-lock-txt{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:2px}
 .ef-lock-txt b{font-size:15px}
 .ef-lock.is-locked .ef-lock-txt b{color:var(--ef-warn)}
 .ef-lock-sub{color:var(--ef-ink-2);font-size:13px;overflow-wrap:anywhere}
 .ef-lock-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.ef-lock-note{color:var(--ef-ink-2);font-size:12.5px}
-.ef-lock.compact{padding:8px 12px}
+@media (max-width:760px){.ef-lock-acts{flex:1 1 100%}.ef-lock .ef-btn{min-height:44px}.ef-lock .ef-btn.dark{flex:1 1 auto}.ef-lock .ef-link{min-height:44px}}
 .ef-hist{margin:8px 0 0;padding:8px 0 0 18px;border-top:1px solid var(--ef-line);font-size:13px;color:var(--ef-ink-2);display:grid;gap:3px}
 .ef-hist b{color:var(--ef-ink)}
 
@@ -46,8 +44,6 @@
 .ef-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
 .ef-head .tc-h2{margin:0}
 .ef-meta{color:var(--ef-ink-3);font-size:13px}
-.ef-chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--ef-panel-2);color:var(--ef-ink-2)}
-.ef-chip.locked{background:var(--ef-warn-bg);color:var(--ef-warn)}
 .ef-body{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;margin-top:10px;align-items:start}
 @media (max-width:760px){.ef-body{grid-template-columns:minmax(0,1fr)}}
 .ef-fig{margin:0;min-width:0}

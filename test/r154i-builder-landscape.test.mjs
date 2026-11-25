@@ -83,7 +83,7 @@ assert.ok(html.indexOf('builder-landscape.css') > html.indexOf('builder-v2.css')
 assert.match(html, /<script src="builder-orient\.js\?v=2"><\/script>/, 'script wired');
 assert.ok(html.indexOf('builder-orient.js') > html.indexOf('builder.js?v='), 'orient script after builder.js (uses its globals)');
 assert.match(html, /builder\.js\?v=(9[1-9]|\d{3})\b/, 'builder.js cache-bust bumped');
-assert.match(html, /builder-3d\.js\?v=35/, 'builder-3d.js cache-bust bumped');
+assert.match(html, /builder-3d\.js\?v=37/, 'builder-3d.js cache-bust bumped');
 assert.match(html, /page-tours\.js\?v=(3[1-9]|[4-9]\d|\d{3})\b/, 'page-tours.js cache-bust bumped (31 or later)');
 const capture = read('capture.html');
 assert.match(capture, /builder-landscape\.css\?v=1/, 'capture.html regenerated');

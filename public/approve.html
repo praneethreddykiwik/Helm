@@ -55,14 +55,14 @@
 <link rel="stylesheet" href="/theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="/public-pages-v2.css?v=6">
 <link rel="stylesheet" href="/quote-validity.css?v=3">
-<link rel="stylesheet" href="/trial-sim.css?v=2">
+<link rel="stylesheet" href="/trial-sim.css?v=2"><link rel="stylesheet" href="/approve-plan.css?v=1"><link rel="stylesheet" href="/portal-pay.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
 <script src="/public-theme.js?v=4"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="wrap">
-  <header><div class="mark"></div><div><b>Helm Events</b><small>Event approval</small></div></header>
+  <header><div class="mark"></div><div><b>Your event planner</b><small>Event approval</small></div></header>
 
   <main id="main">
   <div id="loading" class="card" role="status"><p class="muted">Loading your event…</p></div>
@@ -90,14 +90,20 @@
       <div class="terms" id="terms"></div>
     </div>
 
-    <!-- Approval flow -->
+    <!-- R255: the payment plan, before the approve button (approve-plan.js; hidden when the studio has not saved one) -->
+    <div class="card" id="planCard" hidden>
+      <div class="seclabel">How you pay</div>
+      <div id="planBody"></div>
+    </div>
+
+    <!-- Approval flow (data-no-toast: the message is right here, a floating copy stayed on screen after it was fixed) -->
     <div class="card" id="flow">
-      <div id="msg" role="alert"></div>
+      <div id="msg" role="alert" data-no-toast></div>
 
       <div id="step1">
         <div class="seclabel">① Confirm it's you</div>
         <div class="fld"><label for="c_name">Your name</label><input id="c_name" placeholder="Full name" autocomplete="name"></div>
-        <div class="fld"><label for="c_phone">Mobile number</label><input id="c_phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91 …"></div>
+        <div class="fld"><label for="c_phone">Mobile number <span class="req" aria-hidden="true">*</span></label><input id="c_phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91 …" required aria-required="true"></div>
         <button class="btn primary" id="sendEmailOtp" type="button">Send code to my e-mail</button>
         <button class="btn" id="sendWa" type="button">Send code on WhatsApp</button>
         <p class="muted" id="waNote">We send a one-time code to the e-mail address or WhatsApp number your planner has on file for you.</p>
@@ -120,8 +126,8 @@
       <div id="step2" hidden>
         <div class="seclabel">② Verify &amp; consent</div>
         <div class="fld otp"><label for="c_otp">Enter the 6-digit OTP</label><input id="c_otp" maxlength="6" inputmode="numeric" autocomplete="one-time-code" placeholder="––––––"></div>
-        <label class="agree"><input type="checkbox" id="c_agree">
-          <span id="agreeText">I have read and agree to the Terms &amp; Conditions above, and I authorise this event and its charges.</span></label>
+        <label class="agree"><input type="checkbox" id="c_agree" required aria-required="true">
+          <span><span class="req" aria-hidden="true">*</span> <span id="agreeText">I have read and agree to the Terms &amp; Conditions above, and I authorise this event and its charges.</span></span></label>
         <button class="btn primary" id="confirmBtn" type="button">✓ Confirm &amp; approve</button>
         <button class="btn s-8a77e5a" id="resend" type="button">Resend OTP</button>
         <button class="btn" id="emailFallback" type="button" hidden>Send code by email instead</button>
@@ -133,6 +139,7 @@
           <h2 id="approvedTitle">Approved &amp; consented</h2>
           <p class="muted" id="approvedNote"></p>
         </div>
+        <div class="pp-next" id="planNext" hidden><h3>What happens next</h3><div id="planNextBody"></div></div>
         <button class="btn primary s-56f4356" id="payBtn" type="button">Proceed to payment</button>
         <p class="muted s-1294536" id="payManual" hidden>Your planner will share payment details.</p>
         <!-- R114 (0323): free trial = simulation - the payment step is simulated (a TEST row, never real money) -->
@@ -154,14 +161,14 @@
 
       <div id="stepPaid" hidden>
         <div class="done"><div class="big" aria-hidden="true" id="paidIcon">🎉</div><h2 id="paidTitle">Payment received</h2>
-          <p class="muted" id="paidNote">Your event is confirmed. A receipt has been sent to you and your manager.</p></div>
+          <p class="muted" id="paidNote">Your event is confirmed. Your receipt is recorded.</p></div>
       </div>
     </div>
   </div>
   <div id="loadErr" hidden></div>
   </main>
 
-  <footer><span id="footNote">Secured by one-time password verification · your consent is recorded with a timestamped audit trail.</span><br>Helm Events · event management</footer>
+  <footer><span id="footNote">Secured by one-time password verification · your consent is recorded with a timestamped audit trail.</span><br>Powered by Helm Events</footer>
 </div>
 
 <script src="/trial-preview-frame.js?v=1"></script>
@@ -170,7 +177,7 @@
 <script src="/config.js?v=113"></script>
 <script src="/phone-input.js?v=9"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=32"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/quote-validity.js?v=6"></script><script src="/approve-test-mode.js?v=2"></script>
+<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=37"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/quote-validity.js?v=6"></script><script src="/approve-test-mode.js?v=2"></script><script src="/portal-pay.js?v=1"></script><script src="/approve-plan.js?v=2"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s||"").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -236,7 +243,33 @@
   }
   const AP_PROD=(typeof window!=="undefined" && window.HELM_IS_PROD_HOST===true);
 
-  function setMsg(kind,text){ const m=$("#msg"); if(!text){m.innerHTML="";return;} m.innerHTML=`<div class="msg ${kind}">${esc(text)}</div>`; }
+  function setMsg(kind,text){ const m=$("#msg"); if(!text){m.innerHTML="";return;} m.innerHTML=`<div class="msg ${kind}">${esc(text)}</div>`;
+    if(kind==="err") try{ m.scrollIntoView({block:"nearest"}); }catch(_){} }
+  // R255: a fixed field takes its message away at once ("Please tick the box" stayed after the box was ticked)
+  const MSG_TERMS="Please tick the box to accept the terms.";
+  function clearMsg(text){ const m=$("#msg"); if(m && m.textContent.trim()===text) setMsg(); }
+  // R255 (owner): the mobile number is compulsory, checked with the same rules as everywhere (country from the picker). -> "+91..." or "" (message shown)
+  let phoneMsg="";
+  function needPhone(){ const el=$("#c_phone"), v=String(el.value||"").trim(); let r=null;
+    try{ r=window.HelmPhone ? HelmPhone.validate(v,{ required:true, requiredMsg:"Please enter your mobile number.", country:(apTax&&apTax.country)||"IN" }) : null; }catch(_){ r=null; }
+    if(!r) r=v.replace(/[^0-9]/g,"").length>=8 ? { ok:true, e164:v } : { ok:false, error:v?"Please enter a valid mobile number.":"Please enter your mobile number." };
+    if(r.ok && r.e164){ el.removeAttribute("aria-invalid"); return r.e164; }
+    phoneMsg=r.error||"Please enter your mobile number."; setMsg("err",phoneMsg); el.setAttribute("aria-invalid","true"); el.focus(); return ""; }
+  // the number is kept with the client's consent (the SMS code already stores it; the e-mail / WhatsApp code goes to the contact on file)
+  const withPhone=(t,ph)=>ph?t+" Mobile number given: "+ph+".":t;
+  // R255: the payment plan (this event only) - shown before the approve button, and as "What happens next" after it
+  let planTrial=false;
+  async function showPlan(mode){   // "before" | "after" the approval | "paid" (a booking with money in)
+    const approved=mode!=="before"; if(!window.HelmApprovePlan || !BPStore.paySchedule) return false;
+    let m=null; try{ m=HelmApprovePlan.model(await BPStore.paySchedule.publicGet(token), approved); }catch(e){ m=null; }
+    const o={ approved, money:inr, date:(d)=>BPStore.fmtDateIN(d), how:!planTrial };
+    $("#planCard").hidden=true; $("#planNext").hidden=true;
+    if(mode!=="after"){ $("#planCard").hidden=!HelmApprovePlan.paint($("#planBody"), m, o); return !$("#planCard").hidden; }
+    const ok=HelmApprovePlan.paint($("#planNextBody"), m, o); $("#planNext").hidden=!ok; if(ok && !planTrial) $("#payManual").hidden=true;
+    return ok;
+  }
+  // after the approval: no "valid until" line any more, the plan is the one that counts now (the server may have just added it)
+  function afterApproved(){ const b=$("#qvBanner"); if(b){ b.textContent=""; b.hidden=true; b.style.display="none"; } showPlan("after").catch(()=>{}); }
 
   // The client-side `computed` breakdown stored with a quote is NOT trusted: the
   // server stamps pricing.total itself (helm_quote_total, 0001). The breakdown is
@@ -264,7 +297,7 @@
     const add=(l,a)=>rows.push(`<div class="r"><span>${esc(l)}</span><span class="amt">${inr(a)}</span></div>`);
     if(b && b.kind==="canonical"){
       add(`Chairs (${p.chairs||0} × ${inr(p.chairPrice||0)})`, (p.chairs||0)*(p.chairPrice||0));
-      if(p.other) add("Other charges", p.other);
+      if(p.other) add("Décor, equipment & setup", p.other);
       if(p.catering&&p.catering.mode==='client') rows.push(`<div class="r"><span>Catering</span><span class="amt">Client-provided</span></div>`);
       else add(`Catering (${p.guests||0} plates × ${inr(p.platePrice||0)}${p.catering&&p.catering.amount?" + "+inr(p.catering.amount):""})`, Math.round(c.cateringBucket||0));
       if(c.serviceCharge) add(`Service charge (${p.serviceChargePct}%)`, Math.round(c.serviceCharge));
@@ -344,14 +377,14 @@
     if(quote.client_name) $("#c_name").value=quote.client_name;
     // r23 (0262): valid-until line; while an expired quote is locked the Approve steps are replaced by "Request a new quote"
     // (the server refuses the approval anyway). Approved / paid quotes show nothing.
-    if(window.HelmQuoteValidity && quote.approval_status!=="approved" && quote.approval_status!=="paid") HelmQuoteValidity.mountClient($("#qvBanner"), "quote", token, { onState:(s)=>{ const lock=!!(s&&s.state==="expired"&&s.locked); ["#step1","#step2"].forEach((sel)=>{ const x=$(sel); if(x&&lock){ x.hidden=true; } }); if(lock) $("#flow").classList.add("qv-locked"); } }).catch(()=>{});
+    if(window.HelmQuoteValidity && quote.approval_status!=="approved" && quote.approval_status!=="paid" && quote.status!=="confirmed") HelmQuoteValidity.mountClient($("#qvBanner"), "quote", token, { onState:(s)=>{ const lock=!!(s&&s.state==="expired"&&s.locked); ["#step1","#step2"].forEach((sel)=>{ const x=$(sel); if(x&&lock){ x.hidden=true; } }); if(lock) $("#flow").classList.add("qv-locked"); } }).catch(()=>{});
     // R113 (0322): a free-trial studio (active or ended) sends NO code - test mode: banner, terms marked as a trial
     // preview, no send buttons, the test code 000000 + "Simulate approval" (the server re-checks trial + code).
     // Before 0322 (no answer) the 0128 boolean is used. Paid studios: nothing changes here.
     if(BPStore.approval.trialMode && window.HelmApproveTestMode){ BPStore.approval.trialMode(token).then((m)=>(m && typeof m==="object") ? m
         : (BPStore.approval.trialTestMode ? BPStore.approval.trialTestMode(token) : null)).then((m)=>{
       const tm=HelmApproveTestMode.spec(m); if(!tm) return;
-      HelmApproveTestMode.apply(tm);
+      HelmApproveTestMode.apply(tm); planTrial=true; { const h=$("#planNextBody").querySelector(".pp-how"); if(h) h.remove(); }
       if(quote.approval_status==="approved"||quote.approval_status==="paid") $("#approvedTitle").textContent="Approved (test mode)";   // an approval in a trial is a test
       $("#payBtn").hidden=true; $("#payBtn").style.display="none";
       $("#payManual").textContent="Trial simulation: no real payment is taken here and no payment link is sent. In a real studio your client pays by UPI/card through the payment link - below you can simulate that step.";
@@ -361,7 +394,7 @@
     const apOpen=quote.approval_status!=="approved" && quote.approval_status!=="paid";
     if(apOpen && !isPriced(quote.pricing)) showNotPriced();
     if(BPStore.approval.quoteReady){ BPStore.approval.quoteReady(token).then((r)=>{ if(!r || typeof r!=="object") return;
-      apStudio=String(r.studio||"").slice(0,120); if(apOpen && r.priced===false) showNotPriced();
+      apStudio=String(r.studio||"").slice(0,120); if(BPStore.paintStudio) BPStore.paintStudio({ name:apStudio, logo:r.logo }); if(apOpen && r.priced===false) showNotPriced();
       // R129 (0337): the WhatsApp code comes from the studio's own number - no button when the studio has not connected one
       if(r.wa===false){ const w=$("#sendWa"); if(w){ w.hidden=true; w.style.display="none"; } const n=$("#waNote"); if(n) n.textContent="We send a one-time code to the e-mail address your planner has on file for you."; } }).catch(()=>{}); }
     // resume state
@@ -369,17 +402,20 @@
     // R252 (0435): the booking was confirmed by the advance but the client has not approved yet - keep the approve steps open
     else if(quote.approval_status==='paid' && quote.client_approved===false){ setMsg("dev", "Your advance is recorded, thank you. Please check the quotation and approve it here."); }
     else if(quote.approval_status==='paid'){ showStep('stepPaid'); await showPaid(); }
-    else if(quote.approval_status==='approved'){ showStep('step3'); $("#approvedNote").textContent=recordedNote(quote); }
+    else if(quote.approval_status==='approved'){ showStep('step3'); $("#approvedNote").textContent=recordedNote(quote); afterApproved(); }
+    if($("#step3").hidden && isPriced(quote.pricing)) showPlan($("#stepPaid").hidden?"before":"paid").catch(()=>{});   // R255: the client approves knowing the plan
   }
   // 0098: "paid" only means SOME money is in - say advance vs paid-in-full from the payments ledger
   async function showPaid(){
     let st=null; try{ st=await BPStore.approval.paidStatus(token); }catch(e){}
     const ps=BPStore.paidState(st, quote && quote.pricing && quote.pricing.total);
-    if(!ps){ $("#paidTitle").textContent="Payment recorded"; $("#paidNote").textContent="Your payment has been recorded and a receipt has been sent to you. Your planner will confirm any balance due."; return; }
+    if(!ps){ $("#paidTitle").textContent="Payment recorded"; $("#paidNote").textContent="Your payment and its receipt are recorded. Your planner will confirm any balance due."; return; }
     const rc=ps.receipt?" (receipt "+ps.receipt+")":"";
     if(ps.full){ $("#paidTitle").textContent="Paid in full"; $("#paidNote").textContent="We have received "+inr(ps.paid)+rc+". Your event is confirmed and fully paid."; return; }
+    // R257: with a saved payment plan the next payment and its day come from the plan; without one, never a day that has passed
+    let plan=null; try{ const sc=BPStore.paySchedule?await BPStore.paySchedule.publicGet(token):null; if(sc&&BPStore.payPlan) plan=BPStore.payPlan(sc.rows,{today:sc.today, held:sc.held===true}); }catch(_){ plan=null; }
     $("#paidIcon").textContent="✅"; $("#paidTitle").textContent="Advance received";
-    $("#paidNote").textContent="Advance of "+inr(ps.paid)+" received"+rc+". Your booking is confirmed. Balance "+inr(ps.balance)+" due"+(ps.balanceDue?" by "+BPStore.fmtDateIN(ps.balanceDue):" before the event")+".";
+    $("#paidNote").textContent="Advance of "+inr(ps.paid)+" received"+rc+". Your booking is confirmed. "+(plan&&plan.next?"Balance "+inr(ps.balance)+". "+BPStore.payPlanLine(plan, inr, null, true):"Balance "+inr(ps.balance)+" due"+(ps.dueNow?" now":ps.balanceDue?" by "+BPStore.fmtDateIN(ps.balanceDue):" before the event")+".");
   }
   function showStep(id){ ['step1','step2','step3','step4','stepPaid'].forEach(s=>$('#'+s).hidden=(s!==id)); }
 
@@ -389,6 +425,7 @@
   const sendChannel=(channel, btn)=>BPUI.guard(btn, async ()=>{
     setMsg(); const name=$("#c_name").value.trim();
     if(name.length<2){ setMsg("err","Please enter your name."); $("#c_name").focus(); return; }
+    if(!needPhone()) return;
     const label=btn.textContent; btn.textContent="Sending…"; $("#resend").disabled=true;
     try{ const r=await BPStore.approval.requestChannelOtp(token, channel);
       if(r && r.sent===false && !r.dev_code){ setMsg("err",(r&&r.message)||("We couldn't send the code. Try again in a minute or contact "+contactWho()+".")); if(channel==="whatsapp"){ showStep('step2'); offerEmail(); } return; }
@@ -411,7 +448,7 @@
     setMsg(); const b=$("#sendOtp"); phone=$("#c_phone").value.trim();
     const name=$("#c_name").value.trim();
     if(name.length<2){ setMsg("err","Please enter your name."); $("#c_name").focus(); return; }
-    if(phone.replace(/[^0-9]/g,"").length<8){ setMsg("err","Please enter a valid mobile number."); $("#c_phone").focus(); return; }
+    if(!needPhone()) return;
     b.textContent="Sending…"; $("#resend").disabled=true;
     try{ const r=await BPStore.approval.requestOtp(token, phone);
       // The server answers {sent:false} when no delivery channel is configured —
@@ -430,14 +467,15 @@
     setMsg(); const b=$("#confirmBtn");
     const code=$("#c_otp").value.trim(), agreed=$("#c_agree").checked;
     if(code.length!==6){ setMsg("err","Enter the 6-digit OTP."); $("#c_otp").focus(); return; }
-    if(!agreed){ setMsg("err","Please tick the box to accept the terms."); $("#c_agree").focus(); return; }
+    if(!agreed){ setMsg("err",MSG_TERMS); $("#c_agree").focus(); return; }
+    const ph=needPhone(); if(!ph){ showStep("step1"); $("#c_phone").focus(); return; }
     b.textContent="Verifying…";
     try{ const shown=quote&&quote.pricing?Number(quote.pricing.total):NaN;   // r128 (0336): approve only the total on this screen
       const same=isFinite(shown)&&BPStore.approval.checkShown ? await BPStore.approval.checkShown(token, shown) : null;
       if(same && same.ok===false){ setMsg("err",same.message||"The price on this quote changed. Please reload the page."); return; }
       const r=otpChannel==="sms"
         ? await BPStore.approval.verifyConsent(token, phone, code, true, shownTerms.v, consentText(shownTerms.v), $("#c_name").value.trim(), navigator.userAgent)
-        : await BPStore.approval.verifyChannel(token, otpChannel, code, true, shownTerms.v, consentText(shownTerms.v), $("#c_name").value.trim(), navigator.userAgent);
+        : await BPStore.approval.verifyChannel(token, otpChannel, code, true, shownTerms.v, withPhone(consentText(shownTerms.v), ph), $("#c_name").value.trim(), navigator.userAgent);
       // W10-D1: verify_and_consent now soft-returns {approved:false,message} on OTP
       // failure (so the attempts counter can persist and lockout works). Older DB
       // versions raise on failure instead — the catch below still handles those.
@@ -445,7 +483,7 @@
       // null/undefined/malformed result, approved:false, locked, no_active_code,
       // disagreement, or an RPC throw (caught below) must never reach step3.
       if(r && r.approved === true){
-        showStep('step3'); $("#approvedNote").textContent=recordedNote(r); setMsg();
+        showStep('step3'); $("#approvedNote").textContent=recordedNote(r); setMsg(); afterApproved();
       } else {
         setMsg("err",(r&&r.message)||"Verification failed.");
         if(r&&r.error==="quote_expired"&&window.HelmQuoteValidity) HelmQuoteValidity.refreshClient();   // r23 (0262): show the expired banner + request button
@@ -454,6 +492,9 @@
     finally{ b.textContent="✓ Confirm & approve"; }
   }));
 
+  ["#c_agree","#t_agree"].forEach((sel)=>$(sel).addEventListener("change",()=>clearMsg(MSG_TERMS)));   // R255
+  $("#c_phone").addEventListener("input",()=>{ if(phoneMsg){ clearMsg(phoneMsg); phoneMsg=""; $("#c_phone").removeAttribute("aria-invalid"); } });
+
   // R113 (0322) trial TEST MODE: only the test code 000000; the server re-checks the trial + the code, records a TEST
   // approval (consent test_mode, audit approval.test_mode) and runs the trial confirm (event Confirmed)
   $("#trialSkipBtn").addEventListener("click", ()=>BPUI.guard($("#trialSkipBtn"), async ()=>{
@@ -461,9 +502,9 @@
     if(name.length<2){ setMsg("err","Please enter your name."); $("#c_name").focus(); return; }
     const code=$("#t_code").value.trim(), bad=HelmApproveTestMode.checkCode(code);
     if(bad){ setMsg("err",bad); $("#t_code").focus(); return; }
-    if(!$("#t_agree").checked){ setMsg("err","Please tick the box to accept the terms."); $("#t_agree").focus(); return; }
+    if(!$("#t_agree").checked){ setMsg("err",MSG_TERMS); $("#t_agree").focus(); return; }
     try{ const r=await BPStore.approval.trialTestApproveCode(token, code, $("#c_phone").value.trim(), name, shownTerms.v, consentText(shownTerms.v)+" [trial test mode - code 000000, nothing sent]", navigator.userAgent);
-      if(r && r.approved === true){ showStep('step3'); $("#approvedTitle").textContent="Approved (test mode)"; $("#approvedNote").textContent=HelmApproveTestMode.APPROVED; $("#payManual").hidden=false; setMsg(); showSimPay(); }
+      if(r && r.approved === true){ showStep('step3'); afterApproved(); $("#approvedTitle").textContent="Approved (test mode)"; $("#approvedNote").textContent=HelmApproveTestMode.APPROVED; $("#payManual").hidden=false; setMsg(); showSimPay(); }
       else setMsg("err",(r&&r.message)||"Could not approve in test mode.");
     }catch(e){ setMsg("err",BPUI.friendlyError(e,{action:"approve in test mode"})); if(e && e.hint==="quote_not_priced") showNotPriced(); }
   }));

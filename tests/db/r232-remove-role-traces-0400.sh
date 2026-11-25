@@ -29,6 +29,8 @@ apply() { psql -X -q -A -t -F '|' -f "$A" 2>&1; }
 probe() { PGOPTIONS="$HARNESS_OPTS -c helm.r400_remove=on -c helm.retired_role_gate=on" psql -X -q -A -t -f "$P" 2>&1; }
 # R252: 0434 comes after 0400 in real life (see the APPLY-0434 step below) - its kept copy made before 0400 is not there
 q "drop function if exists public._r369_escalation_tick__pre0434(timestamptz)" >/dev/null
+# R258: the same for 0445 (it comes after 0400 in real life): its kept copies of the bell rule, made before 0400 on this cluster
+q "drop function if exists public._r388_vis__pre0445(uuid,uuid)" >/dev/null; q "drop function if exists public._r401_vis__pre0445(uuid,uuid)" >/dev/null
 # everything 0400 may touch (the 0400 helpers themselves left out): data, function bodies, constraints, backups
 snap() { q "select md5(concat_ws('#',
   (select string_agg(t::text, ',' order by t::text) from public.role_access t),

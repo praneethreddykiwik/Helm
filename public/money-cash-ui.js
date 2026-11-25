@@ -252,6 +252,8 @@
     list.appendChild(li); return li;
   }
 
+  // R257: "You owe vendors" counts bills - an agreed vendor without a bill is said beside it (words only, no figure changes)
+  async function noBills(q) { var B = global.BPStore; return (B && B.settlement && B.settlement.agreedNoBill && q ? await B.settlement.agreedNoBill(q) : null) || { n: 0, sum: 0 }; }
   function renderOwes(box, c, fmt, ctx) {
     ctx = ctx || {}; var o = c.owes || {}, cl = o.client || {}, vb = o.vendors || {}, cr = o.crew || {}, cm = o.claims || {}, rf = o.refunds || {}, g = o.gst || {};
     var href = function (act) { return actHref(act, c.quote_id, ctx.here); };
@@ -280,7 +282,12 @@
     var first = (vb.bills || [])[0], f2 = "";
     if (!num(vb.count)) f2 = "No open vendor bills.";
     else { var fd = first && dparts(first.due_date); f2 = num(vb.count) + " " + plural(vb.count, "bill", "bills") + (fd ? " · next due " + fd.short + " (" + whenWords(first.days) + ")" : " · no due date"); }
-    s2.appendChild(el("div", "mh-muted", f2)); top.appendChild(s2);
+    s2.appendChild(el("div", "mh-muted", f2));
+    var nb = el("div", "mh-muted mc-nobill"); nb.hidden = true; nb.setAttribute("role", "note"); s2.appendChild(nb); noBills(c.quote_id).then(function (r) {
+      if (!r.n) return; nb.appendChild(document.createTextNode(r.n + " agreed " + plural(r.n, "vendor", "vendors") + " ("));
+      nb.appendChild(money(el("b", null, fmt(r.sum)))); nb.appendChild(document.createTextNode(") " + plural(r.n, "has", "have") + " no bill yet.")); nb.hidden = false;
+    }, function () {});
+    top.appendChild(s2);
     // crew + staff
     var s3 = el("section", "card mc-owe"); s3.appendChild(el("div", "mh-muted", "You owe crew & staff"));
     var staff = num(cm.approved) + num(cm.waiting);

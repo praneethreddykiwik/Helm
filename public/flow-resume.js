@@ -267,6 +267,11 @@
       })).then(function (vs) { vs = vs.filter(Boolean); return { rows: vs, total: vs.length, canEdit: true, source: "local" }; });
     });
   }
+  // R258: one server page of the In progress tab (BPStore.quotes.pageNo, tab "inprogress") -> the same shape as load(); the server's order
+  function pageOf(d) {
+    d = d || {}; return { rows: (d.rows || []).map(function (r) { return fromServer(r, false); }), total: Number(d.total) || 0, canEdit: d.canEdit !== false,
+      readOnly: d.readOnly === true, source: "server", open: d.open === true };
+  }
   function dismiss(s, uid, quoteId) {
     dismissLocal(uid, quoteId);
     if (serverOn(s)) return pageQuoteOk(quoteId).then(function (ok) { return ok ? s.flowProgress.dismiss(quoteId) : { ok: false, skipped: true }; }).catch(function () { return null; });
@@ -489,6 +494,11 @@
       }).catch(function () { return null; });
     } catch (e) { return Promise.resolve(null); }
   }
+  // R257: the booking is confirmed on the open page (the advance was recorded): take the banner away, and never paint one that was asked for before
+  function dropBanner() {
+    bannerSeq++;
+    try { var old = root.document && root.document.getElementById("flowResumeBanner"); if (old && old.parentNode) old.parentNode.removeChild(old); } catch (e) {}
+  }
   /* flow.html: "You stopped at Venue · Go to top" */
   function renderNotice(host, info, onTop, before) {
     var doc = host.ownerDocument || root.document; css(doc);
@@ -566,9 +576,9 @@
   var api = { STEPS: STEPS, ORDER: ORDER, TOTAL: TOTAL, LABELS: LABELS, DASH_DAYS: DASH_DAYS, key: key, legacyKey: legacyKey, read: read, readAll: readAll,
     record: record, clear: clear, dismissLocal: dismissLocal, lastStep: lastStep, unfinished: unfinished, stepNo: stepNo, firstNotDone: firstNotDone,
     ago: ago, fromServer: fromServer, fromLocal: fromLocal, stepText: stepText, progressText: progressText, label: label, href: href, lastBy: lastBy,
-    ready: ready, whoami: whoami, load: load, dismiss: dismiss, resumeStep: resumeStep, track: track,
+    ready: ready, whoami: whoami, load: load, pageOf: pageOf, dismiss: dismiss, resumeStep: resumeStep, track: track,
     renderCard: renderCard, renderHome: renderHome, renderList: renderList, isOpen: isOpen, phaseOf: phaseOf, LAND: LAND, PHASES: PHASES, HOME_MAX: HOME_MAX, landStep: landStep, renderBanner: renderBanner, renderNotice: renderNotice, mount: mount,
-    mountBanner: mountBanner, bannerText: bannerText, skippedOf: skippedOf, nextStepOf: nextStepOf, sortRows: sortRows, bannerHidden: bannerHidden, hideBanner: hideBanner, HIDE_KEY: HIDE_KEY };
+    mountBanner: mountBanner, bannerText: bannerText, skippedOf: skippedOf, nextStepOf: nextStepOf, sortRows: sortRows, dropBanner: dropBanner, bannerHidden: bannerHidden, hideBanner: hideBanner, HIDE_KEY: HIDE_KEY };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HelmFlowResume = api;
   if (root.document && root.document.currentScript && root.document.currentScript.hasAttribute("data-mount")) autoMount();

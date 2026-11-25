@@ -12,7 +12,7 @@ const tests = []; const t = (n, f) => tests.push([n, f]);
 t('onboarding loads HelmCountry + smart import after store-api; wizard uses real HelmCountry names', () => {
   const h = read('public/onboarding.html');
   const i = (s) => h.indexOf(s);
-  assert.ok(i('country-profile.js?v=7') > 0 && i('country-profile.js') < i('store-api.js?v=410'));
+  assert.ok(i('country-profile.js?v=7') > 0 && i('country-profile.js') < i('store-api.js?v=415'));
   for (const s of ['xlsx-lite.js?v=2', 'smart-import-core.js?v=7', 'smart-import.js?v=6']) assert.ok(i(s) > i('store-api.js'), s);
   global.HelmCountry = req('../public/country-profile.js');
   const W = req('../public/onboarding-wizard.js');
@@ -50,7 +50,7 @@ t('payment terms + supplier header + attribute merge helpers', () => {
 });
 t('flow advance % + terms, quote print header + terms', () => {
   const f = read('public/flow.html');
-  assert.match(f, /function applyPayTerms\(\)/); assert.match(f, /BPStore\.paymentTerms\(rates/); assert.match(f, /id="pay_terms"/); assert.match(f, /dataset\.touched/);
+  assert.match(f, /function applyPayTerms\(only\)/); assert.match(f, /BPStore\.paymentTerms\(rates/); assert.match(f, /id="pay_terms"/); assert.match(f, /dataset\.touched/);
   const q = read('public/quotes.html');
   assert.match(q, /BPStore\.quoteSupplier\(full, studioOrg\)/); assert.match(q, /sup\.taxIdLabel/); assert.match(q, /\$\{termsHtml\}/);
   assert.doesNotMatch(q, /<h1>Helm Events<\/h1>/);

@@ -178,6 +178,14 @@ html.hb-priv-on #app .price .prow :is(.hbp-m,[data-money]){display:inline-block;
 #csApprove #apprLinks:empty{display:none}
 /* r61: step 10 advance payment - one aligned grid (advance %, amount, method, receipt no., button); 2 columns on phones */
 #sec-pay .pay-adv{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px;align-items:end;margin:4px 0 12px}
+#sec-pay .pay-adv[hidden],#sec-pay .pay-state[hidden]{display:none}
+/* R257: small notes have the size of the rest (they fell back to the page's 16px) */
+#sec-pay p.hint,#q_chairsLayout{font-size:13px;line-height:1.5;color:var(--ink-2)}
+#sec-pay p.hint{margin:6px 0 0}
+/* R257: what is already in, above the boxes for the next payment */
+#sec-pay .pay-state{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;margin:0 0 12px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--safe-text,#0f7a43) 10%,var(--panel));font-size:13px;line-height:1.5}
+#sec-pay .pay-state b{color:var(--safe-text,#0f7a43)}
+#sec-pay .pay-state span{color:var(--ink-2);min-width:0;overflow-wrap:anywhere}
 #sec-pay .pay-adv .pay-f-go{grid-column:1 / -1;justify-self:end}
 #sec-pay .pay-adv>.fld{margin:0;min-width:0}
 #sec-pay .pay-adv .fld input,#sec-pay .pay-adv .fld select{width:100%;min-width:0;box-sizing:border-box}
@@ -190,3 +198,29 @@ html.hb-priv-on #app .price .prow :is(.hbp-m,[data-money]){display:inline-block;
   #sec-pay .pay-adv .pay-f-go{justify-self:stretch}
   #sec-pay .pay-adv .pay-f-go .btn{width:100%}
 }
+
+/* R255: the payment plan card (always between the quotation and the share step), what is in "Decor / equipment & setup", the unsaved price line */
+#sec-payplan[hidden]{display:none}
+#sec-payplan .psch-title{font-size:14px}
+#q_otherHelp,#q_otherLayout{margin:4px 0 0;font-size:12.5px;line-height:1.45;color:var(--ink-3)}
+.q-in{margin:2px 0 4px;font-size:13px;min-width:0}
+.q-in[hidden]{display:none}
+.q-in > summary{cursor:pointer;color:var(--accent);font-weight:600;min-height:32px;padding:6px 0;list-style-position:inside}
+.q-in > summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.q-in ul{list-style:none;margin:4px 0 0;padding:8px 12px;border:1px solid var(--line-2,var(--line));border-radius:10px;background:var(--panel-2)}
+.q-in li{display:flex;justify-content:space-between;gap:12px;padding:4px 0;color:var(--ink-2);overflow-wrap:anywhere}
+.q-in li > span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+.q-in li.tot{border-top:1px solid var(--line);margin-top:4px;padding-top:8px;font-weight:700;color:var(--ink)}
+.q-in li.note{display:block;color:var(--warn-text,#8f5f00)}
+.q-in li.note > span{white-space:nowrap}
+.q-unsaved{margin:12px 0}
+.q-unsaved .btn{margin:6px 0 0;min-height:36px}
+#pay_unsaved{margin:8px 0}
+#pay_unsaved[hidden],.q-unsaved[hidden]{display:none}
+@media (max-width:640px){ .q-in > summary,.q-unsaved .btn,#sec-payplan .btn{min-height:44px} .q-unsaved .btn{width:100%} }
+#priceRows .prow.total .q{display:block;font-size:12px;font-weight:500;line-height:1.3;color:var(--ink-3)}
+.menu-lock{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;margin:12px 0;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2);font-size:13px;color:var(--ink-2);min-width:0}
+.menu-lock[hidden],#menuLockBtn[hidden],#monBtn[hidden]{display:none}
+.menu-lock > span{flex:1 1 200px;min-width:0}
+.menu-lock b{color:var(--ink)}
+@media (max-width:640px){ .menu-lock .btn,#monBtn{min-height:44px} }

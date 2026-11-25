@@ -127,8 +127,8 @@ function pickerCtx(over) {
   await body.querySelector("#egp_create").fire("click");
   ok(calls.create.length === 1 && JSON.stringify(calls.create[0][1]) === '["u2"]', "create gets the teammates");
   const sent = calls.add[0] && calls.add[0][1];
-  ok(calls.add.length === 1 && calls.add[0][0] === "conv-1" && sent.length === 4
-     && sent.some((p) => p.kind === "staff" && p.id === "s1") && sent.some((p) => p.kind === "vendor" && p.id === "v1") && sent.some((p) => p.kind === "client" && !("id" in p)), "then addPeople gets everyone ticked");
+  ok(calls.add.length === 1 && calls.add[0][0] === "conv-1" && sent.length === 3
+     && sent.some((p) => p.kind === "staff" && p.id === "s1") && sent.some((p) => p.kind === "vendor" && p.id === "v1") && !sent.some((p) => p.kind === "client"), "then addPeople gets everyone ticked - never the client (R257)");
   ok(/Added 1 teammate and 3 contacts .* Free trial: no WhatsApp message is sent/.test(calls.toast.join(" ")), "toast: who was added + no WhatsApp in the trial");
   ok(cx.location.href === "chat.html?c=conv-1", "opens the group chat"); }
 // the group already existed (create returns it): the picks are still added (used to be dropped silently)

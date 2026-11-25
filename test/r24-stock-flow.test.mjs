@@ -73,7 +73,7 @@ t('plain words: "Reserved — never taken out, nothing to return" (replaces "Not
 t('event-day request states follow the real check-out', () => {
   const co = { c1: { id: 'c1', status: 'out', qty_out: 2 }, c2: { id: 'c2', status: 'returned', qty_out: 2, qty_in: 2 } };
   assert.equal(SF.requestState({ status: 'requested' }).label, 'Requested');
-  assert.equal(SF.requestState({ status: 'issued', checkout_id: 'c1' }, co).label, 'Out');
+  assert.equal(SF.requestState({ status: 'issued', checkout_id: 'c1' }, co).label, 'Given out');
   assert.equal(SF.requestState({ status: 'issued', checkout_id: 'c2' }, co).label, 'Back');
   assert.equal(SF.requestState({ status: 'issued' }, co).label, 'Given out');
   assert.equal(SF.requestState({ status: 'issued', source: 'buy' }, co).label, 'Sourced');
@@ -136,8 +136,8 @@ t('Inventory event view: Reserved / Now columns, Give out / Release / Mark back;
   assert.doesNotMatch(INV, /allocate when it goes out/);
 });
 t('Inventory Out & back tab: plain labels, Mark back with OK + damaged, Missing & damaged list', () => {
-  assert.match(INV, /🔑 Out &amp; back/); assert.match(INV, /<h2>Give out stock<\/h2>/); assert.match(INV, /id="co_add">Give out</);
-  assert.match(INV, /Out now <span id="loanCount"/); assert.match(INV, /Missing &amp; damaged<\/h2>/);
+  assert.match(INV, /🔑 Given out &amp; back/); assert.match(INV, /<h2>Give out stock<\/h2>/); assert.match(INV, /id="co_add">Give out</);
+  assert.match(INV, /Given out now <span id="loanCount"/); assert.match(INV, /Missing &amp; damaged<\/h2>/);
   assert.match(INV, /<label for="ci_dmg">Damaged<\/label>/); assert.match(INV, /<label for="ci_in">Came back OK<\/label>/);
   assert.match(INV, /BPStore\.inventory\.checkouts\.back\(checkInId, okV\.value, dmV\.value, by\|\|null\)/);
   assert.match(INV, /const isOpen=\(c\)=>c\.status==="out";/);
@@ -145,7 +145,7 @@ t('Inventory Out & back tab: plain labels, Mark back with OK + damaged, Missing 
 });
 t('Inventory: per-item History (event · given to · when out · when back)', () => {
   assert.match(INV, /data-hist="\$\{esc\(i\.id\)\}"/); assert.match(INV, /id="histModal"/);
-  assert.match(INV, /<th scope="col">Event<\/th><th scope="col">Given to<\/th><th scope="col" class="num">How many<\/th><th scope="col">Out<\/th><th scope="col">Back<\/th>/);
+  assert.match(INV, /<th scope="col">Event<\/th><th scope="col">Given to<\/th><th scope="col" class="num">How many<\/th><th scope="col">Given out<\/th><th scope="col">Back<\/th>/);
   assert.match(INV, /SF\.history\(await BPStore\.inventory\.checkouts\.forItem\(itemId\), quotesById\)/);
   assert.match(STORE, /select\("\*, quotes\(id,code,title,event_date\)"\)\.eq\("item_id", itemId\)/);
 });

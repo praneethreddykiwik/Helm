@@ -6,6 +6,9 @@
      Reusable    came back OK + damaged; the rest is Missing - or tick
                  "Some are still out" and the rest stays Out (coming back later)
      Consumable  how many are left over (back to stock); the rest was used
+     Problem     (R258, o.problem) the same save the other way round: how many are
+                 damaged / missing / still out - the rest came back OK - and a note
+                 (0444, kept with the check-out)
      Photo       needed for a damaged / missing line when the studio asks for
                  one (setting, on by default); re-encoded in the browser
      Who pays    Finance edit only: decide later / studio absorbs / charge the
@@ -37,6 +40,19 @@
     return { left: left, ok: ok, dmg: dmg, miss: miss, used: used, part: part, stillOut: part ? left - ok - dmg : 0, photoNeeded: photoNeeded, error: "" };
   }
 
+  // R258: "Problem" - damaged / missing / still out counted, the rest came back OK (pure). Missing is written once nothing is out any more
+  // (the server counts what is left as missing), so "missing" and "still out" are not saved in the same press.
+  function problemPlan(o) {
+    o = o || {};
+    var left = Math.max(n(o.out) - n(o.prior), 0), dmg = whole(o.damaged), miss = whole(o.missing), still = whole(o.still);
+    if (isNaN(dmg) || isNaN(miss) || isNaN(still)) return { left: left, error: "Use whole numbers, 0 or more." };
+    if (dmg + miss + still > left) return { left: left, error: "Only " + left + " went out." };
+    if (dmg + miss + still === 0) return { left: left, error: "Say how many are damaged, missing or still out. All fine? Press Back OK." };
+    if (miss > 0 && still > 0) return { left: left, error: "Some are still out: write the missing ones when the rest is back. For now count them under Still out." };
+    if (still === left) return { left: left, none: true, stillOut: still, ok: 0, dmg: 0, miss: 0, error: "" };   // nothing came back: only the note is kept
+    return { left: left, ok: left - dmg - miss - still, dmg: dmg, miss: miss, used: 0, part: still > 0, stillOut: still, photoNeeded: !!o.photoProof && (miss > 0 || dmg > 0), error: "" };
+  }
+
   // small plain-word chips for a line of the story (pure)
   function badges(line, ctx) {
     line = line || {}; ctx = ctx || {};
@@ -56,7 +72,7 @@
     return out;
   }
 
-  var api = { plan: plan, badges: badges };
+  var api = { plan: plan, problemPlan: problemPlan, badges: badges };
   if (typeof module !== "undefined" && module.exports) { module.exports = api; return; }
 
   var doc = root.document;
@@ -107,11 +123,15 @@
   function open(o) {
     o = o || {};
     var c = o.checkout || {}, it = o.item || {}, ctx = o.ctx || {}, unit = it.unit || "";
-    var consumable = it.item_kind === "consumable";
+    var consumable = it.item_kind === "consumable", problem = !!o.problem && !consumable;
     var left = Math.max(n(c.qty_out) - n(c.qty_in), 0);
     var okIn = h("input", { type: "number", min: "0", step: "1", inputmode: "numeric", value: String(left) });
     var dmgIn = h("input", { type: "number", min: "0", step: "1", inputmode: "numeric", value: "0" });
     var rest = h("input", { type: "checkbox" });
+    var missIn = h("input", { type: "number", min: "0", step: "1", inputmode: "numeric", value: "0" });
+    var stillIn = h("input", { type: "number", min: "0", step: "1", inputmode: "numeric", value: "0" });
+    var canNote = !!(S().wrapRecords && S().wrapRecords.stockNote && (c.quote_id || o.quoteId)), noteKey = canNote && S().wrapRecords.newKey ? S().wrapRecords.newKey() : null, saved = false;
+    var noteIn = h("input", { type: "text", maxlength: "500", placeholder: "e.g. 2 legs broken, Ravi brings 3 on Monday" });
     var byIn = h("input", { type: "text", maxlength: "200", placeholder: "e.g. Ravi" });
     var info = h("p", { cls: "sc-info", role: "status", "aria-live": "polite" });
     var photo = photoInput("Photo of the damaged / missing items");
@@ -121,22 +141,27 @@
     var amtFld = field("Amount to charge", amtIn, "Goes to Settlement as “Recover from client” (pending until collected).");
     var decBox = ctx.can_decide ? h("div", { cls: "sc-dec" }, [field("Who pays for the loss?", decSel), amtFld]) : null;
     var kids = [
-      h("p", { cls: "sc-sub", text: (it.name || "Item") + " · " + left + " " + unit + " still out" + (c.issued_to ? " with " + c.issued_to : "") }),
+      h("p", { cls: "sc-sub", text: (it.name || "Item") + " · " + left + " " + unit + " given out" + (c.issued_to ? " to " + c.issued_to : "") }),
       h("div", { cls: "sc-grid" }, consumable
         ? [field("Left over (back to stock)", okIn), field("Your name", byIn)]
+        : problem ? [field("Damaged", dmgIn), field("Missing", missIn), field("Still out", stillIn)]
         : [field("Came back OK", okIn), field("Damaged", dmgIn), field("Your name", byIn)]),
-      h("label", { cls: "sc-check" }, [rest, h("span", { text: "Some are still out — they come back later (the rest stays Out)" })]),
+      problem ? null : h("label", { cls: "sc-check" }, [rest, h("span", { text: "Some are still out — they come back later (the rest stays Given out)" })]),
+      problem && canNote ? field("Note", noteIn) : null,
+      problem ? field("Your name", byIn) : null,
       info, photo.el, decBox
     ];
-    var save = h("button", { type: "button", cls: "btn primary", text: "Mark back" });
+    var save = h("button", { type: "button", cls: "btn primary", text: problem ? "Save" : "Mark back" });
     var cancel = h("button", { type: "button", cls: "btn", text: "Cancel", on: { click: close } });
-    var sh = sheet("Mark back", h("div", { cls: "sc-body" }, kids), [cancel, save]);
-    function cur() { return plan({ out: c.qty_out, prior: c.qty_in, ok: okIn.value, damaged: dmgIn.value, restOut: rest.checked, consumable: consumable, photoProof: ctx.photo_proof !== false }); }
+    var sh = sheet(problem ? "Problem with this stock" : "Mark back", h("div", { cls: "sc-body" }, kids), [cancel, save]);
+    function cur() { return problem ? problemPlan({ out: c.qty_out, prior: c.qty_in, damaged: dmgIn.value, missing: missIn.value, still: stillIn.value, photoProof: ctx.photo_proof !== false }) : plan({ out: c.qty_out, prior: c.qty_in, ok: okIn.value, damaged: dmgIn.value, restOut: rest.checked, consumable: consumable, photoProof: ctx.photo_proof !== false }); }
     function refresh() {
       var p = cur(); sh.err("");
       if (p.error) { info.textContent = p.error; photo.el.hidden = true; if (decBox) decBox.hidden = true; return; }
       var bits = [];
-      if (p.part) bits.push(p.stillOut + " stay Out (mark them back when they return)");
+      if (problem && p.ok) bits.push(p.ok + " came back OK");
+      if (p.part) bits.push(p.stillOut + (p.stillOut === 1 ? " stays" : " stay") + " given out (mark them back when they return)");
+      if (p.none) bits.push("Nothing came back yet: all " + p.stillOut + " stay given out, only your note is kept");
       if (p.used) bits.push(p.used + " " + unit + " used (costed on this event)");
       if (p.miss) bits.push(p.miss + " missing");
       if (p.dmg) bits.push(p.dmg + " damaged");
@@ -147,22 +172,27 @@
       if (decBox) { decBox.hidden = !(p.miss > 0 || p.dmg > 0) || p.part; amtFld.hidden = decSel.value !== "charge";
         if (decSel.value === "charge" && !amtIn.value && ctx.can_money && it.unit_cost != null) amtIn.value = String(Math.round((p.miss + p.dmg) * n(it.unit_cost) * 100) / 100); }
     }
-    [okIn, dmgIn].forEach(function (x) { x.addEventListener("input", refresh); });
+    [okIn, dmgIn, missIn, stillIn].forEach(function (x) { x.addEventListener("input", refresh); });
     rest.addEventListener("change", refresh); decSel.addEventListener("change", refresh);
-    refresh(); setTimeout(function () { try { okIn.focus(); okIn.select(); } catch (e) {} }, 30);
+    refresh(); setTimeout(function () { try { var first = problem ? dmgIn : okIn; first.focus(); first.select(); } catch (e) {} }, 30);
     save.addEventListener("click", function () {
       var p = cur(); if (p.error) { sh.err(p.error); return; }
-      var file = photo.get();
+      var file = photo.get(), note = problem && canNote ? noteIn.value.replace(/\s+/g, " ").trim() : "";
+      if (/[<>]/.test(note)) { sh.err("Leave out < and > in the note."); return; }
+      if (p.none && !note) { sh.err(canNote ? "Nothing came back: write a note, or press Cancel." : "Nothing came back: there is nothing to save."); noteIn.focus(); return; }
       if (p.photoNeeded && !file) { sh.err("Add a photo of the damaged or missing items (your studio asks for one)."); return; }
       var dec = decBox && !decBox.hidden ? decSel.value : "";
       if (dec === "charge" && !(n(amtIn.value) > 0)) { sh.err("Enter the amount to charge (above 0)."); return; }
       var run = async function () {
         try {
+          if (p.none || saved) { await S().wrapRecords.stockNote(c.id, note, noteKey); close(); toast("Note saved."); if (o.onDone) await o.onDone(); return; }
           var path = file && (p.miss > 0 || p.dmg > 0) ? await upload(o.quoteId || c.quote_id, file) : null;
           var r = await S().inventory.checkouts.backV2(c.id, { ok: p.ok, damaged: p.dmg, by: byIn.value.trim() || null, restOut: p.part,
             photoPath: path, decision: dec || null, charge: dec === "charge" ? amtIn.value : null });
+          saved = true;   // the stock is in: a note that fails is pressed again by itself, never the stock
+          if (note) { try { await S().wrapRecords.stockNote(c.id, note, noteKey); } catch (ne) { toast("The stock is saved, the note is not: " + friendly(ne, "save the note"), "err"); } }
           close();
-          toast(p.part ? "Recorded - " + p.stillOut + " still out." : "Marked back.");
+          toast(p.part ? "Saved - " + p.stillOut + " still out." : "Marked back.");
           if (o.onDone) await o.onDone(r);
         } catch (e) { sh.err(friendly(e, "mark it back")); }
       };

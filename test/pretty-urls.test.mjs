@@ -113,6 +113,8 @@ t('pages: <base href="/"> on routed pages; params resolved through HelmUrl; no b
   assert.match(read('public/client.js'), /HelmUrl\.get\("id"/);
   assert.match(read('public/booklet.js'), /booklet\.studioOk\(token, pretty\.studio\)/);
   assert.match(API, /rpc\("my_studio_route"/); assert.match(API, /notYourStudio/);
+  // R258: no answer (timeout) is retried and then says so - only an answer may say "another studio"
+  assert.match(API, /if \(k >= 2\) \{ studioUnchecked\(\); return HANG\(\); \}/); assert.doesNotMatch(API, /my_studio_route", \{ p_slug: R\.studio \}\); \}\s*catch \(e\) \{ if \(rpcMissing\(e\)\) return; j = null; \}/);
   assert.match(API, /document\.body\.replaceChildren\(main\)/);
   for (const f of ['event', 'ops', 'quotes', 'leads', 'control']) assert.ok(!read(`public/${f}.html`).includes("location.pathname.split('/').pop()+location.search"), f);
   const ns = API.slice(API.indexOf('function notYourStudio'), API.indexOf('async function refToId'));

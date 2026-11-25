@@ -161,8 +161,22 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0430_r248_layout_stock.sql
 -- 0434 (R252) adds task_start_notices (who was told they can start) to the purge list before event_ready_alert_sends
 \ir ../../supabase/migrations/0434_r252_start_now.sql
+-- 0440 (R255) adds event_extras (extras on the day) to the purge list; it needs 0436 (0434 above put the 0434 bodies back)
+\ir ../../supabase/migrations/0436_r253_start_now_mail.sql
+\o /dev/null
+\ir ../../supabase/migrations/0440_r255_tasks_crew.sql
+-- 0442 (R257) adds event_check_log / _lines / _marks (the event-day checklist) to the purge list; it needs 0441 (0397 above put the 0397 bodies back)
+\ir ../../supabase/migrations/0441_r256_layout_not_locked.sql
+\ir ../../supabase/migrations/0442_r257_no_lock_checklist.sql
+\ir ../../supabase/migrations/0444_r258_wrap_records.sql
+\ir ../../supabase/migrations/0448_r260_vendor_items.sql
+\o
 -- 0435 (R252) adds quote_advance_log (the event's own advance percentage, booked by advance) to the purge list before payment_schedule_quote_prefs
 \ir ../../supabase/migrations/0435_r252_payment_plan.sql
+-- 0445 (R258): payment_team_reminders, payment_claims, payment_codes join the purge list
+\ir ../../supabase/migrations/0445_r258_payment_followup.sql
+-- 0447 (R259): vendor_offers joins the purge list
+\ir ../../supabase/migrations/0447_r259_vendor_flow.sql
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

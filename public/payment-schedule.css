@@ -187,3 +187,50 @@
 #pstCard #pst_fixrow{min-height:44px;align-items:center;cursor:pointer}
 #pstCard #pst_fixrow[hidden]{display:none}
 #pstCard #pst_fixrow input{margin:0}
+
+/* R255: "Save payment plan" - the state chip, the help line, the days unit, the saved state */
+.psch-st{align-self:center}
+.psch-apply-row .psch-st{align-self:flex-end;margin-bottom:11px}
+.psch-st[hidden]{display:none}
+.psch-help{margin:0}
+.psch-e-dw{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.psch-e-du{font-size:12.5px;color:var(--ink-3,#6b6577)}
+.psch-e-past{white-space:normal;color:var(--warn-text,#8f5f00);max-width:150px}
+.psch-saved{min-height:44px}
+.psch .btn.psch-saved:disabled{opacity:1;cursor:default;color:#0f7a43;background:#e7f6ee;border-color:transparent;box-shadow:none}
+@container (max-width:520px){ .psch-apply-row .psch-st{margin-bottom:0;align-self:flex-start} .psch-e-dw{width:100%} .psch-e-past{max-width:none} }
+/* R258 (0445): the follow-up of an open payment (payment-followup.js), the compact Payments line of the event page, "Suggest dates" */
+.psch-sug{margin:0}
+.psch-sug[hidden]{display:none}
+.psch-table td.pfu-c{padding:2px 8px 12px;border-bottom:1px solid var(--line-2,#f1ede7)}
+.psch-table tr.psch-row:has(+ tr.pfu) td{border-bottom:0}
+.pfu-t{margin:0;font-size:12.5px;line-height:1.45;color:var(--ink-2,#4b475f);overflow-wrap:anywhere}
+.pfu-sent{color:var(--ink-3,#6b6577)}
+.pfu-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.btn.pfu-b{min-height:40px;display:inline-flex;align-items:center;text-decoration:none}
+.pfu-claim{padding:10px 12px;border:1px solid var(--line,#e8e3db);border-left:3px solid var(--accent,#047857);border-radius:10px;background:var(--panel-2,#faf8f5);margin-bottom:6px}
+.pfu-claim .pfu-t{font-weight:600;color:var(--ink,#1b1930)}
+.pfu-prev{margin-top:10px;padding:12px;border:1px solid var(--line,#e8e3db);border-radius:10px;background:var(--panel,#fff);max-width:640px}
+.pfu-to{font-weight:600;color:var(--ink,#1b1930)}
+.pfu-sub{color:var(--ink-3,#6b6577)}
+.pfu-q{margin:6px 0 8px;padding:8px 12px;border-left:3px solid var(--line,#e8e3db);font-size:13px;line-height:1.5;color:var(--ink,#1b1930);white-space:pre-line;overflow-wrap:anywhere}
+.pfu-form{margin:0 0 12px}
+.pay-line{margin:0 0 14px}
+.pay-line[hidden]{display:none}
+.pfu-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;min-height:44px;padding:8px 14px;border:1px solid var(--line,#e8e3db);border-radius:12px;background:var(--panel,#fff);color:var(--ink-2,#4b475f);font-size:13px;text-decoration:none}
+.pfu-line b{color:var(--ink,#1b1930)}
+.pfu-line:hover{border-color:var(--accent,#047857)}
+.pfu-amt{font-weight:700;color:var(--ink,#1b1930);font-variant-numeric:tabular-nums}
+.pfu-more{color:var(--ink-3,#6b6577)}
+.psch-chip.pfu-chip-overdue{background:#fdecec;color:#a5281c}
+.psch-chip.pfu-chip-claim{background:#eef6ff;color:#1d4f91}
+.psch-chip.pfu-chip-sent{background:#e7f6ee;color:#0f7a43}
+@media (max-width:640px){
+  .psch-table tr.pfu{display:block;padding:0 0 12px}
+  .psch-table td.pfu-c{display:block;padding:0;border:0}
+  .psch-table tr.psch-row:has(+ tr.pfu){border-bottom:0}
+  .psch-erow .psch-e-due{white-space:normal;overflow-wrap:anywhere}
+  .psch-erow .psch-e-out{min-width:0}
+  .btn.pfu-b{min-height:44px}
+  .pfu-line{gap:4px 10px}
+}

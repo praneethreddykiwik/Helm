@@ -1,6 +1,8 @@
 /* event-floor.js - R227 (owner, 18 Nov 2026: "Event day - add planner 2D, 3D, measure, and can print. Add a lock so no
  * modifications - you need to unlock and then edit it"). Shared by Tasks & Crew (ops.html), the Event-day monitor
- * (monitor.html), the planner (builder.html), the Run-sheet (runsheet.html) and the printed Event-day pack (eventday-pack.html):
+ * (monitor.html), the Run-sheet (runsheet.html) and the printed Event-day pack (eventday-pack.html).
+ * R257 (owner, 25 Nov 2026: "First of all remove the lock"): there is no event-day lock any more (0442) - no lock bar, no Lock / Unlock, no
+ * history. Only a CLOSED event refuses plan changes (the server says so; isClosed lets the pages hide what cannot work).
  *
  *   HelmEventFloor.normalize(floor)        the saved floor plan (event_floor_get, 0397) -> { items, room, unit } in feet
  *   HelmEventFloor.seatsOf(item)           seats of one item (the planner's genSeats rule: rows x cols, seats, single chairs, sofas)
@@ -10,13 +12,15 @@
  *   HelmEventFloor.planSvg(doc, floor, o)  the 2D plan as an <svg> (room outline, items, the hall's width / length marked,
  *                                          stage / dance-floor sizes written on them). DOM only, no HTML strings.
  *                                          R253: the planner's own drawing (floor-draw.js) when it is loaded; without it the plain shapes
- *   HelmEventFloor.panel(o)                the "Floor plan" card + the lock bar on the event-day pages (loads + caches, 60 s)
- *   HelmEventFloor.lockBar(host, o)        the lock bar alone (planner, run-sheet): "Locked for the event day - Unlock to edit"
- *   HelmEventFloor.isLocked(quoteId)       the last answer for that event (false when unknown / before 0397)
+ *   HelmEventFloor.panel(o)                the "Floor plan" card on the event-day pages (loads + caches, 60 s; the event's state alone is read
+ *                                          again every 25 s and when the page is looked at again)
+ *   HelmEventFloor.isClosed(quoteId)       the event is closed and its plan cannot be changed (false when unknown)
+ *   HelmEventFloor.oldLock(st) / oldBar()  a database WITHOUT 0442 that still refuses changes on the event day: one line + Unlock (admin / event
+ *                                          manager). With 0442 it never shows.
  *   HelmEventFloor.viewer()                R253: loads floor-view.js / .css once (the exact plan + the full-window Layout viewer)
  *   HelmEventFloor.viewUrl(quoteId, mode)  builder.html?quote=..&view=1 (mode "3d" | "measure") - the planner opens VIEW ONLY
  *
- * Before 0397 is applied BPStore.ops.planLock.floor / get answer null: no card, no bar, no error. Money is never read or shown
+ * Before 0397 is applied BPStore.ops.planLock.floor / get answer null: no card, no error. Money is never read or shown
  * (the server strips prices from every item). Colours: the --tc-* tokens of ops-board.css, with fallbacks (event-floor.css). */
 (function (global) {
   "use strict";
@@ -96,7 +100,10 @@
     out.seats = seats; out.guests = isFinite(guests) ? Math.round(guests) : null;
     if (seats || out.guests) {
       var vs = seats + " seats" + (out.guests ? " for " + out.guests + " guests" : "");
-      if (out.guests && seats) { var d = seats - out.guests; vs += d === 0 ? " - exactly enough" : d > 0 ? " - " + d + " spare" : " - " + (-d) + " short"; if (d < 0) out.warnings.push((-d) + " seats short of the guest count"); }
+      // R257: the chairs rule is 70% of the guests (the pricing default), so only fewer than that is short
+      if (out.guests && seats) { var need = Math.round(out.guests * 0.7), d = seats - out.guests;
+        vs += d === 0 ? " - exactly enough" : d > 0 ? " - " + d + " spare" : seats >= need ? " - enough for 70% of the guests" : " - " + (need - seats) + " short of 70%";
+        if (seats < need) out.warnings.push((need - seats) + " seats short (70% of " + out.guests + " guests = " + need + ")"); }
       out.rows.push(["Seats vs guests", vs]);
     }
     if (pos(f.capacity)) out.rows.push(["Venue capacity", Math.round(f.capacity) + " people"]);
@@ -115,14 +122,6 @@
   }
   function viewUrl(quoteId, mode) {
     return "builder.html?quote=" + encodeURIComponent(quoteId || "") + "&view=1" + (mode === "3d" ? "&mode=3d" : mode === "measure" ? "&measure=1" : "");
-  }
-  function lockWords(st) {
-    st = st || {};
-    if (st.locked) return { title: "Locked for the event day - Unlock to edit",
-      sub: st.state === "locked" ? "Locked by " + (st.changed_by || "someone") + (st.changed_at ? " · " + when(st.changed_at) : "") + (st.reason ? " · " + st.reason : "")
-        : "Locked by itself: the event is on its day (" + (st.stage === "event_day" ? "Event Day stage" : st.stage === "settlement" || st.stage === "closed" ? "after the event" : "On the day") + ")." };
-    if (st.state === "unlocked") return { title: "Plan unlocked for changes", sub: "Unlocked by " + (st.changed_by || "someone") + (st.changed_at ? " · " + when(st.changed_at) : "") + (st.reason ? " · " + st.reason : "") };
-    return { title: "Plan open for changes", sub: st.confirmed ? "Locks by itself on the event day. Lock it now when the plan is final." : "The plan can be locked once the event is confirmed." };
   }
   function when(iso) {
     var t = new Date(iso); if (!isFinite(t.getTime())) return "";
@@ -219,70 +218,48 @@
     return dl;
   }
 
-  /* ---- the lock bar ---- */
-  var UI = { form: null, hist: {} };   // the open unlock form (quote id) - kept across redraws
+  /* ---- a database without 0442: it may still refuse plan changes on the event day. One line + Unlock; nothing otherwise ---- */
   function api() { return global.BPStore && global.BPStore.ops && global.BPStore.ops.planLock; }
   function toast(msg, type) { try { if (global.BPUI && global.BPUI.toast) global.BPUI.toast(msg, { type: type || "ok" }); } catch (e) {} }
   function errText(e, action) { try { if (global.BPUI && global.BPUI.friendlyError) return global.BPUI.friendlyError(e, { action: action }); } catch (x) {} return String((e && e.message) || e || "Something went wrong"); }
-  function renderLock(host, st, o) {
-    if (!host) return;
-    o = o || {};
-    if (!st || (!st.locked && !st.confirmed && st.state !== "unlocked")) { host.hidden = true; clear(host); return; }
-    var qid = o.quoteId, w = lockWords(st), open = UI.form === qid;
-    var kr = host.querySelector ? host.querySelector("#efReason") : null, keep = kr ? kr.value : null;   // a redraw keeps what was typed
-    clear(host); host.hidden = false;
-    host.className = "ef-lock " + (st.locked ? "is-locked" : "is-open") + (o.compact ? " compact" : "");
-    host.setAttribute("role", "region"); host.setAttribute("aria-label", "Event plan lock");
-    var row = h("div", { cls: "ef-lock-row" }, [
-      h("span", { cls: "ef-lock-ico", "aria-hidden": "true", text: st.locked ? "🔒" : "🔓" }),
-      h("span", { cls: "ef-lock-txt" }, [h("b", { text: w.title }), h("span", { cls: "ef-lock-sub", text: w.sub })])]);
-    var acts = h("span", { cls: "ef-lock-acts" });
-    if (st.locked && st.can_unlock && !open) acts.appendChild(h("button", { type: "button", cls: "ef-btn dark", id: "efUnlock", text: "Unlock to edit", on: { click: function () { UI.form = qid; renderLock(host, st, o); var f = doc.getElementById("efReason"); if (f) f.focus(); } } }));
-    if (st.locked && !st.can_unlock) acts.appendChild(h("span", { cls: "ef-lock-note", text: "Only an admin or the event manager can unlock." }));
-    if (!st.locked && st.can_lock) acts.appendChild(h("button", { type: "button", cls: "ef-btn", id: "efLockBtn", text: st.state === "unlocked" ? "Lock again" : "Lock plan", on: { click: function (e) { doLock(e.currentTarget, host, st, o, true, null); } } }));
-    var hist = Array.isArray(st.history) ? st.history : [];
-    if (hist.length) acts.appendChild(h("button", { type: "button", cls: "ef-link", "aria-expanded": UI.hist[qid] ? "true" : "false", text: "History (" + hist.length + ")",
-      on: { click: function () { UI.hist[qid] = !UI.hist[qid]; renderLock(host, st, o); } } }));
-    row.appendChild(acts); host.appendChild(row);
-    if (open) {
-      var inp = h("textarea", { id: "efReason", cls: "ef-inp", rows: "2", maxlength: "300", placeholder: "e.g. The client added a photo booth - stage moves 4 ft", "aria-describedby": "efReasonHint" });
-      if (keep != null) inp.value = keep;
-      var err = h("p", { cls: "ef-err", id: "efReasonErr", role: "alert", hidden: true });
-      var go = h("button", { type: "button", cls: "ef-btn dark", id: "efUnlockGo", text: "Unlock", on: { click: function (e) {
-        var r = String(inp.value || "").trim(); if (r.length < 3) { err.textContent = "Say why in a few words (3-300 characters)."; err.hidden = false; inp.focus(); return; }
-        doLock(e.currentTarget, host, st, o, false, r); } } });
-      host.appendChild(h("div", { cls: "ef-form" }, [h("label", { "for": "efReason", cls: "ef-lbl", text: "Why unlock? (kept in the event's history)" }), inp,
-        h("p", { cls: "ef-hint", id: "efReasonHint", text: "Unlocking lets people change the floor plan, measurements, run-sheet times and the task plan again. Lock it again when you are done." }), err,
-        h("div", { cls: "ef-acts" }, [h("button", { type: "button", cls: "ef-btn", text: "Cancel", on: { click: function () { UI.form = null; renderLock(host, st, o); } } }), go])]));
-    }
-    if (UI.hist[qid] && hist.length) {
-      var ol = h("ol", { cls: "ef-hist", "aria-label": "Lock history" });
-      hist.forEach(function (x) { ol.appendChild(h("li", {}, [h("b", { text: x.action === "lock" ? "Locked" : "Unlocked" }), " by " + (x.by || "someone") + " · " + when(x.at) + (x.reason ? " · " + x.reason : "")])); });
-      host.appendChild(ol);
-    }
+  function oldLock(st) { return !!(st && st.locked && !st.removed && st.stage !== "closed"); }
+  function closedPlan(st) { return !!(st && st.locked && st.stage === "closed"); }
+  // o: { quoteId, onChange(state) }; may = the caller may unlock (the server checks it again)
+  function oldBar(host, st, o) {
+    if (!host) return; var on = oldLock(st) && st.can_unlock;
+    if (!on) { host.hidden = true; clear(host); return; }
+    clear(host); host.hidden = false; host.className = "ef-lock is-locked"; host.setAttribute("role", "region"); host.setAttribute("aria-label", "Changes on the event day");
+    var b = h("button", { type: "button", cls: "ef-btn dark", id: "efUnlock", text: "Unlock", on: { click: async function () {
+      var A = api(); if (!A || b.disabled) return; b.disabled = true; b.setAttribute("aria-busy", "true");
+      try {
+        var nx = await A.set(o.quoteId, false, "The event-day lock was removed (R257)");
+        cache[o.quoteId] = Object.assign({}, cache[o.quoteId] || {}, { lock: nx, at: Date.now(), lat: Date.now() }); oldBar(host, nx, o);
+        toast("Unlocked. Tasks and times can be changed."); if (o.onChange) o.onChange(nx);
+      } catch (e) { toast(errText(e, "unlock"), "err"); b.disabled = false; b.removeAttribute("aria-busy"); }
+    } } });
+    host.appendChild(h("div", { cls: "ef-lock-row" }, [h("span", { cls: "ef-lock-txt" }, [h("span", { cls: "ef-lock-sub", text: "This database still refuses task and time changes on the event day (needs database update 0442)." })]), h("span", { cls: "ef-lock-acts" }, [b])]));
   }
-  async function doLock(btn, host, st, o, lock, reason) {
-    var A = api(); if (!A) return;
-    btn.disabled = true; btn.setAttribute("aria-busy", "true");
-    try {
-      var nx = await A.set(o.quoteId, lock, reason);
-      UI.form = null; cache[o.quoteId] = Object.assign({}, cache[o.quoteId] || {}, { lock: nx, at: Date.now() });
-      renderLock(host, nx, o);
-      toast(lock ? "Plan locked for the event day." : "Plan unlocked - lock it again when you are done.");
-      if (o.onChange) o.onChange(nx);
-    } catch (e) {
-      toast(errText(e, lock ? "lock the plan" : "unlock the plan"), "err");
-      btn.disabled = false; btn.removeAttribute("aria-busy");
-    }
+  // the run-sheet: { closed } - and the one line above for a database without 0442
+  async function planState(host, o) {
+    var A = api(), st = null; if (!A || !A.get || !o || !o.quoteId) return { closed: false };
+    try { st = await A.get(o.quoteId); } catch (e) { st = null; }
+    oldBar(host, st, o); return { closed: closedPlan(st) };
   }
-  // the lock bar alone (planner, run-sheet): loads once; o: { quoteId, state?, onChange(state), compact }
-  async function lockBar(host, o) {
-    o = o || {}; if (!host || !o.quoteId) return null;
-    var st = o.state; if (st === undefined) { var A = api(); if (!A) return null; try { st = await A.get(o.quoteId); } catch (e) { st = null; } }
-    cache[o.quoteId] = Object.assign({}, cache[o.quoteId] || {}, { lock: st, at: Date.now() });
-    renderLock(host, st, o);
-    return st;
+  // the event's state alone, read again (it was closed or re-opened on another page)
+  function checkLock(o, force) {
+    var qid = o.quoteId, c = cache[qid], A = api();
+    if (!A || !A.get || !c || !c.lock || loading[qid] || c.asking || Date.now() - (c.lat || c.at || 0) < (force ? 3000 : 25000)) return;
+    c.asking = true;
+    A.get(qid).then(function (st) {
+      var d = cache[qid]; if (!d) return; d.asking = false; d.lat = Date.now(); if (!st) return;
+      var prev = d.lock; d.lock = st; if (sig(prev) === sig(st)) return;
+      draw(o); if (o.onChange && !!(prev && prev.locked) !== !!st.locked) o.onChange(st);
+    }, function () { var d = cache[qid]; if (d) { d.asking = false; d.lat = Date.now(); } });
   }
+  var seen = null;   // the panel of this page, so a return to the page asks again at once
+  function back() { if (seen && !(doc && doc.hidden)) checkLock(seen, true); }
+  if (doc && doc.addEventListener) doc.addEventListener("visibilitychange", back);
+  if (doc && global.addEventListener) { global.addEventListener("focus", back); global.addEventListener("pageshow", function (e) { if (e && e.persisted) back(); }); }
 
   /* ---- R253: the Layout viewer (floor-view.js + .css), loaded once, only on pages that show a plan ---- */
   var viewerP = null;
@@ -291,16 +268,16 @@
     viewerP = new Promise(function (ok, no) {
       if (!doc.querySelector('link[href*="floor-view.css"]')) { var lk = doc.createElement("link"); lk.rel = "stylesheet"; lk.href = "/floor-view.css?v=1"; doc.head.appendChild(lk); }
       if (global.HelmFloorView) { ok(); return; }
-      var sc = doc.createElement("script"); sc.src = "/floor-view.js?v=1"; sc.onload = function () { ok(); }; sc.onerror = function () { sc.remove(); no(new Error("floor-view")); };
+      var sc = doc.createElement("script"); sc.src = "/floor-view.js?v=3"; sc.onload = function () { ok(); }; sc.onerror = function () { sc.remove(); no(new Error("floor-view")); };
       doc.head.appendChild(sc);
     }).then(function () { return global.HelmFloorView.ready(); }).then(function () { return global.HelmFloorView; });
     viewerP.catch(function () { viewerP = null; });   // a later redraw tries again
     return viewerP;
   }
 
-  /* ---- the Floor plan card + lock bar on the event-day pages ---- */
+  /* ---- the Floor plan card on the event-day pages ---- */
   var cache = {}, loading = {};
-  function isLocked(qid) { var c = cache[qid]; return !!(c && c.lock && c.lock.locked); }
+  function isClosed(qid) { var c = cache[qid]; return !!(c && closedPlan(c.lock)); }
   function sig(v) { try { return JSON.stringify(v); } catch (e) { return String(Math.random()); } }
   // R253: "Edit in the planner" only for a role that may change layouts (the same areas the planner itself asks for)
   var editP = null;
@@ -319,21 +296,20 @@
   }
   function renderFloor(host, f, o) {
     clear(host); host.hidden = false;
-    var lk = f.lock || {}, mz = measure(f), qid = o.quoteId;
+    var closed = (f.lock || {}).stage === "closed", mz = measure(f), qid = o.quoteId;   // a closed event keeps its layout
     var head = h("div", { cls: "ef-head" }, [h("h3", { cls: "tc-h2", id: host.id + "H", text: "Floor plan" }),
-      mz.items ? h("span", { cls: "ef-meta", text: [f.version_no ? "V" + f.version_no : "", f.saved_at ? "saved " + when(f.saved_at) : "", mz.items + " items"].filter(Boolean).join(" · ") }) : null,
-      lk.locked ? h("span", { cls: "ef-chip locked", text: "🔒 Locked" }) : null]);
+      mz.items ? h("span", { cls: "ef-meta", text: [f.version_no ? "V" + f.version_no : "", f.saved_at ? "saved " + when(f.saved_at) : "", mz.items + " items"].filter(Boolean).join(" · ") }) : null]);
     host.appendChild(head);
     if (!mz.items) {   // nothing to view: one message, one action; the pack still prints the run-sheet, call sheet and contacts
       host.appendChild(h("p", { cls: "ef-empty", text: emptyWords(f) }));
       var ea = h("div", { cls: "ef-acts" }, [printLink(qid, true)]); host.appendChild(ea);
-      if (!lk.locked) mayEdit().then(function (y) { if (y && ea.isConnected) ea.insertBefore(h("a", { cls: "ef-btn dark", href: plannerUrl(qid), text: "Edit in the planner" }), ea.firstChild); });
+      if (!closed) mayEdit().then(function (y) { if (y && ea.isConnected) ea.insertBefore(h("a", { cls: "ef-btn dark", href: plannerUrl(qid), text: "Edit in the planner" }), ea.firstChild); });
       return;
     }
     // R253: only the plan, exactly as the planner draws it, and one Layout button (2D plan, 3D view, Measure, Full screen)
     var sheet = h("div", { cls: "ef-sheet", "aria-busy": "true" }, [h("span", { cls: "ef-wait", text: "Loading the plan…" })]);
     var acts = h("div", { cls: "ef-acts" }, [printLink(qid)]);
-    if (!lk.locked && o.canEditPlan) mayEdit().then(function (y) { if (y && acts.isConnected) acts.appendChild(h("a", { cls: "ef-link", href: plannerUrl(qid), text: "Edit in the planner →" })); });
+    if (!closed && o.canEditPlan) mayEdit().then(function (y) { if (y && acts.isConnected) acts.appendChild(h("a", { cls: "ef-link", href: plannerUrl(qid), text: "Edit in the planner →" })); });
     host.appendChild(sheet);
     if (mz.warnings.length) host.appendChild(h("p", { cls: "ef-warn", role: "note", text: "Check: " + mz.warnings.join("; ") + "." }));
     host.appendChild(acts);
@@ -353,10 +329,11 @@
   }
   function plannerUrl(qid) { return "builder.html?quote=" + encodeURIComponent(qid); }
   function printLink(qid, quiet) { return h("a", { cls: quiet ? "ef-link" : "ef-btn", href: "eventday-pack.html?quote=" + encodeURIComponent(qid), text: "🖨 Print event-day pack" }); }
-  // o: { quoteId, lockHost, floorHost, showFloor, onChange(lockState), compact, canEditPlan, eventType (3D only: which events get flowers) }
+  // o: { quoteId, lockHost (the one line for a database without 0442), floorHost, showFloor, onChange(state), compact, canEditPlan, eventType (3D only: which events get flowers) }
   function panel(o) {
     o = o || {}; var qid = o.quoteId, A = api();
-    if (!qid || !A || !A.floor) { if (o.lockHost) o.lockHost.hidden = true; if (o.floorHost) o.floorHost.hidden = true; return; }
+    if (!qid || !A || !A.floor) { [o.lockHost, o.floorHost].forEach(function (n) { if (n) n.hidden = true; }); return; }
+    seen = o;
     var c = cache[qid];
     if ((!c || !c.floor || Date.now() - (c.fat || 0) > 60000 || o.force) && !loading[qid]) {
       loading[qid] = true;
@@ -365,27 +342,26 @@
         loading[qid] = false; draw(o);
         if (o.onChange && sig(prev && prev.locked) !== sig(f && f.lock && f.lock.locked)) o.onChange(f ? f.lock : null);
       }, function () { loading[qid] = false; cache[qid] = { floor: null, lock: null, at: Date.now(), fat: Date.now(), none: true }; draw(o); });
-    }
+    } else checkLock(o, false);
     draw(o);
   }
-  function stale(qid) { if (cache[qid]) cache[qid].fat = 0; }   // the stage moved (the plan lock may have changed): read again on the next draw
+  function stale(qid) { if (cache[qid]) cache[qid].fat = 0; }   // the stage moved: read again on the next draw
   function draw(o) {
     var c = cache[o.quoteId] || {}, f = c.floor;
-    if (o.lockHost) {
-      if (!f || !c.lock) { o.lockHost.hidden = true; }
-      else if (UI.form !== o.quoteId) { var ls = sig([c.lock, UI.hist[o.quoteId]]); if (o.lockHost._efSig !== ls) { o.lockHost._efSig = ls; renderLock(o.lockHost, c.lock, o); } }
+    if (o.lockHost) {   // drawn again when the answer or the event changed (the monitor can switch events: the button must act on the one shown)
+      var ls = sig([o.quoteId, f ? c.lock : null]); if (o.lockHost._efSig !== ls || o.lockHost._efHid !== o.lockHost.hidden) { o.lockHost._efSig = ls; oldBar(o.lockHost, f ? c.lock : null, o); o.lockHost._efHid = o.lockHost.hidden; }
     }
     if (o.floorHost) {
       if (!f || !o.showFloor) { o.floorHost.hidden = true; o.floorHost._efSig = ""; return; }
-      var fs = sig([f, !!o.canEditPlan, c.lock && c.lock.locked]); if (o.floorHost._efSig === fs && !o.floorHost.hidden) return;
+      var fs = sig([Object.assign({}, f, { lock: null }), !!o.canEditPlan, c.lock && c.lock.stage]); if (o.floorHost._efSig === fs && !o.floorHost.hidden) return;
       o.floorHost._efSig = fs; renderFloor(o.floorHost, Object.assign({}, f, { lock: c.lock || f.lock }), o);
     }
   }
   function reset(qid) { if (qid) delete cache[qid]; else cache = {}; }
 
   var API = { normalize: normalize, seatsOf: seatsOf, measure: measure, legend: legend, planSvg: planSvg, legendEl: legendEl, factsEl: factsEl,
-    lockWords: lockWords, viewUrl: viewUrl, panel: panel, stale: stale, viewer: viewer, emptyWords: emptyWords, lockBar: lockBar, renderLock: renderLock, isLocked: isLocked, reset: reset,
-    size: size, len: len, CAT_LABEL: CAT_LABEL, _ui: UI, _cache: function () { return cache; } };
+    viewUrl: viewUrl, panel: panel, stale: stale, viewer: viewer, emptyWords: emptyWords, oldLock: oldLock, oldBar: oldBar, planState: planState, closedPlan: closedPlan, isClosed: isClosed, reset: reset,
+    size: size, len: len, CAT_LABEL: CAT_LABEL, _cache: function () { return cache; } };
   global.HelmEventFloor = API;
   if (typeof module !== "undefined" && module.exports) module.exports = API;
 })(typeof window !== "undefined" ? window : globalThis);

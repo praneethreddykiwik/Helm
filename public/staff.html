@@ -95,7 +95,7 @@
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=8"><link rel="stylesheet" href="team-status.css?v=5">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -150,8 +150,8 @@
       <div class="fld"><label for="s_name">Name <span class="req" aria-hidden="true">*</span></label><input id="s_name" maxlength="120" placeholder="e.g. Ravi Kumar" autocomplete="off" aria-required="true" aria-describedby="s_name_msg"><span class="fmsg" id="s_name_msg" aria-live="polite"></span></div>
       <div class="fld" id="s_role_fld" hidden><label for="s_role">Role</label><select id="s_role" aria-describedby="s_role_hint" disabled><option value="">— Choose a role —</option></select>
         <span class="fmsg fhint" id="s_role_hint">Roles come from Settings → Users &amp; access.</span></div>
-      <div class="fld"><label for="s_dept">Department</label><select id="s_dept"><option value="">— Choose a department —</option></select>
-        <div id="s_dept_new" class="deptnew" hidden><input id="s_dept_new_in" maxlength="60" placeholder="New department name" aria-label="New department name"><button type="button" class="btn sm primary" id="s_dept_new_ok">Add</button><button type="button" class="btn sm" id="s_dept_new_x" aria-label="Discard the new department">Discard</button></div><span class="fmsg"></span></div>
+      <div class="fld"><label for="s_dept">Department <span class="req" id="s_dept_req" aria-hidden="true">*</span></label><select id="s_dept" aria-required="true" aria-describedby="s_dept_msg"><option value="">— Choose a department —</option></select>
+        <div id="s_dept_new" class="deptnew" hidden><input id="s_dept_new_in" maxlength="60" placeholder="New department name" aria-label="New department name"><button type="button" class="btn sm primary" id="s_dept_new_ok">Add</button><button type="button" class="btn sm" id="s_dept_new_x" aria-label="Discard the new department">Discard</button></div><span class="fmsg" id="s_dept_msg" aria-live="polite"></span></div>
       <div class="fld"><label for="s_emp">Employment</label><select id="s_emp"><option value="">— Choose employment —</option><option value="full_time">Full-time</option><option value="part_time">Part-time</option><option value="on_call">On-call</option></select><span class="fmsg"></span></div>
       <div class="fld"><label for="s_phone">Phone <span class="req" aria-hidden="true">*</span></label><input id="s_phone" type="tel" inputmode="tel" autocomplete="off" maxlength="16" placeholder="+91…" aria-required="true" aria-describedby="s_phone_msg"><span class="fmsg" id="s_phone_msg" aria-live="polite"></span></div>
       <div class="fld"><label for="s_email">Email <span class="req" id="s_email_req" aria-hidden="true" hidden>*</span></label><input id="s_email" type="email" autocomplete="off" placeholder="name@email.com" aria-describedby="s_email_msg"><span class="fmsg" id="s_email_msg" aria-live="polite"></span></div>
@@ -199,12 +199,12 @@
 <script src="phone-input.js?v=9"></script>
 <script src="form-validate.js?v=6"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=79"></script>
-<script src="tour.js?v=93"></script>
+<script src="page-tours.js?v=84"></script>
+<script src="tour.js?v=98"></script>
 <script src="team-status.js?v=6"></script>
 <script>
   const $=(s)=>document.querySelector(s);
@@ -448,6 +448,7 @@
   async function loadDepts(){ try{ deptList=await BPStore.staff.departments(); }catch(e){ deptList=(facets.depts||[]).slice(); }
     if(!deptList.length) deptList=((BPStore.staff&&BPStore.staff.DEFAULT_DEPARTMENTS)||[]).slice(); }
   $("#s_dept").addEventListener("change",()=>{
+    if($("#s_dept").getAttribute("aria-invalid")) checkDept();
     const sel=$("#s_dept"); if(sel.value!=="__new__"){ sel.dataset.prev=sel.value; return; }
     sel.value=sel.dataset.prev||""; $("#s_dept_new").hidden=false; $("#s_dept_new_in").value=""; setTimeout(()=>$("#s_dept_new_in").focus(),20);
   });
@@ -484,6 +485,10 @@
     const v=BPStore.staff.phoneE164(raw,true); const em=v.ok?"":String(v.error||"Enter a valid phone number.");
     fieldMsg("s_phone",em?(/[.!?]$/.test(em)?em:em+"."):""); return v;
   }
+  // a department is needed so the person can be given work; an old record that only has a role keeps saving without one, a linked one follows its profile
+  const deptNeeded=()=>!linkedEdit()&&!(editingRow&&String(editingRow.role||"").trim());
+  function checkDept(){ const ok=!deptNeeded()||!!$("#s_dept").value&&$("#s_dept").value!=="__new__"; fieldMsg("s_dept",ok?"":"Choose a department so this person can be assigned to the right work."); return ok; }
+  function syncDeptReq(){ const n=deptNeeded(); $("#s_dept_req").hidden=!n; $("#s_dept").setAttribute("aria-required",n?"true":"false"); }
   function checkEmail(){
     if(linkedEdit()){ fieldMsg("s_email",""); return {ok:true,value:null}; }
     const raw=$("#s_email").value.trim();
@@ -555,8 +560,8 @@
     if(!deptList.length) loadDepts().then(()=>{ if(!$("#staffModal")||!$("#staffModal").hidden) fillDept($("#s_dept").value||(s&&s.department)||""); }).catch(()=>{});
     $("#s_emp").value=s?s.emp_type||"":""; $("#s_phone").value=s?s.phone||"":""; $("#s_email").value=s?s.email||"":"";
     $("#s_rate").value=s&&s.day_rate!=null&&BPStore.staff.payVisible(s,isAdminUser)?s.day_rate:""; $("#s_skills").value=""; skillChips=[]; addSkills(s&&Array.isArray(s.skills)?s.skills.join(","):""); paintChips(); $("#s_notes").value=s?s.notes||"":"";
-    ["s_name","s_phone","s_email","s_rate"].forEach(id=>{ fieldMsg(id,""); delete $("#"+id).dataset.touched; }); setCurrencyPrefix(); if(STAFF_EMAIL_SG) STAFF_EMAIL_SG.hide();
-    editingRow=s||null; setLinkedLock(s); fillRole(s); setPayField(s);
+    ["s_name","s_dept","s_phone","s_email","s_rate"].forEach(id=>{ fieldMsg(id,""); delete $("#"+id).dataset.touched; }); setCurrencyPrefix(); if(STAFF_EMAIL_SG) STAFF_EMAIL_SG.hide();
+    editingRow=s||null; syncDeptReq(); setLinkedLock(s); fillRole(s); setPayField(s);
     // new person + admin: choose "record only" (no login) or "invite to sign in" (reuses inviteStaff)
     $("#s_access").hidden=!STAFF_LOGIN_INVITES_ON||!!s||!isAdminUser; const rec0=document.querySelector('input[name="s_access"][value="record"]'); if(rec0) rec0.checked=true; syncEmailReq();
     // pay-like custom fields of a team login stay out of the editor for non-admins (unsent = kept as saved)
@@ -617,16 +622,16 @@
     $("#sm_err").hidden=true;
     // staffui-1018: every field is checked at once and marked inline; the first bad one gets focus
     const bad=(sel,msg)=>{ fail(msg); const el=$(sel); if(el){ try{ el.scrollIntoView({block:"center",behavior:"smooth"}); }catch(e){} el.focus(); } };
-    const nameOk=checkName(), pv=checkPhone(), ev=checkEmail(), rv=checkRate();
+    const nameOk=checkName(), deptOk=checkDept(), pv=checkPhone(), ev=checkEmail(), rv=checkRate();
     if(!linked){
       if(!nameOk){ bad("#s_name","Name is required."); return; }
+      // QA M-08: a crew member needs an operational identity so they can be assigned to work
+      if(!deptOk){ bad("#s_dept","Choose a department so this person can be assigned to the right work."); return; }
       if(!pv.ok){ bad("#s_phone",pv.error); return; }
     }
     if(!ev.ok){ bad("#s_email",ev.error||"Add an e-mail address so we can send the sign-in invitation — or choose “Save as a record only”."); return; }
     if(!rv.ok){ bad("#s_rate",rv.error); return; }
     if(!linked){
-      // QA M-08: a crew member needs an operational identity so they can be assigned to work
-      if(!(editingRow&&String(editingRow.role||"").trim()) && !$("#s_dept").value){ bad("#s_dept","Choose a department so this person can be assigned to the right work."); return; }
       phoneV=pv; email=ev.value||null;
     }
     // r20 coord (d): hidden, or left empty on a team login -> no day_rate key at all (the saved value stays)

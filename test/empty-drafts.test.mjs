@@ -65,14 +65,13 @@ t('APPLY 0139-0141: one transaction, embeds the migration, read-only verify, no 
   assert.match(apply, /'0141 worker re-checks inside the update'/);
   assert.match(manifest, /forward\s+supabase\/migrations\/0141_empty_draft_cleanup\.sql/);
 });
-t('Quotes UI: hidden by default, toggle, note, restore path, throttled run', () => {
-  assert.match(qh, /id="showDiscarded"/);
-  assert.match(qh, /Show discarded drafts/);
-  assert.match(qh, /!isDiscarded\(r\) \|\| showDiscarded\(\)/);
+t('Quotes UI: the Deleted tab shows all it counts, a switch for empty drafts, note, restore path, throttled run', () => {
+  assert.doesNotMatch(qh, /showDiscarded|Show discarded drafts/);   // R258: 75 counted, 0 shown
+  assert.match(qh, /data-dk="all" class="on"/); assert.match(qh, /data-dk="empty"/); assert.match(qh, /const delShown=\(r\)=>r\.shelf!=="deleted" \|\| delKind==="all"/);
   assert.match(qh, /reason==="auto_empty_draft"/);
   assert.match(qh, /bp_q_discard/);
   assert.match(api, /rpc\("discard_empty_drafts", \{\}\)/);
   assert.match(api, /discardEmptyDrafts: \(\) =>/);
-  assert.doesNotMatch(qh, /<label class="discard-toggle"[^>]*style=/);
+  assert.doesNotMatch(qh, /class="discard-seg"[^>]*style=/);
 });
 console.log(`\nempty-drafts: ${n} passed`);

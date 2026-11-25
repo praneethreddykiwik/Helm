@@ -104,10 +104,11 @@
           out.moved++;
         } catch (e) {
           out.failed++;
-          if (B.ops.planLock && B.ops.planLock.isLockError && B.ops.planLock.isLockError(e)) { out.locked = true; out.failed = k - out.moved; break; }
+          out.closed = String(e && e.hint || "") === "event_closed";
+          if (out.closed || (B.ops.planLock && B.ops.planLock.isLockError && B.ops.planLock.isLockError(e))) { out.locked = true; out.failed = k - out.moved; break; }
         }
       }
-      if (out.locked) U.toast("The plan is locked, so " + (out.moved ? out.failed + " task times were" : "the task times were") + " not moved. Unlock it on Tasks & Crew, then change the times there.", { type: "err", timeout: 10000 });
+      if (out.locked) U.toast((out.moved ? out.failed + " task times were" : "The task times were") + " not moved: " + (out.closed ? "this event is closed." : "the database still refuses changes on the event day (needs database update 0442)."), { type: "err", timeout: 10000 });
       else if (out.failed) U.toast("Moved " + out.moved + " of " + k + " tasks. Check the rest on Tasks & Crew.", { type: "err", timeout: 10000 });
       else U.toast("Moved " + (k === 1 ? "1 task" : k + " tasks") + " " + words(p.days) + ".", { type: "ok" });
     } catch (e) { try { if (out.asked) U.toast("The task times could not be checked. Look at them on Tasks & Crew.", { type: "err" }); } catch (x) {} }

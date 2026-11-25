@@ -1008,6 +1008,10 @@
       }).catch(function () {}));
       Promise.all(jobs).then(function () { busy = false; try { sessionStorage.setItem(CNT_AT_KEY, String(Date.now())); } catch (e) {} }, function () { busy = false; });
     }
+    // R257: the Approvals page says its own number (same rows); a check made anywhere else on this page counts again at once
+    window.addEventListener("helm:approvals", function (e) { var n = e && e.detail ? Number(e.detail.count) : NaN; if (!isFinite(n)) return;
+      railCount("approvals", n); try { sessionStorage.setItem(CNT_AT_KEY + ".ap", String(Date.now())); } catch (x) {} });
+    window.addEventListener("helm:approvals-changed", function () { try { sessionStorage.removeItem(CNT_AT_KEY + ".ap"); } catch (x) {} setTimeout(run, 400); });
     // R249 (prod: quotes HEAD count 570 ms, called on EVERY page view): the badges already paint from this tab's stored counts,
     // so a page opened less than a minute after the last count waits for the regular 60 s run instead of counting again at once
     var lastAt = 0; try { lastAt = Number(sessionStorage.getItem(CNT_AT_KEY)) || 0; } catch (e) { lastAt = 0; }

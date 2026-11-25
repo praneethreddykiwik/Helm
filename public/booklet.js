@@ -183,6 +183,7 @@
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); return n; }
   function emptyNote(box, text) { box.appendChild(el("p", "empty", text)); }
 
+  function initials(name) { return String(name || "").replace(/[^\p{L}\p{N}\s]/gu, " ").trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "\u2726"; }
   function renderCover(d) {
     const s = d.studio || {}, e = d.event || {};
     const accent = safeHex(s.accent);
@@ -195,18 +196,20 @@
     if (logo && img) { img.setAttribute("src", logo); img.setAttribute("alt", (s.name || "Studio") + " logo"); img.setAttribute("referrerpolicy", "no-referrer");
       img.hidden = false; $("#s_mark").classList.add("has-logo");
       img.addEventListener("error", () => { img.hidden = true; $("#s_mark").classList.remove("has-logo"); }); }
+    // R255: no logo saved = the studio's initials (it was an empty coloured square)
+    const mk = $("#s_mark"); if (mk) mk.textContent = initials(s.name);
     const ct = clear($("#s_contact"));
     // #16 studio contact, first that exists: (1) the event contact's name + phone,
     // (2) the studio business phone (Settings > Studio details), (3) the business email -
     // the server sends it only when an admin saved it there (0075), never the signup login email.
     const co = (d.coordinator && typeof d.coordinator === "object") ? d.coordinator : { name: e.coordinator_name, phone: e.coordinator_phone };
-    const tel = (p) => { const a = el("a", "", String(p).slice(0, 32)); a.setAttribute("href", "tel:" + String(p).replace(/[^\d+]/g, "")); return a; };
+    const tel = (p) => { const a = el("a", "", "Phone: " + String(p).slice(0, 32)); a.setAttribute("href", "tel:" + String(p).replace(/[^\d+]/g, "")); return a; };
     const bizEmail = String(s.email || "").trim();
     if (co && (co.name || co.phone)) {
       if (co.name) ct.appendChild(el("span", "", String(co.name).slice(0, 80)));
       if (co.phone) ct.appendChild(tel(co.phone));
     } else if (s.phone) ct.appendChild(tel(s.phone));
-    else if (bizEmail && /^[^\s@<>"]+@[^\s@<>"]+$/.test(bizEmail)) { const a = el("a", "", bizEmail); a.setAttribute("href", "mailto:" + bizEmail); ct.appendChild(a); }
+    else if (bizEmail && /^[^\s@<>"]+@[^\s@<>"]+$/.test(bizEmail)) { const a = el("a", "", "Email: " + bizEmail); a.setAttribute("href", "mailto:" + bizEmail); ct.appendChild(a); }
     if (s.location) ct.appendChild(el("span", "", String(s.location)));
     const title = clientTitle(e);
     $("#e_title").textContent = title;
@@ -417,7 +420,8 @@
     });
     renderReceipts(rc || []);
     // E6: say what is due from the studio's payment terms + the event date (same rule as the portal)
-    const line = balanceLine(total, p.paid, bal, (d.event || {}).event_date, d.payTerms);
+    // R257: a saved payment plan (the rows below) says it itself - the general terms never contradict it
+    const line = planLine(ms, p.paid, bal) || balanceLine(total, p.paid, bal, (d.event || {}).event_date, d.payTerms);
     const pt = $("#payTerm"); if (pt) { pt.textContent = line || ""; pt.hidden = !line; }
     const tb = clear($("#payLines"));
     // PP1028 #9: the advance is part of the schedule - show it when the studio set one and no milestone covers it
@@ -449,10 +453,19 @@
   function overdueOf(status, due, remaining) {
     if (status !== "due" && status !== "part_paid" && status !== "invoiced") return status;
     const d = String(due || "").slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return status;
+    return d < todayOf() && !(Number(remaining) <= 0.5 && remaining != null) ? "overdue" : status;
+  }
+  function todayOf() {
     let today = ""; try { today = global.BPStore && global.BPStore.todayLocal ? global.BPStore.todayLocal() : ""; } catch (e) { today = ""; }
     if (!today) { try { var H = global.HelmCountry; if (H && H.todayIn) today = H.todayIn(FMT.currency === "AED" ? "Asia/Dubai" : "Asia/Kolkata"); } catch (e) {} }   // r37: the studio's day
-    if (!today) today = new Date().toISOString().slice(0, 10);
-    return d < today && !(Number(remaining) <= 0.5 && remaining != null) ? "overdue" : status;
+    return today || new Date().toISOString().slice(0, 10);
+  }
+  // R257: the saved payment plan in one sentence (same words as the portal); null = no plan (an older page without the helper: the terms line)
+  function planLine(ms, paid, bal) {
+    const B = global.BPStore; if (!B || !B.payPlan || !ms.length || !(Number(bal) > 0.5)) return null;
+    const al = msAllocate(ms, paid);
+    const pl = B.payPlan(ms.map((m, i) => ({ label: m.label, amount: m.amount, due_date: m.due_date, state: al[i].status, remaining: al[i].remaining != null ? al[i].remaining : undefined })), { today: todayOf() });
+    return pl && pl.next ? "Balance " + money(bal) + ". " + B.payPlanLine(pl, money, dmy, true) : null;
   }
   // PP1028 #9 (display only): prepend an "Advance" row from the studio's advance % when no milestone is the advance
   // 1029 #2: same default the flow shows (studio advance % from settings, else the flow's 10%) - read side only
@@ -462,6 +475,7 @@
     const list = Array.isArray(ms) ? ms.slice() : [], pct = advancePctOf(terms), t = num(total);
     if (!(pct > 0) || !(t > 0)) return list;
     if (list.some((m) => m && /advance|booking|token/i.test(String(m.label || "")))) return list;
+    if (list.length && list.reduce((x, m) => x + (num(m && m.amount) || 0), 0) >= t - 0.5) return list;   // R257: a full plan is the plan - no extra advance on top of it
     return [{ label: "Advance (" + pct + "%)", due_date: null, status: "due", amount: Math.round(t * pct) / 100 }].concat(list);
   }
   // Display only (no data change): milestones are a schedule, the ledger is the money truth. Money received
@@ -506,6 +520,7 @@
     const days = terms && terms.balance_due_days != null && Number.isInteger(Number(terms.balance_due_days)) && Number(terms.balance_due_days) >= 0 && Number(terms.balance_due_days) <= 365 ? Number(terms.balance_due_days) : null;
     let due = "";
     if (ev && days != null) { const ms = Date.UTC(+ev.slice(0, 4), +ev.slice(5, 7) - 1, +ev.slice(8, 10)) - days * 86400000; if (isFinite(ms)) due = new Date(ms).toISOString().slice(0, 10); }
+    if ((due || ev) && (due || ev) < todayOf()) return "Balance " + money(b) + " due now";   // R257: never a day that has passed
     if (due) return "Balance " + money(b) + " due by " + dmy(due);
     if (ev) return "Balance " + money(b) + " due before the event (" + dmy(ev) + ")";
     return "Balance " + money(b) + " due";
@@ -699,10 +714,12 @@
         if (sim && sim.rows.length) { d.__sim = sim; renderPayments(d); } } } catch (e) {}
     if (global.HelmBookletPkg && VISIBLE.packages !== false && !(d.menu && d.menu.mode === "hidden")) global.HelmBookletPkg.mount(token, d).catch(() => {});
     // r23 (0262): "This quote is valid until dd/mm/yyyy" / expired + "Request a new quote" (nothing once approved)
-    if (global.HelmQuoteValidity && $("#qvBanner")) global.HelmQuoteValidity.mountClient($("#qvBanner"), "booklet", token).catch(() => {});
+    // R255: never on a confirmed booking, or once money is in
+    const booked = String((d.event && d.event.status) || "") === "confirmed" || num(d.payments && d.payments.paid) > 0;
+    if (!booked && global.HelmQuoteValidity && $("#qvBanner")) global.HelmQuoteValidity.mountClient($("#qvBanner"), "booklet", token).catch(() => {});
   }
 
-  global.HelmBooklet = { menuChoosing, quoteChanges, withAdvance, balanceLine, msDisplayStatus, msAllocate, render2d, render3d, visibleSections, snapUrl, dbImages, dbFigure, isDataImg, IMG_VARIANTS, money, setFormat, fmtTime, mapLink, fmtDate, shortDate, safeHex, safeLogo, tokenFrom, quoteLines, normalizeItems, bounds, corners, iso, shade, SECTIONS };
+  global.HelmBooklet = { initials, menuChoosing, quoteChanges, withAdvance, balanceLine, msDisplayStatus, msAllocate, render2d, render3d, visibleSections, snapUrl, dbImages, dbFigure, isDataImg, IMG_VARIANTS, money, setFormat, fmtTime, mapLink, fmtDate, shortDate, safeHex, safeLogo, tokenFrom, quoteLines, normalizeItems, bounds, corners, iso, shade, SECTIONS };
   if (doc && doc.getElementById("tocList")) {
     const pb = doc.getElementById("printBtn"); if (pb) pb.addEventListener("click", () => global.print());
     const rt = doc.getElementById("retry"); if (rt) rt.addEventListener("click", () => start());

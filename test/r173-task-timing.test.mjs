@@ -82,7 +82,7 @@ t("R192 task panel: every action has words, only the ones that make sense, speci
 t("Assign work: optional start time + reminders in the same step, scheduled on the NEW tasks before the e-mail", () => {
   // R192: no tick box hiding the start time - Day before / Event day / No time yet, the picker shown right away
   assert.doesNotMatch(ops, /id="asTimeOn"/);
-  assert.match(ops, /id="as_daybefore" data-day="before"/); assert.match(ops, /id="as_evday" data-day="event" aria-pressed="true"/); assert.match(ops, /id="as_none" data-day="none"/);
+  assert.match(ops, /id="as_daybefore" data-day="before"/); assert.match(ops, /id="as_evday" data-day="event" aria-pressed="false"/); assert.match(ops, /id="as_none" data-day="none"/);
   assert.match(ops, /<input type="datetime-local" id="as_when"/);
   assert.match(ops, /id="as_evday"/); assert.match(ops, /id="as_daybefore"/);
   assert.match(ops, /const mine=inOrder\(\(fresh\|\|\[\]\)\.filter\(x=>!before\.has\(x\.id\) && x\.crew_id===c\.id && titles\.includes\(x\.title\)\)\);/);

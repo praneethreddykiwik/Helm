@@ -56,7 +56,7 @@ t('drawOrder: floor pieces lie under the rest, the biggest first (a dance floor 
 t('the 2D canvas, the version thumbnails and the PNG / client capture (renderAll) all paint in that order', () => {
   assert.match(js, /function drawOrder2D\(items, world\)\{ const T=window\.HelmBuilderTools; return \(T && T\.drawOrder\) \? T\.drawOrder\(items, world\|\|WORLD\) : items\.slice\(\); \}/);
   assert.match(js, /drawOrder2D\(store\.items\)\.forEach\(it=> svg\.appendChild\(renderItem\(it\)\)\)/, 'renderAll');
-  assert.match(js, /drawOrder2D\(store\.items\)\.forEach\(it=>svg\.appendChild\(renderItem\(it\)\)\);\n  renderMargins\(\);\n  appendSelectionOverlays\(\);/, 'renderSceneOnly');
+  assert.match(js, /renderMargins\(\);\n  drawOrder2D\(store\.items\)\.forEach\(it=>svg\.appendChild\(renderItem\(it\)\)\);\n  appendSelectionOverlays\(\);/, 'renderSceneOnly');
   assert.match(js, /drawOrder2D\(items, \{w, h\}\)\.forEach\(it=>\{/, 'version thumbnail');
   assert.ok(!/store\.items\.forEach\(it=> ?svg\.appendChild\(renderItem/.test(js), 'no array-order painting left');
 });

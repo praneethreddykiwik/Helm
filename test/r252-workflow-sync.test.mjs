@@ -118,7 +118,7 @@ await t('logistics: declined groups are not counted and the quote guest count is
 });
 await t('resource plan: short vendor quantities are missing, not covered; no guess without numbers; needs Vendors', () => {
   const R = PAGES.resources, src = R.slice(R.indexOf('  function shortOf(c)'), R.indexOf('  function rpStatusPill'));
-  const sh = (bookings, c) => { const x = { bookings }; vm.createContext(x); vm.runInContext(src + ';this.f=shortOf;', x); return x.f(c); };
+  const sh = (bookings, c) => { const x = { bookings, vreqs: [] }; vm.createContext(x); vm.runInContext(src + ';this.f=shortOf;', x); return x.f(c); };
   const c = { id: 'n1', qty: 50, have: 5 };
   assert.equal(sh([{ need_id: 'n1', qty: 30, status: 'confirmed' }], c), 15); assert.equal(sh([{ need_id: 'n1', qty: 30, status: 'confirmed' }, { need_id: 'n1', qty: 20, status: 'enquiry' }], c), 0);
   assert.equal(sh([{ need_id: 'n1', qty: 30, status: 'confirmed' }, { need_id: 'n1', qty: 20, status: 'cancelled' }], c), 15); assert.equal(sh([{ need_id: 'n1', qty: null, status: 'booked' }], c), 0); assert.equal(sh([], c), 0);

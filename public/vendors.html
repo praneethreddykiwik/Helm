@@ -72,9 +72,9 @@
 <link rel="stylesheet" href="vendors-polish.css?v=3">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
-<link rel="stylesheet" href="vendor-requests.css?v=1">
+<link rel="stylesheet" href="vendor-requests.css?v=2"><link rel="stylesheet" href="/vendor-flow.css?v=1"><link rel="stylesheet" href="/vendor-items.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -117,6 +117,7 @@
     <div class="vrq-bar">
       <div class="tabs" id="vrqFilters" role="group" aria-label="Filter requests">
         <button type="button" data-f="open" class="on" aria-pressed="true">Open</button>
+        <button type="button" data-f="offers" aria-pressed="false">Prices to approve</button>
         <button type="button" data-f="review" aria-pressed="false">Invoices to review</button>
         <button type="button" data-f="unpaid" aria-pressed="false">Unpaid</button>
         <button type="button" data-f="closed" aria-pressed="false">Declined &amp; closed</button>
@@ -171,9 +172,9 @@
 <script src="phone-input.js?v=9"></script>
 <script src="form-validate.js?v=6"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
-<script src="page-tours.js?v=79"></script>
-<script src="tour.js?v=93"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script>
+<script src="page-tours.js?v=84"></script>
+<script src="tour.js?v=98"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -393,7 +394,7 @@
   });
 </script>
 <script src="delivery-tracker.js?v=3"></script>
-<script src="vendor-requests-ui.js?v=3"></script>
+<script src="/vendor-items.js?v=1"></script><script src="/vendor-flow.js?v=1"></script><script src="vendor-requests-ui.js?v=4"></script>
 <script src="saved-filters.js?v=6"></script>
 </body>
 </html>

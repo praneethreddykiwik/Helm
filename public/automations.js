@@ -88,6 +88,9 @@
       { key: "vendor_reminders", group: "outside", name: "Vendor request reminders", sends: ["vendors"], how: "E-mail / WhatsApp",
         what: "Reminds a vendor 24 and 48 hours after a request they have not answered yet.",
         ask: "This will e-mail (or WhatsApp) your vendors again when they have not answered a request." },
+      { key: "vendor_invoice_ask", group: "outside", name: "Please send your invoice", sends: ["vendors"], how: "E-mail",
+        what: "Asks a confirmed vendor for their invoice at 10:00 the day after the event, and again 3 and 7 days later. Stops when the invoice is in.",
+        ask: "This will e-mail your confirmed vendors after each event and ask for their invoice." },
       { key: "delivery", group: "outside", name: "Delivery & arrival reminders", sends: ["vendors", "crew"], how: "E-mail · event chat · bell",
         what: "Reminds a vendor or staff member before a delivery or arrival is due, and tracks their reply.", hash: "#notifications",
         ask: "This will e-mail your vendors and staff before each delivery or arrival is due.",
@@ -143,7 +146,7 @@
       var d = it.detail && ov ? it.detail(ov.details || {}) : "";
       det.textContent = d || ""; det.hidden = !d;
       if (it.always) { st.textContent = "Always on"; st.className = "au-state au-on"; sw.hidden = true; return; }
-      if (!ov) { st.textContent = "Not set up yet"; st.className = "au-state au-na"; sw.hidden = true; row.classList.add("au-dim"); return; }
+      if (!ov || (it.key === "vendor_invoice_ask" && ov.on && !(it.key in ov.on))) { st.textContent = "Not set up yet"; st.className = "au-state au-na"; sw.hidden = true; row.classList.add("au-dim"); return; }
       row.classList.remove("au-dim");
       st.textContent = on ? "On" : "Off"; st.className = "au-state " + (on ? "au-on" : "au-off");
       sw.hidden = false; sw.checked = on; sw.disabled = !state.canEdit;

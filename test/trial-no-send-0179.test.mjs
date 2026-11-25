@@ -33,7 +33,7 @@ t('edge guard: service-role rpc, literal true, table fallback on status, fail cl
 });
 t('edge functions ask before any real send', () => {
   const otp = read('supabase/functions/send-otp/index.ts');
-  assert.equal((otp.match(/await trialSendBlocked\(admin, \{ token \}\)/g) || []).length, 2, 'SMS + WhatsApp/e-mail paths');
+  assert.equal((otp.match(/await trialSendBlocked\(admin, \{ token \}\)/g) || []).length, 3, 'SMS + WhatsApp/e-mail + payment code (R258) paths');
   assert.ok(otp.indexOf('trialSendBlocked(admin, { token })') < otp.indexOf('admin.rpc("admin_store_otp"'), 'before a code is stored');
   const cm = read('supabase/functions/client-mailer/index.ts');
   assert.ok(cm.indexOf('trialSendBlocked(admin') > 0 && cm.indexOf('trialSendBlocked(admin') < cm.indexOf('await sendMail('));

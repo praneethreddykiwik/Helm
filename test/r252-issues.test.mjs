@@ -41,7 +41,7 @@ function world(o = {}) {
     ops: { listCrew: async () => [{ id: 'c1', name: 'Asha Rao', phone: '+919800000001', email: 'a@x.test' }, { id: 'c2', name: 'Ravi Kumar', phone: '' }], listTasks: W('listTasks', () => tasks.slice()),
       assignTasks: W('assignTasks', (q, c, ti, id, n) => { tasks.push({ id: 'n' + tasks.length, category: c, title: ti[0], crew_id: id, assignee_name: n, status: 'assigned' }); }),
       assignTasksVendor: W('assignTasksVendor', (q, c, ti, id) => { tasks.push({ id: 'n' + tasks.length, category: c, title: ti[0], vendor_id: id, status: 'assigned' }); }),
-      setSchedule: W('setSchedule'), planLock: { get: async () => ({ locked: !!o.locked }) } } };
+      setSchedule: W('setSchedule'), planLock: { get: async () => ({ locked: !!o.locked, stage: o.stage || 'event_day' }) } } };
   const win = { document: DOC, BPStore: store, BPUI: { friendlyError: (e, x) => 'Couldn’t ' + x.action + '.', confirm: async () => o.confirm !== false } };
   vm.runInNewContext(JS, { window: win, Date, Math, Number, String, Object, Array, JSON, isFinite, Promise });
   return { IA: win.HelmIssueAssign, calls, tasks, host: new El('div'), n: (k) => calls.filter((c) => c[0] === k).length };
@@ -95,9 +95,9 @@ await t('2e the issue stays saved when the task fails, has no phone, or is stopp
   const w = world({ fail: 'setSchedule' }), r = await w.IA.giveTask('q1', 'G', { kind: 'staff', id: 'c1', name: 'Asha Rao' }); assert.ok(r.ok); assert.match(r.msg, /start time could not be saved/);
   const w2 = world({ fail: 'listTasks' }), r2 = await w2.IA.giveTask('q1', 'G', { kind: 'staff', id: 'c1', name: 'Asha Rao' }); assert.equal(r2.ok, false); assert.equal(w2.n('assignTasks'), 0, 'unknown list = no task');
 });
-await t('2f the tick only with Add & assign and an unlocked plan, only for staff / vendor picks', async () => {
+await t('2f the tick only with Add & assign and an event that is not closed, only for staff / vendor picks', async () => {
   let w = world({ canTask: false }); w.IA.list(w.host, opts(w)); await choose(w, 'h', 'staff:c1'); assert.equal(w.host.querySelector('.hia-task').hidden, true);
-  w = world({ locked: true }); w.IA.list(w.host, opts(w)); let c = await choose(w, 'h', 'staff:c1'); assert.equal(c.chk.disabled, true); c.chk.checked = true; c.form.fire('submit'); await tick(); assert.equal(w.n('assignTasks'), 0); assert.equal(w.n('setOwner'), 1);
+  w = world({ locked: true, stage: 'closed' }); w.IA.list(w.host, opts(w)); let c = await choose(w, 'h', 'staff:c1'); assert.equal(c.chk.disabled, true); c.chk.checked = true; c.form.fire('submit'); await tick(); assert.equal(w.n('assignTasks'), 0); assert.equal(w.n('setOwner'), 1);
   w = world(); w.IA.list(w.host, opts(w)); c = await choose(w, 'h', 'other'); assert.equal(w.host.querySelector('.hia-task').hidden, true);
 });
 await t('2g people: a group this person may not read is left out; nothing readable = a typed name; an empty answer offers Try again', async () => {
@@ -119,10 +119,10 @@ await t('3a setOwner: the owner column only, trimmed, a refusal is said', () => 
 await t('3b Tasks & Crew, monitor and issues.html use the same parts; Pre-event and On the event; one filled button per step', () => {
   for (const s of [BRD, MON, ISS]) { assert.match(s, /\.picker\(\{/); assert.match(s, /IA\.list\(/); assert.match(s, /\.withTask\(/); }
   assert.match(MON, /function issStep\(\) \{ return S\.win === "onday" \|\| S\.win === "pre"; \}/); assert.match(BRD, /function issStep\(\) \{ return true; \}/);   // R253: every step, beside Latest
-  assert.match(BRD, /TAIL = \["tcIssues", "tcActCard", "tcCrewCard", "shiftCard", "tcPlanRem"\]/); assert.match(BRD, /concat\(TAIL, \["tcPreDone"\]\)/);
+  assert.match(BRD, /TAIL = \["tcActCard", "tcCrewCard", "shiftCard", "tcPlanRem"\]/); assert.match(BRD, /concat\(TAIL, \["tcPreDone"\]\)/);
   assert.match(BRD, /\(main \? " tc-primary" : ""\), id: "tcLogIssue"/); assert.match(BRD, /if \(go\.disabled\) return;/);
   for (const p of ['public/ops.html', 'public/monitor.html', 'public/issues.html']) { const h = read(p); assert.match(h, /href="\/issue-assign\.css\?v=\d+"/); assert.match(h, /src="\/issue-assign\.js\?v=\d+"/); }
-  assert.match(MON, /readiness\(S\.tasks\)\.need\.filter\(function \(t\) \{ return !inDayCard\(t\); \}\)/);
+  assert.match(MON, /rr\.need\.filter\(function \(t\) \{ return !inDayCard\(t\); \}\)/);
 });
 await t('3c issues.html: chips, Back to the page you came from (two names only, built here)', () => {
   for (const f of ['data-f=""', 'data-f="none"', 'data-f="high"']) assert.ok(ISS.includes(f));

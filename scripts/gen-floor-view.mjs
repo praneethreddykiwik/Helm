@@ -4,8 +4,8 @@
  *   node scripts/gen-floor-view.mjs          rewrite public/floor-draw.js and public/floor-3d.js
  *   node scripts/gen-floor-view.mjs --check  exit 1 if one of them is stale (CI + test/r253-layout-viewer.test.mjs)
  *
- * public/floor-draw.js  the 2D drawing functions of public/builder.js (renderItem and what it needs, the grid, the margins,
- *                       the item clean-up) cut out WORD FOR WORD, plus the planner's light colours from builder.css.
+ * public/floor-draw.js  the 2D drawing functions of public/builder.js (renderItem and what it needs, the grid, the item
+ *                       clean-up; R255: not the usable-area guide lines) cut out WORD FOR WORD, plus the planner's light colours from builder.css.
  * public/floor-3d.js    public/builder-3d.js word for word inside a function, with the planner's globals passed in
  *                       (read-only: nothing can be edited or saved), plus the flowers-per-event-type rule of layout-wizard.js.
  *
@@ -63,7 +63,7 @@ export function floorDraw() {
   const parts = [
     konst(b, 'PX_PER_FT'), konst(b, 'DEFAULT_WORLD'), konst(b, 'FT_PER_M'), konst(b, 'CATS'), konst(b, 'ASSETS'),
     konst(b, 'HEXRE'), konst(b, 'MAX_ITEMS'), konst(b, 'clamp'), konst(b, 'round1'), konst(b, 'COMFORT_PITCH'), konst(b, 'CONG_COLORS'), konst(b, 'SVGNS'),
-    fn(b, 'seatPitchFt'), fn(b, 'congestionOf'), fn(b, 'cellFt'), fn(b, 'el'), fn(b, 'renderMargins'), fn(b, 'drawOrder2D'),
+    fn(b, 'seatPitchFt'), fn(b, 'congestionOf'), fn(b, 'cellFt'), fn(b, 'el'), fn(b, 'drawOrder2D'),
     fn(b, 'screenContent'), fn(b, 'screenPlaceholderOn'), fn(b, 'fitChars'), fn(b, 'screenText2D'), fn(b, 'screenPlaceholder2D'), fn(b, 'screenLogo2D'), fn(b, 'screenPic2D'),
     fn(b, 'screenBand2D'), fn(b, 'screenFace2D'), konst(b, 'STAGE_STEPS'), fn(b, 'stageStepOffsets'), fn(b, 'stairStepCount'), fn(b, 'renderItem'),
     fn(b, 'clampItem'), fn(b, 'sanitizeItem'), fn(b, 'dedupeIds'), fn(b, 'sanitizeMargins')
@@ -114,7 +114,6 @@ function svgOf(plan, o) {
   svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'fv-plan', preserveAspectRatio: 'xMidYMid meet' });
   drawGrid();
   drawOrder2D(store.items).forEach(it=> svg.appendChild(renderItem(it)));
-  renderMargins();
   const out = svg; svg = null;
   // self-contained colours + label type, so no page rule (svg text, a theme) can change the plan
   Object.keys(PALETTE).forEach((k) => out.style.setProperty(k, PALETTE[k])); out.style.setProperty('--c-logistics', C_LIGHT.logistics);

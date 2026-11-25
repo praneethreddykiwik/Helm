@@ -93,7 +93,7 @@ t('prod checker: no override note has a semicolon or "into <word>" (the Supabase
 t('real order (0402 already on staging / production): a run-all suite pastes APPLY-0401 after APPLY-0402 and re-checks 0402', () => {
   const RA = read('scripts/db-test/run-all.sh'), SH = read('tests/db/r235-order-after-0402.sh');
   assert.match(RA, /run "r235-order-after-0402" "R235-ORDER-AFTER-0402: PASS" bash tests\/db\/r235-order-after-0402\.sh/);
-  assert.match(SH, /case "\$path" in \*0401_r235_db_load\.sql(?:\|\*0438_r254_\*)?\) continue;; esac/);
+  assert.match(SH, /case "\$path" in \*0401_r235_db_load\.sql(?:\|\*0438_r254_\*)?(?:\|\*0445_r258_\*)?\) continue;; esac/);
   assert.match(SH, /SET statement_timeout = 200ms runs 600 ms to the end/);
   assert.match(APPLY, /After APPLY-0402 is fine/);
 });

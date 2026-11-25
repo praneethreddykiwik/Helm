@@ -5,6 +5,7 @@
  *                                                    its lines sit EXACTLY on the 2D grid (hall origin = top-left)
  *   HelmBuilderTools.offsets(box, world)          → X/Y offsets of an object from the origin, every wall and
  *                                                    the hall's centre axes (measure tool)
+ *   HelmBuilderTools.freeSpot(items, world, w, h, centre, { step }) → the nearest free spot for a new item (R255)
  *   HelmBuilderTools.searchAssets(q, assets, cats, opts) → ranked fuzzy matches (name / category / tags)
  *   HelmBuilderTools.eventSuggestions(eventType, assets)  → asset types that suit the event type
  *   HelmBuilderTools.normPriceDisplay(x)          → { hidden, manualAmount } (hide-price mode, sanitised)
@@ -170,7 +171,52 @@
     return floor.map((x) => x.it).concat(rest.map((x) => x.it));
   }
 
-  const API = { snapTo, gridAlign, offsets, fuzzyScore, searchAssets, eventSuggestions, normPriceDisplay, isFloorCover, drawOrder, TAGS };
+  /* ---------------- R255: where a clicked tool lands ----------------
+     The free spot nearest to `c` (ft, what the planner is looking at) for a w x h item: inside the hall, on the grid,
+     off every other item (1 ft apart when there is room, else edge to edge). A floor covering spread over half the hall
+     is not an obstacle. Nothing on the floor is moved. → { x, y, free } (free:false = nowhere big enough is left). */
+  function freeSpot(items, world, w, h, c, opts) {
+    opts = opts || {};
+    const W = Math.max(1, +world.w || 0), H = Math.max(1, +world.h || 0), step = opts.step > 0 ? +opts.step : 1;
+    w = Math.min(Math.max(0.1, +w || 1), W); h = Math.min(Math.max(0.1, +h || 1), H);
+    const cl = (v, lo, hi) => Math.min(hi, Math.max(lo, v)), E = 1e-6, r4 = (v) => Math.round(v * 1e4) / 1e4;
+    const ax = cl((+c.x || 0) - w / 2, 0, W - w), ay = cl((+c.y || 0) - h / 2, 0, H - h);          // dead centre
+    const boxes = (Array.isArray(items) ? items : []).filter((it) => it && +it.width > 0 && +it.height > 0 && isFinite(it.x) && isFinite(it.y) && footprint(it) < 0.5 * W * H).map((it) => {
+      const a = ((+it.rotation || 0) % 180) * Math.PI / 180, cs = Math.abs(Math.cos(a)), sn = Math.abs(Math.sin(a));
+      const hw = (it.width * cs + it.height * sn) / 2, hh = (it.width * sn + it.height * cs) / 2, cx = +it.x + it.width / 2, cy = +it.y + it.height / 2;
+      return [cx - hw, cy - hh, cx + hw, cy + hh];
+    });
+    const GW = Math.ceil(W), GH = Math.ceil(H), R = GW + 1;
+    function search(gap) {
+      const sum = new Int32Array(R * (GH + 1));                          // 1 ft cells → summed-area table, so every try is 4 reads
+      boxes.forEach((b) => {
+        const x0 = cl(Math.floor(b[0] - gap + E), 0, GW), x1 = cl(Math.ceil(b[2] + gap - E), 0, GW), y0 = cl(Math.floor(b[1] - gap + E), 0, GH), y1 = cl(Math.ceil(b[3] + gap - E), 0, GH);
+        for (let y = y0; y < y1; y++) sum.fill(1, (y + 1) * R + x0 + 1, (y + 1) * R + x1 + 1);
+      });
+      for (let y = 1; y <= GH; y++) for (let x = 1; x <= GW; x++) sum[y * R + x] += sum[y * R + x - 1] + sum[(y - 1) * R + x] - sum[(y - 1) * R + x - 1];
+      const free = (x, y) => {
+        const x0 = Math.floor(x + E), x1 = Math.min(GW, Math.ceil(x + w - E)), y0 = Math.floor(y + E), y1 = Math.min(GH, Math.ceil(y + h - E));
+        return sum[y1 * R + x1] - sum[y0 * R + x1] - sum[y1 * R + x0] + sum[y0 * R + x0] === 0;
+      };
+      const i0 = Math.round(ax / step), j0 = Math.round(ay / step), maxR = Math.ceil(Math.max(W, H) / step) + 1;
+      let best = null, bestD = Infinity;
+      const tryAt = (i, j) => {
+        const x = i * step, y = j * step; if (x < -E || y < -E || x + w > W + E || y + h > H + E) return;
+        const d = Math.hypot(x - ax, y - ay); if (d < bestD - E && free(x, y)) { best = { x: r4(x), y: r4(y), free: true }; bestD = d; }
+      };
+      for (let r = 0; r <= maxR && (r - 1) * step <= bestD; r++) {        // rings around the centre, nearest first
+        if (!r) { tryAt(i0, j0); continue; }
+        for (let k = -r; k <= r; k++) { tryAt(i0 + r, j0 + k); tryAt(i0 - r, j0 + k); if (k > -r && k < r) { tryAt(i0 + k, j0 + r); tryAt(i0 + k, j0 - r); } }
+      }
+      return best;
+    }
+    const hit = search(1) || search(0); if (hit) return hit;
+    // the hall is full: the middle of the view, a small step down-right per item already lying on that exact spot
+    let x = cl(Math.round(ax / step) * step, 0, W - w), y = cl(Math.round(ay / step) * step, 0, H - h);
+    for (let n = 0; n < 12 && (Array.isArray(items) ? items : []).some((it) => it && Math.abs(it.x - x) < 0.5 && Math.abs(it.y - y) < 0.5); n++) { x = cl(x + 2 * step, 0, W - w); y = cl(y + 2 * step, 0, H - h); }
+    return { x: r4(x), y: r4(y), free: false };
+  }
+  const API = { snapTo, gridAlign, offsets, fuzzyScore, searchAssets, eventSuggestions, normPriceDisplay, isFloorCover, drawOrder, freeSpot, TAGS };
   G.HelmBuilderTools = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (!G.document) return;

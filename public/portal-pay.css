@@ -1,0 +1,28 @@
+/* portal-pay.css - R258 (0445): the client's "Pay this payment" step (portal-pay.js) on the client portal and the approval page */
+.cp{display:grid;gap:12px;margin-top:14px;text-align:left}
+.cp[hidden]{display:none}
+.cp-card{padding:16px;border:1px solid var(--accent,#047857);border-radius:14px;background:var(--panel,#fff);min-width:0}
+.cp-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.cp-t{font-size:16px;margin:0;color:var(--ink,#1b1930);overflow-wrap:anywhere}
+.cp-amt{font-size:20px;color:var(--ink,#1b1930);font-variant-numeric:tabular-nums}
+.cp-sub{margin:2px 0 12px;font-size:13.5px;color:var(--ink-2,#4b475f)}
+.cp-p{margin:0 0 10px;font-size:14px;line-height:1.5;color:var(--ink-2,#4b475f)}
+.cp-ok{margin:0;padding:10px 12px;border-radius:10px;background:var(--accent-soft,#e3f4ed);color:var(--ink,#1b1930);font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.cp-btn{min-height:44px;padding:10px 16px;border:1px solid var(--line,#e8e3db);border-radius:12px;background:var(--panel,#fff);color:var(--ink,#1b1930);font:600 14px/1.2 var(--font,system-ui,sans-serif);cursor:pointer;max-width:100%;overflow-wrap:anywhere}
+.cp-btn[hidden]{display:none}
+.cp-btn.primary{background:var(--accent,#047857);border-color:var(--accent,#047857);color:#fff}
+.cp-btn.sm{padding:8px 12px;font-size:13px}
+.cp-btn:disabled{opacity:.6;cursor:default}
+.cp-btn:focus-visible,.cp-in:focus-visible{outline:2px solid var(--accent,#047857);outline-offset:2px}
+.cp-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.cp-l{display:block;margin:0 0 4px;font-size:13px;font-weight:600;color:var(--ink-2,#4b475f)}
+.cp-in{width:100%;min-height:44px;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line,#e8e3db);border-radius:10px;background:var(--panel,#fff);color:var(--ink,#1b1930);font:500 16px/1.2 var(--font,system-ui,sans-serif)}
+.cp-in[aria-invalid="true"]{border-color:var(--danger,#c0392b)}
+.cp-how{margin:0 0 12px;padding:12px 14px;border:1px solid var(--line,#e8e3db);border-radius:12px;background:var(--panel-2,#faf8f5);font-size:14px;color:var(--ink,#1b1930)}
+.cp-upi{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:6px}
+.cp-upi-v{font-weight:700;overflow-wrap:anywhere;user-select:all}
+.cp-note{margin:6px 0 0;white-space:pre-line;overflow-wrap:anywhere}
+.cp-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end}
+.cp-msg{margin:10px 0 0;font-size:13.5px;color:var(--ink-2,#4b475f);min-height:0}
+.cp-msg:empty{display:none}
+.cp-msg.is-bad{color:var(--danger,#b42318)}

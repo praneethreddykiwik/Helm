@@ -105,7 +105,7 @@ await t('r19: every "New quote" opens the flow directly (startBlank, no ask); a 
   for (const [f, src] of [['quotes.html', q], ['dashboard.html', d]]) assert.match(src, /<script src="new-quote-dialog\.js\?v=\d+"><\/script>/, f);
   assert.ok(!/startBlank\(/.test(read('public/getting-started.js')), 'checklist never creates by itself');
   // the dashboard card + In progress tab stay
-  assert.match(q, /get\("view"\)==="inprogress"/); assert.match(d, /flow-resume\.js\?v=\d+" data-mount/);
+  assert.match(q, /v=qs\.get\("view"\)\|\|""/); assert.match(q, /const Q_TABS=\["all","inprogress",/); assert.match(d, /flow-resume\.js\?v=\d+" data-mount/);
 });
 
 await t('8: ?new=1 only starts a quote with a consumed nonce; the checklist link arms it', () => {

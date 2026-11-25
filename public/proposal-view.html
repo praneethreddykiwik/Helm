@@ -50,7 +50,7 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="wrap">
   <header>
-    <div class="mark"></div><div><b>Helm Events</b><small>Event Proposal</small></div>
+    <div class="mark"></div><div><b>Your event planner</b><small>Event Proposal</small></div>
   </header>
 
   <main id="main">
@@ -71,7 +71,7 @@
     <div class="sec" id="scopeSec" hidden><h2>What's included</h2><ul class="scope" id="scope"></ul></div>
     <div class="sec" id="priceSec" hidden><h2>Investment</h2>
       <div class="table-scroll"><table class="s-31655b4" id="priceRows"><caption class="sr-only">Price breakdown</caption></table></div></div>
-    <div class="foot">This is a proposal for discussion — details may evolve. Prepared by your Helm Events planner.</div>
+    <div class="foot">This is a proposal for discussion — details may evolve. Prepared by your event planner. Powered by Helm Events.</div>
   </div>
   </main>
 </div>
@@ -81,7 +81,7 @@
 <script src="/telemetry.js?v=14"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=32"></script><script src="/trial-sim.js?v=3" data-trial-sim="proposal"></script>
+<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=37"></script><script src="/trial-sim.js?v=3" data-trial-sim="proposal"></script>
 <script>
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const LINK=BPStore.links.parse("proposal");   // branded /<studio>/proposal/<token> (server-verified below)
@@ -107,6 +107,7 @@
       $("#loadErr").hidden=false; BPUI.loadError($("#loadErr"), e, load, {what:"your proposal"}); return; }
     if(!p){ $("#loading").hidden=true; $("#error").hidden=false; return; }
     $("#loading").hidden=true; $("#doc").hidden=false;
+    if(p.studio && BPStore.paintStudio) BPStore.paintStudio(p.studio);   // 0443
     $("#theme").textContent = p.theme || p.event_title || "Your event";
     $("#kick").textContent = (p.event_type ? p.event_type+" · " : "") + "Proposal";
     $("#for").textContent = [p.client_name?("For "+p.client_name):"", p.event_code].filter(Boolean).join(" · ");

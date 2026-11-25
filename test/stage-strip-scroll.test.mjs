@@ -105,7 +105,7 @@ t('advance: an advance already in reads "Advance recorded ₹X — record anothe
 });
 
 t('pins: event.html loads event-polish.css v3', () => {
-  assert.match(EV, /href="\/event-polish\.css\?v=9"/);
+  assert.match(EV, /href="\/event-polish\.css\?v=10"/);
 });
 
 let pass = 0, fail = 0;

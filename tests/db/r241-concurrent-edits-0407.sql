@@ -156,6 +156,10 @@ select pg_temp.res('14 after the refusals: still exactly V1..V7',
 -- ---- 4) the 0397 plan lock still refuses ------------------------------------------------------------------------------------
 update public.quotes set status = 'confirmed', confirmed_at = now(), event_date = current_date + 10 where id = 'a0000000-0000-4000-8000-00000000da01';
 select set_config('helm.r397_plan_lock', 'on', false);
+-- 0442 (R257) removed the event-day lock: this check runs with its one-line switch on (rolled back with the suite)
+create or replace function public._r442_lock_on() returns boolean language sql stable set search_path = '' as 'select true';
+-- 0441 (R256) took the floor plan out of the lock; its one-line undo puts it back, so this check runs with it (rolled back with the suite)
+create or replace function public._r441_floor_in_lock() returns boolean language sql stable set search_path = '' as 'select true';
 select pg_temp.login('a_admin@a.test');
 select pg_temp.put('lk', pg_temp.try($q$select public.event_plan_lock_set('a0000000-0000-4000-8000-00000000da01', true, 'Final plan signed off')$q$));
 select pg_temp.res('15 a locked plan: the checked save (base = latest) and "save mine as new" are refused (plan_locked)',

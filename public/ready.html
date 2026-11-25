@@ -61,16 +61,18 @@
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
   /* R251 / R252: the same parts as "Day before" on Tasks & Crew / the monitor */
   .card .rd-h,#rdDay .ep-part-t{margin:10px 0 0;font-size:16px;font-weight:700} .rd-h .tc-n{margin-left:6px;background:var(--tc-wait-bg);color:var(--tc-wait)} .rd-h .tc-n.ok{background:var(--tc-acc);color:#fff} .rd-hint{margin:2px 0 4px;font-size:12.5px;color:var(--ink-3)}
+  .rd-need ul{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:8px} .rd-need li{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--line);border-radius:10px}
+  .rd-need li span{flex:1 1 220px;min-width:0;font-size:13px;overflow-wrap:anywhere} .rd-need li .btn{min-height:44px;text-decoration:none} .rd-need .rd-hint a{text-decoration:underline}
   #rdDay{padding:16px 18px 18px}
 </style>
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="ops-board.css?v=9">
+<link rel="stylesheet" href="ops-board.css?v=11">
 <link rel="stylesheet" href="event-plan.css?v=3">
-<link rel="stylesheet" href="day-before.css?v=1">
+<link rel="stylesheet" href="day-before.css?v=2">
 <link rel="stylesheet" href="/stock-vendor.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -95,6 +97,8 @@
       <div><h2 id="heroTitle">Checking readiness…</h2><p id="heroSub"></p></div>
       <button type="button" class="btn go" id="markBtn" hidden>Mark Event Ready →</button>
     </div>
+    <!-- R255: the stage move was refused: what is missing, each with its own button -->
+    <section class="card rd-need" id="rdNeed" role="status" tabindex="-1" aria-labelledby="rdNeedH" hidden><h3 class="rd-h tc" id="rdNeedH"></h3><ul id="rdNeedL"></ul><p class="rd-hint" id="rdNeedF"></p></section>
     <section class="card" aria-labelledby="rdBooked">
       <h3 class="rd-h tc" id="rdBooked">1 · Booked and planned <span class="tc-n" id="rdBookedN" hidden></span></h3>
       <p class="rd-hint">Helm checks these from the plan. Dry run and team briefing are marked by hand.</p>
@@ -122,18 +126,19 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
-<script src="task-status.js?v=7"></script>
-<script src="/task-clash.js?v=1"></script>
-<script src="event-plan.js?v=7"></script>
-<script src="day-before.js?v=2"></script>
-<script src="/stock-vendor.js?v=1"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script>
+<script src="task-status.js?v=8"></script>
+<script src="/task-clash.js?v=2"></script>
+<script src="event-plan.js?v=8"></script>
+<script src="day-before.js?v=5"></script>
+<script src="/stock-vendor.js?v=3"></script>
+<script src="/stage-needs.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   let canEdit=false, ev=null, r=null;
-  const LINKS={ approval:"quotes.html", menu:"plan.html?quote=", resources:"resources.html?quote=", vendors:"resources.html?quote=",
+  const LINKS={ approval:"quotes.html", layout:"builder.html?quote=", menu:"plan.html?quote=", resources:"resources.html?quote=", vendors:"resources.html?quote=",
     staff:"ops.html?quote=", runsheet:"runsheet.html?quote=", payments:"logistics.html?quote=", date:"event.html?id=" };
 
   async function renderAccount(){ const el=$("#account"); if(!BPStore.auth.enabled()){el.hidden=true;return;} el.hidden=false;
@@ -182,10 +187,37 @@
   async function markReady(){
     if(!(await BPUI.confirm("Mark this event ready? It moves the event to the Ready stage for the team.",{title:"Mark event ready?",okLabel:"Mark ready"}))) return;
     await BPUI.guard($("#markBtn"),async()=>{
-      try{ await BPStore.readiness.markReady(id); ev.lifecycleStage="ready"; BPUI.toast("Event marked ready.",{type:"ok"}); }
-      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"mark the event ready"}),{type:"err"}); }
+      try{ await BPStore.readiness.markReady(id); ev.lifecycleStage="ready"; $("#rdNeed").hidden=true; BPUI.toast("Event marked ready.",{type:"ok"}); }
+      catch(e){ const g=window.HelmStageNeeds?HelmStageNeeds.fromError(e):null; if(g){ await showNeeds(g); return; } BPUI.toast(BPUI.friendlyError(e,{action:"mark the event ready"}),{type:"err"}); }
     });
     render();
+  }
+
+  // R255: the server refused the move (0198): the same list as the workspace's stage panel instead of a bare error
+  async function showNeeds(gates){
+    const box=$("#rdNeed"), ul=$("#rdNeedL"), eh="event.html?id="+encodeURIComponent(id), up=(h)=>window.HelmUrl&&HelmUrl.upgrade?HelmUrl.upgrade(h):h;
+    const [plan,dishes,mayPlan,role]=await Promise.all([BPStore.plan.get(id).catch(()=>null),BPStore.eventMenu.list(id).catch(()=>[]),BPStore.auth.canEditArea("plan").catch(()=>false),Promise.resolve(BPStore.auth.role()).catch(()=>"")]);
+    const d=String(ev.eventDate||"").slice(0,10), p=plan||{};
+    const list=gates.flatMap(g=>HelmStageNeeds.list(g,{id,code:ev.code,date:d,dateText:BPStore.fmtDateIN?BPStore.fmtDateIN(d):d,plan:p,chosen:!!(p.package||p.menu_template||p.menu)||(dishes||[]).length>0,stale:gates.some(x=>x&&x.stale),canEditPlan:mayPlan===true,label:"Ready"}));
+    $("#rdNeedH").textContent=list.length?"Ready needs "+(list.length===1?"one thing":list.length+" things")+" first":"Nothing is missing now";
+    ul.replaceChildren(...list.map(n=>{ const li=document.createElement("li"), t=document.createElement("span"); t.textContent=n.text; li.appendChild(t);
+      if(n.label){ const href=n.href||(n.act==="price"||n.act==="date"?eh:""), b=document.createElement(href?"a":"button"); b.className="btn"+(n.quiet?"":" primary"); b.textContent=n.label;
+        if(href) b.href=up(href); else { b.type="button"; b.addEventListener("click",()=>n.act==="lock"?lockMenu(b):BPUI.guard(b,checkNeeds)); } li.appendChild(b); }
+      return li; }));
+    const f=$("#rdNeedF"); f.replaceChildren();
+    if(!list.length) f.textContent="Press Mark Event Ready.";
+    else if(role==="admin" && !gates.some(g=>g&&(g.stale||g.hard))){ const a=document.createElement("a"); a.href=up(eh); a.textContent="event workspace"; f.append("An admin can skip this check with a reason in the ",a," (stage Ready)."); }
+    box.hidden=false; try{ box.focus({preventScroll:true}); box.scrollIntoView({block:"nearest"}); }catch(_){}
+  }
+  async function checkNeeds(){
+    try{ const g=await BPStore.quotes.stageBlockers(id,"ready"); if(!Array.isArray(g)) throw new Error("Could not check this now. Try Mark Event Ready again."); await showNeeds(g); }
+    catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"check what is missing"}),{type:"err"}); }
+  }
+  async function lockMenu(b){
+    if(!(await BPUI.confirm("Locking fixes this event's package and dishes, so the quote is priced on them. You can unlock it later in Venue & menu details.",{title:"Lock the menu?",okLabel:"Lock menu"}))) return;
+    await BPUI.guard(b,async()=>{ try{ await BPStore.plan.setLock(id,true); BPUI.toast("Menu locked.",{type:"ok"}); }
+      catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"lock the menu"}),{type:"err"}); return; }
+      await load(); await checkNeeds(); },{busyLabel:"Locking…"});
   }
 
   // R251 / R252: the other parts of the Day-before checklist. null (database without 0396, or not allowed) = the part stays hidden.
@@ -194,12 +226,11 @@
     let plan=null; try{ plan=await api.get(id); }catch(e){ plan=null; }
     if(!plan){ if(!host.firstChild) host.hidden=true; return; }
     let tz="Asia/Kolkata"; try{ tz=BPStore.studioTimezone(); }catch(e){}
-    // who has which line (Staff view) and the plan lock (0397): no answer = no task state, no lock shown
-    let tasks=null, lock=null;
-    try{ [tasks,lock]=await Promise.all([ (await BPStore.auth.canView("staff"))===true?BPStore.ops.listTasks(id).catch(()=>null):null,
-      BPStore.ops.planLock&&BPStore.ops.planLock.get?BPStore.ops.planLock.get(id).catch(()=>null):null ]); }catch(e){}
+    // who has which line (Staff view): no answer = no task state
+    let tasks=null;
+    try{ tasks=(await BPStore.auth.canView("staff"))===true?await BPStore.ops.listTasks(id).catch(()=>null):null; }catch(e){}
     host.hidden=false;
-    EP.renderDayBefore(host,{ noReady:true, plan, tasks, locked:!!(lock&&lock.locked), quoteId:id, eventDate:String(ev.eventDate||"").slice(0,10), eventTime:String(ev.eventTime||"").trim(), tz, now:Date.now(),
+    EP.renderDayBefore(host,{ noReady:true, plan, tasks, closed:ev.lifecycleStage==="closed", quoteId:id, eventDate:String(ev.eventDate||"").slice(0,10), eventTime:String(ev.eventTime||"").trim(), tz, now:Date.now(),
       toast:(m,t)=>BPUI.toast(m,{type:t==="err"?"err":"ok"}), onChanged:loadDay, onData:load });
   }
 

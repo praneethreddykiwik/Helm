@@ -12,6 +12,8 @@
 // (with --ref, the same measurement for that commit's files too, for a before / after comparison).
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+const HelmPager = createRequire(import.meta.url)('../public/pager.js');   // R258: the real list behind the Quotes pager
 
 export const TRIP_MS = 60;
 const QID = '11111111-2222-4333-8444-555555555555';
@@ -84,7 +86,7 @@ function makeDom(now, marks) {
 }
 
 // ---------- the mocked BPStore ----------
-function makeStore({ trip, log, fail, role, warm }) {
+function makeStore({ trip, log, fail, role, warm, oldDb }) {
   const calls = [];
   // one database read: resolves (or fails) after n trips
   const db = (path, n, value) => (...args) => {
@@ -131,6 +133,8 @@ function makeStore({ trip, log, fail, role, warm }) {
       get: db('quotes.get', 2, q),
       getVersion: db('quotes.getVersion', 1, (id, n) => ({ versionNo: n, data: { items: [{ type: 'chair' }] } })),
       page: db('quotes.page', 1, { rows, hasMore: false, offset: 0 }),
+      // R258 (0446): one page of 10 + the total; oldDb = a database without it (no such function -> null, remembered)
+      pageNo: (...a) => (oldDb ? Promise.resolve(null) : db('quotes.pageNo', 1, { rows, total: 1, page: 1, size: 10, counts: { all: 1, cancelled: 0, archived: 0, deleted: 0, deleted_empty: 0 } })(...a)),
       counts: db('quotes.counts', 1, { quote: 1, confirmed: 0, cancelled: 0, total: 1 }),
       nextCodeFor: db('quotes.nextCodeFor', 1, 'Q-0002'), nextCode: () => 'Q-0002', isArchived: () => false,
       staleApprovals: db('quotes.staleApprovals', 1, new Set()),
@@ -176,14 +180,14 @@ function makeStore({ trip, log, fail, role, warm }) {
 }
 
 // ---------- run one page ----------
-export async function runPage(page, { ref = null, fail = {}, role = 'admin', trip = TRIP_MS, warm = false } = {}) {
+export async function runPage(page, { ref = null, fail = {}, role = 'admin', trip = TRIP_MS, warm = false, oldDb = false } = {}) {
   const src = pageSource(page, ref);
   const t0 = Date.now(); const now = () => Date.now() - t0;
   const marks = {}, log = [];
   const mark = (k) => { if (!(k in marks)) marks[k] = now(); };
   const dom = makeDom(now, marks);
   log.now = now;
-  const { store, calls } = makeStore({ trip, log, fail, role, warm });
+  const { store, calls } = makeStore({ trip, log, fail, role, warm, oldDb });
   let boot = null, redirected = null;
   const location = { search: page === 'builder' ? '?quote=' + QID : page === 'ops' ? '?quote=' + QID : '', pathname: '/' + page + '.html', hash: '', href: '',
     replace: (u) => { redirected = u; }, reload() {} };
@@ -200,7 +204,8 @@ export async function runPage(page, { ref = null, fail = {}, role = 'admin', tri
     pager: (o) => ({ reset: () => Promise.resolve(o.fetch(0)).then((r) => { mark('rows'); o.render(r.rows, { all: r.rows }); return r; }) }),
   };
   const BPUI = new Proxy(BPUI0, { get: (t, k) => (k in t ? t[k] : (t[k] = U())) });   // other helpers: stand-ins
-  const win = { BPStore: store, BPUI, HelmUrl: null, addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {} }),
+  const env258 = { mount: () => ({ el: null, paint() {} }), list: (o) => HelmPager.list(Object.assign({}, o, { render: (r) => { mark('rows'); o.render(r); } })) };
+  const win = { HelmPager: env258, BPStore: store, BPUI, HelmUrl: null, addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {} }),
     parent: { postMessage() {} }, location };
   const HelmUrl = { get: async (n, fb) => (n === 'quote' ? QID : fb), here: () => page + '.html', upgrade: (h) => h };
   win.HelmUrl = HelmUrl;
@@ -208,7 +213,7 @@ export async function runPage(page, { ref = null, fail = {}, role = 'admin', tri
     createElement: () => dom.el('new:' + Math.random()), documentElement: dom.el('html'), addEventListener() {}, activeElement: null };
   const env = {
     window: new Proxy(win, { get: (t, k) => t[k], has: () => true }), document, location, localStorage: storage, sessionStorage: storage,
-    BPStore: store, BPUI, HelmUrl, history: { replaceState() {} },
+    HelmPager: env258, BPStore: store, BPUI, HelmUrl, history: { replaceState() {} },
     console: { log() {}, info() {}, warn() {}, error() {}, debug() {} },   // the pages' own diagnostics stay quiet
     $: (s) => dom.el(s), __boot: (fn) => { boot = fn; },
     MutationObserver: function () { return { observe() {} }; }, ResizeObserver: undefined, IntersectionObserver: undefined,

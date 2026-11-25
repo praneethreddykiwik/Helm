@@ -43,7 +43,7 @@ test('the dropdown: full, 2, 3, 4, custom, then the studio\'s own; without 0435 
   let m = await mount(data()); assert.deepEqual(m.sel.children.map((o) => o.textContent), ['Full payment', '2 payments', '3 payments', '4 payments', 'Custom', 'Our plan']); assert.equal(m.sel.value, '3');
   assert.match(m.box.textContent, /How will the client pay\?/); assert.deepEqual(m.log, ['preview:builtin:30-50-20'], 'nothing more is asked until someone picks');
   m = await mount(data({ templates: OLD })); const off = m.sel.children.filter((o) => o.disabled); assert.deepEqual(off.map((o) => o.textContent), ['4 payments (needs a database update)', 'Custom (needs a database update)']);
-  assert.equal(m.rows().length, 0, 'nothing to type in'); await m.pick('2'); await m.btn('Add this schedule').fire('click'); await wait(); assert.ok(m.log.includes('apply:builtin:50-50')); assert.ok(!m.log.some((x) => Array.isArray(x)));
+  assert.equal(m.rows().length, 0, 'nothing to type in'); await m.pick('2'); await m.btn('Save payment plan').fire('click'); await wait(); assert.ok(m.log.includes('apply:builtin:50-50')); assert.ok(!m.log.some((x) => Array.isArray(x)));
   for (const [k, c] of [['builtin:100-upfront', 'full'], ['builtin:25-25-25-25', '4'], ['t1', 'tpl:t1'], [null, '3']]) assert.equal(PS.choiceOf(k, NEW), c);
 });
 test('the local four-payment split and the built-ins are the server\'s', () => {
@@ -51,13 +51,13 @@ test('the local four-payment split and the built-ins are the server\'s', () => {
   for (const x of b) assert.deepEqual(PS.linesFor(PS.choiceOf(x.key, b), { templates: b.map((t) => ({ key: t.key, name: t.name })) }, null), x.lines);
 });
 test('an untouched choice = the old apply; a change = apply_custom with the checked lines; nothing is sent while the total is off', async () => {
-  let m = await mount(data()); await m.btn('Add this schedule').fire('click'); await wait(); assert.ok(m.log.includes('apply:builtin:30-50-20'));
-  m = await mount(data()); await m.type('Payment 1: percent', '40'); assert.match(m.total().textContent, /add up to 110% - 10% too much\./); assert.equal(m.btn('Add this schedule').disabled, true);
-  await m.btn('Add this schedule').fire('click'); assert.ok(!m.log.some((x) => Array.isArray(x)));
-  await m.btn('Fit the last payment to 100%').fire('click'); assert.deepEqual(vals(m), ['40', '50', '10']); await m.btn('Add this schedule').fire('click'); await wait();
+  let m = await mount(data()); await m.btn('Save payment plan').fire('click'); await wait(); assert.ok(m.log.includes('apply:builtin:30-50-20'));
+  m = await mount(data()); await m.type('Payment 1: percent', '40'); assert.match(m.total().textContent, /add up to 110% - 10% too much\./); assert.equal(m.btn('Save payment plan').disabled, true);
+  await m.btn('Save payment plan').fire('click'); assert.ok(!m.log.some((x) => Array.isArray(x)));
+  await m.btn('Fit the last payment to 100%').fire('click'); assert.deepEqual(vals(m), ['40', '50', '10']); await m.btn('Save payment plan').fire('click'); await wait();
   const c = m.log.find((x) => Array.isArray(x)); assert.equal(c[2], false); assert.deepEqual(c[1], [{ label: 'Advance (40%)', kind: 'percent', value: 40, anchor: 'approval', offset_days: 0 }, { label: 'Second payment (50%)', kind: 'percent', value: 50, anchor: 'event', offset_days: -15 }, { label: 'Final balance (10%)', kind: 'percent', value: 10, anchor: 'event', offset_days: 0 }]);
-  m = await mount(data()); await m.type('Payment 1: percent', '40'); await m.btn('Back to the standard split').fire('click'); await m.btn('Add this schedule').fire('click'); await wait(); assert.ok(m.log.includes('apply:builtin:30-50-20'));
-  m = await mount(data(), {}, { missing: true }); await m.type('Payment 1: name', 'Token'); await m.btn('Add this schedule').fire('click'); await wait(); assert.match(m.toasts.join(), /needs a database update/);
+  m = await mount(data()); await m.type('Payment 1: percent', '40'); await m.btn('Back to the standard split').fire('click'); await m.btn('Save payment plan').fire('click'); await wait(); assert.ok(m.log.includes('apply:builtin:30-50-20'));
+  m = await mount(data(), {}, { missing: true }); await m.type('Payment 1: name', 'Token'); await m.btn('Save payment plan').fire('click'); await wait(); assert.match(m.toasts.join(), /needs a database update/);
 });
 test('add / remove 1..8, make equal, custom keeps what is there', async () => {
   const m = await mount(data()); for (let i = 0; i < 9; i++) await m.btn('+ Add a payment').fire('click'); assert.equal(m.rows().length, 8); assert.equal(m.btn('+ Add a payment').disabled, true); assert.equal(m.sel.value, 'custom');
@@ -82,14 +82,14 @@ test('amounts, dates and days: what is sent, and the checks', () => {
 test('save as my studio\'s plan: only with the right, only a changed plan, a name is needed, a failed save says so', async () => {
   let m = await mount(data(), {}, { canSave: false }); await m.pick('2'); await m.type('Payment 1: name', 'Token'); assert.equal(m.box.all((e) => e.className === 'psch-save')[0].hidden, true);
   m = await mount(data()); await m.pick('2'); const sv = () => m.box.all((e) => e.className === 'psch-save')[0]; assert.equal(sv().hidden, true, 'a built-in is there already'); await m.type('Payment 1: name', 'Token'); assert.equal(sv().hidden, false);
-  const cb = sv().all((e) => e.type === 'checkbox')[0], nm = m.by('Name of the plan'); cb.checked = true; await cb.fire('change'); assert.equal(nm.value, '50 / 50'); nm.value = ''; await m.btn('Add this schedule').fire('click'); await wait(); assert.ok(!m.log.some((x) => Array.isArray(x)));
-  nm.value = 'Weddings'; await m.btn('Add this schedule').fire('click'); await wait(); assert.deepEqual(m.log.filter(Array.isArray).map((x) => x[0]), ['custom', 'save']); assert.match(m.toasts.join(), /Saved as your studio's plan/);
-  m = await mount(data(), {}, { saveFails: true }); await m.pick('2'); await m.type('Payment 1: name', 'Token'); const c2 = m.box.all((e) => e.className === 'psch-save')[0].all((e) => e.type === 'checkbox')[0]; c2.checked = true; await c2.fire('change'); await m.btn('Add this schedule').fire('click'); await wait(); assert.match(m.toasts.join(), /was added to this event, but it was not saved for the studio/);
+  const cb = sv().all((e) => e.type === 'checkbox')[0], nm = m.by('Name of the plan'); cb.checked = true; await cb.fire('change'); assert.equal(nm.value, '50 / 50'); nm.value = ''; await m.btn('Save payment plan').fire('click'); await wait(); assert.ok(!m.log.some((x) => Array.isArray(x)));
+  nm.value = 'Weddings'; await m.btn('Save payment plan').fire('click'); await wait(); assert.deepEqual(m.log.filter(Array.isArray).map((x) => x[0]), ['custom', 'save']); assert.match(m.toasts.join(), /Saved as your studio's plan/);
+  m = await mount(data(), {}, { saveFails: true }); await m.pick('2'); await m.type('Payment 1: name', 'Token'); const c2 = m.box.all((e) => e.className === 'psch-save')[0].all((e) => e.type === 'checkbox')[0]; c2.checked = true; await c2.fire('change'); await m.btn('Save payment plan').fire('click'); await wait(); assert.match(m.toasts.join(), /was added to this event, but it was not saved for the studio/);
 });
 test('the studio\'s saved plan: its lines, applied by its key when untouched; reminders are put back when the plan is refused', async () => {
-  let m = await mount(data()); await m.pick('tpl:t1'); assert.deepEqual(vals(m), ['10000', '90']); await m.btn('Add this schedule').fire('click'); await wait(); assert.ok(m.log.includes('apply:t1'));
-  m = await mount(data({ reminders: { enabled: true } }), { early: () => true }, { refuse: true }); await m.type('Payment 1: name', 'Token'); await m.btn('Add this schedule').fire('click'); await wait(); assert.deepEqual(m.log.filter((x) => /^pause/.test(x)), ['pause:true', 'pause:false']);
-  m = await mount(data({ held: true, reminders: { enabled: true } }), { early: () => true }); assert.match(m.box.textContent, /Before that, nothing is sent/); await m.btn('Add this schedule').fire('click'); await wait(); assert.ok(!m.log.includes('pause:true'), '0435 holds the reminders: the tick starts empty');
+  let m = await mount(data()); await m.pick('tpl:t1'); assert.deepEqual(vals(m), ['10000', '90']); await m.btn('Save payment plan').fire('click'); await wait(); assert.ok(m.log.includes('apply:t1'));
+  m = await mount(data({ reminders: { enabled: true } }), { early: () => true }, { refuse: true }); await m.type('Payment 1: name', 'Token'); await m.btn('Save payment plan').fire('click'); await wait(); assert.deepEqual(m.log.filter((x) => /^pause/.test(x)), ['pause:true', 'pause:false']);
+  m = await mount(data({ held: true, reminders: { enabled: true } }), { early: () => true }); assert.match(m.box.textContent, /Before that, nothing is sent/); await m.btn('Save payment plan').fire('click'); await wait(); assert.ok(!m.log.includes('pause:true'), '0435 holds the reminders: the tick starts empty');
 });
 test('advance: words, the form\'s checks, only when the studio fixed it', async () => {
   assert.deepEqual([ADV.usable(null), ADV.usable({ pct: 30, fixed: false }), ADV.usable({ pct: null, fixed: true }), ADV.usable({ pct: 30, fixed: true }), ADV.usable({ pct: 0, fixed: true })], [false, false, false, true, true]);
@@ -104,11 +104,11 @@ test('advance: words, the form\'s checks, only when the studio fixed it', async 
 test('a money question while amounts are hidden: the one PIN unlock, hidden again afterwards, never revealed without it', async () => {
   assert.match(ADVJS, /addEventListener\("click", function \(\) \{ HP\.show\(\); \}\)/); assert.match(ADVJS, /if \(shown\) \{ try \{ if \(!HP\.isHidden\(\)\) HP\.hide\(\);/); assert.doesNotMatch(ADVJS, /reveal|innerHTML|hbp-skip|realText/); assert.match(ADVJS, /querySelector\("\[data-close\]"\)/, 'the focus goes to Cancel after the PIN');
   const calls = []; globalThis.BPUI = { confirm: async (t, o) => { calls.push([t, o]); return true; } }; globalThis.HelmPrivacy = { isHidden: () => false, show() {} }; assert.equal(await ADV.ask('confirm', 'q', { title: 't' }), true); assert.deepEqual(calls, [['q', { title: 't' }]]); delete globalThis.HelmPrivacy;
-  assert.equal((FL.match(/await moneyAsk\("(confirm|alert)",/g) || []).length, 3, 'record, over the balance, re-price'); assert.doesNotMatch(FL, /BPUI\.(confirm|alert)\([^)]*inr\((amount|d\.)/);
+  assert.equal((FL.match(/await moneyAsk\("(confirm|alert)",/g) || []).length, 4, 'record, over the balance, re-price, R255: price not saved'); assert.doesNotMatch(FL, /BPUI\.(confirm|alert)\([^)]*inr\((amount|d\.)/);
 });
-test('flow: the advance is text only when fixed; the amount stays editable; the plan\'s first part is offered', () => {
+test('flow: the advance is text only when fixed; the amount stays editable; the plan\'s first part is the amount (R257)', () => {
   assert.match(FL, /id="pay_pct" type="number" min="0" max="100" value="10"/); assert.match(FL, /ADV_FIX=a;[^]{0,160}const w=document\.querySelector\("\.pay-f-pct"\); if\(w\) w\.hidden=!!a;/); assert.match(FL, /id="pay_amount" type="number" min="0"><\/div>/);
-  assert.match(FL, /if\(!ADV_TYPED && document\.activeElement!==\$\("#pay_amount"\)\)/); assert.match(FL, /You can still record it if this is what the client paid/); assert.match(FL, /Use the plan's first part/); assert.match(FL, /" - not the "\+Math\.round\(pct\*100\)\/100\+"% advance\."/);
+  assert.match(FL, /if\(!ADV_TYPED && document\.activeElement!==\$\("#pay_amount"\)\)/); assert.match(FL, /You can still record it if this is what the client paid/); assert.doesNotMatch(FL, /Use the plan's first part/);
   const rec = FL.slice(FL.indexOf('async function recordPayment()'), FL.indexOf('// QA1026 #13')); assert.doesNotMatch(rec, /paintAdvDiff|pay_adv_diff|setStage/, 'the warning never blocks, the page never moves the stage'); assert.doesNotMatch(FL, /setStage|set_lifecycle_stage/);
 });
 function shareRun(ev, paid, o = {}) {

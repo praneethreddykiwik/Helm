@@ -191,6 +191,8 @@
     });
   }
   function dueOf(x, today, ev) { var l = partLines([x], 0, today, ev)[0], r = l.anchor === "event" ? (ev ? addDays(ev, l.offset_days) : null) : addDays(today, l.offset_days); return r && r < today ? today : r; }
+  // R255: counted from the event the day is already over (the server dates it today)
+  function passed(x, today, ev) { var l = partLines([x], 0, today, ev)[0], r = l.anchor === "event" && ev ? addDays(ev, l.offset_days) : null; return !!(r && r < today); }
   function whenText(x) { return dueWhen(partLines([{ label: x.label, unit: "percent", value: 1, when: x.when === "date" ? "approval" : x.when, days: x.days }], 0, "")[0]); }
   function copyPart(x, v) { var o = {}; for (var k in x) o[k] = x[k]; o.unit = "percent"; o.value = v; if (o.auto) o.label = autoLabel(o.label, v); return o; }
   function makeEqual(parts) { var n = parts.length || 1, b = Math.floor(100 / n), extra = 100 - b * n; return parts.map(function (x, i) { return copyPart(x, b + (i >= n - extra ? 1 : 0)); }); }
@@ -218,6 +220,52 @@
   }
   function planName(parts) { return parts.map(function (x) { return x.unit === "fixed" ? "amount" : trim2(x.value); }).join(" / ").slice(0, 80); }
 
+  // R258: "Sun 15 Nov" (the year only when it is not this one)
+  var WD3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function dayText(iso, today) {
+    var t = isoMs(iso); if (!isFinite(t)) return "";
+    var d = new Date(t), y = String(d.getUTCFullYear());
+    return WD3[d.getUTCDay()] + " " + d.getUTCDate() + " " + MON3[d.getUTCMonth()] + (today && y === String(today).slice(0, 4) ? "" : " " + y);
+  }
+  function isSunday(iso) { var t = isoMs(iso); return isFinite(t) && new Date(t).getUTCDay() === 0; }
+  // "10 days before = Sun 15 Nov"
+  function dateLine(x, due, today) {
+    if (!due) return "Set the event date first";
+    var n = Number(x.days) || 0, d = dayText(due, today);
+    return x.when === "approval" ? "If approved today = " + d : x.when === "event" ? "Event day = " + d : x.when === "date" ? d
+      : plural(n, "day") + (x.when === "before" ? " before = " : x.when === "after" ? " after = " : " after approval = ") + d;
+  }
+  /* R258 (owner: "I need you to suggest me days"): the first payment on approval, the last on the event day (or the day before, as the plan ends now),
+     the others spread evenly in between - never in the past, Sundays avoided, at least one day apart while there is room. Nothing is saved.
+     -> { parts, note } ; note = what to know ("" = nothing) */
+  function suggestDates(parts, today, ev) {
+    if (!ev || dayDiff(today, ev) == null) return { parts: parts, note: "Set the event date first." };
+    var n = parts.length, left = dayDiff(today, ev), out = parts.map(function (x) { var o = {}; for (var k in x) o[k] = x[k]; return o; });
+    if (left < 0) return { parts: parts, note: "The event date has passed, so there are no days to suggest." };
+    function put(x, iso) {
+      var g = dayDiff(iso, ev); x.date = "";
+      if (g === 0) { x.when = "event"; x.days = ""; } else if (g > 0 && g <= 365) { x.when = "before"; x.days = g; } else { x.when = "date"; x.days = ""; x.date = iso; }
+    }
+    out[0].when = "approval"; out[0].days = ""; out[0].date = "";
+    var k = n - 1; if (!k) return { parts: out, note: "One payment: it is due when the client approves." };
+    var lw = parts[n - 1].when, onDay = lw === "event" || lw === "after" || left <= 1 || left - 1 < k, end = onDay ? left : left - 1, days = [], j;   // days = days from today
+    if (!onDay && isSunday(addDays(today, end)) && end - 1 >= k) end--;
+    if (end < k) { for (j = 1; j <= k; j++) days.push(Math.min(end, j)); }
+    else {
+      for (j = 1; j <= k; j++) days.push(j === k ? end : Math.round(end * j / k));
+      for (j = 0; j < k - 1; j++) {
+        var prev = j ? days[j - 1] : 0;
+        if (days[j] <= prev) days[j] = prev + 1;
+        if (isSunday(addDays(today, days[j]))) { if (days[j] - 1 > prev) days[j]--; else if (days[j] + 1 < days[j + 1]) days[j]++; }
+      }
+    }
+    days.forEach(function (d, i) { put(out[i + 1], addDays(today, d)); });
+    var gap = Infinity; days.forEach(function (d, i) { gap = Math.min(gap, d - (i ? days[i - 1] : 0)); });
+    var note = end < k ? "The event is " + (left === 0 ? "today" : left === 1 ? "tomorrow" : "in " + left + " days") + ", so some payments share a day."
+      : gap < 3 ? "The event is in " + plural(left, "day") + ", so the payments are only " + plural(gap, "day") + " apart." : "";
+    return { parts: out, note: note };
+  }
+
   // ---- DOM -----------------------------------------------------------------------------------------------------------
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function money(n, cur) {
@@ -239,6 +287,17 @@
     if (!box || !quoteId) return null;
     var B = global.BPStore; if (!B || !B.paySchedule) return null;
     var state = { data: null, busy: false, auto: null };   // .settings / .adv are asked once, only when someone picks a plan
+    // R255 (owner: the plan that was picked was never saved): what is picked / typed but not saved yet. It survives a re-read of the card, the page
+    // can ask (dirty()), save it (save()) or drop it (discard()), and leaving the page asks first. opts.ownLeave = the page asks by itself.
+    state.draft = null; state.save = null;
+    function setDirty(on, P) {
+      var was = !!state.draft;
+      state.draft = on && P ? { choice: P.choice, parts: P.parts, base: P.base } : null;
+      if (was !== !!state.draft && typeof opts.onDirty === "function") { try { opts.onDirty(!!state.draft); } catch (e) {} }
+    }
+    if (!opts.ownLeave && typeof global.addEventListener === "function") global.addEventListener("beforeunload", function (e) {
+      if (state.draft && box.isConnected && !box.hidden) { e.preventDefault(); e.returnValue = ""; }
+    });
     // R252 (owner: the plan is made with the quote): title / intro / early() / approved() may be functions - asked again at every paint, so one mounted
     // card follows the event's stage. early() = the client has not approved yet. All optional: without them the card is as before.
     function ask(v) { try { return typeof v === "function" ? v(state.data) : v; } catch (e) { return null; } }
@@ -248,7 +307,8 @@
     async function load() {
       var d = null, fail = null;
       try { d = await B.paySchedule.forQuote(quoteId); } catch (e) { d = null; fail = e; }
-      state.data = d;
+      state.data = d; state.save = null;
+      if (d && Array.isArray(d.rows) && d.rows.length) setDirty(false);   // a plan is saved on this event now: there is nothing left to save
       if (!d) {
         box.hidden = true; clear();
         // R252: not allowed = hidden, as before; no answer = the page that asked (opts.onFail) may say so
@@ -268,7 +328,9 @@
           var sl = TS.simList(await B.approval.trialSimRows(quoteId)); if (sl && sl.rows.length) state.sim = sl;
         }
       } catch (e) { state.sim = null; }
-      paint(); box.hidden = false;
+      state.trs = null; paint(); box.hidden = false;
+      // R258 (0445): Send reminder / Call / "Client says paid" per payment + the compact Payments line of the event page (payment-followup.js; hidden before 0445)
+      if (global.HelmPayFollow) { try { global.HelmPayFollow.attach({ quoteId: quoteId, data: d, tbody: state.trs, box: box, reload: load, dayText: dayText }); } catch (e) {} }
       if (typeof opts.onLoad === "function") { try { opts.onLoad(d, autoPlan(d, state.auto)); } catch (e) {} }
       return d;
     }
@@ -282,6 +344,7 @@
         var head = el("div", "psch-head");
         head.appendChild(el(opts.heading || "h3", "psch-title", opts.controlsOnly ? "Add a payment schedule" : ask(opts.title) || "Payment schedule"));
         if (d.applied && d.applied.template) head.appendChild(el("span", "psch-tag", d.applied.template + (d.applied.source === "auto" ? " (added on approval)" : "")));
+        if (rows.length && d.can_edit) head.appendChild(el("span", "psch-chip psch-chip-paid psch-st", "Saved"));
         box.appendChild(head);
         var intro = ask(opts.intro); if (intro) box.appendChild(el("p", "psch-empty psch-intro", intro));
       }
@@ -289,7 +352,7 @@
         // nothing more: the page lists the payments itself
       } else if (!rows.length) {
         var ap = early() ? autoPlan(d, state.auto) : null;
-        box.appendChild(el("p", "psch-empty", "No payment schedule yet." + (d.can_edit ? " Choose how the client pays - the amounts are worked out from the quote total." : ap && ap.on === false ? "" : " It is added automatically when the client approves.")));
+        box.appendChild(el("p", "psch-empty", "No payment plan is saved yet." + (d.can_edit ? " Choose how the client pays - the amounts are worked out from the quote total." : ap && ap.on === false ? "" : " It is added automatically when the client approves.")));
         if (ap && ap.text && opts.autoLine !== false) box.appendChild(el("p", "psch-empty psch-auto", ap.text));
         if (d.can_edit) box.appendChild(applyForm(d));
       } else {
@@ -316,6 +379,7 @@
           tr.appendChild(st); tb.appendChild(tr);
         });
         t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
+        state.trs = tb;
         var tot = el("div", "psch-tot");
         [["Total", d.total], ["Paid", d.paid], ["Outstanding", d.outstanding]].forEach(function (x) {
           var s = el("span"); s.appendChild(document.createTextNode(x[0] + ": ")); s.appendChild(moneyEl("b", "", x[1], d.currency)); tot.appendChild(s);
@@ -347,8 +411,9 @@
         });
         foot.appendChild(lab);
       }
+      if (d.can_edit && !opts.controlsOnly && rows.length) { var done = el("button", "btn psch-saved", "\u2713 Payment plan saved"); done.type = "button"; done.disabled = true; foot.appendChild(done); }
       if (opts.manageLink !== false && !opts.controlsOnly && rows.length) {
-        var a = el("a", "psch-link", d.can_edit ? "Change payments in Logistics" : "Open payments");
+        var a = el("a", "psch-link", d.can_edit ? "Change the saved payments in Logistics" : "Open payments");
         a.href = "logistics.html?quote=" + encodeURIComponent(quoteId) + "#payments"; foot.appendChild(a);
       }
       box.appendChild(foot);
@@ -378,7 +443,7 @@
       }
       return w;
     }
-    // r61 / R252: "How will the client pay?" (a dropdown) + "Add this schedule" on one aligned line, then the split: one row per
+    // r61 / R252: "How will the client pay?" (a dropdown) + "Save payment plan" (R255: its words) on one aligned line, then the split: one row per
     // payment that can be changed (name, percent or amount, when), a bar, and a total that must be 100%. An untouched choice is
     // added with payment_schedule_apply as before; a changed one or Custom with payment_schedule_apply_custom (0435).
     function applyForm(d) {
@@ -392,8 +457,10 @@
         if (c.off) o.disabled = true; if (c.value === P.choice) o.selected = true; sel.appendChild(o);
       });
       fld.appendChild(lab); fld.appendChild(sel);
-      var go = el("button", "btn primary psch-go", "Add this schedule"); go.type = "button";
-      var row = el("div", "psch-apply-row"); row.appendChild(fld); row.appendChild(go);
+      var go = el("button", "btn primary psch-go", "Save payment plan"); go.type = "button";
+      var st8 = el("span", "psch-chip psch-st", "Not saved yet"); st8.setAttribute("role", "status"); st8.hidden = true;
+      var row = el("div", "psch-apply-row"); row.appendChild(fld); row.appendChild(go); row.appendChild(st8);
+      var help = el("p", "psch-empty psch-help", "Add a payment adds one more row, Make equal splits 100% evenly. Nothing is kept until you press Save payment plan.");
       // R252: before the client approves - hold the automatic reminders with the same press (the existing Pause, saved BEFORE the plan)
       var hold = null, holdLab = null;
       if (early() && d.can_pause && d.reminders && d.reminders.enabled && !d.paused && !trial()) {
@@ -412,6 +479,8 @@
       var addB = btn("+ Add a payment", function () { if (P.parts.length < MAX_PARTS) addPart(); });
       var eqB = btn("Make equal", function () { P.parts = makeEqual(P.parts); touched(true); });
       var fitB = btn("Fit the last payment to 100%", function () { P.parts = fitLast(P.parts, d.total); touched(true); });
+      var sugB = btn("Suggest dates", function () { var r = suggestDates(P.parts, today, ev); P.parts = r.parts; touched(true); sugNote.textContent = r.note || "Dates suggested. Sundays are skipped; change any of them, then save."; sugNote.hidden = false; });
+      var sugNote = el("p", "psch-empty psch-sug"); sugNote.hidden = true; sugNote.setAttribute("role", "status");
       var resB = btn("Back to the standard split", function () { P.parts = clone(P.base); touched(true); });
       acts.hidden = !custom;
       // "Save as my studio's plan": only for someone who may change the studio's plans (Settings - Can change), only for a changed plan
@@ -446,7 +515,8 @@
         ww.appendChild(wh);
         if (DAYS.test(x.when)) {
           var dy = aria(el("input", "psch-in psch-e-days"), "number of days"); dy.type = "number"; dy.min = "1"; dy.max = "365"; dy.inputMode = "numeric"; dy.value = String(x.days == null ? "" : x.days);
-          dy.addEventListener("input", function () { x.days = dy.value; touched(false); }); ww.appendChild(dy);
+          dy.addEventListener("input", function () { x.days = dy.value; touched(false); });
+          var dw = el("span", "psch-e-dw"); dw.appendChild(dy); dw.appendChild(el("span", "psch-e-du", "days")); ww.appendChild(dw);   // R255: "15" read as 15% - it is days
         } else if (x.when === "date") {
           var dt = aria(el("input", "psch-in psch-e-date"), "date"); dt.type = "date"; dt.min = today; dt.value = x.date || "";
           dt.addEventListener("change", function () { x.date = dt.value; touched(false); }); ww.appendChild(dt);
@@ -476,21 +546,23 @@
           var amt = c ? c.amount : priced && pv != null ? Math.round(Number(d.total) * pv / 100) : null, due = c ? c.due_date : dueOf(x, today, ev);
           if (amt != null) out.appendChild(moneyEl("span", "psch-amt", amt, d.currency));
           else { var a = el("span", "psch-amt is-blank", "-"); a.title = "Worked out once the quote is priced"; out.appendChild(a); }
-          out.appendChild(el("span", "psch-e-due", due ? fmtDate(due) : "Set the event date first"));
+          out.appendChild(el("span", "psch-e-due", dateLine(x, due, today)));
+          if (passed(x, today, ev)) out.appendChild(el("span", "psch-e-due psch-e-past", "That day has passed, so it is due today"));
         });
         while (bar.firstChild) bar.removeChild(bar.firstChild);
         P.parts.forEach(function (x) { var pv = partPct(x, d.total); if (pv > 0) bar.appendChild(el("span", "psch-w" + Math.min(100, Math.max(5, Math.round(pv / 5) * 5)))); });   // width class in 5% steps (no inline style - CSP)
         bar.hidden = !bar.firstChild;
         tot.className = "psch-total" + (ck.ok && !bad ? " is-ok" : " is-off");
         tot.textContent = ck.ok && !bad ? "Total 100%" : bad || ck.error; tot.hidden = !custom && ck.ok;
-        addB.disabled = P.parts.length >= MAX_PARTS; eqB.hidden = P.parts.length < 2; fitB.hidden = ck.ok || !canFit(P.parts, d.total); resB.hidden = P.choice === "custom" || !P.base || !isChanged();
+        sugB.disabled = !ev; sugB.title = ev ? "Spread the payments between today and the event" : "Set the event date first"; addB.disabled = P.parts.length >= MAX_PARTS; eqB.hidden = P.parts.length < 2; fitB.hidden = ck.ok || !canFit(P.parts, d.total); resB.hidden = P.choice === "custom" || !P.base || !isChanged();
         var may = custom && isChanged() && !!(state.settings && state.settings.can_edit), dated = P.parts.some(function (x) { return x.when === "date"; });
         saveBox.hidden = !may; saveNote.hidden = !dated; saveCb.disabled = dated; if (dated && saveCb.checked) { saveCb.checked = false; nameIn.hidden = true; }
         if (!priced) { soft("Price the quote first " + (onFlowPage() ? "(step 8)" : "(Quotation in the quote flow)") + " - the amounts are worked out from its total. You can still pick the plan now."); go.disabled = true; return; }
         go.disabled = !ck.ok || !!bad || !P.parts.length || !!P.refused;
         soft(P.refused);
       }
-      function touched(redraw) { P.server = null; P.refused = ""; P.seq++; if (redraw) rows(); figures(); if (redraw && !isChanged()) serverCheck();
+      function mark(on) { setDirty(on, P); st8.hidden = !state.draft; }
+      function touched(redraw) { sugNote.hidden = true; P.server = null; P.refused = ""; P.seq++; mark(true); if (redraw) rows(); figures(); if (redraw && !isChanged()) serverCheck();
         if (state.settings === undefined && isChanged()) need().then(function () { if (rowEls.length) figures(); }); }
       function toCustom() { P.choice = "custom"; P.base = null; sel.value = "custom"; }
       function addPart() { P.parts.push({ label: "Payment " + (P.parts.length + 1), auto: false, unit: "percent", value: leftPct(P.parts, d.total), when: ev ? "before" : "after_approval", days: 7, date: "" }); toCustom(); touched(true); }
@@ -516,6 +588,7 @@
         P.base = v === "custom" || !lines ? null : partsFrom(lines, d.total);
         P.parts = P.base ? clone(P.base) : lines ? partsFrom(lines, d.total) : [];
         if (byUser && custom && /^(2|3|4|custom)$/.test(v)) { var a = await advPct(); if (my !== P.seq) return; if (a != null) P.parts = withAdvance(P.parts, a); }
+        if (byUser) mark(true);
         rows(); figures();
         if (!P.parts.length) { prev.appendChild(el("p", "psch-empty", "The payments of this plan are worked out when it is added.")); tot.hidden = true; acts.hidden = true; go.disabled = !priced || !key(); }
         else acts.hidden = !custom;
@@ -543,11 +616,12 @@
         }
       }
       sel.addEventListener("change", function () { return choose(sel.value, true); });
-      go.addEventListener("click", async function () {
-        if (state.busy || go.disabled) return;
+      // -> true when it is saved
+      async function saveNow() {
+        if (state.busy || go.disabled) return false;
         var changed = P.parts.length > 0 && isChanged(), lines = null, nm = "", done = false;
-        if (changed) { var c = cleanLines(partLines(P.parts, d.total, today, ev)); if (!c.ok) { soft(c.error); return; } lines = c.lines; }
-        if (changed && saveCb.checked && !saveBox.hidden) { nm = String(nameIn.value || "").trim(); if (!nm) { soft("Give the plan a name, or untick “Save as my studio's plan”."); return; } }
+        if (changed) { var c = cleanLines(partLines(P.parts, d.total, today, ev)); if (!c.ok) { soft(c.error); return false; } lines = c.lines; }
+        if (changed && saveCb.checked && !saveBox.hidden) { nm = String(nameIn.value || "").trim(); if (!nm) { soft("Give the plan a name, or untick “Save as my studio's plan”."); return false; } }
         state.busy = true; go.disabled = true;
         try {
           if (hold && hold.checked) await B.paySchedule.pause(quoteId, true);
@@ -557,25 +631,35 @@
               var r = B.paySchedule.applyCustom ? await B.paySchedule.applyCustom(quoteId, lines, false) : null;
               if (!r) throw new Error("Changing the payments needs a database update. Choose one of the fixed plans for now.");
             }
-            done = true;
+            done = true; mark(false);
           } catch (e) { if (hold && hold.checked) { try { await B.paySchedule.pause(quoteId, false); } catch (x) {} } throw e; }   // no plan: the reminders stay as they were
           var saved = "";
           if (nm) { try { await B.paySchedule.saveTemplate(null, nm, lines); saved = " Saved as your studio's plan “" + nm + "”."; } catch (e) { toast("The plan was added to this event, but it was not saved for the studio: " + errText(e), "err"); } }
-          toast("Payment schedule added." + saved + (hold && hold.checked ? " Reminders are paused for this event." : "")); await load(); if (typeof opts.onChange === "function") opts.onChange();
+          toast("Payment plan saved." + saved + (hold && hold.checked ? " Reminders are paused for this event." : "")); await load(); if (typeof opts.onChange === "function") opts.onChange();
         } catch (e) { var t = errText(e); if (!done && /price the quote/i.test(t)) priced = false; else toast(t, "err"); }
         finally { state.busy = false; if (!done) { if (P.parts.length) figures(); else go.disabled = !priced; } }
-      });
-      f.appendChild(row); if (holdLab) f.appendChild(holdLab); f.appendChild(bar); f.appendChild(prev); f.appendChild(tot); f.appendChild(acts); f.appendChild(saveBox); f.appendChild(note);
-      setTimeout(function () { choose(P.choice, false); }, 0);
+        return done;
+      }
+      go.addEventListener("click", saveNow); state.save = saveNow;
+      f.appendChild(row); if (custom) f.appendChild(help); if (holdLab) f.appendChild(holdLab); f.appendChild(bar); f.appendChild(prev); f.appendChild(tot); f.appendChild(acts); f.appendChild(sugNote); f.appendChild(saveBox); f.appendChild(note);
+      // R255: the card was read again while something was picked / typed: put it back exactly as it was
+      if (state.draft && Array.isArray(state.draft.parts) && state.draft.parts.length) {
+        P.choice = state.draft.choice; P.parts = state.draft.parts; P.base = state.draft.base; sel.value = P.choice; mark(true);
+        setTimeout(function () { rows(); figures(); }, 0);
+      } else if (state.draft) { P.choice = state.draft.choice; sel.value = P.choice; setTimeout(function () { choose(P.choice, true); }, 0); }
+      else setTimeout(function () { choose(P.choice, false); }, 0);
       return f;
     }
     load();
-    return { reload: load, get data() { return state.data; } };
+    return { reload: load, get data() { return state.data; }, dirty: function () { return !!state.draft; },
+      // save what is picked / typed (true = saved, or nothing to save); drop it
+      save: async function () { if (!state.draft) return true; return state.save ? (await state.save()) === true : false; },
+      discard: function () { if (!state.draft) return; setDirty(false); if (state.data && !box.hidden) paint(); } };
   }
 
   var api = { mount: mount, compute: compute, cleanLines: cleanLines, stateLabel: stateLabel, reminderLine: reminderLine, BUILTINS: BUILTINS, addDays: addDays,
               dueWhen: dueWhen, pctText: pctText, autoPlan: autoPlan, partsFrom: partsFrom, partLines: partLines, checkParts: checkParts, makeEqual: makeEqual,
-              fitLast: fitLast, withAdvance: withAdvance, switchUnit: switchUnit, sameParts: sameParts, choiceOf: choiceOf, choiceList: choiceList, customReady: customReady, linesFor: linesFor };
+              fitLast: fitLast, withAdvance: withAdvance, switchUnit: switchUnit, sameParts: sameParts, choiceOf: choiceOf, choiceList: choiceList, suggestDates: suggestDates, dateLine: dateLine, dayText: dayText, customReady: customReady, linesFor: linesFor };
   global.HelmPaySchedule = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

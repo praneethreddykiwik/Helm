@@ -13,11 +13,11 @@
  *   HelmEventPlan.learnedFor(plan, title)   how long a task with this name really took before (0396 learned list)
  *   HelmEventPlan.renderReady(host, ctx)    the "Ready by" card (times, "3 of 9 set-up jobs done", jobs with latest start, edit forms,
  *                                           alert settings)
- *   HelmEventPlan.renderDayBefore(host, ctx) the Day-before card = HelmDayBefore (day-before.js, R252: readiness, vendors, stock and
- *                                           floor plan, logistics, people - the 11 ticks inside); ctx.noReady leaves readiness out
+ *   HelmEventPlan.renderDayBefore(host, ctx) the Day-before checklist = HelmDayBefore (day-before.js, R257; the 11 ticks of 0396 are inside);
+ *                                           ctx.noReady leaves the Readiness checks out
  *   HelmEventPlan.readyCheck / readySum / readyMask / readySees   the Readiness checks, with the lines a role cannot see masked
  *   ctx: { plan (event_day_plan_get answer), tasks, quoteId, eventDate, eventTime, tz, now, nameOf(t), toast(msg, type),
- *          onChanged() (reload the plan + tasks), compact (monitor: fewer words), locked (R227 0397: plan locked - no time edits) }
+ *          onChanged() (reload the plan + tasks), compact (monitor: fewer words), closed (the event is closed - no time edits) }
  * Before 0396 is applied plan is null and both cards stay hidden (the callers check). DOM calls only (textContent), never
  * HTML strings. Money is never read or shown. */
 (function (global) {
@@ -112,6 +112,12 @@
     var k = String(title || "").trim().toLowerCase(); if (!k || !plan || !Array.isArray(plan.learned)) return null;
     for (var i = 0; i < plan.learned.length; i++) if (plan.learned[i] && plan.learned[i].title === k) return plan.learned[i];
     return null;
+  }
+  // R257: a set-up task (Day before / Pre-event) planned to start after Ready by, not done yet -> "Starts after Ready by 8:00 PM"; "" = fine
+  function afterReady(t, o) {
+    var T = global.HelmTaskStatus, s = t ? ms(t.planned_start) : NaN; if (!T || !T.taskStep || !isFinite(s) || t.status === "cancelled" || t.status === "completed" || t.status === "in_progress") return "";
+    var w = T.taskStep(t, o), r = readyAt(o.plan, o.eventDate, o.eventTime, o.tz); if ((w !== "pre" && w !== "daybefore") || !isFinite(r) || s <= r) return "";
+    return "Starts after Ready by " + clock(r, o.tz);
   }
   function durWords(m) { m = Math.round(m); if (!(m > 0)) return "0 min"; var hh = Math.floor(m / 60), mm = m % 60; return hh ? hh + " h" + (mm ? " " + mm + " min" : "") : mm + " min"; }
 
@@ -226,8 +232,8 @@
     var p = ctx.plan || {}, tz = ctx.tz, now = ctx.now == null ? Date.now() : ctx.now, set = p.settings || {};
     var rAt = readyAt(p, ctx.eventDate, ctx.eventTime, tz), vAt = venueAt(p, ctx.eventDate, tz);
     var sc = schedule(setupJobs(ctx.tasks, { eventDate: ctx.eventDate, eventTime: ctx.eventTime, tz: tz, readyAt: rAt }), { readyAt: rAt, venueAt: vAt, bufPct: set.buffer_pct, remindMin: set.remind_before_min, now: now });
-    // R227 (0397): a plan locked for the event day keeps its times + durations (the database refuses them); ticks stay open
-    var canEdit = !!p.can_edit && !ctx.locked, focusId = doc.activeElement && host.contains(doc.activeElement) ? doc.activeElement.id : "";
+    // a closed event keeps its times + durations (the database refuses changes)
+    var canEdit = !!p.can_edit && !ctx.closed, focusId = doc.activeElement && host.contains(doc.activeElement) ? doc.activeElement.id : "";
     clear(host);
     var head = h("div", { cls: "ep-head" }, [h("h3", { cls: "tc-h2", id: host.id + "H" }, ["Ready by ", h("span", { cls: "ep-big", text: isFinite(rAt) ? clock(rAt, tz) : "not set" })])]);
     var facts = [];
@@ -236,7 +242,6 @@
     if (ctx.eventTime && p.ready_by) facts.push("Guests " + String(ctx.eventTime));
     head.appendChild(h("span", { cls: "ep-facts", text: facts.join(" · ") }));
     if (canEdit && !UI.times) head.appendChild(h("button", { type: "button", cls: "tc-btn sm", id: host.id + "Times", text: isFinite(vAt) || p.ready_by ? "Edit times" : "Set times", on: { click: function () { UI.times = true; UI.edit = null; ctx._redraw(); var f = doc.getElementById("epVenue"); if (f) f.focus(); } } }));
-    if (ctx.locked && p.can_edit) head.appendChild(h("span", { cls: "tc-tag warn", text: "🔒 Times locked" }));
     host.appendChild(head);
     if (UI.times && canEdit) host.appendChild(timesForm(ctx, host));
     // R253 (owner: "disable this behind thing"): plain progress only - no sentence about being late, no guess when set-up ends. The "Running late"
@@ -295,7 +300,7 @@
      Part 1 needs Readiness access, is read once per event and kept 5 minutes (it is a heavy read); no access / failed = part 2 only.
      ctx.noReady leaves part 1 out (ready.html already shows it). Money is left out; "Advance received" is left to ready.html. */
   var RDY = {}, RDY_MS = 300000;
-  var RDY_LINK = { date: "event.html?id=", menu: "plan.html?quote=", resources: "resources.html?quote=", vendors: "resources.html?quote=",
+  var RDY_LINK = { date: "event.html?id=", layout: "builder.html?quote=", menu: "plan.html?quote=", resources: "resources.html?quote=", vendors: "resources.html?quote=",
     staff: "ops.html?quote=", runsheet: "runsheet.html?quote=", dry_run: "ready.html?quote=", briefing: "ready.html?quote=" };
   /* R252: the database answers "no rows" (not an error) to a role that may not read a table, so "Vendors confirmed" and "Stock sourced"
      could read as done for someone who sees neither. Without Vendors view / Inventory view (+ Event-day command: the shortage list)
@@ -387,5 +392,5 @@
   }
 
   global.HelmEventPlan = { waitsFor: waitsFor, DAYBEFORE: DAYBEFORE, schedule: schedule, readyAt: readyAt, venueAt: venueAt, learnedFor: learnedFor, durWords: durWords,
-    renderReady: renderReady, renderDayBefore: renderDayBefore, setupJobs: setupJobs, readySum: readySum, readyCheck: readyCheck, readyMask: readyMask, readySees: readySees, READY_LINK: RDY_LINK, _ui: UI };
+    renderReady: renderReady, renderDayBefore: renderDayBefore, setupJobs: setupJobs, afterReady: afterReady, readySum: readySum, readyCheck: readyCheck, readyMask: readyMask, readySees: readySees, READY_LINK: RDY_LINK, _ui: UI };
 })(typeof window !== "undefined" ? window : globalThis);

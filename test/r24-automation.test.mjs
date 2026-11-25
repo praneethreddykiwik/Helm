@@ -165,10 +165,10 @@ t("automations.js: ONE list, every automation in plain words with who it sends t
   const reg = win.HelmAutomations.registry();
   const keys = reg.map((x) => x.key);
   assert.deepEqual(J(keys), ["pay_reminders", "client_followups", "quote_expiry_client", "enquiry", "viewed_alert", "quote_expiry_team", "overdue_bell",
-    "low_stock", "event_reminders", "inbox_email", "wa_forward", "vendor_reminders", "delivery", "runsheet", "assign_whatsapp", "staff_email", "crew_shifts",
+    "low_stock", "event_reminders", "inbox_email", "wa_forward", "vendor_reminders", "vendor_invoice_ask", "delivery", "runsheet", "assign_whatsapp", "staff_email", "crew_shifts",
     "auto_schedule", "quoteLead"]);
   // R170: staff_email is written by the 0361 wrapper of automation_switch
-  const sql = r("supabase/migrations/0274_automations_optin.sql") + r("supabase/migrations/0361_r170_staff_email.sql");
+  const sql = r("supabase/migrations/0274_automations_optin.sql") + r("supabase/migrations/0361_r170_staff_email.sql") + r("supabase/migrations/0447_r259_vendor_flow.sql");
   for (const it of reg) {
     assert.ok(it.name && it.what && Array.isArray(it.sends) && it.sends.length, it.key + " has plain words + who it sends to");
     assert.ok(!/allocation|outsourc|partner|AXP/i.test(it.name + it.what), it.key + " no jargon");

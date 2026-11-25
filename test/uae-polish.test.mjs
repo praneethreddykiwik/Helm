@@ -76,7 +76,7 @@ t('portal (live E2E): title carries the client name, second line = date only, pa
   assert.match(p, /friendlyTitle\(Object\.assign\(\{client_name:d\.client_name\},e\)\)/);
   assert.match(p, /\$\("#when"\)\.textContent=fmtWhen\(e\.event_date,e\.event_time\)\|\|"Date to be confirmed"/);
   assert.match(p, /d\.approval_status==="paid" \? "" :/);
-  assert.match(p, /"Balance "\+inr\(ps\.balance\)\+due/);
+  assert.equal((p.match(/Balance due: </g) || []).length, 1, 'R255: one line, with or without money in'); assert.doesNotMatch(p, /"Balance "\+inr\(ps\.balance\)\+due/);
   const N = require('../public/event-name.js');
   assert.equal(N.friendlyTitle({ client_name: 'ZZ India Flow Test', event_type: 'wedding', event_date: '2026-12-28', title: 'WED_HYD_300_28DEC26' }), 'Wedding for ZZ India Flow Test · 28 Dec 2026');
 });

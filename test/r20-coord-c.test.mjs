@@ -58,12 +58,13 @@ t('25 inventory: list + reserve + check-out use the same optName (BPStore.sample
   assert.equal(f('Demo · Pandit Sharma Ji (sample)'), 'Pandit Sharma Ji (sample)');
   // stock list, reservations, check-outs (open + cancelled) and the history row show the display name
   assert.match(INV, /<td><b>\$\{esc\(optName\(i\.name\)\)\}<\/b>/);
-  assert.equal((INV.match(/<td><b>\$\{esc\(optName\(it\.name\)\)\}<\/b>/g) || []).length, 4);
+  assert.equal((INV.match(/<td><b>\$\{esc\(optName\(it\.name\)\)\}<\/b>/g) || []).length, 4 - 1);   // R258: the event's row has its tick box in front
+  assert.match(INV, /<\/label>`:""\}<b>\$\{esc\(optName\(it\.name\)\)\}<\/b>/);
   assert.doesNotMatch(INV, /<td><b>\$\{esc\(i\.name\)\}<\/b>/);
   assert.doesNotMatch(INV, /<td><b>\$\{esc\(it\.name\)\}<\/b>/);
   // the pickers still use it; values stay the record id / name
   assert.match(INV, /<option value="\$\{esc\(i\.id\)\}">\$\{esc\(optName\(i\.name\)\)\} — /);
-  assert.match(INV, /<option value="\$\{esc\(p\.name\)\}" data-id="\$\{esc\(p\.id\)\}" data-kind="\$\{p\.kind\}">\$\{esc\(optName\(p\.name\)\)\}/);
+  assert.match(INV, /<option value="\$\{esc\(p\.name\)\}" data-id="\$\{esc\(p\.id\)\}" data-kind="\$\{esc\(p\.kind\)\}">\$\{esc\(optName\(p\.name\)\)\}/);
 });
 t('25 resources pickers use the same sample-name format', () => {
   assert.match(RES, /const sn=\(n\)=>\{ try\{ if\(window\.BPStore&&typeof BPStore\.sampleName==="function"\) return BPStore\.sampleName\(n\);/);

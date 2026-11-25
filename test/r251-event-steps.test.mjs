@@ -79,9 +79,9 @@ await t('1b Day-before checks only when the page already has the plan', () => {
   assert.deepEqual(plain(PS.preSummary(CTX({ plan: { checks: { vendors: { done: true } } } })).checks), ['Power confirmed']);
   assert.deepEqual(plain(PS.preSummary(CTX()).checks), []); delete base.W.HelmEventPlan;
 });
-await t('1c the confirm says how many are open and that the plan locks', () => {
+await t('1c the confirm says how many are open and that nothing is locked (R257)', () => {
   const m = PS.confirmPre('X-1', PS.preSummary(CTX()));
-  assert.match(m, /4 pre-event tasks are still open/); assert.match(m, /task plan locks when the event day starts/); assert.match(m, /Status, check-ins, proof photos and issues keep working/);
+  assert.match(m, /4 pre-event tasks are still open/); assert.match(m, /Nothing is locked: tasks and times can still change/); assert.doesNotMatch(m, /task plan locks/);
   assert.match(PS.confirmPre('X', PS.preSummary(CTX({ tasks: [TASKS[0]] }))), /All pre-event tasks are done/);
   assert.match(PS.confirmPre('X', PS.preSummary(CTX({ tasks: [TASKS[1]] }))), /1 pre-event task is still open/);
 });
@@ -163,18 +163,20 @@ await t('2g the rows, in order, with status and the page that does it', async ()
   const w = world({ bookings: [{ status: 'booked', label: 'DJ' }, { status: 'delivered', label: 'Tent' }], cos: [{ item_id: 'i', qty_out: 10, qty_in: 4, status: 'out', issued_to: 'Ravi' }],
     checklist: [{ title: 'Hall swept', status: 'open' }, { title: 'Keys', status: 'done' }], issues: [{ title: 'Generator', status: 'open' }, { title: 'x', status: 'resolved' }], timesheet: { rows: [{ crew_id: 'c1', name: 'Asha', entries: [{ day: EV, in: '9:00' }] }] } });
   w.W.HelmEventWrap.render(w.host, CTX({ autoWin: 'onday', win: 'onday' })); await openIt(w);
-  const rows = find(w.host, (n) => n.tagName === 'LI' && /hes-row/.test(n.className)), T = rows.map((r) => r.textContent);
-  assert.deepEqual(rows.map((r) => find(r, (n) => /hes-row-t/.test(n.className))[0].textContent), ['Tasks', 'Vendors', 'Inventory out and back', 'Teardown checklist', 'Crew check-out', 'Open issues']);
-  assert.match(T[1], /1 not left yet.*DJ/); assert.match(T[2], /6 still out.*Given out 10 · came back 4.*Ravi/); assert.match(T[3], /1 of 2 done.*Hall swept/); assert.match(T[4], /1 still in/); assert.match(T[5], /1 open.*Generator/);
-  const hrefs = find(w.host, (n) => n.tagName === 'A').map((n) => n.attrs.href); ['teardown.html?quote=q1', 'issues.html?quote=q1', 'settlement.html?quote=q1', 'closure.html?quote=q1'].forEach((x) => assert.ok(hrefs.includes(x), x));
+  // R258: one tab at a time, in this order; the old pack-up lines stay below
+  const tabs = find(w.host, (n) => n.attrs.role === 'tab'); assert.deepEqual(tabs.map((x) => x.attrs['data-key']), ['tab:stock', 'tab:vendors', 'tab:crew', 'tab:tasks']); assert.deepEqual(tabs.map((x) => x.attrs['aria-selected']), ['true', 'false', 'false', 'false']);
+  const hrefs = [], T = {}; for (const id of ['vendors', 'crew', 'tasks', 'stock']) { btn(w.host, 'tab:' + id).fire('click'); find(w.host, (n) => n.tagName === 'LI' && /hes-row/.test(n.className)).forEach((r) => { T[find(r, (n) => /hes-row-t/.test(n.className))[0].textContent] = r.textContent; }); hrefs.push(...find(w.host, (n) => n.tagName === 'A').map((n) => n.attrs.href)); }
+  assert.deepEqual(Object.keys(T).sort(), ['Crew check-out', 'Inventory', 'Open issues', 'Other pack-up notes', 'Tasks', 'Vendors']);
+  assert.match(T.Vendors, /1 not left yet.*DJ/); assert.match(T.Inventory, /1 still out.*Given out 10 · came back 4.*Ravi/); assert.match(T['Other pack-up notes'], /1 of 2 done.*Hall swept/); assert.match(T['Crew check-out'], /1 still in/); assert.match(T['Open issues'], /1 open.*Generator/);
+  ['teardown.html?quote=q1', 'issues.html?quote=q1', 'settlement.html?quote=q1', 'closure.html?quote=q1'].forEach((x) => assert.ok(hrefs.includes(x), x));
   assert.ok(hrefs.some((x) => /^ops\.html\?quote=q1&task=/.test(x)), 'tasks open on Tasks & Crew'); assert.deepEqual(w.calls.find((c) => c[0] === 'checklist').slice(1), ['q1', 'teardown']);
   assert.match(find(w.host, (n) => n.className === 'hes-sumtxt')[0].textContent, /5 tasks open · 1 vendor not left yet · 6 pieces of stock out · 1 issue open/);
 });
 await t('2h areas a role does not have and refused reads: the row is simply not there; a failed read = quiet Try again', async () => {
   let w = world({ can: { vendors: false, inventory: false, plan: false, issues: false, staff: false, settlement: false } }); w.W.HelmEventWrap.render(w.host, CTX({ win: 'onday', autoWin: 'onday' })); await openIt(w);
-  assert.deepEqual(w.calls.map((c) => c[0]).filter((x) => x !== 'stageBlockers'), []); assert.equal(find(w.host, (n) => /hes-row-t/.test(n.className)).length, 1); assert.ok(!/Settlement →.*Teardown/.test(w.host.textContent)); assert.match(w.host.textContent, /1 Closure →/);
+  assert.deepEqual(w.calls.map((c) => c[0]).filter((x) => x !== 'stageBlockers'), []); assert.equal(find(w.host, (n) => /hes-row-t/.test(n.className)).length, 1); assert.equal(find(w.host, (n) => n.attrs.role === 'tab').length, 1); assert.ok(!/Settlement →.*Teardown/.test(w.host.textContent)); assert.match(w.host.textContent, /1 Closure →/);
   w = world({ bookings: Object.assign(new Error('permission denied'), { code: '42501' }), issues: new Error('Failed to fetch') }); w.W.HelmEventWrap.render(w.host, CTX({ win: 'onday', autoWin: 'onday' })); await openIt(w);
-  assert.ok(!/Vendors/.test(find(w.host, (n) => n.tagName === 'UL')[0].textContent)); assert.match(w.host.textContent, /Couldn’t check this just now/);
+  assert.equal(btn(w.host, 'tab:vendors'), undefined); btn(w.host, 'tab:tasks').fire('click'); assert.match(w.host.textContent, /Couldn’t check this just now/);
   const b = btn(w.host, 'retry:issues'); const n = w.n('issues'); b.fire('click'); await tick(); assert.equal(w.n('issues'), n + 1);
 });
 await t('2i mark event complete -> Settlement: same rules as before; done state has the three links', async () => {
@@ -188,7 +190,7 @@ await t('2i mark event complete -> Settlement: same rules as before; done state 
 });
 await t('2j openTask is used when the page gives it; the light refresh keeps the focus', async () => {
   const w = world(); const opened = []; const c = CTX({ autoWin: 'onday', win: 'onday', openTask: (id) => opened.push(id) }); w.W.HelmEventWrap.render(w.host, c); await openIt(w);
-  const b = btn(w.host, 'task:b'); b.focus(); b.fire('click'); assert.deepEqual(opened, ['b']);
+  btn(w.host, 'tab:tasks').fire('click'); const b = btn(w.host, 'task:b'); b.focus(); b.fire('click'); assert.deepEqual(opened, ['b']);
   w.W.HelmEventWrap.render(w.host, Object.assign({}, c, { tasks: TASKS.slice(0, 2) })); assert.equal(DOC.activeElement, btn(w.host, 'task:b'));
 });
 
@@ -196,7 +198,7 @@ await t('3a safety: no HTML strings, no inline style, no money words, the only w
   assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(JS)); assert.ok(!/\bstyle\s*[:=]|\.style\b/.test(JS));
   assert.ok(!/₹|\bINR\b|toLocaleString|balance|\.cost\b|\.price|\.total_|amount/i.test(JS.replace(/\/\*[\s\S]*?\*\//g, '')));
   const w = [...JS.matchAll(/\b(?:store|B\(\)|inv|sh)\.([a-zA-Z.]+)\(/g)].map((m) => m[1]).sort();
-  assert.deepEqual([...new Set(w)], ['auth.handleAuthError', 'bookings.list', 'checklist.list', 'checkouts.list', 'dayops.list', 'issues.list', 'quotes.setStageGuided', 'quotes.stageBlockers', 'reservations', 'studioLocale', 'timesheet']);
+  assert.deepEqual([...new Set(w)], ['auth.handleAuthError', 'bookings.list', 'checklist.list', 'checkouts.list', 'dayops.list', 'extras.list', 'issues.list', 'quotes.setStageGuided', 'quotes.stageBlockers', 'reservations', 'stock.story', 'studioLocale', 'timesheet', 'vendorRequests.list', 'vendors.listAll', 'wrapRecords.get']);
   assert.equal((JS.match(/setStageGuided\(/g) || []).length, 1); assert.ok(!/setStage\(/.test(JS));
 });
 await t('3b CSS: theme tokens only, 44px targets, white words on the accent, scoped', () => {

@@ -426,7 +426,8 @@ t('quotes list: server-paged tabs / type / search (debounced 300 ms)', () => {
   const h = page('quotes.html');
   assert.doesNotMatch(h, /quotes\.list\(/);
   assert.match(h, /BPStore\.quotes\.page\(\{ offset, view:viewOf\(filter\), eventType:typeFilter, search:/);
-  assert.match(h, /\$\("#search"\)\.addEventListener\("input",BPUI\.debounce\(reloadQuiet,300\)\)/);
+  assert.match(h, /\$\("#search"\)\.addEventListener\("input",BPUI\.debounce\(\(e\)=>\{ applyList\(\);[^\n]*\},300\)\);/);
+  assert.match(h, /BPStore\.quotes\.pageNo\(\{ tab:filter, page:n, size:Q_SIZE, search:/);   // R258: 10 a page from the server
   assert.match(h, /BPStore\.quotes\.eventTypes\(\)/);
 });
 t('chat: latest 50 on open, older on scroll-up keeping the reader\'s place', () => {

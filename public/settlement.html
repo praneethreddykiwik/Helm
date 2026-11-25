@@ -71,9 +71,9 @@
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="/event-flow-line.css?v=1">
-<link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="money-lock.css?v=2"><link rel="stylesheet" href="money-header.css?v=2">
+<link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="money-lock.css?v=2"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="extras-bill.css?v=1"><link rel="stylesheet" href="/vendor-items.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=121" id="shellProto"></script>
+<script src="/shell-proto.js?v=126" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -118,6 +118,9 @@
         <div id="pay_block" class="err s-3717df5" role="alert" aria-live="assertive" hidden></div>
       </div>
     </div>
+
+    <!-- R257: extras of the day that are undecided or to bill (0440, extras-bill.js) - hidden without the right to see costs -->
+    <div id="extrasBill" hidden></div>
 
     <!-- R189 (0372): TDS deducted by the client - money-lock-ui.js fills it; hidden without Finance view or 0372 -->
     <div data-mlk-mount="tds" id="clientTds" hidden></div>
@@ -181,7 +184,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=3"></script><script src="pick-event.js?v=1"></script><script src="/event-flow-line.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script><script src="extras-bill.js?v=1"></script><script src="/vendor-items.js?v=1"></script><script src="money-cash-ui.js?v=2"></script><script src="money-header-ui.js?v=4"></script><script src="pick-event.js?v=1"></script><script src="/event-flow-line.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -252,12 +255,13 @@
     $("#vendBody").innerHTML = s.bookings.length ? s.bookings.map(b=>{ const out=b._out!=null?b._out:Math.max(0,Number(b.cost||0)-Number(b.advance||0));
       // R252: a vendor with no price counts as 0 everywhere and never stops closing - say it here (no amount in the words)
       const nt=b.status==="enquiry"?"Only asked - not booked.":(b.cost==null&&!b._billed)?"No cost yet - counts as 0.":"";
-      return `<tr><td><b>${esc(byName(b))}</b>${nt?`<div class="efl-note warn">${esc(nt)}${canRes&&b.status!=="enquiry"?` <a href="resources.html?quote=${encodeURIComponent(id)}#bookings">Add it on the Resource plan</a>`:""}</div>`:""}</td><td class="num" data-money>${inr(b._billed?b._cost:b.cost)}</td><td class="num" data-money>${inr(b._billed?b._paid:b.advance)}</td>
+      return `<tr><td data-vi="${esc(b.id)}"><b>${esc(byName(b))}</b>${nt?`<div class="efl-note warn">${esc(nt)}${canRes&&b.status!=="enquiry"?` <a href="resources.html?quote=${encodeURIComponent(id)}#bookings">Add it on the Resource plan</a>`:""}</div>`:""}</td><td class="num" data-money>${inr(b._billed?b._cost:b.cost)}</td><td class="num" data-money>${inr(b._billed?b._paid:b.advance)}</td>
         <td class="num">${b.settled?'<span class="st yes">settled</span>':mh(out)}</td>
         <td><span class="st ${b.settled?'yes':'no'}">${b.settled?'Yes':'No'}</span></td>
         <td>${!canEdit?"":(b._billed&&!b.settled)?`<button type="button" class="btn go" data-gobills="1" aria-label="Pay ${esc(byName(b))} on its bill">Pay the bill</button>`:`<button type="button" class="btn ${b.settled?'':'go'}" data-settle="${esc(b.id)}" data-v="${b.settled?0:1}" data-name="${esc(byName(b))}" aria-label="${b.settled?'Unsettle':'Settle'} ${esc(byName(b))}">${b.settled?'Unsettle':'Settle'}</button>`}</td></tr>`;
     }).join("") : '<tr><td colspan="6" class="empty">No vendor bookings.</td></tr>';
     $("#v_out").textContent=inr(s.vendorOutstanding);
+    if(window.HelmVendorItems) window.HelmVendorItems.lines(id,$("#vendBody"));   // R260 (0448): what was missing or broken, read only
     // R190 (0373): a booking with a bill is paid on the bill (payout + TDS), not ticked "settled" - the button takes you there
     $("#vendBody").querySelectorAll("[data-gobills]").forEach(b=>b.addEventListener("click",()=>{ const v=document.getElementById("vendorBills"); if(v) v.scrollIntoView({behavior:"smooth",block:"start"}); }));
     $("#vendBody").querySelectorAll("[data-settle]").forEach(b=>b.addEventListener("click",async()=>{ const on=b.dataset.v==="1";
@@ -424,6 +428,7 @@
   $("#r_add").addEventListener("click",addRefund);
 
   async function load(){
+    if(window.HelmExtrasBill) HelmExtrasBill.mount($("#extrasBill"),{ quoteId:id, money:inr }).catch(()=>{});
     try{ s=await BPStore.settlement.summary(id); await overlayBills(s); summaryFailed=false; $("#payLine").hidden=!canEdit; $("#expAdd").hidden=!canClaims; render(); }
     catch(e){ summaryFailed=true; $("#payLine").hidden=true; $("#expAdd").hidden=true;
       ["#t_rev","#t_recv","#t_bal","#t_out"].forEach(x=>{ $(x).textContent="—"; });

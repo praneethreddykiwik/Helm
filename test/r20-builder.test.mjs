@@ -16,7 +16,7 @@ let n = 0; const t = (name, fn) => { try { fn(); n++; } catch (e) { console.erro
 const html = read('public/builder.html'), cap = read('public/capture.html'), css = read('public/builder.css'), js = read('public/builder.js');
 const head = (html.match(/<header[\s\S]*?<\/header>/) || [''])[0];
 // the header ids before r19 (git show 20077e7e^:public/builder.html), in order
-const OLD_IDS = ["toolsToggle", "inspToggle", "preset", "refEvents", "customBtn", "unitSel", "gridLbl", "snapBtn", "gridBtn", "viewLbl", "viewSeg", "workLbl", "measureBtn", "undoBtn", "redoBtn", "clearBtn", "projName", "projNameHint", "projNameHintText", "projNameReset", "saveState", "quoteBadge", "verSel", "designChip", "backToFlowBtn", "saveBtn", "loadBtn", "clientImgBtn", "moreMenu", "exportBtn", "jsonBtn", "importBtn", "importFile", "capInput", "capMeter", "capLbl", "acctMenu", "acct", "themeBtn", "dimsLabel"];
+const OLD_IDS = ["toolsToggle", "inspToggle", "preset", "refEvents", "customBtn", "unitSel", "gridLbl", "snapBtn", "gridBtn", "viewLbl", "viewSeg", "workLbl", "measureBtn", "undoBtn", "redoBtn", "clearBtn", "projName", "projNameHint", "projNameHintText", "projNameReset", "saveState", "quoteBadge", "verSel", "designChip", "backToFlowBtn", "saveBtn", "loadBtn", "clientImgBtn", "moreMenu", "exportBtn", "jsonBtn", "importBtn", "marginsBtn", "importFile", "capInput", "capMeter", "capLbl", "acctMenu", "acct", "themeBtn", "dimsLabel"];
 
 /* ---------------- 1) the header ---------------- */
 t('header: the one-row header from before r19 is back (same controls in the same order)', () => {

@@ -136,7 +136,7 @@ html.hb-priv-on #app .mod .sum :is(.hbp-m,[data-money]){display:inline-block;lin
   #evHead{padding:16px}
   #evHead .ev{flex-wrap:wrap;gap:12px}
   #evHead .ev-side{width:100%;flex-direction:column;align-items:flex-start;margin-left:0;gap:10px}
-  #evHead .ev-tools{width:100%;justify-content:flex-start;flex-wrap:nowrap}
+  #evHead .ev-tools{width:100%;justify-content:flex-start;flex-wrap:wrap}
   #evHead .ev-tools .evmenu{margin-left:auto}
   #evHead .ev-tools .client-link,#evHead .ev-tools .bk-share{white-space:nowrap;padding:0 10px;font-size:12px;gap:5px}
   #evHead .tot{text-align:left}

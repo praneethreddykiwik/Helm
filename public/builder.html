@@ -22,13 +22,12 @@
 </script>
 <link rel="preload" href="/vendor/supabase-js-2.119.0.min.js" as="script" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous">
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
-<link rel="stylesheet" href="builder.css?v=43">
+<link rel="stylesheet" href="builder.css?v=45">
 <link rel="stylesheet" href="venues.css?v=8">
 <link rel="stylesheet" href="studio-templates.css?v=5">
 <link rel="stylesheet" href="walkthrough.css?v=8">
 <link rel="stylesheet" href="layout-wizard.css?v=5">
 <link rel="stylesheet" href="/builder-v2.css?v=13">
-<link rel="stylesheet" href="event-floor.css?v=2">
 <link rel="stylesheet" href="/shell-b-privacy.css?v=134"><!-- QA-B27: "Hide amounts" privacy screen (same as the app pages) -->
 <link rel="stylesheet" href="/builder-landscape.css?v=1"><!-- R154i: phone held sideways + "turn your phone" card -->
 <link rel="stylesheet" href="/builder-immersive.css?v=1"><!-- R164: phone = full-screen editor, floating controls -->
@@ -146,6 +145,7 @@
         <button class="tbtn" id="exportBtn" role="menuitem" title="Download as PNG image">⤓ PNG</button>
         <button class="tbtn" id="jsonBtn" role="menuitem" title="Download layout JSON">{ } JSON</button>
         <button class="tbtn" id="importBtn" role="menuitem" title="Import a layout JSON file">⤒ Import</button>
+        <button type="button" class="tbtn" id="marginsBtn" role="menuitemcheckbox" aria-checked="false" title="Show or hide the lines that mark the usable part of the floor. They are only a guide: nothing is priced or limited by them.">☐ Usable area lines</button>
       </div>
     </details>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
@@ -493,7 +493,7 @@
         </span>
       </div>
       <div class="legend3d" id="legend3d" hidden aria-live="polite"></div>
-      <div class="hint3d" id="hint3d">Select an object, then use the gizmo to Move / Rotate / Scale · drag empty space to orbit · scroll to zoom</div>
+      <div class="hint3d" id="hint3d">Select an object, then drag it or use the handles to Move / Rotate / Scale · drag empty space to orbit · scroll to zoom</div>
     </div>
     <div class="statusbar" id="status">—</div>
     <div class="fabstack" id="fabStack" role="toolbar" aria-label="View controls">
@@ -540,17 +540,16 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
-<script src="page-tours.js?v=79"></script>
-<script src="tour.js?v=93"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script>
+<script src="page-tours.js?v=84"></script>
+<script src="tour.js?v=98"></script>
 <script src="flow-layout-sync.js?v=6"></script>
 <script src="event-sizing.js?v=5"></script>
-<script src="builder-tools.js?v=6"></script>
+<script src="builder-tools.js?v=7"></script>
 <script src="quote-state.js?v=4"></script>
 <script src="reprice-guard.js?v=1"></script>
-<script src="stage-screen.js?v=5"></script>
-<script src="builder.js?v=97"></script>
-<script src="event-floor.js?v=3"></script>
+<script src="stage-screen.js?v=6"></script>
+<script src="builder.js?v=100"></script>
 <script src="builder-back.js?v=1" defer></script>
 <script src="venues-core.js?v=11"></script>
 <script src="venue-picker.js?v=8"></script>
@@ -561,8 +560,8 @@
 <!-- ================= 3D RENDERED VIEW (Three.js, lazy-loaded on first use) ================= -->
 <script src="dancers-3d.js?v=1"></script>
 <script src="capture-frame.js?v=15"></script>
-<script src="builder-3d.js?v=35"></script>
-<script src="photo-render-prompt.js?v=12"></script>
+<script src="builder-3d.js?v=37"></script>
+<script src="photo-render-prompt.js?v=13"></script>
 <script src="photo-render-ui.js?v=14"></script>
 <script src="walkthrough.js?v=11"></script>
 <script src="layout-wizard.js?v=18"></script>

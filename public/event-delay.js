@@ -250,7 +250,7 @@
   var TAG = { risk: "At risk", slip: "Slipping", order: "Order to check" };
 
   /* ctx: { quoteId, result (compute), tz, loc, nameOf(t), phoneOf(t), canNudge(t), nudge(t, btn), nudgeEl(t), assign(t) | null, open(t, btn),
-     move(ids, min) | null, locked }. nudgeEl = the page's own Remind control (monitor); nudge = a plain action (Tasks & Crew). */
+     move(ids, min) | null }. nudgeEl = the page's own Remind control (monitor); nudge = a plain action (Tasks & Crew). */
   function render(host, ctx) {
     if (!host) return; var r = ctx.result, rows = (r && r.rows) || [], clk = ctx.clock || clockIn(ctx.tz, ctx.loc);
     var st = host._dly; if (!st || st.quote !== ctx.quoteId) { clear(host); st = host._dly = { quote: ctx.quoteId, rows: {}, seen: null, all: false, head: "" }; }
@@ -290,8 +290,8 @@
     w.effects.forEach(function (s, i) { var li = e.eff.children[i]; if (!li) { li = doc.createElement("li"); e.eff.appendChild(li); } if (li.textContent !== s) li.textContent = s; });
     e.eff.hidden = !w.effects.length;
     // the buttons are made again only when they really change
-    var t = x.t, ph = ctx.phoneOf ? ctx.phoneOf(t) : "", nud = !!(ctx.canNudge && ctx.canNudge(t)), give = !!(ctx.assign && (x.kind === "blocked" || x.kind === "none")), mv = !!(ctx.move && x.moveIds.length && x.moveMin > 0), lock = mv && !!ctx.locked;
-    var sig = JSON.stringify([x.id, t.title, t.crew_id, ph, nud, give, mv, lock, mv ? [x.moveIds, x.moveMin] : 0]);
+    var t = x.t, ph = ctx.phoneOf ? ctx.phoneOf(t) : "", nud = !!(ctx.canNudge && ctx.canNudge(t)), give = !!(ctx.assign && (x.kind === "blocked" || x.kind === "none")), mv = !!(ctx.move && x.moveIds.length && x.moveMin > 0);
+    var sig = JSON.stringify([x.id, t.title, t.crew_id, ph, nud, give, mv, mv ? [x.moveIds, x.moveMin] : 0]);
     if (e.sig === sig) return; if (e.acts.querySelector('[aria-expanded="true"]')) return;   // a Remind menu is open
     e.sig = sig; var had = doc.activeElement && e.acts.contains(doc.activeElement) ? doc.activeElement.getAttribute("data-key") : null; clear(e.acts);
     var nm = ttl(t), who = ctx.nameOf ? ctx.nameOf(t) : "";
@@ -299,8 +299,7 @@
     if (x.kind !== "order" && nud) { if (ctx.nudgeEl) e.acts.appendChild(ctx.nudgeEl(t)); else e.acts.appendChild(h("button", { type: "button", cls: "tc-btn sm", text: "Nudge", title: "E-mail this task to " + (who || "them") + " again now", "aria-label": "Nudge " + (who || "them") + " about " + nm, "data-key": "dly:nudge:" + x.id, click: function (ev) { ctx.nudge(t, ev.currentTarget); } })); }
     if (give) e.acts.appendChild(h("button", { type: "button", cls: "tc-btn sm", text: "Give to someone", "aria-label": "Give " + nm + " to someone", "data-key": "dly:give:" + x.id, click: function () { ctx.assign(t); } }));
     e.acts.appendChild(h("button", { type: "button", cls: "tc-btn sm", text: "Open task", "aria-label": "Open " + nm, "data-key": "dly:open:" + x.id, click: function (ev) { ctx.open(t, ev.currentTarget); } }));
-    if (mv && !lock) e.acts.appendChild(h("button", { type: "button", cls: "tc-btn sm", text: "Move the later tasks by " + dur(x.moveMin), "data-key": "dly:move:" + x.id, click: function () { ctx.move(x.moveIds.slice(), x.moveMin); } }));
-    else if (lock) e.acts.appendChild(h("span", { cls: "tc-sub dly-lock", text: "Times are locked - unlock the plan to move the later tasks." }));
+    if (mv) e.acts.appendChild(h("button", { type: "button", cls: "tc-btn sm", text: "Move the later tasks by " + dur(x.moveMin), "data-key": "dly:move:" + x.id, click: function () { ctx.move(x.moveIds.slice(), x.moveMin); } }));
     if (had) { var b = e.acts.querySelector('[data-key="' + had + '"]'); if (b) try { b.focus({ preventScroll: true }); } catch (er) {} }
   }
 

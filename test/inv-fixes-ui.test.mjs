@@ -52,7 +52,7 @@ t('check-outs: cancel via RPC, no hard delete left in the data layer', () => {
 
 t('inventory.html: Cancel button + confirm, cancelled rows behind a toggle, not counted as loss', () => {
   assert.ok(/data-cxl=/.test(INV) && /BPStore\.inventory\.checkouts\.cancel\(/.test(INV));
-  assert.ok(/Cancel check-out\?/.test(INV));
+  assert.ok(/Undo: given out by mistake\?/.test(INV));   // R258: one pair of words, given out / back
   assert.ok(/id="showCancelled"/.test(INV) && /showCancelled && cancelled\.length/.test(INV));
   assert.ok(/c\.status!=="cancelled"/.test(INV), 'loss report excludes cancelled');
 });

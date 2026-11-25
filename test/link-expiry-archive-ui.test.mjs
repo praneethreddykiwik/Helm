@@ -56,7 +56,7 @@ await t('Quotes: Archive + Deleted tabs with counts; Restore only for quotes edi
   assert.match(qh, /\$\{shelf\.ready&&canEdit\?`<button type="button" class="ic" data-act="archive"/);
   assert.match(qh, /else if\(act==="restore"\) restoreQuote\(id, b\);/);
   assert.match(qh, /<div class="shelfnote">\$\{esc\(shelfNote\(sh\(x\)\)\)\}<\/div>/, 'note is escaped');
-  assert.match(qh, /fetch:\(offset\)=>shelfPage\(offset, \(\)=>[^\n]*(BPStore\.quotes\.page|pageReq)\(/, 'pager goes through the shelf filter');   // R215: may use the first page asked early
+  assert.match(qh, /const r=await shelfPage\(b\.offset, \(\)=>pageReq\(b\.offset\)\)/, 'before 0446 the list goes through the shelf filter (R258: quotes_page does it in the database)');
   // Delete is soft (Deleted tab) once 0040 is installed; the old hard delete only without it
   const del = qh.slice(qh.indexOf('async function delQuote('), qh.indexOf('// generate/return the per-quote client approval link'));
   assert.match(del, /^async function delQuote\(id, btn\)\{\s*\/\/[^\n]*\n\s*if\(shelf\.ready\) return shelfMove\(id, "delete", btn\);/);
