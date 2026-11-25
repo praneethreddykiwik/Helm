@@ -65,3 +65,12 @@ test('10 an approved price stays on the vendor\'s invoice; the approved quotatio
 test('11 Budget and one event\'s stock page say things once', () => {
   const m = read('public/money-header-ui.js'); assert.match(m, /"As planned"/); assert.match(m, /if \(!\(same && !h\.closed/); assert.match(read('public/inventory-layout.js'), /t\.hidden = !!S\.quoteId/);
 });
+test('12 the monitor shows the whole run-sheet under now / next', () => {
+  const m = read('public/monitor.js'); assert.match(m, /"Full run-sheet \("/); assert.match(m, /det\.open = S\.runOpen !== false/); assert.match(read('public/monitor.css'), /\.mon-run-all>summary/);
+});
+test('13 Pre-event on the monitor has the Approvals list of that event, the same code as the page', () => {
+  const a = read('public/approvals.js'), h = read('public/monitor.html'), m = read('public/monitor.js');
+  assert.match(a, /if \(!PAGE\) return;/); assert.match(a, /global\.HelmApprovals\.embed = embed/); assert.match(a, /if \(!d && EM\) \{ EM\.none = true; EM\.host\.hidden = true; return; \}/);
+  assert.ok(h.indexOf('id="monPreList"') < h.indexOf('id="monApprove"') && h.indexOf('task-status.js') < h.indexOf('approvals.js?v='));
+  assert.match(m, /S\.win === "pre" && e\.status !== "cancelled"/); assert.match(m, /A\.hide\(\); return;/);
+});

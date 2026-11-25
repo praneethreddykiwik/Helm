@@ -61,3 +61,11 @@
 .ap-photo :focus-visible{outline:2px solid #fff;outline-offset:2px}
 @media (max-width:520px){.ap-page{padding:0 12px 96px}.ap-tools .tc-seggrp{width:100%}.ap-tools .tc-seg{flex:1 1 0}.ap-evlbl{max-width:none;flex-basis:100%}.ap-acts .ap-open{flex:1 1 100%}
   .ap-bulk{flex-wrap:nowrap}.ap-bulk .tc-bulk-acts{order:0;width:auto;flex:1 1 auto;display:flex}.ap-bulk .tc-bulk-acts .tc-btn{flex:1 1 auto}}
+/* R265: the same list inside the event-day monitor (Pre-event) */
+.ap-embed [hidden]{display:none!important}
+.ap-embed{min-width:0}
+.ap-eh{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px;margin-bottom:10px}
+.ap-eh .tc-h2{margin:0}
+.ap-embed .ap-tools{margin-bottom:6px}
+.ap-embed .ap-listh .tc-h2{font-size:14px}
+.ap-embed .ap-empty{padding:18px}

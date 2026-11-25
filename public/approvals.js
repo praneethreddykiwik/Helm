@@ -8,6 +8,8 @@
  *            required), tick several = Approve together. The waiting crew is told when the earlier task is DONE, not when it is approved.
  *   Checked  the last 60 checks: approved / sent back, by whom, when, the reason.
  *   ?quote=  only that event (the link on Tasks & Crew). Data: BPStore.ops.approvals.list / verify / evidenceUrls. No other call.
+ *   embed    R265 (owner, 26 Nov: "add the approvals page for that event to the monitor on Pre-event ... same features"): HelmApprovals.embed(host, { quote, count,
+ *            onChanged, openTask }) draws this same list inside another page for ONE event (the event box is left out); hide() when that part is not shown.
  * DOM calls only (textContent). Redraws only what changed; one 30 s refresh (HelmTaskStatus.refresher). Pure parts: HelmApprovals._pure. */
 (function (global) {
   "use strict";
@@ -32,7 +34,8 @@
   var pure = { ago: ago, may: may, refused: refused, nextWords: nextWords, forEvent: forEvent, newest: newest };
   global.HelmApprovals = { _pure: pure };
   if (typeof module !== "undefined" && module.exports) module.exports = pure;
-  if (!doc || !doc.getElementById || !doc.getElementById("apApp")) return;
+  if (!doc || !doc.getElementById) return;
+  var PAGE = !!doc.getElementById("apApp"), EM = null;   // EM = inside another page: { host, quote, count, onChanged, openTask, none }
 
   /* ---- page ---- */
   var S = { data: null, view: "wait", q: "", sel: {}, urls: {}, urlAt: 0, sigs: {}, people: {}, busy: 0, dbOld: false }, $ = function (id) { return doc.getElementById(id); };
@@ -56,12 +59,13 @@
   function evOf(t) { return S.data.evidence.filter(function (x) { return x.task_id === t.id; }); }
   function waiting() { return newest(forEvent(S.data.pending, S.q), "completed_at"); }
   function can(t) { return may(S.data.scope, t); }
+  function openLink(cls, t, text) { return h("a", { cls: cls, href: opsHref(t), text: text, on: { click: function (e) { if (EM && EM.openTask && EM.openTask(t.id) === true) e.preventDefault(); } } }); }
   function opsHref(t) { return "ops.html?quote=" + encodeURIComponent(t.quote_id) + "&task=" + encodeURIComponent(t.id); }
 
   /* ---- draw ---- */
   function renderHead() {
     var sc = S.data.scope, n = waiting().length, depts = []; Object.keys(sc.mine || {}).forEach(function (q) { sc.mine[q].forEach(function (d) { if (depts.indexOf(d) < 0) depts.push(d); }); });
-    $("apLead").textContent = sc.all ? "Finished work waiting for a check, on every event. Approve it, or send it back with a reason - the person then does it again."
+    $("apLead").hidden = !!EM; $("apLead").textContent = sc.all ? "Finished work waiting for a check, on every event. Approve it, or send it back with a reason - the person then does it again."
       : depts.length ? "Finished work in the departments you supervise: " + depts.sort().join(", ") + "." + (sc.old ? "" : " Approve it, or send it back with a reason.") : "Finished work in the departments you supervise.";
     $("apWaitN").textContent = String(n);
     var note = S.dbOld || sc.old ? "Needs a database update: supervisors cannot approve work yet. Nothing was changed - the tasks stay listed. An admin, event manager or quality engineer can approve them." : "";
@@ -102,14 +106,14 @@
     if (ok) kids.push(h("div", { cls: "ap-acts" }, [
       h("button", { type: "button", cls: "tc-btn tc-primary ap-ok", "data-key": "ok:" + t.id, "aria-describedby": id, disabled: busy || null, text: "Approve", on: { click: function () { approve([t]); } } }),
       h("button", { type: "button", cls: "tc-btn ap-no", "data-key": "no:" + t.id, "aria-describedby": id, disabled: busy || null, text: "Send back", on: { click: function () { sendBack(t); } } }),
-      h("a", { cls: "tc-btn ghost ap-open", href: opsHref(t), text: "Open task" })]));
+      openLink("tc-btn ghost ap-open", t, "Open task")]));
     else kids.push(h("p", { cls: "ap-own", text: S.data.scope.old ? "An admin, event manager or quality engineer approves this." : "This is your own task - someone else checks it." }));
     return h("li", { cls: "tc-card ap-card" + (S.sel[t.id] ? " is-sel" : ""), "data-id": t.id }, kids);
   }
   function histLi(t) {
     var ok = t.verify_status === "passed", by = S.people[t.verified_by] || "Someone", e = ev(t);
     return h("li", { cls: "tc-card ap-hist" }, [h("span", { cls: "tc-st " + (ok ? "done" : "rejected"), text: ok ? "Approved" : "Sent back" }),
-      h("span", { cls: "grow" }, [h("a", { cls: "ap-t", href: opsHref(t), text: t.title || "Task" }), h("span", { cls: "ap-sub", text: [t.assignee_name, t.category, evName(e)].filter(Boolean).join(" · ") }),
+      h("span", { cls: "grow" }, [openLink("ap-t", t, t.title || "Task"), h("span", { cls: "ap-sub", text: [t.assignee_name, t.category, evName(e)].filter(Boolean).join(" · ") }),
         h("span", { cls: "ap-sub", text: by + " · " + when(t.verified_at) }), !ok && t.verify_note ? h("span", { cls: "ap-quote", text: "“" + t.verify_note + "”" }) : null])]);
   }
   function rowSig(t) { return JSON.stringify([t, evOf(t).map(function (x) { return [x.id, !!S.urls[x.storage_path]]; }), S.urlAt, S.data.next[t.id], can(t), !!S.sel[t.id], S.busy, ago(t.completed_at, Date.now())]); }
@@ -165,8 +169,9 @@
     if (ok.length) dropCard(ok); else render();
     toast(((ok.length ? (ok.length === 1 ? "Approved." : ok.length + " tasks approved.") : "") + (late ? " " + pl(late, "task was", "tasks were") + " already checked by someone else." : "") + (bad ? " " + bad : "")).trim(), bad ? "err" : "ok");
     if (S.dbOld) $("apNote").scrollIntoView({ block: "nearest" });
-    load(true);
+    load(true); changed();
   }
+  function changed() { if (EM && EM.onChanged) try { EM.onChanged(); } catch (e) {} }
   async function sendBack(t) {
     if (S.busy) return;
     var note = await UI().prompt("What needs to be fixed? " + (t.assignee_name || "The person") + " does the work again" + (S.data.next[t.id] ? ". Waiting for it: " + nextWords(S.data.next[t.id]) + "." : "."),
@@ -175,7 +180,7 @@
     S.busy = 1; render();
     try { await B().ops.verify(t.id, false, note); S.busy = 0; S.sigs.list = ""; dropCard([t.id]); toast("Sent back for rework."); }
     catch (e) { S.busy = 0; S.sigs.list = ""; if (refused(S.data.scope, e)) S.dbOld = true; render(); toast(gone(e) ? "Already checked by someone else." : S.dbOld ? "Needs a database update - supervisors cannot send work back yet." : err(e, "send the task back"), gone(e) ? "ok" : "err"); }
-    load(true);
+    load(true); changed();
   }
   var photoFrom = null;
   function openPhoto(u, lbl, from) { photoFrom = from; $("apPhotoImg").src = u; $("apPhotoImg").alt = lbl; $("apPhotoOpen").href = u; var d = $("apPhoto"); if (d.showModal) d.showModal(); else d.setAttribute("open", ""); $("apPhotoX").focus(); }
@@ -190,8 +195,9 @@
     S.urlAt = Date.now(); render();
   }
   async function load(quiet) {
-    if (S.busy || doc.querySelector("dialog[open]")) return;
-    var d; try { d = await B().ops.approvals.list(); } catch (e) { if (S.data) return false; throw e; }
+    if (S.busy || doc.querySelector("dialog[open]") || (EM && (EM.off || EM.none))) return;
+    S.readAt = Date.now(); var d; try { d = await B().ops.approvals.list(); } catch (e) { if (S.data) return false; throw e; }
+    if (!d && EM) { EM.none = true; EM.host.hidden = true; return; }
     if (!d) { $("apBoot").hidden = true; $("apApp").hidden = true; noRole(); return; }
     var was = S.data ? S.data.pending.map(function (t) { return t.id; }) : null; S.data = d; render();
     if (was && quiet) { var more = d.pending.filter(function (t) { return was.indexOf(t.id) < 0; }).length; if (more) say(pl(more, "new finished task", "new finished tasks")); }
@@ -207,6 +213,9 @@
     S.q = q && /^[0-9a-f-]{36}$/i.test(q) ? q : "";
     try { await load(false); } catch (e) { $("apBoot").hidden = true; $("apErr").hidden = false; UI().loadError($("apErr"), e, function () { $("apErr").hidden = true; return start(); }, { what: "the finished work" }); return; }
     if (!S.data) return; $("apBoot").hidden = true; $("apApp").hidden = false;
+    wire();
+  }
+  function wire() {
     if (S.wired) return; S.wired = true;
     Array.prototype.forEach.call(doc.querySelectorAll("[data-ap-view]"), function (b) { b.addEventListener("click", function () { S.view = b.getAttribute("data-ap-view"); S.sel = {}; render(); }); });
     $("apEvent").addEventListener("change", function () { S.q = $("apEvent").value; S.sel = {}; render(); signed(); });
@@ -219,7 +228,41 @@
     B().chat && B().chat.directory && B().chat.directory().then(function (d) { Object.keys(d || {}).forEach(function (id) { S.people[id] = d[id].full_name || d[id].name || ""; }); if (S.data) render(); }).catch(function () {});
     global.HelmTaskStatus.refresher(function () { return load(true); }, REFRESH);
   }
-  global.HelmApprovals._S = S; global.HelmApprovals.reload = load;
+  // R265: the same list inside another page, for one event
+  function shell(host) {
+    clear(host);
+    var seg = function (v, t, n) { return h("button", { type: "button", cls: "tc-seg", "data-ap-view": v, "aria-pressed": String(v === "wait") }, [t, n]); };
+    host.appendChild(h("div", { id: "apApp", cls: "ap-embed" }, [
+      h("div", { cls: "ap-eh" }, [h("h2", { cls: "tc-h2", id: "apEmbedH", text: "Approvals" }), h("a", { cls: "tc-mini-link", id: "apFull", text: "Open the Approvals page \u2192" })]),
+      h("p", { cls: "ap-lead", id: "apLead", hidden: true }),
+      h("div", { cls: "ap-tools" }, [h("div", { cls: "tc-seggrp", role: "group", "aria-label": "Show" }, [seg("wait", "Waiting ", h("span", { cls: "tc-seg-n", id: "apWaitN" })), seg("done", "Checked")]), h("select", { id: "apEvent", hidden: true, "aria-label": "Event" })]),
+      h("p", { cls: "tc-note warn", id: "apNote", role: "status", hidden: true }), h("div", { id: "apErr", hidden: true }),
+      h("div", { cls: "ap-listh" }, [h("h3", { cls: "tc-h2", id: "apListH", tabindex: "-1" }), h("label", { cls: "tc-chk", id: "apAllWrap", "for": "apAll", hidden: true }, [h("input", { type: "checkbox", id: "apAll" }), " Select all"])]),
+      h("ul", { cls: "ap-list", id: "apList" }), h("span", { cls: "tc-sr", id: "apSay", "aria-live": "polite" })]));
+    if ($("apBulk")) return;
+    doc.body.appendChild(h("div", { cls: "tc-layer" }, [h("div", { cls: "tc-bulk ap-bulk", id: "apBulk", role: "region", "aria-label": "Selected tasks", hidden: true }, [h("span", { cls: "tc-bulk-n" }, [h("b", { id: "apBulkN", text: "0" }), " selected"]),
+      h("div", { cls: "tc-bulk-acts" }, [h("button", { type: "button", cls: "tc-btn", id: "apBulkGo", text: "Approve" })]), h("button", { type: "button", cls: "tc-btn ghost", id: "apBulkX", text: "Clear" })])]));
+    doc.body.appendChild(h("dialog", { cls: "ap-photo", id: "apPhoto", "aria-label": "Proof photo" }, [h("img", { id: "apPhotoImg", alt: "" }),
+      h("div", { cls: "ap-photo-f" }, [h("a", { id: "apPhotoOpen", target: "_blank", rel: "noopener noreferrer", text: "Open in a new tab" }), h("button", { type: "button", cls: "tc-btn", id: "apPhotoX", text: "Close" })])]));
+  }
+  function embed(host, o) {
+    if (PAGE || !host || !o || !o.quote) return;
+    var first = !EM, other = EM && EM.quote !== o.quote;
+    if (first) EM = { host: host }; EM.quote = o.quote; EM.onChanged = o.onChanged; EM.openTask = o.openTask; EM.off = false;
+    if (EM.none) { host.hidden = true; return; }
+    S.q = o.quote;
+    if (first) { host.classList.add("tc", "ap-in"); host.hidden = true; shell(host); wire(); }
+    $("apFull").setAttribute("href", "approvals.html?quote=" + encodeURIComponent(o.quote));
+    if (other) { S.sel = {}; S.view = "wait"; S.sigs.list = ""; }
+    if (S.data) host.hidden = false;
+    var stale = !S.data || Date.now() - (S.readAt || 0) > REFRESH || (o.count != null && S.data && o.count !== waiting().length && Date.now() - (S.readAt || 0) > 4000 && S.data.scope.all);
+    if (S.data && other) render();
+    if (stale && !EM.reading) { EM.reading = true; load(!!S.data).then(function () { $("apErr").hidden = true; if (S.data && !EM.none && !EM.off) host.hidden = false; }, function (e) { host.hidden = false; $("apErr").hidden = false; UI().loadError($("apErr"), e, function () { return embed(host, o); }, { what: "the finished work" }); }).then(function () { EM.reading = false; }); }
+    if (first) { try { B().chat.directory().then(function (d) { Object.keys(d || {}).forEach(function (id) { S.people[id] = d[id].full_name || d[id].name || ""; }); if (S.data) render(); }).catch(function () {}); } catch (e) {} global.HelmTaskStatus.refresher(function () { return load(true); }, REFRESH); }
+  }
+  function hide() { if (!EM || EM.off) return; EM.off = true; EM.host.hidden = true; S.sel = {}; if (S.data) renderBulk(); }
+  global.HelmApprovals._S = S; global.HelmApprovals.reload = load; global.HelmApprovals.embed = embed; global.HelmApprovals.hide = hide;
   function go() { if (UI() && UI().boot) UI().boot(start); else start(); }
+  if (!PAGE) return;
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", go); else go();
 })(typeof window !== "undefined" ? window : globalThis);

@@ -396,3 +396,12 @@ body.mon-wall .mon-tab{font-size:17px;min-height:48px}
 .mon-appr a,.mon-dl a{color:var(--m-acc-2);font-weight:600;text-decoration:underline;text-underline-offset:3px}
 .mon-appr a{display:inline-flex;align-items:center;min-height:44px}
 body.mon-wall .mon-app .pc-bar{top:var(--m-top)}
+/* R264: the whole run-sheet under now / next */
+.mon-run-all{margin-top:8px;border-top:1px solid var(--m-line,#e6e9ee)}
+.mon-run-all>summary{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;font-size:14px;font-weight:600;color:var(--m-acc-2,inherit);list-style:none}
+.mon-run-all>summary::-webkit-details-marker{display:none}
+.mon-run-all>summary::before{content:"\25B8"}.mon-run-all[open]>summary::before{content:"\25BE"}
+.mon-run-all .mon-run{margin:0}
+.mon-run li.is-past{opacity:.75}
+.mon-run-all li{grid-template-columns:44px 76px minmax(0,1fr)}
+body.mon-wall .mon-run-all{display:none}
