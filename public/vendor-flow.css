@@ -82,3 +82,5 @@ textarea.hvf-in{resize:vertical}
   .hvf-chip{min-height:44px}.hvf-acts .hvf-btn{min-height:44px;flex:1 1 40%}
 }
 @media (max-width:420px){.hvf-g{grid-template-columns:1fr}}
+
+.hvf-sub{margin:12px 0 6px;font-size:14px;font-weight:700}

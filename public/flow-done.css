@@ -1,0 +1,55 @@
+/* R261: the Done card + the "Event confirmed" tick (flow-done.js) */
+#sec-done .fd-bar{height:8px;border-radius:999px;background:var(--line,#e8e3db);overflow:hidden;margin:4px 0 14px}
+#sec-done .fd-bar i{display:block;height:100%;width:0;border-radius:999px;background:var(--accent,#047857);transition:width .3s ease}
+#sec-done .fd-row{display:flex;gap:10px;flex-wrap:wrap}
+#sec-done .fd-go{min-width:160px;min-height:46px;font-size:16px;justify-content:center}
+#sec-done.is-ready{border-color:var(--accent,#047857);background:var(--accent-soft,#e3f4ed)}
+.fd-msg{margin-top:14px}
+.fd-still{margin:0 0 6px;font-weight:600;font-size:14px}
+.fd-miss{margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:8px}
+.fd-miss a{display:inline-flex;align-items:center;min-height:36px;padding:6px 12px;border:1px solid var(--line,#e8e3db);border-radius:999px;background:var(--panel,#fff);color:var(--accent,#047857);font-size:14px;font-weight:600;text-decoration:none}
+.fd-miss a:hover{border-color:var(--accent,#047857)}
+.fd-opt{margin:10px 0 0;font-size:13px;color:var(--ink-3,#6b6478)}
+.fd-lock{overflow:hidden}
+.fd-ov{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(6,40,30,.55);overflow:auto;animation:fdFade .2s ease both}
+.fd-sheet{width:min(460px,100%);margin:auto;border-radius:22px;overflow:hidden;background:var(--panel,#fff);color:var(--ink,#1b1930);box-shadow:0 24px 70px rgba(0,30,20,.35);animation:fdUp .35s cubic-bezier(.2,.8,.2,1) both}
+.fd-hero{position:relative;padding:34px 20px 24px;text-align:center;color:#fff;background:linear-gradient(160deg,#059669,#047857 55%,#065f46);overflow:hidden}
+.fd-hero h2{margin:14px 0 0;font-size:26px;line-height:1.2;color:#fff;animation:fdRise .4s .75s ease both}
+.fd-hero h2:focus,.fd-hero h2:focus-visible{outline:none!important;box-shadow:none!important}
+.fd-hero .fd-x{display:flex;align-items:center;cursor:pointer;position:absolute;top:10px;right:10px;width:44px;height:44px;min-height:44px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;font-size:24px;line-height:1;justify-content:center}
+.fd-hero .fd-x:hover{background:rgba(255,255,255,.28)}
+.fd-hero .fd-x:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.fd-ring{position:relative;width:124px;height:124px;margin:0 auto}
+.fd-ring::before{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid rgba(255,255,255,.7);animation:fdPulse 1s .35s ease-out both}
+.fd-tick{position:relative;display:block;width:100%;height:100%;animation:fdPop .45s cubic-bezier(.2,1.4,.4,1) both}
+.fd-c{fill:#fff}
+.fd-p{fill:none;stroke:#047857;stroke-width:10;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:100;stroke-dashoffset:100;animation:fdDraw .45s .4s cubic-bezier(.5,0,.2,1) forwards}
+.fd-burst{position:absolute;inset:0}
+.fd-burst i{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px;border-radius:50%;background:#fff;opacity:0;transform:rotate(var(--a)) translateY(-58px);animation:fdBurst .8s .6s ease-out both}
+.fd-burst i:nth-child(3n){background:#a7f3d0;width:6px;height:6px}
+.fd-burst i:nth-child(4n){background:#fde68a;border-radius:2px}
+.fd-burst .d0{--a:0deg}.fd-burst .d1{--a:30deg}.fd-burst .d2{--a:60deg}.fd-burst .d3{--a:90deg}.fd-burst .d4{--a:120deg}.fd-burst .d5{--a:150deg}
+.fd-burst .d6{--a:180deg}.fd-burst .d7{--a:210deg}.fd-burst .d8{--a:240deg}.fd-burst .d9{--a:270deg}.fd-burst .d10{--a:300deg}.fd-burst .d11{--a:330deg}
+.fd-body{padding:20px;animation:fdRise .4s .85s ease both}
+.fd-name{margin:0;text-align:center;font-size:18px;font-weight:700;overflow-wrap:anywhere}
+.fd-when{margin:4px 0 16px;text-align:center;color:var(--ink-2,#4a4560);font-size:15px}
+.fd-facts{margin:0 0 16px;border:1px solid var(--line,#e8e3db);border-radius:14px;overflow:hidden}
+.fd-facts>div{display:flex;justify-content:space-between;gap:14px;padding:11px 14px;border-top:1px solid var(--line,#e8e3db)}
+.fd-facts>div:first-child{border-top:0}
+.fd-facts dt{flex:0 0 auto;color:var(--ink-3,#6b6478);font-size:14px}
+.fd-facts dd{margin:0;text-align:right;font-weight:600;font-size:15px;overflow-wrap:anywhere;min-width:0}
+.fd-facts dd b{display:block;font-variant-numeric:tabular-nums}
+.fd-facts dd small{display:block;font-weight:500;font-size:13px;color:var(--ink-3,#6b6478)}
+.fd-body .fd-miss{margin-bottom:16px}
+.fd-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fd-acts .btn{min-height:46px;justify-content:center;text-align:center}
+.fd-acts .btn.primary{grid-column:1/-1}
+@keyframes fdFade{from{opacity:0}}
+@keyframes fdUp{from{opacity:0;transform:translateY(24px) scale(.97)}}
+@keyframes fdPop{0%{transform:scale(0)}100%{transform:scale(1)}}
+@keyframes fdDraw{to{stroke-dashoffset:0}}
+@keyframes fdPulse{from{transform:scale(.8);opacity:.9}to{transform:scale(1.5);opacity:0}}
+@keyframes fdBurst{0%{opacity:0;transform:rotate(var(--a)) translateY(-52px)}30%{opacity:1}100%{opacity:0;transform:rotate(var(--a)) translateY(-92px)}}
+@keyframes fdRise{from{opacity:0;transform:translateY(10px)}}
+@media (max-width:420px){.fd-hero{padding:28px 16px 20px}.fd-ring{width:104px;height:104px}.fd-hero h2{font-size:23px}.fd-body{padding:16px}}
+@media (prefers-reduced-motion:reduce){.fd-ov,.fd-sheet,.fd-tick,.fd-hero h2,.fd-body,.fd-burst i,.fd-ring::before{animation:none}.fd-ring::before,.fd-burst{display:none}.fd-p{animation:none;stroke-dashoffset:0}#sec-done .fd-bar i{transition:none}}

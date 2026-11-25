@@ -27,9 +27,9 @@ t('themes: 11 keys (5 old first, 6 new), the same list as the database CHECK', (
 });
 t('settings: a site saved before r34 keeps today\'s page (phone buttons, full address, Helm footer, no form)', () => {
   const s = X.settings({ names: 'A', hostPhone: '+91 98765 43210', address: 'x' });
-  assert.deepEqual({ ...s }, { rsvpForm: false, rsvpContact: true, addressMode: 'full', helmBrand: true });
-  assert.deepEqual({ ...X.settings({ rsvpForm: true, rsvpContact: false, addressMode: 'after_rsvp', hideHelmBrand: true }) },
-    { rsvpForm: true, rsvpContact: false, addressMode: 'after_rsvp', helmBrand: false });
+  assert.deepEqual({ ...s }, { rsvpForm: false, rsvpContact: true, addressMode: 'full', helmBrand: true, studioBrand: true });
+  assert.deepEqual({ ...X.settings({ rsvpForm: true, rsvpContact: false, addressMode: 'after_rsvp', hideHelmBrand: true, hideStudio: true }) },
+    { rsvpForm: true, rsvpContact: false, addressMode: 'after_rsvp', helmBrand: true, studioBrand: false });
   assert.equal(X.settings({ addressMode: 'weird' }).addressMode, 'full');
   assert.equal(X.settings(null).rsvpContact, true);
 });
@@ -109,14 +109,13 @@ t('link preview: generic OG tags only (no names / address / phone / date), image
   assert.doesNotMatch(og, /\$\{|names|address|phone|\d{4}-\d{2}/);
   assert.ok(existsSync(join(ROOT, 'public/invite-og.png')) && statSync(join(ROOT, 'public/invite-og.png')).size < 400 * 1024);
 });
-t('footer: "Designed by <studio> · Made with Helm Studios", studio name escaped, Helm part can be hidden per site', () => {
-  assert.match(invite, /\$\{studio\?`Designed by <b>\$\{esc\(studio\)\}<\/b>`:""\}/);
-  assert.match(invite, /\$\{brand\?`Made with <a href="\/" target="_blank" rel="noopener">Helm Studios<\/a>`:""\}/);
-  assert.match(studio, /hideHelmBrand:!\$\("#f_helmBrand"\)\.checked/);
+t('footer (R261): "Made with Helm Events" always; "Designed by <studio>" optional, studio name escaped', () => {
+  assert.match(invite, /\$\{studio\?`<span class="by">Designed by <b>\$\{esc\(studio\)\}<\/b><\/span>`:""\}<span class="by">Made with <a href="\/" target="_blank" rel="noopener">Helm Events<\/a><\/span>/);
+  assert.match(studio, /hideStudio:!\$\("#f_studioBrand"\)\.checked/); assert.doesNotMatch(studio + invite, /hideHelmBrand|f_helmBrand|Helm Studios/);
 });
 t('scripts: shared helper loaded on both pages; store-api v296', () => {
-  for (const h of [invite, studio]) assert.match(h, /invite-extras\.js\?v=2"( defer)?><\/script>/);   // R224: deferred on the guest page
-  assert.match(studio, /store-api\.js\?v=415/); assert.match(invite, /client-api\.js\?v=\d+/);   // R216: the guest page loads the small client script
+  for (const h of [invite, studio]) assert.match(h, /invite-extras\.js\?v=3"( defer)?><\/script>/);   // R224: deferred on the guest page
+  assert.match(studio, /store-api\.js\?v=416/); assert.match(invite, /client-api\.js\?v=\d+/);   // R216: the guest page loads the small client script
 });
 t('SQL 0284: additive, re-runnable, ASCII; anon RPCs rate-limited via cf-connecting-ip helpers', () => {
   assert.ok(!/[^\x09\x0a\x0d\x20-\x7e]/.test(sql), 'ASCII');

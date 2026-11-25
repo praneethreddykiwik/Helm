@@ -236,7 +236,9 @@
       }
       li.appendChild(body);
       var href = c.status !== "ok" ? fixHref(c.fix, o.quoteId) : "";
-      if (href) { var a = el("a", "cl-fix", fixLabel(c.fix) + " →"); a.href = href; a.setAttribute("aria-label", fixLabel(c.fix) + " to fix: " + c.label); li.appendChild(a); }
+      var doneGo = c.key === "event_day" && c.status === "fail" && o.today && o.quoteId;   // R261 (0451): the day is today - marking it complete opens closing
+      if (doneGo) href = "monitor.html?quote=" + encodeURIComponent(String(o.quoteId));
+      if (href) { var lb = doneGo ? "Mark event complete (Wrap-up)" : fixLabel(c.fix), a = el("a", "cl-fix", lb + " →"); a.href = href; a.setAttribute("aria-label", lb + " to fix: " + c.label); li.appendChild(a); }
       list.appendChild(li);
     });
     return list;

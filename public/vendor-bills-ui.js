@@ -247,6 +247,7 @@
         catch (e) { go.disabled = false; msg.textContent = errText(e); }
       });
     }
+    document.addEventListener("helm:vendor-money", function () { if (box.isConnected) reload(); });   // R261: a payment / charge made in the vendor table
     var formDrawn = "";
     function renderForm() {
       // R190: a closed event takes a bill only as a "late adjustment" (with a reason, by the people the studio allows)

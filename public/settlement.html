@@ -3,7 +3,7 @@
 <head>
 <base href="/">
 <style id="bp-auth-gate">html.auth-pending body,html.auth-pending body *{visibility:hidden!important}</style>
-<link rel="stylesheet" href="settlement-polish.css?v=2">
+<link rel="stylesheet" href="settlement-polish.css?v=3">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Payments &amp; invoice — Helm Events</title>
@@ -70,10 +70,10 @@
 </style>
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="/event-flow-line.css?v=1">
+<link rel="stylesheet" href="/event-flow-line.css?v=1"><link rel="stylesheet" href="/vendor-flow.css?v=2"><link rel="stylesheet" href="/vendor-charges.css?v=1">
 <link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="money-lock.css?v=2"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="extras-bill.css?v=1"><link rel="stylesheet" href="/vendor-items.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=126" id="shellProto"></script>
+<script src="/shell-proto.js?v=127" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -130,10 +130,11 @@
 
     <div class="card">
       <h2>🤝 Vendor settlement</h2>
-      <p class="sub">What you owe vendors, and what's settled.</p>
-      <div class="table-scroll"><table><thead><tr><th scope="col">Vendor</th><th scope="col" class="num">Cost</th><th scope="col" class="num">Advance</th><th scope="col" class="num">Outstanding</th><th scope="col">Settled</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+      <p class="sub">What you owe vendors, and what is paid. Review an invoice, pay a bill, or record a payment when there is no invoice.</p>
+      <div class="table-scroll"><table><thead><tr><th scope="col">Vendor</th><th scope="col" class="num">Cost</th><th scope="col" class="num">Advance</th><th scope="col" class="num">Outstanding</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody id="vendBody"><tr><td colspan="6" class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></td></tr></tbody></table></div>
       <div class="totbar"><span>Owed to vendors: <b id="v_out" data-money>₹0</b></span></div>
+      <p class="efl-note warn" id="v_note" hidden></p>
     </div>
 
     <div data-vb-mount="bills" id="vendorBills"></div>
@@ -184,7 +185,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script><script src="extras-bill.js?v=1"></script><script src="/vendor-items.js?v=1"></script><script src="money-cash-ui.js?v=2"></script><script src="money-header-ui.js?v=4"></script><script src="pick-event.js?v=1"></script><script src="/event-flow-line.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=416"></script><script src="extras-bill.js?v=1"></script><script src="/vendor-items.js?v=1"></script><script src="/vendor-flow.js?v=2"></script><script src="/vendor-charges.js?v=1"></script><script src="money-cash-ui.js?v=2"></script><script src="money-header-ui.js?v=4"></script><script src="pick-event.js?v=1"></script><script src="/event-flow-line.js?v=1"></script><script src="vendor-bills-ui.js?v=14"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -198,6 +199,10 @@
   const putMoney=(el,...parts)=>{ el.replaceChildren(...parts.flat(4).map(x=>{ if(x&&typeof x==="object"&&"__m" in x){ const sp=document.createElement("span"); sp.setAttribute("data-money",""); sp.textContent=inr(x.__m); return sp; } return document.createTextNode(x==null?"":String(x)); })); };
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   const EXP={pending:"Pending",approved:"Approved",paid:"Paid",rejected:"Rejected"};
+  let reqBy={}, canPay=false;   // R261: the request of each booking (its invoice waiting), may record vendor payments (Finance edit)
+  // a payment, a bill or a charge changed: this page and the Vendor bills card read again
+  function moneyChanged(){ try{ document.dispatchEvent(new CustomEvent("helm:vendor-money")); }catch(_){} load(); }
+  async function loadRequests(){ reqBy={}; try{ (await BPStore.vendorRequests.list(id)||[]).forEach(r=>{ if(r.booking_id&&r.status==="accepted") reqBy[r.booking_id]={ id:r.id, vendor_name:r.vendor_name, inv:(r.invoices||[]).some(i=>i.status==="submitted"||i.status==="queried") }; }); }catch(_){} try{ canPay=await BPStore.auth.canEditArea("finance"); }catch(_){ canPay=false; } }
   let canRes=false, canEdit=false, canClaims=false, canDelete=false, s=null, summaryFailed=false, evStatus=null;
   // Capability state: when the settlement recorder RPC isn't deployed, we flip to a
   // controlled "unavailable" state (disable submit) instead of ever reporting success.
@@ -251,22 +256,38 @@
         ? `<tr><td><b>Overpaid — credit due to client</b></td><td class="num"><b data-money style="color:var(--warn-text,#946200)">${inr(-s.balance)}</b></td></tr>`
         : `<tr><td><b>Balance due from client</b></td><td class="num"><b data-money style="color:${s.balance>0?'var(--neg)':'var(--safe-text,#0f7a43)'}">${inr(s.balance)}</b></td></tr>`}`;
 
-    const byName=(b)=>b.label||"Vendor";
-    $("#vendBody").innerHTML = s.bookings.length ? s.bookings.map(b=>{ const out=b._out!=null?b._out:Math.max(0,Number(b.cost||0)-Number(b.advance||0));
+    const byName=(b)=>{ const r=reqBy[b.id], l=b.label||"Vendor"; return r&&r.vendor_name&&r.vendor_name!==l?r.vendor_name+" · "+l:l; };
+    // R261 (owner: "I didn't pay the vendor invoice yet"): settled is never shown without saying whether a payment is recorded
+    const VST={ paid:()=>"Paid", closed:(v)=>v.owed>0.005?"Closed without payment":"Closed", unrecorded:(v)=>v.paid>0.005?"Marked settled - not paid in full":"Marked settled - no payment recorded", owed:(v)=>v.paid>0.005?"Part paid":"Not paid", none:()=>"Nothing owed" };
+    const vendorActs=(b,v)=>{ if(!canEdit||b.status==="enquiry") return ""; const nm=esc(byName(b)), wait=reqBy[b.id]&&reqBy[b.id].inv, out=[];
+      if(wait) out.push(`<a class="btn go" href="vendors.html?tab=requests&quote=${encodeURIComponent(id)}&req=${encodeURIComponent(reqBy[b.id].id)}" aria-label="Review the invoice of ${nm}">Review invoice</a>`);
+      else if(b._billed&&(v.k==="owed"||v.k==="unrecorded")) out.push(`<button type="button" class="btn go" data-gobills="1" aria-label="Pay ${nm} on its bill">Pay the bill</button>`);
+      else if((v.k==="owed"||v.k==="unrecorded")&&canPay) out.push(`<button type="button" class="btn go" data-vpay="${esc(b.id)}" data-due="${v.owed}" data-name="${nm}" aria-label="Record a payment to ${nm}">Record payment</button>`);
+      if(v.k==="owed"&&!b._billed&&!wait) out.push(`<button type="button" class="btn" data-vclose="${esc(b.id)}" data-name="${nm}" aria-label="Close ${nm} without a payment">Close without payment</button>`);
+      if(b.settled&&(v.k==="unrecorded"||v.k==="closed")) out.push(`<button type="button" class="btn" data-vundo="${esc(b.id)}" data-name="${nm}" aria-label="Undo: ${nm}">Undo</button>`);
+      return out.join(" "); };
+    $("#vendBody").innerHTML = s.bookings.length ? s.bookings.map(b=>{ const vs=BPStore.settlement.vendorState(b);
       // R252: a vendor with no price counts as 0 everywhere and never stops closing - say it here (no amount in the words)
       const nt=b.status==="enquiry"?"Only asked - not booked.":(b.cost==null&&!b._billed)?"No cost yet - counts as 0.":"";
       return `<tr><td data-vi="${esc(b.id)}"><b>${esc(byName(b))}</b>${nt?`<div class="efl-note warn">${esc(nt)}${canRes&&b.status!=="enquiry"?` <a href="resources.html?quote=${encodeURIComponent(id)}#bookings">Add it on the Resource plan</a>`:""}</div>`:""}</td><td class="num" data-money>${inr(b._billed?b._cost:b.cost)}</td><td class="num" data-money>${inr(b._billed?b._paid:b.advance)}</td>
-        <td class="num">${b.settled?'<span class="st yes">settled</span>':mh(out)}</td>
-        <td><span class="st ${b.settled?'yes':'no'}">${b.settled?'Yes':'No'}</span></td>
-        <td>${!canEdit?"":(b._billed&&!b.settled)?`<button type="button" class="btn go" data-gobills="1" aria-label="Pay ${esc(byName(b))} on its bill">Pay the bill</button>`:`<button type="button" class="btn ${b.settled?'':'go'}" data-settle="${esc(b.id)}" data-v="${b.settled?0:1}" data-name="${esc(byName(b))}" aria-label="${b.settled?'Unsettle':'Settle'} ${esc(byName(b))}">${b.settled?'Unsettle':'Settle'}</button>`}</td></tr>`;
+        <td class="num">${mh(vs.owed)}</td>
+        <td><span class="st ${esc(vs.k==="paid"||vs.k==="none"?"yes":vs.k==="unrecorded"?"warn":"no")}">${esc(VST[vs.k](vs))}</span>${vs.k==="closed"&&b.settled_reason?`<div class="efl-note">${esc(b.settled_reason)}</div>`:""}</td>
+        <td class="vs-acts">${vendorActs(b,vs)}</td></tr><tr class="vch-row" hidden><td colspan="6"><div data-vch="${esc(b.id)}" hidden></div></td></tr>`;
     }).join("") : '<tr><td colspan="6" class="empty">No vendor bookings.</td></tr>';
     $("#v_out").textContent=inr(s.vendorOutstanding);
+    { const un=s.bookings.map(b=>BPStore.settlement.vendorState(b)).filter(v=>v.k==="unrecorded"), n=$("#v_note"), ch=Number(s.vendorChargesOwed||0); n.hidden=!un.length&&!(ch>0.005);
+      putMoney(n,[un.length?[M$(un.reduce((a,v)=>a+v.owed,0)),` more is marked settled with no payment recorded (${un.length} vendor${un.length===1?"":"s"}). It is not in this total. `]:[], ch>0.005?["Includes ",M$(ch)," they charge for missing or broken items."]:[]]); }
+    if(window.HelmVendorCharges) $("#vendBody").querySelectorAll("[data-vch]").forEach(h=>{ const b=s.bookings.find(x=>x.id===h.dataset.vch), tr=h.closest("tr"); const VI=window.HelmVendorItems;
+      Promise.resolve(VI?VI.load(id,20000):null).then(st=>HelmVendorCharges.paint(h,{ quoteId:id, bookingId:b.id, vendor:byName(b), items:st&&st.vendors&&st.vendors[b.id]?st.vendors[b.id].problems:[], onDone:()=>moneyChanged() })).then(()=>{ tr.hidden=h.hidden; }); });
     if(window.HelmVendorItems) window.HelmVendorItems.lines(id,$("#vendBody"));   // R260 (0448): what was missing or broken, read only
     // R190 (0373): a booking with a bill is paid on the bill (payout + TDS), not ticked "settled" - the button takes you there
     $("#vendBody").querySelectorAll("[data-gobills]").forEach(b=>b.addEventListener("click",()=>{ const v=document.getElementById("vendorBills"); if(v) v.scrollIntoView({behavior:"smooth",block:"start"}); }));
-    $("#vendBody").querySelectorAll("[data-settle]").forEach(b=>b.addEventListener("click",async()=>{ const on=b.dataset.v==="1";
-      if(!(await BPUI.confirm(on?`Mark ${b.dataset.name} as settled? Their outstanding balance will be cleared.`:`Mark ${b.dataset.name} as not settled?`,{title:on?"Settle vendor?":"Unsettle vendor?",okLabel:on?"Settle":"Unsettle"}))) return;
-      await act(b,async()=>{ await BPStore.bookings.setSettled(b.dataset.settle, on); await load(); },"update the settlement"); }));
+    // R261: no bill yet = the payment makes it (0450); closing without a payment needs a reason; Undo opens it again
+    $("#vendBody").querySelectorAll("[data-vpay]").forEach(b=>b.addEventListener("click",()=>HelmVendorFlow.payBooking({ bookingId:b.dataset.vpay, name:b.dataset.name, due:Number(b.dataset.due), currency:(s.bookings.find(x=>x.id===b.dataset.vpay)||{}).currency, returnFocus:b, onDone:(r)=>{ if(r) moneyChanged(); } })));
+    $("#vendBody").querySelectorAll("[data-vclose]").forEach(b=>b.addEventListener("click",()=>HelmVendorFlow.closeNoPay({ bookingId:b.dataset.vclose, name:b.dataset.name, returnFocus:b, onDone:(r)=>{ if(r) load(); } })));
+    $("#vendBody").querySelectorAll("[data-vundo]").forEach(b=>b.addEventListener("click",async()=>{
+      if(!(await BPUI.confirm(`${b.dataset.name} is open again and counts as owed.`,{title:"Undo?",okLabel:"Open again"}))) return;
+      await act(b,async()=>{ await BPStore.bookings.setSettled(b.dataset.vundo, false); await load(); },"update the settlement"); }));
 
     $("#expBody").innerHTML = s.expenses.length ? s.expenses.map(e=>`<tr>
       <td><b>${esc(e.who)}</b></td><td class="muted">${esc(e.description||"")}</td><td class="num" data-money>${inr(e.amount)}</td>
@@ -429,7 +450,7 @@
 
   async function load(){
     if(window.HelmExtrasBill) HelmExtrasBill.mount($("#extrasBill"),{ quoteId:id, money:inr }).catch(()=>{});
-    try{ s=await BPStore.settlement.summary(id); await overlayBills(s); summaryFailed=false; $("#payLine").hidden=!canEdit; $("#expAdd").hidden=!canClaims; render(); }
+    try{ s=(await Promise.all([BPStore.settlement.summary(id),loadRequests()]))[0]; await overlayBills(s); summaryFailed=false; $("#payLine").hidden=!canEdit; $("#expAdd").hidden=!canClaims; render(); }
     catch(e){ summaryFailed=true; $("#payLine").hidden=true; $("#expAdd").hidden=true;
       ["#t_rev","#t_recv","#t_bal","#t_out"].forEach(x=>{ $(x).textContent="—"; });
       BPUI.loadError($("#invBody"),e,load,{what:"the invoice"});

@@ -132,7 +132,7 @@
 <script src="/telemetry.js?v=14"></script>
 <script src="/config.js?v=113"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=37"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/portal-pay.js?v=1" defer></script>
+<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=38"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/portal-pay.js?v=1" defer></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -178,9 +178,8 @@
     const e=d.event||{};
     try{ const t=d.tax&&typeof d.tax==="object"?d.tax:null;
       qTax=t&&t.country?BPStore.tax.resolve({ taxCountry:t.country, taxName:t.taxName, currency:t.currency||d.currency, taxRegion:t.region, gstPct:t.rate, taxExempt:t.exempt, taxInclusive:t.inclusive }):null; }catch(_){ qTax=null; }
-    // studio branding (multi-tenant): show the studio's name/accent to the client
-    if(d.studio){ if(d.studio.name) $("#brandName").textContent=d.studio.name; if(BPStore.paintStudio) BPStore.paintStudio(d.studio);
-      const ac=d.studio.brand&&d.studio.brand.accent; if(typeof ac==="string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(ac.trim())){ try{ document.documentElement.style.setProperty("--accent",ac.trim()); }catch{} } }
+    // studio branding (multi-tenant): show the studio's name and logo to the client
+    if(d.studio){ if(d.studio.name) $("#brandName").textContent=d.studio.name; if(BPStore.paintStudio) BPStore.paintStudio(d.studio); }   // R261 (owner): Helm's green on every client page - the studio keeps its name and logo
     // E3/E4: friendly title + proper event-type label; the auto code is only the reference
     const HEN=window.HelmEventName;
     $("#code").textContent=e.code?("Ref "+e.code):"";

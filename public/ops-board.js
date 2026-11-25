@@ -420,7 +420,7 @@
     S.mode = modeNow(); var q = G().quote || {}, was = S.autoStep;
     S.autoWin = TS.opsWindow(S.mode, { eventDate: evDate(), eventTime: q.eventTime, stage: stageOf(), now: Date.now(), tz: tz() });
     S.autoStep = TS.stepOf(S.autoWin);
-    S.openStep = S.autoStep === "daybefore" ? "pre" : S.autoStep;
+    S.openStep = S.assign || S.autoStep === "daybefore" ? "pre" : S.autoStep;   // R261: assigning people = Pre-event first, also on the event day
     if (S.manual === S.openStep || (was && was !== S.autoStep)) S.manual = null;
     S.win = S.manual || S.openStep; S.phase = TS.WIN_PHASE[S.win]; S.auto = TS.WIN_PHASE[S.autoWin];
   }
@@ -516,7 +516,7 @@
   function renderFlow() {
     var f = $("#tcFlow"); if (!f) return; var ids = (ORDER[S.win] || ORDER.daybefore).slice();
     var fn0 = $("#flowNext"); if (fn0) fn0.hidden = S.win !== "daybefore" || !fn0.firstChild;   // "Step 3 of 4": beside Get set up, while planning
-    f.setAttribute("data-win", S.win);
+    f.setAttribute("data-win", S.win); if (S.assign) ids = ["work", "tcCrewCard", "shiftCard", "tcPlanRem"];
     var want = ids.map(function (id) { return doc.getElementById(id); }).filter(Boolean);
     var rest = Array.prototype.filter.call(f.children, function (n) { return want.indexOf(n) < 0; });   // the cards of the other steps (hidden) stay last
     var fk = doc.activeElement && f.contains(doc.activeElement) ? doc.activeElement : null;
@@ -530,6 +530,16 @@
       if (half(n)) run.push(n); else { flush(); n.classList.remove("is-half"); }
     });
     flush();
+  }
+  /* R261: assign mode (#assign, from the Resources step): CSS hides the event-day cards, nothing else changes */
+  function setAssign(on) {
+    S.assign = !!on; var app = $("#app"), c = $("#tcAssign"); if (app) app.classList.toggle("is-assign", S.assign); if (c) c.hidden = !S.assign;
+    var run = $("#tcAssignRun"); if (run) run.setAttribute("href", "runsheet.html?quote=" + encodeURIComponent(G().quoteId || ""));
+  }
+  function leaveAssign() {
+    try { global.history.replaceState(null, "", global.location.pathname + global.location.search); } catch (e) {}
+    setAssign(false); S.manual = null; S.sigs = {}; update(); try { $("#tcSteps").scrollIntoView({ block: "start" }); } catch (e) {}
+    var b = doc.querySelector('#tcPhase [data-win="' + S.win + '"]'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {}
   }
   function renderPrimary() {
     var add = $("#addBtn"); if (!add) return;
@@ -1930,6 +1940,8 @@
     S.started = true;
     // R222: the monitor's "Open" (#live) opens On the event and it stays there (before, the next refresh flipped it back)
     if (global.location.hash === "#live" && G().quoteId && modeNow().mode !== "live") S.manual = TS.normWin("live");
+    setAssign(global.location.hash === "#assign"); if ($("#tcAssignAll")) $("#tcAssignAll").addEventListener("click", leaveAssign);
+    global.addEventListener("hashchange", function () { var a = global.location.hash === "#assign"; if (a !== !!S.assign) { setAssign(a); S.manual = null; S.sigs = {}; update(); } });
     // R230: the page opens on Tasks by department (the old direct layout); a pick made after R230 is kept (new key)
     var v = lsGet("helm.tc.view2"); S.view = v === "timeline" || v === "people" || v === "list" || v === "order" ? v : "list";
     var mon = $("#toMonitor"); if (mon) mon.setAttribute("href", "monitor.html?quote=" + encodeURIComponent(G().quoteId || ""));

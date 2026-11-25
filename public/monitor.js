@@ -709,7 +709,7 @@
     var q = encodeURIComponent(S.quote), floor = "builder.html?quote=" + q, row = h("nav", { cls: "mon-setup", label: "Get set up" });
     try { if (window.HelmUrl && HelmUrl.build) floor = HelmUrl.build("floor-plan", { id: S.quote }) || floor; } catch (e) {}
     var n = Array.isArray(S.rs) ? S.rs.length : null;
-    [["Crew", "staff.html"], ["Stock", "resources.html?quote=" + q], ["Vendors", "vendors.html"], ["Run-sheet" + (n == null ? "" : n ? " · " + n : " · empty"), "runsheet.html?quote=" + q],
+    [["Crew", "staff.html"], ["Stock", "resources.html?quote=" + q], ["Vendors", "vendors.html?tab=requests&quote=" + q], ["Run-sheet" + (n == null ? "" : n ? " · " + n : " · empty"), "runsheet.html?quote=" + q],
       ["Floor layout", floor], ["Ready check", "ready.html?quote=" + q]].concat(apprLink(q)).forEach(function (l) { row.appendChild(h("a", { cls: "tc-chip mon-setup-a", href: l[1], text: l[0] })); });
     return row;
   }

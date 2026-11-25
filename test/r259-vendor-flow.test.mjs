@@ -42,9 +42,9 @@ await t('A MANIFEST, APPLY (same body, one transaction), run-all, release lists,
 });
 
 await t('B states: the server\'s word, and an older server from its status', () => {
-  assert.equal(P.info({ flow: 447, state: 'available' }).step, 1); assert.equal(P.info({ state: 'paid' }).text, 'Paid'); assert.equal(P.info({ state: 'declined', declined_by: 'studio' }).text, 'You declined their offer');
+  assert.equal(P.info({ flow: 447, state: 'available' }).step, 1); assert.equal(P.info({ state: 'paid' }).text, 'Paid and closed'); assert.equal(P.info({ state: 'declined', declined_by: 'studio' }).text, 'You declined their offer');
   assert.equal(P.info({ status: 'sent' }).k, 'asked'); assert.equal(P.info({ status: 'accepted', invoices_open: 1 }).k, 'invoice_received'); assert.equal(P.info({ status: 'accepted', invoices_approved: 1, invoices: [{ status: 'approved', pay_status: 'paid' }] }).k, 'paid');
-  assert.equal(P.info({ status: 'cancelled' }).k, 'closed'); assert.equal(P.info(null).text, 'Not asked'); assert.deepEqual(J(P.STEPS), ['Asked', 'Available', 'Confirmed', 'Invoice asked', 'Received', 'Approved', 'Paid']);
+  assert.equal(P.info({ status: 'cancelled' }).k, 'closed'); assert.equal(P.info(null).text, 'Not asked'); assert.deepEqual(J(P.STEPS), ['Asked', 'Available', 'Confirmed', 'Invoice asked', 'Invoice received', 'Approved', 'Paid', 'Closed']);
 });
 await t('B products: names, quantities, optional prices, 30 at most; the total only when every price is known', () => {
   assert.equal(P.checkLines([]).error, 'Add a product.'); assert.equal(P.checkLines([{ name: '<b>', qty: 1 }]).field, 'name'); assert.equal(P.checkLines([{ name: 'A', qty: '0' }]).field, 'qty'); assert.equal(P.checkLines([{ name: 'A', qty: '1', price: '1.234' }]).field, 'price'); assert.equal(P.checkLines([{ name: 'A', qty: '-1' }]).field, 'qty');

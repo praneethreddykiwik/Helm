@@ -15,12 +15,12 @@
   var STEPS = [
     { key: "stock", n: 1, label: "Reserve our stock", page: "inventory.html", area: "inventory" },
     { key: "vendors", n: 2, label: "Get what's missing from vendors", page: "resources.html", area: "resources" },
-    { key: "people", n: 3, label: "Assign our people", page: "ops.html", area: "staff" },
+    { key: "people", n: 3, label: "Assign our people", page: "ops.html", area: "staff", hash: "#assign" },
     { key: "budget", n: 4, label: "Check budget & margin", page: "budget.html", area: "finance" }];
   function step(key) { return STEPS.filter(function (s) { return s.key === key; })[0] || null; }
   function href(key, quoteId) {
     var s = step(key); if (!s || !quoteId) return "";
-    var h = s.page + "?quote=" + encodeURIComponent(quoteId);
+    var h = s.page + "?quote=" + encodeURIComponent(quoteId) + (s.hash || "");   // R261: "Assign our people" opens Tasks & Crew with the assigning part only
     try { if (global.HelmUrl && global.HelmUrl.upgrade) h = global.HelmUrl.upgrade(h); } catch (e) {}
     return h;
   }

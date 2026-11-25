@@ -65,7 +65,7 @@
 <link rel="stylesheet" href="vendor-bills.css?v=3">
 <link rel="stylesheet" href="money-ledger.css?v=2"><link rel="stylesheet" href="money-lock.css?v=2"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="extras-bill.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=126" id="shellProto"></script>
+<script src="/shell-proto.js?v=127" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -168,11 +168,11 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=415"></script><script src="extras-bill.js?v=1"></script><script src="money-cash-ui.js?v=2"></script><script src="money-header-ui.js?v=4"></script><script src="save-back.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-ledger-ui.js?v=4"></script><script src="money-lock-ui.js?v=3"></script><script src="stock-flow.js?v=3"></script>
-<script src="closure-checklist.js?v=4"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=416"></script><script src="extras-bill.js?v=1"></script><script src="money-cash-ui.js?v=2"></script><script src="money-header-ui.js?v=4"></script><script src="save-back.js?v=2"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=14"></script><script src="money-ledger-ui.js?v=4"></script><script src="money-lock-ui.js?v=3"></script><script src="stock-flow.js?v=3"></script>
+<script src="closure-checklist.js?v=5"></script>
 <script src="/event-flow-line.js?v=1"></script>
-<script src="page-tours.js?v=84"></script>
-<script src="tour.js?v=98"></script>
+<script src="page-tours.js?v=85"></script>
+<script src="tour.js?v=99"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -215,6 +215,8 @@
   function futureEventDate(){
     if(ev && ev.status==="cancelled") return "";
     const d=String((ev&&(ev.eventDate||(ev.client&&ev.client.eventDate)))||"").slice(0,10);
+    // R261 (0451): the event day is today and the event was marked complete (Wrap-up) - it may be closed the same day
+    if(d===BPStore.todayLocal() && review && review.too_early===false) return "";
     return /^\d{4}-\d{2}-\d{2}$/.test(d) && d>=BPStore.todayLocal() ? d : "";
   }
   const niceDay=(d)=>{ const HEN=window.HelmEventName; return (HEN&&HEN.shortDate&&HEN.shortDate(d))||d; };
@@ -222,7 +224,8 @@
   function tooEarlyText(b){
     const fd=(b&&b.too_early&&(b.close_after||b.event_date))||futureEventDate();
     if(!fd) return "";
-    return "You can close this event after "+((b&&b.close_after)||niceDay(fd))+" (event day).";
+    const tdy=String((ev&&(ev.eventDate||(ev.client&&ev.client.eventDate)))||"").slice(0,10)===BPStore.todayLocal();
+    return "You can close this event after "+((b&&b.close_after)||niceDay(fd))+" (event day)"+(tdy?", or today once it is marked complete.":".");
   }
   async function renderPL(){
     const pl=await BPStore.closure.pl(id);
@@ -302,7 +305,7 @@
     if(!review || !window.HelmClosure) return false;
     $("#closeBlockers").hidden=true;
     if(closedAt){ $("#closeChecklist").hidden=true; }
-    else HelmClosure.renderChecklist($("#closeChecklist"), review, { quoteId:id, fmt:fmtMoney });
+    else HelmClosure.renderChecklist($("#closeChecklist"), review, { quoteId:id, fmt:fmtMoney, today: String((ev&&(ev.eventDate||(ev.client&&ev.client.eventDate)))||"").slice(0,10)===BPStore.todayLocal() });
     HelmClosure.renderRequests($("#close-request"), review, { approve:approveReq, decline:declineReq, withdraw:withdrawReq });
     const st=HelmClosure.buttonState(review), btn=$("#closeBtn");
     if(btn){ btn.textContent=st.label; btn.classList.toggle("cl-anyway", st.mode!=="close");

@@ -177,6 +177,10 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0445_r258_payment_followup.sql
 -- 0447 (R259): vendor_offers joins the purge list
 \ir ../../supabase/migrations/0447_r259_vendor_flow.sql
+-- 0450 (R261): event_vendor_charges joins the purge list
+\o /dev/null
+\ir ../../supabase/migrations/0450_r261_vendor_money.sql
+\o
 
 -- ---- fixtures -----------------------------------------------------------------------------------------
 do $$ declare m uuid; begin

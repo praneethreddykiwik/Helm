@@ -123,8 +123,9 @@
   html.pv .rv{opacity:1;transform:none;transition:none}
   .fab[hidden]{display:none!important}
   .foot{text-align:center;color:var(--soft);font-family:var(--serif);font-style:italic;font-size:18px;padding:30px 0 90px}
-  .foot .madeby{display:block;margin-top:16px;font-family:var(--sans);font-style:normal;font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.7}
-  .foot .madeby a{color:var(--accent);text-decoration:none;font-weight:600}
+  .foot .madeby{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:16px;padding:0 16px;font-family:var(--sans);font-style:normal;font-size:12px;line-height:1.5;letter-spacing:.06em;color:var(--ink)}
+  .foot .madeby .by{max-width:100%;overflow-wrap:anywhere}
+  .foot .madeby a{color:var(--ink);text-decoration:underline;text-underline-offset:3px;font-weight:600}
 
   /* ---------- floating controls ---------- */
   .fabs{position:fixed;z-index:40;right:16px;top:16px;display:flex;flex-direction:column;gap:10px}
@@ -198,7 +199,6 @@
   .addr-note{display:block;margin-top:6px;font-size:13px;font-weight:400;font-style:italic;color:var(--soft)}
   .fact .sub{font-weight:400;color:var(--soft)}
   .foot .madeby b{font-weight:600;color:var(--ink)}
-  .foot .madeby .sep{margin:0 .5em;opacity:.6}
   .rsvp-b,.open-btn,.share-btm{color:var(--on-accent,#fff)}
 
   /* ---------- r34 themes (CSS only: no images, no extra requests beyond the font stylesheet) ---------- */
@@ -346,8 +346,8 @@
      DOMContentLoaded, right after them - the same order as before, without holding the first paint -->
 <script src="/db-preconnect.js?v=1"></script>
 <script src="/event-name.js?v=9" defer></script>
-<script src="/country-profile.js?v=7" defer></script><script src="/client-api.js?v=37" defer></script><script src="/trial-sim.js?v=3" data-trial-sim="site" defer></script>
-<script src="/invite-music.js?v=1" defer></script><script src="/invite-placement.js?v=1" defer></script><script src="/invite-extras.js?v=2" defer></script>
+<script src="/country-profile.js?v=7" defer></script><script src="/client-api.js?v=38" defer></script><script src="/trial-sim.js?v=3" data-trial-sim="site" defer></script>
+<script src="/invite-music.js?v=1" defer></script><script src="/invite-placement.js?v=1" defer></script><script src="/invite-extras.js?v=3" defer></script>
 <script>
 document.addEventListener("DOMContentLoaded", function(){
   const $=(s,r=document)=>r.querySelector(s);
@@ -446,10 +446,10 @@ document.addEventListener("DOMContentLoaded", function(){
   }
   function render(site){
     SITE=site;
-    const d0=site.data||{}, S=HX?HX.settings(d0):{rsvpForm:false,rsvpContact:true,addressMode:"full",helmBrand:true}, d=guestView(d0,S);
+    const d0=site.data||{}, S=HX?HX.settings(d0):{rsvpForm:false,rsvpContact:true,addressMode:"full",helmBrand:true,studioBrand:true}, d=guestView(d0,S);
     { const c=String(d0.country||site.country||"").toUpperCase(); CC=/^(IN|AE|US)$/.test(c)?c:(/^\+1\b/.test(String(d0.hostPhone||""))?"US":/^\+971/.test(String(d0.hostPhone||""))?"AE":"IN"); }
     document.body.className="t-"+((HX?HX.has(site.template):["eternal","promise","confetti","summit","soiree"].includes(site.template))?site.template:"soiree");
-    const studio=String(site.studio||(INFO&&INFO.studio)||"").trim().slice(0,80), brand=S.helmBrand;
+    const studio=S.studioBrand===false?"":String(site.studio||(INFO&&INFO.studio)||"").trim().slice(0,80);   // R261: the studio's line is optional, "Made with Helm Events" is always there
     const type=site.event_type||"general";
     // E4: an auto event code (WED_HYD_300_28DEC26) is never shown to guests
     const HEN=window.HelmEventName, tOk=site.title&&!(HEN&&HEN.isAuto(String(site.title)))?String(site.title):"";
@@ -519,7 +519,7 @@ document.addEventListener("DOMContentLoaded", function(){
       ${rsvpHtml(d, names, S)}
       ${inlineHtml(LY.after.rsvp,"RSVP")}
       <div class="foot rv">With love &amp; joy
-        ${(studio||brand)?`<span class="madeby">${studio?`Designed by <b>${esc(studio)}</b>`:""}${studio&&brand?`<span class="sep" aria-hidden="true">·</span>`:""}${brand?`Made with <a href="/" target="_blank" rel="noopener">Helm Studios</a>`:""}</span>`:""}
+        <span class="madeby">${studio?`<span class="by">Designed by <b>${esc(studio)}</b></span>`:""}<span class="by">Made with <a href="/" target="_blank" rel="noopener">Helm Events</a></span></span>
       </div>`;
     mountRsvp(false);
 

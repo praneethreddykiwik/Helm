@@ -101,7 +101,7 @@ await t('the database areas these rules follow (0057 policies): vendors / plan /
 await t('teardown: vendor exit needs Vendors, the list needs Event plan; hidden lists are not called empty; exit is read back', () => {
   const T = PAGES.teardown;
   assert.match(T, /seeBk=r\[0\]; canExit=canEdit&&r\[0\]&&r\[1\]; seeTd=r\[2\]; canTd=canEdit&&r\[2\]&&r\[3\]; seeArr=r\[4\];/); assert.match(T, /canView\("vendors"\)\), may\(\(\)=>A\.canEditArea\("vendors"\)\), may\(\(\)=>A\.canView\("plan"\)\), may\(\(\)=>A\.canEditArea\("plan"\)\), may\(\(\)=>A\.canView\("command"\)/);
-  assert.match(T, /\$\{canExit&&\(b\.status==="booked"\|\|b\.status==="confirmed"\)\?/); assert.match(T, /\$\{canTd\?`<select class="ssel" data-td=/); assert.match(T, /\$\("#tdAdd"\)\.hidden=!canTd;/); assert.match(T, /Your role can\\'t see vendors/); assert.match(T, /Your role can\\'t see the teardown list/);
+  assert.match(T, /canRet=\(b\)=>canExit&&live\(b\)&&.*b\.status!=="delivered"/); assert.match(T, /\$\{canTd\?`<select class="ssel" data-td=/); assert.match(T, /\$\("#tdAdd"\)\.hidden=!canTd;/); assert.match(T, /Your role can\\'t see vendors/); assert.match(T, /Your role can\\'t see the teardown list/);
   const ex = T.slice(T.indexOf('[data-exit]'), T.indexOf('async function renderTeardown')); assert.ok(ex.indexOf('now.status!=="booked"') < ex.indexOf('bookings.update(') && ex.indexOf('bookings.update(') < ex.indexOf('after.status!=="delivered"'));
 });
 await t('logistics: lists need Event plan, tabs open by #name, a template that adds nothing says why', () => {

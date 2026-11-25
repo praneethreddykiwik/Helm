@@ -77,7 +77,7 @@
     <!-- Event summary + pricing -->
     <div class="card">
       <div class="s-1fadc7d">
-        <div><h1 id="title">Event</h1><p class="sub" id="meta"></p></div>
+        <div><h1 id="title">Event</h1><p class="sub" id="meta"></p><p class="sub" id="when" hidden></p></div>
         <span class="code" id="code"></span>
       </div>
       <div class="rows" id="pricing"></div>
@@ -177,7 +177,7 @@
 <script src="/config.js?v=113"></script>
 <script src="/phone-input.js?v=9"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=37"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/quote-validity.js?v=6"></script><script src="/approve-test-mode.js?v=2"></script><script src="/portal-pay.js?v=1"></script><script src="/approve-plan.js?v=2"></script>
+<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=38"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/quote-validity.js?v=6"></script><script src="/approve-test-mode.js?v=2"></script><script src="/portal-pay.js?v=1"></script><script src="/approve-plan.js?v=2"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s||"").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -215,6 +215,8 @@
     <h4>4. Consent</h4><p>By verifying the one-time code we sent you and accepting these terms, you confirm you are authorised to approve this event and its charges on behalf of the client, and that the details are correct.</p>
     <h4>5. Liability & data</h4><p>The organiser is not liable for delays or failures due to circumstances beyond reasonable control. Your contact details are used only to administer this event and its payment.</p>`}
   };
+  const whenText=(q)=>{ const HC=window.HelmCountry, d=q&&q.event_date, cc=(apTax&&apTax.country)||"IN";
+    return d&&HC&&HC.formatEventDate ? HC.formatEventDate(cc, String(d), q.event_time||"") : ""; };
   const termsKey=(tax)=>{ const c=(tax&&tax.country)||"IN"; return Object.prototype.hasOwnProperty.call(TERMS_BY_COUNTRY,c)?c:"IN"; };
   const termsFor=(tax)=>TERMS_BY_COUNTRY[termsKey(tax)];
   const consentText=(v)=>"I have read and agree to the Terms & Conditions ("+v+"), and I authorise this event and its charges.";
@@ -370,6 +372,8 @@
     const etl=HEN?HEN.label(quote.event_type):(quote.event_type||"");
     $("#meta").textContent=(etl?etl+" · ":"")+"For "+(quote.client_name||"you");
     $("#pricing").innerHTML=renderPricing(quote.pricing);
+    // R261: the event's date and time (0437 sends them; an older database = the line is not there)
+    { const w=whenText(quote), x=$("#when"); x.textContent=w; x.hidden=!w; }
     // 0092: Razorpay payment links are INR only - an AED / USD quote is paid by bank transfer / card with the studio
     if(apTax && apTax.country!=="IN"){ $("#payBtn").hidden=true; $("#payBtn").style.display="none"; $("#payManual").textContent="Your planner will share bank transfer or card payment details and record your payment."; $("#payManual").hidden=false; }
     shownTerms=termsFor(apTax); phoneCountry(apTax);

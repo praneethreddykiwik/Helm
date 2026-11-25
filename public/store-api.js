@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=126"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=127"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -8881,6 +8881,17 @@ window.HelmUrl = HelmUrl;
       const a = readLs(BOOK_LS); const r = a.find((x) => x.id === id); if (r) { Object.assign(r, patch); localStorage.setItem(BOOK_LS, JSON.stringify(a)); } return true;
     },
     setSettled(id, settled) { return this.update(id, { settled: !!settled, settled_at: settled ? now() : null }); },
+    // R261 (0450): closed without a payment - never without the reason. A database without the column says so and changes nothing.
+    async closeNoPay(id, reason) {
+      const why = String(reason || "").replace(/\s+/g, " ").trim();
+      if (why.length < 3) throw new Error("Say why nothing is paid (at least 3 characters).");
+      if (/[<>]/.test(why)) throw new Error("Leave out < and >.");
+      try { return await this.update(id, { settled: true, settled_at: now(), settled_reason: why.slice(0, 300) }); }
+      catch (e) { if (e && (e.code === "PGRST204" || e.code === "42703")) throw new Error("Closing without a payment needs the latest database update."); throw e; }
+    },
+    // R261 (0450): a booked vendor who sent no bill - the bill of the agreed price and the payment in one go; the same key = once
+    pay: (id, o, key) => rpc("vendor_booking_pay", { p_booking: id, p: { amount: Math.round(Number(o.amount) * 100) / 100, paid_on: o.paidOn || null, method: o.method || null, reference: o.reference || null }, p_key: String(key || "").slice(0, 90) })
+      .catch((e) => { if (rpcMissing(e)) throw new Error("Paying without a bill needs the latest database update. Add the vendor's bill below first."); throw e; }),
     async remove(id) {
       if (mode === "supabase") { const { error } = await supa.from("event_resources").delete().eq("id", id); if (error) throw error; return true; }
       localStorage.setItem(BOOK_LS, JSON.stringify(readLs(BOOK_LS).filter((b) => b.id !== id))); return true;
@@ -9803,6 +9814,26 @@ window.HelmUrl = HelmUrl;
     newKey: () => onceUuid(),
   };
 
+  // R261 (0450): what a vendor charges for their missing / broken items: { rows, can_edit, closed, frozen, currency }. Null = older database or no right to
+  // see money. One read per event is shared for a few seconds (the money pages ask more than once).
+  const VC = {};
+  const vendorCharges = {
+    get(quoteId, maxAge) {
+      if (!supa || !quoteId) return Promise.resolve(null);
+      const c = VC[quoteId], ok = c && (c.busy || Date.now() - c.at < (maxAge == null ? 8000 : maxAge));
+      if (ok) return c.p;
+      const n = VC[quoteId] = { at: Date.now(), busy: true };
+      n.p = rpc("event_vendor_charges_get", { p_quote: quoteId }).then((r) => (r && Array.isArray(r.rows) ? r : null), (e) => { if (rpcMissing(e) || (e && (e.code === "42501" || e.code === "P0002"))) return null; if (VC[quoteId] === n) delete VC[quoteId]; throw e; });
+      n.p.then(() => { n.busy = false; n.at = Date.now(); }, () => {});
+      return n.p;
+    },
+    _put(quoteId, st) { if (st && st.rows) VC[quoteId] = { at: Date.now(), busy: false, p: Promise.resolve(st) }; return st; },
+    // c: { booking, label, qty, amount, note, state "asked" | "agreed" | "in_invoice" }; key = one per press
+    add(quoteId, c, key) { return rpc("event_vendor_charge_add", { p_quote: quoteId, p: c, p_request: key || onceUuid() }).then((r) => { this._put(quoteId, r && r.state); return r; }); },
+    set(quoteId, id, from, to, reason) { return rpc("event_vendor_charge_set", { p_id: id, p_from: from, p_to: to, p_reason: reason || null }).then((r) => { this._put(quoteId, r && r.state); return r; }); },
+    newKey: () => onceUuid(),
+  };
+
   /* ---------------- event media / gallery (Phase 25, spec step 86) ---------------- */
   const MEDIA_LS = "bp_media";
   const media = {
@@ -9930,6 +9961,9 @@ window.HelmUrl = HelmUrl;
       let out = 0;
       (sum.bookings || []).forEach((b) => { const r = st[b.id]; if (!r) return;
         b._out = r.owed; b._billed = r.billed; b._cost = r.cost; b._paid = r.paid; if (!b.settled) out += r.owed; });
+      // R261 (0450): what vendors charge for missing / broken items and is not paid yet is owed too
+      const chOwed = (bills || []).filter((b) => b && b.is_charge && b.status !== "void").reduce((a, b) => a + Math.max(0, vbNum(b.amount) - (b.vendor_payouts || []).reduce((x, p) => x + vbNum(p.amount), 0)), 0);
+      sum.vendorChargesOwed = Math.round(chOwed * 100) / 100; out += chOwed;
       sum.vendorOutstanding = Math.round(out * 100) / 100;
       if (!bills.some((b) => b && b.status !== "void")) return 0;
       let costs = []; try { costs = (await budget.listCosts(quoteId)) || []; } catch (_) { return 0; }
@@ -9937,6 +9971,13 @@ window.HelmUrl = HelmUrl;
       const delta = vendorPnlCalc(Object.assign({ bills: [] }, base)).vendors - vendorPnlCalc(Object.assign({ bills }, base)).vendors;
       sum.finalMargin = Math.round((Number(sum.finalMargin || 0) + delta) * 100) / 100;
       return delta;
+    },
+    // R261: how one vendor booking stands (b after applyBills): paid | closed (without payment, reason) | unrecorded (marked settled, nothing recorded) | owed | none
+    vendorState(b) {
+      const cost = Number(b && (b._cost != null ? b._cost : b.cost)) || 0, paid = Number(b && (b._paid != null ? b._paid : b.advance)) || 0, owed = b && b._out != null ? Number(b._out) : Math.max(0, cost - paid);
+      if (!b || b.status === "enquiry" || b.status === "cancelled") return { k: "none", owed: 0, paid: Math.round(paid * 100) / 100 };
+      const k = owed <= 0.005 ? (paid > 0.005 ? "paid" : b.settled ? "closed" : "none") : b.settled ? (String(b.settled_reason || "").trim() ? "closed" : "unrecorded") : "owed";
+      return { k, owed: Math.round(owed * 100) / 100, paid: Math.round(paid * 100) / 100 };
     },
     // R257: agreed vendors (booked, not settled, with a price) that have no bill yet -> { n, sum }; a note beside "You owe vendors", no figure changes
     pickNoBill(bk) {
@@ -10099,9 +10140,10 @@ window.HelmUrl = HelmUrl;
     // AUD-1017: spend not tied to an active booking has ONE source too. Unlinked bills and
     // unlinked "Vendor" cost lines usually record the same spend twice (a cost line typed in on
     // Budget + the vendor's bill), so the larger of the two counts - never both. Mirrors 0146.
-    const looseBills = bills.filter((x) => !active.has(x.booking_id)).reduce((a, x) => a + vbNum(x.amount), 0);
+    const looseBills = bills.filter((x) => !active.has(x.booking_id) && !x.is_charge).reduce((a, x) => a + vbNum(x.amount), 0);
     const looseLines = costs.filter((c) => c.kind === "vendor" && !active.has(c.booking_id)).reduce((a, c) => a + vbLineVal(c), 0);
     vendors += Math.max(looseBills, looseLines);
+    vendors += bills.filter((x) => x.is_charge).reduce((a, x) => a + vbNum(x.amount), 0);   // R261 (0450): on top, once
     const other = costs.filter((c) => c.kind !== "vendor" && !active.has(c.booking_id)).reduce((a, c) => a + vbLineVal(c), 0) + vbNum(o.changeCost);
     const staff = vbNum(o.staff), revenue = vbNum(o.revenue);
     // AUD-1017: money handed back to the client (processed refunds) comes off profit
@@ -10237,7 +10279,13 @@ window.HelmUrl = HelmUrl;
       if (mode !== "supabase") return [];
       const { data, error } = await supa.from("vendor_bills").select("*, vendor_payouts(*)").eq("quote_id", quoteId).order("bill_date", { ascending: false });
       if (error) { if (vbTableMissing(error)) throw vbMissingErr(); throw error; }
-      return data || [];
+      const out = data || [];
+      // R261 (0450): bills made from "charged for missing / broken items" count on top of everything else, never in "bills or typed lines, the larger"
+      if (out.some((b) => b && !b.booking_id && /^Vendor damage: /.test(String(b.description || "")))) {
+        let ch = null; try { ch = await vendorCharges.get(quoteId); } catch (e) { ch = null; }
+        if (ch) { const by = {}; ch.rows.forEach((r) => { if (r.bill_id && r.state === "agreed") by[r.bill_id] = r.booking; }); out.forEach((b) => { if (by[b.id]) { b.is_charge = true; b.charge_booking = by[b.id]; } }); }
+      }
+      return out;
     },
     // b: { amount, bill_no, bill_date, due_date, description, vendor_id, booking_id, currency }; file optional (photo/PDF -> event-docs)
     async add(quoteId, b, file) {
@@ -10611,6 +10659,8 @@ window.HelmUrl = HelmUrl;
     if (!q) return "";
     // r24 (0269): a run-sheet reminder opens that event's run-sheet
     if (k === "event_reminder" && d.source === "0269") return "runsheet.html?quote=" + enc(q);
+    // R261: a vendor answered, sent a price or an invoice (0256 / 0447) -> Vendors, Requests & invoices, that request
+    if (k === "event_reminder" && d.source === "0256") return "vendors.html?tab=requests&quote=" + enc(q) + (/^[0-9a-f-]{36}$/i.test(String(d.vendor_request_id || "")) ? "&req=" + enc(d.vendor_request_id) : "");
     // r22 (0254): a close request / its decision opens the event's Closure page at the request
     if (k === "event_close_request" || k === "event_close_decision") return "closure.html?quote=" + enc(q) + "#close-request";
     // r23 (0261): "Rahul opened the proposal" / "viewed but not approved" -> the event workspace, views timeline open
@@ -12995,7 +13045,7 @@ window.HelmUrl = HelmUrl;
     moneyOnce, // R249 (0431): want(quote, parts) - the money parts a page will show go out in one call
     signinNotice,    // R205 (0383)
     taskReminders,   // R130 (0338)
-    activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, wrapRecords, extras, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
+    activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, wrapRecords, vendorCharges, extras, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
     // User manual (migration 0031): lives in the PRIVATE storage bucket "helm-manual",
     // readable only by signed-in users. Returns { html, files: { "screenshots/x.webp": signedUrl } }
     // or throws { code: "manual_missing" } when the owner hasn't uploaded it yet.

@@ -140,7 +140,7 @@ t('C4 event workspace: the Vendors card shows request status pills (counts, no m
   const E = read('public/event.html');
   assert.match(E, /vendorReqSummary=await BPStore\.vendorRequests\.summary\(id\)/);
   assert.match(E, /awaiting reply/); assert.match(E, /reply overdue/); assert.match(E, /invoice\$\{/);
-  assert.match(E, /\{t:"Requests & invoices", href:"vendors\.html\?tab=requests&quote="\+encodeURIComponent\(id\)\}/);
+  assert.match(E, /\{t:"Open vendors", href:"vendors\.html\?tab=requests&quote="\+encodeURIComponent\(id\), primary:true\}/);
   assert.match(read('public/event-polish.css'), /\.vrq-pills-ws\{/);
 });
 t('C5 package.json runs this test', () => {

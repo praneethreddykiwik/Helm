@@ -13,7 +13,8 @@
   var S = function () { return global.BPStore; }, U = function () { return global.BPUI; };
   var qs = new URLSearchParams(global.location.search);
   var quoteId = qs.get("quote") || qs.get("id") || null;
-  var state = { rows: [], filter: "open", canAssign: false, canReview: false, vendors: null, events: null, loaded: false };
+  var wantReq = /^[0-9a-f-]{36}$/i.test(qs.get("req") || "") ? qs.get("req") : null;   // R261: a notice opens its own request
+  var state = { rows: [], filter: wantReq ? "all" : "open", pay: {}, arr: {}, seeMoney: false, canAssign: false, canReview: false, vendors: null, events: null, loaded: false };
 
   function h(tag, attrs, kids) {
     var el = doc.createElement(tag);
@@ -55,22 +56,53 @@
     var box = doc.getElementById("vrqList"); if (!box) return Promise.resolve();
     state.loaded = true;
     clear(box); box.appendChild(h("div", { cls: "empty", text: "Loading requests…" }));
-    return S().vendorRequests.list(quoteId, null).then(function (rows) { state.rows = rows || []; render(); },
+    return S().vendorRequests.list(quoteId, null).then(function (rows) { state.rows = rows || []; render(); show(); return extras(); },
       function (e) { clear(box); box.appendChild(h("div", { cls: "err", role: "alert", text: friendly(e, "load vendor requests") })); });
   }
-  function matches(r) {
-    var f = state.filter;
+  // R261: per event the bookings, bills and arrival rows behind the requests (what is really paid, who has left). Best effort: without them the card says what the request says.
+  function extras() {
+    var ids = []; state.rows.forEach(function (r) { if (r.quote_id && ids.indexOf(r.quote_id) < 0) ids.push(r.quote_id); });
+    return Promise.all(ids.slice(0, 12).map(function (q) {
+      var none = function () { return null; };
+      return Promise.all([S().bookings.list(q).catch(none), state.seeMoney ? S().vendorBills.list(q).catch(none) : null, S().dayops ? S().dayops.list(q, "arrival").catch(none) : null]).then(function (x) {
+        var bk = x[0], st = bk && x[1] ? S().vendorBills.settle(bk, x[1]).byBooking : null;
+        (bk || []).forEach(function (b) {
+          var s = st && st[b.id]; if (s) { state.pay[b.id] = Object.assign(S().settlement.vendorState(Object.assign({}, b, { _out: s.owed, _billed: s.billed, _cost: s.cost, _paid: s.paid })), { billed: s.billed, reason: b.settled_reason || "", cost: s.cost, settled: !!b.settled }); }
+          if (global.HelmVendorState && x[2]) state.arr[b.id] = global.HelmVendorState.of(b, x[2]);
+        });
+      });
+    })).then(function () { state.rows.forEach(function (r) { if (r.booking_id && state.pay[r.booking_id]) r.pay = state.pay[r.booking_id]; }); render(); }, function () {});
+  }
+  // a notice ("sent a price") opens the request it is about
+  function show() {
+    if (!wantReq) return; var id = wantReq; wantReq = null;
+    setTimeout(function () { var n = doc.querySelector('#vrqList [data-id="' + id + '"]'); if (!n) return; n.classList.add("is-seen"); n.setAttribute("tabindex", "-1"); try { n.scrollIntoView({ block: "start", behavior: "smooth" }); n.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 80);
+  }
+  // not paid in full yet: agreed (with or without a bill or an invoice), never a declined / cancelled one or one closed with a reason
+  function unpaid(r) {
+    if (r.status !== "accepted") return false;
+    if (r.pay) return r.pay.k === "owed" || r.pay.k === "unrecorded" || ((r.invoices || []).some(function (i) { return i.status === "submitted" || i.status === "queried"; }));
+    var inv = r.invoices || [], ap = inv.filter(function (i) { return i.status === "approved"; });
+    if (ap.length && ap.every(function (i) { return i.pay_status === "paid"; }) && !inv.some(function (i) { return i.status === "submitted" || i.status === "queried"; })) return false;
+    return !(r.invoice_only && !inv.length && !Number(r.agreed_amount));
+  }
+  function matches(r, filter) {
+    var f = filter || state.filter;
     if (f === "all") return true;
     if (f === "open") return r.status === "sent" || r.status === "accepted";
     if (f === "offers") return r.offer_open === true;
     if (f === "review") return (r.invoices || []).some(function (i) { return i.status === "submitted"; });
-    if (f === "unpaid") return (r.invoices || []).some(function (i) { return i.status === "approved" && i.pay_status !== "paid"; });
+    if (f === "unpaid") return unpaid(r);
     if (f === "closed") return r.status === "rejected" || r.status === "cancelled" || r.status === "reassigned";
     return true;
   }
   function render() {
     var box = doc.getElementById("vrqList"); clear(box);
-    var rows = state.rows.filter(matches);
+    var rows = state.rows.filter(function (r) { return matches(r); });
+    box.classList.toggle("is-one", rows.length === 1);
+    Array.prototype.forEach.call(doc.querySelectorAll("#vrqFilters [data-f]"), function (b) {   // R261: how many in each filter
+      var k = b.getAttribute("data-f"), c = state.rows.filter(function (r) { return matches(r, k); }).length, n = b.querySelector(".vrq-fn"); if (!n) { n = h("span", { cls: "vrq-fn" }); b.appendChild(n); }
+      n.textContent = c ? String(c) : ""; n.hidden = !c; });
     var cnt = doc.getElementById("vrqCount");
     if (cnt) cnt.textContent = state.rows.length ? rows.length + " of " + state.rows.length : "";
     if (!state.rows.length) {
@@ -92,6 +124,8 @@
     if (r.overdue_reply) st.push(pill("Reply overdue", "bad"));
     if (r.invoices_open) st.push(pill(r.invoices_open + " invoice" + (r.invoices_open === 1 ? "" : "s") + " to review", "warn"));
     if (r.over_agreed) st.push(pill("Billed above agreed", "bad"));
+    if (r.pay && r.status === "accepted") st.push(r.pay.k === "paid" ? pill("Paid", "ok") : r.pay.k === "closed" ? pill("Closed without payment", "off") : r.pay.k === "unrecorded" ? pill(r.pay.paid > 0.005 ? "Marked settled - not paid in full" : "Marked settled - no payment recorded", "warn") : r.pay.k === "owed" ? pill(r.pay.paid > 0.005 ? "Part paid" : "Not paid", "wait") : null);
+    var here = r.booking_id ? state.arr[r.booking_id] : null;
     var c = h("article", { cls: "vrq-card vrq-s-" + r.status, "data-id": r.id }, [
       h("div", { cls: "vrq-head" }, [h("span", { cls: "nm", text: r.vendor_name }), h("span", { cls: "vrq-pills" }, st)]),
       h("div", { cls: "vrq-what", text: item }),
@@ -105,19 +139,27 @@
         r.agreed_amount != null || (r.price_open && r.status === "sent" && !r.offer_open) ? " · " : null,
         r.status === "sent" && !r.offer_open ? "Reply by " + (r.respond_by_text || "-") : (r.responded_text ? (r.status === "accepted" ? "Accepted " : "Answered ") + r.responded_text + (r.responded_via === "studio" ? " (recorded by the studio)" : "") : ""),
         r.emails_sent ? " · " + r.emails_sent + " e-mail" + (r.emails_sent === 1 ? "" : "s") + " sent" : (r.emails_queued ? " · e-mail queued" : "")]),
+      here && here.state !== "expected" ? h("div", { cls: "meta", text: "On the event day: " + here.text }) : null,
+      r.pay && r.pay.reason && r.pay.k === "closed" ? h("div", { cls: "vrq-note", text: "Closed without payment: " + r.pay.reason }) : null,
       r.response_note && !(fl && r.offer && r.offer.note === r.response_note) ? h("div", { cls: "vrq-note", text: "“" + r.response_note + "”" }) : null]);
     if (fl) {
       if (Array.isArray(r.lines) && r.lines.length > 1 && !r.offer) c.appendChild(h("ul", { cls: "vrq-lines" }, r.lines.map(function (l) { return h("li", { text: l.name + " × " + Number(l.qty).toLocaleString("en-IN") + (l.unit ? " " + l.unit : "") + (l.price != null ? " · " + inr(l.price, r.currency) + " each" : "") }); })));
       var st2 = F().steps(r); if (st2) c.appendChild(st2);
-      if (r.offer && r.status !== "cancelled" && r.status !== "reassigned") { var ob = F().offerBox(r, { canAssign: state.canAssign, reload: load }); if (ob) c.appendChild(ob); }
     }
+    var nx = nextStep(r, fl); if (nx) c.appendChild(nx);   // R261: what to do now, as the main button
+    var cols = h("div", { cls: "vrq-cols" });
+    if (fl && r.offer && r.status !== "cancelled" && r.status !== "reassigned") { var ob = F().offerBox(r, { canAssign: state.canAssign, reload: load }); if (ob) cols.appendChild(ob); }
     // invoices
     var inv = (r.invoices || []).filter(function (i) { return i.status !== "superseded"; });
     if (inv.length) {
       var ul = h("ul", { cls: "vrq-inv" });
       inv.forEach(function (i) { ul.appendChild(invoiceRow(r, i)); });
-      c.appendChild(ul);
+      cols.appendChild(ul);
     }
+    if (cols.firstChild) c.appendChild(cols);
+    // R261 (0450): what they charge for missing / broken items
+    if (r.booking_id && r.status === "accepted" && global.HelmVendorCharges) { var vc = h("div"), viS = global.HelmVendorItems && global.HelmVendorItems.get ? global.HelmVendorItems.get(r.quote_id) : null; vc.hidden = true; c.appendChild(vc);
+      global.HelmVendorCharges.paint(vc, { quoteId: r.quote_id, bookingId: r.booking_id, vendor: r.vendor_name, items: viS && viS.vendors && viS.vendors[r.booking_id] ? viS.vendors[r.booking_id].problems : [], onDone: function () { extras(); } }); }
     // actions
     var acts = h("div", { cls: "acts" });
     if (state.canAssign && (r.status === "sent" || r.status === "accepted")) {
@@ -139,6 +181,25 @@
     c.appendChild(acts);
     return c;
   }
+  // the one thing to do now (null = nothing for this person). Its words say where the vendor is paid and when it is closed.
+  function nextStep(r, fl) {
+    if (r.status !== "accepted" && !r.offer_open) return null;
+    var inv = r.invoices || [], sub = inv.filter(function (i) { return i.status === "submitted"; })[0], due = inv.filter(function (i) { return i.status === "approved" && i.pay_status !== "paid" && i.bill_id; })[0], p = r.pay || null, say = "", acts = [];
+    var main = function (t, fn, label) { acts.push(h("button", { type: "button", cls: "btn primary", text: t, "aria-label": label || null, on: { click: fn } })); }, more = function (t, fn, label) { acts.push(h("button", { type: "button", cls: "btn", text: t, "aria-label": label || null, on: { click: fn } })); };
+    if (r.offer_open) { say = state.canAssign ? "Next: approve their price below." : ""; if (!say) return null; }
+    else if (sub) { say = "Next: check their invoice, then approve it."; if (state.canReview) main("Review invoice", function () { openApprove(r, sub); }, "Review invoice " + sub.invoice_no + " of " + r.vendor_name); else say = "Their invoice waits for someone with Finance."; }
+    else if (due) { say = "Next: pay it and record the payment here."; if (state.canReview) main("Record payment", function () { openPay(due, r); }, "Record a payment to " + r.vendor_name); }
+    else if (p && p.k === "paid") say = "Paid in full. Nothing left to do.";
+    else if (p && p.k === "closed") { say = "Closed without payment."; if (state.canReview) more("Undo", function (e) { undoClose(r, e.currentTarget); }, "Undo: " + r.vendor_name + " closed without payment"); }
+    else if (p && p.billed && (p.k === "owed" || p.k === "unrecorded")) { say = "Next: pay their bill. Payments are recorded on Payments & invoice, Vendor bills."; acts.push(h("a", { cls: "btn primary", href: "settlement.html?quote=" + encodeURIComponent(r.quote_id) + "#vendorBills", text: "Pay the bill" })); }
+    else if (p && (p.k === "owed" || p.k === "unrecorded") && r.booking_id) {
+      say = p.k === "unrecorded" ? "Marked settled, but no payment is recorded." : inv.length ? "Waiting for their invoice." : fl && !eventHere(r) ? "Nothing to do until the event. You can pay before the invoice comes." : "No invoice yet. Ask for it below, or record the payment.";
+      if (state.canReview && !inv.some(function (i) { return i.status === "queried"; })) { more("Record payment", function (e) { F().payBooking({ bookingId: r.booking_id, name: r.vendor_name, due: p.owed, currency: r.currency, returnFocus: e.currentTarget, onDone: function (x) { if (x) load(); } }); }, "Record a payment to " + r.vendor_name + " without an invoice");
+        if (p.k === "unrecorded") more("Undo", function (e) { undoClose(r, e.currentTarget); }, "Undo: " + r.vendor_name + " marked settled"); else more("Close without payment", function (e) { F().closeNoPay({ bookingId: r.booking_id, name: r.vendor_name, returnFocus: e.currentTarget, onDone: function (x) { if (x) load(); } }); }, "Close " + r.vendor_name + " without a payment"); }
+    } else return null;
+    return h("div", { cls: "vrq-next" }, [h("p", { text: say })].concat(acts.length ? [h("div", { cls: "vrq-nacts" }, acts)] : []));
+  }
+  function undoClose(r, b) { b.disabled = true; S().bookings.setSettled(r.booking_id, false).then(function () { toast("Open again.", "ok"); return load(); }, function (e) { b.disabled = false; toast(friendly(e, "undo it"), "err"); }); }
   function invoiceRow(r, i) {
     var pay = i.status === "approved" && i.pay_status ? (i.pay_status === "paid" ? pill("Paid", "ok") : i.pay_status === "partial" ? pill("Part paid · " + inr(i.balance, r.currency) + " due", "warn") : pill(inr(i.balance, r.currency) + " due", "wait")) : null;
     var gst = Number(i.cgst) > 0 ? "CGST " + inr(i.cgst, r.currency) + " + SGST " + inr(i.sgst, r.currency) : Number(i.igst) > 0 ? "IGST " + inr(i.igst, r.currency) : Number(i.tax_amount) > 0 ? "tax " + inr(i.tax_amount, r.currency) : r.gst === false ? "no tax" : "no GST";
@@ -211,6 +272,7 @@
     }).catch(function (e) { toast(friendly(e, "load the history"), "err"); });
   }
   function viewFile(i) {
+    if (F() && F().openFile) return F().openFile(function () { return S().vendorRequests.fileUrl(i.storage_path); }, { name: "invoice " + i.invoice_no });   // R261: the tab opens inside the click
     S().vendorRequests.fileUrl(i.storage_path).then(function (u) { if (!u) throw new Error("not available"); global.open(u, "_blank", "noopener"); })
       .catch(function (e) { toast(friendly(e, "open the invoice file"), "err"); });
   }
@@ -418,13 +480,14 @@
     var tabs = doc.getElementById("viewTabs"); if (!tabs) return;
     tabs.addEventListener("click", function (e) { var b = e.target.closest("[data-view]"); if (b) setView(b.getAttribute("data-view")); });
     Array.prototype.forEach.call(doc.querySelectorAll("#vrqFilters [data-f]"), function (b) {
+      var on0 = b.getAttribute("data-f") === state.filter; b.classList.toggle("on", on0); b.setAttribute("aria-pressed", String(on0));
       b.addEventListener("click", function () { state.filter = b.getAttribute("data-f");
         Array.prototype.forEach.call(doc.querySelectorAll("#vrqFilters [data-f]"), function (x) { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", String(x === b)); });
         render(); }); });
     var nb = doc.getElementById("vrqNew"); if (nb) nb.addEventListener("click", function () { openForm(); });
     var st = S(); if (!st || !st.vendorRequests) { tabs.hidden = true; return; }
-    st.init().then(function () { return Promise.all([st.auth.canEditArea("vendors").catch(function () { return false; }), st.auth.canEditArea("finance").catch(function () { return false; })]); })
-      .then(function (r) { state.canAssign = !!r[0]; state.canReview = !!r[1]; if (nb) nb.hidden = !state.canAssign;
+    st.init().then(function () { return Promise.all([st.auth.canEditArea("vendors").catch(function () { return false; }), st.auth.canEditArea("finance").catch(function () { return false; }), st.auth.canView("finance").catch(function () { return false; })]); })
+      .then(function (r) { state.canAssign = !!r[0]; state.canReview = !!r[1]; state.seeMoney = !!r[2]; if (nb) nb.hidden = !state.canAssign;
         if (qs.get("tab") === "requests") setView("requests"); })
       .catch(function () { /* the page's own boot shows sign-in / access problems */ });
   }

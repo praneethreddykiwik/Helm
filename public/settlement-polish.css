@@ -16,3 +16,12 @@
 /* r24 plain words: one-line "what this page is for" under the breadcrumb */
 .page-purpose{margin:0 0 14px;font-size:14px;line-height:1.45;color:var(--ink-2,#4b475f);font-weight:500;max-width:72ch}
 .page-purpose b{color:var(--ink,#1b1930);font-weight:700}
+
+/* R261: vendor settlement - the real status, its buttons and what they charge for missing / broken items */
+.st.warn{background:#fff1d6;color:#7a4b00;white-space:normal;text-transform:none;letter-spacing:0;font-size:12px}
+.vs-acts{white-space:normal}
+.vs-acts .btn{margin:2px 4px 2px 0}
+.vch-row>td{padding-top:0;border-top:0}
+#v_note{margin:8px 0 0;font-size:13px}
+#vendBody .vi-line,#vendBody .vi-line-n{font-size:12px}
+#vendBody td.num{white-space:nowrap}
