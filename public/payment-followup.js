@@ -90,7 +90,7 @@
     if (!P || !P.followUp || !o.data || !Array.isArray(o.data.rows) || !o.data.rows.length) { line(o, null); return null; }
     try { f = await P.followUp(o.quoteId); } catch (e) { f = null; }
     if (my !== seq && o.box && !o.box.isConnected) return null;
-    line(o, f);
+    line(o, f); claimHere(o, f);
     if (!f || !o.tbody || !o.tbody.isConnected) return f;
     paint(o, f); scrollHere(o.box);
     return f;
@@ -182,6 +182,27 @@
     var s = el("span", "", "The client says this is paid by " + (HOW[o.method] || "another way") + (o.reference ? ", reference " + o.reference : "") + ". Check your account, then press Record. The reference is kept with the receipt."); p.appendChild(s);
     host.parentNode.insertBefore(p, host);
   }
+  // R262 (owner: "when I click the notification I record the payment there"): the open claim sits on step 10 with the form filled in, however the page was
+  // opened. An amount typed by hand is never replaced; a claim that is answered takes its filled-in amount away again.
+  function claimHere(o, f) {
+    var box = document.getElementById("pay_claim"); if (!box || !onFlow()) return;
+    var rows = (f && f.rows) || {}, list = o.data && o.data.rows || [], r = list.filter(function (x) { return x && rows[x.id] && rows[x.id].claim && Number(x.remaining) > 0.5; })[0], c = r && f.can_edit && !f.held ? rows[r.id].claim : null;
+    var old = prefill(o.quoteId); if (f && old && old.claim && (!c || c.id !== old.claim)) { unfill(old); api.recorded(o.quoteId); }
+    while (box.firstChild) box.removeChild(box.firstChild);
+    box.hidden = !c; if (!c) return;
+    var p = el("p"), t = claimText(c, function () { return "\u0001"; }, tz()).split("\u0001"), m = el("b", "", money(c.amount)); m.setAttribute("data-money", "");   // only the amount hides
+    p.appendChild(document.createTextNode(t[0])); p.appendChild(m); p.appendChild(document.createTextNode(t[1] || "")); box.appendChild(p);
+    box.appendChild(el("p", "pfu-t", "Check your account, then record it here." + (c.reference ? " The reference is kept with the receipt." : "")));
+    var amt = document.getElementById("pay_amount"), a = el("div", "fa-row"), typed = amt && amt.dataset.typed === "1" && Math.abs(Number(amt.value) - Number(c.amount)) > 0.5;
+    if (!typed) { putPrefill(o.quoteId, c); fillForm(o.quoteId); }
+    var dup = document.getElementById("pfuForm"); if (dup) dup.parentNode.removeChild(dup);   // this box already says it
+    a.appendChild(btn("Record this payment", "primary", function () {
+      var was = document.getElementById("pfuForm"); if (was) was.parentNode.removeChild(was);
+      putPrefill(o.quoteId, c); fillForm(o.quoteId); was = document.getElementById("pfuForm"); if (was) was.parentNode.removeChild(was); var go = document.getElementById("pay_record"); if (go && !go.disabled) go.click();
+    }));
+    a.appendChild(btn("Not received", "", function (b) { close(o, c, b); })); box.appendChild(a);
+  }
+  function unfill(old) { var amt = document.getElementById("pay_amount"); if (amt && Math.abs(Number(amt.value) - Number(old.amount)) < 0.5 && amt.dataset.typed !== "1") { amt.value = ""; try { amt.dispatchEvent(new Event("input", { bubbles: true })); } catch (e) {} } }
   // recorded: the form is empty again
   api.recorded = function (quoteId) { clearPrefill(quoteId); var p = document.getElementById("pfuForm"); if (p && p.parentNode) p.parentNode.removeChild(p); };
   function line(o, f) {

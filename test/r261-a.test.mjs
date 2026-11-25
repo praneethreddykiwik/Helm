@@ -32,7 +32,7 @@ test('A3: it saves nothing, amounts follow Hide amounts, Esc closes, reduced mot
   const src = read('public/flow-done.js'), css = read('public/flow-done.css');
   assert.doesNotMatch(src, /innerHTML|insertAdjacentHTML|BPStore|fetch\(|\.rpc\(|setTimeout|new Audio|localStorage/);
   assert.match(src, /data-money/); assert.match(src, /e\.key === "Escape"/); assert.match(src, /aria-modal/); assert.match(css, /prefers-reduced-motion:reduce/);
-  assert.match(FLOW, /if\(!\(was>0\)\) celebrateAdvance\(\)/); assert.match(FLOW, /if\(f&&!f\.cancelled\) window\.HelmFlowDone\.celebrate/);
+  assert.match(FLOW, /updateProgress\(\); nextShare\(\); \}/); assert.doesNotMatch(FLOW, /celebrateAdvance/);   // R262: after the payment comes sharing; Done plays the tick
 });
 test('A4: the event time is in step 1, saved only when changed here, never as a half-typed blank', () => {
   assert.match(FLOW, /<input id="c_time" type="time">/); assert.match(FLOW, /client:\["c_name"[^\]]*"c_date","c_time"/);

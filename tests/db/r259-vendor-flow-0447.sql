@@ -13,6 +13,7 @@ create temp table _before as select (select md5(coalesce(string_agg((to_jsonb(q)
 \i supabase/migrations/0447_r259_vendor_flow.sql
 \i supabase/migrations/0447_r259_vendor_flow.sql
 \o
+alter table public.vendor_invoices disable trigger r452_invoice_price;   -- 0452 has its own suite; these cases test the studio's review of an invoice above the agreed price
 set client_min_messages = warning;
 create temp table _rc(name text, result text); grant all on _rc to anon, authenticated, service_role;
 create temp table _kv(k text primary key, v text); grant all on _kv to anon, authenticated, service_role;

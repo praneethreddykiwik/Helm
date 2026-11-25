@@ -117,7 +117,7 @@
   .egp-rl{margin-left:auto;color:var(--ink-3);font-size:12px} .egp-empty{padding:14px}
   .egp-btns{display:flex;justify-content:flex-end;gap:8px}
 </style>
-<link rel="stylesheet" href="flow-polish.css?v=12"><link rel="stylesheet" href="flow-done.css?v=1">
+<link rel="stylesheet" href="flow-polish.css?v=12"><link rel="stylesheet" href="flow-done.css?v=1"><link rel="stylesheet" href="flow-after.css?v=1">
 <link rel="stylesheet" href="share-checklist.css?v=5">
 <link rel="stylesheet" href="event-group-picker.css?v=3"><link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="venues.css?v=8">
@@ -126,7 +126,7 @@
 <link rel="stylesheet" href="quote-validity.css?v=3"><link rel="stylesheet" href="stage-history.css?v=1"><link rel="stylesheet" href="link-views.css?v=2"><link rel="stylesheet" href="payment-schedule.css?v=8">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=127" id="shellProto"></script>
+<script src="/shell-proto.js?v=128" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -374,6 +374,8 @@
           <!-- r61: one aligned grid - advance %, amount, method, receipt no. and the button (the schedule card below uses the same look) -->
           <!-- R257: once money is in - what is received (receipt) and what is still to come; the boxes below are then the NEXT payment -->
           <div class="pay-state" id="pay_state" role="status" hidden></div>
+          <!-- R262: the client says it is paid (payment-followup.js) -->
+          <div id="pay_claim" role="status" hidden></div>
           <div class="pay-adv" id="payAdv">
             <div class="fld pay-f-pct"><label for="pay_pct">Advance %</label><input id="pay_pct" type="number" min="0" max="100" value="10"></div>
             <div class="fld pay-f-amt"><label for="pay_amount"><span id="pay_amt_lbl">Advance amount</span> (<span class="cur-sym">₹</span>)</label><input id="pay_amount" type="number" min="0"></div>
@@ -388,8 +390,12 @@
           <p class="psch-soft" id="pay_adv_diff" role="status" hidden><span id="pay_adv_difft"></span></p>
           <div class="s-4856645" id="pay_online" hidden></div>
           <div class="s-56f4356" id="pay_receipts"><div class="meta"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></div></div>
-          <p class="hint next-step" id="pay_next" data-next-step><b>Next step:</b> record the advance above once the client has approved (step 9) — that confirms the booking. Then move on to Resources and Logistics from the event page.</p>
+          <p class="hint next-step" id="pay_next" data-next-step><b>Next step:</b> record the advance above once the client has approved (step 9) — that confirms the booking. Then share the client page, booklet and invitation (steps 11 and 12) and press Done.</p>
         </section>
+
+        <!-- R262: after the advance - 11 the client page + booklet, 12 the invitation site (flow-after.js); open once the booking is confirmed -->
+        <section class="card" id="sec-after" aria-label="Share with the client" hidden></section>
+        <section class="card" id="sec-invite" aria-label="Invitation site" hidden></section>
 
         <!-- R261: Done (flow-done.js) -->
         <section class="card" id="sec-done" aria-label="Done" hidden></section>
@@ -492,18 +498,19 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=416"></script><script src="/trial-sim.js?v=3"></script>
-<script src="page-tours.js?v=85"></script>
-<script src="tour.js?v=99"></script>
-<script src="payment-followup.js?v=1"></script><script src="payment-schedule.js?v=9"></script><script src="/advance-percent.js?v=1"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=418"></script><script src="/trial-sim.js?v=3"></script>
+<script src="page-tours.js?v=86"></script>
+<script src="tour.js?v=100"></script>
+<script src="payment-followup.js?v=2"></script><script src="payment-schedule.js?v=9"></script><script src="/advance-percent.js?v=1"></script>
 <script src="/studio-time.js?v=1"></script><script src="/task-clash.js?v=2"></script><script src="/event-date-move.js?v=4"></script>
 <script src="booklet.js?v=41"></script>
-<script src="share-checklist.js?v=16"></script>
+<script src="share-checklist.js?v=17"></script>
 <script src="flow-layout-sync.js?v=6"></script>
 <script src="reprice-guard.js?v=1"></script>
 <script src="event-sizing.js?v=5"></script>
 <script src="flow-autosave.js?v=5"></script>
-<script src="flow-done.js?v=1"></script>
+<script src="flow-done.js?v=2"></script>
+<script src="invite-extras.js?v=3"></script><script src="invite-site-share.js?v=13"></script><script src="flow-after.js?v=1"></script>
 <script src="flow-validate.js?v=5"></script>
 <script src="flow-resume.js?v=12"></script>
 <script src="quote-state.js?v=4"></script><script src="quote-validity.js?v=6"></script>
@@ -522,7 +529,7 @@
   setDateWindow();   // before store-api's date hardener runs (DOMContentLoaded), so it uses the studio day too
   try{ if(window.BPUI && BPUI.dateHint) BPUI.dateHint(document.getElementById("c_date")); }catch(_){}   // r22: the event date in the studio's format under the box
   // QA1019: the step-9 "Next step" only says the booking is confirmed once an advance is recorded
-  function payNextConfirmed(){ const p=$("#pay_next"); if(!p) return; const b=document.createElement("b"); b.textContent="Next step:"; p.replaceChildren(b, " the booking is confirmed \u2014 move on to Resources and Logistics from the event page."); }
+  function payNextConfirmed(){ const p=$("#pay_next"); if(!p) return; const b=document.createElement("b"); b.textContent="Next step:"; p.replaceChildren(b, " the booking is confirmed. Share the client page, booklet and invitation (steps 11 and 12), then press Done."); }
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   // ---- Cluster C: "pick or add custom" vocab for the event-type & requirement
   // dropdowns. Defaults + any custom entries the user adds (persisted, so they
@@ -670,8 +677,9 @@
     const s=b?b.id.slice(3):null; return s&&AS&&AS.has(s)?s:null;
   }
   const planDirty=()=>{ try{ return !!(PSCH && PSCH.dirty && PSCH.dirty()); }catch(_){ return false; } };   // R255: a payment plan that was changed but not saved
-  function unsaved(){ return dirty || planDirty() || !!(AS && (AS.pending() || AS.hasFailed())); }
-  function markDirty(e){ if(loading) return; if(e&&e.target&&e.target.closest&&e.target.closest("#sec-payplan")) return; const s=sectionOf(e&&e.target); if(s){ edited.add(s); AS.schedule(s); draftSoon(); return; } dirty=true;
+  const invDirty=()=>{ try{ return !!(AFTER && AFTER.dirty()); }catch(_){ return false; } };   // R262: the invitation (step 12) was changed but not saved
+  function unsaved(){ return dirty || planDirty() || invDirty() || !!(AS && (AS.pending() || AS.hasFailed())); }
+  function markDirty(e){ if(loading) return; if(e&&e.target&&e.target.closest&&e.target.closest("#sec-payplan,#sec-after,#sec-invite")) return; const s=sectionOf(e&&e.target); if(s){ edited.add(s); AS.schedule(s); draftSoon(); return; } dirty=true;
     const t=e&&e.target, card=t&&t.closest?t.closest("section.card"):null; if(!(card && card.querySelector("#sv-quote"))) dirtyOther=true; }
   const draftSoon=debounce(draftSave,400);
   // ---- per-section load failures ----
@@ -850,7 +858,8 @@
   /* ---------- save helpers (reuse the same BPStore calls the pages use) ---------- */
   // Re-read updated_at after a write THIS tab made to the quote row (version save, approval token),
   // so the optimistic lock only fires for edits made elsewhere.
-  async function relock(){ try{ const f=await BPStore.quotes.get(id); if(f&&f.updatedAt&&ev) ev.updatedAt=f.updatedAt; }catch(_){} }
+  async function relock(state){ try{ const f=await BPStore.quotes.get(id); if(f&&f.updatedAt&&ev){ ev.updatedAt=f.updatedAt;
+    if(state) ["status","approvalStatus","approvalToken","confirmedAt","lifecycleStage","consentStale"].forEach(k=>{ if(f[k]!==undefined) ev[k]=f[k]; }); } }catch(_){} }   // R262: state = the booking's own state too (confirmed after a payment)
   // Explicit "Save quotation": the required client fields (name + email + phone) must be filled and valid,
   // and every problem is marked at once instead of one per click.
   // flow-validation (owner): step 1 is checked as a whole - name (2-80, letters), phone (shared validator),
@@ -1660,9 +1669,9 @@
     try{
       const r=await BPStore.milestones.record(id, amount, method, $("#pay_receipt").value.trim()||null, null, (window.HelmPayFollow?HelmPayFollow.refNote(id,amount):null), idem);
       recordPayment._idem=null; if(MK) MK.done(payScope); if(window.HelmPayFollow) HelmPayFollow.recorded(id);   // r218 / r239: saved - the next payment is a new one
-      await relock();   // money-1024: recording the advance confirms the booking server-side (bumps quotes.updated_at)
+      await relock(true);   // money-1024: recording the advance confirms the booking server-side (bumps quotes.updated_at)
       paintBookingBadge(1); paintStatusBadge({advance:true});
-      $("#pay_receipt").value=""; $("#pay_amount").value=""; ADV_TYPED=false;
+      $("#pay_receipt").value=""; $("#pay_amount").value=""; $("#pay_amount").dataset.typed=""; ADV_TYPED=false;
       if(method==='online' && BPStore.approval.onlinePayAvailable()){ const link=location.origin+"/sim-pay.html?ref="+encodeURIComponent(ev.code||"")+"&amount="+amount;
         $("#pay_online").hidden=false; $("#pay_online").style.display=""; $("#pay_online").innerHTML=`Online link (simulated): <a href="${esc(link)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(link)}</a> — real Razorpay link goes here in production.`; }
       $("#pay_record").removeAttribute("aria-busy");
@@ -1670,7 +1679,7 @@
       BPUI.toast("Payment recorded — receipt "+(r&&r.receipt_no||"")+"."+(was>0?"":" Booking confirmed."),{type:"ok",timeout:8000});
       // The button stays disabled until the page has read the new receipt back: from then on the boxes are the NEXT payment and the
       // same advance again is asked for in plain words (R257). Without that answer it stays disabled (re-enabled on failure below).
-      if(PAID_SUM>was+0.5){ $("#pay_record").disabled=false; updateAdvance(); updateProgress(); if(!(was>0)) celebrateAdvance(); }
+      if(PAID_SUM>was+0.5){ $("#pay_record").disabled=false; updateAdvance(); updateProgress(); nextShare(); }
     }catch(e){ $("#pay_record").disabled=false; $("#pay_record").removeAttribute("aria-busy"); relock();
       if(e&&(e.code==="23514"||/exceeds the outstanding balance/i.test(String(e.message||"")))){ BPUI.toast("This payment is more than the balance the server allows for this event, so it was not recorded. Check the amount (and that any change orders are approved).",{type:"err",timeout:8000}); return; }
       BPUI.toast(BPUI.friendlyError(e,{action:"record the payment"}),{type:"err"}); }
@@ -1746,7 +1755,7 @@
     placeShare(true); syncShare(); shareFrom=document.activeElement; $("#shareModal").hidden=false;
     setTimeout(()=>{ const a=$("#csAsk"), t=(a && !$("#csAskRow").hidden) ? a : $("#csClose"); try{ t.focus(); }catch(_){} }, 30);
   }
-  function closeShare(){ $("#shareModal").hidden=true; placeShare(false); syncShare();
+  function closeShare(){ $("#shareModal").hidden=true; placeShare(false); syncShare(); if(AFTER) AFTER.reloadBooklet();
     try{ (shareFrom&&shareFrom.isConnected?shareFrom:$("#shareClient")).focus(); }catch(_){} }
   function paintBookingBadge(paidCount){ const b=$("#bookingBadge"); try{ paintApprBtn(paidCount); }catch(_){} if(!b) return;
     { const st=$("#apprState"); if(st){ if(paidCount>0) st.textContent=approvalKind()==="advance"?advOnly()+".":"Booking confirmed.";   // PL1027 #2
@@ -1803,6 +1812,7 @@
     const HEN=window.HelmEventName, cl=ev.client||{}, seen=!!PLAN && PLAN!=="fail", rows=seen&&Array.isArray(PLAN.rows)?PLAN.rows.filter(r=>r&&r.state!=="waived"):[];
     return { client:!!(pc.name&&pc.phone&&pc.eventType), date:!!pc.eventDate, time:!!origTime, guests:+$("#c_guests").value||0, venue:d.venue, menu:d.menu, layout:d.layout, quote:d.quote,
       plan:seen?rows.length>0:null, approved:d.approve, advance:PAID_SUM>0||(ev.approvalStatus||ev.approval_status)==="paid",
+      ...(()=>{ try{ return AFTER&&(clientApproved()||ev.status==="confirmed")?AFTER.facts():{}; }catch(_){ return {}; } })(),
       discovery:d.discovery, reqs:d.reqs, proposal:d.proposal, cancelled:ev.status==="cancelled",
       title:HEN?HEN.friendlyTitle(Object.assign({}, ev, {client:cl, eventType:$("#c_type").value||ev.eventType})):(ev.title||ev.code||""), when:whenNow(), clientName:cl.name||"",
       received:PAID_SUM>0?inr(PAID_SUM):"", receipt:PAID_LAST?PAID_LAST.receipt_no||PAID_LAST.provider_ref||"":"",
@@ -1811,8 +1821,12 @@
   let FDONE=null;
   const doneActions={ go:()=>{ location.href="event.html?id="+encodeURIComponent(id); }, plan:()=>{ location.href="runsheet.html?quote="+encodeURIComponent(id); }, share:()=>openShare() };
   function paintDone(){ if(loading||!window.HelmFlowDone||!ev) return; try{ if(!FDONE) FDONE=window.HelmFlowDone.mount($("#sec-done"),{ facts:doneState, actions:doneActions }); else FDONE.paint(); }catch(_){} }
-  // the first money in confirms the booking: play the tick once
-  function celebrateAdvance(){ if(!window.HelmFlowDone) return; const f=doneState(); if(f&&!f.cancelled) window.HelmFlowDone.celebrate(Object.assign({ actions:doneActions, returnFocus:$("#sec-done .fd-go") }, f)); }
+  // R262 (owner): the payment is recorded HERE, then the client page, booklet and invitation (steps 11-12), then Done plays the tick
+  let AFTER=null;
+  function afterMount(){ if(!id || !ev || !window.HelmFlowAfter || BPStore.mode()!=="supabase") return; try{
+    if(!AFTER) AFTER=window.HelmFlowAfter.mount({ share:$("#sec-after"), invite:$("#sec-invite"), quote:()=>ev, id:ev.id||id, canEdit:()=>canEdit, open:()=>clientApproved()||ev.status==="confirmed", shareBooklet:()=>openShare(), onChange:()=>paintDone() });
+    AFTER.refresh(); }catch(_){} }
+  function nextShare(){ afterMount(); const s=$("#sec-after"); if(!s||s.hidden) return; setTimeout(()=>{ try{ s.scrollIntoView({block:"start",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"}); }catch(_){} },350); }
   // R255: "You changed the payment plan but didn't save it. Save and send?" -> true = nothing to save, or it is saved now
   async function planGate(okLabel, why){
     if(!planDirty()) return true;
@@ -2122,7 +2136,7 @@
       // PP1028 #1: an internal Confirm & lock is NOT a client approval - follow the real approval state
       if(ap==='paid'||ap==='approved'||ap==='sent'||hasTok) $("#apprState").textContent=apprStateText(ap==='paid'); }
     await renderReceipts(); await renderActivity(); await renderQuoteVersions(); renderEgPrompt().catch(()=>{});
-    renderReprice(); watchHistory();
+    renderReprice(); watchHistory(); afterMount();
     // reminder banner
     try{ if(localStorage.getItem(REMIND_KEY)==="1"){ $("#reminder").hidden=false; localStorage.removeItem(REMIND_KEY); $("#sec-quote").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"}); } }catch{}
     $("#remindAfter").checked = false;
@@ -2369,6 +2383,10 @@
     const rememberStep=(e)=>{ if(!flowTrack||!window.HelmFlowResume) return; const sec=e.target&&e.target.closest&&e.target.closest('section.card[id^="sec-"]'); if(!sec) return;
       const step=sec.id.slice(4); if(!HelmFlowResume.STEPS[step]) return; flowTrack.step(step); };
     $("#app").addEventListener("focusin",rememberStep); $("#app").addEventListener("click",rememberStep);
+    // R262: the bell's payment notice while this page is already open, or the tab looked at again: the client's claim is asked for again (never over an unsaved plan)
+    { let at=Date.now(); const again=(min)=>{ if(!PSCH||planDirty()||loading||Date.now()-at<min) return; at=Date.now(); try{ PSCH.reload(); }catch(_){} };
+      document.addEventListener("visibilitychange",()=>{ if(!document.hidden) again(15000); }); window.addEventListener("hashchange",()=>{ if(location.hash==="#sec-pay") again(1000); });
+      document.addEventListener("click",(e)=>{ const a=e.target&&e.target.closest&&e.target.closest('a[href*="#sec-pay"]'); if(a) again(1000); },true); }
     window.addEventListener("hashchange",()=>{ const h=(location.hash||"").replace(/^#sec-/,""); if(flowTrack&&window.HelmFlowResume&&HelmFlowResume.STEPS[h]) flowTrack.step(h); });
     // leaving the page: send a pending step change now instead of losing it
     window.addEventListener("pagehide",()=>{ if(flowTrack) flowTrack.flush().catch(()=>{}); });
@@ -2383,7 +2401,7 @@
     $("#shareModal").addEventListener("keydown",(e)=>{ if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); closeShare(); } });
     $("#csPlanBtn").addEventListener("click",pressPlan); $("#ppRetry").addEventListener("click",()=>{ if(PSCH) PSCH.reload(); }); $("#shareBody").addEventListener("click",guardShare,true);   // R255
     $("#pay_pct").addEventListener("input",()=>{ $("#pay_pct").dataset.touched="1"; ADV_TYPED=false; updateAdvance(); });
-    $("#pay_amount").addEventListener("input",()=>{ ADV_TYPED=$("#pay_amount").value!==""; paintAdvDiff(); });
+    $("#pay_amount").addEventListener("input",(e)=>{ if(e.isTrusted) $("#pay_amount").dataset.typed=$("#pay_amount").value!==""?"1":""; ADV_TYPED=$("#pay_amount").value!==""; paintAdvDiff(); });
     $("#c_date").addEventListener("change",applyPayTerms);
     ["q_chairs","q_guests","q_chairPrice","q_platePrice","q_other","q_discount","q_discountPct"].forEach(f=>$("#"+f).addEventListener("input",updateAdvance));
     // Production without live Razorpay: manual recording only (no simulated link option)
@@ -2466,12 +2484,13 @@
       let ok=false; try{ ok=await BPUI.guard($("#lv_save"), saveAll, {busyLabel:"Saving…"}); }catch(_){}
       if(ok===undefined) return;   // already saving
       if(ok && planDirty()){ ok=await PSCH.save().catch(()=>false); if(!ok){ $("#leaveModal").hidden=true; pendingLeave=null; $("#sec-payplan").scrollIntoView({block:"start"}); BPUI.toast("The payment plan couldn't be saved. Check it, then save it.",{type:"err"}); return; } }
+      if(ok && invDirty()){ ok=await AFTER.save().catch(()=>false); if(!ok){ $("#leaveModal").hidden=true; pendingLeave=null; $("#sec-invite").scrollIntoView({block:"start"}); BPUI.toast("The invitation couldn't be saved. Check it, then save it.",{type:"err"}); return; } }
       if(!ok){ BPUI.toast("Some changes couldn't be saved — fix them and try again, or choose “Leave without saving”.",{type:"err"}); return; }
       $("#leaveModal").hidden=true;
       leaving=true; const go=pendingLeave; pendingLeave=null; if(go) go();
     });
     $("#lv_discard").addEventListener("click",()=>{
-      dirtyOther=false; dirty=false; draftClear(); $("#leaveModal").hidden=true; if(planDirty()) PSCH.discard();
+      dirtyOther=false; dirty=false; draftClear(); $("#leaveModal").hidden=true; if(planDirty()) PSCH.discard(); if(invDirty()) AFTER.discard();
       leaving=true; const go=pendingLeave; pendingLeave=null; if(go) go();
     });
 
@@ -2523,7 +2542,7 @@
         paintStatusBadge();
         $("#apprState").textContent=apprStateText(r.approvalStatus==="paid");
         paintBookingBadge(r.approvalStatus==="paid"?1:0);
-        renderEgPrompt().catch(()=>{}); }
+        renderEgPrompt().catch(()=>{}); afterMount(); if(PSCH) PSCH.reload(); }
     });
   }
   function showNotFound(){ $("#gate").hidden=false; $("#gate").innerHTML='<h2 style="margin:0 0 6px;font-size:16px">Quote not found</h2><p style="color:var(--ink-2);margin:0">This quote doesn\'t exist or was deleted. Go back to <a href="quotes.html" style="color:var(--accent);text-decoration:underline">Quotes</a>.</p>'; }

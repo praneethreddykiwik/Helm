@@ -116,14 +116,14 @@
     var o = d.offer, st = String(d.studio || "The studio");
     if (d.status === "cancelled") return "Cancelled by " + st + ". There is nothing more to do.";
     if (d.status === "reassigned") return st + " gave this to another vendor. Thank you.";
-    if (d.status === "rejected") return d.declined_by === "studio" ? st + " did not take your offer this time. Thank you." : "You said you are not available." + (d.can_respond ? " Plans changed? You can still answer." : "");
+    if (d.status === "rejected") return d.declined_by === "studio" ? st + " did not take your offer this time. Thank you." : "You said it is not available." + (d.can_respond ? " Plans changed? You can still answer." : "");
     if (d.status === "accepted") {
       if (d.invoice_only) return "Please send your invoice below.";
       var c = d.confirmed || {}; return "Booking confirmed" + (c.total != null ? " at " + inr(c.total) : "") + ". Thank you.";
     }
     if (o && o.status === "offered") return "Your offer of " + inr(o.total) + " was sent. " + st + " will confirm it.";
     if (o && o.status === "change_asked") return st + " asks you to change your offer.";
-    return "Are you available?" + (d.respond_by_text ? " Please reply by " + pd(d.respond_by_text) + "." : "");
+    return ((d.lines || []).length > 1 ? "Are these products available?" : "Is this product available?") + (d.respond_by_text ? " Please reply by " + pd(d.respond_by_text) + "." : "");
   }
   function itemRow(name, qty, unit, right, sub) {
     var li = el("li", "vr-item"), l = el("div", "vr-item-l");
@@ -155,7 +155,7 @@
       var box = $("vr-change"); empty(box); box.appendChild(el("b", "", String(d.studio || "The studio") + " asks:")); box.appendChild(el("p", "", o.review_note)); box.hidden = false;
     }
     if (d.can_respond === true) {
-      $("vr-accept").textContent = mine ? (o.status === "change_asked" ? "Send a new offer" : "Change my offer") : d.status === "rejected" ? "I am available now" : "Yes, I'm available";
+      $("vr-accept").textContent = mine ? (o.status === "change_asked" ? "Send a new offer" : "Change my offer") : d.status === "rejected" ? "It is available now" : (d.lines || []).length > 1 ? "Yes, products available" : "Yes, product available";
       $("vr-reject").textContent = "Not available"; $("vr-reject").hidden = d.status === "rejected";
     }
     $("vr-inv-hint").textContent = "Your products and prices are filled in. Add the invoice number and attach your invoice. " + String(d.studio || "The studio") + " checks it, and you can see here when it is approved and paid.";
@@ -177,7 +177,13 @@
       var t = el("p", "vo-line-t"); t.setAttribute("aria-live", "polite");
       g.appendChild(q.box); g.appendChild(p.box); row.appendChild(g); row.appendChild(t); box.appendChild(row);
       q.input.addEventListener("input", sumOffer); p.input.addEventListener("input", sumOffer);
-      offerRows.push({ l: l, q: q.input, p: p.input, pw: p.box, t: t, asked: asked });
+      var r = { l: l, q: q.input, p: p.input, pw: p.box, t: t, asked: asked };
+      if ((d.lines || []).length > 1) {   // R262: one of several products can be not available
+        var nl = el("label", "vr-check vo-none"), nb = el("input"); nb.type = "checkbox"; nb.id = "vo-n" + i; nb.checked = !!(was && Number(was.qty) === 0); nl.appendChild(nb); nl.appendChild(el("span", "", "Not available")); row.appendChild(nl); r.none = nb;
+        nb.addEventListener("change", function () { q.input.value = nb.checked ? "0" : String(asked); sumOffer(); });
+        q.input.addEventListener("input", function () { nb.checked = amount(q.input.value) === 0; });
+      }
+      offerRows.push(r);
     });
     // an agreed total without prices per product is easiest as one total
     if (!o && d.agreed_amount != null && !(d.lines || []).some(function (l) { return l.price != null; })) one = true;
@@ -311,6 +317,9 @@
   // ---- invoice ----
   // R259: the products of the invoice (from what was confirmed; a corrected one from the queried invoice)
   var invRows = [];
+  // R262 (0452): an approved price stays: the products and prices are fixed, fewer pieces and a discount are fine
+  function locked() { var c = cur && cur.confirmed; return !!(c && c.total != null && Number(c.total) > 0 && !cur.invoice_only && (c.lines || []).length); }
+  function agreedLine(name) { var k = String(name || "").trim().toLowerCase(); return ((cur && cur.confirmed && cur.confirmed.lines) || []).filter(function (l) { return String(l.name || "").trim().toLowerCase() === k; })[0] || null; }
   function addInvRow(l) {
     var i = invRows.length, n = invRows.seq = (invRows.seq || 0) + 1, row = el("fieldset", "vo-line"), lg = el("legend", "sr", "Product " + (i + 1)); row.appendChild(lg);
     var nw = el("div"), nl = el("label", "", "Product"), ni = el("input"); nl.htmlFor = ni.id = "vi-n" + n; ni.maxLength = 120; ni.autocomplete = "off"; ni.value = l && l.name ? l.name : ""; nw.appendChild(nl); nw.appendChild(ni); row.appendChild(nw);
@@ -320,6 +329,8 @@
     var rec = { n: ni, q: q.input, p: p.input, t: t, unit: l && l.unit ? l.unit : null, row: row, x: x };
     x.addEventListener("click", function () { if (invRows.length < 2) return; invRows.splice(invRows.indexOf(rec), 1); row.parentNode.removeChild(row); invSum(); });
     [ni, q.input, p.input].forEach(function (k) { k.addEventListener("input", invSum); });
+    var ag = locked() && l ? agreedLine(l.name) : null;
+    if (ag) { rec.ag = ag; ni.readOnly = true; row.classList.add("is-lock"); if (l.price != null) { p.input.readOnly = true; rec.lockPrice = true; } }
     invRows.push(rec); $("vi-lines").appendChild(row); return rec;
   }
   function invoiceLines(prev) {
@@ -328,7 +339,10 @@
     var g = !on || cur.gst !== false; $("vi-gst-w").hidden = !g; $("vi-tax-w").hidden = g; if (!g) $("vi-gst").value = "none";
     if (!on) return;
     var c = cur.confirmed || {}, src = prev && Array.isArray(prev.lines) && prev.lines.length ? prev : c, ls = (src.lines || cur.lines || []).slice(0, 30);
+    var lk = locked(); $("vi-lock").hidden = !lk; $("vi-lock").textContent = lk ? "The price was approved, so it stays as it is. Bring fewer? Lower the quantity. An extra cost? Ask " + String(cur.studio || "the studio") + " to add it." : "";
+    if (lk) ls = ls.filter(function (l) { return agreedLine(l.name); }); if (lk && !ls.length) ls = c.lines.slice(0, 30);
     ls.forEach(function (l) {
+      var ag = lk ? agreedLine(l.name) : null; if (ag && ag.price != null) l = Object.assign({}, l, { price: ag.price, qty: Math.min(Number(l.qty), Number(ag.qty)) });
       var p = l.price; if (p == null && ls.length === 1 && src.total != null && Number(l.qty) > 0 && r2(r2(src.total / l.qty) * l.qty) === r2(src.total)) p = r2(src.total / l.qty);
       addInvRow({ name: l.name, unit: l.unit, qty: l.qty, price: p });
     });
@@ -342,6 +356,7 @@
       if (!bad && (!n || /[<>]/.test(n))) bad = { err: "Enter the product name (no < or >).", el: r.n.id };
       if (!bad && !(q > 0)) bad = { err: "Enter the quantity of " + n + ".", el: r.q.id };
       if (!bad && (p === null || isNaN(p))) bad = { err: "Enter the price of " + n + ".", el: r.p.id };
+      if (!bad && r.ag && q > Number(r.ag.qty)) bad = { err: "Only " + qn(r.ag.qty) + " of " + n + " were approved.", el: r.q.id };
       if (q > 0 && p != null && !isNaN(p)) sum += r2(q * p);
       return { name: n, unit: r.unit, qty: q, price: p };
     });
@@ -351,12 +366,17 @@
     if (!bad && isNaN(tx)) bad = { err: "Enter the tax as a number, or leave it empty.", el: "vi-tax" };
     ch = ch || 0; di = di || 0; tx = cur.gst === false ? tx || 0 : 0;
     if (!bad && di > sum + ch) bad = { err: "The discount cannot be more than the price.", el: "vi-discount" };
+    if (locked()) {
+      var lc = cur.confirmed, mc = Number(lc.charges) || 0;
+      if (!bad && ch > mc + 0.005) bad = { err: mc > 0 ? "The approved charges are " + inr(mc) + "." : "No extra charges were approved. Ask the studio to add them.", el: "vi-charges" };
+      if (!bad && r2(sum + ch - di) > Number(lc.total) + 0.005) bad = { err: "The approved price is " + inr(lc.total) + " (before tax).", el: invRows[0] && invRows[0].p.id };
+    }
     return Object.assign({ lines: lines, charges: ch, discount: di, tax: tx, taxable: r2(sum + ch - di) }, bad || {});
   }
   function invSum() {
     if (!flow()) return;
     invRows.forEach(function (r) { var q = amount(r.q.value), p = amount(r.p.value); r.t.textContent = q > 0 && p != null && !isNaN(p) ? qn(q) + " x " + inr(p) + " = " + inr(r2(q * p)) : ""; r.x.hidden = invRows.length < 2; });
-    $("vi-add").hidden = invRows.length >= 30;
+    $("vi-add").hidden = invRows.length >= 30 || locked();
     var v = readInv(); $("vi-taxable").value = v.taxable > 0 ? v.taxable : ""; autoGst(); total();
   }
   function num(id) { var v = $(id).value.trim(); if (v === "") return 0; var n = Number(v); return isFinite(n) ? Math.round(n * 100) / 100 : NaN; }
@@ -382,7 +402,7 @@
     var p = parts(), t = p.taxable + p.cgst + p.sgst + p.igst;
     if (flow()) {
       t = r2(t + (readInv().tax || 0)); $("vi-sum-n").textContent = p.taxable > 0 && isFinite(t) ? inr(t) : "-";
-      var ag = cur.agreed_amount; $("vi-total").textContent = p.taxable > 0 && ag != null && Number(ag) > 0 && t > Number(ag) + 0.005 ? "This is above the agreed " + inr(ag) + ". The studio will check it." : "";
+      var ag = cur.agreed_amount; $("vi-total").textContent = !locked() && p.taxable > 0 && ag != null && Number(ag) > 0 && t > Number(ag) + 0.005 ? "This is above the agreed " + inr(ag) + ". The studio will check it." : "";
       return;
     }
     $("vi-total").textContent = isFinite(t) && p.taxable > 0 ? "Invoice total: " + inr(t) + (cur && Number(cur.agreed_amount) > 0 && t > Number(cur.agreed_amount) + 0.005 ? " (above the agreed " + inr(cur.agreed_amount) + " - the studio will check it)" : "") : "";

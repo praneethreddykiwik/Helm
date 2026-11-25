@@ -76,3 +76,6 @@ h2{margin:0 0 8px;font-size:17px}
 .vr-inv-l{font-size:14px;color:var(--mute)}
 @media(min-width:900px){.vr-card{max-width:680px}}
 :focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.vo-none{display:inline-flex;align-items:center;gap:8px;min-height:44px;cursor:pointer}
+.vo-none input{width:20px;height:20px;margin:0}
+.is-lock input[readonly]{background:rgba(0,0,0,.05);color:inherit}

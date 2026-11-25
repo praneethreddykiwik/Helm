@@ -198,7 +198,9 @@
     if (num(h.client_tds) > 0) rsub += " · TDS " + fmt(h.client_tds);
     grid.appendChild(kpi("Received", fmt(h.received), money(el("span", null, rsub)), { bar: num(h.received_pct), barLabel: "Share of the bill received" }));
     var actual = h.cost_word === "actual";
-    var cs = el("span"); cs.appendChild(document.createTextNode("Plan was ")); cs.appendChild(money(el("span", null, fmt(h.costs_plan))));
+    var same = Math.abs(num(h.costs_diff)) <= 0.5;   // R262 (owner: "don't repeat stuff here"): the plan is only said when it is another number
+    var cs = el("span"); if (same) cs.appendChild(document.createTextNode("As planned")); else cs.appendChild(document.createTextNode("Plan was "));
+    if (!same) cs.appendChild(money(el("span", null, fmt(h.costs_plan))));
     if (Math.abs(num(h.costs_diff)) > 0.5) { cs.appendChild(document.createTextNode(" · ")); cs.appendChild(money(el("span", num(h.costs_diff) > 0 ? "over" : "under", signedFmt(fmt, h.costs_diff)))); }
     grid.appendChild(kpi(actual ? "Actual costs" : "Expected costs", fmt(h.costs), cs));
     var ps = el("span", "mh-ps"), loss = num(h.profit) < 0;
@@ -209,7 +211,7 @@
     grid.appendChild(kpi(actual ? "Profit" : "Expected profit", (loss ? "−" : "") + fmt(Math.abs(num(h.profit))), ps, { cls: "profit", neg: loss }));
     sec.appendChild(grid);
 
-    sec.appendChild(parts(el("p", "mh-sentence"), sentence(h, fmt)));
+    if (!(same && !h.closed && num(h.revenue) > 0 && !noCosts(h) && num(h.profit) >= 0 && num(h.gap_points) <= 0)) sec.appendChild(parts(el("p", "mh-sentence"), sentence(h, fmt)));
     if (h.frozen && typeof h.frozen === "object" && h.live_differs) {
       var lw = el("p", "mh-note warn"); lw.setAttribute("role", "note");
       lw.appendChild(document.createTextNode("Frozen v" + num(h.frozen.version) + " figure. Live numbers now say "));
@@ -299,8 +301,8 @@
     tot.appendChild(money(el("span", "num mh-pl", fmt(h.costs_plan))));
     tot.appendChild(money(el("span", "num mh-ac", fmt(h.costs))));
     tot.appendChild(money(el("span", "num mh-df" + (td > 0.5 ? " over" : td < -0.5 ? " under" : ""), Math.abs(td) <= 0.5 ? "-" : signedFmt(fmt, td))));
-    var pt = el("span", "mh-trk mh-muted"); pt.appendChild(document.createTextNode("Profit ")); pt.appendChild(money(el("span", null, fmt(h.plan_profit))));
-    pt.appendChild(document.createTextNode(" planned → ")); pt.appendChild(money(el("span", null, fmt(h.profit))));
+    var pt = el("span", "mh-trk mh-muted"); if (Math.abs(td) > 0.5) { pt.appendChild(document.createTextNode("Profit ")); pt.appendChild(money(el("span", null, fmt(h.plan_profit))));
+    pt.appendChild(document.createTextNode(" planned → ")); pt.appendChild(money(el("span", null, fmt(h.profit)))); }
     tot.appendChild(pt); sec.appendChild(tot);
     var lg = el("div", "mh-legend");
     var gr = h.gap_rule || {};

@@ -1,9 +1,10 @@
-/* resource-steps.js - R255 (owner, 25 Nov 2026: "when I open the crew, the 4 above are missing"): ONE strip with the four steps that
+/* resource-steps.js - R255 (owner, 25 Nov 2026: "when I open the crew, the 4 above are missing"): ONE strip with the steps that
  * cover an event, the same on Inventory (for an event), Tasks & Crew, Resource plan and Budget:
- *   1 Reserve our stock -> 2 Get what's missing from vendors -> 3 Assign our people -> 4 Check budget & margin
+ *   1 Reserve our stock -> 2 Get what's missing from vendors -> 3 Assign our people -> 4 Plan the run-sheet -> 5 Check budget & margin
+ *   (R263, owner 26 Nov: "add the run sheet before the budget ... run sheet as 4 and budget as 5")
  *   (R257, owner: "first inventory, then vendors, then task and crew": people are briefed once it is known what is coming)
  *
- *   <nav class="rs" data-resource-steps="stock|vendors|people|budget"></nav>   filled by itself (the event from the page address)
+ *   <nav class="rs" data-resource-steps="stock|vendors|people|runsheet|budget"></nav>   filled by itself (the event from the page address)
  *   HelmResourceSteps.mount(host, { current, quoteId })                        the same, when the page knows the event
  *   HelmResourceSteps.href(key, quoteId)                                       the page of a step, for this event
  *   HelmResourceSteps.firstOpen(can, quoteId)                                  step 1, else the first step this person may open
@@ -16,7 +17,8 @@
     { key: "stock", n: 1, label: "Reserve our stock", page: "inventory.html", area: "inventory" },
     { key: "vendors", n: 2, label: "Get what's missing from vendors", page: "resources.html", area: "resources" },
     { key: "people", n: 3, label: "Assign our people", page: "ops.html", area: "staff", hash: "#assign" },
-    { key: "budget", n: 4, label: "Check budget & margin", page: "budget.html", area: "finance" }];
+    { key: "runsheet", n: 4, label: "Plan the run-sheet", page: "runsheet.html", area: "runsheet" },
+    { key: "budget", n: 5, label: "Check budget & margin", page: "budget.html", area: "finance" }];
   function step(key) { return STEPS.filter(function (s) { return s.key === key; })[0] || null; }
   function href(key, quoteId) {
     var s = step(key); if (!s || !quoteId) return "";
@@ -35,7 +37,7 @@
   function h(tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function draw(host, current, quoteId, can) {
     host.textContent = ""; host.classList.add("rs"); host.hidden = false;
-    host.setAttribute("aria-label", "How to cover this event, 4 steps");
+    host.setAttribute("aria-label", "How to cover this event, " + STEPS.length + " steps");
     var ol = h("ol", "rs-list"), cur = null;
     open(can).forEach(function (s) {
       var li = h("li"), on = s.key === current, a = h(on ? "span" : "a", "rs-a" + (on ? " on" : ""));

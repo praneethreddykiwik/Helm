@@ -1,0 +1,32 @@
+/* R262: steps 11 and 12 of the quote page (flow-after.js) + the "Send to client" box (invite-site-share.js) inside them */
+.fa-body[hidden]{display:none}
+.fa-part{border-top:1px solid var(--line,#e8e3db);padding-top:14px;margin-top:14px}
+.fa-part:first-child{border-top:0;padding-top:0;margin-top:0}
+.fa-part h3,.fa-send h3{margin:0 0 4px;font-size:14px}
+.fa-row{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.fa-row .btn{min-height:40px;justify-content:center}
+.fa-link{margin:10px 0 0}
+.fa-link input{font-size:13px;min-width:0;width:100%}
+.fa-pill{margin-left:auto}
+.fa-msg{margin:10px 0 0;font-size:13px;color:var(--ink-2,#4a4560);min-height:1em}
+.fa-frame{margin-top:12px;border:1px solid var(--line,#e8e3db);border-radius:14px;overflow:hidden;background:var(--panel-2,#faf8f5)}
+.fa-frame iframe{display:block;width:100%;height:560px;border:0}
+.fa-send{border-top:1px solid var(--line,#e8e3db);margin-top:16px;padding-top:14px}
+.fa-send[hidden],.fa-frame[hidden]{display:none}
+.fa-send .ish-gate{font-size:13px;color:var(--ink-2);margin:0 0 10px}
+.fa-send .ish-ch{border:0;padding:0;margin:8px 0 10px;display:flex;gap:16px;flex-wrap:wrap}
+.fa-send .ish-ch legend,.fa-send .ish-pv-lbl,.fa-send .ish-log-h{font-size:12px;font-weight:600;color:var(--ink-3);padding:0;margin:0 0 6px;width:100%}
+.fa-send .ish-radio,.fa-send .ish-opt{display:inline-flex;align-items:center;gap:8px;font-size:14px;min-height:36px;cursor:pointer}
+.fa-send .ish-radio input,.fa-send .ish-opt input{width:18px;height:18px;margin:0;flex:0 0 auto;accent-color:var(--accent)}
+.fa-send [hidden]{display:none!important}
+.fa-send .mnote,.fa-send .ish-msg,.fa-send .ish-trial{font-size:13px;color:var(--ink-2);margin:6px 0 10px}
+.fa-send .ish-pv{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13px;line-height:1.5;overflow-wrap:anywhere;margin:0 0 10px}
+.fa-send .ish-log{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.fa-send .ish-li{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:13px;color:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+.fa-send .ish-st{margin-left:auto;font-weight:600}
+#pay_claim{border:1px solid var(--accent,#047857);background:var(--accent-soft,#e3f4ed);border-radius:12px;padding:12px 14px;margin:0 0 14px}
+#pay_claim[hidden]{display:none}
+#pay_claim p{margin:0;font-size:14px}
+#pay_claim .fa-row{margin-top:10px}
+@media (max-width:520px){.fa-row .btn{flex:1 1 140px}.fa-pill{margin-left:0}.fa-frame iframe{height:480px}}
+.fa-hint{margin:0 0 8px}

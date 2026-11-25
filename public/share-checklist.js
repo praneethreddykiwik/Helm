@@ -387,7 +387,7 @@
       rev.addEventListener("click", async () => {
         let ok = true; try { if (global.BPUI && global.BPUI.confirm) ok = await global.BPUI.confirm("The client will no longer be able to open this booklet.", { title: "Revoke booklet link?", okLabel: "Revoke", danger: true }); } catch (e) {}
         if (!ok) return; rev.disabled = true;
-        try { await st.booklet.revoke(quoteId); toast("Booklet link revoked"); clear(live); go.textContent = "Create client booklet link"; } catch (e) { rev.disabled = false; msg.textContent = errText(e); }
+        try { await st.booklet.revoke(quoteId); toast("Booklet link revoked"); try { global.dispatchEvent(new global.CustomEvent("helm:booklet-link")); } catch (e) {} clear(live); go.textContent = "Create client booklet link"; } catch (e) { rev.disabled = false; msg.textContent = errText(e); }
       });
       live.appendChild(lab); row.appendChild(inp); row.appendChild(copy); row.appendChild(open); row.appendChild(rev); live.appendChild(row);
       live.appendChild(el("p", c.expired ? "sc-meta sc-warn" : "sc-meta", (c.expired ? "Expired on " : "Valid until ") + when(c.expires_at)));
@@ -402,7 +402,7 @@
         await ck.uploadSnapshots();
         await st.booklet.share(quoteId, sharePayload({ days: days.value, versions: cur && cur.shared_versions, note: note.value.trim(), terms: (cur && cur.terms) || "", sections: ck.sections() }));
         await ck.attachSnapshots();
-        toast("Booklet link ready");
+        toast("Booklet link ready"); try { global.dispatchEvent(new global.CustomEvent("helm:booklet-link")); } catch (e) {}   // R262: step 11 of the quote page
         try { cur = await st.booklet.current(quoteId); } catch (e) {}
         showLive(cur); go.textContent = "Update client booklet link";
       } catch (e) { msg.textContent = errText(e); }

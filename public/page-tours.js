@@ -128,7 +128,7 @@
       { sel: '[data-act="tlink"]', title: "Permanent task link", desc: "Task link copies one link per person that always shows their current tasks on every event - it is also in every task e-mail. New task link stops the old one at once." },
     ],
     "inventory.html": [
-      { sel: "#eventPanel", title: "Reserve for an event", desc: "Step 1 of 4: reserve stock and give it to a person right in its row, or tick several and give them all. Back OK when it returns, Problem when something is damaged, missing or still out." },
+      { sel: "#eventPanel", title: "Reserve for an event", desc: "Step 1 of 5: reserve stock and give it to a person right in its row, or tick several and give them all. Back OK when it returns, Problem when something is damaged, missing or still out." },
       { sel: "#layoutNeeds", title: "From the floor plan", desc: "Helm matches each floor-plan product to your stock by name. Press Reserve to link and hold it, Reserve all suggested for every match, or Get from a vendor for what you don't have. Undo is right there." },
       { sel: "#stockDates", title: "Stock dates", desc: "A multi-day event or a set-up the day before: set the set-up and teardown days and the stock stays held for the whole range. Other events holding the same items on those days are listed." },
       { sel: "#search", title: "Find stock", desc: "Search items, or filter by category and value grade (A / B / C)." },

@@ -233,11 +233,21 @@
         var seats = l.count_mode === "seats", per = n(l.per_object) || 1, cnt = seats ? n(t.seats) : n(t.objects), lab = typeLabel(t.layout_type, t.label), w = head(words(lab)) || lab;
         if (per !== 1) plain = false;
         bits.push({ text: fmt(cnt) + " " + (seats ? plural("seat", cnt) : plural(has(TABLES, t.layout_type) ? "table" : w, cnt)) + (per !== 1 ? " \u00d7 " + fmt(per) + " each" : ""), needed: l.needed != null ? n(l.needed) : Math.ceil(cnt * per) });
+        if (seats && per > 1 && ownThing(it.name) === "seats") odd.push({ type: t.layout_type, label: lab, per: per, word: "seat", seats: true });   // R262: "70 per seat" - a chair counts once per seat
         if (!seats && per > 1 && namesOf(t.layout_type, t.label).some(function (nw) { return fitScore(nw, words(it.name)) >= 2; })) odd.push({ type: t.layout_type, label: lab, per: per, word: has(TABLES, t.layout_type) ? "table" : w });
       });
     });
     if (plain) return { text: "", odd: odd };
     return { text: bits.map(function (b) { return b.text; }).join(" + ") + " = " + fmt(bits.reduce(function (a, b) { return a + b.needed; }, 0)), odd: odd };
+  }
+  // R262 (owner: "chairs should be independent and the tables independent, no options asked"): a chair or stool is one per seat, a table one per table
+  function ownThing(name) { var w = head(words(name)); return w === "chair" || w === "stool" ? "seats" : w === "table" ? "objects" : ""; }
+  // the stock items for one line, the likely ones first, each with what is free and what one press takes
+  function choices(list, all, want, free) {
+    var first = {}; (list || []).forEach(function (i) { first[i.id] = 1; });
+    return (list || []).concat((all || []).filter(function (i) { return i && i.active !== false && !first[i.id]; }).sort(function (a, b) { return String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true, sensitivity: "base" }); })).map(function (i) {
+      var f = free ? free(i.id) : null, take = f == null ? null : Math.min(f, want); return { id: i.id, name: i.name, unit: i.unit || "", fit: !!first[i.id], free: f, take: take, short: take == null ? null : Math.max(want - take, 0) };
+    });
   }
   // what the Missing column says about what vendors were asked for: never less than what was really asked
   function missText(r, cov, list) {
@@ -313,7 +323,7 @@
 
   var api = { LABELS: LABELS, FLOOR_SEATS: FLOOR_SEATS, STYLES: STYLES, seatsShown: seatsShown, countText: countText, sumOf: sumOf, missText: missText, linkMode: linkMode, thingOf: thingOf, seatGaps: seatGaps, tableGaps: tableGaps,
     words: words, head: head, namesOf: namesOf, findFits: findFits, planTake: planTake, suggestLink: suggestLink, styleSplit: styleSplit, outQty: outQty, coverOf: coverOf, CATS: CATS, RANGES: RANGES, catName: catName, typeLabel: typeLabel, addDays: addDays, rowNums: rowNums, groupItems: groupItems,
-    reservePlan: reservePlan, sameDayText: sameDayText, unlinkedAll: unlinkedAll, strip: strip, shortOnly: shortOnly, fmt: fmt };
+    reservePlan: reservePlan, sameDayText: sameDayText, ownThing: ownThing, choices: choices, unlinkedAll: unlinkedAll, strip: strip, shortOnly: shortOnly, fmt: fmt };
   if (typeof module !== "undefined" && module.exports) { module.exports = api; return; }
 
   /* ------------------------------------------------------------------ DOM (browser only) */
@@ -354,7 +364,7 @@
     if (!V || !V.sourcing) return [];
     var names = {}; S.vendors.forEach(function (v) { names[v.id] = v.name; });
     var sh = S.shorts.filter(function (x) { return x.quote_id === quoteId; });
-    if (e.bookings) return V.sourcing(thing, { bookings: e.bookings, needs: e.needs || [], shortages: sh, vendors: S.vendors });
+    if (e.bookings) return V.sourcing(thing, { bookings: e.bookings, needs: e.needs || [], shortages: sh, vendors: S.vendors, requests: e.requests || [] });
     // the overview: only the stock shortfalls are known without one read per event
     return sh.filter(function (x) { return x.source === "vendor" && x.vendor_id && thing.itemId && x.item_id === thing.itemId; })
       .map(function (x) { return { vendorName: names[x.vendor_id] || "Vendor", qty: n(x.qty), status: "enquiry", statusText: "noted", cover: false }; });   // its booking is not read here (it may be cancelled): shown, never counted
@@ -365,12 +375,23 @@
   }
   function vendorBtn(block, thing, primary) {
     if (!S.canVendor || !(thing.qty > 0)) return null;
-    var b = h("button", { type: "button", cls: "btn sm ls-act" + (primary ? " primary" : ""), text: "Get from a vendor", "aria-label": "Get " + optName(thing.label) + " from a vendor" });
-    b.addEventListener("click", function () {
-      root.HelmStockVendor.open({ quoteId: block.quote_id, label: thing.label, qty: thing.qty, itemId: thing.itemId || null, layoutType: thing.layoutType || null, returnFocus: b,
-        onDone: function () { S.evs = {}; Promise.resolve(S.o && S.o.reload && S.o.reload()).then(refresh); } });
-    });
+    var b = h("button", { type: "button", cls: "btn sm ls-act" + (primary ? " primary" : ""), text: "Get " + fmt(thing.left != null ? thing.left : thing.qty) + " from a vendor", "aria-label": "Get " + fmt(thing.left != null ? thing.left : thing.qty) + " " + optName(thing.label) + " from a vendor" });
+    b.addEventListener("click", function () { openVendor(block, thing, b); });
     return b;
+  }
+  function vendorDone() { S.evs = {}; Promise.resolve(S.o && S.o.reload && S.o.reload()).then(refresh); }
+  function openVendor(block, thing, b) {
+    root.HelmStockVendor.open({ quoteId: block.quote_id, label: thing.label, qty: thing.qty, itemId: thing.itemId || null, layoutType: thing.layoutType || null, returnFocus: b, onDone: vendorDone,
+      need: { needed: thing.needed || thing.qty, held: thing.held || 0, free: thing.free }, many: S.missing && S.missing.length > 1 ? function () { openMany(block, b); } : null });
+  }
+  // R262 (owner: "assign multiple products to a single vendor, not one by one"): one request with everything that is missing; take off what is not for this vendor
+  function openMany(block, b) {
+    root.HelmStockVendor.askMany({ quoteId: block.quote_id, lines: S.missing || [], returnFocus: b, onDone: vendorDone });
+  }
+  function manyBtn(block) {
+    if (!S.canVendor || !root.HelmStockVendor || !root.HelmStockVendor.askMany || !S.missing || S.missing.length < 2) return null;
+    var b = h("button", { type: "button", cls: "btn sm ls-act", text: "Ask one vendor for several (" + fmt(S.missing.length) + ")" });
+    b.addEventListener("click", function () { openMany(block, b); }); return b;
   }
   function linkBtn(u, sug) {
     var b = h("button", { type: "button", cls: "btn sm ls-act", text: "Link to " + optName(sug.name), title: optName(sug.name) });
@@ -423,16 +444,16 @@
     return b;
   }
   function oddNote(block, it, o) {
-    var row = h("span", { cls: "ls-odd", role: "note" }, ["Is it really " + fmt(o.per) + " per " + o.word.toLowerCase() + "? "]);
+    var row = h("span", { cls: "ls-odd", role: "note" }, ["Is it really " + fmt(o.per) + " per " + o.word.toLowerCase() + "? " + (o.seats ? "A chair counts once for one seat. " : "")]);
     // R261 (owner: "make chairs and table separate"): a table counts as a table, the chairs around it are their own line
-    var lx = linkOf(block, it, o.type); if (lx && lx.t && n(lx.t.seats) > 0) row.appendChild(doc.createTextNode("Chairs are counted on their own line, so a table counts as 1. "));
+    var lx = linkOf(block, it, o.type); if (!o.seats && lx && lx.t && n(lx.t.seats) > 0) row.appendChild(doc.createTextNode("Chairs are counted on their own line, so a table counts as 1. "));
     if (!S.canEdit) return row;
     var b = h("button", { type: "button", cls: "btn sm ls-act", text: "Use 1 per " + o.word.toLowerCase(), "aria-label": "Use 1 " + optName(it.name) + " per " + o.word.toLowerCase() });
     b.addEventListener("click", function () {
-      if (b.disabled) return; var x = linkOf(block, it, o.type), now = x ? Math.ceil(n(x.t.objects)) : 0;
-      Promise.resolve(root.BPUI && root.BPUI.confirm ? root.BPUI.confirm("One " + optName(it.name) + " for every " + o.label + " in every floor plan. This event then needs " + fmt(now) + ". What is reserved or asked stays as it is.", { title: "Use 1 per " + o.word.toLowerCase() + "?", okLabel: "Use 1" }) : true).then(function (ok) {
+      if (b.disabled) return; var x = linkOf(block, it, o.type), now = x ? Math.ceil(n(o.seats ? x.t.seats : x.t.objects)) : 0;
+      Promise.resolve(root.BPUI && root.BPUI.confirm ? root.BPUI.confirm("One " + optName(it.name) + " for every " + (o.seats ? "seat of " : "") + o.label + " in every floor plan. This event then needs " + fmt(now) + ". What is reserved or asked stays as it is.", { title: "Use 1 per " + o.word.toLowerCase() + "?", okLabel: "Use 1" }) : true).then(function (ok) {
         if (!ok) return; b.disabled = true;
-        return root.BPStore.inventory.layout.setLink(o.type, it.item_id, 1, "objects").then(function () { toast(optName(it.name) + ": 1 per " + o.word.toLowerCase() + " now.", "ok"); return refresh(); });
+        return root.BPStore.inventory.layout.setLink(o.type, it.item_id, 1, o.seats ? "seats" : "objects").then(function () { toast(optName(it.name) + ": 1 per " + o.word.toLowerCase() + " now.", "ok"); return refresh(); });
       }).catch(function (e) { b.disabled = false; toast(friendly(e, "change the link"), "err"); });
     });
     row.appendChild(b); return row;
@@ -451,7 +472,7 @@
         var nameCell = h("td", { cls: "ls-name", "data-label": "Item" }, [
           h("span", { cls: "ls-iname", text: optName(it.name) }),
           it.fromText && it.fromText.length ? h("span", { cls: "ls-from", text: "From " + it.fromText.join(", ") }) : null,
-          sum.text ? h("span", { cls: "ls-from ls-sum" }, [sum.text + " ", S.canEdit ? changeBtn(block, it) : null]) : null,
+          sum.text ? h("span", { cls: "ls-from ls-sum" }, [sum.text + " ", S.canEdit && !sum.odd.length ? changeBtn(block, it) : null]) : null,
           sum.odd.length ? oddNote(block, it, sum.odd[0]) : null,
           split ? h("span", { cls: "ls-from", text: "Looks on the plan: " + split }) : null,
           askedLine(list),
@@ -468,7 +489,7 @@
           rb.addEventListener("click", function () { reserveFlow(block, rb, { itemId: it.item_id, freeOnly: true }); });
           acts.appendChild(rb);
         }
-        if (r.short && cov.left > 0 && it.active !== false) { var vb = vendorBtn(block, { itemId: it.item_id, label: it.name, qty: Math.ceil(r.toBorrow) }, true); if (vb) acts.appendChild(vb); }
+        if (r.short && cov.left > 0 && it.active !== false) { var vb = vendorBtn(block, { itemId: it.item_id, label: it.name, qty: Math.ceil(r.toBorrow), left: Math.ceil(cov.left), needed: Math.ceil(r.needed), held: r.held, free: r.free }, true); if (vb) acts.appendChild(vb); }
         if (acts.firstChild) anyAct = true; else acts.classList.add("none");
         tb.appendChild(h("tr", { cls: r.short && cov.left > 0 ? "ls-short" : "" }, [
           nameCell,
@@ -628,23 +649,60 @@
     if (q) {
       var short = q.state === "ok" ? Math.max(left - q.take, 0) : left;
       if (q.state === "ok" && S.canEdit) { acts.appendChild(reserveBtn(block, q)); var gb = giveBtn(block, q); if (gb) acts.appendChild(gb); }
-      vb = short > 0 ? vendorBtn(block, { label: thing.label, qty: short, layoutType: u.layout_type }, q.state === "none" || q.state === "full") : null;
-      if (vb && q.state === "ok") { vb.textContent = "Get " + fmt(short) + " from a vendor"; }
+      vb = short > 0 ? vendorBtn(block, { label: thing.label, qty: Math.max(thing.qty - (q.state === "ok" ? q.take : 0), 0), left: short, needed: thing.qty, free: q.free, layoutType: u.layout_type }, q.state === "none" || q.state === "full") : null;
       if (vb) acts.appendChild(vb);
       if (S.canEdit && q.state === "full" && q.sug) acts.appendChild(linkBtn(u, q.sug));
-      if (S.canEdit) { var pb = pickBtn(pickU, row, q.state === "ok" || q.state === "full" || q.state === "wait" ? "Other item" : "Choose a stock item");
-        if (q.state === "many") { pb.classList.add("primary"); acts.insertBefore(pb, acts.firstChild); } else acts.appendChild(pb); }
+      if (S.canEdit && q.state === "many") { row.appendChild(pickList(block, pickU, thing, q, left)); }   // the items that fit are on the page, each with what is free
+      else if (S.canEdit) acts.appendChild(pickListBtn(block, pickU, thing, q, left, row, q.state === "none" ? "Use a stock item" : "Other item"));
     } else {
       if (S.canEdit) {
         var items = (S.o && S.o.items && S.o.items()) || [], sug = suggestLink(u.raw, items, S.links, part);
         if (sug) acts.appendChild(linkBtn(u, sug));
         acts.appendChild(pickBtn(pickU, row, sug ? "Other item" : "Link to stock"));
       }
-      vb = left > 0 ? vendorBtn(block, { label: thing.label, qty: thing.qty, layoutType: u.layout_type }, false) : null;
+      vb = left > 0 ? vendorBtn(block, { label: thing.label, qty: thing.qty, left: left, needed: thing.qty, layoutType: u.layout_type }, false) : null;
       if (vb) acts.appendChild(vb);
     }
     if (acts.firstChild) row.appendChild(acts);
     return row;
+  }
+  // R262 (owner: "the chairs available are this many, take them from resources and the rest from vendors - we have the names"): every stock item by name with
+  // what is free that day and one button that takes it. No count is asked: a chair is one per seat, a table one per table, anything else one per object.
+  function pickList(block, u, thing, q, want) {
+    var items = (S.o && S.o.items && S.o.items()) || [], rows = choices(q.list || [], items, want, freeOf), seats = u.mode === "seats", shown = 0, all = !(q.list || []).length, box = h("div", { cls: "ls-pick" });
+    var ul = h("ul", { cls: "ls-picks", "aria-label": "Stock items for " + u.label }), find = h("input", { type: "search", cls: "ls-find", placeholder: "Find a stock item", "aria-label": "Find a stock item for " + u.label });
+    function draw() {
+      clear(ul); shown = 0; var f = String(find.value || "").trim().toLowerCase();
+      rows.forEach(function (c) {
+        if (f ? String(c.name || "").toLowerCase().indexOf(f) < 0 : !(c.fit || all)) return; if (++shown > 40) return;
+        var li = h("li", {}, [h("span", { cls: "ls-pickn" }, [h("b", { text: optName(c.name) }), h("span", { cls: "ls-sub", text: c.free == null ? "Checking what is free..." : fmt(c.free) + " " + dayWord(block) })])]);
+        if (c.take > 0) {
+          var b = h("button", { type: "button", cls: "btn sm ls-act primary", text: c.short > 0 ? "Use " + fmt(c.take) + ", " + fmt(c.short) + " from a vendor" : "Use " + fmt(c.take), "aria-label": "Use " + fmt(c.take) + " " + optName(c.name) + " for " + u.label });
+          b.addEventListener("click", function () {
+            if (S.qbusy) return; S.qbusy = true; b.disabled = true; b.textContent = "Reserving...";
+            linkAndReserve(block, { type: u.layout_type, label: u.label, item_id: c.id, name: c.name, mode: seats ? "seats" : "objects", want: want, take: c.take, free: c.free })
+              .then(function (d) { return afterReserve(block, [d]).then(function () { idle(); if (d.reserved && d.short > 0 && S.canVendor) openVendor(block, { itemId: c.id, label: c.name, qty: d.short, needed: thing.qty, held: d.reserved, free: 0 }, null); }); })
+              .catch(function (e) { toast((e && e.userText) || friendly(e, "reserve from stock"), "err"); return refresh(); }).then(idle, idle);
+          });
+          li.appendChild(b);
+        } else if (c.free === 0) li.appendChild(h("span", { cls: "ls-sub", text: "None free" }));
+        ul.appendChild(li);
+      });
+      if (!shown) ul.appendChild(h("li", { cls: "ls-sub", text: f ? "No stock item with this name." : "No stock items yet." }));
+    }
+    find.addEventListener("input", draw); draw(); box.appendChild(ul);
+    var foot = h("div", { cls: "ls-pickf" }); if (items.length > 5 || all) foot.appendChild(find);
+    if (!all) { var more = h("button", { type: "button", cls: "ls-linkbtn", text: "Show all stock items" }); more.addEventListener("click", function () { all = true; more.remove(); draw(); }); foot.appendChild(more); }
+    var mk = h("button", { type: "button", cls: "ls-linkbtn", text: "+ New stock item" }); mk.addEventListener("click", function () { createFlow(u, 1, seats ? "seats" : "objects"); }); foot.appendChild(mk);
+    box.appendChild(foot); return box;
+  }
+  function pickListBtn(block, u, thing, q, want, row, text) {
+    var b = h("button", { type: "button", cls: "btn sm ls-act", text: text, "aria-label": text + ": " + u.label, "aria-expanded": "false" });
+    b.addEventListener("click", function () {
+      var old = row.querySelector(".ls-pick"); if (old) { old.remove(); b.setAttribute("aria-expanded", "false"); return; }
+      var c = pickList(block, u, thing, q, want); row.appendChild(c); b.setAttribute("aria-expanded", "true"); var f = c.querySelector("input,button"); if (f) f.focus();
+    });
+    return b;
   }
   // what one tap can do for each unlinked line of the open event
   function quickPlan(block, lines) {
@@ -660,13 +718,23 @@
       if (!(r.want > 0)) return { state: "asked", text: "" };
       if (hit) {
         var t = takes[k++], base = { type: l.u.layout_type, label: l.u.label, item_id: hit.id, name: hit.name, mode: r.f.seats ? "seats" : "objects", want: r.want, take: t.take, free: t.free, sug: { item_id: hit.id, name: hit.name, mode: r.f.seats ? "seats" : "objects", per: 1 } };
+        base.list = r.f.list;
         if (t.free == null) return Object.assign(base, { state: "wait", text: "Matches your stock item " + optName(hit.name) + ". Checking what is free..." });
         if (t.take <= 0) return Object.assign(base, { state: "full", text: "Matches your stock item " + optName(hit.name) + ", but none is " + day + "." });
         return Object.assign(base, { state: "ok", text: t.short > 0 ? "Only " + fmt(t.take) + " of " + fmt(r.want) + " " + optName(hit.name) + " " + day + " - reserve " + fmt(t.take) + ", get " + fmt(t.short) + " from a vendor." : "Matches your stock item " + optName(hit.name) + "." });
       }
-      if (r.f.list.length) return { state: "many", text: fmt(r.f.list.length) + " of your stock items could fit: " + r.f.list.slice(0, 4).map(function (i) { return optName(i.name); }).join(", ") + (r.f.list.length > 4 ? "..." : "") + ". Choose one." };
-      return { state: "none", text: "We don't have this in stock." };
+      if (r.f.list.length && r.f.list.every(function (i) { return freeOf(i.id) === 0; })) return { state: "none", list: r.f.list, text: "Needed " + fmt(r.want) + ". None of our " + fmt(r.f.list.length) + " that fit is " + day + "." };
+      if (r.f.list.length) return { state: "many", list: r.f.list, text: "Needed " + fmt(r.want) + ". Pick which of ours to use:" };
+      return { state: "none", list: [], text: "Needed " + fmt(r.want) + ". We don't have this in stock." };
     });
+  }
+  // everything of the open event that must come from outside: what stays short after our stock
+  function missingOf(block, lines, plan) {
+    var out = [];
+    ((block && block.items) || []).forEach(function (it) { var r = rowNums(it), c = coverOf(r.toBorrow, asked(block.quote_id, { itemId: it.item_id, label: it.name })).left; if (c > 0 && it.active !== false) out.push({ label: it.name, qty: Math.ceil(c), needed: Math.ceil(r.needed), itemId: it.item_id }); });
+    (lines || []).forEach(function (l, i) { var q = plan && plan[i], left = coverOf(l.thing.qty, asked(block.quote_id, { label: l.thing.label })).left, s = q && q.state === "ok" ? Math.max(left - q.take, 0) : q && (q.state === "many" || q.state === "wait") ? 0 : left;
+      if (s > 0) out.push({ label: l.thing.label, qty: Math.ceil(s), needed: Math.ceil(l.thing.qty), layoutType: l.u.layout_type }); });
+    return out;
   }
   function unlinkedPart(block, inPanel) {
     var un = ((block && block.unlinked) || []), lines = [], quiet = [];
@@ -684,6 +752,7 @@
     // R255: the event's own page says what one tap does, the ready ones first; the overview (many events) only links, as before
     var plan = inPanel && S.o && S.o.freeFor ? quickPlan(block, lines) : null, RANK = { ok: 0, wait: 1, many: 2, full: 3, none: 4, asked: 5 };
     var order = lines.map(function (l, i) { return { l: l, q: plan ? plan[i] : null, i: i }; });
+    if (inPanel) S.missing = missingOf(block, lines, plan);
     if (plan) order.sort(function (a, b) { return RANK[a.q.state] - RANK[b.q.state] || a.i - b.i; });
     var rows = order.map(function (o) { return freeRow(block, o.l.u, o.l.thing, o.l.sub, o.l.part, o.q); });
     var out = [];
@@ -692,8 +761,8 @@
       if (inPanel) {
         var ready = order.filter(function (o) { return o.q && o.q.state === "ok"; }).map(function (o) { return o.q; });
         out.push(h("div", { cls: "ls-uh" }, [h("div", {}, [h("h4", { cls: "ls-h4", text: head0 }),
-          plan ? h("p", { cls: "ls-sub ls-uhelp", text: "Helm looks for a stock item with a name like the product's. The names do not have to be the same: pick any item once and Helm remembers it." }) : null]),
-          S.canEdit && ready.length > 1 ? reserveAllBtn(block, ready) : null]), ul);
+          plan ? h("p", { cls: "ls-sub ls-uhelp", text: "Helm shows what is free that day. Press Use to take it; what is still missing comes from a vendor. Helm remembers the item for your other events." }) : null]),
+          S.canEdit && ready.length > 1 ? reserveAllBtn(block, ready) : null, plan ? manyBtn(block) : null]), ul);
       } else out.push(h("details", { cls: "ls-det" }, [h("summary", {}, [h("b", { text: head0 }), h("span", { cls: "ls-sub", text: un.filter(function (x) { return !S.hidden[x.layout_type] && !has(PLACES, x.layout_type); }).map(countText)
         .concat(seatGaps(block).filter(function (g) { return !S.hidden[g.layout_type]; }).map(function (g) { return g.label + " x " + fmt(g.seats); })).join(", ") })]), ul]));
     }
@@ -791,7 +860,12 @@
     var one = (has(TABLES, u.layout_type) ? "table" : head(words(u.label)) || u.label).toLowerCase(), lbl = h("span", { cls: "ls-perl", text: "How many of this item for ONE " + (mode.value === "seats" ? "seat" : one) });   // R261
     mode.addEventListener("change", function () { lbl.textContent = "How many of this item for ONE " + (mode.value === "seats" ? "seat" : one); per.setAttribute("aria-label", lbl.textContent); });
     per.setAttribute("aria-label", lbl.textContent);
-    return h("div", { cls: "ls-ctl" }, [sel, h("label", { cls: "ls-perw" }, [lbl, per]), mode, go]);
+    var perw = h("label", { cls: "ls-perw" }, [lbl, per]);
+    sel.addEventListener("change", function () {   // R262: a chair is one per seat, a table one per table - nothing to fill in
+      var it = ((S.o && S.o.items && S.o.items()) || []).filter(function (i) { return i.id === sel.value; })[0], own = it && n(u.seats) > 0 ? ownThing(it.name) : it && ownThing(it.name) === "objects" ? "objects" : "";
+      perw.hidden = mode.hidden = !!own; if (own) { per.value = "1"; mode.value = own; }
+    });
+    return h("div", { cls: "ls-ctl" }, [sel, perw, mode, go]);
   }
   function renderLinks() {
     var host = $("lsLinkBody"); if (!host) return;
@@ -962,6 +1036,7 @@
     var rn = resumeNote(); if (rn) host.appendChild(rn);
     var ln = lastNote(); if (ln) host.appendChild(ln);
     if (block.version_no) blockBody(block, true).forEach(function (k) { host.appendChild(k); });
+    host.appendChild(h("p", { cls: "ls-sub ls-quiet" }, [h("a", { cls: "ls-linkbtn", href: "inventory.html?tab=layout", text: "All upcoming events and linked items" })]));
   }
 
   /* ---- the top strip ---- */
@@ -997,7 +1072,7 @@
         Promise.resolve(B.inventory.shortages(S.quoteId || null)).then(function (x) { S.shorts = x || []; }));
       one.forEach(function (q) {
         var e = ev(q);
-        if (p[1]) jobs.push(Promise.all([B.bookings.list(q), B.resources.listNeeds(q)]).then(function (r) { e.bookings = r[0] || []; e.needs = r[1] || []; }, function () { e.err = true; }));
+        if (p[1]) jobs.push(Promise.all([B.bookings.list(q), B.resources.listNeeds(q), B.vendorRequests && B.vendorRequests.list ? Promise.resolve(B.vendorRequests.list(q, null)).catch(function () { return []; }) : []]).then(function (r) { e.bookings = r[0] || []; e.needs = r[1] || []; e.requests = r[2] || []; }, function () { e.err = true; }));
       });
       // what is given out: this event, and on the overview only the events that already hold stock and start by tomorrow
       var soon = addDays(today(), 1);
@@ -1035,7 +1110,7 @@
     });
   }
   function hideFeature() { ["tabLayout", "layoutNeeds"].forEach(function (id) { var el = $(id); if (el) el.hidden = true; }); }
-  function showFeature() { var t = $("tabLayout"); if (t) t.hidden = false; }
+  function showFeature() { var t = $("tabLayout"); if (t) t.hidden = !!S.quoteId; }   // R262: one event's page says it once, in "From the floor plan" above
 
   function mount(o) {
     S.o = o || {}; S.quoteId = S.o.quoteId || null; S.canEdit = !!S.o.canEdit;

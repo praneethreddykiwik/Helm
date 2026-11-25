@@ -206,10 +206,10 @@ t('event workspace: Resources stage = 1 Inventory, 2 Vendors, 3 Tasks & staff, 4
 });
 t('Tasks & staff / Inventory / Budget say where they sit in the flow, in the same words', () => {
   assert.match(OPS, /<h1 id="pageTitle">Tasks &amp; Crew<\/h1>/);   // R192 (approved mockup name on this page)
-  assert.match(OPS, /Step 3 of 4 — assign our people\. Stock or vendors not settled yet\? <a class="s-a805525" href="resources\.html\?quote=\$\{encodeURIComponent\(quote\.id\|\|quoteId\)\}">2 See what's still missing →<\/a>/);
+  assert.match(OPS, /Step 3 of 5 — assign our people\. Stock or vendors not settled yet\? <a class="s-a805525" href="resources\.html\?quote=\$\{encodeURIComponent\(quote\.id\|\|quoteId\)\}">2 See what's still missing →<\/a>/);
   assert.match(OPS, /<option value="in_house">Our staff<\/option>/); assert.match(OPS, /<option value="outsourced">A vendor<\/option>/);   // R192: no emoji icons
-  assert.match(INV, /Step 1 of 4 — reserve our own stock for this event\./); assert.match(INV, /\$\("#rvNextStep"\)\.href="resources\.html\?quote="\+encodeURIComponent\(quoteId\);/);
-  assert.match(BUD, /Step 4 of 4 \(after stock, vendors and people\)/); assert.match(BUD, /\$\("#flowBack"\)\.href = id\?\("ops\.html\?quote="\+encodeURIComponent\(id\)\):"ops\.html";/);
+  assert.match(INV, /Step 1 of 5 — reserve our own stock for this event\./); assert.match(INV, /\$\("#rvNextStep"\)\.href="resources\.html\?quote="\+encodeURIComponent\(quoteId\);/);
+  assert.match(BUD, /data-resource-steps="budget"/); assert.doesNotMatch(BUD, /Step 4 of 4|flowBack/);   // R262: the four-step strip says it once
   assert.match(SRC, /label: "Resources covered \(nothing missing\)"/);
 });
 t('no new SQL: the flow reuses event_resource_needs (open / outsourced), event_tasks via assign_tasks, reserve_inventory, 0256 vendor_request_save', () => {

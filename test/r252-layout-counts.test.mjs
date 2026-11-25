@@ -175,7 +175,7 @@ t('the page: no HTML strings, no inline styles, no money; the new files are load
   assert.doesNotMatch(JS, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\.style\.|setAttribute\(\s*["']style/);
   assert.doesNotMatch(JS, /studioMoney|unit_cost|\.cost\b/); assert.match(JS, /root\.HelmStockVendor\.open\(/); assert.doesNotMatch(JS, /bookings\.add|addNeed\(/);
   assert.match(INV, /<script src="\/stock-vendor\.js\?v=\d+"><\/script>\s*<script src="inventory-layout\.js/); assert.match(INV, /href="\/stock-vendor\.css\?v=\d+"/);
-  for (const w of ['Given out', 'Missing', 'Get from a vendor', 'Link to ', 'Not linked to stock yet']) assert.ok(JS.includes(w), w);
+  for (const w of ['Given out', 'Missing', ' from a vendor"', 'Link to ', 'Not linked to stock yet']) assert.ok(JS.includes(w), w);
 });
 t('spacing: one gap on the event page, the inventory tabs / toolbar / cards; balanced CSS', () => {
   assert.match(EVCSS, /#app > :is\(\.card,\.grid,\.moretog,\.mh-wrap,section\)\{margin-top:0;margin-bottom:var\(--ev-gap\)\}/);

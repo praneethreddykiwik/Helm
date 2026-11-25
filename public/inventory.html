@@ -98,12 +98,12 @@
 <link rel="stylesheet" href="inventory-polish.css?v=4">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="stock-flow.css?v=3">
-<link rel="stylesheet" href="inventory-layout.css?v=4">
-<link rel="stylesheet" href="/stock-vendor.css?v=1">
-<link rel="stylesheet" href="/resource-steps.css?v=1">
+<link rel="stylesheet" href="inventory-layout.css?v=5">
+<link rel="stylesheet" href="/stock-vendor.css?v=2">
+<link rel="stylesheet" href="/resource-steps.css?v=2">
 <link rel="stylesheet" href="pages-polish-admin.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=127" id="shellProto"></script>
+<script src="/shell-proto.js?v=128" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -125,7 +125,7 @@
   </div>
   <div id="app" hidden>
     <div id="eventBar" class="crumb" hidden></div>
-    <!-- R255: the four steps of covering the event (only when the page is opened for one) -->
+    <!-- R255: the five steps of covering the event (only when the page is opened for one) -->
     <nav class="rs" id="resSteps" data-resource-steps="stock" hidden></nav>
 
     <!-- R248 (0430): numbers only - what you own, what is out, how many upcoming events are short -->
@@ -139,7 +139,7 @@
     <!-- per-event reservation panel -->
     <div id="eventPanel" class="card" hidden>
       <h2>Stock for this event</h2>
-      <p class="sub">Step 1 of 4 — reserve our own stock for this event. <b>Reserve</b> to hold it → <b>Give out</b> to a person right in its row → <b>Back OK</b> when it returns, or <b>Problem</b>. Stock that was never taken out needs no return. <a id="rvNextStep" class="s-a805525" href="resources.html">Next: 2 Get what's missing from vendors →</a></p>
+      <p class="sub">Step 1 of 5 — reserve our own stock for this event. <b>Reserve</b> to hold it → <b>Give out</b> to a person right in its row → <b>Back OK</b> when it returns, or <b>Problem</b>. Stock that was never taken out needs no return. <a id="rvNextStep" class="s-a805525" href="resources.html">Next: 2 Get what's missing from vendors →</a></p>
       <div class="sf-legend" aria-hidden="true"><span><span class="sf-pill reserved">Reserved</span>held for the event</span><span><span class="sf-pill out">Given out</span>with a person</span><span><span class="sf-pill back">Back</span>returned</span><span><span class="sf-pill missing">Missing</span>did not come back</span><span><span class="sf-pill damaged">Damaged</span>came back broken</span></div>
       <div class="reserve-row">
         <div class="fld"><label for="rv_item">Item</label><select id="rv_item"></select></div>
@@ -346,19 +346,19 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=416"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=418"></script>
 <script src="xlsx-lite.js?v=2"></script>
 <script src="smart-import-core.js?v=7"></script>
 <script src="smart-import.js?v=6"></script>
-<script src="page-tours.js?v=85"></script>
-<script src="tour.js?v=99"></script>
+<script src="page-tours.js?v=86"></script>
+<script src="tour.js?v=100"></script>
 <script src="checkout-shortage.js?v=7"></script>
 <script src="stock-flow.js?v=3"></script>
 <script src="stock-checkin.js?v=2"></script>
 <script src="capacity-shortage.js?v=9"></script>
-<script src="/stock-vendor.js?v=4"></script>
-<script src="inventory-layout.js?v=6"></script>
-<script src="/resource-steps.js?v=3"></script>
+<script src="/stock-vendor.js?v=5"></script>
+<script src="inventory-layout.js?v=7"></script>
+<script src="/resource-steps.js?v=4"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -797,7 +797,9 @@
   // — used by the teardown workflow so check-in/out is reachable from the event flow.
   (function(){ const tp=(new URLSearchParams(location.search).get("tab")||"").toLowerCase();
     if(tp==="loans"||tp==="checkouts"||tp==="checkin"||tp==="checkout") activatePane("loans");
-    if(tp==="layout"||tp==="layouts") activatePane("layout"); })();
+    if(tp==="layout"||tp==="layouts"){   // R262: one event has it on its own page, above the stock list
+      if(new URLSearchParams(location.search).get("quote")){ let n=0; const go=()=>{ const s=$("#layoutNeeds"); if(s&&!s.hidden&&s.offsetHeight>60){ try{ s.scrollIntoView({block:"start"}); }catch(_){} } else if(++n<30) setTimeout(go,200); }; go(); }
+      else activatePane("layout"); } })();
 
   /* ---- check-out / check-in ---- */
   function renderCheckouts(){
