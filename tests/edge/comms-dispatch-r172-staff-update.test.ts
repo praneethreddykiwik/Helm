@@ -72,11 +72,11 @@ const ROWS = [
   { id: S4, to: "z@y.test", kind: "task_update", studio: "Sparkle Events", event: "Rao Wedding", changes: ["Napkins: instructions updated"],
     tasks: [], link_path: "https://evil.example/work.html?staff=" + TOK },
 ];
-function wireDb() {
+function wireDb(rows: any[] = ROWS) {
   resetSupaMock();
   const marks: Record<string, string> = {};
   g.__supaRpc = (name: string, args: any) => {
-    if (name === "staff_update_claim") return { data: ROWS, error: null };
+    if (name === "staff_update_claim") return { data: rows, error: null };
     if (name === "staff_update_mark") { marks[args.p_id] = args.p_status; return { data: null, error: null }; }
     return { data: [], error: null };
   };
@@ -128,4 +128,26 @@ Deno.test("R172 change notices: no e-mail provider -> nothing claimed (rows wait
   const f = installFetch((url) => { throw new Error("unexpected fetch " + url); });
   try { await run({}); assert(!claimed, "staff_update_claim must not be called without a provider"); }
   finally { f(); }
+});
+
+// R253 (0436): the claim's start_now facts -> the "You can start now" e-mail (same footer, reply-to, plain text + HTML, mark)
+Deno.test("R253 start now: the owner's subject and facts over SMTP, staff footer, studio reply-to, marked sent", async () => {
+  const row = { ...ROWS[0], event: "Rao wedding", changes: ["You can start now: Flowers - Stage set-up is done"], more: 0, start_now: [{ type: "start_now", line: "You can start now: Flowers - Stage set-up is done",
+    task: "Flowers", section: "Decor", start: "4:00 PM", day: "01 Dec 2026", earlier: "Stage set-up", earlier_state: "done", by: "Anu Rao", at: "3:40 PM", at_day: "01 Dec 2026" }] };
+  const { marks } = wireDb([row]);
+  const smtp = installFakeSmtp();
+  const f = installFetch((url) => { throw new Error("unexpected fetch " + url); });
+  try {
+    const { logs } = await run({ ...SMTP });
+    assertEquals(marks[S1], "sent");
+    const m = partsOf(smtp.sent.find((s) => s.rcpt === "<ravi@studio.test>")!.data);
+    const subj = /Subject: (.*)/.exec(m.headers)![1];
+    const plain = /^=\?UTF-8\?B\?/i.test(subj) ? new TextDecoder().decode(Uint8Array.from(atob(subj.replace(/^=\?UTF-8\?B\?|\?=\s*$/gi, "")), (c) => c.charCodeAt(0))) : subj.trim();
+    assertEquals(plain, "You can start now: Flowers (Rao wedding)");
+    for (const s of ["Stage set-up - done by Anu Rao at 3:40 PM on 01 Dec 2026", "Start time: 4:00 PM on 01 Dec 2026", "Place: Palace Grounds", "work.html?staff=" + TOK + "&event=" + QID,
+      "You received this because you are on the staff list of this studio"]) assert(m.text.includes(s), s + "\n" + m.text);
+    assert(m.html.includes("Open my task page") && m.html.includes("Anu Rao"), "designed html");
+    assert(/Reply-To: <ops@sparkle\.in>/.test(m.headers), "studio reply-to");
+    assert(!logs.join(" ").includes("ravi@studio.test") && !logs.join(" ").includes("Anu Rao"), "no address / name in logs");
+  } finally { f(); smtp.restore(); }
 });

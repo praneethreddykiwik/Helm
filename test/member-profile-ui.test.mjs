@@ -267,8 +267,8 @@ t('User control before 0041: today\'s Name / Email / Role table with the display
   assert.match(r.head, /<th scope="col">Email<\/th>/); assert.doesNotMatch(r.head, /Phone|Job title/);
   assert.equal((r.body.match(/class="dnEdit"/g) || []).length, 2);
   assert.doesNotMatch(r.body, /ucEdit|✓ Complete/);
-  // R20: no display name -> the e-mail name, greyed, titled "not set"; "Not set" only when there is nothing at all
-  assert.match(r.body, /<span class="dnTxt" style="color:var\(--ink-3\)" title="Display name not set yet[^"]*">B<\/span>/);
+  // R20: no display name -> the e-mail name, titled "not set" (R252: no grey - it read as a meaning); "Not set" only when there is nothing at all
+  assert.match(r.body, /<span class="dnTxt" title="Display name not set yet[^"]*">B<\/span>/);
   assert.match(r.body, /me@a\.test <span class="me">you<\/span>/, 'a space before the "you" badge (was "Not setyou")');
   const none = T([{ id: U(2), email: '', full_name: '', role: 'crew' }], { profiles: false, meId: U(1), roles: ROLES, q: '', filter: '' });
   assert.match(none.body, />Not set</);

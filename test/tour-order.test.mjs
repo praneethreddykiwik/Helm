@@ -66,7 +66,7 @@ t('the order matches how the shell actually lays the screen out', () => {
   const work = /\[\["dashboard", "Dashboard"[\s\S]*?\]\]\.forEach/.exec(SHELL)[0];
   const order = [...work.matchAll(/\["(\w+)", "/g)].map((m) => m[1]);
   // R181: + 'insights' = the Event day (monitor) item, Staff-gated; it has its own page tour, so the dashboard tour keeps 24 steps
-  assert.deepEqual(order, ['dashboard', 'quotes', 'leads', 'calendar', 'insights', 'chat']);
+  assert.deepEqual(order, ['dashboard', 'quotes', 'leads', 'calendar', 'insights', 'approve', 'chat']);   // R253: + 'approve' = Approvals (the roles that check finished work)
   assert.ok(SHELL.indexOf('scroll.appendChild(work); scroll.appendChild(manage); scroll.appendChild(admin);') > 0, 'Workspace, Manage, Admin');
   assert.match(SHELL, /bottom\.appendChild\(themeSlot\); bottom\.appendChild\(acctSlot\);/, 'theme above the profile at the foot');
   assert.match(SHELL, /manage\.setAttribute\("data-tour", "nav-manage"\)/);

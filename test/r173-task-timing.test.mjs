@@ -70,7 +70,7 @@ t("R192 task panel: every action has words, only the ones that make sense, speci
   const B = read("public/ops-board.js");
   // the old row of up to seven buttons + the legend paragraph are gone; one task panel instead
   assert.doesNotMatch(ops, /id="opsLegend"/); assert.doesNotMatch(ops, /class="tacts"/);
-  for (const w of ['text: "Nudge now"', 'text: "Email"', 'text: "WhatsApp"', 'text: "Give to someone"', 'text: t.planned_start ? "Change time" : "Set a time"', 'text: "Reassign"', 'text: "Cancel task"', 'text: "Pass QC"', 'text: "Reject QC"', 'text: "▲ Make special"', 'text: "Remove the special mark"'])
+  for (const w of ['text: "Nudge now"', 'text: "Email"', 'text: "WhatsApp"', 'text: "Give to someone"', 'text: t.planned_start ? "Change time" : "Set a time"', 'text: "Reassign"', 'text: "Cancel task"', 'text: "Approve"', 'text: "Send back"', 'text: "▲ Make special"', 'text: "Remove the special mark"'])
     assert.ok(B.includes(w), "panel action: " + w);
   assert.match(B, /if \(k === "late" && t\.crew_id && inHouse\(t\)\) foot\.push/);   // Nudge only when late
   assert.match(B, /if \(CANCELLABLE\.indexOf\(t\.status\) >= 0\) foot\.push/);   // Cancel only assigned / accepted / started
@@ -85,7 +85,7 @@ t("Assign work: optional start time + reminders in the same step, scheduled on t
   assert.match(ops, /id="as_daybefore" data-day="before"/); assert.match(ops, /id="as_evday" data-day="event" aria-pressed="true"/); assert.match(ops, /id="as_none" data-day="none"/);
   assert.match(ops, /<input type="datetime-local" id="as_when"/);
   assert.match(ops, /id="as_evday"/); assert.match(ops, /id="as_daybefore"/);
-  assert.match(ops, /const mine=\(fresh\|\|\[\]\)\.filter\(x=>!before\.has\(x\.id\) && x\.crew_id===c\.id && titles\.includes\(x\.title\)\);/);
+  assert.match(ops, /const mine=inOrder\(\(fresh\|\|\[\]\)\.filter\(x=>!before\.has\(x\.id\) && x\.crew_id===c\.id && titles\.includes\(x\.title\)\)\);/);
   const iSched = ops.indexOf("await BPStore.ops.setSchedule(x.id, when?when.start"), iMail = ops.indexOf("R170 (0361): \"Send by email\" ticked");
   assert.ok(iSched > 0 && iMail > iSched, "the start time is saved before the e-mail is queued");
   assert.match(read("public/store-api.js"), /setReminderTimes: \(taskId, times\) => rpc\("set_task_reminder_times"/);
@@ -105,7 +105,7 @@ t("comms-dispatch: a reminder 6+ hours ahead names the day; page tour explains t
   assert.match(read("supabase/functions/comms-dispatch/staff-email.mjs"), /const at2 = Number\(row\.minutes\) >= 360 \? when\(row\.start, row\.day\) : clip\(row\.start, 12\);/);
   const tours = read("public/page-tours.js");
   // R192: no tick box any more - the When step and the task panel's Change time
-  assert.match(tours, /First the part of the job: Pre-event, On the event, Wrap-up, Day before\. Then what, who .*start time, reminders, Special/); assert.match(tours, /Change time in a task's panel sets its start time and reminders/);
+  assert.match(tours, /First the part of the job: Day before, Pre-event, On the event, Wrap-up\. Then what, who .*start time, reminders, Special/); assert.match(tours, /Change time in a task's panel sets its start time and reminders/);
 });
 
 const SE = await import("../supabase/functions/comms-dispatch/staff-email.mjs");

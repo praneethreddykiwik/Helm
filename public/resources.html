@@ -64,9 +64,10 @@
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
 </style>
 <link rel="stylesheet" href="resources-polish.css?v=5">
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="/event-flow-line.css?v=1">
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=121" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -85,7 +86,7 @@
   <div id="notfound" class="card" hidden><p class="muted">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="flowLine"></span></div>
 
     <!-- r24: the order of the work, in plain words: our stock -> our people -> what is still missing -> money -->
     <ol class="rp-steps" aria-label="How to cover this event">
@@ -214,7 +215,8 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script><script src="pick-event.js?v=1"></script><script src="delivery-tracker.js?v=3"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script><script src="pick-event.js?v=1"></script><script src="delivery-tracker.js?v=3"></script>
+<script src="/event-flow-line.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -226,7 +228,7 @@
   const KIND={staff:"Staff",inventory:"Our stock",other:"Other"};
   const VKIND={vendor:"Vendor",freelancer:"Freelancer",rental:"Rental",supplier:"Supplier",internal:"In-house"};
   const OUTSIDE_TIP="Covered outside us - the client or the venue arranges it, so there is nothing to book.";
-  let ev=null, canEdit=false, canDelete=false, canInv=false, canStaff=false, canVend=false;
+  let seeVend=true, ev=null, canEdit=false, canDelete=false, canInv=false, canStaff=false, canVend=false;
   let items=[], needs=[], checked=[], vendors=[], bookings=[], ownRes=[], tasks=[], vreqs=[], free={}, bookNeed=null;
   const BK={enquiry:"Asked",booked:"Booked",confirmed:"Confirmed",delivered:"Delivered",cancelled:"Cancelled"};
 
@@ -246,13 +248,20 @@
   const rpTypeSel=(c,label)=>`<select class="rp-type" data-type="${esc(c.id)}" aria-label="Type for ${label}"${canEdit?"":" disabled"}>${Object.keys(KIND).map(k=>`<option value="${k}"${k===c.kind?" selected":""}>${KIND[k]}</option>`).join("")}</select>`;
   function needLabel(c){ return c.label || c.detail || ""; }
   function vendorFor(c){ const b=bookings.find(x=>x.need_id===c.id && x.status!=="cancelled"); if(!b) return null; const v=vendors.find(x=>x.id===b.vendor_id); return v?sn(v.name):(b.label||"Vendor"); }
+  // R252: a vendor on a need marks it covered whatever number they bring - say so when it is less than what is needed
+  // (only when every live vendor row of the need has a number; nothing is worked out from a guess)
+  function shortOf(c){ const l=bookings.filter(x=>x.need_id===c.id && x.status!=="cancelled");
+    if(!l.length||l.some(x=>!(Number(x.qty)>0))) return 0;
+    return Math.max(0, Number(c.qty||0)-Number(c.have||0)-l.reduce((a,x)=>a+Number(x.qty),0)); }
   function rpStatusPill(c){
-    if(c.outsourced){ const v=vendorFor(c); return v?`<span class="cov out">Vendor: ${esc(v)}</span>`:`<span class="cov out" title="${esc(OUTSIDE_TIP)}">Client/venue arranges it</span>`; }
+    if(c.outsourced){ const v=vendorFor(c), sh=shortOf(c); if(v&&sh>0) return `<span class="cov out">Vendor: ${esc(v)}</span> <span class="cov gap" title="What the vendors bring plus what we have is less than what is needed">${num(sh)}${c.unit?" "+esc(c.unit):""} short</span>`;
+      return v?`<span class="cov out">Vendor: ${esc(v)}</span>`:`<span class="cov out" title="${esc(OUTSIDE_TIP)}">Client/venue arranges it</span>`; }
     if(c.covered) return `<span class="cov ok">✓ Covered</span>`;
     return `<span class="cov gap">Missing ${num(c.gap)}${c.unit?" "+esc(c.unit):""}</span>`;
   }
   function rpActions(c,label){
     if(!canEdit) return "";
+    if(c.outsourced && shortOf(c)>0) return `<button type="button" class="btn sm" data-book="${esc(c.id)}" aria-label="Assign another vendor for ${label}">Assign vendor</button> <button type="button" class="rm" data-reopen="${esc(c.id)}" aria-label="Undo - ${label} is missing again">Undo</button>`;
     if(c.outsourced) return `<button type="button" class="rm" data-reopen="${esc(c.id)}" aria-label="Undo - ${label} is missing again">Undo</button>`;
     if(c.covered) return canDelete?`<button type="button" class="rm rp-x" data-del="${esc(c.id)}" aria-label="Remove ${label}">Remove</button>`:"";
     const out=[];
@@ -267,7 +276,9 @@
   }
 
   function render(){
-    const total=checked.length, cov=checked.filter(c=>c.covered).length, gaps=checked.filter(c=>!c.covered);
+    if(!seeVend){ $("#rows").innerHTML='<tr><td colspan="5" class="empty">Your role can\'t see what this event needs. Ask someone who can see Vendors.</td></tr>'; $("#gapHint").hidden=true; return; }
+    const isShort=(c)=>c.outsourced && shortOf(c)>0;
+    const total=checked.length, cov=checked.filter(c=>c.covered&&!isShort(c)).length, gaps=checked.filter(c=>!c.covered||isShort(c));
     $("#s_total").textContent=total; $("#s_cov").textContent=cov; $("#s_gap").textContent=gaps.length;
     if(!total){ $("#rows").innerHTML='<tr><td colspan="5" class="empty">No needs yet. Add what the event requires below.</td></tr>'; $("#gapHint").hidden=true; return; }
     $("#rows").innerHTML=checked.map(c=>{
@@ -293,7 +304,7 @@
       await BPUI.guard(b,async()=>{ try{ await BPStore.resources.removeNeed(b.dataset.del); BPUI.toast("Need removed.",{type:"ok"}); await load(); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"remove the need"}),{type:"err"}); } }); }));
     R.querySelectorAll("[data-out]").forEach(b=>b.addEventListener("click",()=>BPUI.guard(b,async()=>{ try{ await BPStore.resources.updateNeed(b.dataset.out,{status:"outsourced"}); BPUI.toast("Marked: the client or venue arranges it.",{type:"ok"}); await load(); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the need"}),{type:"err"}); } })));
     R.querySelectorAll("[data-reopen]").forEach(b=>b.addEventListener("click",()=>BPUI.guard(b,async()=>{ try{ await BPStore.resources.updateNeed(b.dataset.reopen,{status:"open"}); await load(); }catch(e){ BPUI.toast(BPUI.friendlyError(e,{action:"update the need"}),{type:"err"}); } })));
-    R.querySelectorAll("[data-book]").forEach(b=>b.addEventListener("click",()=>openBooking(checked.find(c=>c.id===b.dataset.book))));
+    R.querySelectorAll("[data-book]").forEach(b=>b.addEventListener("click",()=>{ const c=checked.find(x=>x.id===b.dataset.book), sh=c?shortOf(c):0; openBooking(c&&sh>0?Object.assign({},c,{gap:sh}):c); }));
     R.querySelectorAll("[data-person]").forEach(b=>b.addEventListener("click",()=>openPeople(checked.find(c=>c.id===b.dataset.person))));
     R.querySelectorAll("[data-reserve]").forEach(b=>b.addEventListener("click",()=>reserveFor(b,checked.find(c=>c.id===b.dataset.reserve),Number(b.dataset.n))));
     R.querySelectorAll("select[data-type]").forEach(s=>s.addEventListener("change",()=>setType(s,checked.find(c=>c.id===s.dataset.type),s.value)));
@@ -357,6 +368,7 @@
   function renderBookings(){
     const byV=Object.fromEntries(vendors.map(v=>[v.id,v]));
     const byN=Object.fromEntries(checked.map(c=>[c.id,c]));
+    if(!seeVend){ $("#bookRows").innerHTML='<tr><td colspan="6" class="empty">Your role can\'t see vendors.</td></tr>'; return; }
     if(!bookings.length){ $("#bookRows").innerHTML='<tr><td colspan="6" class="empty">No vendors yet. Use <b>Assign vendor</b> on anything that is missing.</td></tr>'; return; }
     $("#bookRows").innerHTML=bookings.map(b=>{
       const v=byV[b.vendor_id]; const need=b.need_id?byN[b.need_id]:null; const vn=esc(v?sn(v.name):(b.label||"Vendor"));
@@ -367,7 +379,7 @@
       return `<tr>
         <td><b>${vn}</b>${v?`<div class="muted">${esc(VKIND[v.kind]||v.kind||"")}</div>`:""}</td>
         <td>${esc(need?needLabel(need):(b.label||""))}</td>
-        <td class="num" data-l="Cost">${b.cost!=null?esc(BPStore.studioMoney(b.cost)):""}</td>
+        <td class="num" data-l="Cost">${b.cost!=null?esc(BPStore.studioMoney(b.cost)):(b.status==="cancelled"?"":'<span class="muted" title="Counts as 0 in the budget and the profit until a cost or a bill is added">No cost yet</span>')}</td>
         <td class="num" data-l="Advance">${b.advance!=null?esc(BPStore.studioMoney(b.advance)):""}</td>
         <td>${canEdit?`<select class="rm" data-bkstatus="${esc(b.id)}" aria-label="Status for ${vn}">${opts}</select>`:esc(BK[b.status]||b.status)}${b.contract?' <span class="cov ok">✓ Contract</span>':""}${rqTxt}</td>
         <td class="rp-act">${canSend?`<button type="button" class="btn sm" data-bksend="${esc(b.id)}" aria-label="Send request to ${vn}">Send request</button> `:""}${canEdit?`<button type="button" class="rm" data-bkedit="${esc(b.id)}" aria-label="Edit cost and advance for ${vn}">Edit</button> `:""}${canDelete?`<button type="button" class="rm" data-bkdel="${esc(b.id)}" aria-label="Remove ${vn} from this event">Remove</button>`:""}</td>
@@ -591,20 +603,24 @@
     const pre=fetchAll();   // r24: the data starts loading now, alongside the event + role checks
     const A=BPStore.auth, ok=(p)=>Promise.resolve().then(p).catch(()=>false);
     let evErr=null;
-    const [e1, ce, cd, ci, cs, cv]=await Promise.all([
+    const [e1, ce, cd, ci, cs, cv, sv]=await Promise.all([
       BPStore.quotes.get(id).catch(e=>{ evErr=e; return null; }),
-      ok(()=>A.canEditArea("resources")), ok(()=>A.can("delete")), ok(()=>A.canEditArea("inventory")), ok(()=>A.canEditArea("staff")), ok(()=>A.canEditArea("vendors")),
+      ok(()=>A.canEditArea("resources")), ok(()=>A.can("delete")), ok(()=>A.canEditArea("inventory")), ok(()=>A.canEditArea("staff")), ok(()=>A.canEditArea("vendors")), ok(()=>A.canView("vendors")),
     ]);
     if(evErr && !BPUI.isNotFound(evErr)) throw evErr;
     if(!e1){ $("#notfound").hidden=false; return; }
     ev=e1; canEdit=!!ce; canDelete=canEdit && !!cd; canInv=canEdit && !!ci; canStaff=canEdit && !!cs; canVend=canEdit && !!cv;
+    // R252: needs and vendors are both saved under Vendors in the database; without it a change is dropped without a word
+    seeVend=!!sv; if(!cv || !sv){ canEdit=false; canDelete=false; canInv=false; canStaff=false; }
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"");
     const q="?quote="+encodeURIComponent(id); $("#stepInv").href="inventory.html"+q; $("#stepOps").href="ops.html"+q; $("#stepBudget").href="budget.html"+q;
+    if(window.HelmFlowLine) HelmFlowLine.mount($("#flowLine"),ev,{id,dayBefore:true});
     $("#app").hidden=false; $("#addCard").hidden=!canEdit; $("#bookBtn").hidden=!canEdit; onKind();
     // r20 (live QA): "Pull from discovery requirements" reads the discovery area - hidden for a role that
     // can't view discovery, and switched off for a role that can't edit the resource plan.
     await gatePull();
     load(pre);   // the page is up (skeleton rows); the table fills in as soon as the one round of reads lands
+    if(window.HelmFlowLine) HelmFlowLine.onReturn(()=>load(),()=>HelmFlowLine.inUse($("#app")));   // R252: a vendor confirmed on Day before shows here when the person comes back
   });
 </script>
 </body>

@@ -113,7 +113,7 @@ await t('store + bell + tour', () => {
   const s = r('public/store-api.js');
   assert.match(s, /setReminders: \(taskId, mins\) => rpc\("set_task_reminders"/); assert.match(s, /rpc\("task_wa_status"/);
   assert.match(s, /task_overdue: \["⏰"/); assert.match(s, /    taskReminders,   \/\/ R130 \(0338\)\n    activityText, init/);
-  assert.match(r('public/page-tours.js'), /sel: "#trmLine"/);
+  assert.match(r('public/page-tours.js'), /sel: \["#trmLine", "#tcPlanRem"\]/);
   assert.match(r('docs/ops/TASK-REMINDERS.md'), /12:20, 12:25 and 12:27/);
 });
 console.log(`r130-task-reminders: ${n} passed`);

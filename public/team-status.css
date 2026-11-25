@@ -16,10 +16,7 @@ html[data-theme="dark"] .ucst-off{background:rgba(255,255,255,.08);color:#c6c2d6
 
 /* the members table: the Account column may wrap; e-mails are shown in full (wrap, never cut off) */
 #pane-users .utable.ucm td.ucprof{white-space:normal;min-width:0}
-#pane-users .utable.ucm .ucwt .ucsub.em,#pane-users .utable.ucm .ucinv-em{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:break-word}
 #pane-users .utable.ucm .ucnm .ucinv-em{font-weight:600}
-#pane-users .utable.ucm td.ucact{white-space:normal}
-#pane-users .utable.ucm td.ucact>.btn,#pane-users .utable.ucm td.ucact>.rm{margin:2px 4px 2px 0}
 #pane-users .utable.ucm .ucav-inv{background:#fff4dc;color:#8a5a00;font-size:14px}
 #pane-users .utable.ucm tr.ucinv .ucinv-role{font-size:12.5px;color:var(--ink-2,#3f3b4d)}
 /* pending invites table: the full address wraps */
@@ -108,7 +105,6 @@ html[data-theme="dark"] .tag.um-rec{background:rgba(46,184,114,.14);color:#6ee7a
 .um-more-b .um-add-h{margin-top:8px}
 .um-warn{margin:0 0 8px;padding:8px 10px;border-radius:8px;border:1px solid #f3d9a4;background:#fff8e8;color:#6b4700;font-size:12.5px;line-height:1.5}
 /* every not-yet-active row: its one main next step first (primary), the rest wrap under it on a phone */
-#pane-users .utable.ucm td.ucact .btn.primary{order:-1}
 #pane-users .utable.ucm td.ucact .ucInvResend,#pane-users .utable.ucm td.ucact .ucReact{white-space:nowrap}
 html[data-theme="dark"] .um-invite{background:rgba(46,184,114,.07);border-color:rgba(46,184,114,.3)}
 html[data-theme="dark"] .um-warn{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35);color:#fbd38d}
@@ -145,10 +141,6 @@ html[data-theme="dark"] .um-warn{background:rgba(245,158,11,.12);border-color:rg
 .uc-tab:hover{color:var(--ink,#1b1930)}
 .uc-tab[aria-pressed="true"]{background:var(--panel,#fff);color:var(--ink,#1b1930);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--line,#e8e3db)}
 .uc-tab-n{font-size:11.5px;font-weight:600;color:var(--ink-3,#5b566b);font-variant-numeric:tabular-nums}
-/* status: one chip, then the row's one next step */
-#pane-users .utable.ucm .ucnext{margin-top:6px}
-#pane-users .utable.ucm .ucnext .btn{margin:0}
-#pane-users .utable.ucm td.ucact>.btn{margin:0}
 /* the "..." menu (floats: position fixed, placed by HelmTeamStatus.rowMenus) */
 .ucmw{display:inline-flex}
 #pane-users .ucMore{min-width:32px;padding:0 8px;font-size:16px;line-height:1;letter-spacing:.05em}
@@ -172,11 +164,72 @@ html[data-theme="dark"] .um-warn{background:rgba(245,158,11,.12);border-color:rg
 @media (max-width:639.98px){
   #pane-users .uctools input[type=search]{max-width:none;flex-basis:100%}
   #pane-users .uc-tabs{flex:1 1 100%}
-  #pane-users .utable.ucm.tm-stack td.ucact{justify-content:flex-start}
-  #pane-users .utable.ucm.tm-stack td.ucact .btn{min-height:40px}
-  #pane-users .utable.ucm.tm-stack td.ucprof .ucnext{display:flex;justify-content:flex-end}
   #ts_xfer .tsTransferZ select,#ts_xfer .tsTransferZ .btn{flex:1 1 100%}
 }
 #ts_xfer .tsTransferZ .addrow>.btn{margin-left:0}
-#pane-users .utable.ucm td.uctwo .ts-badge{padding:2px 7px}
-#pane-users .utable.ucm td.uctwo .ts-badge{white-space:normal;line-height:1.3}
+#pane-users .utable.ucm td.uctwo .ts-badge{padding:2px 7px;line-height:1.4}
+
+/* ---- R252 (owner 24 Nov 2026: "fix the UI of this page"): Users & invites as one table ----
+   One set of columns for the heading and every row (the template is in control.html); the Settings frame's own cell borders and
+   paddings (#app.cs-on .cs-main .utable, 1 id) are taken off here, so the only lines are one under each row. */
+#app #pane-users .utable.ucm>thead th{border:0;background:transparent;padding:0 0 8px}
+#app #pane-users .utable.ucm>thead th:first-child{padding-left:44px}
+#app #pane-users .utable.ucm>thead>tr,#app #pane-users .utable.ucm tr.ucr{justify-items:stretch}
+#app #pane-users .utable.ucm tr.ucr{transition:background-color .12s}
+#app #pane-users .utable.ucm tr.ucr>td,#app #pane-users .utable.ucm tr.ucr:hover>td{background:transparent}
+@media (min-width:640px){#app #pane-users .utable.ucm tr.ucr>td{padding:0;border:0}#app #pane-users .utable.ucm tr.ucr:last-child{border-bottom-color:transparent}}
+/* who: every name the same ink (a deactivated person is told by the chip, not by a grey name); full words only */
+#app #pane-users .utable.ucm tr.ucr .dnTxt{color:var(--ink,#1b1930);overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;word-break:normal;line-height:1.35}
+#app #pane-users .utable.ucm tr.ucr .dnTxt.dn-none{color:var(--ink-3,#5b566b);font-weight:500}
+#app #pane-users .utable.ucm tr.ucr .ucwt .ucsub{color:var(--ink-3,#5b566b);overflow-wrap:break-word}
+#app #pane-users .utable.ucm tr.ucr .ucwt .ucsub.em{overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;word-break:normal;font-size:12px}
+#app #pane-users .utable.ucm tr.ucr .ucmeta .ucphn{font-family:inherit;font-variant-numeric:tabular-nums}
+#app #pane-users .utable.ucm tr.ucr .ucnm .tag,#app #pane-users .utable.ucm tr.ucr .ucnm .me{margin:0;font-size:11px;font-weight:600;line-height:1.4;padding:1px 7px;border-radius:99px}
+#app #pane-users .utable.ucm tr.ucr .ucnm .ts-off{display:none}   /* the Status chip says Deactivated */
+/* role: the picker, and a small chip under it when the person has no access yet */
+#app #pane-users .utable.ucm tr.ucr>td.ucrole select{height:36px;min-width:0;margin:0;font-size:13px;padding-left:9px}
+#app #pane-users .utable.ucm tr.ucr .tag.no-access{display:inline-flex;font-size:11px;font-weight:600;line-height:1.4;padding:1px 8px;border-radius:99px;color:var(--warn-text,#8a5a00);background:color-mix(in srgb,var(--warn-text,#8a5a00) 12%,transparent)}
+/* status: ONE line */
+#app #pane-users .utable.ucm tr.ucr .ucst{display:inline-flex;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;max-width:100%;font-size:11px;font-weight:600;border-radius:99px;padding:2px 9px;vertical-align:middle}
+#app #pane-users .utable.ucm tr.ucr .ucst-off{color:var(--ink-2,#3f3b4d);background:var(--panel-2,#f4f4f5);box-shadow:inset 0 0 0 1px var(--line,#e8e3db)}
+#app #pane-users .utable.ucm tr.ucr .ucprof .ucsub{margin-top:3px;font-size:11px;line-height:1.4}
+#app #pane-users .utable.ucm tr.ucr .ucst-hint{color:var(--ink-3,#5b566b)!important;white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis}
+/* two-step: a small chip on one line */
+#app #pane-users .utable.ucm tr.ucr>td.uctwo .ts-badge{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:99px;gap:3px;white-space:nowrap;margin:0}
+/* actions: the same three slots on every row (View / Edit / ...), the one main next step across them */
+#app #pane-users .utable.ucm tr.ucr>td.ucact{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 34px;gap:4px;align-items:center;justify-self:end;text-align:center}
+#app #pane-users .utable.ucm tr.ucr>td.ucact>.btn{margin:0;padding:0 4px;min-width:0;width:100%}
+#app #pane-users .utable.ucm tr.ucr>td.ucact>.ucmw{grid-column:3}
+#app #pane-users .utable.ucm tr.ucr>td.ucact>.ucmw>.ucMore{min-width:0;width:100%;padding:0}
+#app #pane-users .utable.ucm tr.ucr>td.ucact>.ucnext{grid-column:1/-1}
+#app #pane-users .utable.ucm tr.ucr .ucnext .btn.primary{width:100%;min-width:0;height:auto;min-height:32px;margin:0;padding:4px 6px;line-height:1.25;white-space:normal;box-shadow:none;background:var(--hb-acc-soft,var(--accent-soft,#e3f4ed));border-color:color-mix(in srgb,var(--hb-acc,var(--accent,#047857)) 30%,transparent);color:var(--hb-acc-text,var(--accent,#036b4d))}
+#app #pane-users .utable.ucm tr.ucr .ucnext .btn.primary:hover{border-color:var(--hb-acc,var(--accent,#047857))}
+/* toolbar: search and filter tabs the same height; the tabs take their own line when there is no room, and scroll on a small one */
+#app #pane-users .uctools{gap:10px 12px;margin:6px 0 14px}
+#app #pane-users .uctools input[type=search]{flex:1 1 260px;max-width:360px;height:40px;margin:0}
+#app #pane-users .uc-tabs{gap:4px;padding:3px;min-height:40px;align-items:center;min-width:0;scroll-snap-type:x proximity}
+#app #pane-users .uc-tab{height:32px;padding:0 12px;scroll-snap-align:start}
+@media (min-width:640px){
+  #app #pane-users .utable.ucm tr.ucr:hover{background:var(--panel-2,#f6f6f4)}
+  @container ucm (max-width:799.98px){
+    #app #pane-users .utable.ucm tr.ucr>td.uctwo{justify-self:start}
+    #app #pane-users .utable.ucm tr.ucr>td.ucrole{width:140px}
+    #app #pane-users .utable.ucm tr.ucr>:is(td.ucprof){padding-left:44px}
+  }
+  @container ucm (max-width:519.98px){
+    #app #pane-users .utable.ucm tr.ucr>:is(td.ucrole,td.ucact){justify-self:start;width:184px}
+    #app #pane-users .utable.ucm tr.ucr>:is(td.ucrole,td.uctwo,td.ucact){padding-left:0;margin-left:44px}
+  }
+}
+@media (pointer:coarse){#app #pane-users .utable.ucm tr.ucr>td.ucact .btn,#app #pane-users .uc-tab{min-height:44px}}
+@media (max-width:639.98px){   /* phone cards: one line between fields, the buttons share the width */
+  #app #pane-users .utable.ucm.tm-stack tr.ucr>td{border-bottom:0;padding-left:0;padding-right:0}
+  #app #pane-users .utable.ucm.tm-stack tr.ucr>td.ucrole{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px}
+  #app #pane-users .utable.ucm.tm-stack tr.ucr>td.ucrole::before{float:none;margin-right:auto}
+  #app #pane-users .utable.ucm.tm-stack tr.ucr>td.ucrole select{flex:0 1 190px;height:44px}
+  #app #pane-users .utable.ucm.tm-stack tr.ucr>td.ucact{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 48px;gap:8px;justify-self:stretch}
+  #app #pane-users .utable.ucm.tm-stack tr.ucr>td.ucact .btn{min-height:44px}
+  #app #pane-users .utable.ucm.tm-stack tr.ucr>td.uctwo:empty{display:none}
+  #app #pane-users .uctools input[type=search]{max-width:none;flex-basis:100%;height:44px}
+  #app #pane-users .uc-tab{height:44px}
+}

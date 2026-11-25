@@ -52,7 +52,7 @@
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   footer{text-align:center;color:var(--ink-3);font-size:12px;margin-top:8px;line-height:1.6}
 </style>
-<link rel="stylesheet" href="/theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="/theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="/public-pages-v2.css?v=6">
 <link rel="stylesheet" href="/quote-validity.css?v=3">
 <link rel="stylesheet" href="/trial-sim.css?v=2">
@@ -170,7 +170,7 @@
 <script src="/config.js?v=113"></script>
 <script src="/phone-input.js?v=9"></script>
 <script src="/event-name.js?v=9"></script>
-<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=30"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/quote-validity.js?v=6"></script><script src="/approve-test-mode.js?v=2"></script>
+<script src="/country-profile.js?v=7"></script><script src="/client-api.js?v=32"></script><script src="/trial-sim.js?v=3" data-trial-sim="quote"></script><script src="/quote-validity.js?v=6"></script><script src="/approve-test-mode.js?v=2"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>(s||"").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -366,6 +366,8 @@
       if(r.wa===false){ const w=$("#sendWa"); if(w){ w.hidden=true; w.style.display="none"; } const n=$("#waNote"); if(n) n.textContent="We send a one-time code to the e-mail address your planner has on file for you."; } }).catch(()=>{}); }
     // resume state
     if(quote.reapproval_required===true){ $("#approvedNote").textContent=""; setMsg("dev", "The price changed after your earlier approval — please review the updated total and approve again."); }
+    // R252 (0435): the booking was confirmed by the advance but the client has not approved yet - keep the approve steps open
+    else if(quote.approval_status==='paid' && quote.client_approved===false){ setMsg("dev", "Your advance is recorded, thank you. Please check the quotation and approve it here."); }
     else if(quote.approval_status==='paid'){ showStep('stepPaid'); await showPaid(); }
     else if(quote.approval_status==='approved'){ showStep('step3'); $("#approvedNote").textContent=recordedNote(quote); }
   }

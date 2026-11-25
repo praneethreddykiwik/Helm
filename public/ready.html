@@ -59,16 +59,18 @@
   .fld{display:flex;flex-direction:column;gap:4px;margin-bottom:10px} .fld label{font-size:12px;font-weight:600;color:var(--ink-2)}
   .fld input{height:38px;border:1px solid var(--line);background:var(--panel-2);border-radius:9px;padding:0 12px;font-family:inherit}
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
-  /* R251: the same two parts as "Day before" on Tasks & Crew / the monitor */
-  .card .rd-h,#rdDay .ep-part-t{margin:10px 0 0;font-size:16px;font-weight:700} .rd-h .tc-n{margin-left:6px} .rd-h .tc-n.ok{background:var(--tc-acc);color:#fff} .rd-hint{margin:2px 0 4px;font-size:12.5px;color:var(--ink-3)}
-  #rdDay .ep-head{display:none} #rdDay .ep-part-t::before{content:"2 · "} #rdDay .ep-tick{position:relative} #rdDay .ep-tick::after{content:"";position:absolute;inset:-7px} #rdDay .tc-mini-link{display:inline-flex;align-items:center;min-height:44px;white-space:nowrap}
+  /* R251 / R252: the same parts as "Day before" on Tasks & Crew / the monitor */
+  .card .rd-h,#rdDay .ep-part-t{margin:10px 0 0;font-size:16px;font-weight:700} .rd-h .tc-n{margin-left:6px;background:var(--tc-wait-bg);color:var(--tc-wait)} .rd-h .tc-n.ok{background:var(--tc-acc);color:#fff} .rd-hint{margin:2px 0 4px;font-size:12.5px;color:var(--ink-3)}
+  #rdDay{padding:16px 18px 18px}
 </style>
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="ops-board.css?v=6">
-<link rel="stylesheet" href="event-plan.css?v=2">
+<link rel="stylesheet" href="ops-board.css?v=9">
+<link rel="stylesheet" href="event-plan.css?v=3">
+<link rel="stylesheet" href="day-before.css?v=1">
+<link rel="stylesheet" href="/stock-vendor.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=121" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -94,12 +96,12 @@
       <button type="button" class="btn go" id="markBtn" hidden>Mark Event Ready →</button>
     </div>
     <section class="card" aria-labelledby="rdBooked">
-      <h3 class="rd-h tc" id="rdBooked">1 · Is everything booked? <span class="tc-n" id="rdBookedN" hidden></span></h3>
+      <h3 class="rd-h tc" id="rdBooked">1 · Booked and planned <span class="tc-n" id="rdBookedN" hidden></span></h3>
       <p class="rd-hint">Helm checks these from the plan. Dry run and team briefing are marked by hand.</p>
       <div id="checks"><div class="chk"><div class="d"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></div></div></div>
     </section>
-    <!-- R251: part 2 = the Day-before ticks (event-plan.js, the same list as Tasks & Crew and the monitor). Never blocks Mark ready. -->
-    <section class="card tc" id="rdDay" aria-labelledby="rdDayC" hidden></section>
+    <!-- R252: the rest of the Day-before checklist (day-before.js, the same card as Tasks & Crew and the monitor). Never blocks Mark ready. -->
+    <section class="card tc" id="rdDay" aria-labelledby="rdDayH" hidden></section>
     <p class="s-bbce15d">Share the plan with the staff: <a class="link" id="rsLink" href="#">open the run-sheet →</a> (use its Print button).</p>
   </div>
   </main>
@@ -120,9 +122,12 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
-<script src="task-status.js?v=6"></script>
-<script src="event-plan.js?v=4"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
+<script src="task-status.js?v=7"></script>
+<script src="/task-clash.js?v=1"></script>
+<script src="event-plan.js?v=7"></script>
+<script src="day-before.js?v=2"></script>
+<script src="/stock-vendor.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -139,13 +144,17 @@
 
   function linkFor(key){ const t=LINKS[key]; if(!t) return null; return t.includes("?")||t.includes("=") ? (t.endsWith("=")?t+encodeURIComponent(id):t) : t; }
 
+  function stateWord(c){ return c.ok?"Passed":c.hidden?"Not visible to you":c.unchecked?"Not checked":c.critical?"Not done":"Warning"; }
+  function tagWord(c){ return c.hidden?"":c.unchecked?"not checked":c.critical?"":"optional"; }
   function render(){
     const stage = ev.lifecycleStage;
     const isReady = r.ready;
+    const hid = r.checks.filter(c=>c.hidden).length;   // R252: lines this role cannot see are never "done"
+    const crit = r.checks.filter(c=>c.critical&&!c.hidden), critOk = crit.filter(c=>c.ok).length;
     $("#hero").className = "hero "+(isReady?"ready":"notready");
-    $("#ring").textContent = isReady ? "✓" : (r.criticalPassed+"/"+r.criticalTotal);
-    $("#heroTitle").textContent = isReady ? (stage==="ready"||["event_day","settlement","closed"].includes(stage) ? "Event is ready ✓" : "All checks passed — ready to lock in") : "Not ready yet";
-    $("#heroSub").textContent = isReady ? "Every critical check is green." : `${r.criticalTotal-r.criticalPassed} critical item${(r.criticalTotal-r.criticalPassed)===1?"":"s"} left.`;
+    $("#ring").textContent = isReady ? "✓" : (critOk+"/"+crit.length);
+    $("#heroTitle").textContent = isReady ? (stage==="ready"||["event_day","settlement","closed"].includes(stage) ? "Event is ready ✓" : (hid?"All checks you can see passed":"All checks passed — ready to lock in")) : "Not ready yet";
+    $("#heroSub").textContent = isReady ? (hid ? hid+" check"+(hid===1?" is":"s are")+" not visible to you - ask someone who can see Vendors and Inventory." : "Every critical check is green.") : `${crit.length-critOk} critical item${(crit.length-critOk)===1?"":"s"} left.`;
     const already = ["ready","event_day","settlement","closed"].includes(stage);
     $("#markBtn").hidden = !(canEdit && isReady) ;
     $("#markBtn").textContent = already ? "✓ Marked ready" : "Mark Event Ready →";
@@ -155,14 +164,14 @@
     bn.hidden=!sum; if(sum){ bn.textContent=sum.done+" / "+sum.of; bn.classList.toggle("ok",sum.done===sum.of); }
     $("#checks").innerHTML = r.checks.map(c=>{
       // r20: a check with nothing to check against (c.unchecked) reads "Not checked" - never passed, never a blocker
-      const cls = c.ok?"ok":(c.critical?"no":"warn"); const icon=c.ok?"✓":(c.unchecked?"?":(c.critical?"✕":"!"));
-      const href = linkFor(c.key);
+      const cls = c.ok?"ok":(c.hidden?"warn":c.critical?"no":"warn"); const icon=c.ok?"✓":(c.hidden?"–":c.unchecked?"?":(c.critical?"✕":"!"));
+      const href = c.hidden ? null : linkFor(c.key);
       let act="";
       if(c.signoff && canEdit){ act = `<button type="button" class="btn" style="height:32px;padding:0 12px;font-size:12px" data-sign="${esc(c.signoff)}" data-done="${c.ok?1:0}" aria-label="${c.ok?"Undo":"Mark done"}: ${esc(c.label)}">${c.ok?"Undo":"Mark done"}</button>`; }
       // r20 coord (b): no "Fix" link when the role can't open the page it points at (c.noFix: Advance received without finance)
       else if(href && !c.ok && !c.noFix){ act = `<a class="link" href="${esc(href)}" aria-label="Fix ${esc(c.label)}">Fix →</a>`; }
-      return `<div class="chk"><div class="ic ${cls}" aria-hidden="true">${icon}</div><span class="sr-only">${c.ok?"Passed":(c.unchecked?"Not checked":(c.critical?"Not done":"Warning"))}:</span>
-        <div><div class="l">${esc(c.label)}${c.unchecked?'<span class="opt">not checked</span>':(c.critical?"":'<span class="opt">optional</span>')}</div><div class="d">${esc(c.key==="date"&&/^\d{4}-\d{2}-\d{2}$/.test(String(c.detail||""))&&BPStore.fmtDateIN?BPStore.fmtDateIN(c.detail):c.detail)}</div></div>
+      return `<div class="chk"><div class="ic ${cls}" aria-hidden="true">${icon}</div><span class="sr-only">${esc(stateWord(c))}:</span>
+        <div><div class="l">${esc(c.label)}${tagWord(c)?`<span class="opt">${esc(tagWord(c))}</span>`:""}</div><div class="d">${esc(c.key==="date"&&/^\d{4}-\d{2}-\d{2}$/.test(String(c.detail||""))&&BPStore.fmtDateIN?BPStore.fmtDateIN(c.detail):c.detail)}</div></div>
         <div class="act">${act}</div></div>`;
     }).join("");
     $("#checks").querySelectorAll("[data-sign]").forEach(b=>b.addEventListener("click",()=>BPUI.guard(b,async()=>{
@@ -179,15 +188,19 @@
     render();
   }
 
-  // R251: part 2 - the Day-before ticks. null (database without 0396, or not allowed) = the part stays hidden.
+  // R251 / R252: the other parts of the Day-before checklist. null (database without 0396, or not allowed) = the part stays hidden.
   async function loadDay(){
     const host=$("#rdDay"), EP=window.HelmEventPlan, api=BPStore.ops&&BPStore.ops.dayPlan; if(!EP||!api) return;
     let plan=null; try{ plan=await api.get(id); }catch(e){ plan=null; }
     if(!plan){ if(!host.firstChild) host.hidden=true; return; }
     let tz="Asia/Kolkata"; try{ tz=BPStore.studioTimezone(); }catch(e){}
+    // who has which line (Staff view) and the plan lock (0397): no answer = no task state, no lock shown
+    let tasks=null, lock=null;
+    try{ [tasks,lock]=await Promise.all([ (await BPStore.auth.canView("staff"))===true?BPStore.ops.listTasks(id).catch(()=>null):null,
+      BPStore.ops.planLock&&BPStore.ops.planLock.get?BPStore.ops.planLock.get(id).catch(()=>null):null ]); }catch(e){}
     host.hidden=false;
-    EP.renderDayBefore(host,{ noReady:true, plan, tasks:[], quoteId:id, eventDate:String(ev.eventDate||"").slice(0,10), eventTime:String(ev.eventTime||"").trim(), tz, now:Date.now(),
-      toast:(m,t)=>BPUI.toast(m,{type:t==="err"?"err":"ok"}), onChanged:loadDay });
+    EP.renderDayBefore(host,{ noReady:true, plan, tasks, locked:!!(lock&&lock.locked), quoteId:id, eventDate:String(ev.eventDate||"").slice(0,10), eventTime:String(ev.eventTime||"").trim(), tz, now:Date.now(),
+      toast:(m,t)=>BPUI.toast(m,{type:t==="err"?"err":"ok"}), onChanged:loadDay, onData:load });
   }
 
   function openLogin(){ $("#loginModal").hidden=false; setTimeout(()=>$("#li_email").focus(),50); }
@@ -201,7 +214,8 @@
   $("#markBtn").addEventListener("click",markReady);
 
   async function load(){
-    try{ r=await BPStore.readiness.check(id); }
+    try{ const EP=window.HelmEventPlan, x=await Promise.all([BPStore.readiness.check(id), EP&&EP.readySees?EP.readySees():null]);
+      r=EP&&EP.readyMask?EP.readyMask(x[0],x[1]):x[0]; }
     catch(e){ BPUI.loadError($("#checks"),e,load,{what:"readiness checks"}); $("#heroTitle").textContent="Readiness unknown"; $("#heroSub").textContent=""; $("#ring").textContent="?"; $("#markBtn").hidden=true; return; }
     render();
   }

@@ -68,11 +68,12 @@
   :root{--neg:#b42318} html[data-theme="dark"]{--neg:#f87171}
   html[data-theme="dark"] .tile.bal .n.due,html[data-theme="dark"] .tile.margin .n.neg{color:var(--neg)} html[data-theme="dark"] .tile.bal .n.clear,html[data-theme="dark"] .tile.margin .n.pos,html[data-theme="dark"] .btn.go{color:var(--safe-text)}
 </style>
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
+<link rel="stylesheet" href="/event-flow-line.css?v=1">
 <link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="money-lock.css?v=2"><link rel="stylesheet" href="money-header.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=121" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -91,7 +92,7 @@
   <div id="notfound" class="card" hidden><p class="s-1a1aca0">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="nextWrap" hidden> · <a id="nextLink" href="#">Next: Teardown →</a></span></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="flowLine"></span><span id="firstWrap" hidden> · <a id="firstLink" href="#">Before this: Teardown</a></span><span id="nextWrap" hidden> · <a id="nextLink" href="#">Next: Closure →</a></span></div>
     <p class="page-purpose" id="pagePurpose"><b>Money in and out:</b> collect from the client, pay vendors &amp; staff.</p>
 
     <div id="priceWarn" class="pwarn" role="alert" hidden>This event has no priced invoice — price the quote to settle.</div>
@@ -180,7 +181,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=3"></script><script src="pick-event.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script><script src="money-cash-ui.js?v=1"></script><script src="money-header-ui.js?v=3"></script><script src="pick-event.js?v=1"></script><script src="/event-flow-line.js?v=1"></script><script src="vendor-bills-ui.js?v=13"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -194,7 +195,7 @@
   const putMoney=(el,...parts)=>{ el.replaceChildren(...parts.flat(4).map(x=>{ if(x&&typeof x==="object"&&"__m" in x){ const sp=document.createElement("span"); sp.setAttribute("data-money",""); sp.textContent=inr(x.__m); return sp; } return document.createTextNode(x==null?"":String(x)); })); };
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   const EXP={pending:"Pending",approved:"Approved",paid:"Paid",rejected:"Rejected"};
-  let canEdit=false, canClaims=false, canDelete=false, s=null, summaryFailed=false, evStatus=null;
+  let canRes=false, canEdit=false, canClaims=false, canDelete=false, s=null, summaryFailed=false, evStatus=null;
   // Capability state: when the settlement recorder RPC isn't deployed, we flip to a
   // controlled "unavailable" state (disable submit) instead of ever reporting success.
   let settleUnavailable=false;
@@ -249,7 +250,9 @@
 
     const byName=(b)=>b.label||"Vendor";
     $("#vendBody").innerHTML = s.bookings.length ? s.bookings.map(b=>{ const out=b._out!=null?b._out:Math.max(0,Number(b.cost||0)-Number(b.advance||0));
-      return `<tr><td><b>${esc(byName(b))}</b></td><td class="num" data-money>${inr(b._billed?b._cost:b.cost)}</td><td class="num" data-money>${inr(b._billed?b._paid:b.advance)}</td>
+      // R252: a vendor with no price counts as 0 everywhere and never stops closing - say it here (no amount in the words)
+      const nt=b.status==="enquiry"?"Only asked - not booked.":(b.cost==null&&!b._billed)?"No cost yet - counts as 0.":"";
+      return `<tr><td><b>${esc(byName(b))}</b>${nt?`<div class="efl-note warn">${esc(nt)}${canRes&&b.status!=="enquiry"?` <a href="resources.html?quote=${encodeURIComponent(id)}#bookings">Add it on the Resource plan</a>`:""}</div>`:""}</td><td class="num" data-money>${inr(b._billed?b._cost:b.cost)}</td><td class="num" data-money>${inr(b._billed?b._paid:b.advance)}</td>
         <td class="num">${b.settled?'<span class="st yes">settled</span>':mh(out)}</td>
         <td><span class="st ${b.settled?'yes':'no'}">${b.settled?'Yes':'No'}</span></td>
         <td>${!canEdit?"":(b._billed&&!b.settled)?`<button type="button" class="btn go" data-gobills="1" aria-label="Pay ${esc(byName(b))} on its bill">Pay the bill</button>`:`<button type="button" class="btn ${b.settled?'':'go'}" data-settle="${esc(b.id)}" data-v="${b.settled?0:1}" data-name="${esc(byName(b))}" aria-label="${b.settled?'Unsettle':'Settle'} ${esc(byName(b))}">${b.settled?'Unsettle':'Settle'}</button>`}</td></tr>`;
@@ -444,7 +447,10 @@
     if(!id){ if(window.HelmPickEvent) HelmPickEvent.show($("#notfound"),"settlement","settlement"); else $("#notfound").hidden=false; return; }   // QA1026 #10
     if(BPStore.auth.enabled() && BPStore.auth.required() && !BPStore.auth.user()){ location.replace("login.html?next="+encodeURIComponent(HelmUrl.here())); return; }
     if(!(await BPStore.auth.requireView("settlement"))) return;
-    if(await BPStore.auth.canView("inventory").catch(()=>false)){ $("#nextLink").href="teardown.html?quote="+encodeURIComponent(id); $("#nextWrap").hidden=false; }
+    // R252: Teardown (what is missing or damaged) -> Settlement (the money) -> Closure. Nothing is blocked: either order works.
+    { const A=BPStore.auth, q="?quote="+encodeURIComponent(id), may=(a)=>A.canView(a).catch(()=>false), [td,cl,rs]=await Promise.all([may("inventory"),may("closure"),may("resources")]); canRes=rs===true;
+      if(td){ $("#firstLink").href="teardown.html"+q; $("#firstWrap").hidden=false; }
+      if(cl){ $("#nextLink").href="closure.html"+q; $("#nextWrap").hidden=false; } }
     canEdit=await BPStore.auth.canEditArea("settlement"); canDelete=canEdit && await BPStore.auth.can("delete");
     // r59 (audit E-07): expense claims are saved under Budget & finance - their buttons need Finance edit too
     canClaims=canEdit && await BPStore.auth.canEditArea("finance");
@@ -453,8 +459,10 @@
     if(!ev){ $("#notfound").hidden=false; return; }
     evStatus=ev.status||null;
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"");
+    if(window.HelmFlowLine) HelmFlowLine.mount($("#flowLine"),ev,{id});
     $("#app").hidden=false; $("#payLine").hidden=!canEdit; $("#expAdd").hidden=!canClaims; $("#refAdd").hidden=!canEdit;
     await load();
+    if(window.HelmFlowLine) HelmFlowLine.onReturn(()=>load(),()=>paying||HelmFlowLine.inUse($("#app")));   // R252: reads only; never while an amount is typed
   });
 </script>
 </body>

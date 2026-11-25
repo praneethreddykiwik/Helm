@@ -58,6 +58,7 @@ export function notifLink(n) {
     if (k === "client_link_viewed" || k === "client_view_followup") return "event.html?id=" + enc(q) + "#link-views";
     // r23 (0262): valid-until reminders / "request a new quote" open the event workspace at the validity line
     if (k === "quote_expiring" || k === "quote_expired" || k === "quote_renew_request") return "event.html?id=" + enc(q) + "#quote-validity";
+    if (k === "task_escalated" && (d.via === "start_now" || d.via === "hold")) return "runsheet.html?quote=" + enc(q) + "#my-tasks";   // R253 (0436): the person's own tasks on that event
     if (k === "task_escalated") return "monitor.html?quote=" + enc(q);   // R186 (0369): the Event day monitor (Late panel)
     if (k === "vendor_bill_due") return "settlement.html?quote=" + enc(q) + "#vendorBills";   // R190 (0373): the event's Vendor bills card
     if (k.indexOf("task_") === 0) return "ops.html?quote=" + enc(q) + (has(d.task_id) ? "&task=" + enc(d.task_id) : "");

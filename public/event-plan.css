@@ -8,7 +8,6 @@
 .ep-status{margin:10px 0 8px;padding:8px 12px;border-radius:var(--tc-r-ctl);background:var(--tc-panel-2);color:var(--tc-ink-2);font-size:14px}
 .ep-status.ok{background:var(--tc-safe-bg);color:var(--tc-safe)}
 .ep-status.warn{background:var(--tc-warn-bg);color:var(--tc-warn)}
-.ep-status.bad{background:var(--tc-bad-bg);color:var(--tc-bad);font-weight:600}
 .ep-jobs,.ep-checks{list-style:none;margin:0;padding:0;display:grid;gap:2px}
 .ep-job,.ep-check{display:flex;align-items:center;gap:12px;padding:9px 4px;border-top:1px solid var(--tc-line-2);min-width:0}
 .ep-job:first-child,.ep-check:first-child{border-top:0}
@@ -16,8 +15,6 @@
 .ep-job .tc-sub,.ep-check .tc-sub{flex-basis:100%;color:var(--tc-ink-3);font-size:12.5px}
 .ep-job-t{flex:0 0 76px;display:flex;flex-direction:column;font-variant-numeric:tabular-nums;font-weight:700;color:var(--tc-ink)}
 .ep-job-t small{font-weight:500;font-size:11px;color:var(--tc-ink-3)}
-.ep-job.late .ep-job-t{color:var(--tc-bad)}
-.ep-job.soon .ep-job-t{color:var(--tc-warn)}
 .ep-job.done{opacity:.72}
 .ep-job.done .ep-job-t{color:var(--tc-safe)}
 .ep-job-form{padding:0 0 8px}

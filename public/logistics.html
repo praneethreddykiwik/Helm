@@ -66,11 +66,12 @@
   html[data-theme="dark"] .tabs button.on{background:#047857;color:#fff}
 </style>
 <link rel="stylesheet" href="logistics-polish.css?v=4">
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
-<link rel="stylesheet" href="payment-schedule.css?v=5">
+<link rel="stylesheet" href="/event-flow-line.css?v=1">
+<link rel="stylesheet" href="payment-schedule.css?v=6">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=121" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -89,7 +90,7 @@
   <div id="notfound" class="card" hidden><p class="s-1a1aca0">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a> · <span id="evName"></span><span id="flowLine"></span></div>
 
     <div class="tabs" id="tabs" role="group" aria-label="Section">
       <button type="button" data-t="compliance" class="on" aria-pressed="true">📋 Permits &amp; licences</button>
@@ -119,10 +120,11 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
-<script src="page-tours.js?v=76"></script>
-<script src="tour.js?v=91"></script>
-<script src="payment-schedule.js?v=6"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
+<script src="page-tours.js?v=79"></script>
+<script src="tour.js?v=93"></script>
+<script src="payment-schedule.js?v=7"></script>
+<script src="/event-flow-line.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -137,6 +139,9 @@
   const id=new URLSearchParams(location.search).get("quote")||new URLSearchParams(location.search).get("id");
   const CHK_ST={open:"Open",done:"Done",na:"N/A"}, PAY_ST={due:"Due",invoiced:"Invoiced",paid:"Paid",waived:"Waived"};
   let canEdit=false, canDelete=false, canFin=false, tab="compliance", ev=null;
+  // R252: these lists are saved under "Event plan" - the database answers a role without it with NO ROWS (never an error), so the
+  // lists are not called empty for that role and the controls show only where a change is really saved
+  let seeList=true, editList=false;
 
   async function renderAccount(){ const el=$("#account"); if(!BPStore.auth.enabled()){el.hidden=true;return;} el.hidden=false;
     const u=BPStore.auth.user(); if(u){ const role=await BPStore.auth.role();
@@ -158,21 +163,22 @@
   }
   async function renderPaneInner(){
     if(tab==="payments") return renderPayments();
+    if(!seeList){ $("#pane").innerHTML=`<h2>${esc(TAB_NAME[tab]||tab)}</h2><p class="empty">Your role can't see this list. Ask someone who can see the event plan.</p>`; return; }
     if(tab==="guests") return renderGuests();
     // generic checklist (logistics / compliance / comms)
     const items = await BPStore.checklist.list(id, tab);
     const done = items.filter(i=>i.status==="done").length;
     $("#pane").innerHTML = `<h2>${esc(TAB_NAME[tab]||tab)}</h2><p class="sub">${CHK_HELP[tab]}</p>
-      ${canEdit?`<div class="addrow chk">
+      ${editList?`<div class="addrow chk">
         <div class="fld"><label for="a_title">Item *</label><input id="a_title" maxlength="200" required placeholder="e.g. Confirm generator backup"></div>
         <div class="fld"><label for="a_owner">Owner</label>${peopleSelectHTML("a_owner","")}</div>
         <div class="fld"><label for="a_due">Due</label><input id="a_due" type="date" data-date-window="recent"></div>
         <div class="fld">${SPACER}<button type="button" class="btn primary" id="a_add">＋ Add item</button></div></div>`:""}
-      ${canEdit?'<div id="tplBar" style="margin:6px 0 12px"></div>':""}
+      ${editList?'<div id="tplBar" style="margin:6px 0 12px"></div>':""}
       <div class="table-scroll"><table><thead><tr><th scope="col">Item</th><th scope="col">Owner</th><th scope="col">Due</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>${items.length?items.map(rowChk).join(""):'<tr><td colspan="5" class="empty">Nothing here yet.</td></tr>'}</tbody></table></div>
       <div class="totbar"><span>${items.length} item${items.length===1?"":"s"} · <b>${done}</b> done</span></div>`;
-    if(canEdit){ $("#a_add").addEventListener("click",()=>addChk(tab)); $("#a_title").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); addChk(tab); } }); renderTplBar(tab); }
+    if(editList){ $("#a_add").addEventListener("click",()=>addChk(tab)); $("#a_title").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); addChk(tab); } }); renderTplBar(tab); }
     wireRows("item");
   }
   async function renderTplBar(section){
@@ -184,13 +190,13 @@
       <select id="tplPick" class="ssel" style="height:32px;max-width:100%">${tpls.map(t=>`<option value="${esc(t.id)}">${esc(t.name)} (${(Array.isArray(t.items)?t.items.length:0)})</option>`).join("")}</select>
       <button type="button" class="btn" id="tplApply" style="height:32px">Apply</button></div>`;
     $("#tplApply").addEventListener("click",()=>{ const tid=$("#tplPick").value; if(!tid) return;
-      act($("#tplApply"),async()=>{ const n=await BPStore.templates.applyTo(id,tid); await renderPane(); if(!n) BPUI.toast("That template has no items.",{type:"info"}); },"apply the template"); });
+      act($("#tplApply"),async()=>{ const n=await BPStore.templates.applyTo(id,tid); await renderPane(); if(!n) BPUI.toast("Nothing to add - everything in that template is already on the list.",{type:"info"}); },"apply the template"); });
   }
   function rowChk(i){ const opts=["open","done","na"].map(s=>`<option value="${s}" ${s===i.status?"selected":""}>${CHK_ST[s]}</option>`).join("");
     return `<tr><td><b>${esc(i.title)}</b>${i.detail?`<div style="font-size:12px;color:var(--ink-3)">${esc(i.detail)}</div>`:""}</td>
       <td class="muted">${esc(i.owner||"")}</td><td class="muted">${esc(i.due_date?BPStore.fmtDateIN(i.due_date):"")}</td>
-      <td>${canEdit?`<select class="ssel" data-st="${esc(i.id)}" aria-label="Status for ${esc(i.title)}">${opts}</select>`:`<span class="st ${esc(i.status)}">${esc(CHK_ST[i.status]||i.status)}</span>`}</td>
-      <td>${canDelete?`<button type="button" class="rm" data-del="${esc(i.id)}" data-name="${esc(i.title)}" aria-label="Remove ${esc(i.title)}">✕</button>`:""}</td></tr>`; }
+      <td>${editList?`<select class="ssel" data-st="${esc(i.id)}" aria-label="Status for ${esc(i.title)}">${opts}</select>`:`<span class="st ${esc(i.status)}">${esc(CHK_ST[i.status]||i.status)}</span>`}</td>
+      <td>${canDelete&&editList?`<button type="button" class="rm" data-del="${esc(i.id)}" data-name="${esc(i.title)}" aria-label="Remove ${esc(i.title)}">✕</button>`:""}</td></tr>`; }
   function wireRows(noun){
     document.querySelectorAll("#pane [data-st]").forEach(s=>s.addEventListener("change",()=>act(s,async()=>{ await BPStore.checklist.update(s.dataset.st,{status:s.value}); await renderPane(); },"update the status")));
     document.querySelectorAll("#pane [data-del]").forEach(b=>b.addEventListener("click",async()=>{
@@ -204,22 +210,26 @@
 
   async function renderGuests(){
     const items = await BPStore.checklist.list(id,"guests");
-    const total = items.reduce((a,g)=>a+Number(g.qty||0),0);
-    $("#pane").innerHTML = `<h2>Guest count</h2><p class="sub">How many guests we expect, by group (family, company, VIPs…). The Event-day page shows these groups under “Guests arriving”.</p>
-      ${canEdit?`<div class="addrow guest">
+    // R252: declined groups do not come (the Day-before checks leave them out too); and the quote has its own guest count
+    const total = items.reduce((a,g)=>a+(g.status==="na"?0:Number(g.qty||0)),0), gone = items.filter(g=>g.status==="na").length;
+    const qg=Math.round(Number(ev&&ev.client&&ev.client.guests)||0);
+    const qNote=qg>0&&items.length&&qg!==total?"The quote is for "+qg.toLocaleString("en-IN")+" guests, these groups add up to "+total.toLocaleString("en-IN")+". The venue check and the price follow the quote - change the guest count there if it changed.":"";
+    $("#pane").innerHTML = `<h2>Guest count</h2><p class="sub">How many guests we expect, by group (family, company, VIPs…). The Event-day page shows these groups under “Guests arriving”.</p><p class="sub" id="gQuote" role="note" hidden></p>
+      ${editList?`<div class="addrow guest">
         <div class="fld"><label for="g_name">Group *</label><input id="g_name" maxlength="120" required placeholder="e.g. Bride's family"></div>
         <div class="fld"><label for="g_qty">Headcount</label><input id="g_qty" type="number" min="0" max="100000" value="0"></div>
         <div class="fld">${SPACER}<button type="button" class="btn primary" id="g_add">＋ Add guest</button></div></div>`:""}
       <div class="table-scroll"><table><thead><tr><th scope="col">Group</th><th scope="col" class="num">Headcount</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>${items.length?items.map(rowGuest).join(""):'<tr><td colspan="4" class="empty">No guest groups yet.</td></tr>'}</tbody></table></div>
-      <div class="totbar"><span>Total expected guests: <b>${total}</b></span><span>${items.length} group${items.length===1?"":"s"}</span></div>`;
-    if(canEdit) $("#g_add").addEventListener("click",addGuest);
+      <div class="totbar"><span>Total expected guests: <b>${total}</b>${gone?` (${Number(gone)} declined, not counted)`:""}</span><span>${items.length} group${items.length===1?"":"s"}</span></div>`;
+    if(qNote){ $("#gQuote").textContent=qNote; $("#gQuote").hidden=false; }
+    if(editList) $("#g_add").addEventListener("click",addGuest);
     wireRows("group");
   }
   function rowGuest(g){ const opts=["open","done","na"].map(s=>`<option value="${s}" ${s===g.status?"selected":""}>${({open:"Pending",done:"Confirmed",na:"Declined"})[s]}</option>`).join("");
     return `<tr><td><b>${esc(g.title)}</b></td><td class="num">${esc(g.qty!=null?g.qty:0)}</td>
-      <td>${canEdit?`<select class="ssel" data-st="${esc(g.id)}" aria-label="Status for ${esc(g.title)}">${opts}</select>`:esc(g.status)}</td>
-      <td>${canDelete?`<button type="button" class="rm" data-del="${esc(g.id)}" data-name="${esc(g.title)}" aria-label="Remove group ${esc(g.title)}">✕</button>`:""}</td></tr>`; }
+      <td>${editList?`<select class="ssel" data-st="${esc(g.id)}" aria-label="Status for ${esc(g.title)}">${opts}</select>`:esc(g.status)}</td>
+      <td>${canDelete&&editList?`<button type="button" class="rm" data-del="${esc(g.id)}" data-name="${esc(g.title)}" aria-label="Remove group ${esc(g.title)}">✕</button>`:""}</td></tr>`; }
   function addGuest(){ const t=$("#g_name").value.trim(); if(!t){ BPUI.toast("Enter the group name first.",{type:"err"}); $("#g_name").focus(); return; }
     const V=BPStore.validate;
     const gr=V.count($("#g_qty").value,{field:"Headcount"}); if(!gr.ok){ BPUI.toast(gr.error,{type:"err"}); return; }
@@ -330,6 +340,8 @@
     if(!(await BPStore.auth.requireView("logistics"))) return;
     canEdit=await BPStore.auth.canEditArea("logistics"); canDelete=canEdit && await BPStore.auth.can("delete");
     canFin=canEdit && !!BPStore.moneySafety && await BPStore.auth.canEditArea("finance");   // R239: Void / Undo paid need Finance edit (the server checks too)
+    { const A=BPStore.auth, may=(p)=>Promise.resolve().then(p).then(v=>v===true,()=>false), r=await Promise.all([may(()=>A.canView("plan")), may(()=>A.canEditArea("plan"))]);
+      seeList=r[0]; editList=canEdit&&r[0]&&r[1]; }
     try{ PEOPLE_OPTS=await BPStore.people.options(); }catch{ PEOPLE_OPTS=[]; }
     // Payments are finance-only — hide that tab (and fall back off it) for roles without finance access
     if(!(await BPStore.auth.canView("finance"))){ const pb=document.querySelector('#tabs button[data-t="payments"]'); if(pb) pb.hidden=true;
@@ -338,11 +350,17 @@
     // r23 (0264): #payments (bell "Payment overdue", schedule card links) opens the Payments tab
     if(/^#payments$/i.test(location.hash||"")){ const pb=document.querySelector('#tabs button[data-t="payments"]');
       if(pb && !pb.hidden){ tab="payments"; $("#tabs").querySelectorAll("button").forEach(x=>{ const on=x===pb; x.classList.toggle("on",on); x.setAttribute("aria-pressed",String(on)); }); } }
+    // R252: #compliance / #comms / #logistics / #guests open that tab (links from the Day-before checks)
+    { const m=/^#(compliance|comms|logistics|guests)$/i.exec(location.hash||""), gb=m&&document.querySelector('#tabs button[data-t="'+m[1].toLowerCase()+'"]');
+      if(gb && !gb.hidden){ tab=m[1].toLowerCase(); $("#tabs").querySelectorAll("button").forEach(x=>{ const on=x===gb; x.classList.toggle("on",on); x.setAttribute("aria-pressed",String(on)); }); } }
     try{ ev=await BPStore.quotes.get(id); }catch(e){ if(BPUI.isNotFound(e)){ $("#notfound").hidden=false; return; } throw e; }
     if(!ev){ $("#notfound").hidden=false; return; }
     $("#evName").textContent=(ev.code||"")+(ev.title&&ev.title!==ev.code?(" · "+ev.title):"");
     $("#app").hidden=false;
+    if(window.HelmFlowLine) HelmFlowLine.mount($("#flowLine"),ev,{id,dayBefore:true});
     await renderPane();
+    // R252: a line ticked on Day before shows here when the person comes back (reads only; never while something is being typed)
+    if(window.HelmFlowLine) HelmFlowLine.onReturn(()=>tab==="payments"?null:renderPane(),()=>HelmFlowLine.inUse($("#pane")));
   });
 </script>
 </body>

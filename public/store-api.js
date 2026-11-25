@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=118"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=121"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1995,10 +1995,10 @@ window.HelmUrl = HelmUrl;
   // 0061 universal search (top-bar trigger + Cmd/Ctrl+K palette). Studio pages only:
   // never on HQ / public client pages; studio-search.js re-checks the role (no clients).
   // verify-166: PR #166 merged four branches that each shipped a different store-api.js as v=232 (and shell-b as 114) - re-bumped so no browser keeps a stale copy
-  const STUDIO_SEARCH_VERSION = "21";
+  const STUDIO_SEARCH_VERSION = "22";
   // nav trail (breadcrumbs + Recent records). Pages may call HelmTrail.setCurrent before
   // nav-trail.js loads: this stub queues the calls; nav-trail.js replays them after boot.
-  const NAV_TRAIL_VERSION = "7";
+  const NAV_TRAIL_VERSION = "8";
   if (typeof global.HelmTrail === "undefined") {
     global.HelmTrail = { setCurrent(o) { if (o) (global.__helmTrailQ = global.__helmTrailQ || []).push(o); }, recent() { return []; }, _stub: true };
   }
@@ -4687,6 +4687,8 @@ window.HelmUrl = HelmUrl;
             p_terms_version: termsVersion, p_consent_text: consentText, p_user_agent: ua }); })),
     generateToken: (quoteId) => rpc("generate_approval_token", { p_quote_id: quoteId }),
     markPaid: (quoteId, ref) => rpc("mark_paid", { p_quote_id: quoteId, p_provider_ref: ref || null }),
+    // R252 (0435): who said yes for these events -> [{quote_id, basis, client_approved, ...}]; null = older than 0435
+    basis: (ids) => (supa ? rpc("quote_approval_basis", { p_quotes: ids || [] }).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
     async consents(quoteId) { if (!supa) return []; const { data, error } = await supa.from("quote_consents")
       .select("*").eq("quote_id", quoteId).order("created_at", { ascending: false }); if (error) throw error; return data; },
     async payments(quoteId) { if (!supa) return []; const { data, error } = await supa.from("quote_payments")
@@ -4763,11 +4765,25 @@ window.HelmUrl = HelmUrl;
       if (!rpcMissing(r.error)) throw r.error;
       const { data, error } = await supa.from("work_tokens").select("token,phone,name").eq("quote_id", quoteId);
       if (error) throw error; return data; },
-    assignTasks: (quoteId, category, titles, crewId, name, phone) => rpcKeyed("assign_tasks", "assign_tasks_once",   // R235: sent twice = done once
-      { p_quote_id: quoteId, p_category: category, p_titles: titles, p_crew_id: crewId || null, p_name: name, p_phone: phone }),
+    // R254 (0438): opts.step = the step the person picked, saved in the same transaction. A database without 0438 = the old calls, no step.
+    STEP_RPC: { assign: "assign_tasks_step", assignOnce: "assign_tasks_step_once", vendor: "assign_tasks_vendor_step", vendorOnce: "assign_tasks_vendor_step_once", set: "set_task_step" },
+    async _withStep(step, fn, once, args, old) {
+      if (!["daybefore", "pre", "onday", "wrapup"].includes(step)) return old();
+      try { return await rpcKeyed(fn, once, Object.assign({}, args, { p_step: step })); } catch (e) { if (rpcMissing(e)) return old(); throw e; }
+    },
+    assignTasks(quoteId, category, titles, crewId, name, phone, opts) {
+      const a = { p_quote_id: quoteId, p_category: category, p_titles: titles, p_crew_id: crewId || null, p_name: name, p_phone: phone };
+      return this._withStep(opts && opts.step, this.STEP_RPC.assign, this.STEP_RPC.assignOnce, a, () => rpcKeyed("assign_tasks", "assign_tasks_once", a));   // R235: sent twice = done once
+    },
+    // R254-B (0438): what each { crew_id, start, end, depends_on } overlaps, at most 60 items -> the server's answer; null = a database without it
+    timeClashes(items, exclude) { return rpc("crew_time_clashes", { p_items: items, p_exclude: exclude && exclude.length ? exclude : null }).catch((e) => { if (rpcMissing(e)) return null; throw e; }); },
+    // move tasks to another step -> { changed, skipped: [{ id, reason }] }. No message to anybody; refused while the plan is locked.
+    setTaskStep(ids, step) { return rpc(this.STEP_RPC.set, { p_tasks: ids, p_step: step }); },
     // Phase 40 — outsource a set of tasks to a vendor (sends them the checklist via the worker link)
-    assignTasksVendor: (quoteId, category, titles, vendorId) => rpcKeyed("assign_tasks_vendor", "assign_tasks_vendor_once",
-      { p_quote_id: quoteId, p_category: category, p_titles: titles, p_vendor_id: vendorId }),
+    assignTasksVendor(quoteId, category, titles, vendorId, opts) {
+      const a = { p_quote_id: quoteId, p_category: category, p_titles: titles, p_vendor_id: vendorId };
+      return this._withStep(opts && opts.step, this.STEP_RPC.vendor, this.STEP_RPC.vendorOnce, a, () => rpcKeyed("assign_tasks_vendor", "assign_tasks_vendor_once", a));
+    },
     // R170 (0361): "Send by email" - the server reads the address from the staff record. all = every open task of that
     // person on this event. Answer { ok, masked? , name, reason? } (reason: no_email | just_sent | trial | not_live | vendor | closed)
     emailTasks: (taskId, all) => rpc("staff_email_send", { p_task: taskId, p_all: all !== false }),
@@ -4785,7 +4801,77 @@ window.HelmUrl = HelmUrl;
     // r96 (0312): the office cancels an assigned / accepted / in-progress task; a reason (3-300 chars) is required
     cancel: (taskId, reason) => rpc("cancel_task", { p_task: taskId, p_reason: String(reason || "").trim() }),
     // ---- Phase 35: quality-engineer verification ----
-    verify: (taskId, pass, note) => rpc("verify_task", { p_id: taskId, p_pass: !!pass, p_note: note || null }),
+    // R254: sending work back always needs a reason (every role; the person reads it)
+    verify: (taskId, pass, note) => { const n = String(note == null ? "" : note).trim();
+      return !pass && !n ? Promise.reject(new Error("Please write what has to be done again.")) : rpc("verify_task", { p_id: taskId, p_pass: !!pass, p_note: n || null }); },
+    // R253: the Approvals page + its nav count. Reads only, through the tables' own row rules (Staff view, own studio); verify() above
+    // decides who may approve. A supervisor gets the departments they supervise (0399), everyone else every event. No money, no contact columns.
+    approvals: {
+      ROLES: ["admin", "manager", "planner", "quality"],   // verify_task (0282 / 0311)
+      // -> null = this role has nothing to approve; else { role, me, all, mine: { quoteId: [department] }, own: [crew ids that are me], old: before 0436 }
+      async scope() {
+        if (!supa || !auth.user()) return null;
+        const role = await auth.role(), me = (auth.user() || {}).id, all = this.ROLES.includes(role); if (!all && role !== "supervisor") return null;
+        if (!(await auth.canView("staff"))) return null;
+        const mine = {}; let own = [], old = false;
+        if (!all) {
+          const [d, c] = await Promise.all([supa.from("event_department_supervisors").select("quote_id,department").eq("profile_id", me).limit(1000),
+            supa.from("crew_members").select("id").eq("profile_id", me).limit(20)]);
+          if (d.error && !["PGRST205", "42P01", "42501"].includes(d.error.code)) throw d.error;
+          (d.data || []).forEach((r) => { (mine[r.quote_id] = mine[r.quote_id] || []).push(r.department); });
+          own = (c.data || []).map((r) => r.id);
+          // 0436 says what a supervisor may check; without it the database refuses them (old = show the work, offer no Approve)
+          const q = Object.keys(mine)[0], g = q ? await ops.deptSupervisors.get(q).catch(() => undefined) : undefined;
+          if (g && !g.verify) old = true; else if (g && Array.isArray(g.verify.my_crew_ids)) own = [...new Set(own.concat(g.verify.my_crew_ids))];
+        }
+        return { role, me, all, mine, own, old };
+      },
+      _in: (sc, t) => sc.all || (sc.mine[t.quote_id] || []).includes(String(t.category || "").trim()),
+      async _rows(sc, cols, build) {
+        const ids = Object.keys(sc.mine); if (!sc.all && !ids.length) return [];
+        let q = build(supa.from("event_tasks").select(cols)); if (!sc.all) q = q.in("quote_id", ids.slice(0, 200));
+        const { data, error } = await q; if (error) throw error; return (data || []).filter((t) => this._in(sc, t));
+      },
+      // the events of these tasks; a cancelled, closed, archived or deleted one is dropped (hidden)
+      async _events(ids) {
+        const a = [...new Set(ids)].filter(Boolean); if (!a.length) return {};
+        const cols = "id,code,title,status,lifecycle_stage,event_date,event_time,venue:client->>venue", out = {};
+        for (let i = 0; i < a.length; i += 100) {
+          let r = await supa.from("quotes").select(cols + ",archived_at,deleted_at").in("id", a.slice(i, i + 100));
+          if (r.error && isMissingColumn(r.error)) r = await supa.from("quotes").select(cols).in("id", a.slice(i, i + 100));
+          if (r.error) continue;   // a role without Quotes still sees its tasks, only without the event's name
+          (r.data || []).forEach((e) => { out[e.id] = { id: e.id, code: e.code, title: e.title, eventDate: e.event_date, eventTime: e.event_time, venue: e.venue || "",
+            hidden: ["cancelled", "lost", "rejected"].includes(e.status) || ["closed", "cancelled"].includes(e.lifecycle_stage) || !!e.archived_at || !!e.deleted_at }; });
+        }
+        return out;
+      },
+      _waiting: (q) => q.eq("status", "completed").eq("verify_status", "pending"),
+      async count() {
+        const sc = await this.scope(); if (!sc) return null;
+        const rows = await this._rows(sc, "id,quote_id,category", (q) => this._waiting(q).order("completed_at", { ascending: false }).limit(500)); if (!rows.length) return 0;
+        const ev = await this._events(rows.map((t) => t.quote_id)); return rows.filter((t) => !(ev[t.quote_id] || {}).hidden).length;
+      },
+      // -> null (nothing for this role) | { scope, pending, history, next: { taskId: [task] }, events, evidence }
+      async list() {
+        const sc = await this.scope(); if (!sc) return null;
+        const cols = "id,quote_id,category,title,status,crew_id,assignee_name,assignee_kind,planned_start,started_at,completed_at,verify_status,verified_by,verified_at,verify_note";
+        let [pending, history] = await Promise.all([
+          this._rows(sc, cols, (q) => this._waiting(q).order("completed_at", { ascending: false }).limit(500)),
+          this._rows(sc, cols, (q) => q.in("verify_status", ["passed", "rejected"]).not("verified_at", "is", null).order("verified_at", { ascending: false }).limit(sc.all ? 60 : 200))]);
+        const events = await this._events(pending.concat(history).map((t) => t.quote_id)), shown = (t) => !(events[t.quote_id] || {}).hidden;
+        pending = pending.filter(shown); history = history.filter(shown).slice(0, 60);
+        const ids = pending.map((t) => t.id), next = {}, evidence = [];
+        for (let i = 0; i < ids.length; i += 100) {
+          const part = ids.slice(i, i + 100);
+          const [n, e] = await Promise.all([supa.from("event_tasks").select("id,quote_id,title,assignee_name,status,depends_on").in("depends_on", part).neq("status", "cancelled").limit(500),
+            supa.from("task_evidence").select("id,task_id,kind,body,storage_path,mime,duration_s,worker_name,created_at").in("task_id", part).order("created_at", { ascending: true }).limit(1000)]);
+          if (n.error) throw n.error;
+          (n.data || []).forEach((t) => { (next[t.depends_on] = next[t.depends_on] || []).push(t); });
+          if (e.error) { if (!["PGRST205", "42P01"].includes(e.error.code)) throw e.error; } else evidence.push(...(e.data || []));
+        }
+        return { scope: sc, pending, history, next, events, evidence };
+      },
+    },
     verifySummary: (quoteId) => rpc("task_verify_summary", { p_quote: quoteId }).then(r => (Array.isArray(r) ? r[0] : r)),
     // ---- Phase 37: scheduling + dependencies ----
     setSchedule: (taskId, start, end, dependsOn) => rpc("set_task_schedule",
@@ -8660,8 +8746,12 @@ window.HelmUrl = HelmUrl;
         const mineBk = bk.filter((b) => b.need_id === n.id);
         const vendorLost = mineBk.length > 0 && mineBk.every((b) => b.status === "cancelled");
         const outsourced = n.status === "outsourced" && !vendorLost;
-        const covered = outsourced || (qty > 0 && have >= qty);
-        const gap = covered ? 0 : Math.max(0, qty - have);
+        // R252: a vendor bringing 20 of 120 leaves 100 missing (a booking with no quantity counts as the whole need, as before)
+        const liveBk = mineBk.filter((b) => b.status !== "cancelled");
+        const fromVendors = liveBk.some((b) => !(Number(b.qty) > 0)) ? qty : liveBk.reduce((t, b) => t + Number(b.qty), 0);
+        const vendorShort = outsourced && liveBk.length > 0 && qty > 0 ? Math.max(0, qty - have - fromVendors) : 0;
+        const covered = (outsourced && vendorShort === 0) || (qty > 0 && have >= qty);
+        const gap = covered ? 0 : outsourced ? vendorShort : Math.max(0, qty - have);
         return { ...n, have, unit, detail, people, covered, gap, outsourced, vendorBooked: mineBk.some((b) => b.status !== "cancelled") };
       });
     },
@@ -9326,6 +9416,14 @@ window.HelmUrl = HelmUrl;
     if (r && r.source === "buy") return head + " \u2014 outsource / buy";
     return head + " \u2014 unsourced";
   }
+  // R252: the "Client approved" words, honestly. a = { basis: client | advance | studio } (0435) or null = not known
+  function approvalWords(status, a) {
+    const st = String(status || "none"), b = (a && a.basis) || "";
+    if (st === "paid" && b === "advance") return { label: "Confirmed by advance - client approval pending", detail: "by the advance - client has not approved" };
+    if (st === "paid" && b !== "client") return { label: "Booking confirmed by the advance", detail: "advance received" };
+    const W = { none: "link not sent yet", sent: "link sent - not approved yet", approved: "approved", paid: "approved, advance received", cancelled: "cancelled" };   // R254: never the raw word
+    return { label: "Client approved", detail: W[st] || st };
+  }
   // r20 coord (b): ONE "advance is in" rule for every screen - the same truth the status label
   // ("Confirmed · advance paid") uses: the client paid (approval_status "paid"), or a payment
   // milestone is paid, or the payments ledger has a paid receipt, or settlement received > 0.
@@ -9380,11 +9478,13 @@ window.HelmUrl = HelmUrl;
       const pkgName = String((planRow && (planRow.package || planRow.menu_template)) || (ev && ev.pricing && ev.pricing._packageName) || "").trim();
       const menuLocked = !!(planRow && planRow.menu_locked);
       // 0197: stock shortages + guests vs the linked venue
-      const [shorts, items, vlist, dishes] = await Promise.all([
+      const [shorts, items, vlist, dishes, basis] = await Promise.all([
         inventory.shortages(quoteId).catch(() => []),
         inventory.items(true).catch(() => []),
         (ev && ev.client && (ev.client.venueId || String(ev.client.venue || "").trim())) ? venues.list({ all: true }).catch(() => []) : Promise.resolve([]),
         eventMenu.list(quoteId).catch(() => null),
+        // R252 (0435): an advance confirmed the booking - did the client approve too? Only asked then; refused / older = not known
+        String(ev.approvalStatus || "") === "paid" ? approval.basis([quoteId]).catch(() => null) : Promise.resolve(null),
       ]);
       const menuHas = (Array.isArray(dishes) && dishes.length > 0) || !!pkgName || !!String((planRow && planRow.menu) || "").trim();
       // r20 coord (b): the linked venue, else a saved venue matching the typed venue name ("Demo · Green Meadows Lawn")
@@ -9396,9 +9496,17 @@ window.HelmUrl = HelmUrl;
       const vend = (shorts || []).some((r) => r.vendor_id) ? await vendors.listAll(true).catch(() => []) : [];
       const shortLines = (shorts || []).map((r) => { const b = bk.find((x) => x.id === r.booking_id), v = (vend || []).find((x) => x.id === r.vendor_id);
         return shortageText(r, { itemName: itemName(r.item_id), bookingStatus: b && b.status, vendorName: v && v.name }); });
-      const unsourced = (shorts || []).filter((r) => r.source !== "vendor" && r.source !== "buy").length;
+      // R252: a vendor who is only asked, or whose booking was cancelled, does not bring the missing stock yet
+      const bkById = {}; bk.forEach((b) => { bkById[b.id] = b; });
+      const unsourced = (shorts || []).filter((r) => { if (r.source === "buy") return false; if (r.source !== "vendor") return true;
+        const b = r.booking_id ? bkById[r.booking_id] : null; return !!b && (b.status === "enquiry" || b.status === "cancelled"); }).length;
       const gaps = resCheck.filter((c) => !c.covered).length;
+      // R252: "confirmed" means confirmed (or delivered) - an asked or only-booked vendor is still open; cancelled bookings don't count
       const enquiry = bk.filter((b) => b.status === "enquiry").length;
+      const liveBk = bk.filter((b) => b.status !== "cancelled"), bookedOnly = liveBk.filter((b) => b.status === "booked").length;
+      const vendOk = liveBk.length ? liveBk.every((b) => b.status === "confirmed" || b.status === "delivered") : bk.length ? resCheck.length > 0 && gaps === 0 : resCheck.length > 0;
+      const vendWhy = liveBk.length ? ([enquiry ? enquiry + " still enquiry" : "", bookedOnly ? bookedOnly + " booked, not confirmed" : ""].filter(Boolean).join(", ") || "all confirmed")
+        : bk.length ? "every vendor booking was cancelled" : "";
       const crew = new Set(tasks.map((t) => t.crew_id)).size;
       // ledger receipts only when the milestones don't already show it (a role without finance gets [])
       const pays = (canFin && ev && String(ev.approvalStatus || "") !== "paid" && !ms.some((m) => m && m.status === "paid"))
@@ -9406,11 +9514,11 @@ window.HelmUrl = HelmUrl;
       const paid = advanceIn(ev, { milestones: ms, payments: pays });
       const checks = [
         { key: "date", label: "Event date set", critical: true, ok: !!ev.eventDate, detail: ev.eventDate || "not set" },
-        { key: "approval", label: "Client approved", critical: true, ok: ["approved", "paid"].includes(ev.approvalStatus), detail: ev.approvalStatus || "none" },
+        { key: "approval", ...approvalWords(ev.approvalStatus, basis && basis[0]), critical: true, ok: ["approved", "paid"].includes(ev.approvalStatus) },
         { key: "menu", label: "Menu & package locked", critical: true, ok: menuLocked && menuHas,
           detail: menuLocked ? (menuHas ? "locked" + (pkgName ? " - " + pkgName : "") : "locked, but no package or dishes yet") : "not locked" },
         { key: "resources", label: "Resources covered (nothing missing)", critical: true, ok: resCheck.length > 0 && gaps === 0, detail: resCheck.length === 0 ? "no needs listed yet" : (gaps ? (gaps + " missing") : "all covered") },
-        { key: "vendors", label: "Vendors confirmed", critical: true, ok: enquiry === 0 && (bk.length > 0 || resCheck.length > 0), detail: enquiry ? (enquiry + " still enquiry") : (bk.length ? "all confirmed" : (resCheck.length ? "in-house — none needed" : "nothing planned")) },
+        { key: "vendors", label: "Vendors confirmed", critical: true, ok: vendOk, detail: vendWhy || (resCheck.length ? "in-house — none needed" : "nothing planned") },
         { key: "staff", label: "Staff assigned", critical: true, ok: crew > 0, detail: crew ? (crew + " assigned") : "none" },
         { key: "runsheet", label: "Run-sheet built", critical: true, ok: rs.length > 0, detail: rs.length ? (rs.length + " items") : "empty" },
         // r20: no saved venue (or no capacity / guest count) = NOT CHECKED - a warning, never counted as passed
@@ -9446,7 +9554,10 @@ window.HelmUrl = HelmUrl;
     },
     async add(quoteId, item) {
       const withDefault = { status: item.kind === "check" ? "pending" : "expected", ...item };
-      if (mode === "supabase") { const { data, error } = await supa.from("event_day").insert({ quote_id: quoteId, ...withDefault }).select().single(); if (error) throw error; return data; }
+      if (mode === "supabase") { const { data, error } = await supa.from("event_day").insert({ quote_id: quoteId, ...withDefault }).select().single();
+        // R254 (0437): one row per vendor / person and event - somebody else added it in the same moment: their row is kept, untouched
+        if (error && error.code === "23505" && item.ref_id) { const cur = (await this.list(quoteId, item.kind)).find((x) => x.ref_id === item.ref_id); if (cur) return { ...cur, existed: true }; }
+        if (error) throw error; return data; }
       const a = readLs(DAY_LS); const row = { id: uid(), quote_id: quoteId, ...withDefault, created_at: now() }; a.push(row); localStorage.setItem(DAY_LS, JSON.stringify(a)); return row;
     },
     async setStatus(id, status) {
@@ -9472,9 +9583,9 @@ window.HelmUrl = HelmUrl;
       const vById = {}; vends.forEach((v) => { vById[v.id] = v; });
       const crewIds = [...new Set(tasks.map((t) => t.crew_id))];
       for (const cid of crewIds) { if (have.has(cid)) continue; const p = staffById[cid] || {};
-        await this.add(quoteId, { kind: "arrival", who: p.name || "Crew", role: p.department || "Staff", ref_id: cid, status: "expected" }); added++; }
+        (await this.add(quoteId, { kind: "arrival", who: p.name || "Crew", role: p.department || "Staff", ref_id: cid, status: "expected" })).existed || added++; }
       for (const b of bk) { if (b.status === "cancelled" || b.status === "enquiry" || have.has(b.id)) continue; const v = vById[b.vendor_id] || {};
-        await this.add(quoteId, { kind: "arrival", who: v.name || b.label || "Vendor", role: "vendor", ref_id: b.id, status: "expected" }); added++; }
+        (await this.add(quoteId, { kind: "arrival", who: v.name || b.label || "Vendor", role: "vendor", ref_id: b.id, status: "expected" })).existed || added++; }
       return added;
     },
   };
@@ -9577,6 +9688,16 @@ window.HelmUrl = HelmUrl;
     async setStatus(id, status) {
       const patch = { status, resolved_at: status === "resolved" ? now() : null };
       if (mode === "supabase") { const { error } = await supa.from("event_issues").update(patch).eq("id", id); if (error) throw error; return true; }
+      const a = readLs(ISS_LS); const r = a.find((x) => x.id === id); if (r) { Object.assign(r, patch); localStorage.setItem(ISS_LS, JSON.stringify(a)); } return true;
+    },
+    // R252: who handles it (a name; null = nobody yet). Same Issues - Can change rule as setStatus; no row changed = say so.
+    async setOwner(id, owner) {
+      const patch = { owner: String(owner == null ? "" : owner).replace(/\s+/g, " ").trim().slice(0, 120) || null };
+      if (mode === "supabase") {
+        const { data, error } = await supa.from("event_issues").update(patch).eq("id", id).select("id"); if (error) throw error;
+        if (!data || !data.length) { const e = new Error("not authorized to change this issue"); e.code = "42501"; throw e; }
+        return true;
+      }
       const a = readLs(ISS_LS); const r = a.find((x) => x.id === id); if (r) { Object.assign(r, patch); localStorage.setItem(ISS_LS, JSON.stringify(a)); } return true;
     },
     async remove(id) {
@@ -10389,6 +10510,7 @@ window.HelmUrl = HelmUrl;
     if (k === "client_link_viewed" || k === "client_view_followup") return "event.html?id=" + enc(q) + "#link-views";
     // r23 (0262): valid-until reminders / "request a new quote" open the event workspace at the validity line
     if (k === "quote_expiring" || k === "quote_expired" || k === "quote_renew_request") return "event.html?id=" + enc(q) + "#quote-validity";
+    if (k === "task_escalated" && (d.via === "start_now" || d.via === "hold")) return "runsheet.html?quote=" + enc(q) + "#my-tasks";   // R253 (0436): the person's own tasks on that event
     if (k === "task_escalated") return "monitor.html?quote=" + enc(q);   // R186 (0369): the Event day monitor (Late panel)
     if (k === "vendor_bill_due") return "settlement.html?quote=" + enc(q) + "#vendorBills";   // R190 (0373): the event's Vendor bills card
     if (k.indexOf("task_") === 0) return "ops.html?quote=" + enc(q) + (has(d.task_id) ? "&task=" + enc(d.task_id) : "");
@@ -10823,6 +10945,8 @@ window.HelmUrl = HelmUrl;
         : n.status === "failed" ? "Booklet link could not be sent" : n.status === "simulated" ? "Booklet link not sent (sending not set up)" : "Booklet link sent to the client"],
     };
     if (k === "invite_site_link" || k === "booklet_link") return { icon: m[k][0], text: m[k][1] };
+    // R253 (0434 / 0436): the targeted row also carries "You can start now" / "please hold" / "waiting" - their own icon
+    if (k === "task_escalated" && /^(start_now|hold|wait_)/.test(String(d.via || ""))) m[k][0] = /^start/.test(d.via) ? "✅" : /^hold/.test(d.via) ? "✋" : "⏳";
     const hit = m[k] || (k.indexOf("design_") === 0 ? ["🎨", "Design stage: " + k.slice(7).replace(/_/g, " ")]
                       : k.indexOf("nurture_") === 0 ? ["🌱", "Greeting queued" + (k.length > 8 ? " · " + k.slice(8).replace(/_/g, " ") : "")] : null);
     // 0036: an automatic staff text/e-mail the studio switched off is logged, not sent
@@ -12261,6 +12385,13 @@ window.HelmUrl = HelmUrl;
     resync: (quoteId) => (supa ? rpc("payment_schedule_resync", { p_quote: quoteId }) : Promise.reject(new Error("Needs a signed-in studio."))),
     apply: (quoteId, key, preview) => (supa ? rpc("payment_schedule_apply", { p_quote: quoteId, p_template: key || null, p_preview: !!preview })
       : Promise.reject(new Error("Needs a signed-in studio."))),
+    // R252 (0435): a plan of one's own for this event ([{label,kind,value,anchor,offset_days}], checked in the database). null = older than 0435
+    applyCustom: (quoteId, lines, preview) => (supa ? rpc("payment_schedule_apply_custom", { p_quote: quoteId, p_lines: lines || [], p_preview: !!preview }).catch((e) => { if (rpcMissing(e)) return null; throw e; })
+      : Promise.reject(new Error("Needs a signed-in studio."))),
+    // R252 (0435): the advance % of one quote -> { pct, fixed, override: {pct, reason, by, at} | null, can_override }; null = older than 0435
+    advanceGet: (quoteId) => (supa ? rpc("advance_get", { p_quote: quoteId }).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
+    advanceSet: (quoteId, pct, reason) => (supa ? rpc("advance_override_set", { p_quote: quoteId, p_pct: pct, p_reason: String(reason || "") }) : Promise.reject(new Error("Needs a signed-in studio."))),
+    advanceClear: (quoteId) => (supa ? rpc("advance_override_clear", { p_quote: quoteId }) : Promise.reject(new Error("Needs a signed-in studio."))),
     pause: (quoteId, paused) => (supa ? rpc("payment_schedule_pause", { p_quote: quoteId, p_paused: !!paused }) : Promise.reject(new Error("Needs a signed-in studio."))),
     // client page (approval token, signed out) - null when unavailable
     publicGet: (token) => (supa ? rpc("public_payment_schedule", { p_token: token }).catch(() => null) : Promise.resolve(null)),

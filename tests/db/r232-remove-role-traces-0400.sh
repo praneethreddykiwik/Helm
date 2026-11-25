@@ -27,6 +27,8 @@ fail=0; ok() { if [ "$2" = "t" ] || [ "$2" = "true" ]; then echo "  ok   $1"; el
 step2() { awk '/^-- STEP 2 \(deletes\)/{f=1} f' "$F" | sed "s/v_expected int := null;/v_expected int := $1;/"; }
 apply() { psql -X -q -A -t -F '|' -f "$A" 2>&1; }
 probe() { PGOPTIONS="$HARNESS_OPTS -c helm.r400_remove=on -c helm.retired_role_gate=on" psql -X -q -A -t -f "$P" 2>&1; }
+# R252: 0434 comes after 0400 in real life (see the APPLY-0434 step below) - its kept copy made before 0400 is not there
+q "drop function if exists public._r369_escalation_tick__pre0434(timestamptz)" >/dev/null
 # everything 0400 may touch (the 0400 helpers themselves left out): data, function bodies, constraints, backups
 snap() { q "select md5(concat_ws('#',
   (select string_agg(t::text, ',' order by t::text) from public.role_access t),
@@ -248,6 +250,14 @@ ok "the probe covered the escalation ladder (3 steps, the event lead's step = su
 # r235 (0401): the bell window copy is made from the live _r388_vis; the owner runs APPLY-0401 after APPLY-0400 (or again
 # after it), which re-makes the copy from the 0400 rule - the same here (a no-op before 0401)
 q "select public._r401_sync() where to_regprocedure('public._r401_sync()') is not null" >/dev/null
+# R252 (0434): on staging / production 0434 comes AFTER 0400, so its kept copy of the ladder never holds a retired role. This
+# cluster migrated in MANIFEST order with 0400 off (that kept copy is dropped at the top of this script): take the real
+# order - the ladder as it is after 0400, then APPLY-0434.
+q "do \$x\$ begin execute replace(replace(pg_get_functiondef('public._r369_escalation_tick(timestamptz)'::regprocedure),
+     ' and not public._r434_held(t.depends_on, t.org_id) /* r252-0434 */', ''),
+     'greatest((r.t).planned_start, public._r434_released((r.t).depends_on, r.org_id))', '(r.t).planned_start'); end \$x\$" >/dev/null
+O="$(psql -X -q -A -t -F '|' -f supabase/APPLY-0434.sql 2>&1)"
+ok "APPLY-0434 after 0400: every check row ok, the ladder edited" "$( [ "$(echo "$O" | grep -cE '^[0-9]{2} .*\|t$')" = 14 ] && ! grep -qE 'ERROR|\|f$' <<<"$O" && [ "$(q "select position('r252-0434' in pg_get_functiondef('public._r369_escalation_tick(timestamptz)'::regprocedure)) > 0 and position('r252-0434' in pg_get_functiondef('public._r369_escalation_tick__pre0434(timestamptz)'::regprocedure)) = 0")" = t ] && echo t || echo "$O" | grep -E 'ERROR|\|f$' | head -3)"
 # ---- 4) a second run is a no-op ------------------------------------------------------------------------------------
 S3="$(snap)"; BK1="$(q "select count(*) from public._r398_backup")"
 O="$(apply)"

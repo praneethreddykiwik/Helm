@@ -1,0 +1,136 @@
+/* day-before.css - R252: the Day-before checklist (day-before.js) on Tasks & Crew, the monitor and Event Ready. Colours are the
+   --tc-* tokens of ops-board.css (they follow the studio theme); spacing on a 4px step; every control is at least 44px high.
+   One column, no boxes inside the card: hairlines only. The list keeps to a readable width, its buttons stand in one right-hand column. */
+.hdb{overflow-wrap:anywhere}
+.hdb.ep-card{padding:20px}
+.hdb [hidden]{display:none!important}
+.hdb-in{max-width:none}
+.hdb-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin:0}
+.hdb-head .tc-h2{margin:0;flex:1 1 auto;font-size:17px}
+.hdb-head .tc-h2:focus,.hdb-h:focus,div.hdb-main:focus{outline:none}
+.hdb-at{color:var(--tc-ink-3);font-size:12.5px;font-variant-numeric:tabular-nums}
+.hdb-sum{margin:8px 0 8px;font-size:15px;font-weight:600;color:var(--tc-ink);font-variant-numeric:tabular-nums}
+.hdb-bar{display:block;width:100%;height:8px;margin:0 0 16px;border:0;border-radius:999px;overflow:hidden;appearance:none;-webkit-appearance:none;background:var(--tc-wait-bg)}
+.hdb-bar::-webkit-progress-bar{background:var(--tc-wait-bg)}
+.hdb-bar::-webkit-progress-value{background:var(--tc-acc);border-radius:999px}
+.hdb-bar::-moz-progress-bar{background:var(--tc-acc);border-radius:999px}
+.hdb .ep-hint{margin:4px 0 8px;line-height:1.5}
+.hdb-note{margin:4px 0 12px;font-size:13px;line-height:1.5;color:var(--tc-ink-3)}
+.hdb-all{margin:8px 0 12px;color:var(--tc-safe);font-size:13.5px;font-weight:600}
+.hdb-fails{display:flex;flex-wrap:wrap;gap:0 28px;margin:0 0 8px}
+.hdb-fail{display:flex;flex-wrap:wrap;align-items:center;gap:0 10px;margin:0;color:var(--tc-warn);font-size:13px;font-weight:600}
+.hdb .hdb-fails .hdb-btn{padding:0;border-color:transparent;background:none;color:var(--tc-acc-text);text-decoration:underline;text-underline-offset:3px}
+
+/* do these first */
+.hdb-first{margin:0 0 8px;padding-top:16px;border-top:1px solid var(--tc-line)}
+.hdb-h{margin:0 0 4px;font-size:15px;font-weight:700;color:var(--tc-ink)}
+
+/* the five sections */
+.hdb-acc{border-top:1px solid var(--tc-line)}
+.hdb-grp{border-bottom:1px solid var(--tc-line)}
+.hdb-grp:last-child{border-bottom:0}
+.hdb-sec-h{margin:0;font:inherit}
+.hdb .hdb-sec{display:grid;grid-template-columns:44px minmax(0,1fr) 24px;align-items:center;gap:0 12px;width:100%;min-height:72px;height:auto;padding:12px 0;border:0;background:none;color:var(--tc-ink);font:inherit;text-align:left;cursor:pointer;border-radius:var(--tc-r-ctl)}
+.hdb-no{justify-self:center;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--tc-wait-bg);color:var(--tc-wait);font-variant-numeric:tabular-nums}
+.hdb-no.ok{background:var(--tc-acc);color:var(--hb-acc-ink,white)}
+.hdb-sec-m{display:grid;gap:2px;min-width:0}
+.hdb-sec-l{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 10px}
+.hdb-sec-l b{font-size:15px;font-weight:700}
+.hdb-cnt{font-size:13px;font-weight:500;color:var(--tc-ink-3);font-variant-numeric:tabular-nums}
+.hdb-sec:hover b,button.hdb-main:hover b{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.hdb-car{width:8px;height:8px;border:solid var(--tc-ink-3);border-width:0 2px 2px 0;transform:rotate(45deg);justify-self:center;box-sizing:border-box}
+[aria-expanded="true"]>.hdb-car,[aria-expanded="true"]>.hdb-t b .hdb-car{transform:rotate(-135deg)}
+.hdb-body{padding:0 0 12px}
+.hdb-body>.hdb-fold,.hdb-body>.hdb-note,.hdb-body>.hdb-all,.hdb-body>.hdb-links{margin-left:56px}
+
+/* lines: tick | words | one button | ... */
+.hdb-list{list-style:none;margin:0;padding:0}
+.hdb-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto 44px;align-items:center;gap:0 12px;padding:6px 0;border-top:1px solid var(--tc-line-2);min-height:56px;box-sizing:border-box}
+.hdb-list>.hdb-row:first-child{border-top:0}
+.hdb-row.top{grid-template-columns:minmax(0,1fr) auto}
+.hdb-main{min-width:0;min-height:44px;display:flex;flex-direction:column;justify-content:center;gap:2px;font-size:14px;line-height:1.4;color:var(--tc-ink);text-align:left}
+.hdb button.hdb-main{width:100%;height:auto;padding:0;border:0;background:none;font-family:inherit;font-weight:400;cursor:pointer;border-radius:6px}
+.hdb-t{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px}
+.hdb-t b{font-weight:600}
+.hdb-t .nw{white-space:nowrap}
+.hdb-t b .hdb-car{display:inline-block;width:6px;height:6px;border-width:0 1.5px 1.5px 0;margin:0 1px 3px 8px;opacity:.6}
+[aria-expanded="true"]>.hdb-t b .hdb-car{margin-bottom:-1px}
+.hdb-sub{font-size:13px;line-height:1.45;color:var(--tc-ink-3)}
+.hdb-row .hdb-sub{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden}
+.hdb-sub .bad{color:var(--tc-bad);font-weight:600}
+.hdb-sub .warn{color:var(--tc-warn);font-weight:600}
+.hdb-row.on>.hdb-main b{color:var(--tc-ink-2);font-weight:500}
+.hdb-st{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:700;line-height:1.5;background:var(--tc-wait-bg);color:var(--tc-wait);white-space:nowrap;font-variant-numeric:tabular-nums}
+.hdb-st.warn{background:var(--tc-warn-bg);color:var(--tc-warn)}
+.hdb-st.bad{background:var(--tc-bad-bg);color:var(--tc-bad)}
+.hdb-act{grid-column:3;grid-row:1}
+.hdb-row.top>.hdb-act{grid-column:2}
+.hdb-row.noact>.hdb-main{grid-column:2/4}
+.hdb-more{grid-column:4;grid-row:1}
+.hdb-det{grid-column:2/4;padding:2px 0 8px;font-size:13px;line-height:1.55;color:var(--tc-ink-2);max-width:62ch}
+.hdb-det p{margin:0 0 2px}
+.hdb-kids{grid-column:2/-1;margin-top:4px}
+.hdb-kids>.hdb-row,.hdb-kids>.hdb-row:first-child{border-top:1px solid var(--tc-line-2)}
+.hdb-kids .hdb-t b{font-weight:500}
+
+/* buttons */
+.hdb .hdb-btn,.hdb a.hdb-btn{min-height:44px;padding:0 14px;font-size:13px;white-space:nowrap;color:var(--tc-ink);text-decoration:none}
+.hdb .hdb-btn.tc-primary{color:var(--hb-acc-ink,white)}
+.hdb .hdb-btn[aria-disabled="true"],.hdb-mi[aria-disabled="true"]{opacity:.55;cursor:default}
+.hdb #hdbRefresh{border-color:transparent;background:none;color:var(--tc-acc-text);padding:0}
+.hdb .hdb-btn:focus-visible,.hdb-link:focus-visible,.hdb summary:focus-visible,.hdb-sec:focus-visible,button.hdb-main:focus-visible,.hdb-dots:focus-visible{outline:2px solid var(--tc-acc);outline-offset:2px;border-radius:6px}
+.hdb .hdb-link{display:inline-flex;align-items:center;min-height:44px;color:var(--tc-acc-text);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
+.hdb .hdb-link:hover{text-decoration:underline}
+.hdb-links{display:flex;flex-wrap:wrap;gap:0 20px;margin:0}
+.hdb-tick{width:44px;height:44px;padding:0;border:0;background:none;display:grid;place-items:center;cursor:pointer;border-radius:var(--tc-r-ctl)}
+.hdb-box{width:24px;height:24px;border-radius:7px;border:1.5px solid var(--tc-line-strong);background:var(--tc-panel);color:var(--hb-acc-ink,white);display:grid;place-items:center;font-size:14px;font-weight:800;line-height:1;box-sizing:border-box}
+.hdb-tick.on .hdb-box{background:var(--tc-acc);border-color:var(--tc-acc)}
+.hdb-tick:hover:not(:disabled) .hdb-box{border-color:var(--tc-acc)}
+.hdb-tick:disabled{cursor:default;opacity:.65}
+.hdb-tick[aria-disabled="true"]{opacity:.55;cursor:default}
+.hdb-tick:focus-visible{outline:2px solid var(--tc-acc);outline-offset:-2px}
+.hdb-i{width:24px;height:24px;margin:0 auto;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--tc-wait-bg);color:var(--tc-wait)}
+.hdb-i.ok{background:var(--tc-safe-bg);color:var(--tc-safe)}
+.hdb-i.warn{background:var(--tc-warn-bg);color:var(--tc-warn)}
+.hdb-i.bad{background:var(--tc-bad-bg);color:var(--tc-bad)}
+
+/* the More menu */
+.hdb-more{position:relative;width:44px;height:44px}
+.hdb .hdb-dots{width:44px;height:44px;min-height:44px;padding:0;border:0;background:none;color:var(--tc-ink-2);font-size:20px;font-weight:700;line-height:1;cursor:pointer;border-radius:var(--tc-r-ctl)}
+.hdb .hdb-dots:hover,.hdb-more.open .hdb-dots{background:var(--tc-panel-2)}
+.hdb-menu{position:absolute;right:0;top:100%;z-index:30;min-width:180px;max-width:min(260px,calc(100vw - 48px));padding:4px;border:1px solid var(--tc-line);border-radius:var(--tc-r-ctl);background:var(--tc-panel);box-shadow:var(--tc-elev-lg)}
+.hdb .hdb-mi,.hdb a.hdb-mi.hdb-mi{display:flex;align-items:center;width:100%;min-height:44px;height:auto;padding:0 12px;box-sizing:border-box;border:0;border-radius:6px;background:none;color:var(--tc-ink);font:inherit;font-size:14px;text-align:left;text-decoration:none;cursor:pointer}
+.hdb .hdb-mi:hover,.hdb .hdb-mi:focus-visible{background:var(--tc-acc-soft);outline:none}
+.hdb .hdb-mi:focus-visible{box-shadow:inset 0 0 0 2px var(--tc-acc)}
+
+/* a form under its line */
+.hdb-form{grid-column:2/-1;display:grid;gap:8px;padding:12px 16px 16px;margin:4px 0 8px;border-radius:var(--tc-r-ctl);background:var(--tc-panel-2)}
+.hdb-form .ep-lbl,.hdb-form .ep-hint,.hdb-form .ep-err{margin:0}
+.hdb .hdb-form .hdb-inp{width:100%;height:auto;min-height:44px!important;box-sizing:border-box} /* the shell sets 38px on every field */
+.hdb-form .ep-acts{flex-wrap:wrap;margin-top:4px}
+
+/* "Show 4 done", "On the plan" */
+.hdb-fold>summary{width:fit-content;color:var(--tc-ink-3);font-weight:500}
+.hdb-fold>summary:hover{color:var(--tc-ink)}
+.hdb-fold[open]>summary .s,.hdb-fold:not([open])>summary .h{display:none}
+
+@media (max-width:720px){
+  .hdb.ep-card{padding:16px}
+  .hdb .hdb-sec{grid-template-columns:28px minmax(0,1fr) 20px}
+  .hdb-row{grid-template-columns:44px minmax(0,1fr) 44px;gap:0 8px;padding:8px 0}
+  .hdb-row .hdb-sub{-webkit-line-clamp:2}
+  .hdb-main,.hdb-row.noact>.hdb-main{grid-column:2}
+  .hdb-row.nomore>.hdb-main{grid-column:2/-1}
+  .hdb-more{grid-column:3}
+  .hdb-act{grid-column:2/-1;grid-row:2;margin:4px 0}
+  .hdb-act .hdb-btn{width:100%;box-sizing:border-box}
+  .hdb-row.top{grid-template-columns:minmax(0,1fr)}
+  .hdb-row.top>.hdb-main,.hdb-row.top>.hdb-act{grid-column:1/-1}
+  .hdb-det{grid-column:2/-1}
+  .hdb-form{grid-column:1/-1;padding:12px}
+  .hdb-kids{grid-column:1/-1;padding-left:20px}
+  .hdb-body>.hdb-fold,.hdb-body>.hdb-note,.hdb-body>.hdb-all,.hdb-body>.hdb-links{margin-left:12px}
+  .hdb #hdbRefresh{margin-left:auto}
+  .hdb-fails{display:block}
+  .hdb-fail{justify-content:space-between}
+}

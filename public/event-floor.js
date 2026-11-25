@@ -9,9 +9,11 @@
  *   HelmEventFloor.legend(floor)           [{ cat, label, color, n }] for the plan's legend
  *   HelmEventFloor.planSvg(doc, floor, o)  the 2D plan as an <svg> (room outline, items, the hall's width / length marked,
  *                                          stage / dance-floor sizes written on them). DOM only, no HTML strings.
+ *                                          R253: the planner's own drawing (floor-draw.js) when it is loaded; without it the plain shapes
  *   HelmEventFloor.panel(o)                the "Floor plan" card + the lock bar on the event-day pages (loads + caches, 60 s)
  *   HelmEventFloor.lockBar(host, o)        the lock bar alone (planner, run-sheet): "Locked for the event day - Unlock to edit"
  *   HelmEventFloor.isLocked(quoteId)       the last answer for that event (false when unknown / before 0397)
+ *   HelmEventFloor.viewer()                R253: loads floor-view.js / .css once (the exact plan + the full-window Layout viewer)
  *   HelmEventFloor.viewUrl(quoteId, mode)  builder.html?quote=..&view=1 (mode "3d" | "measure") - the planner opens VIEW ONLY
  *
  * Before 0397 is applied BPStore.ops.planLock.floor / get answer null: no card, no bar, no error. Money is never read or shown
@@ -148,8 +150,20 @@
   // the text size goes in style (user units): a page rule on svg text must never blow the labels up
   function fsz(n, v) { try { n.style.fontSize = r1(v) + "px"; } catch (e) {} return n; }
   function clear(n) { while (n && n.firstChild) n.removeChild(n.firstChild); return n; }
+  // R253: exactly what the planner's 2D canvas shows (floor-draw.js is generated from builder.js), with the hall size as its name
+  function exactSvg(floor) {
+    try {
+      var D = global.HelmFloorDraw, plan = D.prepare(floor), sv = D.svg(plan), ttl = s("title", {});
+      sv.setAttribute("class", "fv-plan ef-svg ef-exact"); sv.setAttribute("role", "img");
+      sv.setAttribute("aria-label", "Floor plan, hall " + size(plan.world.w, plan.world.h, plan.unit) + ", " + plan.items.length + " items");
+      ttl.textContent = "Floor plan"; sv.insertBefore(ttl, sv.firstChild);
+      sv.querySelectorAll(".margins rect").forEach(function (r) { r.setAttribute("vector-effect", "non-scaling-stroke"); });
+      return sv;
+    } catch (e) { return null; }
+  }
   function planSvg(d, floor, o) {
     d = d || doc; o = o || {};
+    if (d === doc && !o.plain && global.HelmFloorDraw) { var ex = exactSvg(floor); if (ex) return ex; }
     var m = normalize(floor), u = m.unit;
     var x0 = 0, y0 = 0, x1 = m.room ? m.room.w : 0, y1 = m.room ? m.room.h : 0;
     m.items.forEach(function (i) { x0 = Math.min(x0, i.box.x0); y0 = Math.min(y0, i.box.y0); x1 = Math.max(x1, i.box.x1); y1 = Math.max(y1, i.box.y1); });
@@ -270,37 +284,76 @@
     return st;
   }
 
+  /* ---- R253: the Layout viewer (floor-view.js + .css), loaded once, only on pages that show a plan ---- */
+  var viewerP = null;
+  function viewer() {
+    if (viewerP) return viewerP;
+    viewerP = new Promise(function (ok, no) {
+      if (!doc.querySelector('link[href*="floor-view.css"]')) { var lk = doc.createElement("link"); lk.rel = "stylesheet"; lk.href = "/floor-view.css?v=1"; doc.head.appendChild(lk); }
+      if (global.HelmFloorView) { ok(); return; }
+      var sc = doc.createElement("script"); sc.src = "/floor-view.js?v=1"; sc.onload = function () { ok(); }; sc.onerror = function () { sc.remove(); no(new Error("floor-view")); };
+      doc.head.appendChild(sc);
+    }).then(function () { return global.HelmFloorView.ready(); }).then(function () { return global.HelmFloorView; });
+    viewerP.catch(function () { viewerP = null; });   // a later redraw tries again
+    return viewerP;
+  }
+
   /* ---- the Floor plan card + lock bar on the event-day pages ---- */
   var cache = {}, loading = {};
   function isLocked(qid) { var c = cache[qid]; return !!(c && c.lock && c.lock.locked); }
   function sig(v) { try { return JSON.stringify(v); } catch (e) { return String(Math.random()); } }
+  // R253: "Edit in the planner" only for a role that may change layouts (the same areas the planner itself asks for)
+  var editP = null;
+  function mayEdit() {
+    var A = global.BPStore && global.BPStore.auth; if (!A || !A.canEditArea) return Promise.resolve(false);
+    if (!editP) editP = Promise.resolve(A.canEditArea("layouts")).then(function (y) { return y || A.canEditArea("quotes"); }).then(Boolean, function () { editP = null; return false; });
+    return editP;
+  }
+  function emptyWords(f) {   // one clear line: never "V1 saved" next to "nothing saved"
+    if (!f || !f.version_no) return "No layout yet.";
+    var d = day(f.saved_at); return "The saved layout (V" + f.version_no + (d ? ", " + d : "") + ") is empty - nothing is placed on it yet.";
+  }
+  function day(iso) {
+    var t = new Date(iso); if (!iso || !isFinite(t.getTime())) return "";
+    try { return new Intl.DateTimeFormat("en-IN", { timeZone: tzName(), day: "numeric", month: "short" }).format(t); } catch (e) { return ""; }
+  }
   function renderFloor(host, f, o) {
     clear(host); host.hidden = false;
     var lk = f.lock || {}, mz = measure(f), qid = o.quoteId;
     var head = h("div", { cls: "ef-head" }, [h("h3", { cls: "tc-h2", id: host.id + "H", text: "Floor plan" }),
-      h("span", { cls: "ef-meta", text: [f.version_no ? "V" + f.version_no : "", f.saved_at ? "saved " + when(f.saved_at) : "", mz.items ? mz.items + " items" : ""].filter(Boolean).join(" · ") }),
+      mz.items ? h("span", { cls: "ef-meta", text: [f.version_no ? "V" + f.version_no : "", f.saved_at ? "saved " + when(f.saved_at) : "", mz.items + " items"].filter(Boolean).join(" · ") }) : null,
       lk.locked ? h("span", { cls: "ef-chip locked", text: "🔒 Locked" }) : null]);
     host.appendChild(head);
-    if (!mz.items) {
-      host.appendChild(h("p", { cls: "ef-empty", text: "No floor plan saved yet. Draw it in the planner (2D, 3D and Measure) - it shows here for the day." }));
-    } else {
-      var fig = h("figure", { cls: "ef-fig" }); fig.appendChild(planSvg(doc, f)); fig.appendChild(legendEl(f));
-      var body = h("div", { cls: "ef-body" }, [fig, factsEl(mz)]);
-      if (mz.warnings.length) body.appendChild(h("p", { cls: "ef-warn", role: "note", text: "Check: " + mz.warnings.join("; ") + "." }));
-      host.appendChild(body);
+    if (!mz.items) {   // nothing to view: one message, one action; the pack still prints the run-sheet, call sheet and contacts
+      host.appendChild(h("p", { cls: "ef-empty", text: emptyWords(f) }));
+      var ea = h("div", { cls: "ef-acts" }, [printLink(qid, true)]); host.appendChild(ea);
+      if (!lk.locked) mayEdit().then(function (y) { if (y && ea.isConnected) ea.insertBefore(h("a", { cls: "ef-btn dark", href: plannerUrl(qid), text: "Edit in the planner" }), ea.firstChild); });
+      return;
     }
-    var acts = h("div", { cls: "ef-acts" });
-    if (mz.items) {
-      acts.appendChild(h("a", { cls: "ef-btn dark", href: viewUrl(qid, ""), text: "Open 2D plan", title: "Opens the planner view only - nothing can be changed there" }));
-      acts.appendChild(h("a", { cls: "ef-btn", href: viewUrl(qid, "3d"), text: "3D view" }));
-      acts.appendChild(h("a", { cls: "ef-btn", href: viewUrl(qid, "measure"), text: "📏 Measure" }));
-    }
-    acts.appendChild(h("a", { cls: "ef-btn", href: "eventday-pack.html?quote=" + encodeURIComponent(qid), text: "🖨 Print event-day pack" }));
-    if (!lk.locked && o.canEditPlan) acts.appendChild(h("a", { cls: "ef-link", href: "builder.html?quote=" + encodeURIComponent(qid), text: "Edit in the planner →" }));
+    // R253: only the plan, exactly as the planner draws it, and one Layout button (2D plan, 3D view, Measure, Full screen)
+    var sheet = h("div", { cls: "ef-sheet", "aria-busy": "true" }, [h("span", { cls: "ef-wait", text: "Loading the plan…" })]);
+    var acts = h("div", { cls: "ef-acts" }, [printLink(qid)]);
+    if (!lk.locked && o.canEditPlan) mayEdit().then(function (y) { if (y && acts.isConnected) acts.appendChild(h("a", { cls: "ef-link", href: plannerUrl(qid), text: "Edit in the planner →" })); });
+    host.appendChild(sheet);
+    if (mz.warnings.length) host.appendChild(h("p", { cls: "ef-warn", role: "note", text: "Check: " + mz.warnings.join("; ") + "." }));
     host.appendChild(acts);
-    host.appendChild(h("p", { cls: "ef-hint", text: "Opens view only: 2D, 3D and Measure work, nothing is saved." + (lk.locked ? " The plan is locked for the event day." : "") }));
+    host.appendChild(h("details", { cls: "ef-more" }, [h("summary", { text: "Sizes and counts" }), h("div", { cls: "ef-body" }, [factsEl(mz), legendEl(f)])]));
+    viewer().then(function (FV) {
+      if (!sheet.isConnected) return;
+      var btn = h("button", { type: "button", cls: "ef-plan", "aria-label": "Open the floor plan in the full window", on: { click: function () { go("2d"); } } });
+      function go(k) { FV.open({ floor: f, mode: k === "full" ? "2d" : k, fullscreen: k === "full", eventType: o.eventType || "", returnFocus: k === "btn" ? btn : menu._btn }); }
+      function paint() { if (!btn.isConnected && btn.firstChild) return false; clear(btn); btn.appendChild(planSvg(doc, f)); }
+      var menu = FV.menuButton({ label: "Layout", cls: "ef-btn dark ef-layout", onPick: go });
+      clear(sheet); sheet.removeAttribute("aria-busy"); paint(); sheet.appendChild(btn); head.appendChild(menu);
+      if (FV.onRedraw) FV.onRedraw(paint);   // a screen's logo / picture that arrives later
+    }, function () {   // the viewer could not be loaded: the plain drawing + the planner's own view-only page
+      if (!sheet.isConnected) return; clear(sheet); sheet.removeAttribute("aria-busy"); sheet.appendChild(planSvg(doc, f, { plain: true }));
+      ["", "3d", "measure"].reverse().forEach(function (k) { acts.insertBefore(h("a", { cls: "ef-btn", href: viewUrl(qid, k), text: k === "3d" ? "3D view" : k ? "Measure" : "2D plan" }), acts.firstChild); });
+    });
   }
-  // o: { quoteId, lockHost, floorHost, showFloor, onChange(lockState), compact, canEditPlan }
+  function plannerUrl(qid) { return "builder.html?quote=" + encodeURIComponent(qid); }
+  function printLink(qid, quiet) { return h("a", { cls: quiet ? "ef-link" : "ef-btn", href: "eventday-pack.html?quote=" + encodeURIComponent(qid), text: "🖨 Print event-day pack" }); }
+  // o: { quoteId, lockHost, floorHost, showFloor, onChange(lockState), compact, canEditPlan, eventType (3D only: which events get flowers) }
   function panel(o) {
     o = o || {}; var qid = o.quoteId, A = api();
     if (!qid || !A || !A.floor) { if (o.lockHost) o.lockHost.hidden = true; if (o.floorHost) o.floorHost.hidden = true; return; }
@@ -315,6 +368,7 @@
     }
     draw(o);
   }
+  function stale(qid) { if (cache[qid]) cache[qid].fat = 0; }   // the stage moved (the plan lock may have changed): read again on the next draw
   function draw(o) {
     var c = cache[o.quoteId] || {}, f = c.floor;
     if (o.lockHost) {
@@ -330,7 +384,7 @@
   function reset(qid) { if (qid) delete cache[qid]; else cache = {}; }
 
   var API = { normalize: normalize, seatsOf: seatsOf, measure: measure, legend: legend, planSvg: planSvg, legendEl: legendEl, factsEl: factsEl,
-    lockWords: lockWords, viewUrl: viewUrl, panel: panel, lockBar: lockBar, renderLock: renderLock, isLocked: isLocked, reset: reset,
+    lockWords: lockWords, viewUrl: viewUrl, panel: panel, stale: stale, viewer: viewer, emptyWords: emptyWords, lockBar: lockBar, renderLock: renderLock, isLocked: isLocked, reset: reset,
     size: size, len: len, CAT_LABEL: CAT_LABEL, _ui: UI, _cache: function () { return cache; } };
   global.HelmEventFloor = API;
   if (typeof module !== "undefined" && module.exports) module.exports = API;

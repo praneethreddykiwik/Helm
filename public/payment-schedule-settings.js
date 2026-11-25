@@ -143,7 +143,26 @@
     });
   }
 
+  // ---- R252: the advance % (pricing setting advancePct, saved as today) + "Fixed for every quote" (0435) -----------------------
+  function advNow() { if (S && S.advance_pct !== undefined) return S.advance_pct; var H = global.HelmPricingCfg; return H && H.ready() ? H.get("advancePct") : undefined; }
+  function hasFixed() { return !!S && typeof S.advance_fixed === "boolean"; }
+  function mayFix() { return hasFixed() && S.can_edit_advance_fixed === true; }
+  function paintAdvance() {
+    var a = $("pst_adv"), f = $("pst_fixed"); if (!a) return;
+    var v = advNow(), can = !!S.can_edit && (hasFixed() ? mayFix() : true);
+    if (document.activeElement !== a) a.value = v == null || v === "" ? "" : String(v);
+    a.disabled = !can || !global.HelmPricingCfg; a.title = can ? "" : "Only a studio admin, or someone allowed to approve discounts, can change the advance.";
+    if (f) { $("pst_fixrow").hidden = !hasFixed(); f.checked = hasFixed() && S.advance_fixed; f.disabled = !mayFix(); }
+  }
+  // the typed % -> { ok, changed, pct, error }
+  function advCheck(raw, now) {
+    var t = String(raw == null ? "" : raw).trim(), old = now == null || now === "" ? null : Math.round(Number(now) * 100) / 100;
+    if (t === "") return old == null ? { ok: true, changed: false } : { ok: false, error: "Enter the advance percentage (0 to 100)." };
+    if (!/^\d{1,3}(\.\d{1,2})?$/.test(t) || Number(t) > 100) return { ok: false, error: "The advance percentage must be a number from 0 to 100." };
+    return { ok: true, changed: Number(t) !== old, pct: Number(t) };
+  }
   function paint() {
+    paintAdvance();
     $("pst_upi").value = S.upi_id || ""; $("pst_note").value = S.pay_note || "";
     $("pst_rem").textContent = remText(S.reminders);
     ["pst_default", "pst_upi", "pst_note"].forEach(function (id) { $(id).disabled = !S.can_edit; });
@@ -235,11 +254,20 @@
     finally { btn.disabled = false; }
   }
   async function save() {
-    var b = $("pst_save"); b.disabled = true; say("Saving…", "info");
+    var b = $("pst_save"), ad = $("pst_adv"), ac = { ok: true, changed: false };
+    if (ad && !ad.disabled && advNow() !== undefined) { ac = advCheck(ad.value, advNow()); if (!ac.ok) { say(ac.error, "err"); ad.setAttribute("aria-invalid", "true"); ad.focus(); return; } ad.removeAttribute("aria-invalid"); }
+    b.disabled = true; say("Saving…", "info");
     try {
-      var before = S && S.pending ? S.pending.id : null;
-      S = await global.BPStore.paySchedule.saveSettings({   // r25 (0274): auto-apply + overdue bell are switched in Automations only
-        default_template: $("pst_default").value, upi_id: $("pst_upi").value.trim() || null, pay_note: $("pst_note").value.trim() || null });
+      var before = S && S.pending ? S.pending.id : null, fx = $("pst_fixed");
+      var patch = {   // r25 (0274): auto-apply + overdue bell are switched in Automations only
+        default_template: $("pst_default").value, upi_id: $("pst_upi").value.trim() || null, pay_note: $("pst_note").value.trim() || null };
+      if (fx && mayFix() && fx.checked !== S.advance_fixed) patch.advance_fixed = fx.checked;
+      S = await global.BPStore.paySchedule.saveSettings(patch);
+      if (ac.changed) {
+        try { await global.HelmPricingCfg.save({ advancePct: ac.pct }); if (S && S.advance_pct !== undefined) S.advance_pct = ac.pct; }
+        catch (e) { paint(); ad.value = String(ac.pct); say("The rest is saved, but the advance percentage is not: " + errText(e), "err"); return; }
+      }
+      if (ad) ad.blur();
       paint();
       // r35 (0285): a new change waits 24 hours (the fields keep showing what clients see now)
       if (S && S.pending && S.pending.id !== before) say("Saved. Every admin was told. Clients will see the new payment details from " + when(S.pending.effective_at) + ".", "ok");
@@ -256,11 +284,13 @@
     try { S = await B.paySchedule.settings(); } catch (e) { S = null; }
     if (!S) return;
     paint(); card.hidden = false;
+    // the advance % comes from the pricing settings before 0435: painted again when they are here
+    if (S.advance_pct === undefined) (function wait(n) { if (advNow() !== undefined || n > 40) { paintAdvance(); return; } setTimeout(function () { wait(n + 1); }, 500); })(0);
     $("pst_save").addEventListener("click", save);
     $("pst_new").addEventListener("click", function () { openEditor(null); });
     if (wantFocus) setTimeout(function () { try { card.scrollIntoView({ block: "start" }); } catch (e) {} }, 300);
   }
-  global.HelmPayScheduleSettings = { init: init, summary: summary, dueText: dueText };
+  global.HelmPayScheduleSettings = { init: init, summary: summary, dueText: dueText, advCheck: advCheck };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(init, 400); });
   else setTimeout(init, 400);
 })(typeof window !== "undefined" ? window : globalThis);

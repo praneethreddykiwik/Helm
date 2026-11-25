@@ -65,10 +65,11 @@
   .sheet h3{margin:0 0 12px}.foot{display:flex;gap:10px;justify-content:flex-end}.fld{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}.fld label{font-size:12px;font-weight:600;color:var(--ink-2)}.fld input{height:38px;border:1px solid var(--line);background:var(--panel-2);border-radius:9px;padding:0 12px;font-family:inherit}
   .crumb a,.sub a,a#floorLink{text-decoration:underline}
 </style>
-<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=4" defer></script>
+<link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
+<link rel="stylesheet" href="/event-flow-line.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=118" id="shellProto"></script>
+<script src="/shell-proto.js?v=121" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -87,7 +88,7 @@
   <div id="notfound" class="card" hidden><p class="s-1a1aca0">Event not found, or your role can't open it. Go to <a class="s-dea29d3" href="dashboard.html">your dashboard</a>.</p></div>
 
   <div id="app" hidden>
-    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a></div>
+    <div class="crumb"><a id="backLink" href="#">← Back to workspace</a><span id="flowLine"></span></div>
     <div class="banner">
       <div>
         <div class="code" id="b_code"></div>
@@ -123,6 +124,7 @@
       <div class="card">
         <h2>🔧 Before doors open (checklist) <span class="prog" id="chkProg"></span></h2>
         <p class="sub">Things to check before guests come in — stage, sound, lights, power, safety exits. Tick each one when done.</p>
+        <div id="dbWrap" hidden><p class="sub">Vendors, permits, power and weather are checked the day before. A tick here does not tick them.</p><a id="dbLink" class="efl-link" href="#">Day before checks →</a></div>
         <div id="chkRows"><div class="empty"><span class="bpui-loading"><i class="bpui-spin2" aria-hidden="true"></i>Loading…</span></div></div>
         <div class="addline" id="chkAdd" hidden><input id="chk_title" placeholder="e.g. Sound check done" aria-label="Check description"><button type="button" class="btn primary" id="chk_addb" aria-label="Add check">＋</button></div>
       </div>
@@ -165,13 +167,14 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=407"></script>
-<script src="page-tours.js?v=76"></script>
-<script src="tour.js?v=91"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=410"></script>
+<script src="page-tours.js?v=79"></script>
+<script src="tour.js?v=93"></script>
 <script src="delivery-tracker.js?v=3"></script>
 <script src="crew-shifts.js?v=8"></script>
 <script src="stock-flow.js?v=2"></script>
 <script src="stock-picker.js?v=1"></script>
+<script src="/event-flow-line.js?v=1"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -179,6 +182,8 @@
   const ARR={expected:"Expected",arrived:"Arrived",left:"Left",no_show:"No-show"};
   const CHK={pending:"Pending",done:"Done",issue:"Issue"};
   let canEdit=false, ev=null;
+  // R252: what the same person / vendor has elsewhere - check-in times (timesheet) and the booking (Resource plan, Teardown)
+  let canSeeVend=false, canVend=false, canSeeIss=false, times=null, bks=null;
 
   async function renderAccount(){ const el=$("#account"); if(!BPStore.auth.enabled()){el.hidden=true;return;} el.hidden=false;
     const u=BPStore.auth.user(); if(u){ const role=await BPStore.auth.role();
@@ -191,11 +196,48 @@
   async function confirmRemove(what){ return BPUI.confirm(`Remove ${what}?`,{title:"Remove?",danger:true}); }
   async function section(fn,host,what){ try{ await fn(); }catch(e){ BPUI.loadError(host,e,fn,{what}); } }
 
+  // the crew's own check-in times ({crew_id: row}) - null = not readable (then nothing is said about times)
+  async function readTimes(){
+    try{ const t=BPStore.ops&&BPStore.ops.shifts?await BPStore.ops.shifts.timesheet(id):null; if(!t||!Array.isArray(t.rows)) return null;
+      const m={}; t.rows.forEach(r=>{ if(r&&r.crew_id) m[r.crew_id]=r; }); return m; }catch(_){ return null; }
+  }
+  // the event's vendor bookings by id - null = not allowed / not readable. Only the status is kept (no money).
+  async function readBookings(){
+    if(!canSeeVend) return null;
+    try{ const m={}; (await BPStore.bookings.list(id)||[]).forEach(b=>{ if(b) m[b.id]={id:b.id,status:b.status}; }); return m; }catch(_){ return null; }
+  }
+  const T12=(t)=>{ const m=/^(\d{1,2}):(\d{2})/.exec(String(t||"")); if(!m) return ""; const h=+m[1]; return (h%12||12)+":"+m[2]+(h<12?" AM":" PM"); };
+  function checkInOf(a){ const r=times&&a.ref_id?times[a.ref_id]:null; if(!r) return null;
+    const es=(r.entries||[]).filter(e=>e&&e["in"]).sort((x,y)=>String(y.day).localeCompare(String(x.day))); return { row:r, last:es[0]||null }; }
+  // one line under the name: what the other record of this person / vendor says
+  function arrNote(a){
+    const c=checkInOf(a);
+    if(c){
+      if(c.last) return { t:"Checked in "+T12(c.last["in"])+(c.last.out?" · checked out "+T12(c.last.out):"") };
+      if(a.status==="arrived"||a.status==="left") return { t:"No check-in time. Add it in Crew check-in & hours.", w:1 };
+      if(c.row.flag==="no_show_suspected") return { t:"Not checked in"+(c.row.expected_start?" - expected "+T12(c.row.expected_start):""), w:1 };
+      return null;
+    }
+    const b=bks&&a.ref_id?bks[a.ref_id]:null; if(!b) return null;
+    if(b.status==="cancelled") return { t:"The booking was cancelled.", w:1 };
+    if(b.status==="delivered") return { t:"Marked returned / exited on Teardown." };
+    if(a.status==="left"&&(b.status==="booked"||b.status==="confirmed")) return { t:"Not marked returned / exited on Teardown yet.", exit:b.id };
+    return null;
+  }
+  // "Left" here and "returned / exited" on Teardown are two records: one press writes the second one too (read back before it counts)
+  async function alsoExit(bid){
+    const now=((await BPStore.bookings.list(id))||[]).find(b=>b.id===bid);
+    if(!now||(now.status!=="booked"&&now.status!=="confirmed")){ BPUI.toast("This booking changed meanwhile - nothing was saved.",{type:"info"}); return; }
+    await BPStore.bookings.update(bid,{status:"delivered"});
+    const after=((await BPStore.bookings.list(id))||[]).find(b=>b.id===bid);
+    if(after&&after.status==="delivered") BPUI.toast("Marked returned / exited. Teardown shows it too.",{type:"ok"});
+    else BPUI.toast("That was not saved. Your role may not be allowed to change vendors.",{type:"err"});
+  }
   async function renderArrivals(){
-    const items=await BPStore.dayops.list(id,"arrival");
+    const [items, tm, bk]=await Promise.all([BPStore.dayops.list(id,"arrival"), readTimes(), readBookings()]); times=tm; bks=bk;
     const here=items.filter(a=>a.status==="arrived"||a.status==="left").length;
     $("#arrProg").textContent = items.length?`${here}/${items.length} here`:"";
-    $("#arrRows").innerHTML = items.length ? items.map(a=>`<div class="row">
+    $("#arrRows").innerHTML = items.length ? items.map(a=>`<div class="row" data-arow="${esc(a.id)}">
       <div><div class="nm">${esc(a.who)}</div><div class="rl">${esc(a.role||"")}</div></div>
       <span class="pill ${esc(a.status)}">${esc(ARR[a.status]||a.status)}</span>
       ${canEdit?`<div class="acts">
@@ -204,7 +246,15 @@
         <button type="button" class="mini no" data-arr="${esc(a.id)}" data-s="no_show" aria-label="Mark ${esc(a.who)} no-show">No-show</button>
         <button type="button" class="mini del" data-del="${esc(a.id)}" data-name="${esc(a.who)}" aria-label="Remove ${esc(a.who)}">✕</button></div>`:""}
     </div>`).join("") : '<div class="empty">No team or vendors on this event yet — assign crew in Operations and book vendors, then press Refresh.</div>';
+    $("#arrRows").querySelectorAll("[data-arow]").forEach(row=>{ const a=items.find(x=>String(x.id)===row.dataset.arow), n=a&&arrNote(a); if(!n) return;
+      const p=document.createElement("div"); p.className="efl-note"+(n.w?" warn":""); p.textContent=n.t; row.firstElementChild.appendChild(p);
+      const acts=row.querySelector(".acts"); if(!n.exit||!canVend||!acts) return;
+      const b=document.createElement("button"); b.type="button"; b.className="mini go efl-do"; b.textContent="Also mark exited on Teardown"; b.setAttribute("aria-label","Also mark "+a.who+" returned or exited on Teardown");
+      b.addEventListener("click",()=>act(b,async()=>{ await alsoExit(n.exit); await section(renderArrivals,$("#arrRows"),"arrivals"); },"mark the vendor returned")); acts.appendChild(b); });
     $("#arrRows").querySelectorAll("[data-arr]").forEach(b=>b.addEventListener("click",()=>act(b,async()=>{
+      // a person with a check-in time of their own is not a no-show by a slip of the finger
+      if(b.dataset.s==="no_show"){ const a=items.find(x=>x.id===b.dataset.arr), c=a&&checkInOf(a);
+        if(c&&c.last&&!(await BPUI.confirm(`${a.who} checked in at ${T12(c.last["in"])}. Mark them no-show anyway?`,{title:"Already checked in",okLabel:"Mark no-show"}))) return; }
       await BPStore.dayops.setStatus(b.dataset.arr, b.dataset.s); await section(renderArrivals,$("#arrRows"),"arrivals"); },"update attendance")));
     $("#arrRows").querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",async()=>{ if(!(await confirmRemove(b.dataset.name||"this person")))return;
       await act(b,async()=>{ await BPStore.dayops.remove(b.dataset.del); await section(renderArrivals,$("#arrRows"),"arrivals"); },"remove the entry"); }));
@@ -219,6 +269,7 @@
       ${canEdit?`<div class="acts">
         <button type="button" class="mini go" data-chk="${esc(c.id)}" data-s="done" aria-label="Mark ${esc(c.who)} done">Done</button>
         <button type="button" class="mini no" data-chk="${esc(c.id)}" data-s="issue" aria-label="Flag issue on ${esc(c.who)}">Issue</button>
+        ${c.status==="issue"&&canSeeIss?`<a class="mini" href="issues.html?quote=${encodeURIComponent(id)}" aria-label="Log ${esc(c.who)} on Issues">Log it on Issues →</a>`:""}
         <button type="button" class="mini del" data-cdel="${esc(c.id)}" data-name="${esc(c.who)}" aria-label="Remove check ${esc(c.who)}">✕</button></div>`:""}
     </div>`).join("") : '<div class="empty">No checks yet. Add what must be ready before guests come in.</div>';
     $("#chkRows").querySelectorAll("[data-chk]").forEach(b=>b.addEventListener("click",()=>act(b,async()=>{ await BPStore.dayops.setStatus(b.dataset.chk, b.dataset.s); await section(renderChecks,$("#chkRows"),"checks"); },"update the check")));
@@ -376,6 +427,11 @@
     { const st=await BPStore.auth.canView("staff").catch(()=>false); $("#l_monitor").href="monitor.html?quote="+encodeURIComponent(id); $("#l_ops").href="ops.html?quote="+encodeURIComponent(id); $("#l_monitor").hidden=$("#l_ops").hidden=!st; }
     $("#l_issues").href="issues.html?quote="+encodeURIComponent(id); $("#l_runsheet").href="runsheet.html?quote="+encodeURIComponent(id); $("#l_floor").href="builder.html?quote="+encodeURIComponent(id);
     try{ const p=await BPStore.plan.get(id); if(p&&(p.venue_name||p.access_notes)) $("#b_venue").textContent="📍 "+[p.venue_name,p.access_notes].filter(Boolean).join(" — "); }catch{}
+    { const A=BPStore.auth, may=(p)=>Promise.resolve().then(p).then(v=>v===true,()=>false);   // R252
+      [canSeeVend, canVend, canSeeIss]=await Promise.all([may(()=>A.canView("vendors")), may(()=>A.canEditArea("vendors")), may(()=>A.canView("issues"))]);
+      canVend=canVend&&canSeeVend&&canEdit; }
+    if(window.HelmFlowLine){ HelmFlowLine.mount($("#flowLine"),ev,{id});
+      HelmFlowLine.dayBeforeHref(id).then(h=>{ if(h){ $("#dbLink").href=h; $("#dbWrap").hidden=false; } }); }
     $("#app").hidden=false; $("#arrTools").hidden=!canEdit; $("#chkAdd").hidden=!canEdit; $("#gstTools").hidden=!canEdit; $("#stkTools").hidden=!canEdit;
     if(window.HelmDelivery&&HelmDelivery.mount) HelmDelivery.mount($("#dlvBoard"),{quoteId:id}).catch(()=>{ $("#dlvBoard").hidden=true; });   // 0241
     // r24: list the team, vendors and guest groups automatically on open (both pulls skip anyone already listed)
@@ -385,6 +441,11 @@
     await section(renderGuests,$("#gstRows"),"guest groups");
     if(canEdit) loadStockItems();
     await section(renderStock,$("#stkRows"),"stock requests");
+    // R252: the crew card below redraws when times are saved, and people change things on other pages: read again (reads only)
+    const typing=()=>!!stkOpen||!!(window.HelmFlowLine&&HelmFlowLine.inUse($("#app")));
+    try{ let tt=null; new MutationObserver(()=>{ clearTimeout(tt); tt=setTimeout(()=>{ section(renderArrivals,$("#arrRows"),"arrivals"); },400); }).observe($("#crewTimesheet"),{childList:true}); }catch(_){}
+    if(window.HelmFlowLine) HelmFlowLine.onReturn(async()=>{ await section(renderArrivals,$("#arrRows"),"arrivals"); await section(renderChecks,$("#chkRows"),"checks");
+      await section(renderGuests,$("#gstRows"),"guest groups"); await section(renderStock,$("#stkRows"),"stock requests"); },typing);
   });
 </script>
 </body>
