@@ -890,11 +890,18 @@
     if (EF && one && !cancelled) EF.panel({ quoteId: S.quote, lockHost: lh, floorHost: fh, showFloor: true, compact: true, eventType: e.event_type || "",
       onChange: function () { renderCards(); } });
     else [lh, fh].forEach(function (n) { if (n) n.hidden = true; });
-    renderRun(); renderDelay(); renderIssues(); renderSteps();
+    renderRun(); renderDelay(); renderIssues(); renderSteps(); renderApprove();
     if (!EP || !S.plan || (ui && (ui.edit || ui.times || ui.settings))) return;   // a form is open: keep what is being typed
     if (!dh.hidden) EP.renderDayBefore(dh, planCtx());
     if (ph && !ph.hidden) DB.renderPre(ph, planCtx());
     if (!rh.hidden) EP.renderReady(rh, planCtx());
+  }
+  // R265: the Approvals list of this event, on Pre-event (approvals.js decides who sees it and what each role may do)
+  function renderApprove() {
+    var A = window.HelmApprovals, box = $("#monApprove"), e = S.evInfo[S.quote] || {}; if (!A || !A.embed || !box) return;
+    if (!(single() && e._read && S.win === "pre" && e.status !== "cancelled") || doc.body.classList.contains("mon-wall")) { A.hide(); return; }
+    A.embed(box, { quote: S.quote, count: apprN(), onChanged: function () { loadTasks(true); },
+      openTask: function (id) { var t = S.tasks.filter(function (x) { return x.id === id; })[0]; if (!t) return false; openDrawer(t); return true; } });
   }
   /* R251 (event-steps.js, shared with Tasks & Crew): "Mark pre-event complete" at the end of Pre-event, Wrap-up closed at the bottom */
   function stepsCtx() {
@@ -926,25 +933,37 @@
     c.phoneOf = function (t) { var p = t.crew_id && S.crew[t.crew_id]; return S.canEdit && p && p.phone ? String(p.phone).replace(/[^\d+]/g, "") : ""; };
     try { PC.how($("#monHow")); PC.render(host, c, $("#monPreTop")); } catch (x) { host.hidden = true; }
   }
-  /* R251: On the event - the run-sheet's now / next (read-only; the whole list is one link away) */
+  /* R251: On the event - the run-sheet's now / next. R264 (owner: "the run sheet should be shown complete, at least a dropdown"): the whole list under it,
+     open until it is closed here (remembered on this page); read-only, changes stay on the Run-sheet page */
   function renderRun() {
     var box = $("#monRun"), e = S.evInfo[S.quote] || {}, ev = e.event_date ? String(e.event_date).slice(0, 10) : "";
-    if (!box) return; clear(box);
+    if (!box) return; var hadFocus = !!(doc.activeElement && box.contains(doc.activeElement) && doc.activeElement.tagName === "SUMMARY"), keepTop = (box.querySelector(".mon-run-all ol") || {}).scrollTop || 0; clear(box);
     box.hidden = !(single() && S.win === "onday" && S.autoWin !== "wrapup" && Array.isArray(S.rs) && ev);
     if (box.hidden) return;
     var now = Date.now(), rows = S.rs.map(function (r) { var d = Number(r && r.duration_min); return { r: r, s: TS.wallMs(ev, TS.hmMin(r && r.start_time), tz()), d: isFinite(d) && d > 0 ? d * 60000 : 900000 }; })
       .filter(function (x) { return x.r && isFinite(x.s) && isFinite(TS.hmMin(x.r.start_time)); }).sort(function (a, b) { return a.s - b.s; });
     var cur = rows.filter(function (x) { return now >= x.s && now < x.s + x.d; }), next = rows.filter(function (x) { return x.s > now; }).slice(0, 1);
     box.appendChild(h("div", { cls: "mon-mini-h" }, [h("h3", { cls: "tc-h2", id: "monRunH", text: "Run-sheet" }), h("a", { cls: "tc-mini-link", href: "runsheet.html?quote=" + encodeURIComponent(S.quote), text: "Open run-sheet →" })]));
-    if (!rows.length) { box.appendChild(h("p", { cls: "mon-hint", text: "No run-sheet yet." })); return; }
-    if (!cur.length && !next.length) { box.appendChild(h("p", { cls: "mon-hint", text: "Every run-sheet item is past." })); return; }
+    var noTime = S.rs.filter(function (r) { return r && !isFinite(TS.hmMin(r.start_time)); });
+    if (!rows.length && !noTime.length) { box.appendChild(h("p", { cls: "mon-hint", text: "No run-sheet yet." })); return; }
+    if (!cur.length && !next.length && rows.length) box.appendChild(h("p", { cls: "mon-hint", text: "Every run-sheet item is past." }));
     var ol = h("ol", { cls: "mon-run" });
     function line(x, isNow) {
       ol.appendChild(h("li", { cls: isNow ? "is-now" : "is-next" }, [h("span", { cls: "mon-run-k", text: isNow ? "Now" : "Next" }), h("b", { cls: "mon-run-t", text: fmtClock(new Date(x.s).toISOString()) }),
         h("span", { cls: "mon-run-n" }, [x.r.title || "Item", h("small", { text: [isNow ? "" : until(x.s, now), x.r.owner, x.r.location].filter(Boolean).join(" · ") })])]));
     }
     cur.forEach(function (x) { line(x, true); }); next.forEach(function (x) { line(x, false); });
-    box.appendChild(ol);
+    if (ol.firstChild) box.appendChild(ol);
+    var all = h("ol", { cls: "mon-run" });
+    rows.concat(noTime.map(function (r) { return { r: r, s: NaN, d: 0 }; })).forEach(function (x) {
+      var st = !isFinite(x.s) ? "none" : cur.indexOf(x) >= 0 ? "now" : x === next[0] ? "next" : x.s > now ? "later" : "past";
+      all.appendChild(h("li", { cls: "is-" + st }, [h("span", { cls: "mon-run-k", text: st === "now" ? "Now" : st === "next" ? "Next" : st === "past" ? "Past" : "" }), h("b", { cls: "mon-run-t", text: isFinite(x.s) ? fmtClock(new Date(x.s).toISOString()) : "No time" }),
+        h("span", { cls: "mon-run-n" }, [x.r.title || "Item", h("small", { text: [Number(x.r.duration_min) > 0 ? Number(x.r.duration_min) + " min" : "", x.r.owner, x.r.location].filter(Boolean).join(" · ") })])]));
+    });
+    var n = rows.length + noTime.length, det = h("details", { cls: "mon-run-all" }, [h("summary", { text: "Full run-sheet (" + n + (n === 1 ? " item)" : " items)") }), all]);
+    det.open = S.runOpen !== false; det.addEventListener("toggle", function () { S.runOpen = det.open; });
+    box.appendChild(det); all.scrollTop = keepTop;
+    if (hadFocus) { try { det.firstChild.focus({ preventScroll: true }); } catch (e2) {} }
   }
   /* R252 (event-delay.js, the same card as Tasks & Crew): what is running late and what that affects. From what the page already has -
      no extra read; redrawn every minute. Moving times stays on Tasks & Crew (Open task). */

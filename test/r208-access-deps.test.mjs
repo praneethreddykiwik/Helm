@@ -198,7 +198,7 @@ await t('Tasks & Crew + monitor ask canAssignTasks; Templates - Can change off -
   assert.match(OPS, /<script src="ops-board\.js\?v=17"><\/script>/);
   const mon = r('public/monitor.js');
   assert.match(mon, /S\.canEdit = !!\(await \(A\.canAssignTasks \? A\.canAssignTasks\(\) : A\.canEditArea\("staff"\)\)\);/);
-  assert.match(r('public/monitor.html'), /monitor\.js\?v=21/);
+  assert.match(r('public/monitor.html'), /monitor\.js\?v=23/);
   assert.match(r('public/ops-board.js'), /Your role can view this page only\. To give out work, an admin switches on “Assign & send tasks”/);
   // open shifts + days off keep their own Staff - Can change checks
   assert.match(r('public/crew-shifts.js'), /canEdit = await B\.auth\.canEditArea\("staff"\)/);

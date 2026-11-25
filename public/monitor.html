@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="/fonts/g/ibm-plex-sans-fc5a3390.css">
 <link rel="stylesheet" href="theme.css?v=87"><link rel="stylesheet" href="/ui-pickers.css?v=4"><script src="/ui-pickers.js?v=5" defer></script>
 <link rel="stylesheet" href="ops-board.css?v=12">
-<link rel="stylesheet" href="monitor.css?v=16">
+<link rel="stylesheet" href="monitor.css?v=17">
 <link rel="stylesheet" href="event-plan.css?v=3">
 <link rel="stylesheet" href="day-before.css?v=2">
 <link rel="stylesheet" href="event-floor.css?v=4">
@@ -22,6 +22,7 @@
 <link rel="stylesheet" href="/vendor-items.css?v=1">
 <link rel="stylesheet" href="/event-extras.css?v=1">
 <link rel="stylesheet" href="/pre-check.css?v=1">
+<link rel="stylesheet" href="approvals.css?v=2">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
 <script src="/shell-proto.js?v=128" id="shellProto"></script>
 </head>
@@ -97,6 +98,8 @@
       <!-- R253 (event-wrap.js): who has arrived and left, on Pre-event and On the event. R260 (vendor-items.js): their items are checked in here, right under
            the Pre-event checklist; On the event it sits with the issues (monitor.css) -->
       <section class="tc-card mon-mini hwd-card" id="monVendors" hidden></section>
+      <!-- R265 (approvals.js, the same list as the Approvals page): this event's finished work waiting for a check, on Pre-event -->
+      <section class="tc-card mon-mini mon-approve" id="monApprove" aria-labelledby="apEmbedH" hidden></section>
 
       <!-- R251 / R257: what each step shows, top to bottom. Day before = the checklist, needs action + set-up numbers (closed), Ready by, floor plan.
            Pre-event = the checklist, the live strip, late set-up jobs, Ready by, floor plan, the work, "Mark pre-event complete".
@@ -169,7 +172,7 @@
 <script src="task-status.js?v=8"></script>
 <script src="event-plan.js?v=9"></script>
 <script src="day-before.js?v=7"></script>
-<script src="monitor.js?v=21"></script>
+<script src="monitor.js?v=23"></script>
 <script src="event-floor.js?v=6"></script>
 <script src="stock-flow.js?v=3"></script>
 <script src="stock-checkin.js?v=2"></script>
@@ -182,5 +185,6 @@
 <script src="/event-delay.js?v=3"></script>
 <script src="/task-clash.js?v=2"></script>
 <script src="/pre-check.js?v=2"></script>
+<script src="approvals.js?v=3"></script>
 </body>
 </html>
