@@ -79,3 +79,19 @@ Then:
 
 Keep the version in the file name. The file is immutable per version, so it can be
 cached for a long time, and a stale `store-api.js` can never load a mismatched file.
+
+## jsPDF 4.2.1 + jsPDF-AutoTable 5.0.8 — the run-sheet "Download" PDF (R273)
+
+| File | Source package | Version | Source path in package | sha384 (SRI) |
+|---|---|---|---|---|
+| `jspdf-4.2.1.umd.min.js` | `jspdf` (npm, published 2026-03-17) | 4.2.1 | `dist/jspdf.umd.min.js` (exposes `window.jspdf`) | `sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3` |
+| `jspdf-autotable-5.0.8.min.js` | `jspdf-autotable` (npm, published 2026-05-17) | 5.0.8 | `dist/jspdf.plugin.autotable.min.js` (adds `doc.autoTable`) | `sha384-5jk55M0XWoAw7LyhlXJe19ErOr3doBAPzxw9vahPFbvolqWa2yDk4fhHa2zuYeOa` |
+
+npm tarball integrity (verified against the registry 2026-11-28): jspdf 4.2.1
+`sha512-YyAXyvnmjTbR4bHQRLzex3CuINCDlQnBqoSYyjJwTP2x9jDLuKDzy7aKUl0hgx3uhcl7xzg32agn5vlie6HIlQ==`,
+jspdf-autotable 5.0.8 `sha512-Hy05N86yBO7CXBrnSLOge7i1ZYpKH2DjQ94iybaP7vBhSInjvRBgDc99ngKzSbSO8Jc98ZCally8I6n0tj2RJQ==`.
+Licence: MIT (banners kept). Checked: no eval / new Function (CSP has no 'unsafe-eval'); the only remote URL
+(a pdfobject CDN) is for an output mode Helm never uses.
+
+Loaded only by `public/runsheet-print.js` (on the first Download press), same-origin with SRI; the
+file names and hashes are in its `PDF_LIBS` constant.

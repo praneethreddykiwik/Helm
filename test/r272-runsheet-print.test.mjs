@@ -1,5 +1,5 @@
 // R272 (owner, 27 Nov 2026): run-sheet Print printed only the app's top bar and an empty list; no Download.
-// Print / Ctrl+P now print a clean sheet of their own; Download saves a spreadsheet file (CSV).
+// Print / Ctrl+P now print a clean sheet of their own. R273: Download saves a PDF; no link line on paper.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -25,18 +25,28 @@ test("rows: times, end time, minutes, every field", () => {
   assert.deepEqual([r[0].start, r[0].end, r[0].mins, r[0].what, r[0].owner, r[0].where], ["04:30", "04:40", "10", "Hall cleaning", "Tharun", "stage"]);
   assert.equal(r[1].start, ""); assert.equal(r[1].end, "");
 });
-test("CSV: Excel BOM, header, quotes doubled, formula cells neutralised", () => {
-  const c = P.csvOf(EV, ITEMS);
-  assert.ok(c.startsWith("﻿"));
-  assert.match(c, /"Start","Ends","Mins","Activity","Owner","Location","Note"/);
-  assert.match(c, /"'=HYPERLINK\(""x""\) ""quoted"""/);
-  assert.match(c, /"HS-1 · Rao wedding","2026-11-28"/);
+test("R273: Download is a PDF (self-hosted jsPDF with SRI), falls back to the print box", () => {
+  assert.match(js, /file: "jspdf-4\.2\.1\.umd\.min\.js", integrity: "sha384-/);
+  assert.match(js, /file: "jspdf-autotable-5\.0\.8\.min\.js", integrity: "sha384-/);
+  assert.match(js, /s\.src = "\/vendor\/" \+ lib\.file; s\.integrity = lib\.integrity;/);
+  assert.match(js, /\.save\(fileName\(ev\)\)/);
+  assert.match(js, /if \(!latinOnly\(all\)\) \{ print\(\);/);
+  assert.match(js, /if \(!ok\) \{ print\(\); return "print"; \}/);
+  assert.doesNotMatch(js, /text\/csv/);
+  assert.equal(P.latinOnly("Mahalakshmi · 6:30 pm"), true);
+  assert.equal(P.latinOnly("మహాలక్ష్మి"), false);
+  for (const f of ["jspdf-4.2.1.umd.min.js", "jspdf-autotable-5.0.8.min.js"]) assert.ok(fs.existsSync("public/vendor/" + f), f);
+});
+test("R273: empty Location / Note columns are left out", () => {
+  assert.equal(JSON.stringify(P.colsOf(P.rowsOf([{ start_time: "18:30:00", title: "Welcome" }])).map((c) => c[1])), JSON.stringify(["Start", "Ends", "Mins", "Activity", "Owner"]));
+  assert.equal(JSON.stringify(P.colsOf(P.rowsOf(ITEMS)).map((c) => c[1])), JSON.stringify(["Start", "Ends", "Mins", "Activity", "Owner", "Location"]));
 });
 test("file name is safe", () => {
-  assert.equal(P.fileName(EV), "run-sheet-HS-1-Rao-wedding-2026-11-28.csv");
-  assert.equal(P.fileName({ title: "../../x<>" }), "run-sheet-x.csv");
+  assert.equal(P.fileName(EV), "run-sheet-HS-1-Rao-wedding-2026-11-28.pdf");
+  assert.equal(P.fileName({ title: "../../x<>" }), "run-sheet-x.pdf");
 });
-test("paper shows only the sheet; screen never shows it; Ctrl+P covered", () => {
+test("paper shows only the sheet; no browser link / date line; screen never shows it; Ctrl+P covered", () => {
+  assert.match(css, /@page \{ margin: 0; \}/); assert.match(css, /\.rsp-gap \{ height: 12mm;/);
   assert.match(css, /^\.rsp-sheet \{ display: none; \}/m);
   assert.match(css, /html\.rsp-printing body > \*:not\(#rsPrintSheet\) \{ display: none !important; \}/);
   assert.match(js, /addEventListener\("beforeprint", prep\)/);

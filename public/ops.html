@@ -174,7 +174,7 @@
 <link rel="stylesheet" href="pages-polish-ops.css?v=2">
 <link rel="stylesheet" href="crew-shifts.css?v=8">
 <link rel="stylesheet" href="/resource-steps.css?v=2">
-<link rel="stylesheet" href="ops-board.css?v=12">
+<link rel="stylesheet" href="ops-board.css?v=13">
 <link rel="stylesheet" href="event-plan.css?v=3">
 <link rel="stylesheet" href="day-before.css?v=2">
 <link rel="stylesheet" href="event-floor.css?v=4">
@@ -188,7 +188,7 @@
 <link rel="stylesheet" href="/pre-check.css?v=1">
 <link rel="stylesheet" href="/event-extras.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=130" id="shellProto"></script>
+<script src="/shell-proto.js?v=131" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -366,6 +366,8 @@
       <fieldset class="tc-fs" id="sWhat">
         <legend><span data-step>1. </span>What</legend>
         <div class="tc-optrow" id="catTabs" role="group" aria-label="Task section"></div>
+        <!-- R273: a new section (department) of the checklist - it is saved with its first task -->
+        <div class="tc-inline" id="catNew" hidden><input class="tc-inp" id="catNewIn" maxlength="60" placeholder="New section name, e.g. Security" aria-label="New section name"><button type="button" class="tc-btn sm" id="catNewOk">Add section</button><button type="button" class="tc-btn sm ghost" id="catNewX">Cancel</button></div>
         <label class="tc-chk"><input type="checkbox" id="selAll"> Select all in this section</label>
         <div class="tc-tasks-pick" id="taskList"></div>
         <div class="tc-inline"><input class="tc-inp" id="tpl_title" maxlength="120" placeholder="Or type a new task (saved to your checklist)" aria-label="New task for this section"><button type="button" class="tc-btn sm" id="tpl_add">+ Add to checklist</button></div>
@@ -511,7 +513,7 @@
 <script src="config.js?v=113"></script>
 <script src="phone-input.js?v=9"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=420"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=421"></script>
 <script src="task-status.js?v=8"></script>
 <script src="event-plan.js?v=9"></script>
 <script src="day-before.js?v=8"></script>
@@ -595,9 +597,7 @@
     if(!CATS.includes(activeCat)) activeCat=CATS[0];
     // dept + crew dropdowns
     // R192: sections are option chips in the Add & assign sheet (the "Add staff" form moved to the Staff page)
-    $("#catTabs").innerHTML=CATS.map(c=>`<button type="button" class="tc-opt" data-c="${esc(c)}" aria-pressed="${c===activeCat}">${esc(c)}</button>`).join("");
-    $("#catTabs").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{ activeCat=b.dataset.c;
-      $("#catTabs").querySelectorAll("button").forEach(x=>{ x.setAttribute("aria-pressed",String(x===b)); }); $("#selAll").checked=false; renderTasks(); renderSuggestions(); }));
+    drawCats();
     if(!canEdit){ ["assignBtn","tpl_add"].forEach(id=>{const e=$("#"+id); if(e)e.disabled=true;}); /* planner-1023 / R208: server needs Assign & send tasks (no row = Staff edit); the page shows "View only" and no action buttons */ }
     else if(!canTpl){ const b=$("#tpl_add"), i=$("#tpl_title"); if(b) b.textContent="+ Add for this event"; if(i) i.placeholder="Or type a task for this event only"; }
     try{ await refresh(pOps); if(pAuto) await Promise.race([pAuto, new Promise(r=>setTimeout(r,1500))]); }   // R254: known before the first draw, so no task jumps
@@ -677,6 +677,30 @@
       +extra.map(x=>`<label class="titem"><input type="checkbox" class="tk" value="${esc(x)}" checked> ${esc(x)} <span class="muted">(this event only)</span></label>`).join("");
     $("#taskList").querySelectorAll(".tk").forEach(c=>c.addEventListener("change",updateSel)); updateSel();
   }
+  // R192: sections are option chips. R273 (owner, 28 Nov): "+ New section" is back (it was a typed Section box before R192) -
+  // a new section shows at once and is saved to the studio checklist with its first task (sections = checklist categories)
+  function drawCats(){
+    const host=$("#catTabs"); if(!host) return;
+    host.innerHTML=CATS.map(c=>`<button type="button" class="tc-opt" data-c="${esc(c)}" aria-pressed="${c===activeCat}">${esc(c)}</button>`).join("")
+      +(canEditOps?`<button type="button" class="tc-opt tc-opt-new" id="catNewBtn" aria-expanded="${!$("#catNew").hidden}">+ New section</button>`:"");
+    host.querySelectorAll("button[data-c]").forEach(b=>b.addEventListener("click",()=>{ activeCat=b.dataset.c;
+      host.querySelectorAll("button[data-c]").forEach(x=>{ x.setAttribute("aria-pressed",String(x===b)); }); $("#selAll").checked=false; renderTasks(); renderSuggestions(); }));
+    const nb=$("#catNewBtn"); if(nb) nb.addEventListener("click",()=>{ const box=$("#catNew"); box.hidden=!box.hidden; nb.setAttribute("aria-expanded",String(!box.hidden));
+      if(!box.hidden){ $("#catNewIn").value=""; setTimeout(()=>$("#catNewIn").focus(),20); } });
+  }
+  function addSection(){
+    setMsg();
+    const name=String($("#catNewIn").value||"").replace(/\s+/g," ").trim().slice(0,60);
+    if(!name){ setMsg("err","Type the new section's name first."); $("#catNewIn").focus(); return; }
+    const same=CATS.find(c=>c.toLowerCase()===name.toLowerCase());
+    if(!same) CATS.push(name);
+    activeCat=same||name; $("#catNew").hidden=true; drawCats(); $("#selAll").checked=false; renderTasks(); renderSuggestions();
+    setMsg("ok", same?`"${same}" is already a section - picked it.`:`New section "${name}". Type its first task below and press ${canTpl?"+ Add to checklist":"+ Add for this event"}${canTpl?" - the section is saved to your checklist with it.":"."}`);
+    lastOkMsg=""; setTimeout(()=>$("#tpl_title").focus(),20);
+  }
+  $("#catNewOk") && $("#catNewOk").addEventListener("click",addSection);
+  $("#catNewX") && $("#catNewX").addEventListener("click",()=>{ $("#catNew").hidden=true; const nb=$("#catNewBtn"); if(nb){ nb.setAttribute("aria-expanded","false"); nb.focus(); } });
+  $("#catNewIn") && $("#catNewIn").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); addSection(); } else if(e.key==="Escape"){ e.stopPropagation(); $("#catNewX").click(); } });
   // task templates had no create UI — add a task to the org's template catalog (R192: typed in the sheet's "What" step,
   // saved to the active section and ticked at once)
   $("#tpl_add") && $("#tpl_add").addEventListener("click",()=>BPUI.guard($("#tpl_add"),async()=>{
