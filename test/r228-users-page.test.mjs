@@ -256,7 +256,7 @@ await t('asset pins: control.html loads the new team-status / team-safety / cont
   for (const f of ['public/control.html', 'public/staff.html']) {
     const h = rd(f); assert.match(h, /team-status\.js\?v=6"/, f); assert.match(h, /team-status\.css\?v=5"/, f);
   }
-  assert.match(C, /team-safety\.js\?v=6"/); assert.match(C, /control-split\.js\?v=26"/); assert.match(C, /control-split\.css\?v=17"/);
+  assert.match(C, /team-safety\.js\?v=6"/); assert.match(C, /control-split\.js\?v=27"/); assert.match(C, /control-split\.css\?v=17"/);
 });
 
 console.log(`r228-users-page: ${n} test(s) passed.`);

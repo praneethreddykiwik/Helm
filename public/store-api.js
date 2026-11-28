@@ -1,6 +1,6 @@
 /* App layout loader: shell-proto.js decides (allowlist) which signed-in studio pages get the sidebar layout. All hosts. */
 (function () { try { if (!document.getElementById("shellProto")) {
-  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=128"; document.head.appendChild(s); } } catch (e) {} })();
+  var s = document.createElement("script"); s.id = "shellProto"; s.src = "/shell-proto.js?v=130"; document.head.appendChild(s); } } catch (e) {} })();
 /* 0173 free-trial lock (trial studios only; a paid studio gets "not a trial" and nothing changes) */
 /* 0181: a studio last seen in its trial gets html.helm-trial at once (cached flag), so export / render buttons never
    flash usable; trial-lock.js takes it back off if the server says "not a trial". App pages already did this in <head>
@@ -1995,7 +1995,7 @@ window.HelmUrl = HelmUrl;
   // 0061 universal search (top-bar trigger + Cmd/Ctrl+K palette). Studio pages only:
   // never on HQ / public client pages; studio-search.js re-checks the role (no clients).
   // verify-166: PR #166 merged four branches that each shipped a different store-api.js as v=232 (and shell-b as 114) - re-bumped so no browser keeps a stale copy
-  const STUDIO_SEARCH_VERSION = "22";
+  const STUDIO_SEARCH_VERSION = "23";
   // nav trail (breadcrumbs + Recent records). Pages may call HelmTrail.setCurrent before
   // nav-trail.js loads: this stub queues the calls; nav-trail.js replays them after boot.
   const NAV_TRAIL_VERSION = "8";
@@ -9964,6 +9964,12 @@ window.HelmUrl = HelmUrl;
       // R261 (0450): what vendors charge for missing / broken items and is not paid yet is owed too
       const chOwed = (bills || []).filter((b) => b && b.is_charge && b.status !== "void").reduce((a, b) => a + Math.max(0, vbNum(b.amount) - (b.vendor_payouts || []).reduce((x, p) => x + vbNum(p.amount), 0)), 0);
       sum.vendorChargesOwed = Math.round(chOwed * 100) / 100; out += chOwed;
+      // R271: a bill that belongs to no vendor booking on this event (typed without picking the booking) is owed too - the same
+      // as Who owes what and the closure checklist (server: bills - payouts), so no page forgets it
+      const live = new Set((sum.bookings || []).map((b) => b && b.id));
+      const looseOwed = (bills || []).filter((b) => b && !b.is_charge && b.status !== "void" && !live.has(b.booking_id))
+        .reduce((a, b) => a + Math.max(0, vbNum(b.amount) - (b.vendor_payouts || []).reduce((x, p) => x + vbNum(p.amount), 0)), 0);
+      sum.vendorLooseOwed = Math.round(looseOwed * 100) / 100; out += looseOwed;
       sum.vendorOutstanding = Math.round(out * 100) / 100;
       if (!bills.some((b) => b && b.status !== "void")) return 0;
       let costs = []; try { costs = (await budget.listCosts(quoteId)) || []; } catch (_) { return 0; }
@@ -12712,6 +12718,26 @@ window.HelmUrl = HelmUrl;
     saveSettings: (patch) => (supa ? rpc("link_view_settings_set", { p: patch || {} }) : Promise.reject(new Error("Needs a signed-in studio."))),
   };
 
+  // r271 (0454): Settings > Links going out - every link the studio handed out (names only, never a token), turn off / back on /
+  // new link. Studio admins only; the database checks every call. null = the server is older than 0454 (the section hides).
+  const slNull = (e) => { if (rpcMissing(e)) return null; throw e; };
+  const SL_KINDS = ["approval", "booklet", "proposal", "site", "crew", "staff", "vendor", "delivery", "team"];
+  const slKind = (k) => (SL_KINDS.indexOf(String(k || "")) >= 0 ? String(k) : null);
+  const studioLinks = {
+    KINDS: SL_KINDS,
+    list(opts) {
+      if (!supa) return Promise.resolve(null);
+      const o = opts || {};
+      const args = { p_kind: slKind(o.kind), p_quote: LV_UUID.test(String(o.quote || "")) ? String(o.quote) : null,
+        p_limit: Math.min(Math.max(Number(o.limit) || 200, 1), 500), p_before: o.before ? String(o.before) : null };
+      return rpc("studio_links_list", args).catch(slNull);
+    },
+    off: (kind, id) => (supa ? rpc("studio_link_off", { p_kind: slKind(kind), p_id: String(id || "") }).catch(slNull) : Promise.resolve(null)),
+    offMany: (items) => (supa ? rpc("studio_links_off", { p_items: (items || []).slice(0, 100).map((x) => ({ kind: slKind(x && x.kind), id: String((x && x.id) || "") })) }).catch(slNull) : Promise.resolve(null)),
+    on: (kind, id) => (supa ? rpc("studio_link_on", { p_kind: slKind(kind), p_id: String(id || "") }).catch(slNull) : Promise.resolve(null)),
+    renew: (kind, id) => (supa ? rpc("studio_link_new", { p_kind: slKind(kind), p_id: String(id || "") }).catch(slNull) : Promise.resolve(null)),
+  };
+
   // 0117 studio integration accounts + 0134 read-only overview (Integrations page). null = server too old.
   const integrations = {
     overview: () => (supa ? rpc("integrations_overview", {}).catch((e) => { if (rpcMissing(e)) return null; throw e; }) : Promise.resolve(null)),
@@ -13049,6 +13075,7 @@ window.HelmUrl = HelmUrl;
     signinNotice,    // R205 (0383)
     taskReminders,   // R130 (0338)
     activityText, init, mode: () => mode, capacityStatus, shortageText, advanceIn, venueForQuote, auth, quotes, flowProgress, recents, approval, ops, config, vendors, coupons, chairTypes, plateTypes, dishCatalog, eventMenu, menuTemplates, quotationVersions, layoutRules, people, pricing, org, links, invitations, attendees, sites, leads, discovery, proposal, staff, inventory, resources, bookings, calendar, runsheet, budget, plan, checklist, milestones, readiness, dayops, guests, stockreq, issues, wrapRecords, vendorCharges, extras, expenses, refunds, media, templates, nurture, settlement, closure, vendorBills, moneyLedger, bell, inbox, audit, insights, dashboard, venues, layoutTemplates, portal, files, chat, presence, profile, quoteShelf, uploads, comms, paySchedule, deliveries, vendorRequests, linkViews, integrations, quoteValidity, automation,
+    studioLinks,
     // User manual (migration 0031): lives in the PRIVATE storage bucket "helm-manual",
     // readable only by signed-in users. Returns { html, files: { "screenshots/x.webp": signedUrl } }
     // or throws { code: "manual_missing" } when the owner hasn't uploaded it yet.

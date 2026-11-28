@@ -73,7 +73,7 @@
 <link rel="stylesheet" href="/event-flow-line.css?v=1"><link rel="stylesheet" href="/vendor-flow.css?v=3"><link rel="stylesheet" href="/vendor-charges.css?v=1">
 <link rel="stylesheet" href="vendor-bills.css?v=3"><link rel="stylesheet" href="money-lock.css?v=2"><link rel="stylesheet" href="money-header.css?v=2"><link rel="stylesheet" href="extras-bill.css?v=1"><link rel="stylesheet" href="/vendor-items.css?v=1">
 <script src="/trusted-types.js?v=9"></script><script src="/browser-check.js?v=1" defer></script>
-<script src="/shell-proto.js?v=128" id="shellProto"></script>
+<script src="/shell-proto.js?v=130" id="shellProto"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -185,7 +185,7 @@
 <script src="telemetry.js?v=14"></script>
 <script src="config.js?v=113"></script>
 <script src="event-name.js?v=9"></script>
-<script src="country-profile.js?v=7"></script><script src="store-api.js?v=418"></script><script src="extras-bill.js?v=1"></script><script src="/vendor-items.js?v=1"></script><script src="/vendor-flow.js?v=3"></script><script src="/vendor-charges.js?v=1"></script><script src="money-cash-ui.js?v=2"></script><script src="money-header-ui.js?v=5"></script><script src="pick-event.js?v=1"></script><script src="/event-flow-line.js?v=1"></script><script src="vendor-bills-ui.js?v=14"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
+<script src="country-profile.js?v=7"></script><script src="store-api.js?v=420"></script><script src="extras-bill.js?v=1"></script><script src="/vendor-items.js?v=1"></script><script src="/vendor-flow.js?v=3"></script><script src="/vendor-charges.js?v=1"></script><script src="money-cash-ui.js?v=2"></script><script src="money-header-ui.js?v=5"></script><script src="pick-event.js?v=1"></script><script src="/event-flow-line.js?v=1"></script><script src="vendor-bills-ui.js?v=14"></script><script src="money-lock-ui.js?v=3"></script><script src="money-safety-ui.js?v=1"></script><script src="trial-test-note.js?v=5"></script>
 <script>
   const $=(s)=>document.querySelector(s);
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -275,8 +275,8 @@
         <td class="vs-acts">${vendorActs(b,vs)}</td></tr><tr class="vch-row" hidden><td colspan="6"><div data-vch="${esc(b.id)}" hidden></div></td></tr>`;
     }).join("") : '<tr><td colspan="6" class="empty">No vendor bookings.</td></tr>';
     $("#v_out").textContent=inr(s.vendorOutstanding);
-    { const un=s.bookings.map(b=>BPStore.settlement.vendorState(b)).filter(v=>v.k==="unrecorded"), n=$("#v_note"), ch=Number(s.vendorChargesOwed||0); n.hidden=!un.length&&!(ch>0.005);
-      putMoney(n,[un.length?[M$(un.reduce((a,v)=>a+v.owed,0)),` more is marked settled with no payment recorded (${un.length} vendor${un.length===1?"":"s"}). It is not in this total. `]:[], ch>0.005?["Includes ",M$(ch)," they charge for missing or broken items."]:[]]); }
+    { const un=s.bookings.map(b=>BPStore.settlement.vendorState(b)).filter(v=>v.k==="unrecorded"), n=$("#v_note"), ch=Number(s.vendorChargesOwed||0), lo=Number(s.vendorLooseOwed||0); n.hidden=!un.length&&!(ch>0.005)&&!(lo>0.005);
+      putMoney(n,[un.length?[M$(un.reduce((a,v)=>a+v.owed,0)),` more is marked settled with no payment recorded (${un.length} vendor${un.length===1?"":"s"}). It is not in this total. `]:[], ch>0.005?["Includes ",M$(ch)," they charge for missing or broken items. "]:[], lo>0.005?["Includes ",M$(lo)," on bills not linked to a vendor above (see Vendor bills)."]:[]]); }
     if(window.HelmVendorCharges) $("#vendBody").querySelectorAll("[data-vch]").forEach(h=>{ const b=s.bookings.find(x=>x.id===h.dataset.vch), tr=h.closest("tr"); const VI=window.HelmVendorItems;
       Promise.resolve(VI?VI.load(id,20000):null).then(st=>HelmVendorCharges.paint(h,{ quoteId:id, bookingId:b.id, vendor:byName(b), items:st&&st.vendors&&st.vendors[b.id]?st.vendors[b.id].problems:[], onDone:()=>moneyChanged() })).then(()=>{ tr.hidden=h.hidden; }); });
     if(window.HelmVendorItems) window.HelmVendorItems.lines(id,$("#vendBody"));   // R260 (0448): what was missing or broken, read only

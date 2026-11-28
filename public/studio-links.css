@@ -1,0 +1,41 @@
+/* studio-links.css - R271 (0454) Settings > Links going out (studio-links.js). Phone first: one column at 390px, 44px touch targets,
+   no horizontal scroll; on a wide screen each link is one row with its buttons on the right. */
+#slCard{overflow-x:visible}
+.sl-filters{display:grid;grid-template-columns:1fr;gap:10px;margin:12px 0 8px}
+.sl-filters .fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.sl-filters label{font-size:12px;font-weight:600;color:var(--ink-2,#4b475f)}
+.sl-filters input,.sl-filters select{min-height:44px;width:100%;max-width:100%;box-sizing:border-box}
+.sl-bulk{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 6px}
+.sl-all{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:14px;cursor:pointer}
+.sl-all input,.sl-tick input{width:20px;height:20px;margin:0;cursor:pointer}
+.sl-bulk-off,.sl-acts .btn,.sl-more{min-height:44px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
+.sl-msg{min-height:1em;margin:4px 0}
+.sl-msg.sl-bad{color:var(--danger,#b42318)}
+.sl-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.sl-row{display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 8px;align-items:start;padding:10px 12px 10px 4px;
+  border:1px solid var(--line,#e8e3db);border-radius:12px;background:var(--panel,#fff)}
+.sl-row.sl-off,.sl-row.sl-expired,.sl-row.sl-cancelled,.sl-row.sl-used{background:var(--panel-2,#faf8f5)}
+.sl-tick{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;cursor:pointer}
+.sl-main{min-width:0;display:flex;flex-direction:column;gap:2px;padding-top:4px}
+.sl-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.sl-kind{font-weight:700;font-size:15px;color:var(--ink,#1b1930)}
+.sl-pill{display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;line-height:1.5;
+  border:1px solid var(--line,#e8e3db);background:var(--panel-2,#faf8f5);color:var(--ink-2,#4b475f)}
+.sl-pill-live{background:var(--accent-soft,#e3f4ed);border-color:#b7e2cf;color:var(--accent-2,#036b4d)}
+.sl-pill-off{background:#fdecea;border-color:#f5c2bd;color:#9b1c13}
+.sl-pill-cancelled{background:#fdecea;border-color:#f5c2bd;color:#9b1c13}
+.sl-pill-paused{background:#fff4e5;border-color:#f3c98b;color:#8f4f00}
+.sl-who,.sl-event{font-size:14px;color:var(--ink-2,#4b475f);overflow-wrap:anywhere}
+.sl-meta{font-size:12px;color:var(--ink-3,#6b6577)}
+.sl-acts{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px;padding-left:4px}
+.sl-acts .btn{flex:1 1 140px;text-decoration:none}
+.sl-off{color:#9b1c13;border-color:#f5c2bd}
+.sl-none{padding:14px;color:var(--ink-3,#6b6577);font-size:14px}
+.sl-more{margin-top:10px;width:100%}
+@media (min-width:760px){
+  .sl-filters{grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr))}
+  .sl-row{grid-template-columns:44px minmax(0,1fr) auto;align-items:center}
+  .sl-acts{grid-column:auto;justify-content:flex-end;padding-left:0}
+  .sl-acts .btn{flex:0 0 auto}
+  .sl-more{width:auto}
+}

@@ -189,6 +189,13 @@
           { sel: "#qvCard", title: "Quote validity", desc: "Give every new quote a valid-until date, with a reminder before it runs out." },
           { sel: "#pkgFlowCard", title: "Package choice", desc: "How clients pick a menu package from the booklet you send them." },
         ],
+        // R271 (0454): every link the studio sent, in one list
+        outlinks: [
+          { sel: "#slCard", title: "Links going out", desc: "Every link your studio has sent: client pages, booklets, proposals, invitations, crew, vendor, delivery and team join links. Newest first." },
+          { sel: "#sl_q", title: "Find a link", desc: "Search by name or event, or pick a kind or an event to see only those links." },
+          { sel: "#sl_list", title: "Turn a link off", desc: "Turn off stops a link at once and says who loses access. Some links can be turned back on. To copy a link, use Open its page." },
+          { sel: "#sl_bulk_off", title: "Several at once", desc: "Tick several links, then Turn off ticked." },
+        ],
         pricing: [
           { sel: "#pricingCard", title: "Default pricing", desc: "Price per chair and per plate, tax and service charge. Every new quote starts from these." },
           { sel: "#p_svc", title: "Service charge and fees", desc: "Service charge, layout and setup fee, and the extra buffer added to every quote." },
@@ -321,7 +328,8 @@
       { sel: "#r_add", title: "Add a run-sheet item", desc: "Build a timed schedule of the day — each moment, who owns it and when." },
       { sel: "#r_remWrap", title: "Reminders", desc: "Remind the owner before their item starts, and post it in the event group." },
       { sel: "#rows", title: "The schedule", desc: "Every item in time order. Click one to edit it." },
-      { sel: "#printBtn", trial: false, title: "Print / share", desc: "Print the run-sheet or share it so everyone runs to the same timeline." },
+      { sel: "#printBtn", trial: false, title: "Print / PDF", desc: "Print a clean run-sheet, or choose Save as PDF in the print box to share it." },
+      { sel: "#dlBtn", trial: false, title: "Download", desc: "Save the run-sheet as a file that opens in Excel or Google Sheets." },
     ],
     "command.html": [
       { sel: "#b_code", title: "Event day", desc: "The event you are running today, its venue and time." },
@@ -583,7 +591,7 @@
 
   // Settings hash -> section (same names control-split.js uses)
   const HASH = { "#general": "general", "#account": "general", "#storage": "general", "#studio": "general", "#billing": "billing", "#privacy-pin": "privacy", "#privacy": "privacy",
-    "#client-links": "links", "#pricing": "pricing", "#payment-schedules": "payments", "#payment-schedule": "payments", "#menu": "catalog", "#catalog": "catalog",
+    "#client-links": "links", "#links-going-out": "outlinks", "#links-out": "outlinks", "#pricing": "pricing", "#payment-schedules": "payments", "#payment-schedule": "payments", "#menu": "catalog", "#catalog": "catalog",
     "#layout-rules": "rules", "#data": "data", "#users": "users", "#team": "users", "#access": "access", "#compliance": "compliance",
     "#notifications": "notify", "#notify": "notify", "#reminders": "reminders", "#automations": "automations", "#renders": "renders", "#crew": "crew",
     "#venues": "venues", "#layout-templates": "ltemplates", "#ltemplates": "ltemplates" };

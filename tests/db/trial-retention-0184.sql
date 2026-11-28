@@ -170,6 +170,8 @@ create or replace function pg_temp.nnot(p_org uuid, p_kind text) returns int lan
 \ir ../../supabase/migrations/0442_r257_no_lock_checklist.sql
 \ir ../../supabase/migrations/0444_r258_wrap_records.sql
 \ir ../../supabase/migrations/0448_r260_vendor_items.sql
+-- 0454 (R271) adds link_offs (links turned off in Settings) to the purge list
+\ir ../../supabase/migrations/0454_r271_links.sql
 \o
 -- 0435 (R252) adds quote_advance_log (the event's own advance percentage, booked by advance) to the purge list before payment_schedule_quote_prefs
 \ir ../../supabase/migrations/0435_r252_payment_plan.sql

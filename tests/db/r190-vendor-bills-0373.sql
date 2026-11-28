@@ -18,6 +18,9 @@ set client_min_messages = error;
 \ir ../../supabase/migrations/0373_r190_vendor_bills_finish.sql
 set client_min_messages = warning;
 begin;
+-- r271 (0455): a new bill takes the typed advance by itself (zz_r455_take_advance); this suite proves the 0373 button on bills made before that,
+-- so the trigger is off while it runs (rolled back; tests/db/r271-vendor-paid-0455.sql proves the trigger)
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'zz_r455_take_advance') then alter table public.vendor_bills disable trigger zz_r455_take_advance; end if; end $$;
 create temp table _rs(name text, result text); grant all on _rs to anon, authenticated, service_role;
 create or replace function pg_temp.t(p_name text, p_ok boolean, p_detail text default '') returns void language plpgsql as $$
 begin insert into _rs values (p_name, case when coalesce(p_ok, false) then 'PASS' else 'FAIL: ' || coalesce(p_detail, '') end); end $$;
