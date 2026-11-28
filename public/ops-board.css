@@ -325,6 +325,8 @@ html[data-shell] body .lmodal.evlight{z-index:2300}
 .tc-optrow{display:flex;gap:6px;flex-wrap:wrap}
 .tc-opt{border:1px solid var(--tc-line);background:var(--tc-panel);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;min-height:36px;color:var(--tc-ink)}
 .tc-opt[aria-pressed="true"]{background:var(--tc-acc-soft);border-color:var(--tc-acc);color:var(--tc-acc-text)}
+.tc-opt-new{border-style:dashed;color:var(--tc-acc-text);background:transparent} /* R273: + New section */
+#catNew[hidden]{display:none}
 .tc-picklist{display:flex;flex-direction:column;border:1px solid var(--tc-line);border-radius:12px;overflow:auto;max-height:320px}
 .tc-pick{display:flex;align-items:center;gap:10px;padding:9px 12px;border:0;border-top:1px solid var(--tc-line-2);background:var(--tc-panel);text-align:left;cursor:pointer;min-height:48px;width:100%;color:var(--tc-ink)}
 .tc-pick:first-child{border-top:0}

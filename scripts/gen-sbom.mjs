@@ -74,6 +74,8 @@ function vendored() {
     { re: /^supabase-js-(\d+\.\d+\.\d+)\.min\.js$/, pkg: '@supabase/supabase-js', lic: 'MIT', what: 'UMD build (window.supabase), loaded by store-api.js' },
     { re: /^sentry-(\d+\.\d+\.\d+)\.bundle\.min\.js$/, pkg: '@sentry/browser', lic: 'MIT', what: 'Sentry browser CDN bundle (errors only), loaded by telemetry.js' },
     { re: /^three-(\d+\.\d+\.\d+)$/, pkg: 'three', lic: 'MIT', what: 'three.js core + addons for the builder 3D view, loaded by three-boot.js' },
+    { re: /^jspdf-(\d+\.\d+\.\d+)\.umd\.min\.js$/, pkg: 'jspdf', lic: 'MIT', what: 'jsPDF UMD build (window.jspdf), the run-sheet Download PDF, loaded by runsheet-print.js' },
+    { re: /^jspdf-autotable-(\d+\.\d+\.\d+)\.min\.js$/, pkg: 'jspdf-autotable', lic: 'MIT', what: 'jsPDF AutoTable plugin (tables in the run-sheet PDF), loaded by runsheet-print.js' },
   ];
   for (const n of readdirSync(dir).sort()) {
     if (n === 'README.md') continue;

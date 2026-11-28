@@ -328,8 +328,8 @@
       { sel: "#r_add", title: "Add a run-sheet item", desc: "Build a timed schedule of the day — each moment, who owns it and when." },
       { sel: "#r_remWrap", title: "Reminders", desc: "Remind the owner before their item starts, and post it in the event group." },
       { sel: "#rows", title: "The schedule", desc: "Every item in time order. Click one to edit it." },
-      { sel: "#printBtn", trial: false, title: "Print / PDF", desc: "Print a clean run-sheet, or choose Save as PDF in the print box to share it." },
-      { sel: "#dlBtn", trial: false, title: "Download", desc: "Save the run-sheet as a file that opens in Excel or Google Sheets." },
+      { sel: "#printBtn", trial: false, title: "Print", desc: "Print a clean run-sheet: every line, no app screen." },
+      { sel: "#dlBtn", trial: false, title: "Download PDF", desc: "Save the run-sheet as a PDF to share on WhatsApp or e-mail." },
     ],
     "command.html": [
       { sel: "#b_code", title: "Event day", desc: "The event you are running today, its venue and time." },

@@ -3,9 +3,9 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
   "version": 1,
-  "serialNumber": "urn:uuid:f58fc2c4-dcde-4c24-b970-7dd73d3a5c1e",
+  "serialNumber": "urn:uuid:7946acca-4fee-4240-b1ce-967d4b604e0a",
   "metadata": {
-    "timestamp": "2026-11-11T22:36:52.496Z",
+    "timestamp": "2026-11-28T18:10:35.577Z",
     "tools": {
       "components": [
         {
@@ -930,6 +930,70 @@
     },
     {
       "type": "library",
+      "name": "jspdf",
+      "version": "4.2.1",
+      "scope": "required",
+      "bom-ref": "vendored-browser:jspdf-4.2.1.umd.min.js",
+      "purl": "pkg:npm/jspdf@4.2.1",
+      "description": "jsPDF UMD build (window.jspdf), the run-sheet Download PDF, loaded by runsheet-print.js",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-384",
+          "content": "aa8bc9c1205b4433cfe5c1230a9f12d143faeb0aef9e369aeb45cc386cd335a9eb4e172b19f5df9d992f818f0dd4a4f7"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "vendored-browser"
+        },
+        {
+          "name": "helm:file",
+          "value": "public/vendor/jspdf-4.2.1.umd.min.js"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "jspdf-autotable",
+      "version": "5.0.8",
+      "scope": "required",
+      "bom-ref": "vendored-browser:jspdf-autotable-5.0.8.min.js",
+      "purl": "pkg:npm/jspdf-autotable@5.0.8",
+      "description": "jsPDF AutoTable plugin (tables in the run-sheet PDF), loaded by runsheet-print.js",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-384",
+          "content": "e63939e4cd175a8030ecbca195725ed7d12b3abddda0100fcf1c3dbda84f15bbe896a59adb20e4e1f8476b6cee61e39a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "helm:group",
+          "value": "vendored-browser"
+        },
+        {
+          "name": "helm:file",
+          "value": "public/vendor/jspdf-autotable-5.0.8.min.js"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "group": "@sentry",
       "name": "browser",
       "version": "10.78.0",
@@ -1055,6 +1119,8 @@
         "npm-runtime:@supabase/supabase-js@2.119.0",
         "npm-runtime:iceberg-js@0.8.1",
         "npm-runtime:tslib@2.8.1",
+        "vendored-browser:jspdf-4.2.1.umd.min.js",
+        "vendored-browser:jspdf-autotable-5.0.8.min.js",
         "vendored-browser:sentry-10.78.0.bundle.min.js",
         "vendored-browser:supabase-js-2.119.0.min.js",
         "vendored-browser:three-0.186.1"
