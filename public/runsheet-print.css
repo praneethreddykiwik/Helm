@@ -1,0 +1,19 @@
+/* R272: the run-sheet's own print sheet (runsheet-print.js). Hidden on screen; on paper it is the only thing shown. */
+.rsp-sheet { display: none; }
+@media print {
+  @page { margin: 12mm; }
+  html.rsp-printing, html.rsp-printing body { height: auto !important; overflow: visible !important; background: #fff !important; }
+  html.rsp-printing body > *:not(#rsPrintSheet) { display: none !important; }
+  html.rsp-printing::before, html.rsp-printing::after, html.rsp-printing body::before, html.rsp-printing body::after { display: none !important; content: none !important; }
+  html.rsp-printing #rsPrintSheet { display: block !important; position: static !important; color: #000; font: 11pt/1.35 "IBM Plex Sans", Arial, sans-serif; }
+  .rsp-h { font-size: 16pt; margin: 0 0 2pt; }
+  .rsp-ev { font-size: 12pt; font-weight: 600; margin: 0 0 2pt; }
+  .rsp-meta { margin: 0 0 8pt; color: #333; }
+  .rsp-t { width: 100%; border-collapse: collapse; }
+  .rsp-t th, .rsp-t td { border: 1px solid #999; padding: 4pt 5pt; text-align: left; vertical-align: top; }
+  .rsp-t th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rsp-t thead { display: table-header-group; }
+  .rsp-t tr { break-inside: avoid; page-break-inside: avoid; }
+  .rsp-start, .rsp-end, .rsp-mins { white-space: nowrap; }
+  .rsp-foot { margin-top: 8pt; font-size: 9pt; color: #555; }
+}

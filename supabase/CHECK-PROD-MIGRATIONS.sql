@@ -3,7 +3,7 @@
 -- Do not edit by hand: run  node scripts/gen-check-prod.mjs  (npm run ci fails when this file is out of date).
 --
 -- HOW TO USE (docs/RUNBOOK-MIGRATIONS.md): after every release paste this whole file into the Supabase SQL
--- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (393 rows),
+-- editor - STAGING first, then PRODUCTION - and press Run. One row per MANIFEST entry (395 rows),
 -- problems first:
 --   missing  = none of the things this migration makes are on this database   -> paste its APPLY-NNNN.sql
 --   partial  = some are, some are not (see missing_objects)                   -> paste its APPLY-NNNN.sql
@@ -17,7 +17,7 @@
 -- Cron jobs / realtime publication rows are only checked where cron.job / the publication exist and are readable
 -- (else they are not counted and the note says so).
 --
--- What is checked (5254 objects): body 169, bucket 9, col 305, con 430, cron 21, exec 19, fn 2372, idx 606, marker 175, pol 196, polexpr 4, pre 136, pub 6, seq 1, tbl 327, trg 476, view 2.
+-- What is checked (5274 objects): body 168, bucket 9, col 305, con 430, cron 21, exec 19, fn 2385, idx 608, marker 175, pol 196, polexpr 4, pre 138, pub 6, seq 1, tbl 328, trg 479, view 2.
 --   fn = function by name + argument types (pg_proc); body = md5 of the function body this migration wrote
 --   (the newest version); pre = old bodies kept as *__preNNNN; table / view / seq / column / index / policy /
 --   trigger / constraint / type / schema / cron job / storage bucket / realtime publication table by name;
@@ -2672,7 +2672,6 @@ with o(m, k, s, n, x) as (values
   ('0260_cancel_expires_links', 'fn', 'public', '_a260_link_quote', 'text,text'),
   ('0260_cancel_expires_links', 'fn', 'public', '_a260_link_cancelled', 'text,text'),
   ('0260_cancel_expires_links', 'fn', 'public', '_a260_quote_state', 'uuid'),
-  ('0260_cancel_expires_links', 'fn', 'public', '_a260_link_state', 'text,text'),
   ('0260_cancel_expires_links', 'fn', 'public', '_a260_refuse', ''),
   ('0260_cancel_expires_links', 'fn', 'public', '_a260_gate', 'text,text'),
   ('0260_cancel_expires_links', 'fn', 'public', 'public_get_quote__pre0260', 'uuid'),
@@ -2717,6 +2716,7 @@ with o(m, k, s, n, x) as (values
   ('0260_cancel_expires_links', 'fn', 'public', 'resume_client_links', 'uuid'),
   ('0260_cancel_expires_links', 'fn', 'public', 'event_link_state', 'uuid'),
   ('0260_cancel_expires_links', 'pre', null, '__pre0260', null),
+  ('0260_cancel_expires_links', 'fn', 'public', '_a260_link_state', 'text,text'),
   ('0261_client_link_views', 'tbl', 'public.client_link_views', null, null),
   ('0261_client_link_views', 'idx', 'public.client_link_views_quote_idx', null, null),
   ('0261_client_link_views', 'idx', 'public.client_link_views_visit_idx', null, null),
@@ -3242,7 +3242,6 @@ with o(m, k, s, n, x) as (values
   ('0282_r32_security_review', 'fn', 'public', 'settle_milestone__pre0282', 'uuid,text,text'),
   ('0282_r32_security_review', 'body', 'public', 'settle_milestone', 'uuid,text,text|c355d4e650407f0329943084b282ef00'),
   ('0282_r32_security_review', 'fn', 'public', '_r22_close_checks__pre0282', 'uuid,uuid'),
-  ('0282_r32_security_review', 'body', 'public', '_r22_close_checks', 'uuid,uuid|922470d7aaafb74454a417aff0bb8ab0'),
   ('0282_r32_security_review', 'pre', null, '__pre0282', null),
   ('0283_r33_team_safety', 'body', 'public', 'audit_actor_names', '|76eeb1128e460b63bc424767efb5f200'),
   ('0283_r33_team_safety', 'body', 'public', 'studio_avatars', '|76f9b0944b2ef7abe4dc015365d3e33e'),
@@ -5222,7 +5221,6 @@ with o(m, k, s, n, x) as (values
   ('0447_r259_vendor_flow', 'trg', 'public.vendor_offers', 'ab_r447_offer', null),
   ('0447_r259_vendor_flow', 'fn', 'public', '_r447_tg_request_done', ''),
   ('0447_r259_vendor_flow', 'trg', 'public.vendor_requests', 'zz_r447_request_done', null),
-  ('0447_r259_vendor_flow', 'fn', 'public', '_r447_state', 'vendor_requests'),
   ('0447_r259_vendor_flow', 'fn', 'public', 'vendor_request_ask', 'jsonb'),
   ('0447_r259_vendor_flow', 'fn', 'public', '_r447_offer_put', 'vendor_requests,jsonb,text,uuid,text,text'),
   ('0447_r259_vendor_flow', 'fn', 'public', 'vendor_link_offer', 'text,jsonb'),
@@ -5235,6 +5233,7 @@ with o(m, k, s, n, x) as (values
   ('0447_r259_vendor_flow', 'fn', 'public', 'vendor_invoice_submit__pre0260', 'text,jsonb'),
   ('0447_r259_vendor_flow', 'fn', 'public', 'vendor_flow_claim', 'integer'),
   ('0447_r259_vendor_flow', 'pre', null, '__pre0447', null),
+  ('0447_r259_vendor_flow', 'fn', 'public', '_r447_state', 'vendor_requests'),
   ('0448_r260_vendor_items', 'tbl', 'public.event_vendor_item_log', null, null),
   ('0448_r260_vendor_items', 'idx', 'public.event_vendor_item_quote448', null, null),
   ('0448_r260_vendor_items', 'idx', 'public.event_vendor_item_org448', null, null),
@@ -5278,7 +5277,28 @@ with o(m, k, s, n, x) as (values
   ('0451_r261_close_same_day', 'pre', null, '__pre0451', null),
   ('0452_r262_invoice_price_lock', 'fn', 'public', 'tg_r452_invoice_price', ''),
   ('0452_r262_invoice_price_lock', 'trg', 'public.vendor_invoices', 'r452_invoice_price', null),
-  ('0453_r268_checkin_anytime', 'pre', null, '__pre0453', null)
+  ('0453_r268_checkin_anytime', 'pre', null, '__pre0453', null),
+  ('0454_r271_links', 'tbl', 'public.link_offs', null, null),
+  ('0454_r271_links', 'idx', 'public.link_offs_live_uk', null, null),
+  ('0454_r271_links', 'idx', 'public.link_offs_org_ix', null, null),
+  ('0454_r271_links', 'trg', 'public.link_offs', 'zz_quote_org_match', null),
+  ('0454_r271_links', 'trg', 'public.link_offs', 'zzz_studio_read_only', null),
+  ('0454_r271_links', 'fn', 'public', '_r271_ref', 'text,text'),
+  ('0454_r271_links', 'fn', 'public', '_r271_off', 'text,text'),
+  ('0454_r271_links', 'fn', 'public', '_a260_link_state__pre0454', 'text,text'),
+  ('0454_r271_links', 'fn', 'public', '_r271_admin', ''),
+  ('0454_r271_links', 'fn', 'public', 'studio_links_list', 'text,uuid,integer,timestamp with time zone'),
+  ('0454_r271_links', 'fn', 'public', 'studio_link_off', 'text,uuid'),
+  ('0454_r271_links', 'fn', 'public', 'studio_links_off', 'jsonb'),
+  ('0454_r271_links', 'fn', 'public', 'studio_link_on', 'text,uuid'),
+  ('0454_r271_links', 'fn', 'public', 'studio_link_new', 'text,uuid'),
+  ('0454_r271_links', 'pre', null, '__pre0454', null),
+  ('0455_r271_vendor_paid', 'fn', 'public', '_r455_adv_credit', 'uuid'),
+  ('0455_r271_vendor_paid', 'fn', 'public', '_r455_booking_owed', 'uuid'),
+  ('0455_r271_vendor_paid', 'fn', 'public', '_r455_tg_take_advance', ''),
+  ('0455_r271_vendor_paid', 'trg', 'public.vendor_bills', 'zz_r455_take_advance', null),
+  ('0455_r271_vendor_paid', 'fn', 'public', '_r447_state__pre0455', 'vendor_requests'),
+  ('0455_r271_vendor_paid', 'pre', null, '__pre0455', null)
 ),
 mig(ord, m, ov, note) as (values
   (1, 'base-v1-2026-09-25', null, null),
@@ -5673,7 +5693,9 @@ mig(ord, m, ov, note) as (values
   (390, '0450_r261_vendor_money', null, 'R261 vendor money: one new table, one column, four functions for the pages, _r21_cost_lines wrapped once more with dynamic SQL (old body kept as __pre0450) - checked by the r261-0450 marker (if APPLY-0372, 0373, 0374 or 0387 was run again later, run APPLY-0450 again)'),
   (391, '0451_r261_close_same_day', null, null),
   (392, '0452_r262_invoice_price_lock', null, null),
-  (393, '0453_r268_checkin_anytime', null, null)
+  (393, '0453_r268_checkin_anytime', null, null),
+  (394, '0454_r271_links', null, null),
+  (395, '0455_r271_vendor_paid', null, null)
 ),
 env as (
   select

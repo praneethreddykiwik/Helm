@@ -113,7 +113,15 @@
     var of = r.offer && (r.offer_open || r.offer.status === "approved") ? r.offer.lines || [] : [];
     return { id: r.id, booking_id: r.booking_id || null, vendor_id: r.vendor_id || null, status: r.status, lines: (r.lines || []).map(function (l) { var x = of.filter(function (y) { return y && y.id === l.id; })[0]; return { name: String(l.name || ""), need_id: l.need_id || null, qty: n0(x ? x.qty : l.qty) }; }) };
   }
-  function outBy(checkouts) { var r = {}; (checkouts || []).forEach(function (c) { if (c && (c.status === "out" || c.status === "partial")) r[c.item_id] = (r[c.item_id] || 0) + Math.max(n0(c.qty_out) - n0(c.qty_in), 0); }); return r; }
+  // R271: given out = the one stock rule (stock-flow.js coParts): only a check-out still Out, less what already came back. A check-out
+  // closed with some missing ("partial") is Missing on Inventory, Teardown and Wrap-up - it is not given out any more.
+  function outBy(checkouts) {
+    var SF = global.HelmStockFlow, r = {};
+    (checkouts || []).forEach(function (c) { if (!c || !c.item_id) return;
+      var q = SF && SF.coParts ? SF.coParts(c).out : c.status === "out" ? Math.max(n0(c.qty_out) - n0(c.qty_in), 0) : 0;
+      if (q > 0) r[c.item_id] = (r[c.item_id] || 0) + q; });
+    return r;
+  }
   function resBy(res) { var r = {}; (res || []).forEach(function (x) { if (x && (x.status === "reserved" || x.status === "allocated")) r[x.item_id] = (r[x.item_id] || 0) + n0(x.qty); }); return r; }
   /* o: { layout (layout_stock_needs), reservations, checkouts, shortages, needs, bookings (null = not visible) } */
   function stockRows(o) {
@@ -619,7 +627,7 @@
       var get = r.toGet ? getMain(ctx, s, { id: "hdbGet-" + r.id, label: r.name, qty: r.toGet, itemId: r.id, layoutType: r.types[0] }) : null, rh = "inventory.html?quote=" + q + "&tab=layout", rt = "Reserve " + fmt(r.toReserve);
       var todo = []; if (r.toReserve) todo.push(fmt(r.toReserve) + " free in stock - reserve them"); if (r.toGet) todo.push(fmt(r.toGet) + " not in stock - get them from a vendor");
       var why = r.state === "short" ? fmt(r.toGet) + " missing" : r.state === "reserve" ? fmt(r.toReserve) + " to reserve" : r.state === "asked" ? "the vendor has not confirmed" : "";
-      out.push(autoLine(ctx, { key: "st-" + r.id, sec: "stock", done: r.done, title: r.name, fact: dots([stockWords(r), "reserved " + fmt(r.reserved), "packed " + fmt(r.out)]), why: why, chip: r.state === "short" ? ["Missing " + fmt(r.toGet), "bad"] : r.state === "asked" ? ["Not confirmed", "warn"] : null, sr: r.done ? "Covered: " : "",
+      out.push(autoLine(ctx, { key: "st-" + r.id, sec: "stock", done: r.done, title: r.name, fact: dots([stockWords(r), "reserved " + fmt(r.reserved), "given out " + fmt(r.out)]), why: why, chip: r.state === "short" ? ["Missing " + fmt(r.toGet), "bad"] : r.state === "asked" ? ["Not confirmed", "warn"] : null, sr: r.done ? "Covered: " : "",
         urg: r.state === "short" ? { rank: 2, why: "Missing " + fmt(r.toGet), rest: "need " + fmt(r.needed), short: r.name } : r.state === "reserve" ? { rank: 5, why: fmt(r.toReserve) + " to reserve", rest: "need " + fmt(r.needed), res: r.name } : null,
         lead: icon(r.done ? "✓" : r.state === "short" ? "✕" : "!", r.done ? "ok" : r.state === "short" ? "bad" : "warn"), go: r.toReserve && !get ? null : [rh, "Open stock"],
         acts: acts1(get || (r.toReserve ? function (top) { return goLink(topId(top, "hdbRes-" + r.id), rh, rt, rt + " " + r.name); } : null)),

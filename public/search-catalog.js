@@ -46,6 +46,7 @@
     { key: "billing",    label: "Plan & billing",              hash: "#billing",          gate: "admin", kw: "subscription plan invoice trial upgrade" },
     { key: "privacy",    label: "Hide amounts (privacy PIN)",  hash: "#privacy-pin",      gate: "admin", kw: "privacy pin passcode hide amounts money mask unlock" },
     { key: "links",      label: "Client links & packages",     hash: "#client-links",     gate: "admin", kw: "expire expiry link security package flow booklet" },
+    { key: "outlinks",   label: "Links going out",             hash: "#links-going-out",  gate: "admin", kw: "links sent shared outgoing turn off disable revoke stop crew vendor invitation booklet proposal approval portal delivery invite join" },
     { key: "pricing",    label: "Pricing & coupons",           hash: "#pricing",          gate: CTL,     kw: "price tax gst vat discount rate card coupon capacity object service charge" },
     { key: "payments",   label: "Payment schedules",           hash: "#payment-schedules", gate: CTL,    kw: "payment schedule milestone installment advance balance upfront deposit due upi bank overdue plan template" },
     { key: "catalog",    label: "Menus & catalog",             hash: "#menu",             gate: CTL,     kw: "chair plate dish catering menu package standard gold premium" },
@@ -104,6 +105,7 @@
     ["links", "Apply to open quotes", "quote validity valid until existing open quotes"],
     ["links", "Save quote validity", "quote validity save"],
     ["links", "Client package flow", "package booklet flow"],
+    ["outlinks", "Links going out", "links sent turn off disable revoke stop crew vendor invitation booklet proposal approval portal delivery invite"],   // R271 (0454)
     ["pricing", "Default pricing (applies to every new quote)", "price default"],
     ["pricing", "Price / chair", "chair price"],
     ["pricing", "Price / plate", "plate price catering"],

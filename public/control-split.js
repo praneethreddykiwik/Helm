@@ -31,6 +31,7 @@
     {key:"billing",  group:"Workspace",  label:"Plan & billing",         icon:"card",  hash:"#billing",       desc:"Your Helm subscription, plan and invoices.", kw:"subscription plan invoice trial upgrade"},
     {key:"privacy",  group:"Workspace",  label:"Hide amounts (privacy PIN)",icon:"lock",hash:"#privacy-pin",desc:"The 4-digit PIN that shows amounts again after you hide them in front of a client. One PIN for the studio; admins change it.", kw:"privacy pin passcode hide amounts money prices mask blur present client eye unlock 0000 change pin reset pin forgot pin"},
     {key:"links",    group:"Workspace",  label:"Client links & packages",icon:"link",  hash:"#client-links",  desc:"How long client links and quotes stay open, and how clients choose a package.", kw:"expire expiry auto-expire link security package flow booklet quote validity valid until expires"},
+    {key:"outlinks", group:"Workspace",  label:"Links going out",        icon:"link",  hash:"#links-going-out", desc:"Every link your studio has sent to clients, crew, vendors and new team members. Turn off the ones you no longer want to work.", kw:"links sent shared outgoing turn off disable revoke stop crew link vendor link invitation booklet proposal approval portal delivery invite join access"},
     {key:"pricing",  group:"Sales",      label:"Pricing & coupons",      icon:"tag",   hash:"#pricing",       desc:"Default pricing for new quotes, rate cards, builder prices and limits, and coupons.", kw:"price tax gst vat discount rate card coupon promo capacity object service charge"},
     {key:"payments", group:"Sales",      label:"Payment schedules",      icon:"card",  hash:"#payment-schedules", desc:"Payment plans added when a client approves (30 / 50 / 20, 50 / 50, 100% upfront or your own), overdue alerts and how clients pay.", kw:"payment schedule milestone installment instalment advance balance 30 50 20 upfront deposit due date upi bank overdue plan template"},
     {key:"catalog",  group:"Sales",      label:"Menus & catalog",        icon:"menu",  hash:"#menu",          desc:"Chairs, plates, dishes and the menu packages clients pick from.", kw:"chair plate dish catering menu package standard gold premium"},
@@ -51,7 +52,7 @@
   function el(tag,cls,txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
   var BYKEY={}, SECHASH={}, HASH={}; SECTIONS.forEach(function(x){ BYKEY[x.key]=x; SECHASH[x.key]=x.hash; HASH[x.hash]=x.key; });
   // legacy deep links (dashboard checklist, old bookmarks) -> section
-  Object.assign(HASH,{"#account":"general","#studio":"general","#team":"users","#notify":"notify","#security":"links","#link-expiry":"links","#pricing-packages":"pricing","#target-margin":"pricing","#catalog":"catalog","#event-reminders":"reminders","#client-reminders":"reminders","#payment-reminders":"reminders","#payment-schedule":"payments","#quote-validity":"links","#whatsapp":"reminders","#enquiry-form":"automations","#runsheet-reminders":"automations","#privacy":"privacy","#hide-amounts":"privacy","#pin":"privacy","#ltemplates":"ltemplates","#storage":"general"});
+  Object.assign(HASH,{"#account":"general","#studio":"general","#team":"users","#notify":"notify","#security":"links","#link-expiry":"links","#pricing-packages":"pricing","#target-margin":"pricing","#catalog":"catalog","#event-reminders":"reminders","#client-reminders":"reminders","#payment-reminders":"reminders","#payment-schedule":"payments","#quote-validity":"links","#whatsapp":"reminders","#enquiry-form":"automations","#runsheet-reminders":"automations","#privacy":"privacy","#hide-amounts":"privacy","#pin":"privacy","#ltemplates":"ltemplates","#storage":"general","#links-out":"outlinks"});
   var OLDKEY={studio:"general",team:"users",security:"links"};
   function h3(c){ var h=c.querySelector("h3"); return h?h.textContent.trim():""; }
   function paneKey(c){ var p=c.closest("[id^='pane-']"); return p?p.id.slice(5):""; }
@@ -62,6 +63,7 @@
     if(id==="subCard") return "billing";
     if(id==="privPinCard") return "privacy";
     if(id==="lxCard"||id==="pkgFlowCard"||id==="qvCard") return "links";
+    if(id==="slCard") return "outlinks";   // R271 (0454): Links going out
     if(id==="menuCard"||/chair types|plate types|dishes catalog/.test(t)) return "catalog";
     if(/default layout rules/.test(t)) return "rules";
     if(id==="cfCard"||/import from excel/.test(t)) return "data";
